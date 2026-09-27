@@ -7,8 +7,9 @@
     produces the stored reference.
 ``current``
     The same locked dependencies plus this working tree, installed in
-    editable mode without dependencies. This environment is compared with the
-    stored reference.
+    editable mode without dependencies, and the pinned language models of the
+    keyword extraction (``tools/requirements-models.txt``). This environment
+    is compared with the stored reference and the stored baseline.
 
 Both use the same pinned interpreter (:data:`PYTHON`, a uv-managed build), so
 the only difference between them is the engine code. Environments live in
@@ -37,6 +38,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCK = ROOT / "tools" / "reference" / "requirements-ref.txt"
+#: The pinned language models of the keyword extraction (``current`` only).
+MODELS = ROOT / "tools" / "requirements-models.txt"
 VENVS = ROOT / ".venvs"
 CACHE = ROOT / ".cache" / "reference"
 WHEELS = CACHE / "wheels"
@@ -144,6 +147,7 @@ def _wanted_stamp(name: str, python: str) -> dict[str, str]:
     else:
         stamp["engine"] = f"editable:{ROOT}"
         stamp["pyproject_sha256"] = _sha256_file(ROOT / "pyproject.toml")
+        stamp["models_sha256"] = _sha256_file(MODELS)
     return stamp
 
 
@@ -173,6 +177,7 @@ def ensure_env(name: str, *, python: str = PYTHON, rebuild: bool = False) -> Pat
         )
     else:
         _run([uv, "pip", "install", "--quiet", "--no-deps", "-p", py, "-e", str(ROOT)])
+        _run([uv, "pip", "install", "--quiet", "-p", py, "--require-hashes", "-r", str(MODELS)])
     stamp_path.write_text(json.dumps(wanted, indent=2, sort_keys=True), encoding="utf-8")
     return venv
 
