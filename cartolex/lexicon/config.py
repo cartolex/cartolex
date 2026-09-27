@@ -135,13 +135,17 @@ class KeywordsConfig:
     # Documents without a year always pass.
     kw_recency_years: int = 5
 
-    # Parallelism for the per-paragraph language split in Stage 1 (the
-    # measured extraction throughput wall; detection is seeded so parallel
-    # output is identical to serial). 1 = historical single-process path.
+    # Worker processes of Stage 1: the per-paragraph language split and the
+    # parsing of new texts (each parsing worker loads its own language model,
+    # a few hundred MB). The output is identical whatever the number.
+    # 1 = a single process.
     extraction_n_jobs: int = 1
 
-    # TF-IDF vectorizer parameters
+    # N-gram range of the attribution vectorizer (consolidation), widened
+    # there to the longest candidate; the candidates themselves are noun
+    # phrases of at most cartolex.lexicon.noun_phrases.MAX_UNITS word units.
     ngram_range: tuple[int, int] = (1, 4)
+    # TF-IDF window of the candidates, with each person as one document.
     min_df: int = 3  # absolute count — must be int, NOT float
     max_df: float = 0.6  # fraction of documents
     max_features: int = 1_000_000

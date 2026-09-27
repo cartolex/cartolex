@@ -17,12 +17,9 @@ import pytest
 from cartolex.lexicon.canonicalization import canonical_singular, resolve_canonical
 from cartolex.lexicon.config import KeywordsConfig
 from cartolex.lexicon.lang_utils import detect_language_term
-from cartolex.lexicon.lexical_filters import (
-    filter_global_terms,
-    is_garbage,
-    is_malformed_term,
-)
+from cartolex.lexicon.lexical_filters import is_malformed_term
 from cartolex.lexicon.lexicon_store import load_canonical_decision_blacklist
+from cartolex.lexicon.llm_triage import _load_global_terms
 from cartolex.lexicon.text_utils import heal_split_words, length_bonus
 
 # ---------------------------------------------------------------------------
@@ -89,28 +86,6 @@ class TestResolveCanonical:
 # ---------------------------------------------------------------------------
 
 
-class TestIsGarbage:
-    def test_short_token_rejected(self):
-        # "xx" is not a scientific abbreviation
-        assert is_garbage("xx spectroscopy") is True
-
-    def test_scientific_short_tokens_kept(self):
-        # These should survive the filter
-        assert is_garbage("ph measurement") is False
-        assert is_garbage("uv spectroscopy") is False
-        assert is_garbage("2d materials") is False
-        assert is_garbage("3d printing") is False
-        assert is_garbage("ab initio") is False
-        assert is_garbage("ml models") is False
-
-    def test_normal_terms_kept(self):
-        assert is_garbage("machine learning") is False
-        assert is_garbage("neural network") is False
-
-    def test_very_short_unknown_rejected(self):
-        assert is_garbage("zq analysis") is True
-
-
 class TestIsMalformedTerm:
     def test_rejects_web_and_url_junk(self):
         for t in (
@@ -147,56 +122,31 @@ class TestIsMalformedTerm:
             assert is_malformed_term(t) is False, t
 
 
-class TestFilterGlobalTerms:
-    def test_pure_digit_terms_removed(self):
-        df = pd.DataFrame(
-            {
-                "term": ["machine learning", "2021", "42", "h2o", "covid19"],
-                "score": [1.0, 1.0, 1.0, 1.0, 1.0],
-            }
-        )
-        result = filter_global_terms(
-            df,
-            names=set(),
-            blacklist=set(),
-            midwords=set(),
-            single_blacklist=set(),
-            admin_patterns=[],
-            junk_patterns=[],
-        )
-        terms = set(result["term"])
-        # Pure digit terms should be removed
+class TestTriageSafetyNet:
+    """The triage reads the merged candidates through a safety net (no stop-word list)."""
+
+    def _load(self, tmp_path, terms):
+        csv = tmp_path / "keywords_global.csv"
+        pd.DataFrame({"term": terms, "score_len": [1.0] * len(terms)}).to_csv(csv, index=False)
+        return set(_load_global_terms(csv)[0])
+
+    def test_pure_digit_terms_removed(self, tmp_path):
+        terms = self._load(tmp_path, ["machine learning", "2021", "42", "h2o", "covid19"])
         assert "2021" not in terms
         assert "42" not in terms
-        # Terms containing digits but also letters should survive
-        assert "h2o" in terms
-        assert "covid19" in terms
-        assert "machine learning" in terms
+        # Terms containing digits but also letters survive
+        assert {"h2o", "covid19", "machine learning"} <= terms
 
-    def test_malformed_terms_removed(self):
-        df = pd.DataFrame(
-            {
-                "term": [
-                    "machine learning",
-                    "en.wikipedia.org/wiki/mutant",
-                    "protā¨ines",
-                ],
-                "score": [1.0, 1.0, 1.0],
-            }
+    def test_malformed_terms_removed(self, tmp_path):
+        terms = self._load(
+            tmp_path, ["machine learning", "en.wikipedia.org/wiki/mutant", "protā¨ines"]
         )
-        result = filter_global_terms(
-            df,
-            names=set(),
-            blacklist=set(),
-            midwords=set(),
-            single_blacklist=set(),
-            admin_patterns=[],
-            junk_patterns=[],  # no config patterns — the deterministic gate must still fire
-        )
-        terms = set(result["term"])
-        assert "machine learning" in terms
-        assert "en.wikipedia.org/wiki/mutant" not in terms
-        assert "protā¨ines" not in terms
+        assert terms == {"machine learning"}
+
+    def test_short_words_and_common_nouns_kept(self, tmp_path):
+        # The packaged lists of the n-gram extraction are not applied any more.
+        kept = ["trait de côte", "linha de costa", "zone à risque", "recrutement", "ph"]
+        assert self._load(tmp_path, kept) == set(kept)
 
 
 # ---------------------------------------------------------------------------

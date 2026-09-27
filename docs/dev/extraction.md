@@ -1,0 +1,208 @@
+# The candidate extraction
+
+The first stage of the keyword pipeline, `keywords.extract`
+(`run_pipeline_stage_1`, `cartolex/lexicon/extract_raw.py`), turns the texts
+of a corpus into a scored list of candidate terms per language. The
+candidates are **noun phrases** found by part-of-speech patterns; their
+scores are the TF-IDF scores the pipeline has always used, so the later
+stages (AI triage, consolidation, the atlas) read the same tables as before.
+
+## From texts to candidates
+
+1. **People and languages.** Each person is one document: the texts of all
+   their corpus documents, concatenated. Each paragraph is routed to a corpus
+   language by language detection (`KeywordsConfig.corpus_languages`, any
+   subset of English, French and Portuguese); a paragraph in another language
+   is dropped.
+2. **Clean-up.** Words that PDF extraction split in two (`adh esion`) are
+   rejoined, using the corpus as its own dictionary.
+3. **Parsing.** Every paragraph is parsed by the language's model (see
+   [the models](#the-models-and-their-licences)); a paragraph longer than
+   10,000 characters is first cut at a line break or a sentence end.
+4. **Word units and classes.** The tokens are grouped into word units — a
+   word, or a compound joined by a hyphen or a slash without spaces
+   (`sand-gravel`, `îles-barrières`) — and each unit gets a class: noun (`N`),
+   proper noun (`R`), adjective or participle used as one (`A`), English gerund
+   used as a noun (`G`), a preposition the pattern allows (`P`), a definite
+   article after such a preposition (`D`), or anything else (`X`), which
+   breaks a phrase. Punctuation, line breaks, numbers, web addresses,
+   one-letter words and the language's function words (below) break a phrase.
+   The parser's sentence boundaries are not used: inside a stretch without
+   punctuation they are mostly errors (a boundary inside a hyphenated word).
+5. **Patterns.** Every contiguous span of at most five units that fully
+   matches the language's pattern is one occurrence of a candidate, nested
+   spans included: `sediment transport model` also counts `sediment transport`,
+   `transport model`, `sediment`, `transport` and `model`.
+
+   | language | pattern | examples |
+   | --- | --- | --- |
+   | English | `(ADJ\|NOUN\|PROPN)* (NOUN\|PROPN\|gerund)`, with at most one `of` complement | `sea surface temperature`, `distributed systems`, `decision making`, `degrees of freedom` |
+   | French | `NOUN ADJ* ((de\|du\|des\|d'\|à\|au\|aux) DET? (NOUN\|PROPN) ADJ*)?` | `trait de côte`, `masse d'eau`, `zone à risque`, `variabilité interannuelle du niveau marin` |
+   | Portuguese | the French shape, with `de`, `em`, `por`, `para`, `com`, `a` and their contractions (`do`, `da`, `dos`, `das`, `no`, `na`, `nos`, `nas`, `pelo`, `pela`, `pelos`, `pelas`, `ao`, `aos`, `à`, `às`) | `linha de costa`, `nível do mar`, `transporte pela corrente` |
+
+   The Portuguese tokenizer keeps a contraction as one token tagged as a
+   preposition (`do` is `de` + `o`), so `nível do mar` is `N P N`; an
+   uncontracted article after a preposition (`para a costa`) is the optional
+   `D`. An article that does not follow a preposition never joins two nouns.
+6. **Grouping.** Occurrences are grouped by a key: each content unit becomes
+   the *corpus lemma* of its words (the lemma the corpus most often gives that
+   word, so a word the tagger hesitates on stays in one group), a preposition
+   its base form (`du`, `des`, `d'` → `de`; `pela` → `por`; `aux` → `à`), and
+   articles are left out. `le trait de côte` and `les traits de côte`, or
+   `tide gauge` and `tide gauges`, are one candidate. The term shown is the
+   key's most frequent surface form, in lower case except proper nouns and
+   words with inner capitals (`ADCP`, `Atlantic`).
+
+The code is `cartolex/lexicon/noun_phrases.py`; the patterns and classes are
+tested on hand-built parses in `tests/test_noun_phrases.py`, without any model.
+
+### Function words
+
+Each language has a short list of function words that break a phrase
+(`cartolex/_data/stopwords/function_words.json`): determiners, quantifiers,
+pronouns and citation abbreviations a tagger may mark as adjectives or nouns
+(`other`, `such`, `several`; `autres`, `plusieurs`, `nombreuses`; `outros`,
+`vários`, `cada`; `et al.`). Verbs, adverbs, articles and conjunctions are
+already outside the patterns. The lists hold no content word.
+
+## Scores
+
+Scoring is unchanged. Each person's candidate counts form their document; a
+TF-IDF (scikit-learn's `TfidfVectorizer`, the keys as features) keeps the
+candidates found in at least `min_df` people (default 3) and at most `max_df`
+of them (default 60 %), and a candidate's `score` is its L2-normalised TF-IDF
+summed over people. `score_len` multiplies it by the length bonus
+`1 + length_bonus_alpha × (L − 1)`, `L` being the number of words of the term
+(prepositions and articles included).
+
+`raw_keywords_<lang>.csv` (`EnginePaths.raw_terms_csv`) has the columns
+`term`, `score`, `len`, `score_len` and `forms` (every surface form of the
+candidate, most frequent first, separated by `|`), sorted by `score_len`
+(ties by term). The merged list keeps, for a term found in two languages, its
+best-scored row.
+
+Besides the patterns, two filters apply: a candidate whose shown form, or one
+of its words, is among the project's own rejections (`manual_blacklist.csv`,
+the rejected pairs of `canonical_decisions.json`) is left out, as is a
+malformed string (a web address, encoding garbage).
+
+A corpus language without any text is skipped with a warning and its table is
+written empty; so is a language whose candidates never reach the
+document-frequency window (a language with too few people, for example). A
+run fails only when no corpus language has any text.
+
+## What the later stages do with the candidates
+
+- **AI triage.** The triage reads the merged list through a safety net that
+  drops numbers and malformed strings only; its deterministic prefilter is
+  unchanged.
+- **Consolidation.** The attribution counts each accepted term in the
+  people's texts with its own vectorizer, which lower-cases and keeps words of
+  two letters or more. Every surface form of a candidate (the `forms` column)
+  is counted, written the way that vectorizer reads it (`masse d'eau` →
+  `masse eau`, `zones à risque` → `zones risque`), and the vectorizer's n-gram
+  range is widened to the longest form. Tables without a `forms` column are
+  read as before.
+
+## The parse cache
+
+Parsing is the slow part, and a corpus mostly grows by adding documents. The
+analysis of each parsed text — the runs of classified word units the patterns
+work on, and the lemma counts of its content words — is kept in the parse
+cache (`cartolex/lexicon/parse_cache.py`), keyed by
+
+- the sha256 of the text (after the clean-up above),
+- the identity of the model that parsed it (`name@version`), and
+- the pattern version (`cartolex.lexicon.noun_phrases.PATTERN_VERSION`,
+  raised with any change to what an analysis records).
+
+A later run parses only the texts it has not seen with the same model and
+patterns. The caller chooses the folder: `EnginePaths.parse_cache_dir`
+(`automatic_data/parse_cache/` in the workspace layout; the project format
+puts it under `cache/parse/`). Layout and format:
+
+```text
+<folder>/<model name>-<model version>/<pattern version>/part-<digest>.jsonl
+```
+
+Each part is UTF-8 JSON lines: a header line
+`{"format": "cartolex-parse/1", "model": "<name@version>", "patterns": "<version>"}`,
+then one line per text, `{"sha256": …, "runs": …, "lemmas": …}`. A run writes
+its new analyses into new parts of at most 1,000 texts, each written to a
+temporary file and renamed into place, never modified afterwards; a part's
+name is the digest of its content. A part whose header does not match, or
+that cannot be read, is skipped with a warning and its texts are parsed
+again. Another model version or pattern version lives in another folder, is
+never read and can be deleted.
+
+## Parallel parsing and determinism
+
+`KeywordsConfig.extraction_n_jobs` (capped by `RunContext.threads`) sets the
+number of worker processes for the language split and for parsing. Parsing
+workers are fresh interpreters (never forks of the running process), each
+with its own copy of the model, and take fixed batches of texts. The analysis
+of a text does not depend on the batch it is parsed in, and candidates are
+counted in a fixed order, so the output is the same, byte for byte, whatever
+the number of workers and whatever the cache holds
+(`tests/test_extraction.py`).
+
+## The models and their licences
+
+`cartolex/lexicon/language_models.py` pins one spaCy model per language:
+
+| language | model | version | licence | wheel |
+| --- | --- | --- | --- | --- |
+| English | `en_core_web_md` | 3.8.0 | MIT | 33 MB |
+| French | `fr_core_news_md` | 3.8.0 | LGPL-LR | 46 MB |
+| Portuguese | `pt_core_news_md` | 3.8.0 | CC BY-SA 4.0 | 42 MB |
+
+spaCy itself (`spacy>=3.8,<3.9`, MIT) is a dependency of cartolex. The models
+are separate installs from the spaCy models' release wheels, pinned by sha256
+in `tools/requirements-models.txt`; they carry their own licences and are
+never bundled with cartolex or modified. The check installs all three into
+every test environment. A user installs a model with
+`python -m pip install "<name> @ <wheel address>#sha256=<hash>"` (the exact
+command is in the error below; a `cartolex models add <language>` command
+will do it).
+
+A language with text whose pinned model is missing, or installed at another
+version, stops the run before anything is parsed, with
+`LanguageModelMissing` naming the language, the model and the install
+command. There is no fallback to another model or to another extraction
+method. A language without text needs no model.
+
+The named-entity recogniser is not loaded. A model holds a few hundred MB in
+memory: one is loaded at a time and released when its language is done.
+
+## What the old stop lists did, and why they went
+
+Until this version the extraction took every sequence of one to four words
+(scikit-learn's n-grams) and filtered the result with packaged stop-word
+lists: a base blacklist, administrative words, geographic terms, acronyms and
+person names (a term was dropped if *any* of its words was listed), a
+blacklist of single words, function words that may not start or end a term,
+administrative and junk patterns, and a rule dropping any term with a word of
+one or two letters unless it was a known scientific abbreviation. The triage
+re-applied the same filters as a safety net.
+
+That design had three problems:
+
+- **Short words.** The one-or-two-letter rule broke every French term built
+  with `de`, `du`, `à` (`trait de côte`) and nearly every multi-word
+  Portuguese term (`linha de costa`): they reached the atlas as pieces
+  (`trait`, `côte`) or as adjective phrases.
+- **Real terms blocked.** The lists named common words that are real terms in
+  some fields (an administrative word such as `recrutement` is a research
+  object in the social sciences), and any term containing one of them
+  disappeared.
+- **Noise.** About half of the n-grams were not noun phrases (verbs, broken
+  spans, a function word at an edge), and inflection or article variants were
+  separate candidates, each one a separate AI call.
+
+Noun-phrase patterns replace the lists: the grammar decides what a candidate
+is, the function-word lists are short and hold no content word, and the
+lexicon stays emergent — what the corpus says, judged by the triage and the
+project's own decisions. On public keyphrase benchmarks of scientific
+abstracts (one English, one French), a prototype of this extraction halved the
+number of terms sent to the AI triage while reaching more of the reference
+keyphrases than the n-gram extraction.

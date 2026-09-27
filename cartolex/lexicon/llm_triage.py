@@ -21,10 +21,10 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from .domain_catalog import DomainCatalogError, load_catalog
-from .lexical_filters import filter_global_terms
+from .lexical_filters import is_malformed_term
 from .llm_filter import save_decisions
 from .mistral_client import load_api_key
-from .stopwords_config import StopwordLists, packaged_lists
+from .stopwords_config import packaged_lists
 from .text_utils import tokenize
 from .triage_typed import build_typed_prompt, load_typed_template, run_typed_triage
 from .whitelist import load_person_whitelist
@@ -38,18 +38,20 @@ logger = logging.getLogger(__name__)
 def _load_global_terms(
     path: Path,
     min_score: float = 0.0,
-    *,
-    stopwords: StopwordLists | None = None,
 ) -> tuple[list[str], pd.DataFrame]:
-    """Load term list from keywords_global.csv with safety-net hard filtering.
+    """Load the term list of the merged candidate table, with a safety net.
 
     Parameters
     ----------
     min_score : float
         Drop terms whose ``score_len`` is strictly below this value.
         Default 0.0 keeps everything.
-    stopwords : StopwordLists, optional
-        The lists of the safety-net filter (default: the packaged ones).
+
+    The safety net drops what is never a term whatever the extraction:
+    blank cells, numbers and malformed strings (web addresses, encoding
+    garbage). It applies no stop-word list: the extraction's candidates are
+    noun phrases, and the packaged lists of the n-gram extraction blocked real
+    terms (a term containing a word of one or two letters, common nouns).
 
     Returns
     -------
@@ -72,19 +74,9 @@ def _load_global_terms(
     df = df[df["term"] != ""].copy()
     n_raw = len(df)
 
-    # Safety-net: re-apply hard lexical filters even if Stage 1 already did,
-    # so that an expanded blacklist retroactively catches old terms.
-    sw = stopwords if stopwords is not None else packaged_lists()
-    names = sw.person_names | sw.geo_terms
-    df = filter_global_terms(
-        df,
-        names=names,
-        blacklist=sw.basic_blacklist,
-        midwords=sw.midwords,
-        single_blacklist=sw.single_blacklist,
-        admin_patterns=list(sw.admin_patterns),
-        junk_patterns=list(sw.junk_patterns),
-    )
+    # Safety net: numbers and malformed strings are never terms.
+    keep = ~df["term"].str.fullmatch(r"[\d\s]+") & ~df["term"].apply(is_malformed_term)
+    df = df[keep].copy()
     n_after = len(df)
     if n_after < n_raw:
         logger.info("Safety-net filter removed %d terms (%d → %d)", n_raw - n_after, n_raw, n_after)
@@ -243,9 +235,7 @@ def _triage(
 
     # 1. Load terms (with safety-net filtering + score cutoff)
     log(0, "Loading global keyword candidates...")
-    terms, _terms_df = _load_global_terms(
-        paths.global_terms_csv, min_score=cfg.llm_min_score, stopwords=lists
-    )
+    terms, _terms_df = _load_global_terms(paths.global_terms_csv, min_score=cfg.llm_min_score)
     log(
         1,
         f"Loaded {len(terms)} terms after safety-net filtering"
@@ -391,7 +381,7 @@ def main(argv: list[str] | None = None) -> None:
 
     if not args.dry_run:
         # Confirm before sending
-        terms, _ = _load_global_terms(ctx.paths.global_terms_csv, stopwords=ctx.stopwords.packaged)
+        terms, _ = _load_global_terms(ctx.paths.global_terms_csv)
         logger.info("Ready to send %d terms to Mistral API (typed triage):", len(terms))
         logger.info("  Model: %s", ctx.settings.llm_model)
         logger.info("  Domain: %s", ctx.settings.domain_title)

@@ -10,8 +10,8 @@ sets and tuples, and a run's additions and removals produce a new object
 A :class:`StopwordProfile` is what a run carries in its context: the packaged
 lists and the run's additions and removals (the ``add`` / ``remove`` blocks of
 the workspace override file, see
-:func:`cartolex.lexicon.config_loader.load_overrides`). Extraction and
-triage read :attr:`StopwordProfile.packaged`; consolidation reads
+:func:`cartolex.lexicon.config_loader.load_overrides`). The triage reads
+:attr:`StopwordProfile.packaged`; consolidation reads
 :attr:`StopwordProfile.adjusted` and :attr:`StopwordProfile.consolidation_blacklist`
 — which is where the additions and removals have always taken effect.
 """
@@ -215,7 +215,7 @@ class StopwordProfile:
     """The stop words of one run: the packaged lists and the run's additions and removals.
 
     ``overrides`` is the content of the workspace override file (empty when
-    there is none). Extraction and triage use :attr:`packaged`; consolidation
+    there is none). The triage uses :attr:`packaged`; consolidation
     uses :attr:`adjusted` and :attr:`consolidation_blacklist`.
     """
 
@@ -246,8 +246,7 @@ class StopwordProfile:
         The union of the adjusted base blacklist, administrative tokens,
         geographic terms, acronyms, common names and single-word blacklist —
         but only when the run has an override file: without one, consolidation
-        has always applied no global blacklist of its own (extraction already
-        filtered with the packaged lists).
+        has always applied no global blacklist of its own.
         """
         if not self.overrides:
             return frozenset()

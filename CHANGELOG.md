@@ -63,3 +63,18 @@ nothing in the engine names a particular deployment, source or procedure.
 - **Errors a caller can catch.** `SettingsError`, `CorpusError` and
   `FileNotFoundError` instead of `SystemExit`, with English messages. A corpus
   language with no text is skipped with a warning.
+- **Noun-phrase candidates.** `keywords.extract` finds its candidate terms
+  with spaCy part-of-speech patterns (English, French, Portuguese) instead of
+  every sequence of one to four words: nested spans count, candidates are
+  grouped by lemma and shown in their most frequent form, and scoring is the
+  same TF-IDF as before. spaCy 3.8 is a dependency; its language models are
+  separate, pinned installs (`cartolex.lexicon.language_models`), and a
+  missing one stops the run with `LanguageModelMissing` and the command that
+  installs it. Terms with a word of one or two letters are kept whole
+  (`trait de côte`, `linha de costa`); the packaged stop-word lists no longer
+  filter candidates (short function-word lists do), and the triage's safety
+  net drops only numbers and malformed strings. Parsed texts are kept in a
+  parse cache (`EnginePaths.parse_cache_dir`); parallel parsing gives the same
+  output as serial. The raw keyword tables gain a `forms` column, and the
+  attribution counts every form of a term. Portuguese is a full corpus
+  language. See `docs/dev/extraction.md`.

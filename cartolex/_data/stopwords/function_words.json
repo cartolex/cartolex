@@ -1,0 +1,23 @@
+{
+  "_about": "Function words that break a noun phrase in keyword extraction (cartolex.lexicon.noun_phrases), per language. Only determiners, quantifiers, pronouns and citation abbreviations a tagger may mark as adjectives or nouns: the part-of-speech patterns already exclude verbs, adverbs, articles and conjunctions. Keep these lists short and free of content words.",
+  "en": [
+    "al", "all", "another", "any", "both", "certain", "each", "either", "et", "etc",
+    "every", "few", "fewer", "many", "more", "most", "much", "neither", "other", "our",
+    "own", "same", "several", "some", "such", "their", "these", "this", "those", "various",
+    "vs", "whose"
+  ],
+  "fr": [
+    "al", "aucun", "aucune", "autre", "autres", "certain", "certaine", "certaines", "certains", "ces",
+    "cet", "cette", "chaque", "divers", "diverses", "et", "etc", "leur", "leurs", "même",
+    "mêmes", "nombreuses", "nombreux", "nos", "notre", "plusieurs", "quelque", "quelques", "sa", "ses",
+    "son", "tel", "telle", "telles", "tels", "tous", "tout", "toute", "toutes"
+  ],
+  "pt": [
+    "al", "algum", "alguma", "algumas", "alguns", "aquela", "aquelas", "aquele", "aqueles", "cada",
+    "certa", "certas", "certo", "certos", "diversas", "diversos", "essa", "essas", "esse", "esses",
+    "esta", "estas", "este", "estes", "et", "etc", "mesma", "mesmas", "mesmo", "mesmos",
+    "muita", "muitas", "muito", "muitos", "nenhum", "nenhuma", "nossa", "nossas", "nosso", "nossos",
+    "outra", "outras", "outro", "outros", "qualquer", "quaisquer", "seu", "seus", "sua", "suas",
+    "tais", "tal", "toda", "todas", "todo", "todos", "várias", "vários"
+  ]
+}
