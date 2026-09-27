@@ -36,11 +36,28 @@ Demo world S, seed 0 (38 people, 470 keywords):
 | keywords, vs UMAP `transform` | 8 | 0.87 | 1.27 | 0.62 | 0.57 |
 | projected people (4), vs UMAP `transform` | 8 | 0.60 | 0.90 | 0.55 | 0.55 |
 
-Placement is exact across chunkings (maximum difference 0) and takes
-milliseconds. It keeps neighbourhoods as well as UMAP or better, but it puts
-keywords in visibly different places: among the people who use them, where
-UMAP's transform spreads them further. Too large a *k* for the number of
-people pulls points towards the centre.
+Demo world L, seed 0 (343 people, 3,018 keywords):
 
-Still to measure: size L (350 people), trajectories, and the effect on the
-atlas figures.
+| comparison | k | median shift | p90 | neighbours, placement | neighbours, UMAP |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| people left out one at a time, vs their fitted position | 8 | 0.027 | 0.053 | 0.80 | 0.81 (fitted) |
+| people left out one at a time, vs their fitted position | 15 | 0.029 | 0.071 | 0.79 | 0.81 (fitted) |
+| keywords, vs UMAP `transform` | 8 | 0.063 | 0.112 | 0.76 | 0.77 |
+| keywords, vs UMAP `transform` | 15 | 0.063 | 0.141 | 0.74 | 0.77 |
+| projected people (35), vs UMAP `transform` | 8 | 0.074 | 0.140 | 0.65 | 0.67 |
+
+## What the numbers say
+
+- On a realistic map (L), placement lands within a few percent of the map's
+  scale of UMAP's own positions (median 0.03 to 0.07) and keeps neighbourhoods
+  almost as well (0.01 to 0.02 lower). On a very small map (S, 38 people) the
+  two methods differ much more, and too large a *k* pulls points towards the
+  centre; *k* = 8 is the better choice at both sizes.
+- Placement is exact across chunkings (maximum difference 0), needs no fitted
+  layout model, and takes milliseconds: 0.07 s for 3,018 keywords.
+- A left-out person lands on average 0.03 map units from where the full fit put
+  them, so placing a new person gives very nearly where fitting them would.
+
+Still to measure: trajectories, and the atlas figures side by side. The switch
+is proposed at gate G2: keywords, projected people and trajectories placed by
+nearest neighbours (*k* = 8), UMAP's `transform` and the re-fit on load retired.
