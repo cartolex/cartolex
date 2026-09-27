@@ -223,3 +223,19 @@ The comparison then reports that artifact as *explained*, and the check passes.
 The entry pins the new hash: any further change to the same artifact is
 *different* again, and an entry that no longer matches anything is listed in the
 report's notes so that it can be removed.
+
+A change early in the pipeline moves every later stage. Rather than pinning each
+of their artifacts, an entry may explain a whole stage by an **upstream cause**:
+
+```toml
+[[difference]]
+reference = "S"
+stage = "space"
+upstream = "build"             # an earlier stage of the same run
+reason = "the SVD input is built from other candidate terms"
+```
+
+Every changed artifact of the stage is then *explained*, provided the upstream
+stage changed too in the same comparison (for a merge run, `upstream =
+"bundle"` names the cohorts' bundles). Such an entry pins nothing: the stored
+baseline (below) is what catches a further, accidental change.
