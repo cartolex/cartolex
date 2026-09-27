@@ -283,3 +283,46 @@ def test_an_invalid_params_file_is_refused_with_its_reason(env):
         status(env.project, env.registry)
     with pytest.raises(ParamsError):
         env.build()
+
+
+def test_sizes_come_from_the_records_else_from_the_sources(env):
+    from datetime import datetime, timezone
+
+    from cartolex.build.validity import current_sizes
+    from cartolex.project.tables import SOURCE_SCHEMAS, write_source_table
+
+    sizes = current_sizes(env.project, env.registry, {})
+    assert (sizes.people, sizes.texts, sizes.mapped_units) == (4, 5, 4)
+    assert sizes.characters is None and sizes.kept_keywords is None
+    write_decision_csv(
+        env.layout.people_csv,
+        "people",
+        [
+            {"person_id": "p1", "role": "mapped"},
+            {"person_id": "p2", "role": "context"},
+            {"person_id": "p3", "role": "projected"},
+        ],
+    )
+    content = ["Tidal flow over a sand bar.", "Salt marsh growth in a small estuary."]
+    schema = SOURCE_SCHEMAS["text_parts"]
+    parts = pa.table(
+        {
+            "text_id": ["t0000", "t0001"],
+            "part": ["abstract", "abstract"],
+            "language": ["en", "en"],
+            "provider": ["import", "import"],
+            "format": ["plain", "plain"],
+            "content": content,
+            "retrieved_at": [datetime(2026, 9, 1, tzinfo=timezone.utc)] * 2,
+        },
+        schema=schema,
+    )
+    write_source_table(env.layout.table("text_parts"), "text_parts", parts)
+    sizes = current_sizes(env.project, env.registry, {})
+    assert (sizes.people, sizes.mapped_units) == (2, 1)
+    assert sizes.characters and sizes.characters >= sum(len(c) for c in content)
+    env.controls.sizes.update(kept_keywords=1_234)
+    env.build()
+    records = {s: v.record for s, v in status(env.project, env.registry, year=YEAR).items()}
+    sizes = current_sizes(env.project, env.registry, records)
+    assert sizes.kept_keywords == 1_234 and sizes.people == 3  # the stages' own counts

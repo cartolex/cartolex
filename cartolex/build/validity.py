@@ -146,14 +146,14 @@ def _source_sizes(project: Project, want: set[str]) -> dict[str, int | None]:
 
     def rows(name: str) -> int | None:
         path = layout.table(name)
-        return pq.ParquetFile(path).metadata.num_rows if path.exists() else None
+        return pq.read_metadata(path).num_rows if path.exists() else None
 
     if "texts" in want:
         out["texts"] = rows("texts")
     if "characters" in want:
         path = layout.table("text_parts")
         if path.exists():
-            meta = pq.ParquetFile(path).metadata
+            meta = pq.read_metadata(path)
             total = 0
             for i in range(meta.num_row_groups):
                 group = meta.row_group(i)
