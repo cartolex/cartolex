@@ -925,9 +925,9 @@ def rebase(
     added = sum(c.kind == "added" for c in changes)
     removed = sum(c.kind == "removed" for c in changes)
     nodes = sum(c.kind == "node_removed" for c in changes)
-    description = f"rebase: +{added} -{removed} keywords"
+    description = f"rebase: {added} new, {removed} gone"
     if nodes:
-        description += f", -{_count(nodes, 'node')}"
+        description += f", {_count(nodes, 'node')} removed"
     return Rebased(result, description, changes)
 
 

@@ -117,8 +117,8 @@ origins stay as they were, even when they name a removed node. Nothing is
 placed by default either: a new keyword without an entry in `proposals`, or a
 proposal that is not a node of the deepest level, refuses the whole rebase.
 
-The result is a `Rebased`: the new `tree`, a `description` (`rebase: +12 -3
-keywords, -1 node`) and `changes`, the **reconciliation list**. It holds one
+The result is a `Rebased`: the new `tree`, a `description` (`rebase: 12 new,
+3 gone, 1 node removed`) and `changes`, the **reconciliation list**. It holds one
 entry per added keyword (`added`, with its place), per removed keyword
 (`removed`, with where it was) and per removed node (`node_removed`, with its
 parent): exactly the symmetric difference of the two vocabularies and the

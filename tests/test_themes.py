@@ -477,7 +477,7 @@ def test_rebase_rules():
         {"kind": "added", "keyword": "sea level", "after": SET_ASIDE},
         {"kind": "added", "keyword": "tidal inlet", "after": "n3"},
     ]
-    assert result.description == "rebase: +2 -3 keywords, -2 nodes"
+    assert result.description == "rebase: 2 new, 3 gone, 2 nodes removed"
 
 
 def test_rebase_keeps_nodes_that_were_already_empty_and_dangling_origins():
