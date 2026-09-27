@@ -15,7 +15,11 @@ import pandas as pd
 import pytest
 from themes_random import random_tree
 
-from cartolex.lexicon.subfields import concept_term_index, term_to_group_maps
+from cartolex.lexicon.subfields import (
+    concept_term_index,
+    term_to_group_maps,
+    term_to_subfield_direct,
+)
 from cartolex.lexicon.subfields_edit import EDIT_SCHEMA_VERSION, validate_doc
 from cartolex.project.models import ThemesFile
 from cartolex.project.themes import (
@@ -24,6 +28,8 @@ from cartolex.project.themes import (
     default_level_names,
     new_tree,
     rebase,
+    set_aside,
+    set_attribution,
     vocabulary_of,
 )
 from cartolex.project.themes_curated import (
@@ -124,24 +130,64 @@ def test_what_a_tree_cannot_hold_is_set_aside_and_noted():
                 "subfield_id": 0,
                 "term_indices": [0, 1, 2],
                 "term_merges": [[0, 2]],
-                "ride_along_terms": ["term 1"],
+                "ride_along_terms": ["Term 1 ", "gone term"],
+                "subfield_only_terms": ["term 10"],
             },
-            {"id": 1, "label": "b0", "subfield_id": 1, "term_indices": [3]},
+            {
+                "id": 1,
+                "label": "b0",
+                "subfield_id": 1,
+                "term_indices": [3],
+                "subfield_only_terms": ["term 3"],
+            },
+            {"id": 2, "label": "a1", "subfield_id": 0, "term_indices": [10, 11]},
         ],
         "stash": {
-            "concepts": [{"concept": {"id": 5, "term_indices": [4]}, "origin_subfield_id": 0}],
-            "terms": [{"term_index": 5, "origin_concept_id": 0, "merge_group": [5, 6]}],
+            "concepts": [
+                {
+                    "concept": {"id": 5, "term_indices": [4], "ride_along_terms": ["term 4"]},
+                    "origin_subfield_id": 0,
+                }
+            ],
+            "terms": [
+                {
+                    "term_index": 5,
+                    "origin_concept_id": 0,
+                    "merge_group": [5, 6],
+                    "status": "subfield_only",
+                }
+            ],
         },
         "trash": {
             "subfields": [{"subfield": {"id": 9}, "concepts": [{"id": 7, "term_indices": [7]}]}],
             "concepts": [],
-            "terms": [{"term_index": 8, "origin_concept_id": 99}],
+            "terms": [{"term_index": 8, "origin_concept_id": 99, "status": "ride_along"}],
         },
     }
     imported = from_curated(doc, terms)
     tree = imported.tree
     assert vocabulary_of(tree) == set(terms)  # every keyword is placed or set aside
-    assert tree.keywords == {"term 0": "c0", "term 1": "c0"}
+    assert tree.keywords == {"term 0": "c0", "term 1": "c0", "term 10": "c2", "term 11": "c2"}
+    assert tree.attribution == {"term 1": 0}  # the status of another concept does not apply
+    assert {k: e.attribution for k, e in tree.set_aside.items() if e.attribution is not None} == {
+        "term 3": 1,
+        "term 4": 0,
+        "term 5": 1,
+        "term 6": 1,
+        "term 8": 0,
+    }
+    assert imported.merges == (("term 2", "term 0"),)
+    assert imported.keyword_rows(language="en", decided_at="2026-09-28T10:00:00Z") == [
+        {
+            "term": "term 2",
+            "language": "en",
+            "decision": "merge",
+            "target": "term 0",
+            "reason": "merge variant in the curated document",
+            "source": "person",
+            "decided_at": "2026-09-28T10:00:00Z",
+        }
+    ]
     aside = {k: (e.source, e.reason) for k, e in tree.set_aside.items()}
     assert aside["term 2"] == ("c0", "merge variant of 'term 0'")
     assert aside["term 3"] == (None, "its group was not kept")
@@ -151,13 +197,14 @@ def test_what_a_tree_cannot_hold_is_set_aside_and_noted():
     assert aside["term 7"] == (None, "trashed in the curated document")
     assert aside["term 8"] == (None, "trashed in the curated document")
     assert aside["term 9"] == (None, NOT_GROUPED)
+    assert aside["term 13"] == (None, NOT_GROUPED)
     assert imported.notes == (
         "1 group not kept ([1]): 1 keyword set aside",
         "1 merge variant set aside (merges belong in keywords.csv)",
         "3 keywords stashed in the document: set aside",
         "2 keywords trashed in the document: set aside",
-        "5 keywords in no group: set aside",
-        "term statuses of 1 concept dropped: a theme tree has none",
+        "3 keywords in no group: set aside",
+        "2 term statuses naming no keyword of their concept dropped",
         "pinned colours of 1 subfield dropped",
     )
 
@@ -191,6 +238,35 @@ def test_to_curated_needs_a_depth_2_tree_rebased_on_the_vocabulary():
         to_curated(tree, terms[:-1])
     with pytest.raises(ValueError, match="unknown language"):
         to_curated(tree, terms, reference_language="de")
+
+
+def test_attributions_are_the_engines_term_statuses():
+    tree = create_node(new_tree(), None, {"en": "Hazards"}).tree
+    tree = create_node(tree, "n1", {"en": "Surge"}).tree
+    vocab = ["storm surge", "numerical model", "field survey", "coastal flooding", "Storm Surge"]
+    tree = rebase(tree, vocab[:4], dict.fromkeys(vocab[:4], "n2")).tree
+    tree = set_attribution(tree, "numerical model", 0).tree
+    tree = set_attribution(tree, "field survey", 1).tree
+    tree = set_aside(set_attribution(tree, "coastal flooding", 1).tree, "coastal flooding").tree
+    doc = to_curated(tree, vocab[:4])
+    concept = doc["concepts"][0]
+    assert concept["ride_along_terms"] == ["numerical model"]
+    assert concept["subfield_only_terms"] == ["field survey"]
+    assert [t["status"] for t in doc["trash"]["terms"]] == ["subfield_only"]
+    assert "attribution" not in doc["theme_tree"]
+    assert "attribution" not in doc["trash"]["terms"][0]["set_aside"]
+    assert from_curated(doc, vocab[:4]).tree == tree
+    plain = to_curated(
+        set_attribution(tree, ["numerical model", "field survey"], None).tree, vocab[:4]
+    )
+    assert "ride_along_terms" not in plain["concepts"][0]
+    assert "subfield_only_terms" not in plain["concepts"][0]
+    # two keywords the engine cannot tell apart must share their attribution
+    clash = rebase(tree, vocab, {"Storm Surge": "n2"}).tree
+    assert to_curated(clash, vocab)  # both count at every level: fine
+    clash = set_attribution(clash, "Storm Surge", 0).tree
+    with pytest.raises(ValueError, match="differ only by case"):
+        to_curated(clash, vocab)
 
 
 def test_labels_follow_the_reference_language_and_scores_order_top_terms():
@@ -227,8 +303,13 @@ def test_the_round_trip_is_exact(seed):
     node_of_concept = {c["id"]: c["theme_node"]["id"] for c in doc["concepts"]}
     node_of_subfield = {s["id"]: s["theme_node"]["id"] for s in doc["subfields"]}
     parent = {n.id: n.parent for n in tree.nodes}
+    # a keyword counting at every level is its concept's; one counting toward level 1
+    # only is its subfield's; one counting nowhere is neither
     assert {k: node_of_concept[c] for k, c in term_to_concept.items()} == {
-        k.lower(): n for k, n in tree.keywords.items()
+        k.lower(): n for k, n in tree.keywords.items() if k not in tree.attribution
+    }
+    assert {k: node_of_subfield[s] for k, s in term_to_subfield_direct(doc, terms).items()} == {
+        k.lower(): parent[n] for k, n in tree.keywords.items() if tree.attribution.get(k) == 1
     }
     for cid, sid in concept_to_subfield.items():
         assert parent[node_of_concept[cid]] == node_of_subfield[sid]
@@ -275,6 +356,7 @@ def test_the_engines_apply_stage_runs_on_a_converted_tree(tmp_path):
                 {"id": "n4", "parent": "n3", "names": {"en": "B"}},
             ],
             "keywords": {"a1": "n2", "a2": "n2", "b1": "n4", "b2": "n4"},
+            "attribution": {"a2": 1, "b2": 0},
             "set_aside": {"noise": {"from": "n2", "reason": "too general"}},
         }
     )
@@ -294,9 +376,13 @@ def test_the_engines_apply_stage_runs_on_a_converted_tree(tmp_path):
     }
     assert members == {"Block A": {"p0", "p1"}, "Block B": {"p2", "p3"}}
     lexicon = pd.read_csv(tmp_path / "lexicon.csv")
-    assert set(lexicon["term"]) == {
-        "a1",
-        "a2",
-        "b1",
-        "b2",
-    }  # the set-aside keyword carries no weight
+    # the set-aside keyword carries no weight
+    assert set(lexicon["term"]) == {"a1", "a2", "b1", "b2"}
+    weight = {c["label"]: c["weight"] for c in applied["concepts"]}
+    weight |= {s["label"]: s["weight"] for s in applied["subfields"]}
+    a1, a2, b1 = (
+        float(lexicon.loc[lexicon["term"] == t, "weight"].iloc[0]) for t in ("a1", "a2", "b1")
+    )
+    assert weight["A"] == pytest.approx(a1)  # a2 counts toward level 1 only
+    assert weight["Block A"] == pytest.approx(a1 + a2)
+    assert weight["B"] == weight["Block B"] == pytest.approx(b1)  # b2 counts nowhere

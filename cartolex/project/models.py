@@ -15,7 +15,14 @@ import re
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 __all__ = [
     "LANGUAGES",
@@ -291,11 +298,25 @@ class ThemeNode(_Model):
     order: int = 0
 
 
+#: How many levels, from the top, a keyword's usage counts toward (0: none, shown only).
+Attribution = Annotated[int, Field(ge=0, le=3)]
+
+
 class SetAside(_Model):
+    """A set-aside keyword: the node it came from, why, and the attribution it had there."""
+
     source: str | None = Field(default=None, alias="from")
     reason: str = ""
+    attribution: Attribution | None = None
 
     model_config = ConfigDict(extra="allow", populate_by_name=True, serialize_by_alias=True)
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_attribution(self, handler: Any) -> Any:
+        data = handler(self)
+        if isinstance(data, dict) and data.get("attribution") is None:
+            data.pop("attribution", None)
+        return data
 
 
 class ThemesBasis(_Model):
@@ -311,6 +332,7 @@ class ThemesFile(_Model):
     levels: list[ThemeLevel]
     nodes: list[ThemeNode] = Field(default_factory=list)
     keywords: dict[str, str] = Field(default_factory=dict)
+    attribution: dict[str, Attribution] = Field(default_factory=dict)
     set_aside: dict[str, SetAside] = Field(default_factory=dict)
     review: dict[str, Literal["to_check", "reviewed"]] = Field(default_factory=dict)
     based_on: ThemesBasis = Field(default_factory=ThemesBasis)
@@ -356,6 +378,18 @@ class ThemesFile(_Model):
         stray = set(self.review) - set(self.keywords) - set(self.set_aside)
         if stray:
             raise ValueError(f"review names keyword(s) the tree does not hold: {sorted(stray)[:5]}")
+        unplaced = set(self.attribution) - set(self.keywords)
+        if unplaced:
+            raise ValueError(
+                f"attribution names keyword(s) that are not placed: {sorted(unplaced)[:5]}"
+            )
+        deep = [k for k, n in self.attribution.items() if n >= self.depth]
+        deep += [k for k, e in self.set_aside.items() if (e.attribution or 0) >= self.depth]
+        if deep:
+            raise ValueError(
+                f"an attribution counts toward 0 to {self.depth - 1} level(s) in a tree of "
+                f"depth {self.depth}: {sorted(deep)[:5]}"
+            )
         return self
 
 

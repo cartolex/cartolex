@@ -40,6 +40,7 @@ from .themes import canonical, default_level_names, vocabulary_of
 __all__ = [
     "CURATED_SCHEMA_VERSION",
     "NOT_GROUPED",
+    "STATUS_OF",
     "Imported",
     "from_curated",
     "to_curated",
@@ -56,16 +57,43 @@ TOP_TERMS = 15
 #: How many seed terms a subfield lists (as the engine's apply stage derives them).
 SUBFIELD_SEEDS = 20
 
+#: The engine's term status of each attribution of a depth-2 tree (``None``: every level).
+STATUS_OF: dict[int | None, str] = {None: "defining", 1: "subfield_only", 0: "ride_along"}
+_ATTRIBUTION_OF = {v: k for k, v in STATUS_OF.items()}
+_STATUS_LISTS = {1: "subfield_only_terms", 0: "ride_along_terms"}
+
 _SUBFIELD_ID = re.compile(r"^s(0|[1-9][0-9]*)$")
 _CONCEPT_ID = re.compile(r"^c(0|[1-9][0-9]*)$")
 
 
 @dataclass(frozen=True)
 class Imported:
-    """The result of :func:`from_curated`: the tree, and what it could not carry as it was."""
+    """The result of :func:`from_curated`.
+
+    ``tree`` is the tree; ``notes`` says what it could not carry as it was;
+    ``merges`` lists each merge variant of the document with the keyword it
+    merges into, ``(variant, target)``, sorted: :meth:`keyword_rows` turns them
+    into rows of ``decisions/keywords.csv``.
+    """
 
     tree: ThemesFile
     notes: tuple[str, ...]
+    merges: tuple[tuple[str, str], ...] = ()
+
+    def keyword_rows(self, *, language: str = "", decided_at: str = "") -> list[dict[str, str]]:
+        """The merges as ``keywords.csv`` rows: decision ``merge``, source ``person``."""
+        return [
+            {
+                "term": variant,
+                "language": language,
+                "decision": "merge",
+                "target": target,
+                "reason": "merge variant in the curated document",
+                "source": "person",
+                "decided_at": decided_at,
+            }
+            for variant, target in self.merges
+        ]
 
 
 def _vocabulary(terms: Sequence[str]) -> dict[str, int]:
@@ -118,6 +146,23 @@ def _labels(node: ThemeNode, reference_language: str) -> dict[str, str]:
     return out
 
 
+def _norm(term: Any) -> str:
+    """How the engine matches a status string with a term."""
+    return str(term).strip().lower()
+
+
+def _check_case(tree: ThemesFile) -> None:
+    seen: dict[tuple[str, str], tuple[str, int | None]] = {}
+    for keyword, node_id in tree.keywords.items():
+        n = tree.attribution.get(keyword)
+        other = seen.setdefault((node_id, _norm(keyword)), (keyword, n))
+        if other[1] != n:
+            raise ValueError(
+                f"keywords {other[0]!r} and {keyword!r} of node {node_id!r} differ only by case "
+                "and have different attributions; the curated document cannot tell them apart"
+            )
+
+
 def _carried(node: ThemeNode) -> dict[str, Any]:
     dump = node.model_dump(mode="json", by_alias=True)
     dump.pop("parent", None)
@@ -143,6 +188,12 @@ def to_curated(
     *scores* when given (ties by row), else by row — and each subfield the first
     :data:`SUBFIELD_SEEDS` of its concepts' ``top_terms`` as seeds, as the apply
     stage derives them. Nodes without keywords stay, as empty groups.
+
+    Attributions become the engine's term statuses (:data:`STATUS_OF`): ``1``
+    lists the keyword in its concept's ``subfield_only_terms``, ``0`` in its
+    ``ride_along_terms``; a set-aside keyword's is its trashed entry's
+    ``status``. The engine matches statuses without case, so two keywords of
+    one concept that differ only by case must share their attribution.
     """
     if tree.depth != 2:
         raise ValueError(f"the curated document has two levels; this tree has {tree.depth}")
@@ -169,6 +220,11 @@ def to_curated(
     rows: dict[str, list[int]] = {}
     for keyword, node_id in tree.keywords.items():
         rows.setdefault(node_id, []).append(index[keyword])
+    statuses: dict[str, dict[str, list[str]]] = {}
+    for keyword, n in tree.attribution.items():
+        lists = statuses.setdefault(tree.keywords[keyword], {})
+        lists.setdefault(_STATUS_LISTS[n], []).append(keyword)
+    _check_case(tree)
 
     def rank(row: int) -> tuple[float, int]:
         return (-float(scores.get(terms[row], 0.0)), row) if scores else (0.0, row)
@@ -184,6 +240,7 @@ def to_curated(
                 "term_indices": indices,
                 "term_merges": [],
                 "top_terms": [terms[i] for i in sorted(indices, key=rank)[:TOP_TERMS]],
+                **{key: sorted(ks) for key, ks in sorted(statuses.get(node.id, {}).items())},
                 "theme_node": _carried(node),
             }
         )
@@ -203,19 +260,22 @@ def to_curated(
                 "theme_node": _carried(node),
             }
         )
-    trashed = [
-        {
-            "term_index": index[keyword],
-            "term": keyword,
-            "origin_concept_id": concept_id.get(entry.source, -1) if entry.source else -1,
-            "merge_group": None,
-            "status": "defining",
-            "set_aside": entry.model_dump(mode="json", by_alias=True),
-        }
-        for keyword, entry in tree.set_aside.items()
-    ]
+    trashed = []
+    for keyword, entry in tree.set_aside.items():
+        carried = entry.model_dump(mode="json", by_alias=True)
+        carried.pop("attribution", None)
+        trashed.append(
+            {
+                "term_index": index[keyword],
+                "term": keyword,
+                "origin_concept_id": concept_id.get(entry.source, -1) if entry.source else -1,
+                "merge_group": None,
+                "status": STATUS_OF[entry.attribution],
+                "set_aside": carried,
+            }
+        )
     meta = tree.model_dump(mode="json", by_alias=True)
-    for key in ("nodes", "keywords", "set_aside"):
+    for key in ("nodes", "keywords", "attribution", "set_aside"):
         meta.pop(key)
     return {
         "schema_version": CURATED_SCHEMA_VERSION,
@@ -246,6 +306,18 @@ def _names_from_labels(entry: Mapping[str, Any], reference_language: str) -> dic
 
 def _plural(n: int, noun: str) -> str:
     return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+
+
+def _status_reader(concept: Mapping[str, Any]) -> Any:
+    """term -> its attribution from the concept's status lists (ride-along wins, as in the engine)."""
+    ride = {_norm(t) for t in concept.get("ride_along_terms") or []}
+    only = {_norm(t) for t in concept.get("subfield_only_terms") or []}
+
+    def status(term: str) -> int | None:
+        t = _norm(term)
+        return 0 if t in ride else 1 if t in only else None
+
+    return status
 
 
 class _Claims:
@@ -283,10 +355,14 @@ def from_curated(
     unless the document carries the tree's. Every keyword of *terms* ends up
     placed or set aside:
 
-    - a merge variant is set aside (merges now live in ``keywords.csv``);
+    - a merge variant is set aside (merges now live in ``keywords.csv``) and
+      listed in :attr:`Imported.merges`;
     - the keywords of a subfield not kept, of stashed or trashed items, and
       keywords no group holds are set aside with the reason;
-    - term statuses and pinned colours have no place in a tree and are dropped.
+    - term statuses become attributions (:data:`STATUS_OF`), kept in the
+      set-aside entry of a keyword set aside; a status naming no keyword of
+      its concept is dropped;
+    - pinned colours have no place in a tree and are dropped.
 
     Each case is listed in :attr:`Imported.notes`. A document that places a
     keyword twice, or names a term index outside *terms*, is refused.
@@ -303,7 +379,7 @@ def from_curated(
     if isinstance(meta, Mapping):
         if meta.get("depth", 2) != 2:
             raise ValueError(f"the document carries a tree of depth {meta.get('depth')}, not 2")
-        tree_doc.update(meta)
+        tree_doc.update({k: v for k, v in meta.items() if k != "attribution"})
 
     subfields = list(doc.get("subfields") or [])
     subfield_ids = [int(sf.get("id", i)) for i, sf in enumerate(subfields)]
@@ -327,11 +403,19 @@ def from_curated(
     dropped_groups = [sid for sid in subfield_ids if sid not in kept]
 
     keywords: dict[str, str] = {}
+    attribution: dict[str, int] = {}
     aside: dict[str, dict[str, Any]] = {}
+    merges: list[tuple[str, str]] = []
     concept_node: dict[int, str] = {}
     seen_concepts: set[int] = set()
     placed_in: dict[int, int] = {}
-    variants = statuses = not_kept = 0
+    not_kept = stale_statuses = 0
+
+    def set_aside_as(term: str, origin: str | None, reason: str, n: int | None) -> None:
+        aside[term] = {"from": origin, "reason": reason}
+        if n is not None:
+            aside[term]["attribution"] = n
+
     for i, c in enumerate(doc.get("concepts") or []):
         cid = int(c.get("id", i))
         if cid in seen_concepts:
@@ -341,9 +425,11 @@ def from_curated(
         if sid not in subfield_ids:
             raise ValueError(f"concept {cid} points to an unknown subfield {sid}")
         where = f"concept {cid}"
+        status = _status_reader(c)
         if sid not in kept:
             for row in c.get("term_indices") or []:
-                aside[claims.take(row, where)] = {"from": None, "reason": "its group was not kept"}
+                term = claims.take(row, where)
+                set_aside_as(term, None, "its group was not kept", status(term))
                 not_kept += 1
             continue
         carried = c.get("theme_node") if isinstance(c.get("theme_node"), Mapping) else {}
@@ -354,15 +440,23 @@ def from_curated(
         nodes.append(node)
         concept_node[cid] = node["id"]
         canonical_of = {int(x): int(g[0]) for g in c.get("term_merges") or [] for x in list(g)[1:]}
+        mine: list[str] = []
         for row in c.get("term_indices") or []:
             term = claims.take(row, where)
             if int(row) in canonical_of:
-                reason = f"merge variant of {terms[canonical_of[int(row)]]!r}"
-                aside[term] = {"from": node["id"], "reason": reason}
-                variants += 1
+                target = terms[canonical_of[int(row)]]
+                set_aside_as(term, node["id"], f"merge variant of {target!r}", None)
+                merges.append((term, target))
             else:
                 keywords[term] = node["id"]
-        statuses += bool(c.get("subfield_only_terms") or c.get("ride_along_terms"))
+                mine.append(term)
+                n = status(term)
+                if n is not None:
+                    attribution[term] = n
+        named = {_norm(t) for t in mine}
+        stale_statuses += sum(
+            1 for key in _STATUS_LISTS.values() for t in c.get(key) or [] if _norm(t) not in named
+        )
 
     held_aside = {"stashed": 0, "trashed": 0}
     for label in ("stashed", "trashed"):
@@ -370,19 +464,24 @@ def from_curated(
         reason = f"{label} in the curated document"
         for entry in section.get("terms") or []:
             unit = entry.get("merge_group") or [entry.get("term_index")]
+            n = _ATTRIBUTION_OF.get(entry.get("status") or "defining")
             for row in unit:
                 term = claims.take(row, f"the {label} keywords")
-                if isinstance(entry.get("set_aside"), Mapping):
-                    aside[term] = dict(entry["set_aside"])
+                carried = entry.get("set_aside")
+                if isinstance(carried, Mapping):
+                    set_aside_as(term, carried.get("from"), carried.get("reason") or "", n)
+                    aside[term].update({k: v for k, v in carried.items() if k not in aside[term]})
                 else:
                     origin = concept_node.get(int(entry.get("origin_concept_id", -1)))
-                    aside[term] = {"from": origin, "reason": reason}
+                    set_aside_as(term, origin, reason, n)
                     held_aside[label] += 1
         held = [e.get("concept") or {} for e in section.get("concepts") or []]
         held += [c for e in section.get("subfields") or [] for c in e.get("concepts") or []]
         for c in held:
+            status = _status_reader(c)
             for row in c.get("term_indices") or []:
-                aside[claims.take(row, f"the {label} groups")] = {"from": None, "reason": reason}
+                term = claims.take(row, f"the {label} groups")
+                set_aside_as(term, None, reason, status(term))
                 held_aside[label] += 1
 
     ungrouped = [t for t in terms if t not in claims.where]
@@ -393,7 +492,9 @@ def from_curated(
     stale = sorted(k for k in review if k not in keywords and k not in aside)
     for k in stale:
         del review[k]
-    tree_doc.update(nodes=nodes, keywords=keywords, set_aside=aside, review=review)
+    tree_doc.update(
+        nodes=nodes, keywords=keywords, attribution=attribution, set_aside=aside, review=review
+    )
     tree = canonical(ThemesFile.model_validate(tree_doc))
 
     if dropped_groups:
@@ -401,23 +502,22 @@ def from_curated(
             f"{_plural(len(dropped_groups), 'group')} not kept ({dropped_groups[:10]}): "
             f"{_plural(not_kept, 'keyword')} set aside"
         )
-    if variants:
+    if merges:
         notes.append(
-            f"{_plural(variants, 'merge variant')} set aside (merges belong in keywords.csv)"
+            f"{_plural(len(merges), 'merge variant')} set aside (merges belong in keywords.csv)"
         )
     for label, n in held_aside.items():
         if n:
             notes.append(f"{_plural(n, 'keyword')} {label} in the document: set aside")
     if ungrouped:
         notes.append(f"{_plural(len(ungrouped), 'keyword')} in no group: set aside")
-    if statuses:
-        notes.append(
-            f"term statuses of {_plural(statuses, 'concept')} dropped: a theme tree has none"
-        )
+    if stale_statuses:
+        what = "term status" if stale_statuses == 1 else "term statuses"
+        notes.append(f"{stale_statuses} {what} naming no keyword of their concept dropped")
     if pinned:
         notes.append(f"pinned colours of {_plural(pinned, 'subfield')} dropped")
     if stale:
         notes.append(
             f"review states of {_plural(len(stale), 'keyword')} the tree does not hold dropped"
         )
-    return Imported(tree, tuple(notes))
+    return Imported(tree, tuple(notes), tuple(sorted(merges)))

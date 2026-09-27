@@ -27,6 +27,7 @@ from cartolex.project.themes import (
     rename_level,
     rename_node,
     set_aside,
+    set_attribution,
     set_review,
     split_node,
     vocabulary_fingerprint,
@@ -81,6 +82,9 @@ def random_tree(rng: random.Random, depth: int | None = None, *, size: int = 40)
         else:
             origin = rng.choice([*leaves, None, "gone"]) if leaves else None
             aside[k] = {"from": origin, "reason": rng.choice(REASONS)}
+            if rng.random() < 0.3:
+                aside[k]["attribution"] = rng.randint(0, depth - 1)
+    attribution = {k: rng.randint(0, depth - 1) for k in keywords if rng.random() < 0.3}
     review = {k: rng.choice(REVIEW_STATES) for k in vocab if rng.random() < 0.2}
     levels = [{"names": names} for names in default_level_names(depth)]
     for lv in levels:
@@ -91,6 +95,7 @@ def random_tree(rng: random.Random, depth: int | None = None, *, size: int = 40)
         "levels": levels,
         "nodes": nodes,
         "keywords": keywords,
+        "attribution": attribution,
         "set_aside": aside,
         "review": review,
         "based_on": {
@@ -150,7 +155,7 @@ def random_edit(rng: random.Random, tree: ThemesFile) -> Edit | None:
     kind = rng.choice(
         [
             "rename_node", "rename_level", "move_keywords", "move_node", "merge", "split",
-            "create", "delete", "set_aside", "put_back", "review", "insert", "remove",
+            "create", "delete", "set_aside", "put_back", "review", "insert", "remove", "attribution",
         ]
     )  # fmt: skip
     if kind == "rename_node" and ids:
@@ -210,6 +215,11 @@ def random_edit(rng: random.Random, tree: ThemesFile) -> Edit | None:
         backable = [k for k in chosen if tree.set_aside[k].source in leaves]
         if backable:
             return put_back(tree, backable)
+    if kind == "attribution" and placed:
+        levels_ = rng.choice([None, *range(tree.depth)])
+        return set_attribution(
+            tree, rng.sample(placed, rng.randint(1, min(5, len(placed)))), levels_
+        )
     if kind == "review" and held:
         state = rng.choice([*REVIEW_STATES, None])
         return set_review(tree, rng.sample(held, rng.randint(1, min(5, len(held)))), state)

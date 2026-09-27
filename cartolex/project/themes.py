@@ -13,6 +13,9 @@ a new one, never changing its argument, and every tree it returns passes the
   action name of the saved version.
 - **Rebase** (:func:`rebase`) carries a tree onto the vocabulary of a new build
   and returns the changes it made (the reconciliation list).
+- **Attribution**: a keyword may count toward the shares of the top levels
+  only (:func:`set_attribution`). Moves, merges and splits carry it by the
+  carry rule (:meth:`_Work.carry`); depth changes shift it.
 - **Comparison** (:func:`compare`) lists every keyword and node that differs
   between two trees; the reconciliation of a rebase is the comparison of the
   tree before and after it.
@@ -63,6 +66,7 @@ __all__ = [
     "rename_level",
     "rename_node",
     "set_aside",
+    "set_attribution",
     "set_review",
     "split_node",
     "vocabulary_fingerprint",
@@ -128,6 +132,7 @@ CHANGE_KINDS = (
     "removed",
     "moved",
     "set_aside_changed",
+    "attribution",
     "review",
 )
 
@@ -141,7 +146,9 @@ class Change:
     ``after``, ``removed`` only ``before``. For nodes, ``node_added`` and
     ``node_removed`` give the parent, ``node_moved`` the old and new parent,
     ``node_reordered`` the old and new order, ``node_renamed`` the old and new
-    names. ``review`` gives the old and new review states (``None``: none).
+    names. ``attribution`` gives the old and new attributions of a keyword
+    (``None``: every level; a set-aside keyword's is the one it keeps).
+    ``review`` gives the old and new review states (``None``: none).
     """
 
     kind: str
@@ -265,6 +272,7 @@ class _Work:
         self.depth: int = doc["depth"]
         self.nodes: dict[str, dict[str, Any]] = {n["id"]: n for n in doc["nodes"]}
         self.keywords: dict[str, str] = doc["keywords"]
+        self.attribution: dict[str, int] = doc["attribution"]
         self.set_aside: dict[str, dict[str, Any]] = doc["set_aside"]
         self.review: dict[str, str] = doc["review"]
 
@@ -338,6 +346,56 @@ class _Work:
                 nid = self.nodes[nid]["parent"]
         return counts
 
+    def anchor(self, node_id: str | None, n: int) -> str | None:
+        """The node on level *n* above *node_id* (itself when on level *n*); ``None`` if gone."""
+        if node_id is None or node_id not in self.nodes or n < 1:
+            return None
+        chain: list[str] = []
+        nid: str | None = node_id
+        while nid is not None:
+            chain.append(nid)
+            nid = self.nodes[nid]["parent"]
+        chain.reverse()
+        return chain[n - 1] if len(chain) >= n else None
+
+    def anchors(self) -> dict[str, str | None]:
+        """For each placed keyword counting toward levels 1..n (n >= 1): its node on level n."""
+        return {
+            k: self.anchor(self.keywords[k], n)
+            for k, n in self.attribution.items()
+            if n >= 1 and k in self.keywords
+        }
+
+    def carry(
+        self, before: Mapping[str, str | None], same: Mapping[str, str] | None = None
+    ) -> None:
+        """The carry rule, after keywords or nodes moved.
+
+        An attribution ``n >= 1`` is relative to the keyword's node on level
+        ``n``: it survives while that node stays the same (*same* maps a node
+        merged away to the node it merged into) and is dropped otherwise, so the
+        keyword counts at every level again. ``0`` always survives.
+        """
+        same = same or {}
+        for k, old in before.items():
+            n = self.attribution.get(k)
+            if k not in self.keywords or not n:
+                continue
+            if old is None or same.get(old, old) != self.anchor(self.keywords[k], n):
+                del self.attribution[k]
+
+    def shift_attribution(self, rule: Any) -> None:
+        """Apply *rule* (n -> n or ``None``) to every attribution, set-aside ones included."""
+        for k in list(self.attribution):
+            n = rule(self.attribution[k])
+            if n is None:
+                del self.attribution[k]
+            else:
+                self.attribution[k] = n
+        for entry in self.set_aside.values():
+            if entry.get("attribution") is not None:
+                entry["attribution"] = rule(entry["attribution"])
+
     # ── changes ──
     def new_id(self) -> str:
         """A fresh ``n<k>`` id, also unused by set-aside origins (so a put back never lands elsewhere)."""
@@ -381,6 +439,7 @@ class _Work:
             n["names"] = _ordered_names(n.get("names") or {})
         doc["nodes"] = [self.nodes[i] for i in order]
         doc["keywords"] = dict(sorted(self.keywords.items()))
+        doc["attribution"] = dict(sorted(self.attribution.items()))
         doc["set_aside"] = dict(sorted(self.set_aside.items()))
         doc["review"] = dict(sorted(self.review.items()))
         try:
@@ -473,7 +532,9 @@ def rename_level(tree: ThemesFile, level: int, names: Mapping[str, str | None]) 
 def move_keywords(tree: ThemesFile, keywords: Iterable[str] | str, node_id: str) -> Edit:
     """Move placed keywords under *node_id*, a node of the deepest level.
 
-    A set-aside keyword is not moved: :func:`put_back` places it.
+    A set-aside keyword is not moved: :func:`put_back` places it. Attributions
+    follow the carry rule: ``n >= 1`` survives when the new node has the same
+    node on level ``n`` above it, ``0`` always.
     """
     work = _Work(tree)
     work.leaf(node_id)
@@ -484,8 +545,10 @@ def move_keywords(tree: ThemesFile, keywords: Iterable[str] | str, node_id: str)
     unknown = [k for k in terms if k not in work.keywords]
     if unknown:
         raise ThemeEditError(f"not in the tree: {_sample(unknown)}")
+    before = work.anchors()
     for k in terms:
         work.keywords[k] = node_id
+    work.carry(before)
     return work.edit(f"move {_count(len(terms), 'keyword')} to {node_id}")
 
 
@@ -496,7 +559,8 @@ def move_node(
 
     A node keeps its level: *parent* is on the level just above it. *position*
     is its 0-based place among its new siblings (default: last); moving a node
-    within its parent needs a position.
+    within its parent needs a position. Attributions of the keywords under it
+    follow the carry rule.
     """
     work = _Work(tree)
     node = work.node(node_id)
@@ -513,7 +577,9 @@ def move_node(
     if parent == node["parent"] and position is None:
         raise ThemeEditError(f"node {node_id!r} is already there; give a position to reorder it")
     same = parent == node["parent"]
+    before = work.anchors()
     work.place(node_id, parent, position)
+    work.carry(before)
     if same:
         return work.edit(f"reorder {node_id}")
     return work.edit(f"move {node_id} under {parent}" if parent else f"move {node_id} to the top")
@@ -524,7 +590,8 @@ def merge_nodes(tree: ThemesFile, source: str, target: str) -> Edit:
 
     What *source* holds (its child nodes, or its keywords) moves under *target*,
     after what *target* already holds; *source* is removed. Set-aside keywords
-    that came from *source* now come from *target*.
+    that came from *source* now come from *target*. Attributions follow the
+    carry rule, *source* standing for *target*.
     """
     work = _Work(tree)
     work.node(source)
@@ -536,6 +603,7 @@ def merge_nodes(tree: ThemesFile, source: str, target: str) -> Edit:
             f"{source!r} (level {work.level(source)}) and {target!r} "
             f"(level {work.level(target)}) are not on the same level"
         )
+    before = work.anchors()
     for k in work.keywords_of(source):
         work.keywords[k] = target
     for kid in work.children(source):
@@ -544,6 +612,7 @@ def merge_nodes(tree: ThemesFile, source: str, target: str) -> Edit:
         if entry.get("from") == source:
             entry["from"] = target
     del work.nodes[source]
+    work.carry(before, {source: target})
     return work.edit(f"merge {source} into {target}")
 
 
@@ -559,7 +628,7 @@ def split_node(
     deepest level; child node ids otherwise) go to a new sibling node with those
     names, placed right after *node_id*, in the order of *parts*. The members no
     part names stay in *node_id*, which must keep at least one. *ids* optionally
-    names the new nodes.
+    names the new nodes. Attributions follow the carry rule.
     """
     work = _Work(tree)
     node = work.node(node_id)
@@ -586,6 +655,7 @@ def split_node(
         groups.append(group)
     if len(seen) == len(held):
         raise ThemeEditError(f"a split leaves at least one {what} in {node_id!r}")
+    before = work.anchors()
     previous = node_id
     for i, ((_members, names), group) in enumerate(zip(parts, groups, strict=True)):
         new_id = work.take_id(ids[i] if ids is not None else None)
@@ -604,6 +674,7 @@ def split_node(
             for rank, kid in enumerate([k for k in held if k in set(group)], start=1):
                 work.nodes[kid]["parent"] = new_id
                 work.nodes[kid]["order"] = rank
+    work.carry(before)
     return work.edit(f"split {node_id} into {len(parts) + 1}")
 
 
@@ -655,7 +726,7 @@ def delete_node(tree: ThemesFile, node_id: str) -> Edit:
 
 
 def set_aside(tree: ThemesFile, keywords: Iterable[str] | str, reason: str = "") -> Edit:
-    """Set keywords aside, each with the node it came from and *reason*.
+    """Set keywords aside, each with the node it came from, *reason* and its attribution.
 
     For a keyword already set aside, only the reason changes.
     """
@@ -667,14 +738,22 @@ def set_aside(tree: ThemesFile, keywords: Iterable[str] | str, reason: str = "")
     reason = str(reason or "").strip()
     for k in terms:
         if k in work.keywords:
-            work.set_aside[k] = {"from": work.keywords.pop(k), "reason": reason}
+            entry = {"from": work.keywords.pop(k), "reason": reason}
+            if k in work.attribution:
+                entry["attribution"] = work.attribution.pop(k)
+            work.set_aside[k] = entry
         else:
             work.set_aside[k]["reason"] = reason
     return work.edit(f"set aside {_count(len(terms), 'keyword')}")
 
 
 def put_back(tree: ThemesFile, keywords: Iterable[str] | str, node_id: str | None = None) -> Edit:
-    """Put set-aside keywords back: under *node_id*, or where each came from."""
+    """Put set-aside keywords back: under *node_id*, or where each came from.
+
+    A keyword gets back the attribution it had, through the carry rule: ``0``
+    always, ``n >= 1`` when its new place has the same node on level ``n`` as
+    the place it came from.
+    """
     work = _Work(tree)
     terms = _keyword_list(keywords)
     unknown = [k for k in terms if k not in work.set_aside]
@@ -693,8 +772,11 @@ def put_back(tree: ThemesFile, keywords: Iterable[str] | str, node_id: str | Non
     if lost:
         raise ThemeEditError(f"no place to put back (name a target node): {_sample(lost)}")
     for k, target in targets.items():
-        del work.set_aside[k]
+        entry = work.set_aside.pop(k)
         work.keywords[k] = target
+        n = entry.get("attribution")
+        if n == 0 or (n and work.anchor(entry.get("from"), n) == work.anchor(target, n)):
+            work.attribution[k] = n
     return work.edit(f"put back {_count(len(terms), 'keyword')}")
 
 
@@ -716,6 +798,41 @@ def set_review(tree: ThemesFile, keywords: Iterable[str] | str, state: str | Non
     if state is None:
         return work.edit(f"clear the review of {n}")
     return work.edit(f"mark {n} {state.replace('_', ' ')}")
+
+
+def set_attribution(tree: ThemesFile, keywords: Iterable[str] | str, levels: int | None) -> Edit:
+    """Set how many levels, from the top, the usage of placed keywords counts toward.
+
+    *levels* is ``None`` (every level: the default), ``0`` (the keyword is shown
+    but counts nowhere) or ``1`` to ``depth - 1`` (levels 1 to *levels* only).
+    At depth 2, ``1`` counts toward the level-1 node only and ``0`` nowhere.
+    """
+    work = _Work(tree)
+    if levels is not None and (
+        not isinstance(levels, int) or isinstance(levels, bool) or not 0 <= levels < work.depth
+    ):
+        raise ThemeEditError(
+            f"an attribution is None or 0 to {work.depth - 1} in a tree of depth {work.depth}, "
+            f"not {levels!r}"
+        )
+    terms = _keyword_list(keywords)
+    aside = [k for k in terms if k in work.set_aside]
+    if aside:
+        raise ThemeEditError(f"set aside, put back first: {_sample(aside)}")
+    unknown = [k for k in terms if k not in work.keywords]
+    if unknown:
+        raise ThemeEditError(f"not in the tree: {_sample(unknown)}")
+    for k in terms:
+        if levels is None:
+            work.attribution.pop(k, None)
+        else:
+            work.attribution[k] = levels
+    n = _count(len(terms), "keyword")
+    if levels is None:
+        return work.edit(f"count {n} at every level")
+    if levels == 0:
+        return work.edit(f"count {n} nowhere")
+    return work.edit(f"count {n} down to level {levels}")
 
 
 # ── depth ────────────────────────────────────────────────────────────────────
@@ -758,6 +875,9 @@ def insert_level(
     level's name). Set-aside keywords that came from a node of the old deepest
     level now come from its new child. The tree is one level deeper and every
     keyword keeps its path; the level names follow :func:`_relevel`.
+
+    An attribution ``n`` counting toward the new level's position (``at <= n``)
+    becomes ``n + 1``; the others stay.
     """
     work = _Work(tree)
     depth = work.depth
@@ -799,6 +919,7 @@ def insert_level(
             if at - 1 == depth:
                 new_leaf[pid] = cid
         work.remap_leaves(new_leaf)
+    work.shift_attribution(lambda n: n + 1 if 1 <= at <= n else n)
     source: list[int | None] = list(range(depth))
     source.insert(at - 1, None)
     work.doc["levels"] = _relevel(work.doc["levels"], depth, new_depth, source)
@@ -815,6 +936,11 @@ def remove_level(tree: ThemesFile, at: int) -> Edit:
     node of the deepest level now come from its parent. The removed nodes'
     names are lost (the previous tree keeps them). The level names follow
     :func:`_relevel`.
+
+    An attribution ``n`` that counted toward the removed level (``at <= n``)
+    becomes ``n - 1`` (``0`` when it counted toward that level only: it counts
+    toward no remaining level); one that now reaches the deepest level is
+    removed (it counts at every level); ``0`` stays.
     """
     work = _Work(tree)
     depth = work.depth
@@ -838,6 +964,12 @@ def remove_level(tree: ThemesFile, at: int) -> Edit:
             work.nodes[kid]["order"] = rank
     for nid in doomed:
         del work.nodes[nid]
+
+    def shifted(n: int) -> int | None:
+        n = n - 1 if 1 <= at <= n else n
+        return None if n >= depth - 1 else n
+
+    work.shift_attribution(shifted)
     source: list[int | None] = [i for i in range(depth) if i != at - 1]
     work.doc["levels"] = _relevel(work.doc["levels"], depth, depth - 1, source)
     work.depth = depth - 1
@@ -867,8 +999,9 @@ def rebase(
     - a node whose subtree held keywords before and holds none after is removed,
       with the nodes under it. Nodes that were already empty stay.
 
-    Nothing else changes: no node is renamed, moved or renumbered, and set-aside
-    origins stay as they were (possibly naming a removed node). ``based_on``
+    Nothing else changes: no node is renamed, moved or renumbered, attributions
+    of surviving keywords stay, and set-aside origins stay as they were
+    (possibly naming a removed node). ``based_on``
     records *run* and the vocabulary's fingerprint. The reconciliation list
     (:attr:`Rebased.changes`) is :func:`compare` of the two trees: one entry per
     added or removed keyword and per removed node.
@@ -901,6 +1034,7 @@ def rebase(
     before = work.subtree_counts()
     for k in [k for k in work.keywords if k not in vocab]:
         del work.keywords[k]
+        work.attribution.pop(k, None)
     for k in [k for k in work.set_aside if k not in vocab]:
         del work.set_aside[k]
     for k in [k for k in work.review if k not in vocab]:
@@ -932,6 +1066,12 @@ def rebase(
 
 
 # ── comparison ───────────────────────────────────────────────────────────────
+
+
+def _attribution(tree: ThemesFile, keyword: str) -> int | None:
+    if keyword in tree.set_aside:
+        return tree.set_aside[keyword].attribution
+    return tree.attribution.get(keyword)
 
 
 def _place(tree: ThemesFile, keyword: str) -> str | None:
@@ -1004,6 +1144,10 @@ def compare(before: ThemesFile, after: ThemesFile) -> tuple[Change, ...]:
                     after=after.set_aside[k].model_dump(mode="json", by_alias=True),
                 )
             )
+        if pb != SET_ASIDE or pa != SET_ASIDE:
+            ab, aa = _attribution(before, k), _attribution(after, k)
+            if ab != aa:
+                out.append(Change("attribution", keyword=k, before=ab, after=aa))
         rb, ra = before.review.get(k), after.review.get(k)
         if rb != ra:
             out.append(Change("review", keyword=k, before=rb, after=ra))
