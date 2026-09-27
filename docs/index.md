@@ -23,6 +23,7 @@ format/index
 
 dev/engine
 dev/build
+dev/themes
 dev/checks
 dev/reference
 dev/placement
