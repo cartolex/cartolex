@@ -111,22 +111,85 @@ texts; its inner nodes have stable ids and names in each interface language.
     {"id": "n1", "parent": null, "names": {"en": "Coastal hazards"}, "order": 1},
     {"id": "n7", "parent": "n1", "names": {"en": "Storm surge"}, "order": 1}
   ],
-  "keywords": {"storm surge model": "n7", "coastal flooding": "n7"},
-  "set_aside": {"numerical results": {"from": "n7", "reason": "too general"}},
+  "keywords": {"coastal flooding": "n7", "storm surge model": "n7", "tidal inlet": "n7",
+               "wave climate": "n7"},
+  "attribution": {"wave climate": 1},
+  "set_aside": {"numerical results": {"from": "n7", "reason": "too general", "attribution": 0}},
   "review": {"tidal inlet": "to_check"},
-  "based_on": {"run": "themes.group/20260928T101500Z-3f2a", "vocabulary": "sha256:…"}
+  "based_on": {"run": "themes.group/20260928T101500Z-3f2a", "vocabulary": "sha256:…"},
+  "saved": {"at": "2026-09-28T10:20:00Z", "action": "move 3 keywords to n7"}
 }
 ```
 
+| key | meaning |
+| --- | --- |
+| `depth`, `levels` | the number of levels (1 to 4) and their names, from the top level down |
+| `nodes` | every node: a stable `id` (letters, digits, `-` and `_`), its `parent` (`null` on the top level), its `names` per language (possibly none), its `order` among its siblings (ties by id) |
+| `keywords` | each placed keyword and the node of the deepest level it is under |
+| `attribution` | for a placed keyword that does not count at every level: how many levels, from the top, its usage counts toward (see below) |
+| `set_aside` | each keyword set aside: `from`, the node it was set aside from (`null` when it never had a place), `reason`, and the `attribution` it had, if any |
+| `review` | `to_check` for a keyword a rebase added, `reviewed` once someone checked it; a keyword with nothing to check is absent |
+| `based_on` | the run and the vocabulary the tree was built or last rebased on |
+| `saved` | when this version was saved, and the action that saved it |
+
 - Every keyword of the current vocabulary is either under a node of the deepest
-  level or set aside.
-- `based_on` names the vocabulary the tree was built or last rebased on. After a
-  new extraction the tree is **rebased**: kept keywords stay where they are, new
-  keywords go to « To check » with a proposed place, vanished keywords are
-  listed, and a node left empty is removed. The rebase writes a new version and
-  a reconciliation list that names every changed keyword.
+  level or set aside, never both; `review` names only keywords the tree holds.
+- A node's level is its distance from the top: keywords sit only under nodes of
+  the deepest level, and a node never sits below it. A node may be empty.
+- **Attribution.** A keyword's usage counts toward the shares of the nodes
+  above it. `attribution` limits that: `n` counts it toward levels 1 to `n`
+  only (the `n` nodes above it nearest the top), `0` shows the keyword without
+  counting it anywhere, and a keyword absent from the map counts at every
+  level. `n` goes from 0 to `depth − 1`, and only placed keywords appear. At
+  depth 2, `1` counts a keyword toward its theme but not its topic (a keyword
+  broader than its topic), `0` toward neither (a keyword broader than the
+  field). An attribution `n ≥ 1` is relative to the keyword's node on level
+  `n`: when a move, a merge or a split gives the keyword another node on that
+  level, it is dropped and the keyword counts at every level again; `0` stays
+  whatever happens. A set-aside keyword keeps its attribution in its entry,
+  and putting it back applies the same rule. When the depth changes, a level
+  inserted at or above level `n` makes it `n + 1`; removing a level at or above
+  level `n` makes it `n − 1` (so a keyword that counted toward the removed top
+  level only counts nowhere), and an attribution that would reach the deepest
+  level is dropped.
+- `from` may name a node that no longer exists (merged away, or removed by a
+  rebase or a save); putting the keyword back then needs a target. cartolex
+  never gives a new node such an id.
+- cartolex writes the file in one form: nodes in tree order (depth first,
+  siblings by `order` then id), keywords, attributions, set-aside keywords and
+  review states sorted by text; a set-aside entry without an attribution has no
+  `attribution` key.
+- **Saving removes empty nodes.** Every save removes each node with no keyword
+  in its subtree (set-aside keywords do not count) and names the removed nodes
+  in its action (`move 2 keywords to n7; remove empty nodes n3, n5`). A saved
+  file therefore never holds an empty node; a tree being edited may, until it
+  is saved.
+- `based_on.vocabulary` is the fingerprint of a vocabulary: `sha256:` and the
+  SHA-256 of the JSON list of its distinct keywords, sorted, written without
+  spaces (`["a","b"]`) in UTF-8.
+- After a new extraction or a new grouping the tree is **rebased** onto the new
+  vocabulary: kept keywords stay where they are (set-aside ones stay set
+  aside); each new keyword goes to the place proposed for it, marked
+  `to_check` (set aside, with the reason `new keyword, no place proposed`, when
+  no place is proposed); vanished keywords are removed, set-aside ones too; a
+  node whose keywords all vanished is removed, with the nodes under it. Nothing
+  else changes: no node is renamed, moved or renumbered, and surviving keywords
+  keep their attribution. The rebase is saved as a new version, and its
+  reconciliation list names every added or removed keyword and every removed
+  node. That list is the difference between the version before the rebase and
+  the version it wrote, so the history keeps it.
 - Level names are the defaults for the depth (Theme; Theme › Topic; Field ›
-  Theme › Topic; Domain › Field › Theme › Topic) until someone renames them.
+  Theme › Topic; Domain › Field › Theme › Topic, in English, French and
+  Portuguese) until someone renames them. When the depth changes, a name still
+  equal to its default follows the defaults of the new depth; a name someone
+  gave stays.
+- Every change is a new version: `saved` records when and by which action it
+  was saved, and `decisions/history/themes.json/<UTC time>-<action>.json` holds
+  the version that `<action>` replaced at that time. Restoring a version saves
+  it again as a new version, with the action `restore <version>`.
+
+The operations on a tree and their rules are described in
+[The theme tree](../dev/themes.md).
 
 ## `maps.json`: map versions
 

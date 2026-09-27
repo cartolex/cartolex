@@ -60,6 +60,20 @@ nothing in the engine names a particular deployment, source or procedure.
   stored map; when it is not reproduced exactly, the stored map is kept and a
   warning gives the measured deviation (`model.refit_deviation`). `.joblib` files of 0.x workspaces are not read: re-run the stage that
   `ModelFileError` names. `joblib` is no longer a direct dependency.
+- **The theme tree.** `cartolex.project.themes` edits the tree of
+  `decisions/themes.json` with pure operations (rename, move, merge, split,
+  create, delete, set aside, put back, review states, insert or remove a
+  level), each returning the new tree and a short description of the change;
+  it rebases a tree onto a new vocabulary with a reconciliation list, and
+  compares two trees. A keyword's attribution says how many levels, from the
+  top, its usage counts toward (the term statuses, at any depth), carried by
+  the carry rule. `cartolex.project.themes_versions` saves the tree as
+  versions, removing empty nodes and stamping each version with its action,
+  and restores them; `cartolex.project.themes_curated` converts a depth-2
+  tree to and from the engine's curated document, so the apply stage runs on
+  a tree, and lists the document's merge variants as `keywords.csv` rows. A
+  tree's review states name only keywords it holds (see
+  `docs/dev/themes.md`).
 - **Errors a caller can catch.** `SettingsError`, `CorpusError` and
   `FileNotFoundError` instead of `SystemExit`, with English messages. A corpus
   language with no text is skipped with a warning.
