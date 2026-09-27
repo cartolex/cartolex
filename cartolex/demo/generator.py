@@ -21,6 +21,8 @@ from .model import (
     APPLICANTS,
     CAREER_STAGES,
     COHORT,
+    LANGUAGE_SETS,
+    LANGUAGES,
     NOW_YEAR,
     SIZES,
     SOURCES,
@@ -67,6 +69,9 @@ GROUP_SHARE = 0.4
 FOCUS_SHARE = 0.75
 # Share of cohort groups that write often in French.
 FRENCH_GROUPS = 0.22
+# In a trilingual world, share of cohort groups that write often in Portuguese
+# (chosen among those that do not write often in French).
+PORTUGUESE_GROUPS = 0.22
 # Probability of 0, 1, 2 or 3 co-authors from the cohort on a work.
 COAUTHOR_WEIGHTS = (0.18, 0.34, 0.3, 0.18)
 
@@ -155,9 +160,10 @@ def _zipf_weights(scores: Sequence[float]) -> tuple[float, ...]:
 class _Builder:
     """Holds the random streams and the partial world while it is generated."""
 
-    def __init__(self, spec: SizeSpec, seed: int) -> None:
+    def __init__(self, spec: SizeSpec, seed: int, languages: tuple[str, ...] = LANGUAGES) -> None:
         self.spec = spec
         self.seed = seed
+        self.languages = languages
         self.rng_struct = _rng(spec.code, seed, "structure")
         self.rng_people = _rng(spec.code, seed, "people")
         self.rng_works = _rng(spec.code, seed, "works")
@@ -267,6 +273,25 @@ class _Builder:
                 external=external,
             )
         )
+
+    def assign_portuguese(self) -> None:
+        """Give each group its share of works in Portuguese (trilingual worlds only).
+
+        Drawn from a stream of its own, after the structure: the groups, people
+        and bibliography are those of the world in the default languages.
+        """
+        if "pt" not in self.languages:
+            return
+        rng = _rng(self.spec.code, self.seed, "languages")
+        cohort = [i for i, g in enumerate(self.groups) if not g.external]
+        candidates = [i for i in cohort if self.groups[i].french_share < 0.2] or cohort
+        n_heavy = min(len(candidates), max(1, math.ceil(PORTUGUESE_GROUPS * len(cohort))))
+        heavy = set(rng.sample(candidates, n_heavy))
+        for i, group in enumerate(self.groups):
+            share = rng.uniform(0.3, 0.45) if i in heavy else rng.uniform(0.03, 0.08)
+            if THEME_BY_ID[next(iter(group.themes))].kind == "social":
+                share += 0.04
+            self.groups[i] = replace(group, portuguese_share=round(share, 3))
 
     # -- people --------------------------------------------------------------
 
@@ -435,7 +460,15 @@ class _Builder:
                 rng, [d for d, _ in _DOC_TYPE_WEIGHTS], [w for _, w in _DOC_TYPE_WEIGHTS]
             )
         p_french = group.french_share + (0.15 if doc_type in ("report", "thesis") else 0.0)
-        language = "fr" if rng.random() < p_french else "en"
+        # One draw whatever the languages: a trilingual world keeps the works of
+        # the default one and only writes some English ones in Portuguese.
+        draw = rng.random()
+        if draw < p_french:
+            language = "fr"
+        elif draw < p_french + group.portuguese_share:
+            language = "pt"
+        else:
+            language = "en"
 
         theme_ids = list(lead.themes)
         primary = _weighted_choice(rng, theme_ids, [lead.themes[t] for t in theme_ids])
@@ -534,29 +567,58 @@ class _Builder:
         return _weighted_choice(rng, pool, weights)
 
     def _venue(self, doc_type: str, language: str, group: Group) -> str:
+        # Portuguese venues draw exactly as English ones do (lists of equal length).
         rng = self.rng_works
         if doc_type == "article":
             if language == "fr" and rng.random() < 0.7:
                 return rng.choice(nm.VENUES_FR)
-            return rng.choice(nm.VENUES_EN)
+            return rng.choice(nm.VENUES_PT if language == "pt" else nm.VENUES_EN)
         if doc_type == "proceedings":
-            return rng.choice(nm.PROCEEDINGS_FR if language == "fr" else nm.PROCEEDINGS_EN)
+            lists = {"fr": nm.PROCEEDINGS_FR, "pt": nm.PROCEEDINGS_PT}
+            return rng.choice(lists.get(language, nm.PROCEEDINGS_EN))
         if doc_type == "preprint":
             return nm.PREPRINT_SERVER
         if doc_type == "report":
-            prefix = "Rapport technique" if language == "fr" else "Technical report"
+            prefix = {"fr": "Rapport technique", "pt": "Relatório técnico"}.get(
+                language, "Technical report"
+            )
             return f"{prefix}, {group.institution}"
-        prefix = "Thèse de doctorat" if language == "fr" else "Doctoral thesis"
+        prefix = {"fr": "Thèse de doctorat", "pt": "Tese de doutorado"}.get(
+            language, "Doctoral thesis"
+        )
         return f"{prefix}, {group.institution}"
 
 
-def generate(size: str = "S", seed: int = 0) -> DemoWorld:
-    """Generate the demo world of the given *size* (``XS``, ``S`` or ``L``) and *seed*."""
+def parse_languages(languages: str | tuple[str, ...] | list[str] | None) -> tuple[str, ...]:
+    """A supported language set from ``"en,fr,pt"`` or a sequence (``None``: the default)."""
+    if languages is None:
+        return LANGUAGES
+    items = languages.split(",") if isinstance(languages, str) else list(languages)
+    wanted = tuple(dict.fromkeys(str(x).strip().lower() for x in items if str(x).strip()))
+    for option in LANGUAGE_SETS:
+        if set(wanted) == set(option):
+            return option
+    listed = "; ".join(",".join(o) for o in LANGUAGE_SETS)
+    raise ValueError(f"unsupported languages {','.join(wanted)!r}; expected one of: {listed}")
+
+
+def generate(
+    size: str = "S", seed: int = 0, languages: str | tuple[str, ...] | None = None
+) -> DemoWorld:
+    """Generate the demo world of the given *size* (``XS``, ``S`` or ``L``) and *seed*.
+
+    *languages* is ``en,fr`` (the default) or ``en,fr,pt``: a trilingual world
+    has the same groups, people and bibliography as the default one; some
+    groups write often in Portuguese, so some English works become Portuguese
+    works, and every text is written anew.
+    """
     key = size.upper()
     if key not in SIZES:
         raise ValueError(f"unknown size {size!r}; expected one of {', '.join(SIZES)}")
-    builder = _Builder(SIZES[key], int(seed))
+    langs = parse_languages(languages)
+    builder = _Builder(SIZES[key], int(seed), langs)
     builder.build_structure()
+    builder.assign_portuguese()
     builder.build_people()
     works = builder.build_works()
     return DemoWorld(
@@ -566,4 +628,5 @@ def generate(size: str = "S", seed: int = 0) -> DemoWorld:
         people=tuple(builder.people),
         works=tuple(works),
         themes=THEMES,
+        languages=langs,
     )

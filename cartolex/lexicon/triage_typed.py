@@ -5,8 +5,9 @@ Three layers:
 
 1. ``prefilter_terms`` — deterministic, no API call. Removes structural,
    lexical and admin junk that the LLM consistently leaks through.
-2. ``run_typed_triage`` — single LLM pass with a short prompt anchored on
-   the domain's ``reference_keywords`` (when a domain catalog lists them). Emits a typed verdict
+2. ``run_typed_triage`` — single LLM pass with a short prompt giving the
+   domain's title and, when the project owner wrote one, its description as
+   context (``KeywordsConfig.domain_description``). Emits a typed verdict
    per term: ``C`` (concept), ``M`` (method), ``O`` (object of study) for
    accepts; ``N`` / ``K`` / ``G`` / ``F`` for rejects.
 3. ``post_check_typed`` — deterministic guard against the most common
@@ -42,7 +43,7 @@ from .mistral_client import (
     MistralClient,
     _cache_key,
 )
-from .prompt_store import PromptTemplate, load_prompt
+from .prompt_store import PromptTemplate, PromptTemplateError, load_prompt
 from .stopwords_config import StopwordLists, packaged_lists
 from .text_utils import tokenize
 
@@ -291,16 +292,27 @@ TYPED_PROMPT_NAME = "triage_typed_system"
 #: Placeholders the packaged template must carry.
 TYPED_PLACEHOLDERS = (
     "{domain_title}",
-    "{subfields_block}",
+    "{domain_description}",
     "{reference_language_name}",
     "{person_whitelist_block}",
 )
+#: The placeholder of the removed domain-catalogue anchor: a template using it is refused.
+_REMOVED_PLACEHOLDER = "{subfields_block}"
 
 
-def _format_subfields_block(reference_keywords: list[str]) -> str:
-    if not reference_keywords:
-        return "  (no reference subfields listed for this domain)"
-    return "\n".join(f"  - {kw}" for kw in reference_keywords)
+def _format_domain_description(description: str) -> str:
+    """Render the project owner's description of the domain for the triage system prompt.
+
+    An empty description renders as an empty string: the prompt then names
+    the domain by its title alone.
+    """
+    text = " ".join((description or "").split())
+    if not text:
+        return ""
+    return (
+        "\n\nThe project's owner describes the domain as follows. Use it as context "
+        f"for your judgement, not as a list of allowed terms:\n  {text}"
+    )
 
 
 def _format_person_whitelist_block(person_whitelist: Collection[str]) -> str:
@@ -322,9 +334,20 @@ def _format_person_whitelist_block(person_whitelist: Collection[str]) -> str:
 
 
 # Workspace-level override (the context's ``paths.triage_prompt_override_txt``):
-# when present and carrying the two placeholders {domain_title} and
-# {subfields_block}, it replaces the packaged template.
+# when present and carrying the placeholder {domain_title}, it replaces the
+# packaged template.
 TYPED_PROMPT_OVERRIDE_NAME = "triage_typed.txt"
+
+
+def _refuse_removed_anchor(template: PromptTemplate) -> PromptTemplate:
+    if _REMOVED_PLACEHOLDER in template.text:
+        raise PromptTemplateError(
+            f"Prompt template {template.source} uses {_REMOVED_PLACEHOLDER}, which no "
+            "longer exists: the reference subfields of a domain catalogue are gone. "
+            "Replace it with {domain_description} (the project's own description of "
+            "the domain, KeywordsConfig.domain_description) or remove it."
+        )
+    return template
 
 
 def load_typed_template(
@@ -335,28 +358,36 @@ def load_typed_template(
     """Return the typed-triage system template, honouring a workspace override.
 
     *override_path* (a workspace file) wins when it exists and carries the
-    placeholders ``{domain_title}`` and ``{subfields_block}``; otherwise the
-    template ``triage_typed_system.txt`` of *prompt_dir* (default: the
-    packaged prompts) is loaded and checked — a missing or incomplete one
-    raises :class:`~cartolex.lexicon.prompt_store.PromptTemplateError`.
+    placeholder ``{domain_title}``; otherwise the template
+    ``triage_typed_system.txt`` of *prompt_dir* (default: the packaged
+    prompts) is loaded and checked — a missing or incomplete one raises
+    :class:`~cartolex.lexicon.prompt_store.PromptTemplateError`. A template
+    that still uses the removed ``{subfields_block}`` placeholder raises it
+    too, saying what replaces it.
     """
     if override_path is not None and Path(override_path).exists():
         try:
             txt = Path(override_path).read_text(encoding="utf-8")
-            if "{domain_title}" in txt and "{subfields_block}" in txt:
-                return PromptTemplate(name=TYPED_PROMPT_NAME, source=str(override_path), text=txt)
-        except Exception:
-            pass
-    return load_prompt(
-        TYPED_PROMPT_NAME, required_placeholders=TYPED_PLACEHOLDERS, prompt_dir=prompt_dir
-    )
+        except OSError:
+            txt = ""
+        if "{domain_title}" in txt:
+            return _refuse_removed_anchor(
+                PromptTemplate(name=TYPED_PROMPT_NAME, source=str(override_path), text=txt)
+            )
+    template = _refuse_removed_anchor(load_prompt(TYPED_PROMPT_NAME, prompt_dir=prompt_dir))
+    missing = [p for p in TYPED_PLACEHOLDERS if p not in template.text]
+    if missing:
+        raise PromptTemplateError(
+            f"Prompt template {template.source} lacks the placeholder(s) {', '.join(missing)}"
+        )
+    return template
 
 
 def build_typed_prompt(
     terms: list[str],
     domain_title: str,
-    reference_keywords: list[str],
     *,
+    domain_description: str = "",
     template: PromptTemplate | None = None,
     reference_language: str = "en",
     person_whitelist: Collection[str] = (),
@@ -364,9 +395,12 @@ def build_typed_prompt(
     """Return ``(system_prompt, user_content)`` for the typed triage.
 
     *template* is the system template (default: the packaged one, see
-    :func:`load_typed_template`). ``reference_language`` is the
-    canonical-form language the LLM is asked to normalise terms into (default
-    English, reproducing the historical behaviour).
+    :func:`load_typed_template`). *domain_description* is the project
+    owner's short description of the domain, given to the model as context
+    through the ``{domain_description}`` placeholder (nothing when empty).
+    ``reference_language`` is the canonical-form language the LLM is asked to
+    normalise terms into (default English, reproducing the historical
+    behaviour).
 
     ``person_whitelist`` holds operator-approved person names surfaced to the
     LLM as force-accepted research objects via the ``{person_whitelist_block}``
@@ -380,7 +414,7 @@ def build_typed_prompt(
         template = load_typed_template()
     system = template.render(
         domain_title=domain_title,
-        subfields_block=_format_subfields_block(reference_keywords),
+        domain_description=_format_domain_description(domain_description),
         reference_language_name=language_name(reference_language),
         person_whitelist_block=_format_person_whitelist_block(person_whitelist),
     )
@@ -516,8 +550,8 @@ _TYPED_CACHE_PHASE = "typed_v3"
 def run_typed_triage(
     global_terms: list[str],
     domain_title: str,
-    reference_keywords: list[str],
     *,
+    domain_description: str = "",
     api_key: str,
     cache_path: Path,
     term_cache_path: Path,
@@ -544,7 +578,9 @@ def run_typed_triage(
                         (one of: prefilter_<reason>, N, K, G, F)
 
     ``cache_path`` / ``term_cache_path`` are the batch and per-term answer
-    caches. *template* is the system template (default: the packaged one);
+    caches, keyed by the terms, *domain_title* and *model* — never by the
+    prompt, so *domain_description* changes no key. *template* is the system
+    template (default: the packaged one);
     *stopwords* the lists of the deterministic prefilter and post-check
     (default: the packaged ones); live calls report their tokens to *usage*.
     Names in *person_whitelist* are force-accepted: they bypass the
@@ -628,7 +664,7 @@ def run_typed_triage(
             system, user = build_typed_prompt(
                 chunk,
                 domain_title,
-                reference_keywords,
+                domain_description=domain_description,
                 template=template,
                 reference_language=reference_language,
                 person_whitelist=person_whitelist,

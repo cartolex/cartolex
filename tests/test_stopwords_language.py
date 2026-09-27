@@ -31,33 +31,6 @@ def test_portuguese_articles_are_midwords() -> None:
         assert w in sw.midwords, f"{w!r} missing from Portuguese midwords"
 
 
-def test_bare_portuguese_article_filtered_from_extraction() -> None:
-    import pandas as pd
-
-    from cartolex.lexicon.lexical_filters import filter_global_terms
-
-    df = pd.DataFrame(
-        {
-            "term": ["uma", "uma abordagem", "crescimento económico", "política monetária"],
-            "score": [5.0, 4.0, 3.0, 2.0],
-        }
-    )
-    out = filter_global_terms(
-        df,
-        names=set(),
-        blacklist=set(),
-        midwords=sw.midwords,
-        single_blacklist=set(),
-        admin_patterns=[],
-        junk_patterns=[],
-    )
-    terms = set(out["term"])
-    assert "uma" not in terms  # bare article
-    assert "uma abordagem" not in terms  # leading article
-    assert "crescimento económico" in terms
-    assert "política monetária" in terms
-
-
 def test_spanish_shipped_and_aggregated() -> None:
     assert sw.block("midwords_es"), "expected a Spanish midword set in stopwords/core.json"
     assert sw.block("blacklist_es_base"), "expected a Spanish base blacklist in stopwords/core.json"

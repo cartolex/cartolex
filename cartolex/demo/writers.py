@@ -16,6 +16,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from .model import FORMAT, GENERATOR_VERSION, DemoWorld, Work
+from .vocabulary import Term, Theme
 
 PEOPLE_COLUMNS = (
     "person_id",
@@ -92,26 +93,142 @@ def _prepare(root: Path, files: Sequence[str], dirs: Sequence[str], overwrite: b
     root.mkdir(parents=True, exist_ok=True)
 
 
+def _term_entry(term: Term, portuguese: bool) -> dict:
+    entry = {"en": term.en, "fr": term.fr, "fr_article": term.article}
+    if portuguese:
+        entry.update(pt=term.pt, pt_article=term.pt_article)
+    entry["technique"] = term.technique
+    return entry
+
+
+def _theme_entry(theme: Theme, portuguese: bool) -> dict:
+    entry = {"id": theme.id, "name_en": theme.name_en, "name_fr": theme.name_fr}
+    if portuguese:
+        entry["name_pt"] = theme.name_pt
+    entry["terms"] = [_term_entry(x, portuguese) for x in theme.terms]
+    return entry
+
+
 def truth(world: DemoWorld) -> dict:
-    """The ground truth: themes and their terms, and who and what is about which theme."""
-    return {
-        "themes": [
-            {
-                "id": t.id,
-                "name_en": t.name_en,
-                "name_fr": t.name_fr,
-                "terms": [
-                    {"en": x.en, "fr": x.fr, "fr_article": x.article, "technique": x.technique}
-                    for x in t.terms
-                ],
-            }
-            for t in world.themes
-        ],
-        "groups": {g.group_id: g.themes for g in world.groups},
-        "people": {p.person_id: p.themes for p in world.people},
-        "works": {w.work_id: list(w.themes) for w in world.works},
-        "coverage": {p.person_id: p.coverage for p in world.people},
-    }
+    """The ground truth: themes and their terms, and who and what is about which theme.
+
+    A world in another language set than the default one also records its
+    languages, the Portuguese forms of the terms and themes, and the
+    ``lexicon``: every phrase the texts are written with, by language, with
+    whether it is a field term (see :func:`lexicon_truth`). A default world
+    keeps the historical format, byte for byte.
+    """
+    portuguese = "pt" in world.languages
+    doc: dict = {"themes": [_theme_entry(t, portuguese) for t in world.themes]}
+    doc["groups"] = {g.group_id: g.themes for g in world.groups}
+    doc["people"] = {p.person_id: p.themes for p in world.people}
+    doc["works"] = {w.work_id: list(w.themes) for w in world.works}
+    doc["coverage"] = {p.person_id: p.coverage for p in world.people}
+    if world.trilingual:
+        doc["languages"] = list(world.languages)
+        doc["lexicon"] = lexicon_truth(world.languages)
+    return doc
+
+
+def _forms(term: Term, languages: Sequence[str]) -> list[tuple[str, str]]:
+    """``(language, form without article)`` of a term in *languages*."""
+    forms = {"en": term.en, "fr": term.fr, "pt": term.pt}
+    return [(lang, forms[lang]) for lang in languages if forms.get(lang)]
+
+
+def lexicon_truth(languages: Sequence[str]) -> list[dict]:
+    """Every phrase the demo texts are written with, per language, and what it is.
+
+    One record per phrase and language: ``text`` (a term without its article,
+    or a setting phrase, or a literal piece of a sentence template), ``lang``,
+    ``kind`` and ``field``:
+
+    - ``theme``: a theme term (``canonical`` is its English form, ``themes``
+      the themes it belongs to, ``technique`` whether it is a tool or
+      approach) — a field term;
+    - ``method``: a method shared by the themes (``scope`` natural, social or
+      any) — a field term;
+    - ``driver``: a driver of change named in the texts (``climate change``)
+      — context, not a field term;
+    - ``setting``: a study-setting phrase (``on sandy beaches``) — context,
+      not a field term;
+    - ``template``: a literal piece of a sentence template or lead-in (the
+      text between two slots) — generic filler.
+
+    Records are sorted by kind, language and text.
+    """
+    from .texts import LEADINS, TEMPLATES, slot_free_pieces
+    from .vocabulary import DRIVERS, METHODS, SETTINGS, THEMES
+
+    langs = [lang for lang in ("en", "fr", "pt") if lang in languages]
+    themes_of: dict[str, list[str]] = {}
+    terms: dict[str, Term] = {}
+    for theme in THEMES:
+        for term in theme.terms:
+            themes_of.setdefault(term.en, []).append(theme.id)
+            terms.setdefault(term.en, term)
+    records: list[dict] = []
+    for en, term in terms.items():
+        for lang, form in _forms(term, langs):
+            records.append(
+                {
+                    "text": form,
+                    "lang": lang,
+                    "kind": "theme",
+                    "field": True,
+                    "canonical": en,
+                    "themes": themes_of[en],
+                    "technique": term.technique,
+                }
+            )
+    for method in METHODS:
+        for lang, form in _forms(method.term, langs):
+            records.append(
+                {
+                    "text": form,
+                    "lang": lang,
+                    "kind": "method",
+                    "field": True,
+                    "canonical": method.term.en,
+                    "scope": method.kind,
+                }
+            )
+    for driver in DRIVERS:
+        for lang, form in _forms(driver, langs):
+            records.append(
+                {
+                    "text": form,
+                    "lang": lang,
+                    "kind": "driver",
+                    "field": False,
+                    "canonical": driver.en,
+                }
+            )
+    for setting in SETTINGS:
+        phrases = {"en": setting.en, "fr": setting.fr, "pt": setting.pt}
+        for lang in langs:
+            records.append(
+                {
+                    "text": phrases[lang],
+                    "lang": lang,
+                    "kind": "setting",
+                    "field": False,
+                    "canonical": setting.en,
+                }
+            )
+    pieces: set[tuple[str, str]] = set()
+    for (lang, _kind), roles in TEMPLATES.items():
+        if lang in langs:
+            for templates in roles.values():
+                pieces |= {(lang, p) for t in templates for p in slot_free_pieces(t)}
+    for lang, roles in LEADINS.items():
+        if lang in langs:
+            pieces |= {(lang, p) for leads in roles.values() for p in leads}
+    for lang, text in pieces:
+        records.append({"text": text, "lang": lang, "kind": "template", "field": False})
+    order = {"theme": 0, "method": 1, "driver": 2, "setting": 3, "template": 4}
+    records.sort(key=lambda r: (order[r["kind"]], r["lang"], r["text"], r.get("canonical", "")))
+    return records
 
 
 def world_files(world: DemoWorld) -> dict[str, bytes]:
@@ -177,14 +294,12 @@ def write_world(world: DemoWorld, out_dir: Path, *, overwrite: bool = False) -> 
     files = world_files(world)
     for rel, data in files.items():
         (out_dir / rel).write_bytes(data)
-    manifest = {
-        "format": FORMAT,
-        "size": world.size,
-        "seed": world.seed,
-        "generator": f"cartolex.demo {GENERATOR_VERSION}",
-        "counts": world.counts(),
-        "files": {rel: hashlib.sha256(files[rel]).hexdigest() for rel in sorted(files)},
-    }
+    manifest: dict = {"format": FORMAT, "size": world.size, "seed": world.seed}
+    if world.trilingual:
+        manifest["languages"] = list(world.languages)
+    manifest["generator"] = f"cartolex.demo {GENERATOR_VERSION}"
+    manifest["counts"] = world.counts()
+    manifest["files"] = {rel: hashlib.sha256(files[rel]).hexdigest() for rel in sorted(files)}
     (out_dir / "manifest.json").write_bytes(json_bytes(manifest))
     return manifest
 

@@ -4,8 +4,8 @@
 This module:
   1. Loads the hard-filtered global keyword list (``ctx.paths.global_terms_csv``)
   2. Runs the typed single-pass Mistral triage (deterministic prefilter →
-     one typed LLM classification pass → deterministic post-check), anchored
-     on the domain's reference keywords when a domain catalog lists them.
+     one typed LLM classification pass → deterministic post-check), with the
+     domain's title and the project owner's description of it as context.
   3. Saves decisions (``ctx.paths.triage_decisions_json``)
   4. Updates the backward-compatible translation cache
      (``ctx.paths.translation_cache_json``)
@@ -20,11 +20,10 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from .domain_catalog import DomainCatalogError, load_catalog
-from .lexical_filters import filter_global_terms
+from .lexical_filters import is_malformed_term
 from .llm_filter import save_decisions
 from .mistral_client import load_api_key
-from .stopwords_config import StopwordLists, packaged_lists
+from .stopwords_config import packaged_lists
 from .text_utils import tokenize
 from .triage_typed import build_typed_prompt, load_typed_template, run_typed_triage
 from .whitelist import load_person_whitelist
@@ -38,18 +37,20 @@ logger = logging.getLogger(__name__)
 def _load_global_terms(
     path: Path,
     min_score: float = 0.0,
-    *,
-    stopwords: StopwordLists | None = None,
 ) -> tuple[list[str], pd.DataFrame]:
-    """Load term list from keywords_global.csv with safety-net hard filtering.
+    """Load the term list of the merged candidate table, with a safety net.
 
     Parameters
     ----------
     min_score : float
         Drop terms whose ``score_len`` is strictly below this value.
         Default 0.0 keeps everything.
-    stopwords : StopwordLists, optional
-        The lists of the safety-net filter (default: the packaged ones).
+
+    The safety net drops what is never a term whatever the extraction:
+    blank cells, numbers and malformed strings (web addresses, encoding
+    garbage). It applies no stop-word list: the extraction's candidates are
+    noun phrases, and the packaged lists of the n-gram extraction blocked real
+    terms (a term containing a word of one or two letters, common nouns).
 
     Returns
     -------
@@ -72,19 +73,9 @@ def _load_global_terms(
     df = df[df["term"] != ""].copy()
     n_raw = len(df)
 
-    # Safety-net: re-apply hard lexical filters even if Stage 1 already did,
-    # so that an expanded blacklist retroactively catches old terms.
-    sw = stopwords if stopwords is not None else packaged_lists()
-    names = sw.person_names | sw.geo_terms
-    df = filter_global_terms(
-        df,
-        names=names,
-        blacklist=sw.basic_blacklist,
-        midwords=sw.midwords,
-        single_blacklist=sw.single_blacklist,
-        admin_patterns=list(sw.admin_patterns),
-        junk_patterns=list(sw.junk_patterns),
-    )
+    # Safety net: numbers and malformed strings are never terms.
+    keep = ~df["term"].str.fullmatch(r"[\d\s]+") & ~df["term"].apply(is_malformed_term)
+    df = df[keep].copy()
     n_after = len(df)
     if n_after < n_raw:
         logger.info("Safety-net filter removed %d terms (%d → %d)", n_raw - n_after, n_raw, n_after)
@@ -141,40 +132,6 @@ def _strip_leading_trailing_midwords(
             seen.add(t)
             deduped.append(t)
     return deduped
-
-
-def _resolve_domain_anchor(ctx: RunContext, domain_title: str) -> tuple[str, list[str]]:
-    """Resolve the domain title and reference keywords for prompt anchoring.
-
-    Reads the optional domain catalogue (``ctx.paths.domain_catalog_jsons``);
-    tries it by ``settings.domain_id`` first, then by matching *domain_title*
-    against catalog ``code``, ``domain_id`` or ``title`` (case-insensitive
-    substring). A catalog entry gives the title ``"<code> — <title>"`` (the
-    string that enters the AI cache keys). Falls back to ``(domain_title, [])``
-    if nothing matches so the typed prompt can still run, just without
-    subfield anchors.
-    """
-    cfg = ctx.settings
-    try:
-        catalog = load_catalog(ctx.paths.domain_catalog_jsons)
-    except (FileNotFoundError, DomainCatalogError, ValueError):
-        return domain_title, []
-
-    did = (cfg.domain_id or "").strip()
-    if did and did in catalog:
-        e = catalog[did]
-        return f"{e.code} — {e.title}", list(e.reference_keywords)
-
-    needle = (domain_title or "").strip().lower()
-    if needle:
-        for e in catalog.values():
-            if needle in (e.code.lower(), e.domain_id.lower()):
-                return f"{e.code} — {e.title}", list(e.reference_keywords)
-        for e in catalog.values():
-            if needle in e.title.lower():
-                return f"{e.code} — {e.title}", list(e.reference_keywords)
-
-    return domain_title, []
 
 
 def run_pipeline_stage_2_llm(
@@ -243,9 +200,7 @@ def _triage(
 
     # 1. Load terms (with safety-net filtering + score cutoff)
     log(0, "Loading global keyword candidates...")
-    terms, _terms_df = _load_global_terms(
-        paths.global_terms_csv, min_score=cfg.llm_min_score, stopwords=lists
-    )
+    terms, _terms_df = _load_global_terms(paths.global_terms_csv, min_score=cfg.llm_min_score)
     log(
         1,
         f"Loaded {len(terms)} terms after safety-net filtering"
@@ -266,11 +221,10 @@ def _triage(
     if dry_run:
         log(5, "=== DRY RUN: showing prompts only ===")
         template, person_whitelist = prompt_inputs()
-        anchored_title, reference_keywords = _resolve_domain_anchor(ctx, title)
         sys_typed, usr_typed = build_typed_prompt(
             terms[:5],
-            anchored_title,
-            reference_keywords,
+            title,
+            domain_description=cfg.domain_description,
             template=template,
             reference_language=cfg.reference_language,
             person_whitelist=person_whitelist,
@@ -292,18 +246,17 @@ def _triage(
 
     # 4. Run typed single-pass triage
     template, person_whitelist = prompt_inputs()
-    anchored_title, reference_keywords = _resolve_domain_anchor(ctx, title)
     log(
         5,
         f"Starting typed single-pass LLM triage: "
         f"model={cfg.llm_model}, batch_size={cfg.llm_batch_size}, "
         f"max_concurrent={cfg.llm_max_concurrent}, "
-        f'domain="{anchored_title}", subfields={len(reference_keywords)}',
+        f'domain="{title}"' + (", with its description" if cfg.domain_description else ""),
     )
     result = run_typed_triage(
         global_terms=terms,
-        domain_title=anchored_title,
-        reference_keywords=reference_keywords,
+        domain_title=title,
+        domain_description=cfg.domain_description,
         api_key=key,
         model=cfg.llm_model,
         api_url=cfg.llm_api_url,
@@ -364,9 +317,9 @@ def main(argv: list[str] | None = None) -> None:
         "--domain-title", default=None, help="Domain title used in prompts (default: from config)"
     )
     parser.add_argument(
-        "--domain-id",
+        "--domain-description",
         default=None,
-        help="Domain-catalog entry id used to pull reference keywords for prompt anchoring",
+        help="Short description of the domain, given to the model as context",
     )
     parser.add_argument(
         "--model",
@@ -385,13 +338,13 @@ def main(argv: list[str] | None = None) -> None:
     )
     if args.domain_title:
         cfg.domain_title = args.domain_title
-    if args.domain_id:
-        cfg.domain_id = args.domain_id
+    if args.domain_description:
+        cfg.domain_description = args.domain_description
     ctx = RunContext.for_workspace(args.workspace, cfg)
 
     if not args.dry_run:
         # Confirm before sending
-        terms, _ = _load_global_terms(ctx.paths.global_terms_csv, stopwords=ctx.stopwords.packaged)
+        terms, _ = _load_global_terms(ctx.paths.global_terms_csv)
         logger.info("Ready to send %d terms to Mistral API (typed triage):", len(terms))
         logger.info("  Model: %s", ctx.settings.llm_model)
         logger.info("  Domain: %s", ctx.settings.domain_title)

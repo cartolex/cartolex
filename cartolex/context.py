@@ -84,10 +84,11 @@ class EnginePaths:
     api_key_json: Path
     triage_prompt_override_txt: Path
     subfields_curated_json: Path
-    #: Candidate files of the optional domain catalogue, preferred first.
-    domain_catalog_jsons: tuple[Path, ...]
 
     # ── extraction, triage and consolidation ──
+    #: Folder of the parse cache: the analysed texts of every corpus language,
+    #: kept between runs (see cartolex.lexicon.parse_cache).
+    parse_cache_dir: Path
     raw_terms_csv: PathPattern  # per corpus language
     global_terms_csv: Path
     refined_terms_csv: Path
@@ -165,7 +166,7 @@ class EnginePaths:
             api_key_json=manual / "llm_api.json",
             triage_prompt_override_txt=manual / "llm_prompts" / "triage_typed.txt",
             subfields_curated_json=manual / "subfields.json",
-            domain_catalog_jsons=(config / "domain_catalog.json",),
+            parse_cache_dir=auto / "parse_cache",
             raw_terms_csv=PathPattern(auto, "raw_keywords_{}.csv"),
             global_terms_csv=auto / "keywords_global.csv",
             refined_terms_csv=auto / "keywords_global_refined.csv",

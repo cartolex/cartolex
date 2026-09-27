@@ -89,7 +89,30 @@ def test_triage_writes_the_frozen_keys(tmp_path: Path, monkeypatch: pytest.Monke
     run_typed_triage(
         global_terms=list(sample["terms"]),
         domain_title=sample["domain"],
-        reference_keywords=[],
+        api_key="test-key",
+        model=sample["model"],
+        batch_size=100,
+        cache_path=batch_cache,
+        term_cache_path=term_cache,
+        max_concurrent=1,
+    )
+    assert sorted(json.loads(batch_cache.read_text(encoding="utf-8"))) == sample["batch_keys"]
+    assert sorted(json.loads(term_cache.read_text(encoding="utf-8"))) == sample["term_keys"]
+
+
+def test_the_domain_description_changes_no_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The owner's description of the domain is prompt context, never part of a key."""
+    fake_sdk = types.ModuleType("mistralai")
+    fake_sdk.Mistral = _FakeClient  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "mistralai", fake_sdk)
+    sample = FIXTURE["triage_sample"]
+    batch_cache, term_cache = tmp_path / "batch.json", tmp_path / "terms.json"
+    run_typed_triage(
+        global_terms=list(sample["terms"]),
+        domain_title=sample["domain"],
+        domain_description="An invented field of coastal studies: beaches, dunes, estuaries.",
         api_key="test-key",
         model=sample["model"],
         batch_size=100,

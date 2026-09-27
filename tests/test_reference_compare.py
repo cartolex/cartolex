@@ -304,6 +304,84 @@ def test_ledger_entry_needs_a_reason(tmp_path: Path) -> None:
         compare.load_explained(ledger, "S")
 
 
+@needs_tomllib
+def test_a_stage_is_explained_by_its_upstream_cause(tmp_path: Path) -> None:
+    """A stage entry explains every change of a stage whose upstream stage changed."""
+    ref = _write_run(tmp_path / "ref", _artifacts())
+    cur = _write_run(tmp_path / "cur", _artifacts(scale=1.01, label_shift=True, extra_row=True))
+    manifest = json.loads((cur / "manifest.json").read_text(encoding="utf-8"))
+    entries = [
+        {
+            "reference": "S",
+            "stage": "first",
+            "artifact": name,
+            "sha256": manifest["artifacts"]["first"][name]["sha256"],
+            "reason": "new candidate terms",
+        }
+        for name in ("terms", "summary")
+    ]
+    entries.append(
+        {"reference": "S", "stage": "second", "upstream": "first", "reason": "other terms"}
+    )
+    ledger = _ledger(tmp_path / "explained.toml", entries)
+    report = compare.compare_runs(ref, cur, compare.load_explained(ledger, "S"))
+    by_name = {a.name: a for s in report.stages for a in s.artifacts}
+    assert by_name["labels"].verdict == "explained"
+    assert by_name["labels"].detail.endswith("explained by an upstream change (first)")
+    assert "second: explained by an upstream change (first): other terms" in report.notes
+    assert by_name["copy"].verdict == "identical"
+    assert report.summary_line() == "2 stages: 0 identical, 2 explained"
+    assert not any("no longer matches" in n for n in report.notes)
+
+
+@needs_tomllib
+def test_an_upstream_cause_that_did_not_change_explains_nothing(tmp_path: Path) -> None:
+    ref = _write_run(tmp_path / "ref", _artifacts())
+    changed = _artifacts()
+    changed["second"]["labels"] = runner.Labels([0, 1, 1, 1])
+    cur = _write_run(tmp_path / "cur", changed)
+    ledger = _ledger(
+        tmp_path / "explained.toml",
+        [{"reference": "S", "stage": "second", "upstream": "first", "reason": "other terms"}],
+    )
+    report = compare.compare_runs(ref, cur, compare.load_explained(ledger, "S"))
+    assert report.stages[1].verdict == "different"
+    assert any("no longer matches: second (upstream first)" in n for n in report.notes)
+    # A later stage is never the cause of an earlier one.
+    changed["first"]["summary"] = runner.Document({"n": 5})
+    cur2 = _write_run(tmp_path / "cur2", changed)
+    ledger = _ledger(
+        tmp_path / "explained2.toml",
+        [{"reference": "S", "stage": "first", "upstream": "second", "reason": "backwards"}],
+    )
+    report = compare.compare_runs(ref, cur2, compare.load_explained(ledger, "S"))
+    assert report.stages[0].verdict == "different"
+
+
+@needs_tomllib
+def test_stage_entries_are_checked(tmp_path: Path) -> None:
+    both = _ledger(
+        tmp_path / "both.toml",
+        [
+            {
+                "reference": "S",
+                "stage": "second",
+                "artifact": "labels",
+                "sha256": "0" * 64,
+                "upstream": "first",
+                "reason": "ambiguous",
+            }
+        ],
+    )
+    with pytest.raises(ValueError, match="not both"):
+        compare.load_explained(both, "S")
+    neither = _ledger(
+        tmp_path / "neither.toml", [{"reference": "S", "stage": "second", "reason": "why"}]
+    )
+    with pytest.raises(ValueError, match="upstream cause"):
+        compare.load_explained(neither, "S")
+
+
 def test_regenerating_needs_the_frozen_runner(capsys: pytest.CaptureFixture[str]) -> None:
     """``--regenerate`` refuses to run without ``--runner``, before building anything."""
     check = _load("reference_check", "check_reference.py")
@@ -313,6 +391,41 @@ def test_regenerating_needs_the_frozen_runner(capsys: pytest.CaptureFixture[str]
     assert "--runner" in capsys.readouterr().err
     with pytest.raises(SystemExit):
         check.main(["--size", "S", "--runner", "run.py"])
+
+
+def test_the_baseline_changes_only_with_a_reason(capsys: pytest.CaptureFixture[str]) -> None:
+    """``--update-baseline`` needs a reason, and it never combines with ``--regenerate``."""
+    check = _load("reference_check", "check_reference.py")
+    for argv in (
+        ["--update-baseline", "--regenerate", "--runner", "run.py"],
+        ["--reason", "a reason without an update"],
+    ):
+        with pytest.raises(SystemExit) as exc:
+            check.main(argv)
+        assert exc.value.code == 2
+    with pytest.raises(SystemExit, match="needs --reason"):
+        check._check_reason("")
+    with pytest.raises(SystemExit, match="needs --reason"):
+        check._check_reason("because")
+    assert check._check_reason("  outputs  move\n on purpose ") == "outputs move on purpose"
+
+
+def test_a_baseline_update_records_its_reason(tmp_path: Path, monkeypatch) -> None:
+    check = _load("reference_check", "check_reference.py")
+    monkeypatch.setattr(check, "BASELINE", tmp_path / "baseline")
+    monkeypatch.setattr(check, "BASELINE_LOG", tmp_path / "baseline" / "LOG.md")
+    run = _write_run(tmp_path / "run", _artifacts())
+    target = check.write_baseline(run, "S", "outputs move on purpose")
+    manifest = json.loads((target / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["baseline"]["reason"] == "outputs move on purpose"
+    assert compare.compare_runs(target, run).verdict == "identical"
+    env = {"engine_version": "1.0", "engine_fingerprint": "f" * 64}
+    check.log_baseline(["S"], "outputs move on purpose", {"S": "the first baseline"}, env)
+    check.log_baseline(["S"], "a second reason here", {"S": "2 stages: 2 identical"}, env)
+    log = (tmp_path / "baseline" / "LOG.md").read_text(encoding="utf-8")
+    assert log.startswith("# Baseline updates")
+    assert log.count("\n## ") == 2
+    assert "- Reason: outputs move on purpose" in log and "- S: 2 stages: 2 identical" in log
 
 
 def test_changed_artifact_without_stored_data(tmp_path: Path) -> None:
@@ -348,6 +461,21 @@ def test_merge_runs_are_compared_by_their_worlds(tmp_path: Path) -> None:
     report = compare.compare_runs(ref, cur)
     assert report.comparable and report.verdict == "identical"
     assert any("cohort a: bundle artifacts changed upstream (meta)" in n for n in report.notes)
+
+    # A merge stage may be explained by its cohorts' bundles.
+    merged = _artifacts()
+    merged["second"]["labels"] = runner.Labels([0, 1, 1, 1])
+    cur_merge = _write_run(tmp_path / "cur_merge", merged)
+    cur_manifest = json.loads((cur_merge / "manifest.json").read_text(encoding="utf-8"))
+    cur_manifest["inputs"] = changed["inputs"]
+    (cur_merge / "manifest.json").write_text(json.dumps(cur_manifest), encoding="utf-8")
+    if sys.version_info >= (3, 11):
+        ledger = _ledger(
+            tmp_path / "explained.toml",
+            [{"reference": "m", "stage": "second", "upstream": "bundle", "reason": "new bundles"}],
+        )
+        report = compare.compare_runs(ref, cur_merge, compare.load_explained(ledger, "m"))
+        assert report.stages[1].verdict == "explained"
 
     changed["inputs"]["cohorts"][1]["workspace_sha256"] = "c" * 64
     (cur / "manifest.json").write_text(json.dumps(changed), encoding="utf-8")

@@ -18,12 +18,22 @@ python examples/synthetic_cohort.py /tmp/demo-workspace
 pip install "cartolex @ git+ssh://git@github.com/<org>/cartolex@v0.1.0"
 # or, during development
 pip install -e ../cartolex
+# the language model of each corpus language (pinned wheels, with their hashes)
+pip install --require-hashes -r ../cartolex/tools/requirements-models.txt
 ```
+
+The keyword extraction parses texts with one spaCy model per corpus language
+(`en_core_web_md` MIT, `fr_core_news_md` LGPL-LR, `pt_core_news_md`
+CC BY-SA 4.0, all 3.8.0). They are separate installs, never bundled; install
+only those of your corpus languages if you prefer (the exact command for one
+model is in the `LanguageModelMissing` error, and in
+`cartolex/lexicon/language_models.py`).
 
 Two engine packages under the `cartolex` namespace: `cartolex.lexicon` (extraction, LLM triage,
 consolidation, subfields, positioning) and `cartolex.atlas` (SVD, concept
 clustering, UMAP, trajectories, plots, and the `driver` that orchestrates
-them). Everything is pure Python; heavy lifting is numpy/scikit-learn/umap.
+them). Everything is pure Python; heavy lifting is spaCy (parsing),
+numpy/scikit-learn and umap.
 
 ## 2. The workspace and the corpus contract
 
@@ -124,7 +134,7 @@ A Portuguese study is `reference_language="pt", corpus_languages=("pt","en"),
 display_languages=("pt","en")`; the LLM prompts are rendered in the reference
 language. Merging cohorts (§7) requires them to share a `reference_language`.
 
-### 3.1 Extraction (TF-IDF)
+### 3.1 Extraction (noun phrases, TF-IDF)
 
 ```python
 from cartolex.lexicon import run_pipeline_stage_1
@@ -132,8 +142,14 @@ run_pipeline_stage_1(ctx)
 ```
 
 Each paragraph is language-detected and routed to its `corpus_languages` stream
-(default `("fr", "en")`; text in a non-configured language is dropped); n-grams
-1–4 per stream write `automatic_data/raw_keywords_<lang>.csv`. Offline.
+(any subset of `en`, `fr`, `pt`; default `("fr", "en")`; text in a
+non-configured language is dropped). Each stream is parsed by the language's
+spaCy model and its noun phrases, scored by TF-IDF, are written to
+`automatic_data/raw_keywords_<lang>.csv`. Offline. The model of every language
+with text must be installed (pinned versions in
+`cartolex/lexicon/language_models.py`; otherwise `LanguageModelMissing` gives
+the install command); parsed texts are kept in `ctx.paths.parse_cache_dir`, so
+a re-run parses only new texts. See `docs/dev/extraction.md`.
 
 ### 3.2 Keyword triage — optional LLM stage
 
@@ -155,13 +171,14 @@ run_pipeline_stage_2_llm(ctx, api_key=None)   # None → MISTRAL_API_KEY env
   your own copies, pass `prompt_dir=` to `RunContext.for_workspace`; templates
   are checked when a stage uses them (a missing file or placeholder raises
   `PromptTemplateError`). A per-workspace override of the triage template
-  also exists (`ctx.paths.triage_prompt_override_txt`, placeholders preserved).
-- **Prompt anchoring (optional):** ship a
-  `<workspace>/config/domain_catalog.json` (`ctx.paths.domain_catalog_jsons`;
-  schema and loader in `cartolex/lexicon/domain_catalog.py`) and set
-  `cfg.domain_id` to anchor
-  the prompts on your domain's reference keywords. Without a catalog,
-  prompts run unanchored — perfectly fine for most deployments.
+  also exists (`ctx.paths.triage_prompt_override_txt`, placeholders preserved;
+  one that still uses the removed `{subfields_block}` is refused with a message
+  saying what replaces it).
+- **Domain description (optional):** `cfg.domain_description` is a short
+  text the project owner writes about the domain; the triage prompt gives it
+  to the model as context (`{domain_description}`). It never enters the AI
+  cache keys, which depend on the terms, the domain title and the model only.
+  Without it the prompt names the domain by its title alone.
 - Skipping this stage entirely is supported — consolidation then works from
   the raw extraction (the synthetic example does exactly that).
 
@@ -289,8 +306,11 @@ packaged one-call helper is on the roadmap — until then, follow
   are safe; gate expensive re-runs on your own dirty-flags (or pass the
   context's staleness hooks).
 - **State = the workspace directory.** Back it up, version it, or throw it
-  away wholesale; nothing lives outside it except the pip-installed code and
-  the stop-word lists shipped in the package (`cartolex/_data/stopwords/core.json`).
+  away wholesale; nothing lives outside it except the pip-installed code (and
+  language models) and the stop-word lists shipped in the package
+  (`cartolex/_data/stopwords/`). The parse cache of the extraction lives in the
+  workspace too (`automatic_data/parse_cache/`): deleting it only costs a new
+  parse.
 
 ## 5. "All features" checklist
 

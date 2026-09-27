@@ -583,12 +583,21 @@ def _environment_notes(ref: dict, cur: dict) -> list[str]:
 
 @dataclass(frozen=True)
 class Explained:
-    """One recorded difference: this artifact now has this hash, for this reason."""
+    """One recorded difference.
+
+    An *artifact* entry pins the artifact's new hash (``sha256``, or
+    ``"absent"``): exactly this change is explained. A *stage* entry has no
+    artifact and names an ``upstream`` cause instead: every changed artifact of
+    the stage is explained, as long as the upstream stage (an earlier stage of
+    the same run, or ``bundle`` for a merge run: the cohorts' bundles) changed
+    too.
+    """
 
     stage: str
-    artifact: str
-    sha256: str  # the current artifact's hash, or "absent"
+    artifact: str | None
+    sha256: str | None
     reason: str
+    upstream: str | None = None
 
 
 def load_explained(path: Path, reference: str) -> list[Explained]:
@@ -602,28 +611,81 @@ def load_explained(path: Path, reference: str) -> list[Explained]:
             continue
         if not entry.get("reason"):
             raise ValueError(f"{path}: every [[difference]] needs a reason")
-        out.append(Explained(entry["stage"], entry["artifact"], entry["sha256"], entry["reason"]))
+        if "artifact" in entry:
+            if "upstream" in entry:
+                raise ValueError(
+                    f"{path}: an entry names an artifact (and its hash) or an upstream "
+                    f"cause, not both ({entry['stage']}/{entry['artifact']})"
+                )
+            out.append(
+                Explained(entry["stage"], entry["artifact"], entry["sha256"], entry["reason"])
+            )
+        elif entry.get("upstream"):
+            out.append(Explained(entry["stage"], None, None, entry["reason"], entry["upstream"]))
+        else:
+            raise ValueError(
+                f"{path}: an entry for the whole stage {entry.get('stage')!r} needs its "
+                'upstream cause (upstream = "<stage>")'
+            )
     return out
 
 
-def _apply_explained(stages: list[StageResult], cur: dict, ledger: list[Explained]) -> list[str]:
-    """Turn recorded differences into *explained*; return notes on unused entries."""
-    by_key = {(e.stage, e.artifact): e for e in ledger}
-    used: set[tuple[str, str]] = set()
+def _apply_explained(
+    stages: list[StageResult],
+    cur: dict,
+    ledger: list[Explained],
+    changed_inputs: set[str] | None = None,
+) -> list[str]:
+    """Turn recorded differences into *explained*; return notes on unused entries.
+
+    *changed_inputs* names upstream causes outside the run's own stages that
+    changed (``bundle`` when a merge run's cohort bundles differ).
+    """
+    by_key = {(e.stage, e.artifact): e for e in ledger if e.artifact is not None}
+    by_stage = {e.stage: e for e in ledger if e.artifact is None}
+    order = [s.stage for s in stages]
+    # Stages that changed before any explanation: the possible upstream causes.
+    changed = {s.stage for s in stages if any(a.verdict == "different" for a in s.artifacts)}
+    changed |= set(changed_inputs or ())
+    used: set[tuple[str, str | None]] = set()
     for s in stages:
+        stage_entry = by_stage.get(s.stage)
+        upstream_ok = (
+            stage_entry is not None
+            and stage_entry.upstream in changed
+            and (
+                stage_entry.upstream not in order
+                or order.index(stage_entry.upstream) < order.index(s.stage)
+            )
+        )
         for a in s.artifacts:
-            entry = by_key.get((s.stage, a.name))
-            if entry is None or a.verdict != "different":
+            if a.verdict != "different":
                 continue
-            current = cur.get("artifacts", {}).get(s.stage, {}).get(a.name)
-            sha = current["sha256"] if current else "absent"
-            if sha == entry.sha256:
+            entry = by_key.get((s.stage, a.name))
+            if entry is not None:
+                current = cur.get("artifacts", {}).get(s.stage, {}).get(a.name)
+                sha = current["sha256"] if current else "absent"
+                if sha == entry.sha256:
+                    a.verdict = "explained"
+                    a.detail = f"{a.detail} — explained: {entry.reason}".lstrip(" —")
+                    used.add((s.stage, a.name))
+                    continue
+            if upstream_ok:
                 a.verdict = "explained"
-                a.detail = f"{a.detail} — explained: {entry.reason}".lstrip(" —")
-                used.add((s.stage, a.name))
+                a.detail = (
+                    f"{a.detail} — explained by an upstream change ({stage_entry.upstream})"
+                ).lstrip(" —")
+                used.add((s.stage, None))
         s.verdict = worst(a.verdict for a in s.artifacts)
-    return [
+    notes = [
+        f"{e.stage}: explained by an upstream change ({e.upstream}): {e.reason}"
+        for e in ledger
+        if e.artifact is None and (e.stage, None) in used
+    ]
+    return notes + [
         f"explained entry no longer matches: {e.stage}/{e.artifact}"
+        if e.artifact is not None
+        else f"explained entry no longer matches: {e.stage} (upstream {e.upstream})"
         for e in ledger
         if (e.stage, e.artifact) not in used
     ]
@@ -674,7 +736,8 @@ def compare_runs(ref_dir: Path, cur_dir: Path, explained: list[Explained] | None
             ["the two runs were made on different input worlds (inputs differ)", *notes],
             False,
         )
-    notes = _bundle_notes(ref, cur) + notes
+    bundle_notes = _bundle_notes(ref, cur)
+    notes = bundle_notes + notes
     if ref.get("settings") != cur.get("settings"):
         notes.insert(0, "run settings differ between the two manifests")
     stages: list[StageResult] = []
@@ -709,7 +772,7 @@ def compare_runs(ref_dir: Path, cur_dir: Path, explained: list[Explained] | None
                 results.append(compare_artifact(stage, name, ref_dir, cur_dir, ra[name], ca[name]))
         stages.append(StageResult(stage, worst(r.verdict for r in results), results))
     if explained:
-        notes += _apply_explained(stages, cur, explained)
+        notes += _apply_explained(stages, cur, explained, {"bundle"} if bundle_notes else set())
     return Report(stages, notes)
 
 

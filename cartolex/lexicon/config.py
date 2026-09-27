@@ -135,13 +135,17 @@ class KeywordsConfig:
     # Documents without a year always pass.
     kw_recency_years: int = 5
 
-    # Parallelism for the per-paragraph language split in Stage 1 (the
-    # measured extraction throughput wall; detection is seeded so parallel
-    # output is identical to serial). 1 = historical single-process path.
+    # Worker processes of Stage 1: the per-paragraph language split and the
+    # parsing of new texts (each parsing worker loads its own language model,
+    # a few hundred MB). The output is identical whatever the number.
+    # 1 = a single process.
     extraction_n_jobs: int = 1
 
-    # TF-IDF vectorizer parameters
+    # N-gram range of the attribution vectorizer (consolidation), widened
+    # there to the longest candidate; the candidates themselves are noun
+    # phrases of at most cartolex.lexicon.noun_phrases.MAX_UNITS word units.
     ngram_range: tuple[int, int] = (1, 4)
+    # TF-IDF window of the candidates, with each person as one document.
     min_df: int = 3  # absolute count — must be int, NOT float
     max_df: float = 0.6  # fraction of documents
     max_features: int = 1_000_000
@@ -184,10 +188,11 @@ class KeywordsConfig:
     # cache keys. Empty: the run context reads it from the workspace override
     # files.
     domain_title: str = ""
-    # Optional domain-catalog entry id used to look up reference_keywords
-    # for prompt anchoring in the typed-triage mode. If empty, the typed
-    # triage falls back to the domain_title with no subfield anchors.
-    domain_id: str = ""
+    # A short description of the mapped domain, written by the project's
+    # owner: the AI triage receives it as context ({domain_description} in
+    # the triage prompt). It never enters the AI cache keys. Empty: the
+    # prompt names the domain by its title alone.
+    domain_description: str = ""
 
     # ── Language model ───────────────────────────────────────
     # Generalizes the former hardwired FR/EN split + hidden English pivot into
@@ -201,6 +206,7 @@ class KeywordsConfig:
     #       as a special case.
     #   corpus_languages   : accepted ingest streams, auto-detected per
     #       paragraph; paragraphs in other languages are dropped at extraction.
+    #       Any subset of the languages with a language model (en, fr, pt).
     #   display_languages  : translation skins rendered at display surfaces
     #       through the single relabel choke point (labels.py).
     reference_language: str = "en"
@@ -250,6 +256,15 @@ class KeywordsConfig:
         if not corpus:
             raise SettingsError(
                 "KeywordsConfig.corpus_languages must list at least one language code."
+            )
+        # The extraction parses each corpus language with its own language model.
+        from .language_models import supported_languages
+
+        unsupported = [c for c in corpus if c not in supported_languages()]
+        if unsupported:
+            raise SettingsError(
+                f"KeywordsConfig.corpus_languages holds {', '.join(map(repr, unsupported))}: "
+                f"the keyword extraction supports {', '.join(supported_languages())}."
             )
         self.corpus_languages = corpus
 

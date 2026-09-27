@@ -42,14 +42,20 @@ def list_templates(prompt_dir: PromptDir | None = None) -> list[PromptTemplate]:
                 "One LLM call per batch of terms. "
                 "Classifies each term as C (concept), M (method) or O (object) "
                 "when accepted, N/K/G/F when rejected. "
-                "Anchored on the domain's reference subfields when a domain catalog lists them. "
+                "Given the domain's title and, when the project owner wrote one, "
+                "its description as context. "
                 "Editable in the workspace: manual_data/llm_prompts/"
                 f"{TYPED_PROMPT_OVERRIDE_NAME}"
             ),
             "used_by": "cartolex.lexicon.llm_triage.run_pipeline_stage_2_llm",
             "model_default": "mistral-small-latest",
             "template": load_typed_template(prompt_dir=prompt_dir).text,
-            "parameters": ["domain_title", "subfields_block"],
+            "parameters": [
+                "domain_title",
+                "domain_description",
+                "reference_language_name",
+                "person_whitelist_block",
+            ],
         },
     ]
 

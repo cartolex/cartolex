@@ -63,3 +63,16 @@ def test_blank_reference_language_rejected() -> None:
 def test_empty_display_languages_rejected() -> None:
     with pytest.raises(SettingsError, match="language"):
         KeywordsConfig(display_languages=())
+
+
+def test_corpus_languages_are_those_with_a_language_model() -> None:
+    """Any subset of English, French and Portuguese; another language fails at once."""
+    assert KeywordsConfig(corpus_languages=("pt", "fr", "en")).corpus_languages == (
+        "pt",
+        "fr",
+        "en",
+    )
+    with pytest.raises(SettingsError, match=r"'es'.*en, fr, pt"):
+        KeywordsConfig(corpus_languages=("es", "en"))
+    # Display and reference languages are labels, not parsed text: any code goes.
+    assert KeywordsConfig(display_languages=("es",), reference_language="de")

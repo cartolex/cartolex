@@ -55,6 +55,48 @@ except Exception:  # pragma: no cover
     pass
 
 # ---------------------------------------------------------------------------
+# Language models. A test that parses texts is marked ``models`` (optionally
+# with the languages it needs). Without the models it is skipped, unless the
+# run passes ``--require-models`` (tools/check.py does): then it fails.
+# ---------------------------------------------------------------------------
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--require-models",
+        action="store_true",
+        default=False,
+        help="fail, instead of skipping, tests marked 'models' whose language models are missing",
+    )
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "models(*langs): the test parses texts with the pinned language models of these "
+        "languages (default: every supported language)",
+    )
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    marker = item.get_closest_marker("models")
+    if marker is None:
+        return
+    from cartolex.lexicon import language_models
+
+    langs = marker.args or language_models.supported_languages()
+    missing = [
+        language_models.spec(lang).name for lang in langs if not language_models.installed(lang)
+    ]
+    if not missing:
+        return
+    message = f"language model(s) not installed: {', '.join(missing)}"
+    if item.config.getoption("--require-models"):
+        pytest.fail(message + " (see tools/requirements-models.txt)", pytrace=False)
+    pytest.skip(message)
+
+
+# ---------------------------------------------------------------------------
 # Workspace fixture — a temporary directory wired up as a project root
 # ---------------------------------------------------------------------------
 

@@ -1,0 +1,72 @@
+{
+ "members": {
+  "bundle_meta.json": {
+   "compress_type": 8,
+   "date_time": [
+    1980,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "sha256": "39fd814bc22869fdb368ca9ed3e36b3addf9a50da7ea169dcbdd69012aef58fc"
+  },
+  "entities.csv": {
+   "compress_type": 8,
+   "date_time": [
+    1980,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "sha256": "57c768bb5f57848b6d3b45e7640fb47e15f2ec6991a05be23cc2733103378ffc"
+  },
+  "entity_terms.csv": {
+   "compress_type": 8,
+   "date_time": [
+    1980,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "sha256": "279e6d00a1f6853e694bce3790b63a9b30b22d54da5d75587a43f18258bfa803"
+  },
+  "taxonomy.json": {
+   "compress_type": 8,
+   "date_time": [
+    1980,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "sha256": "31f22af0baeb6cb76d681d01040e53f7189b2e64c67f1e0f85cc80a506489333"
+  },
+  "vocabulary.csv": {
+   "compress_type": 8,
+   "date_time": [
+    1980,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "sha256": "ed3b9a39ae16eb565f9794c51b786df42422b91533fa6a0d348ddd5d45a65f6a"
+  }
+ },
+ "order": [
+  "bundle_meta.json",
+  "entities.csv",
+  "entity_terms.csv",
+  "taxonomy.json",
+  "vocabulary.csv"
+ ],
+ "rewrite_identical": true
+}

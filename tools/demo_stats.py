@@ -11,6 +11,7 @@ Usage::
 
     python tools/demo_stats.py --size S
     python tools/demo_stats.py --size L --json stats-L.json
+    python tools/demo_stats.py --size S --languages en,fr,pt
 
 The engine settings are in ``ENGINE_SETTINGS`` below; a reference run reuses
 them verbatim. Run one large size at a time: size L peaks at about 1 GB.
@@ -86,16 +87,20 @@ def _tokens(text: str) -> str:
 
 
 def vocabulary_forms() -> tuple[set[str], set[str]]:
-    """Tokenised forms of the theme terms and methods, and of the settings and drivers."""
+    """Tokenised forms of the theme terms and methods, and of the settings and drivers.
+
+    Every language's form counts (English, French and Portuguese).
+    """
     terms = set()
     for theme in THEMES:
         for term in theme.terms:
-            terms |= {_tokens(term.en), _tokens(term.fr)}
+            terms |= {_tokens(term.en), _tokens(term.fr), _tokens(term.pt)}
     for method in METHODS:
-        terms |= {_tokens(method.term.en), _tokens(method.term.fr)}
-    context = {_tokens(s.en) for s in SETTINGS} | {_tokens(s.fr) for s in SETTINGS}
-    context |= {_tokens(d.en) for d in DRIVERS} | {_tokens(d.fr) for d in DRIVERS}
-    return terms, context
+        terms |= {_tokens(method.term.en), _tokens(method.term.fr), _tokens(method.term.pt)}
+    context = set()
+    for item in (*SETTINGS, *DRIVERS):
+        context |= {_tokens(item.en), _tokens(item.fr), _tokens(item.pt)}
+    return terms - {""}, context - {""}
 
 
 def classify_terms(atlas_terms: list[str]) -> dict[str, float]:
@@ -125,13 +130,18 @@ def classify_terms(atlas_terms: list[str]) -> dict[str, float]:
     return {k: round(v / n, 3) for k, v in counts.items()}
 
 
-def run(size: str, seed: int, workdir: Path) -> dict:
-    """Generate, write and run the engine in *workdir*; return the measurements."""
+def run(size: str, seed: int, workdir: Path, languages: str = "en,fr") -> dict:
+    """Generate, write and run the engine in *workdir*; return the measurements.
+
+    A world in other languages than the default ones is read with those
+    languages as the corpus and display languages.
+    """
     stats: dict = {"size": size, "seed": seed, "engine_settings": ENGINE_SETTINGS}
     times: dict[str, float] = {}
 
     t0 = time.perf_counter()
-    world = generate(size=size, seed=seed)
+    world = generate(size=size, seed=seed, languages=languages)
+    stats["languages"] = list(world.languages)
     times["generate"] = time.perf_counter() - t0
     ws = workdir / "workspace"
     t0 = time.perf_counter()
@@ -148,7 +158,11 @@ def run(size: str, seed: int, workdir: Path) -> dict:
         "applicants": counts["applicants"],
         "groups": counts["groups"],
         "works": manual["texts"],
-        "works_fr": sum(1 for i in corpus_ids if works[i].language == "fr"),
+        **{
+            f"works_{lang}": sum(1 for i in corpus_ids if works[i].language == lang)
+            for lang in world.languages
+            if lang != "en"
+        },
         "index_rows": manual["rows"],
         "words": sum(works[i].words for i in corpus_ids),
     }
@@ -158,7 +172,10 @@ def run(size: str, seed: int, workdir: Path) -> dict:
     from cartolex.lexicon import KeywordsConfig, run_pipeline_stage_1, run_pipeline_stage_3
     from cartolex.lexicon.io_helpers import build_researcher_index
 
-    ctx = RunContext.for_workspace(ws, KeywordsConfig(**ENGINE_SETTINGS["keywords"]))
+    settings = dict(ENGINE_SETTINGS["keywords"])
+    if world.trilingual:
+        settings.update(corpus_languages=world.languages, display_languages=world.languages)
+    ctx = RunContext.for_workspace(ws, KeywordsConfig(**settings))
     stages = (
         ("extraction", lambda: run_pipeline_stage_1(ctx)),
         ("consolidation", lambda: run_pipeline_stage_3(ctx)),
@@ -176,7 +193,7 @@ def run(size: str, seed: int, workdir: Path) -> dict:
     atlas_terms = _column(paths.layout_terms_csv, "term")
     proto = json.loads(paths.proto_subfields_json.read_text(encoding="utf-8"))
     stats["engine"] = {
-        "raw_keywords": {lang: _rows(paths.raw_terms_csv(lang)) for lang in ("en", "fr")},
+        "raw_keywords": {lang: _rows(paths.raw_terms_csv(lang)) for lang in world.languages},
         "global_keywords": _rows(paths.global_terms_csv),
         "refined_keywords": _rows(paths.refined_terms_csv),
         "person_keyword_rows": _rows(paths.person_terms_csv),
@@ -199,14 +216,19 @@ def render(stats: dict) -> str:
     """Human-readable report."""
     w, e, s = stats["world"], stats["engine"], stats["seconds"]
     q = e["atlas_term_origin"]
+    names = {"fr": "French", "pt": "Portuguese"}
+    in_other = ", ".join(
+        f"{w[f'works_{lang}']} in {names[lang]}" for lang in stats["languages"] if lang != "en"
+    )
+    raw = ", ".join(f"{lang} {n}" for lang, n in e["raw_keywords"].items())
     lines = [
-        f"demo world {stats['size']}/{stats['seed']} (Python {stats['python']})",
+        f"demo world {stats['size']}/{stats['seed']} {','.join(stats['languages'])} "
+        f"(Python {stats['python']})",
         f"  people            {w['people']} ({w['people_with_works']} with works), "
         f"{w['applicants']} in projected sets, {w['groups']} groups",
-        f"  works             {w['works']} ({w['works_fr']} in French), "
-        f"{w['index_rows']} index rows",
+        f"  works             {w['works']} ({in_other}), {w['index_rows']} index rows",
         f"  words             {w['words']}",
-        f"  raw keywords      en {e['raw_keywords']['en']}, fr {e['raw_keywords']['fr']}",
+        f"  raw keywords      {raw}",
         f"  global keywords   {e['global_keywords']} (refined {e['refined_keywords']})",
         f"  atlas             {e['atlas_people']} people, {e['atlas_terms']} terms, "
         f"{e['concepts']} concepts, {e['proto_subfields']} proto-subfields",
@@ -225,6 +247,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("--size", default="S", type=str.upper)
     parser.add_argument("--seed", default=0, type=int)
+    parser.add_argument("--languages", default="en,fr", help="en,fr (default) or en,fr,pt")
     parser.add_argument("--workdir", type=Path, help="scratch folder (default: a temporary one)")
     parser.add_argument("--keep", action="store_true", help="keep the scratch folder")
     parser.add_argument("--json", type=Path, help="also write the measurements to this file")
@@ -243,7 +266,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         workdir = Path(tempfile.mkdtemp(prefix="cartolex-demo-stats-"))
     try:
-        stats = run(args.size, args.seed, workdir)
+        stats = run(args.size, args.seed, workdir, args.languages)
     finally:
         if not args.keep and not args.workdir:
             shutil.rmtree(workdir, ignore_errors=True)

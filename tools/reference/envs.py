@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: MIT
 """Create the two pinned environments the reference run uses.
 
-``baseline``
+``released``
     The locked dependencies (``requirements-ref.txt``) plus the engine wheel
-    built from the released tag :data:`BASELINE_TAG`. This environment
+    built from the released tag :data:`RELEASED_TAG`. This environment
     produces the stored reference.
 ``current``
     The same locked dependencies plus this working tree, installed in
-    editable mode without dependencies. This environment is compared with the
-    stored reference.
+    editable mode without dependencies, and the pinned language models of the
+    keyword extraction (``tools/requirements-models.txt``). This environment
+    is compared with the stored reference and the stored baseline.
 
 Both use the same pinned interpreter (:data:`PYTHON`, a uv-managed build), so
 the only difference between them is the engine code. Environments live in
@@ -17,7 +18,7 @@ installed engine changes. Usage::
 
     python tools/reference/envs.py            # ensure both
     python tools/reference/envs.py current    # ensure one
-    python tools/reference/envs.py --rebuild baseline
+    python tools/reference/envs.py --rebuild released
 
 Stdlib only: this script runs under any Python 3.10 or later.
 """
@@ -37,12 +38,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCK = ROOT / "tools" / "reference" / "requirements-ref.txt"
+#: The pinned language models of the keyword extraction (``current`` only).
+MODELS = ROOT / "tools" / "requirements-models.txt"
 VENVS = ROOT / ".venvs"
 CACHE = ROOT / ".cache" / "reference"
 WHEELS = CACHE / "wheels"
 
 #: The released engine the stored reference was generated with.
-BASELINE_TAG = "v0.7.2"
+RELEASED_TAG = "v0.7.2"
 #: Interpreter of both environments (uv-managed, so it is the same build everywhere).
 PYTHON = "3.12.14"
 #: Settings every reference run uses: one thread everywhere, fixed hashing, zone and locale.
@@ -55,7 +58,7 @@ FIXED_ENV = {
     "TZ": "UTC",
     "LC_ALL": "C.UTF-8",
 }
-ENV_NAMES = ("baseline", "current")
+ENV_NAMES = ("released", "current")
 STAMP_NAME = ".reference-stamp.json"
 
 
@@ -107,7 +110,7 @@ def _tag_commit(tag: str) -> str:
     return out.stdout.strip()
 
 
-def build_baseline_wheel(tag: str = BASELINE_TAG) -> Path:
+def build_released_wheel(tag: str = RELEASED_TAG) -> Path:
     """Build (once) the engine wheel of *tag* from a ``git archive`` of that tag.
 
     The wheel lands in ``.cache/reference/wheels/<commit>/``; a second call
@@ -139,11 +142,12 @@ def build_baseline_wheel(tag: str = BASELINE_TAG) -> Path:
 
 def _wanted_stamp(name: str, python: str) -> dict[str, str]:
     stamp = {"env": name, "python": python, "lock_sha256": _sha256_file(LOCK)}
-    if name == "baseline":
-        stamp["engine"] = f"wheel:{BASELINE_TAG}:{_tag_commit(BASELINE_TAG)}"
+    if name == "released":
+        stamp["engine"] = f"wheel:{RELEASED_TAG}:{_tag_commit(RELEASED_TAG)}"
     else:
         stamp["engine"] = f"editable:{ROOT}"
         stamp["pyproject_sha256"] = _sha256_file(ROOT / "pyproject.toml")
+        stamp["models_sha256"] = _sha256_file(MODELS)
     return stamp
 
 
@@ -164,8 +168,8 @@ def ensure_env(name: str, *, python: str = PYTHON, rebuild: bool = False) -> Pat
     _run([uv, "venv", "--quiet", "--clear", "--managed-python", "--python", python, str(venv)])
     py = str(venv_python(venv))
     _run([uv, "pip", "sync", "--quiet", "-p", py, str(LOCK)])
-    if name == "baseline":
-        wheel = build_baseline_wheel()
+    if name == "released":
+        wheel = build_released_wheel()
         _run([uv, "pip", "install", "--quiet", "--no-deps", "-p", py, str(wheel)])
         record = {**wanted, "wheel": wheel.name, "wheel_sha256": _sha256_file(wheel)}
         (venv / "reference-wheel.json").write_text(
@@ -173,6 +177,7 @@ def ensure_env(name: str, *, python: str = PYTHON, rebuild: bool = False) -> Pat
         )
     else:
         _run([uv, "pip", "install", "--quiet", "--no-deps", "-p", py, "-e", str(ROOT)])
+        _run([uv, "pip", "install", "--quiet", "-p", py, "--require-hashes", "-r", str(MODELS)])
     stamp_path.write_text(json.dumps(wanted, indent=2, sort_keys=True), encoding="utf-8")
     return venv
 

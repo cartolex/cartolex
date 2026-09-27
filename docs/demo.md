@@ -1,8 +1,8 @@
 # The demo world
 
 `cartolex.demo` generates an invented research community: people, groups,
-works and their texts, in English and French. Everything is synthetic and
-deterministic. The same size and seed always give the same files, byte for
+works and their texts, in English and French — or, as a variant, in English,
+French and Portuguese. Everything is synthetic and deterministic. The same size and seed always give the same files, byte for
 byte, so the demo world serves the test suite, the numeric reference run,
 this documentation, screenshots and usability sessions alike.
 
@@ -25,28 +25,31 @@ is given.
 ## The invented field
 
 The community works on **coastal and marine systems**. Twelve themes make up
-the field, each with a list of technical terms in English and French:
+the field, each with a list of technical terms in English, French and
+Portuguese (Brazilian spelling):
 
-| Theme | English name | French name |
-| --- | --- | --- |
-| `coastal-geomorphology` | Coastal geomorphology and sediment transport | Géomorphologie côtière et transport sédimentaire |
-| `ocean-circulation` | Ocean circulation and tides | Circulation océanique et marées |
-| `marine-ecology` | Marine ecology and biodiversity | Écologie marine et biodiversité |
-| `fisheries-aquaculture` | Fisheries and aquaculture | Pêche et aquaculture |
-| `plankton-biogeochemistry` | Plankton and biogeochemistry | Plancton et biogéochimie |
-| `coastal-hazards` | Coastal hazards and sea-level rise | Risques côtiers et élévation du niveau de la mer |
-| `ocean-observation` | Ocean observation and remote sensing | Observation de l'océan et télédétection |
-| `marine-pollution` | Marine pollution and microplastics | Pollution marine et microplastiques |
-| `coastal-governance` | Coastal communities and governance | Sociétés littorales et gouvernance |
-| `blue-economy` | Ports, shipping and the blue economy | Ports, transport maritime et économie bleue |
-| `estuaries-wetlands` | Estuaries and wetlands | Estuaires et zones humides |
-| `paleoceanography` | Paleoceanography and climate archives | Paléocéanographie et archives climatiques |
+| Theme | English name | French name | Portuguese name |
+| --- | --- | --- | --- |
+| `coastal-geomorphology` | Coastal geomorphology and sediment transport | Géomorphologie côtière et transport sédimentaire | Geomorfologia costeira e transporte de sedimentos |
+| `ocean-circulation` | Ocean circulation and tides | Circulation océanique et marées | Circulação oceânica e marés |
+| `marine-ecology` | Marine ecology and biodiversity | Écologie marine et biodiversité | Ecologia marinha e biodiversidade |
+| `fisheries-aquaculture` | Fisheries and aquaculture | Pêche et aquaculture | Pesca e aquicultura |
+| `plankton-biogeochemistry` | Plankton and biogeochemistry | Plancton et biogéochimie | Plâncton e biogeoquímica |
+| `coastal-hazards` | Coastal hazards and sea-level rise | Risques côtiers et élévation du niveau de la mer | Riscos costeiros e elevação do nível do mar |
+| `ocean-observation` | Ocean observation and remote sensing | Observation de l'océan et télédétection | Observação do oceano e sensoriamento remoto |
+| `marine-pollution` | Marine pollution and microplastics | Pollution marine et microplastiques | Poluição marinha e microplásticos |
+| `coastal-governance` | Coastal communities and governance | Sociétés littorales et gouvernance | Sociedades costeiras e governança |
+| `blue-economy` | Ports, shipping and the blue economy | Ports, transport maritime et économie bleue | Portos, transporte marítimo e economia azul |
+| `estuaries-wetlands` | Estuaries and wetlands | Estuaires et zones humides | Estuários e áreas úmidas |
+| `paleoceanography` | Paleoceanography and climate archives | Paléocéanographie et archives climatiques | Paleoceanografia e arquivos climáticos |
 
 Each theme has about seventy hand-written terms (`sediment transport` /
-`le transport sédimentaire`) and several hundred compound terms built from
-families of aspects and objects (`hake biomass` / `la biomasse du merlu`,
-`glider calibration` / `l'étalonnage des planeurs`): 5,669 distinct terms in
-all. A few terms belong to two themes, so themes overlap as they do in a real
+`le transport sédimentaire` / `o transporte de sedimentos`) and several
+hundred compound terms built from families of aspects and objects
+(`hake biomass` / `la biomasse du merlu` / `a biomassa da merluza`,
+`glider calibration` / `l'étalonnage des planeurs` /
+`a calibração dos planadores`): 5,669 distinct terms in all, each with one
+form per language. A few terms belong to two themes, so themes overlap as they do in a real
 field. Terms are tagged as topics (what a work is about) or techniques (how
 it is done), and a shared pool holds 53 methods, 20 study settings and 10
 drivers (`climate change`, `storm events` …). Two themes use the phrasing of
@@ -85,6 +88,33 @@ tests.
 About 10 % more people form a **projected set** (role `overlay:applicants`)
 with works of their own. They are never part of the fitted cohort: they never
 co-author with it and never reach the corpus index of the cohort.
+
+### The trilingual variant
+
+```bash
+python -m cartolex.demo create --size S --seed 0 --languages en,fr,pt --out demo-S-pt --corpus
+```
+
+```python
+world = generate(size="S", seed=0, languages="en,fr,pt")
+```
+
+A trilingual world has the groups, people and bibliography of the default
+world of the same size and seed: the same works, years, types, authors, DOIs
+and sources. About one group in five writes often in Portuguese (never one
+that writes often in French), so some English works become Portuguese ones;
+French works stay French. Every text is written again, and Portuguese
+articles go to Portuguese venues. For seed 0:
+
+| Size | Works | English | French | Portuguese | Words |
+| --- | --- | --- | --- | --- | --- |
+| `XS` | 75 | 45 | 19 | 11 | 15,027 |
+| `S` | 259 | 143 | 76 | 40 | 53,326 |
+| `L` | 2,309 | 1,551 | 460 | 298 | 475,044 |
+
+The default worlds (`en,fr`) do not change with this option: their files are
+byte-identical to those of earlier versions (`tests/test_demo_trilingual.py`
+pins their manifests), since the numeric reference is made on them.
 
 ## Sizes
 
@@ -126,6 +156,24 @@ UTF-8 with `\n` line endings.
 - `works`: the themes of each work, primary first;
 - `coverage`: `good`, `thin` or `no_data` per person.
 
+A trilingual world's truth also has `name_pt`, `pt` and `pt_article` in its
+themes and terms, its `languages`, and a `lexicon`: one record per phrase
+the texts are written with and per language — `text`, `lang`, `kind` and
+`field` (whether it is a field term):
+
+| `kind` | what | `field` | more |
+| --- | --- | --- | --- |
+| `theme` | a theme term, without its article | yes | `canonical` (English form), `themes`, `technique` |
+| `method` | a shared method | yes | `canonical`, `scope` (natural, social, any) |
+| `driver` | a driver of change (`climate change`) | no | `canonical` |
+| `setting` | a study-setting phrase (`on sandy beaches`) | no | `canonical` |
+| `template` | a literal piece of a sentence template or lead-in: generic filler | no | |
+
+`cartolex.demo.lexicon_truth(languages)` gives the same records for any
+language set. A default world's truth keeps the format above, byte for byte.
+The manifest of a trilingual world names its `languages`, and its counts give
+`works_pt`.
+
 ## The corpus contract
 
 `DemoWorld.write_corpus(workspace)` writes what the engine reads (see
@@ -150,43 +198,50 @@ roster, SVD, concept clustering, UMAP) and reports what comes out:
 ```bash
 python tools/demo_stats.py --size S
 python tools/demo_stats.py --size L --json stats-L.json
+python tools/demo_stats.py --size S --languages en,fr,pt
 ```
 
-Seed 0, Python 3.12, one process on a laptop:
+Seed 0, Python 3.12, one process on a laptop, parse cache empty; the last two
+columns are the trilingual worlds (read with the three corpus languages):
 
-| | S | L |
-| --- | --- | --- |
-| People in the cohort (with works) | 40 (39) | 350 (343) |
-| People in the projected set | 4 | 35 |
-| Groups | 7 | 33 |
-| Works in the corpus (in French) | 226 (66) | 2,137 (437) |
-| Index rows | 535 | 5,241 |
-| Words | 46,036 | 435,872 |
-| Raw keywords, English / French | 3,687 / 1,976 | 14,030 / 7,163 |
-| Global keywords | 5,582 | 20,998 |
-| Refined keywords | 2,147 | 10,358 |
-| Atlas terms (rows of `umap_terms.csv`) | 553 | 3,215 |
-| Concepts / proto-subfields | 150 / 30 | 150 / 30 |
-| Atlas terms that are theme terms or methods | 45 % | 68 % |
-| … parts of one (a head word, a piece) | 31 % | 23 % |
-| … study settings or drivers | 6 % | 2 % |
-| … generic phrasing of the templates | 18 % | 8 % |
-| Engine run, total | 25.1 s | 70.3 s |
-| … extraction / consolidation / UMAP | 3.5 / 4.1 / 17.3 s | 29.7 / 18.7 / 21.0 s |
-| Peak memory | 579 MB | 827 MB |
+| | S | L | S, trilingual | L, trilingual |
+| --- | --- | --- | --- | --- |
+| People in the cohort (with works) | 40 (39) | 350 (343) | 40 (39) | 350 (343) |
+| People in the projected set | 4 | 35 | 4 | 35 |
+| Groups | 7 | 33 | 7 | 33 |
+| Works in the corpus | 226 | 2,137 | 226 | 2,137 |
+| … in French / in Portuguese | 66 / – | 437 / – | 66 / 34 | 437 / 266 |
+| Index rows | 535 | 5,241 | 535 | 5,241 |
+| Words | 46,036 | 435,872 | 46,509 | 438,880 |
+| Candidate terms, English / French / Portuguese | 3,985 / 1,467 / – | 22,722 / 6,042 / – | 3,511 / 1,451 / 942 | 20,267 / 5,987 / 4,794 |
+| Global keywords | 5,400 | 28,644 | 5,842 | 30,903 |
+| Refined keywords | 2,228 | 15,731 | 2,482 | 17,193 |
+| Atlas terms (rows of `umap_terms.csv`) | 546 | 3,328 | 573 | 3,430 |
+| Concepts / proto-subfields | 150 / 30 | 150 / 30 | 150 / 30 | 150 / 30 |
+| Atlas terms that are theme terms or methods | 46 % | 62 % | 40 % | 57 % |
+| … parts of one (a head word, a piece) | 33 % | 27 % | 39 % | 31 % |
+| … study settings or drivers | 6 % | 2 % | 7 % | 2 % |
+| … generic phrasing of the templates | 15 % | 9 % | 14 % | 10 % |
+| Engine run, total | 35.1 s | 105.6 s | 33.7 s | 109.4 s |
+| … extraction / consolidation / UMAP | 13.1 / 4.4 / 17.4 s | 62.0 / 20.1 / 22.4 s | 10.8 / 4.2 / 18.6 s | 66.3 / 24.4 / 17.8 s |
+| Peak memory | 770 MB | 896 MB | 778 MB | 879 MB |
 
-Seed 1 gives 535 atlas terms for S and 3,071 for L. Most of the UMAP time is
-the one-off compilation of its numerical code. Generic phrasing is a long
-tail of template phrases that each reach one person's list; the engine's
-optional clean-up stage, not run here, is meant to remove such phrases. It is
-higher for S seed 0, the most French of these worlds.
+Seed 1 gives 504 atlas terms for S and 3,157 for L. Most of the extraction
+time is parsing, done once: with the parse cache filled by a first run, the
+extraction of L takes about 30 s (most of it the language detection), and
+with four worker processes a first run takes about 30 s too. A language
+model takes a few hundred MB while its language is parsed, hence most of the
+peak memory. Most of the UMAP time is the one-off compilation of its
+numerical code. Generic phrasing is a long tail of template phrases that each
+reach one person's list; the engine's optional clean-up stage, not run here,
+is meant to remove such phrases.
 
 Two behaviours of the current engine show in these runs:
 
-- a French term that contains a word of one or two letters (`le trait de
-  côte`, `la biomasse du merlu`) is never kept whole by the extraction
-  filters, so French terms reach the atlas as adjective phrases
-  (`érosion dunaire`) or as pieces (`biomasse`, `merlu`);
+- the extraction's English pattern allows one `of` complement (`degrees of
+  freedom`), and the English templates are full of `the X of Y` phrasing: at
+  size L about 13,500 of the 22,722 English candidates contain `of`, and only
+  a handful of them are theme terms (the triage is meant to drop the others);
 - at size L the refined keyword list is cut to the 10,000 best-scored terms
   (the default of `global_top_n`).
 
@@ -200,9 +255,12 @@ reuses that dictionary verbatim.
 | --- | --- | --- |
 | `kw_recency_years` | `0` | works span 2012–2026: use the whole history |
 
-The demo corpus sits in the engine's default corpus slot, `manual`, alone.
+The demo corpus sits in the engine's default corpus slot, `manual`, alone. A
+trilingual world is read with `corpus_languages` and `display_languages` set
+to its three languages.
 
-Defaults in effect, for reference: n-grams of 1 to 4 words, `min_df` 3,
+Defaults in effect, for reference: noun-phrase candidates of at most five
+word units (see [the extraction](dev/extraction.md)), `min_df` 3,
 `max_df` 0.6, length bonus 2.0, `nested_threshold` 1.3, 30 keywords per
 person, `global_top_n` 10,000, `corpus_languages` French and English with
 English as the reference language; 20 SVD components, 150 concepts from 50
@@ -217,6 +275,9 @@ The generator draws everything from `random.Random` instances seeded from the
 size, the seed and one named stream per concern (structure, people, works,
 text), never from the global random state, and writes rows and keys in a
 fixed order. A change to the sentence templates therefore leaves the people
-and the bibliography unchanged. The `generator` field of the manifest names
+and the bibliography unchanged. The Portuguese shares of a trilingual world
+come from a stream of their own (languages), and a work's language is one
+draw whatever the language set, so a trilingual world keeps the bibliography
+of the default one. The `generator` field of the manifest names
 the generator version (`GENERATOR_VERSION` in `cartolex.demo`): raise it with
 any change that alters the output.

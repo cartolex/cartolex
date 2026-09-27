@@ -13,7 +13,7 @@ reference runs, documentation, screenshots and usability sessions::
 
 or from the command line::
 
-    python -m cartolex.demo create --size S --seed 0 --out DIR [--corpus]
+    python -m cartolex.demo create --size S --seed 0 --out DIR [--corpus] [--languages en,fr,pt]
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ from .generator import generate
 from .model import (
     FORMAT,
     GENERATOR_VERSION,
+    LANGUAGE_SETS,
     SIZES,
     DemoWorld,
     Group,
@@ -29,10 +30,12 @@ from .model import (
     SizeSpec,
     Work,
 )
+from .writers import lexicon_truth
 
 __all__ = [
     "FORMAT",
     "GENERATOR_VERSION",
+    "LANGUAGE_SETS",
     "SIZES",
     "DemoWorld",
     "Group",
@@ -40,4 +43,5 @@ __all__ = [
     "SizeSpec",
     "Work",
     "generate",
+    "lexicon_truth",
 ]

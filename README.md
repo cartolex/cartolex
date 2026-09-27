@@ -11,7 +11,8 @@ in the corpus index. It consumes only the *corpus contract* below, whatever prod
 
 ## Packages
 
-- `cartolex.lexicon` — extraction (TF-IDF, 1–4-grams, length bonus), optional LLM
+- `cartolex.lexicon` — extraction (noun phrases found with spaCy in English, French
+  and Portuguese, TF-IDF, length bonus), optional LLM
   triage (Mistral, term strings only), canonical consolidation and scoring, the
   subfield hierarchy (deterministic draft, curated by hand), positioning of new
   documents, corpus/index helpers.
@@ -49,6 +50,7 @@ from that contract.
 
 ```bash
 pip install -e ".[dev]"
+pip install --require-hashes -r tools/requirements-models.txt   # the language models
 ruff check .
 pytest tests/ -q
 python examples/synthetic_cohort.py /tmp/demo-workspace
