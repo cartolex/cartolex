@@ -1,0 +1,264 @@
+# SPDX-License-Identifier: MIT
+"""Where each engine file lives in a project: the ownership table.
+
+The engine names its files through :class:`cartolex.context.EnginePaths`. In a
+project, every stage writes only into its own folder, so each field of
+``EnginePaths`` is given a place here (:data:`ENGINE_FILES`):
+
+- :class:`Owned`: a file a stage writes, at a path relative to its folder. A
+  later stage may *amend* it (the layout adds its coordinates to the stored
+  embeddings, for example): the amending stage starts from a copy in its own
+  folder, and the stages after it read the amended copy.
+- :class:`FromProject`: a file of the project itself, a decision or a cache,
+  relative to the project's root.
+- :class:`OwnFolder`: a folder, the running stage's own.
+- :class:`NotProvided`: a file of the old workspace layout that a project does
+  not provide (its settings come from ``project.json`` or ``params.json``, or
+  the file is a figure drawn outside the build). The engine sees no file there.
+
+:func:`engine_paths` builds the ``EnginePaths`` of one stage run from the
+table: its own files in its staging folder, every other stage's in that stage's
+current results. The engine never learns that a project exists.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import shutil
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path
+
+from ..context import EnginePaths, PathPattern
+
+__all__ = [
+    "ENGINE_FILES",
+    "UNAVAILABLE",
+    "FromProject",
+    "NotProvided",
+    "OwnFolder",
+    "Owned",
+    "copy_amended",
+    "engine_paths",
+    "files_of",
+]
+
+#: The folder, inside a staging folder, where paths the stage cannot see point.
+UNAVAILABLE = ".unavailable"
+
+
+@dataclass(frozen=True)
+class Owned:
+    """A file written by *stage*, at *rel* in its folder (``{}`` in *rel*: a family of files).
+
+    *model*: a model descriptor with its ``.npz`` array file beside it.
+    *amended_by*: later stages that rewrite it in their own folder.
+    """
+
+    stage: str
+    rel: str
+    model: bool = False
+    amended_by: tuple[str, ...] = ()
+
+    @property
+    def writers(self) -> tuple[str, ...]:
+        return (self.stage, *self.amended_by)
+
+
+@dataclass(frozen=True)
+class FromProject:
+    """A file of the project: a decision (read) or a cache (read and written)."""
+
+    kind: str  # "decision" or "cache"
+    rel: str
+
+
+@dataclass(frozen=True)
+class OwnFolder:
+    """A folder field: the running stage's own folder, or *rel* inside it."""
+
+    rel: str = ""
+
+
+@dataclass(frozen=True)
+class NotProvided:
+    """A path a project does not provide; the reason says where the information comes from."""
+
+    reason: str
+
+
+Place = Owned | FromProject | OwnFolder | NotProvided
+
+_SETTINGS = "a project's settings come from project.json and decisions/params.json"
+_FIGURE = "figures are outputs, drawn outside the build"
+_OPERATOR = "a workspace's operator file; a project has no such decision yet"
+
+ENGINE_FILES: dict[str, Place] = {
+    # ── folders ──
+    "root": OwnFolder(),
+    "automatic_dir": OwnFolder(),
+    "manual_dir": NotProvided("the operator folder of a workspace"),
+    "config_dir": NotProvided("the configuration folder of a workspace"),
+    "atlas_dir": OwnFolder(),
+    "models_dir": OwnFolder("models"),
+    # ── the corpus contract ──
+    "corpus_index_csv": Owned("corpus.assemble", "{}/index.csv"),
+    "corpus_text_dir": Owned("corpus.assemble", "{}/texts"),
+    # ── operator inputs ──
+    "overrides_json": NotProvided(_SETTINGS + ", and decisions/stopwords.json"),
+    "overrides_template_json": NotProvided(_SETTINGS),
+    "manual_blacklist_csv": Owned("keywords.build", "decisions/excluded.csv"),
+    "manual_keep_csv": Owned("keywords.build", "decisions/kept.csv"),
+    "canonical_decisions_json": NotProvided("keyword decisions come from decisions/keywords.csv"),
+    "whitelist_json": NotProvided(_OPERATOR),
+    "person_whitelist_csv": NotProvided(_OPERATOR),
+    "api_key_json": NotProvided("the AI key is given to the build, never stored in a project"),
+    "triage_prompt_override_txt": FromProject(
+        "decision", "decisions/prompts/triage_typed_system.txt"
+    ),
+    "subfields_curated_json": Owned("themes.apply", "curated.json"),
+    "domain_catalog_jsons": NotProvided("a project has no domain catalogue"),
+    # ── extraction, triage and consolidation ──
+    "raw_terms_csv": Owned("keywords.extract", "raw_keywords_{}.csv"),
+    "global_terms_csv": Owned("keywords.extract", "keywords_global.csv"),
+    "refined_terms_csv": Owned("keywords.build", "keywords_global_refined.csv"),
+    "refined_terms_lang_csv": Owned("keywords.build", "keywords_global_refined_{}.csv"),
+    "refined_pairs_csv": Owned("keywords.build", "keywords_global_refined_pairs.csv"),
+    "run_settings_json": Owned("keywords.build", "keywords_hyperparams.json"),
+    "person_terms_csv": Owned("keywords.build", "keywords_by_researcher_restricted.csv"),
+    "group_terms_csv": Owned("keywords.build", "keywords_by_unit_restricted.csv"),
+    "domain_terms_csv": Owned("keywords.build", "keywords_domain_restricted.csv"),
+    "canonical_map_json": Owned("keywords.build", "decisions/merged.json"),
+    "translation_cache_json": Owned("keywords.triage", "translation_cache.json"),
+    "triage_decisions_json": Owned("keywords.triage", "llm_decisions.json"),
+    "triage_batch_cache_json": FromProject("cache", "cache/ai/triage_batch_cache.json"),
+    "triage_term_cache_json": FromProject("cache", "cache/ai/triage_term_cache.json"),
+    "ai_usage_json": FromProject("cache", "cache/ai/usage.json"),
+    "roster_csv": Owned("keywords.build", "researcher_index.csv"),
+    "vectorizer_json": Owned("keywords.build", "models/tfidf_restricted.json", model=True),
+    "term_aliases_csv": Owned("keywords.build", "models/term_aliases.csv"),
+    # ── the atlas ──
+    "atlas_terms_csv": Owned("themes.space", "models/restricted_terms.csv"),
+    "lexical_data_json": Owned("themes.space", "models/lexical_data.json", model=True),
+    "embeddings_json": Owned(
+        "themes.space", "models/embeddings.json", model=True, amended_by=("map.layout",)
+    ),
+    "svd_model_json": Owned("themes.space", "models/svd.json", model=True),
+    "layout_model_json": Owned("map.layout", "models/umap.json", model=True),
+    "atlas_params_json": NotProvided(_SETTINGS),
+    "pca_persons_csv": Owned("themes.space", "pca_individuals.csv"),
+    "pca_terms_csv": Owned("themes.space", "pca_terms.csv"),
+    "layout_persons_csv": Owned("map.layout", "umap_individuals.csv"),
+    "layout_terms_csv": Owned("map.layout", "umap_terms.csv"),
+    "layout_groups_csv": Owned("map.layout", "umap_labs.csv"),
+    "layout_diagnostics_json": Owned("map.layout", "umap_diagnostics.json"),
+    "clusters_csv": Owned("themes.group", "clusters_terms.csv"),
+    "terms_clustered_csv": Owned(
+        "themes.group", "umap_terms_clustered.csv", amended_by=("map.layout",)
+    ),
+    "proto_subfields_json": Owned("themes.group", "proto_subfields.json"),
+    "trajectories_csv": Owned("map.trajectories", "umap_trajectories.csv"),
+    "trajectory_windows_json": Owned("map.trajectories", "trajectory_windows.json"),
+    "persons_groups_png": NotProvided(_FIGURE),
+    "term_clusters_png": NotProvided(_FIGURE),
+    "superposed_png": NotProvided(_FIGURE),
+    "cohort_trajectories_png": NotProvided(_FIGURE),
+    "group_panel_png": NotProvided(_FIGURE),
+    # ── subfields ──
+    "subfields_draft_json": Owned("themes.group", "subfields_draft.json"),
+    "subfields_json": Owned("themes.apply", "subfields.json", amended_by=("map.layout",)),
+    "subfield_weights_csv": Owned(
+        "themes.apply", "subfield_weights.csv", amended_by=("map.layout",)
+    ),
+    "lexicon_weights_csv": Owned("themes.apply", "lexicon_weights.csv", amended_by=("map.layout",)),
+}
+
+
+def _pattern_field(name: str) -> bool:
+    return any(
+        f.name == name and f.type in ("PathPattern", PathPattern)
+        for f in dataclasses.fields(EnginePaths)
+    )
+
+
+def _resolve(
+    name: str,
+    place: Place,
+    stage_id: str,
+    folders: Mapping[str, Path],
+    project_root: Path,
+) -> Path | PathPattern | tuple[Path, ...]:
+    own = folders[stage_id]
+    pattern = _pattern_field(name)
+    if isinstance(place, OwnFolder):
+        return own / place.rel if place.rel else own
+    if isinstance(place, FromProject):
+        return project_root / place.rel
+    if isinstance(place, Owned):
+        writer = next((w for w in reversed(place.writers) if w in folders), None)
+        if stage_id in place.writers:
+            writer = stage_id
+        base = folders[writer] if writer is not None else own / UNAVAILABLE / name
+        rel = place.rel if writer is not None else Path(place.rel).name
+        if pattern:
+            return PathPattern(base, rel)  # the key may name a folder: "{}/index.csv"
+        return base / rel
+    # Not provided: a path in the staging folder that nothing writes.
+    target = own / UNAVAILABLE / name
+    if name == "domain_catalog_jsons":
+        return (target,)
+    if pattern:
+        return PathPattern(target, "{}")
+    return target
+
+
+def engine_paths(stage_id: str, folders: Mapping[str, Path], project_root: Path) -> EnginePaths:
+    """The engine's paths for a run of *stage_id*.
+
+    *folders* maps the running stage to its staging folder and every stage it
+    may read (its upstream stages, directly or not, that have results) to
+    their current results. A file whose writer is not among them points into
+    ``<staging>/.unavailable/``, where nothing exists.
+    """
+    values = {
+        name: _resolve(name, place, stage_id, folders, Path(project_root))
+        for name, place in ENGINE_FILES.items()
+    }
+    return EnginePaths(**values)  # type: ignore[arg-type]
+
+
+def copy_amended(stage_id: str, folders: Mapping[str, Path]) -> list[str]:
+    """Copy into the running stage's folder the files it amends, from their latest writer.
+
+    Returns the relative paths copied. A file with no earlier writer available
+    is not copied (the stage then writes it from scratch, or fails clearly).
+    """
+    own = folders[stage_id]
+    copied: list[str] = []
+    for place in ENGINE_FILES.values():
+        if not isinstance(place, Owned) or stage_id not in place.amended_by:
+            continue
+        earlier = place.writers[: place.writers.index(stage_id)]
+        source = next((w for w in reversed(earlier) if w in folders), None)
+        if source is None:
+            continue
+        rels = [place.rel] + ([str(Path(place.rel).with_suffix(".npz"))] if place.model else [])
+        for rel in rels:
+            src = folders[source] / rel
+            if src.exists():
+                dst = own / rel
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+                copied.append(rel)
+    return copied
+
+
+def files_of(stage_id: str) -> list[str]:
+    """The relative paths (``{}`` for a family) a stage writes, amended copies included."""
+    out: list[str] = []
+    for place in ENGINE_FILES.values():
+        if isinstance(place, Owned) and stage_id in place.writers:
+            out.append(place.rel)
+            if place.model:
+                out.append(str(Path(place.rel).with_suffix(".npz")))
+    return out

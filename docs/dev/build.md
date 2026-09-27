@@ -113,7 +113,7 @@ leaves the check to the run.
 | `keywords.extract` | `max_share` | 0.6 | 0.01–1 |
 | `keywords.triage` | `enabled` | false | true, false |
 | `keywords.build` | `max_keywords` | 10 000 | ≥ 10 |
-| `themes.space` | `dimensions` | 20 | 2–1000, fewer than the kept keywords and the people |
+| `themes.space` | `dimensions` | 20 | 2–1000; a space never has more dimensions than people or keywords (the run says so) |
 | `themes.group` | `depth` | rule `theme_depth` | 1–4 |
 | `themes.group` | `top_groups` | 15 | 2–500, fewer than the kept keywords |
 | `themes.group` | `keywords_per_group` | 20 | 2–10 000; the levels must grow from the top |

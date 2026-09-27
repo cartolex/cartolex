@@ -70,6 +70,13 @@ def _noop(_: str) -> None:
     return None
 
 
+def _flush_to_disk() -> None:
+    """Flush every written file to disk once (POSIX), rather than one file at a time."""
+    sync = getattr(os, "sync", None)
+    if sync is not None:
+        sync()
+
+
 def generation_run_id(folder: Path) -> str | None:
     """The run id recorded in a generation's ``run.json``, or ``None`` when there is none."""
     try:
@@ -138,7 +145,9 @@ def swap_in(
 ) -> None:
     """Make the staging folder of *run_id* the results of *stage_id*.
 
-    *record* is the new ``run.json``. The replaced generation is kept in
+    The files a stage writes need not be flushed one by one: everything written
+    is flushed to disk once before the swap is journaled. *record* is the new
+    ``run.json``. The replaced generation is kept in
     ``derived/.previous/<stage>/``. *probe*, for tests, is called with the name
     of each step once it is done.
     """
@@ -151,6 +160,7 @@ def swap_in(
     current = layout.stage(stage_id)
     discard = _discard(layout, stage_id, run_id)
     remove_tree(discard)
+    _flush_to_disk()  # the stage wrote plain files; make them durable before they count
     journal = {
         "format": JOURNAL_FORMAT,
         "stage": stage_id,

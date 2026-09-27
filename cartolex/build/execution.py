@@ -190,10 +190,12 @@ class StageContext:
     """What a stage's runner gets: where to write, what to read, its parameters, and the build.
 
     A runner writes its results into :attr:`out` (its staging folder) and reads
-    upstream results from :meth:`folder`. It reports progress with
-    :meth:`progress`, checks for a cancel with :meth:`check_cancel`, and a long
-    stage loops over :meth:`chunks` so a killed run resumes from its last chunk.
-    It returns counts to record (``{"candidates_en": 5214}``), or puts them in
+    the results of the stages before it (directly upstream or not) from
+    :meth:`folder`, and their run records from :meth:`record`. It reports
+    progress with :meth:`progress`, checks for a cancel with
+    :meth:`check_cancel` (or polls :attr:`cancel_requested`), and a long stage
+    loops over :meth:`chunks` so a killed run resumes from its last chunk. It
+    returns counts to record (``{"candidates_en": 5214}``), or puts them in
     :attr:`counts`.
     """
 
@@ -211,6 +213,7 @@ class StageContext:
         report: Callable[[float, str], None],
         cancel: threading.Event | None,
         probe: Callable[[str], None],
+        records: Mapping[str, RunRecord] | None = None,
     ) -> None:
         self.project = project
         self.stage = stage
@@ -220,6 +223,7 @@ class StageContext:
         self.sizes = sizes
         self.identity = identity
         self.upstream = dict(upstream)
+        self.records = dict(records or {})
         self.counts: dict[str, int] = {}
         self.warnings: list[str] = []
         self._report = report
@@ -240,6 +244,15 @@ class StageContext:
             raise KeyError(
                 f"{self.stage.id} does not read {stage_id!r} (upstream here: {sorted(self.upstream)})"
             ) from None
+
+    def record(self, stage_id: str) -> RunRecord | None:
+        """The run record of the results of *stage_id* this run reads (``None``: none)."""
+        return self.records.get(stage_id)
+
+    @property
+    def cancel_requested(self) -> bool:
+        """Whether the build was asked to stop."""
+        return self._cancel is not None and self._cancel.is_set()
 
     def progress(self, fraction: float, message: str = "") -> None:
         """Report how far this stage is, from 0 to 1 (a smaller value than before is ignored)."""
@@ -449,10 +462,20 @@ def _run_stage(
 ) -> RunRecord:
     layout = project.layout
     probe(f"stage:start:{stage.id}")
+    prepared: list[str] = []
+    failure: str | None = None
+    if stage.prepare is not None:
+        try:
+            prepared = stage.prepare(project)
+        except Exception as exc:
+            failure = f"{type(exc).__name__}: {exc}"
     view = _View.read(project, registry, year)
     inputs = run_inputs(view, stage)
     started = _now()
     run_id = new_run_id(started)
+    if failure is not None:
+        write_attempt(layout, _attempt(stage, run_id, started, inputs, "failed", failure))
+        raise StageRefused(failure)
     problems = [f"{up} has no results" for up in inputs.missing_upstream]
     problems += [
         f"{stage.id}.{name}: its rule needs {', '.join(needs)}, which no stage reported"
@@ -465,7 +488,14 @@ def _run_stage(
         raise StageRefused(message)
     out = _prepare_staging(project, stage, run_id, inputs.key, started)
     probe(f"stage:staged:{stage.id}")
-    upstream = {s.stage: layout.stage(s.stage) for s in inputs.stages}
+    readable = [
+        u
+        for u in registry.ids
+        if u in registry.upstream_of(stage.id)
+        and view.records.get(u) is not None
+        and registry[u].skip_reason(project.config, view.params) is None
+    ]
+    upstream = {u: layout.stage(u) for u in readable}
     ctx = StageContext(
         project=project,
         stage=stage,
@@ -478,7 +508,10 @@ def _run_stage(
         report=report,
         cancel=cancel,
         probe=probe,
+        records={u: view.records[u] for u in readable},  # type: ignore[misc]
     )
+    for note in prepared:
+        ctx.warn(note)
     t0 = time.monotonic()
     try:
         with PeakMemory() as peak:
