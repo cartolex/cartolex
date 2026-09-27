@@ -1,0 +1,117 @@
+{
+  "$defs": {
+    "MapLayout": {
+      "additionalProperties": true,
+      "properties": {
+        "method": {
+          "minLength": 1,
+          "title": "Method",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": true,
+          "title": "Params",
+          "type": "object"
+        },
+        "seed": {
+          "default": 0,
+          "exclusiveMaximum": 4294967296,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "MapLayout",
+      "type": "object"
+    },
+    "MapVersion": {
+      "additionalProperties": true,
+      "properties": {
+        "base": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/$defs/MapLayout"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        },
+        "shows": {
+          "items": {
+            "pattern": "^(people|texts|organisations:[a-z0-9][a-z0-9_-]{0,63})$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Shows",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "shows",
+        "layout",
+        "created_at"
+      ],
+      "title": "MapVersion",
+      "type": "object"
+    }
+  },
+  "$id": "https://cartolex.github.io/schemas/1/maps.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "``decisions/maps.json``: the map versions and the pinned one.",
+  "properties": {
+    "format": {
+      "const": "cartolex-maps/1",
+      "default": "cartolex-maps/1",
+      "title": "Format",
+      "type": "string"
+    },
+    "pinned": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Pinned"
+    },
+    "versions": {
+      "items": {
+        "$ref": "#/$defs/MapVersion"
+      },
+      "title": "Versions",
+      "type": "array"
+    }
+  },
+  "title": "MapsFile",
+  "type": "object"
+}

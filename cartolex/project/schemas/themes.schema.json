@@ -1,0 +1,198 @@
+{
+  "$defs": {
+    "SetAside": {
+      "additionalProperties": true,
+      "properties": {
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From"
+        },
+        "reason": {
+          "default": "",
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "title": "SetAside",
+      "type": "object"
+    },
+    "ThemeLevel": {
+      "additionalProperties": true,
+      "properties": {
+        "names": {
+          "additionalProperties": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minProperties": 1,
+          "propertyNames": {
+            "enum": [
+              "en",
+              "fr",
+              "pt"
+            ]
+          },
+          "title": "Names",
+          "type": "object"
+        }
+      },
+      "required": [
+        "names"
+      ],
+      "title": "ThemeLevel",
+      "type": "object"
+    },
+    "ThemeNode": {
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "names": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "propertyNames": {
+            "enum": [
+              "en",
+              "fr",
+              "pt"
+            ]
+          },
+          "title": "Names",
+          "type": "object"
+        },
+        "order": {
+          "default": 0,
+          "title": "Order",
+          "type": "integer"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "ThemeNode",
+      "type": "object"
+    },
+    "ThemesBasis": {
+      "additionalProperties": true,
+      "properties": {
+        "run": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run"
+        },
+        "vocabulary": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vocabulary"
+        }
+      },
+      "title": "ThemesBasis",
+      "type": "object"
+    }
+  },
+  "$id": "https://cartolex.github.io/schemas/1/themes.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "``decisions/themes.json``: the theme tree, 1 to 4 levels above the keywords.",
+  "properties": {
+    "based_on": {
+      "$ref": "#/$defs/ThemesBasis"
+    },
+    "depth": {
+      "maximum": 4,
+      "minimum": 1,
+      "title": "Depth",
+      "type": "integer"
+    },
+    "format": {
+      "const": "cartolex-themes/1",
+      "default": "cartolex-themes/1",
+      "title": "Format",
+      "type": "string"
+    },
+    "keywords": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Keywords",
+      "type": "object"
+    },
+    "levels": {
+      "items": {
+        "$ref": "#/$defs/ThemeLevel"
+      },
+      "title": "Levels",
+      "type": "array"
+    },
+    "nodes": {
+      "items": {
+        "$ref": "#/$defs/ThemeNode"
+      },
+      "title": "Nodes",
+      "type": "array"
+    },
+    "review": {
+      "additionalProperties": {
+        "enum": [
+          "to_check",
+          "reviewed"
+        ],
+        "type": "string"
+      },
+      "title": "Review",
+      "type": "object"
+    },
+    "set_aside": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SetAside"
+      },
+      "title": "Set Aside",
+      "type": "object"
+    }
+  },
+  "required": [
+    "depth",
+    "levels"
+  ],
+  "title": "ThemesFile",
+  "type": "object"
+}

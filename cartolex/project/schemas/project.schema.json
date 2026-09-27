@@ -1,0 +1,373 @@
+{
+  "$defs": {
+    "AIIdentity": {
+      "additionalProperties": true,
+      "description": "The AI provider and model used for AI filtering by API.",
+      "properties": {
+        "model": {
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "provider": {
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "model"
+      ],
+      "title": "AIIdentity",
+      "type": "object"
+    },
+    "AppStamp": {
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "title": "AppStamp",
+      "type": "object"
+    },
+    "Base": {
+      "additionalProperties": true,
+      "description": "Another project's map this project can be placed on.",
+      "properties": {
+        "bundle": {
+          "minLength": 1,
+          "title": "Bundle",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "map_version": {
+          "minLength": 1,
+          "title": "Map Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "bundle",
+        "map_version"
+      ],
+      "title": "Base",
+      "type": "object"
+    },
+    "Created": {
+      "additionalProperties": true,
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "by": {
+          "minLength": 1,
+          "title": "By",
+          "type": "string"
+        }
+      },
+      "required": [
+        "at",
+        "by"
+      ],
+      "title": "Created",
+      "type": "object"
+    },
+    "Identity": {
+      "additionalProperties": true,
+      "description": "What AI answers and parsed texts are keyed on; frozen once texts are processed.",
+      "properties": {
+        "ai": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AIIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "domain_description": {
+          "default": "",
+          "title": "Domain Description",
+          "type": "string"
+        },
+        "domain_title": {
+          "minLength": 1,
+          "title": "Domain Title",
+          "type": "string"
+        },
+        "frozen": {
+          "default": false,
+          "title": "Frozen",
+          "type": "boolean"
+        },
+        "language_models": {
+          "additionalProperties": {
+            "pattern": "^[A-Za-z0-9_]+@[0-9][0-9A-Za-z.+-]*$",
+            "type": "string"
+          },
+          "propertyNames": {
+            "enum": [
+              "en",
+              "fr",
+              "pt"
+            ]
+          },
+          "title": "Language Models",
+          "type": "object"
+        }
+      },
+      "required": [
+        "domain_title"
+      ],
+      "title": "Identity",
+      "type": "object"
+    },
+    "Languages": {
+      "additionalProperties": true,
+      "description": "Corpus languages, the reference language that merges forms, the display languages.",
+      "properties": {
+        "corpus": {
+          "items": {
+            "enum": [
+              "en",
+              "fr",
+              "pt"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Corpus",
+          "type": "array"
+        },
+        "display": {
+          "items": {
+            "enum": [
+              "en",
+              "fr",
+              "pt"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Display",
+          "type": "array"
+        },
+        "reference": {
+          "default": "en",
+          "enum": [
+            "en",
+            "fr",
+            "pt"
+          ],
+          "title": "Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "corpus"
+      ],
+      "title": "Languages",
+      "type": "object"
+    },
+    "Level": {
+      "additionalProperties": true,
+      "description": "One organisation level, from the smallest to the largest.",
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "names": {
+          "additionalProperties": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minProperties": 1,
+          "propertyNames": {
+            "enum": [
+              "en",
+              "fr",
+              "pt"
+            ]
+          },
+          "title": "Names",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "names"
+      ],
+      "title": "Level",
+      "type": "object"
+    },
+    "Overlay": {
+      "additionalProperties": true,
+      "description": "A projected set: placed on the finished map, never shaping it.",
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "root": {
+          "minLength": 1,
+          "title": "Root",
+          "type": "string"
+        },
+        "trajectory": {
+          "default": false,
+          "title": "Trajectory",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "root"
+      ],
+      "title": "Overlay",
+      "type": "object"
+    },
+    "Slot": {
+      "additionalProperties": true,
+      "description": "One ordered way texts enter the project.",
+      "properties": {
+        "doc_types": {
+          "anyOf": [
+            {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Doc Types"
+        },
+        "fit": {
+          "default": true,
+          "title": "Fit",
+          "type": "boolean"
+        },
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "collection",
+            "folder",
+            "corpus"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "trajectory": {
+          "default": true,
+          "title": "Trajectory",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "title": "Slot",
+      "type": "object"
+    }
+  },
+  "$id": "https://cartolex.github.io/schemas/1/project.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "``project.json``: what the project is.",
+  "properties": {
+    "app": {
+      "$ref": "#/$defs/AppStamp"
+    },
+    "bases": {
+      "items": {
+        "$ref": "#/$defs/Base"
+      },
+      "title": "Bases",
+      "type": "array"
+    },
+    "created": {
+      "$ref": "#/$defs/Created"
+    },
+    "format": {
+      "const": "cartolex-project/1",
+      "default": "cartolex-project/1",
+      "title": "Format",
+      "type": "string"
+    },
+    "identity": {
+      "$ref": "#/$defs/Identity"
+    },
+    "languages": {
+      "$ref": "#/$defs/Languages"
+    },
+    "levels": {
+      "items": {
+        "$ref": "#/$defs/Level"
+      },
+      "title": "Levels",
+      "type": "array"
+    },
+    "name": {
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "overlays": {
+      "items": {
+        "$ref": "#/$defs/Overlay"
+      },
+      "title": "Overlays",
+      "type": "array"
+    },
+    "slots": {
+      "items": {
+        "$ref": "#/$defs/Slot"
+      },
+      "title": "Slots",
+      "type": "array"
+    }
+  },
+  "required": [
+    "name",
+    "identity",
+    "languages",
+    "created",
+    "app"
+  ],
+  "title": "ProjectFile",
+  "type": "object"
+}

@@ -1,0 +1,269 @@
+{
+  "$defs": {
+    "CodeStamp": {
+      "additionalProperties": true,
+      "properties": {
+        "fingerprint": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Fingerprint",
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "fingerprint"
+      ],
+      "title": "CodeStamp",
+      "type": "object"
+    },
+    "FileInput": {
+      "additionalProperties": true,
+      "properties": {
+        "fingerprint": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Fingerprint",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "source",
+            "decision",
+            "cache",
+            "overlay",
+            "base"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "path",
+        "fingerprint"
+      ],
+      "title": "FileInput",
+      "type": "object"
+    },
+    "Measures": {
+      "additionalProperties": true,
+      "properties": {
+        "counts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Counts",
+          "type": "object"
+        },
+        "peak_memory_mb": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Peak Memory Mb"
+        },
+        "seconds": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seconds"
+        }
+      },
+      "title": "Measures",
+      "type": "object"
+    },
+    "ParameterValue": {
+      "additionalProperties": true,
+      "description": "One effective parameter and where its value came from.",
+      "properties": {
+        "from": {
+          "enum": [
+            "default",
+            "rule",
+            "params.json"
+          ],
+          "title": "From",
+          "type": "string"
+        },
+        "rule": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rule"
+        },
+        "value": {
+          "title": "Value"
+        }
+      },
+      "required": [
+        "value",
+        "from"
+      ],
+      "title": "ParameterValue",
+      "type": "object"
+    },
+    "StageInput": {
+      "additionalProperties": true,
+      "properties": {
+        "kind": {
+          "const": "stage",
+          "default": "stage",
+          "title": "Kind",
+          "type": "string"
+        },
+        "run_id": {
+          "minLength": 1,
+          "title": "Run Id",
+          "type": "string"
+        },
+        "stage": {
+          "minLength": 1,
+          "title": "Stage",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stage",
+        "run_id"
+      ],
+      "title": "StageInput",
+      "type": "object"
+    }
+  },
+  "$id": "https://cartolex.github.io/schemas/1/run.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "``derived/<stage>/run.json``: the record of the run that produced a stage's results.",
+  "properties": {
+    "code": {
+      "$ref": "#/$defs/CodeStamp"
+    },
+    "finished_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Finished At"
+    },
+    "format": {
+      "const": "cartolex-run/1",
+      "default": "cartolex-run/1",
+      "title": "Format",
+      "type": "string"
+    },
+    "identity": {
+      "additionalProperties": true,
+      "title": "Identity",
+      "type": "object"
+    },
+    "inputs": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "base": "#/$defs/FileInput",
+            "cache": "#/$defs/FileInput",
+            "decision": "#/$defs/FileInput",
+            "overlay": "#/$defs/FileInput",
+            "source": "#/$defs/FileInput",
+            "stage": "#/$defs/StageInput"
+          },
+          "propertyName": "kind"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/StageInput"
+          },
+          {
+            "$ref": "#/$defs/FileInput"
+          }
+        ]
+      },
+      "title": "Inputs",
+      "type": "array"
+    },
+    "measures": {
+      "$ref": "#/$defs/Measures"
+    },
+    "outcome": {
+      "enum": [
+        "succeeded",
+        "failed",
+        "cancelled"
+      ],
+      "title": "Outcome",
+      "type": "string"
+    },
+    "parameters": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ParameterValue"
+      },
+      "title": "Parameters",
+      "type": "object"
+    },
+    "run_id": {
+      "pattern": "^\\d{8}T\\d{6}Z-[0-9a-f]{4,}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "stage": {
+      "minLength": 1,
+      "title": "Stage",
+      "type": "string"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "stage",
+    "run_id",
+    "outcome",
+    "started_at",
+    "code"
+  ],
+  "title": "RunRecord",
+  "type": "object"
+}

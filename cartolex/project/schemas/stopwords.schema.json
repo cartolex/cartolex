@@ -1,0 +1,52 @@
+{
+  "$id": "https://cartolex.github.io/schemas/1/stopwords.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "``decisions/stopwords.json``: additions to and removals from the function-word lists.",
+  "properties": {
+    "add": {
+      "additionalProperties": {
+        "items": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "propertyNames": {
+        "enum": [
+          "en",
+          "fr",
+          "pt"
+        ]
+      },
+      "title": "Add",
+      "type": "object"
+    },
+    "format": {
+      "const": "cartolex-stopwords/1",
+      "default": "cartolex-stopwords/1",
+      "title": "Format",
+      "type": "string"
+    },
+    "remove": {
+      "additionalProperties": {
+        "items": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "propertyNames": {
+        "enum": [
+          "en",
+          "fr",
+          "pt"
+        ]
+      },
+      "title": "Remove",
+      "type": "object"
+    }
+  },
+  "title": "StopwordsFile",
+  "type": "object"
+}
