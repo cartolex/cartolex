@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +24,12 @@ from cartolex.project.generations import (
 STAGE = "keywords.extract"
 NOW = datetime(2026, 9, 28, 10, 0, tzinfo=timezone.utc)
 RUNS = ["20260928T100000Z-aaaa", "20260928T100100Z-bbbb", "20260928T100200Z-cccc"]
+
+
+@pytest.fixture(autouse=True)
+def _no_fsync(monkeypatch):
+    """A killed process loses nothing a disk flush would keep: skip the flushes, stay fast."""
+    monkeypatch.setattr(os, "fsync", lambda fd: None)
 
 
 class Killed(BaseException):

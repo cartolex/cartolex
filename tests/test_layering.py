@@ -159,7 +159,15 @@ def test_the_run_context_is_never_imported_at_module_level() -> None:
 
 def test_the_guard_rejects_what_it_must() -> None:
     declared = _declared_imports()
-    for name in ("cartolex.demo", "cartolex.demo.generator", "cartolex", "fastapi", "playwright"):
+    for name in (
+        "cartolex.demo",
+        "cartolex.demo.generator",
+        "cartolex.build",
+        "cartolex.project",
+        "cartolex",
+        "fastapi",
+        "playwright",
+    ):
         assert not _allowed(name, declared), name
     for name in ("json", "numpy", "sklearn.decomposition", "umap", "cartolex._data"):
         assert _allowed(name, declared), name
