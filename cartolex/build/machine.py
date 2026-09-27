@@ -20,7 +20,7 @@ import re
 import subprocess
 import sys
 
-__all__ = ["PeakMemory", "available_memory_mb", "boot_id"]
+__all__ = ["PeakMemory", "available_memory_mb", "boot_id", "resident_memory_mb"]
 
 _MB = 1024 * 1024
 
@@ -69,6 +69,18 @@ def available_memory_mb() -> float | None:
     except (OSError, ValueError, subprocess.SubprocessError):
         return None
     return None
+
+
+def resident_memory_mb() -> float:
+    """The memory this process holds now, in MB (0 where it cannot be read cheaply).
+
+    A stage's peak memory is measured for the whole process, so the memory it
+    may use is what is available plus what the process already holds.
+    """
+    if sys.platform.startswith("linux"):
+        rss = _linux_status_kb("VmRSS")
+        return rss / 1024 if rss is not None else 0.0
+    return 0.0
 
 
 def boot_id() -> str | None:

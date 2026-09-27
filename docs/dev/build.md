@@ -193,7 +193,7 @@ A stage writes only into its staging folder,
 `derived/.staging/<stage>.<run id>/`, which holds its results and two things of
 its own:
 
-- `.attempt.json`: the run id, the process, the host and the project lock it
+- `.staging.json`: the run id, the process, the host and the project lock it
   runs under, the boot of the machine, and a key: a digest of the code, the
   effective parameters, the upstream runs, the input fingerprints and the
   `project.json` parts it reads;
@@ -203,7 +203,7 @@ its own:
 
 When the stage succeeds, `cartolex.project.generations.swap_in` writes the
 journal `derived/.journal.json` (the stage, the new run, the run it replaces),
-writes `run.json` into the staging folder, removes `.attempt.json` and
+writes `run.json` into the staging folder, removes `.staging.json` and
 `.chunks/`, moves `derived/.previous/<stage>/` aside, moves `derived/<stage>/`
 to `derived/.previous/<stage>/`, moves the staging folder to
 `derived/<stage>/`, removes the attempt record, the journal, then the
@@ -236,10 +236,13 @@ An estimate scales the stage's last measures by the ratio of its cost driver
 now to what it was then, or, without a previous run, uses the stage's
 `CostModel` (a fixed part plus a part per unit of the driver, to a power). The
 cost models of `STAGES` are first guesses, to be calibrated on measured runs.
-A stage whose estimated peak memory exceeds the budget (`budget_mb`, or the
-memory available now: `/proc/meminfo` on Linux, `vm_stat` on macOS,
-`GlobalMemoryStatusEx` on Windows) cannot run, nor can anything downstream of it,
-unless `build(allow_over_budget=True)` or a list of stage ids allows it.
+A stage whose estimated peak memory exceeds the budget cannot run, nor can
+anything downstream of it, unless `build(allow_over_budget=True)` or a list of
+stage ids allows it. The budget is `budget_mb`, or by default the memory
+available now (`/proc/meminfo` on Linux, `vm_stat` on macOS,
+`GlobalMemoryStatusEx` on Windows) plus what the process already holds (read on
+Linux; elsewhere nothing is added, which errs on the safe side), since a peak is
+measured for the whole process.
 
 `build(project, targets, …)` takes the same arguments, computes the same plan
 and runs exactly its `run` items, one at a time, in order:

@@ -52,7 +52,7 @@ __all__ = [
 #: The format id of ``derived/.journal.json``.
 JOURNAL_FORMAT = "cartolex-journal/1"
 #: The file a running stage keeps in its staging folder: who runs it, and for which inputs.
-STAGING_MARKER = ".attempt.json"
+STAGING_MARKER = ".staging.json"
 #: The folder of a stage's chunk checkpoints, inside its staging folder.
 CHUNKS = ".chunks"
 #: Suffix of a replaced generation moved aside during a swap (inside ``derived/.staging/``).

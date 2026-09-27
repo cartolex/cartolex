@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from ..project.models import CodeStamp, FileInput, StageInput
 from ..project.project import cartolex_version
 from .fingerprints import code_fingerprint, input_files
-from .machine import available_memory_mb
+from .machine import available_memory_mb, resident_memory_mb
 from .params import Resolved
 from .stages import STAGES, Estimate, Registry, Stage
 from .validity import StageState, StageStatus, _status_of, _View, project_parts
@@ -235,8 +235,9 @@ def plan(
 
     A target brings in every stage upstream of it. A stage runs when it was
     never built, needs an update, failed, is in *force*, or an upstream stage
-    runs. *budget_mb* is the memory a stage may use (default: the memory
-    available now). Raises :class:`BuildBusy` when a job runs a stage the build
+    runs. *budget_mb* is the peak memory a stage may reach (default: the memory
+    available now, plus what this process already holds, since a stage's peak
+    is measured for the whole process). Raises :class:`BuildBusy` when a job runs a stage the build
     would run, and :class:`~cartolex.build.params.ParamsError` when
     ``params.json`` does not fit the stages.
     """
@@ -252,7 +253,10 @@ def plan(
     busy = [s for s in wanted if statuses[s].state is StageState.RUNNING]
     if busy:
         raise BuildBusy(f"a job is running {', '.join(sorted(busy))}; wait for it or cancel it")
-    budget = budget_mb if budget_mb is not None else available_memory_mb()
+    budget = budget_mb
+    if budget is None:
+        available = available_memory_mb()
+        budget = available + resident_memory_mb() if available is not None else None
 
     items: list[PlanItem] = []
     runs: set[str] = set()

@@ -34,6 +34,7 @@ from cartolex.build import (
     plan,
     status,
 )
+from cartolex.build.machine import resident_memory_mb
 from cartolex.project import Project, StaleLock, remove_stale_lock
 from cartolex.project.models import AIIdentity, Measures, RunRecord
 from cartolex.project.tables import write_decision_csv
@@ -228,7 +229,9 @@ def test_the_budget_defaults_to_the_available_memory(env):
     if available is None:
         assert budget is None
     else:
-        assert budget == pytest.approx(available, rel=0.5)
+        assert budget == pytest.approx(available + resident_memory_mb(), rel=0.5)
+        if sys.platform.startswith("linux"):
+            assert resident_memory_mb() > 0
 
 
 def test_an_impossible_parameter_blocks_its_stage_with_the_reason(env):
@@ -409,7 +412,7 @@ def _whole_generations(project: Project) -> None:
         if folder.exists():
             record = RunRecord.model_validate_json((folder / "run.json").read_bytes())
             assert record.stage == stage and record.outcome == "succeeded"
-            assert not (folder / ".attempt.json").exists() and not (folder / ".chunks").exists()
+            assert not (folder / ".staging.json").exists() and not (folder / ".chunks").exists()
 
 
 @pytest.fixture(scope="module")
