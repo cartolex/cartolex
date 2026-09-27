@@ -30,6 +30,7 @@ __all__ = [
     "StageState",
     "StageStatus",
     "current_sizes",
+    "effective_params",
     "load_params",
     "project_parts",
     "status",
@@ -339,6 +340,18 @@ def _status_of(view: _View, stage: Stage, earlier: dict[str, StageStatus]) -> St
     else:
         state = StageState.UP_TO_DATE
     return StageStatus(state=state, reasons=reasons, skip_reason=skip, **common)  # type: ignore[arg-type]
+
+
+def effective_params(
+    project: Project, registry: Registry | None = None, *, year: int | None = None
+) -> dict[str, Resolved]:
+    """Every stage's effective parameters now, and where each comes from.
+
+    Rule values use the sizes the stages last reported (else the sources' estimates);
+    a rule whose sizes nobody knows yet is listed in :attr:`Resolved.unknown`.
+    """
+    view = _View.read(project, registry or STAGES, year)
+    return {stage.id: view.resolve(stage) for stage in view.registry}
 
 
 def status(
