@@ -28,6 +28,8 @@ with Project.open(folder, write=True) as project:   # repairs an interrupted swa
 | `planning` | `PlanItem`, `BuildPlan`, `plan()` |
 | `execution` | `StageContext`, `Progress`, `ConsentRequest`, `BuildResult`, `build()` |
 | `machine` | available memory, peak memory, the boot id |
+| `enginefiles` | the ownership table: where each engine file lives in a project; `engine_paths()`, `results_paths()` |
+| `engine` | the runners of cartolex's stages, the settings they give the engine, `AIAccess`, `engine_registry()` |
 
 The swap of a staging folder into place and its journal are part of the format
 and live in `cartolex.project.generations`, so that opening a project for
@@ -51,10 +53,12 @@ Stage(
     params=(ParamSpec("top_groups", "int", "about this many groups at the top level",
                       default=15, minimum=2, maximum=500), ...),
     checks=(CrossCheck(...),),                  # refusals that need the project's sizes
-    uses=("seed",),                             # global parameters: seed, year
+    uses=(),                                    # global parameters: seed, year
     provides=(),                                # sizes its counts report
     cost=CostModel("kept_keywords", 1.0, 1e-3, 100.0, 8e-6, memory_exponent=2.0),
     run=runner,                                 # run(ctx) -> counts
+    prepare=None,                               # prepare(project) before it runs
+    version=1,                                  # raised when what it produces changes
 )
 ```
 
@@ -69,11 +73,13 @@ Stage(
 | `chunked` | a killed run resumes from its last chunk |
 | `provides` | the sizes its counts report: `people`, `texts`, `characters`, `kept_keywords`, `mapped_units` |
 | `cost`, `estimator` | how its time and peak memory are estimated |
+| `prepare(project)` | called by a build, not a dry run, just before the stage's inputs are fingerprinted: it may write a decision the stage needs (the first map version, the rebased theme tree); what it did goes into the run's warnings |
+| `version` | the stage's behaviour version (see below) |
 
-`STAGES` declares cartolex's ten stages with runners that raise
-`StageNotConnected`. The engine is connected with
-`STAGES.with_runners({"keywords.extract": run_extract, ...})`, which returns a
-new registry; `Registry.replace(stage_id, **changes)` changes any other field.
+`STAGES` declares cartolex's ten stages, each with the runner that calls the
+engine (below). `Registry.with_runners({...})` returns a registry with other
+runners (a test's fakes, the AI clean-up with its key), and
+`Registry.replace(stage_id, **changes)` changes any other field.
 
 ## Parameters
 
@@ -87,12 +93,16 @@ Each stage's `run.json` records every effective value and its origin:
 
 ```json
 "parameters": {
-  "seed": {"value": 20260928, "from": "params.json", "rule": null},
   "depth": {"value": 2, "from": "rule", "rule": "theme_depth"},
   "top_groups": {"value": 12, "from": "params.json", "rule": null},
-  "keywords_per_group": {"value": 20, "from": "default", "rule": null}
+  "keywords_per_group": {"value": 20, "from": "default", "rule": null},
+  "level_sizes": {"value": null, "from": "default", "rule": null}
 }
 ```
+
+No stage of cartolex's declares `seed` today: the engine's steps are
+deterministic, and the layout takes the seed of its map version, which the
+first build sets from `params.json`.
 
 `load_params(project)` reads the file and refuses, with every reason at once, a
 stage it does not know, a parameter a stage does not know, a value of the wrong
@@ -108,7 +118,7 @@ leaves the check to the run.
 | `corpus.assemble` | `parts` | title, abstract | title, abstract, body, full |
 | `corpus.assemble` | `provider_priority` | folder, openalex, hal, scielo, europepmc, arxiv, biorxiv | provider names; the others follow alphabetically |
 | `corpus.assemble` | `recency_years` | 5 | 0–200; 0 keeps every year |
-| `keywords.extract` | `counting_unit` | person | person, text |
+| `keywords.extract` | `counting_unit` | person | person (text: not available yet, refused with the reason) |
 | `keywords.extract` | `min_people` | 3 | ≥ 1, and no more than the people whose texts build the lexicon |
 | `keywords.extract` | `max_share` | 0.6 | 0.01–1 |
 | `keywords.triage` | `enabled` | false | true, false |
@@ -117,6 +127,7 @@ leaves the check to the run.
 | `themes.group` | `depth` | rule `theme_depth` | 1–4 |
 | `themes.group` | `top_groups` | 15 | 2–500, fewer than the kept keywords |
 | `themes.group` | `keywords_per_group` | 20 | 2–10 000; the levels must grow from the top |
+| `themes.group` | `level_sizes` | none | 1 to 4 whole numbers, the groups per level from the top; when set, they replace `depth`, `top_groups` and `keywords_per_group` |
 | `map.trajectories` | `window_years` | 3 | 1–50 |
 
 The layout of a map is not a build parameter: each map version keeps its own
@@ -276,6 +287,101 @@ and runs exactly its `run` items, one at a time, in order:
 One build runs at a time on a project: `plan` raises `BuildBusy` while a job
 runs a stage it would run.
 
+## The engine on a project
+
+`cartolex.build.engine` holds one runner per stage. A runner builds the engine's
+`RunContext` for its stage and calls the engine; the engine never learns that a
+project exists (it imports neither `cartolex.build` nor `cartolex.project`).
+
+| stage | the engine's work |
+| --- | --- |
+| `corpus.assemble` | `cartolex.project.corpus.assemble_corpus`: one index and one text per document for each fit slot, and for each projected set, with `people.csv` naming the `person_id` behind each engine identity |
+| `keywords.extract` | extraction (`run_pipeline_stage_1`) |
+| `keywords.triage` | the AI triage (`run_pipeline_stage_2_llm`), through `AIAccess` |
+| `keywords.build` | consolidation (`run_pipeline_stage_3`), then the person roster; `decisions/keywords.csv` becomes the engine's exclusion, keep and merge files first |
+| `themes.space` | the SVD space (`run_svd`) |
+| `themes.group` | the term clustering (`run_clustering`) and the subfield draft (`draft_subfields`) |
+| `themes.apply` | `apply_subfields` on the curated tree (below), or on the draft |
+| `map.layout` | the layout of the pinned map version (`run_umap`), then the themes applied again on the map |
+| `map.trajectories` | `run_trajectories` |
+| `overlays.position` | each projected set placed with `cartolex.lexicon.positioning`: `<set>/positions.json` |
+
+The figures and the portable bundle are outputs, not build stages.
+
+**Where the engine's files go.** `enginefiles.ENGINE_FILES` gives every field of
+`EnginePaths` a place: a file a stage writes (`Owned`, relative to its folder),
+a file of the project (`FromProject`: the triage prompt override in
+`decisions/prompts/`, the AI caches in `cache/ai/`), the running stage's own
+folder (`OwnFolder`), or nothing (`NotProvided`: a workspace's operator files,
+the frozen atlas parameters, the domain catalogue, the API key file, and the
+figures). `engine_paths(stage, folders, root)` points a stage's own files into
+its staging folder and every other file at its latest writer among the stages
+the run may read (those upstream of it, directly or not, that have results);
+a file with no such writer points into `<staging>/.unavailable/`, where nothing
+exists, and a runner fails if the engine writes there. Three files are
+*amended*: the layout adds its coordinates to the stored embeddings, refreshes
+the clustered keyword table, and applies the themes again so they carry their
+places on the map. `map.layout` starts from copies of the first two in its own
+folder, and the stages after it read its versions. The tests check that every
+field has exactly one place and that each stage folder holds only its own
+files.
+
+**Settings.** `keywords_settings(project.json, …)` gives the engine its corpus
+slots (in the project's order), languages and domain title; the parameters map
+onto the engine's settings; a stage reads the parameters of the stages before
+it from their `run.json`, so it runs with the values the results it reads were
+made with.
+
+| parameter | engine setting |
+| --- | --- |
+| `corpus.assemble.parts`, `.provider_priority` | `assemble_corpus(parts=…, provider_priority=…)` |
+| `corpus.assemble.recency_years` | `KeywordsConfig.kw_recency_years` |
+| the `year` | `RunContext.now_year` |
+| `keywords.extract.min_people`, `.max_share` | `KeywordsConfig.min_df`, `.max_df` |
+| `keywords.build.max_keywords` | `KeywordsConfig.global_top_n` |
+| `themes.space.dimensions` | `run_svd(svd_n_components=…)` |
+| the theme levels | the top level: `draft_subfields(n_subfields=…)`; the finest: `run_clustering(n_concepts=…)` |
+| `map.trajectories.window_years` | `run_trajectories(bin_years=…)` |
+| the pinned map version | `run_umap(umap_random_state=seed, …)` with its layout parameters (`n_neighbors`, `min_dist`, `metric`, `layout`…) |
+| `identity.ai.model` | `KeywordsConfig.llm_model` |
+| `decisions/stopwords.json` | the stop-word profile: every word added or removed, in any language, extends or shrinks the list of words that are never keywords |
+
+The engine builds two theme levels, themes over topics. A tree of one level
+keeps about `keywords_per_group` keywords per topic beneath its themes, and a
+tree of three or four keeps its top and finest levels; the run says so in its
+warnings.
+
+**Map versions.** Before the first layout, `map.layout`'s `prepare` adds and
+pins map version `v1` (layout `umap`, the seed of `params.json`). A rebuild uses
+the pinned version; `cartolex versions` pins another or adds one with another
+seed.
+
+**The curated theme tree.** Before `themes.apply` runs, its `prepare` rebases
+`decisions/themes.json` onto the current vocabulary when it is based on
+another one (`cartolex.project.themes.rebase`): a new keyword goes to the node
+of its draft topic when the tree has it, else aside, both marked « to check »,
+and the result is saved as a new version. The stage converts the tree with
+`cartolex.project.themes_curated.to_curated` and applies it. A tree of
+another depth than two is refused with the reason, until the engine applies
+other depths.
+
+**The AI clean-up** needs an `AIAccess`: the provider's key, or a client of
+one's own (`client_factory`, called like the provider SDK's client; the tests
+and the reference run answer with a fake model), and optionally the calls in
+flight. `engine_registry(AIAccess(...))` returns cartolex's stages with it;
+without one, the stage is refused with the reason. `project.json` must name the
+provider (`mistral`) and model. Answers are cached in
+`cache/ai/triage_batch_cache.json` and `cache/ai/triage_term_cache.json`, keyed
+as always, so a forced second run asks nothing.
+
+**Progress and cancel.** Every runner gives the engine's `RunContext` a
+`progress` callable (at most one event per percent) and a `cancel` callable
+(the build's event). Extraction, triage and consolidation report through them
+and stop at their next report after a cancel; the SVD, clustering, layout and
+trajectory steps report between their steps, and the trajectories per person
+in their time windows. What cannot be interrupted: one layout fit, one SVD, one
+clustering, and a single AI call in flight (the triage stops before the next).
+
 ## Writing a runner
 
 A runner is `run(ctx: StageContext) -> Mapping[str, int] | None`. It:
@@ -294,6 +400,14 @@ A runner is `run(ctx: StageContext) -> Mapping[str, int] | None`. It:
 - returns its counts, including the sizes it `provides`.
 
 ## Tests
+
+`tests/test_build_engine.py` builds an XS demo project with cartolex's own
+stages, then checks the ownership table, the stages that need an update after
+`stopwords.json`, `params.json`, `people.csv` or `themes.json` change, a
+curated theme tree applied, the AI clean-up through an injected client (and
+from its cache), a cancel and a killed process on real stages, and the command
+line. The numeric reference is also run through a project build
+(`docs/dev/reference.md`).
 
 `tests/_build_fakes.py` declares small fake stages on the real stage ids, each
 writing a result that depends only on what it read and logging its calls

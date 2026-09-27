@@ -8,6 +8,7 @@ keywords, themes and a two-dimensional atlas, with an offline site to share it.
 :maxdepth: 1
 
 demo
+build
 ```
 
 ```{toctree}
