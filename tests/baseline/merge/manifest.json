@@ -1,0 +1,278 @@
+{
+ "artifacts": {
+  "merge": {
+   "anchor_meta": {
+    "file": "merge/anchor_meta.json.gz",
+    "kind": "json",
+    "sha256": "f74e960cf7be26ef17ac51c88cb386b28228590adbe780be040d02bf9992cac3"
+   },
+   "anchors": {
+    "file": "merge/anchors.npy.gz",
+    "kind": "array",
+    "role": "values",
+    "sha256": "f028cc35965605585b3fd1621d867bc4e1e08182eb3eb3f42ca54242213672e0",
+    "shape": [
+     300,
+     20
+    ],
+    "stored_dtype": "float64"
+   },
+   "concept_weights": {
+    "file": "merge/concept_weights.npy.gz",
+    "kind": "array",
+    "role": "values",
+    "sha256": "220cf7617a80d6decabb3c9aa510f6365fd0b2644a03288aa4947cacdbcfc88f",
+    "shape": [
+     77,
+     300
+    ],
+    "stored_dtype": "float32"
+   },
+   "cross_domain_mass": {
+    "file": "merge/cross_domain_mass.npy",
+    "kind": "array",
+    "role": "values",
+    "sha256": "b91a2320476e46b8a3c9d62f7ac14b192b2c1c1161db048777f480da96700537",
+    "shape": [
+     77
+    ],
+    "stored_dtype": "float64"
+   },
+   "decisions": {
+    "file": "merge/decisions.json",
+    "kind": "json",
+    "sha256": "29eb07f0bf5bba4b7d8bfd68fc3902950e5e4fc2c82bba52fda638464e004532"
+   },
+   "entropy": {
+    "file": "merge/entropy.npy",
+    "kind": "array",
+    "role": "values",
+    "sha256": "6226c648883a1fc8f8fb49630b5420285aa2b82a1019aa6b5683e1d82f3d4f7d",
+    "shape": [
+     77
+    ],
+    "stored_dtype": "float64"
+   },
+   "metrics": {
+    "file": "merge/metrics.json",
+    "kind": "json",
+    "sha256": "0cfb60954c7f94d93dbf7d84b08f95a46a56d879dd105bfc44346ab778c66342"
+   },
+   "naive_table": {
+    "file": "merge/naive_table.json.gz",
+    "kind": "json",
+    "sha256": "bb78dfadb50a7cab6de4b1ee0ec7d9d361f0a2b288a71ee4965cc745d6b15d62"
+   },
+   "person_coords": {
+    "file": "merge/person_coords.npy",
+    "kind": "array",
+    "role": "embedding",
+    "sha256": "e74e62a23a0e6031ea61c18185aa3d206b99ce56c31f66a6203029deb84aee88",
+    "shape": [
+     77,
+     20
+    ],
+    "stored_dtype": "float64"
+   },
+   "pooled": {
+    "columns": [
+     "row",
+     "col",
+     "tf"
+    ],
+    "dtypes": {
+     "col": "int",
+     "row": "int",
+     "tf": "float"
+    },
+    "file": "merge/pooled.csv.gz",
+    "keys": [
+     "row",
+     "col"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 2121,
+    "sha256": "6499e158bd082d8cc9c3c5b32a1eb266b9efbf3cdf63defcdb5821a14472771f"
+   },
+   "rows": {
+    "columns": [
+     "person",
+     "domain_id",
+     "group"
+    ],
+    "dtypes": {
+     "domain_id": "str",
+     "group": "str",
+     "person": "str"
+    },
+    "file": "merge/rows.csv",
+    "keys": [
+     "person"
+    ],
+    "kind": "table",
+    "ordered": true,
+    "rows": 77,
+    "sha256": "b121e15f9be74aa33bdaee5bd17fe1c37b2eb3f91fe95921d1751887dcb063b4"
+   },
+   "sense_coords": {
+    "file": "merge/sense_coords.npy.gz",
+    "kind": "array",
+    "role": "embedding",
+    "sha256": "229283aaa4d3331f91636b6054d5f6fd2c80d9457e7aa0f646b2c27e1452e652",
+    "shape": [
+     849,
+     20
+    ],
+    "stored_dtype": "float64"
+   },
+   "senses": {
+    "count": 849,
+    "file": "merge/senses.json",
+    "kind": "strings",
+    "sha256": "3878cc832fba42610ee359bb51464dee7407fde490d8023de73c5500b5fa439a"
+   },
+   "singular_values": {
+    "file": "merge/singular_values.npy",
+    "kind": "array",
+    "role": "spectrum",
+    "sha256": "1005d4d25da38ad99387d8c86a24825d95bddaddb2b040cf6f9e3f0501a8445e",
+    "shape": [
+     20
+    ],
+    "stored_dtype": "float64"
+   },
+   "table": {
+    "file": "merge/table.json.gz",
+    "kind": "json",
+    "sha256": "a2d41b2d2fd74914c6dc389a15b8fe446acb63e3258a18220240f44f5dd93c98"
+   },
+   "table_first_pass": {
+    "file": "merge/table_first_pass.json.gz",
+    "kind": "json",
+    "sha256": "ea9fc5ccd3034db4e64bb1e2d1ef49f29deffeff6bf7f2b5d9f2a9349a79bc46"
+   },
+   "weights_macro": {
+    "file": "merge/weights_macro.npy.gz",
+    "kind": "array",
+    "role": "values",
+    "sha256": "b2a3e89ac4563ae64590707e2dc393bafe43a9db4b25eb735c91e030ead78537",
+    "shape": [
+     77,
+     849
+    ],
+    "stored_dtype": "float32"
+   },
+   "weights_pooled": {
+    "file": "merge/weights_pooled.npy.gz",
+    "kind": "array",
+    "role": "values",
+    "sha256": "e677eb0281c34980a99aabe1068edba038930ae03ece9acac1547ca46f218b1d",
+    "shape": [
+     77,
+     849
+    ],
+    "stored_dtype": "float32"
+   }
+  }
+ },
+ "baseline": {
+  "date": "2026-09-27",
+  "reason": "The first stored run of this tree: noun-phrase candidates, the trilingual demo vocabulary and the triage without a catalogue anchor."
+ },
+ "environment": {
+  "engine_fingerprint": "d6f60378cbaf488dd9eac19faac7934b02b547137216cbd6d18611d000b409a1",
+  "engine_version": "1.0.0.dev0",
+  "implementation": "CPython",
+  "libraries": {
+   "en_core_web_md": "3.8.0",
+   "fr_core_news_md": "3.8.0",
+   "joblib": "1.6.0",
+   "langdetect": "1.0.9",
+   "llvmlite": "0.49.0",
+   "matplotlib": "3.11.2",
+   "numba": "0.67.0",
+   "numpy": "2.5.3",
+   "pandas": "3.0.6",
+   "pdfminer.six": "20260107",
+   "pt_core_news_md": "3.8.0",
+   "pynndescent": "0.6.0",
+   "pypdf": "6.19.0",
+   "scikit-learn": "1.9.1",
+   "scipy": "1.18.1",
+   "spacy": "3.8.16",
+   "thinc": "8.3.13",
+   "threadpoolctl": "3.7.0",
+   "umap-learn": "0.5.12"
+  },
+  "native_libraries": [
+   "openblas 0.3.31.dev",
+   "openblas 0.3.34.106.0",
+   "openmp None"
+  ],
+  "platform": "linux-x86_64",
+  "python": "3.12.14",
+  "settings": {
+   "LC_ALL": "C.UTF-8",
+   "MKL_NUM_THREADS": "1",
+   "NUMBA_NUM_THREADS": "1",
+   "OMP_NUM_THREADS": "1",
+   "OPENBLAS_NUM_THREADS": "1",
+   "PYTHONHASHSEED": "0",
+   "TZ": "UTC"
+  }
+ },
+ "format": "cartolex-reference/1",
+ "inputs": {
+  "cohorts": [
+   {
+    "bundle": {
+     "entities": "fb6b1f959773294bcefdbdb261bc24a7da661295f27e544fa340aeadd1cb6215",
+     "entity_terms": "978fc0f7a58483e8e7cc13003df108f8b98cb06e60e0cc23c578bb0fc0d5625a",
+     "meta": "77dd92767eccc681b7e8731d15f2057a2cb111dcf8b74b49678c60d4803a7f15",
+     "round_trip": "dcf25b6dab889b23bbb35a08fcb976ca4d3e85ab72fb3cba9167564c800beb84",
+     "taxonomy": "c908a5e19f9ed983a3a73b6dec4e69b081f621d54b418c91f7682d4d10730ec7",
+     "vocabulary": "8254ce4836a18a8641e4e5e91209469c7f7180b3592996d69ffaf2b4b4c1861d",
+     "zip": "610d73500f5829818f8b48c233b66555d7019636f7e375598309ed22607b1223"
+    },
+    "domain_id": "a",
+    "truth_sha256": "db5e4195056421cfcd019c0b96b8c03877231c66502551fef476c256de7f9fbf",
+    "workspace_sha256": "4d54f87afa7ddb56163ca8ead49058bb1b0dcbe3ab1a5161cf1f25cd957da8dc"
+   },
+   {
+    "bundle": {
+     "entities": "b3eb93c98c3ffcb823c0cc3c2b2d0566a6d25cad5070082169d1f942e6dd17e9",
+     "entity_terms": "b6b88c9dc50982156abdf8ec2deee889958b83bd84c2b1ef24045c8248f8118e",
+     "meta": "3d3a1abd9f33065b6963946d9d58eb6205c7832200a6de15d641c937e61a6ced",
+     "round_trip": "dcf25b6dab889b23bbb35a08fcb976ca4d3e85ab72fb3cba9167564c800beb84",
+     "taxonomy": "31a8ef2592efd64946c4397c4de47851e4b4465ad32259576197631285571121",
+     "vocabulary": "843dd17217f66f838fad90b0dceb93c445a654a0a76b1a2c5371fae20cb5631e",
+     "zip": "e60a0d586190c6a6352dd424691ff3c6c0d3524528152791c7d98ea0f1028063"
+    },
+    "domain_id": "b",
+    "truth_sha256": "5779bec6c1d1e8bf368a7e5cd73186eb7418739ff157beccb771c2466d90327e",
+    "workspace_sha256": "a303ac50191d11766639e35f6429a5c222235b36fbbb2620a0b153e136bd38b1"
+   }
+  ]
+ },
+ "mode": "merge",
+ "settings": {
+  "embedder": "char-trigram-crc32-256",
+  "engine": {
+   "clustering": {},
+   "keywords": {
+    "recency_years": 0
+   },
+   "svd": {},
+   "umap": {}
+  },
+  "now_year": 2026,
+  "triage": {
+   "domain_name": "Coastal and marine systems",
+   "llm_max_concurrent": 1
+  }
+ },
+ "stages": [
+  "merge"
+ ]
+}

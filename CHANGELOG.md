@@ -96,3 +96,12 @@ nothing in the engine names a particular deployment, source or procedure.
   Portuguese. Its `truth.json` records every phrase of the texts with its
   language and whether it is a field term or generic filler (`lexicon`). The
   default `en,fr` worlds are byte-identical to before.
+- **A drift baseline for the numeric reference.** `tests/baseline/{S,L,merge}`
+  is a second stored run in the `cartolex-reference/1` format, made by this
+  tree: `tools/reference/check_reference.py` compares the current engine with
+  it (identical or within tolerance, no ledger) and with the 0.7.2 reference
+  (through `tools/reference/explained.toml`, where an entry may now explain a
+  whole stage by an upstream cause). `--update-baseline --reason TEXT` is the
+  only way to rewrite it: the reason goes into its manifest and
+  `tests/baseline/LOG.md`. The released engine's environment is now called
+  `released`.

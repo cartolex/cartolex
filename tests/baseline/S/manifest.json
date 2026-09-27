@@ -1,0 +1,824 @@
+{
+ "artifacts": {
+  "apply": {
+   "applied": {
+    "file": "apply/applied.json.gz",
+    "kind": "json",
+    "sha256": "ed53e3c84920faa962265c92da2a2acd66b8cad0561faa021218aac938d5ff98"
+   },
+   "lexicon_weights": {
+    "columns": [
+     "term",
+     "term_index",
+     "concept_id",
+     "subfield_id",
+     "weight",
+     "share"
+    ],
+    "dtypes": {
+     "concept_id": "int",
+     "share": "float",
+     "subfield_id": "int",
+     "term": "str",
+     "term_index": "int",
+     "weight": "float"
+    },
+    "file": "apply/lexicon_weights.csv",
+    "keys": [
+     "term_index"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 448,
+    "sha256": "8d2e7366e241f5bb5f2b3a5321e12e684383ac10eb62425bef84dbf82f69d42d"
+   },
+   "person_weights": {
+    "columns": [
+     "person",
+     "subfield_id",
+     "weight"
+    ],
+    "dtypes": {
+     "person": "str",
+     "subfield_id": "int",
+     "weight": "float"
+    },
+    "file": "apply/person_weights.csv",
+    "keys": [
+     "person",
+     "subfield_id"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 333,
+    "sha256": "058998135a1f1df999d75feaee5ac97ac82b54d0616b53f824c297289861f385"
+   },
+   "returned_matches_file": {
+    "file": "apply/returned_matches_file.json",
+    "kind": "json",
+    "sha256": "8c5aaab6e1efdec7f7f9f65cc0de77461c36a46e6b7c9ee7a35299dd6e8449ee"
+   }
+  },
+  "build": {
+   "aliases": {
+    "columns": [
+     "alias",
+     "canonical"
+    ],
+    "dtypes": {
+     "alias": "str",
+     "canonical": "str"
+    },
+    "file": "build/aliases.csv.gz",
+    "keys": [
+     "alias"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 703,
+    "sha256": "45c220cbb35b493310eb5e52ee11809395d885e7bc7a4181096493cc4553a657"
+   },
+   "domain_terms": {
+    "columns": [
+     "term",
+     "score",
+     "n_tokens",
+     "lang"
+    ],
+    "dtypes": {
+     "lang": "str",
+     "n_tokens": "int",
+     "score": "float",
+     "term": "str"
+    },
+    "file": "build/domain_terms.csv",
+    "keys": [
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 200,
+    "sha256": "036ce1c48b060a90e8fa09475ad2aafe7fc3dafc011506bf7e4e8a4616b08875"
+   },
+   "group_terms": {
+    "columns": [
+     "group",
+     "term",
+     "score",
+     "n_tokens",
+     "lang"
+    ],
+    "dtypes": {
+     "group": "str",
+     "lang": "str",
+     "n_tokens": "int",
+     "score": "float",
+     "term": "str"
+    },
+    "file": "build/group_terms.csv",
+    "keys": [
+     "group",
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 300,
+    "sha256": "0d9bc5aeacd9910fd82ba27fc2b2d36d9c11a47f6703642516038981597e3431"
+   },
+   "pairs": {
+    "columns": [
+     "concept",
+     "term_fr",
+     "score_fr",
+     "term_en",
+     "score_en",
+     "total_score"
+    ],
+    "dtypes": {
+     "concept": "str",
+     "score_en": "float",
+     "score_fr": "float",
+     "term_en": "str",
+     "term_fr": "str",
+     "total_score": "float"
+    },
+    "file": "build/pairs.csv.gz",
+    "keys": [
+     "concept"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 657,
+    "sha256": "c00ff5ef3f261bbdac353c4bd030bdb12aef75c6dc562f419d4529d2b7575372"
+   },
+   "person_terms": {
+    "columns": [
+     "person",
+     "term",
+     "score",
+     "n_tokens",
+     "score_tf",
+     "lang"
+    ],
+    "dtypes": {
+     "lang": "str",
+     "n_tokens": "int",
+     "person": "str",
+     "score": "float",
+     "score_tf": "float",
+     "term": "str"
+    },
+    "file": "build/person_terms.csv.gz",
+    "keys": [
+     "person",
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 1053,
+    "sha256": "99a1dabfc5106fe11f12f844ca50c91d8f4467668242163a4a37e538b8087a5b"
+   },
+   "refined": {
+    "columns": [
+     "term",
+     "concept",
+     "score",
+     "n_tokens",
+     "lang"
+    ],
+    "dtypes": {
+     "concept": "str",
+     "lang": "str",
+     "n_tokens": "float",
+     "score": "float",
+     "term": "str"
+    },
+    "file": "build/refined.csv.gz",
+    "keys": [
+     "concept",
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 657,
+    "sha256": "21748548dbe7c205e6fde475c75a3b7d14da95bec27bb007bf0cfa569c320689"
+   },
+   "refined_en": {
+    "kind": "hash",
+    "of": "table",
+    "sha256": "a0b123e6b3f12f6d5cf23f3d6fa824dc89e857d4f2134d16b916bcc9b7ade94b"
+   },
+   "refined_fr": {
+    "kind": "hash",
+    "of": "table",
+    "sha256": "9b7f11b49884c5029b0d0bbf35b0e9ac901f07636c176acb2107d73977ac7273"
+   },
+   "settings": {
+    "file": "build/settings.json",
+    "kind": "json",
+    "sha256": "8a9a7a90e63dabafaac4b2fd4ef27a93b02141af7a0c2d81ad994747edc38b7c"
+   },
+   "vectorizer": {
+    "columns": [
+     "term",
+     "idf"
+    ],
+    "dtypes": {
+     "idf": "float",
+     "term": "str"
+    },
+    "file": "build/vectorizer.csv",
+    "keys": [
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 703,
+    "sha256": "6c424e9ec9eda80c7a134da031210d81ea3272b37fac7b68a59b12c496264cd8"
+   }
+  },
+  "bundle": {
+   "entities": {
+    "columns": [
+     "entity_id",
+     "group"
+    ],
+    "dtypes": {
+     "entity_id": "str",
+     "group": "str"
+    },
+    "file": "bundle/entities.csv",
+    "keys": [
+     "entity_id"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 38,
+    "sha256": "fb6b1f959773294bcefdbdb261bc24a7da661295f27e544fa340aeadd1cb6215"
+   },
+   "entity_terms": {
+    "columns": [
+     "entity_id",
+     "term",
+     "tf",
+     "score"
+    ],
+    "dtypes": {
+     "entity_id": "str",
+     "score": "float",
+     "term": "str",
+     "tf": "float"
+    },
+    "file": "bundle/entity_terms.csv.gz",
+    "keys": [
+     "entity_id",
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 1053,
+    "sha256": "978fc0f7a58483e8e7cc13003df108f8b98cb06e60e0cc23c578bb0fc0d5625a"
+   },
+   "meta": {
+    "file": "bundle/meta.json",
+    "kind": "json",
+    "sha256": "77dd92767eccc681b7e8731d15f2057a2cb111dcf8b74b49678c60d4803a7f15"
+   },
+   "round_trip": {
+    "file": "bundle/round_trip.json",
+    "kind": "json",
+    "sha256": "dcf25b6dab889b23bbb35a08fcb976ca4d3e85ab72fb3cba9167564c800beb84"
+   },
+   "taxonomy": {
+    "file": "bundle/taxonomy.json",
+    "kind": "json",
+    "sha256": "c908a5e19f9ed983a3a73b6dec4e69b081f621d54b418c91f7682d4d10730ec7"
+   },
+   "vocabulary": {
+    "columns": [
+     "term",
+     "n_entities",
+     "tf_total",
+     "score_total"
+    ],
+    "dtypes": {
+     "n_entities": "int",
+     "score_total": "float",
+     "term": "str",
+     "tf_total": "float"
+    },
+    "file": "bundle/vocabulary.csv",
+    "keys": [
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 448,
+    "sha256": "8254ce4836a18a8641e4e5e91209469c7f7180b3592996d69ffaf2b4b4c1861d"
+   },
+   "zip": {
+    "file": "bundle/zip.json",
+    "kind": "json",
+    "sha256": "610d73500f5829818f8b48c233b66555d7019636f7e375598309ed22607b1223"
+   }
+  },
+  "draft": {
+   "draft": {
+    "file": "draft/draft.json.gz",
+    "kind": "json",
+    "sha256": "0e8c88223aa00b810ecc212b8e2d1b02db73cbdb8a3a7286f475e255cb441049"
+   }
+  },
+  "extract": {
+   "terms_en": {
+    "columns": [
+     "term",
+     "score",
+     "n_tokens",
+     "score_len",
+     "forms"
+    ],
+    "dtypes": {
+     "forms": "str",
+     "n_tokens": "float",
+     "score": "float",
+     "score_len": "float",
+     "term": "str"
+    },
+    "file": "extract/terms_en.csv.gz",
+    "keys": [
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 3985,
+    "sha256": "c1bd973e72537ca9e93cb022f8f3c33f8a89a599df1bf566d0a27a3c1ccc46db"
+   },
+   "terms_fr": {
+    "columns": [
+     "term",
+     "score",
+     "n_tokens",
+     "score_len",
+     "forms"
+    ],
+    "dtypes": {
+     "forms": "str",
+     "n_tokens": "float",
+     "score": "float",
+     "score_len": "float",
+     "term": "str"
+    },
+    "file": "extract/terms_fr.csv.gz",
+    "keys": [
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 1467,
+    "sha256": "65ff00ce60ef351d040efe7e563ec76b92afd1f776f69d8fa06265d567fc2d2e"
+   },
+   "terms_merged": {
+    "columns": [
+     "term",
+     "score_raw",
+     "n_tokens",
+     "score_len",
+     "lang"
+    ],
+    "dtypes": {
+     "lang": "str",
+     "n_tokens": "float",
+     "score_len": "float",
+     "score_raw": "float",
+     "term": "str"
+    },
+    "file": "extract/terms_merged.csv.gz",
+    "keys": [
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 5400,
+    "sha256": "1612f21ce65df1ad8bf46cf9b511154c7023b4cf3e92c04c45060d818601fc7e"
+   }
+  },
+  "group": {
+   "clusters": {
+    "columns": [
+     "cluster",
+     "size",
+     "terms"
+    ],
+    "dtypes": {
+     "cluster": "int",
+     "size": "int",
+     "terms": "str"
+    },
+    "file": "group/clusters.csv",
+    "keys": [
+     "cluster"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 150,
+    "sha256": "fc2d86e175ef46cb49717be4c5994d49c871d8d71a81f4768276a9f1c0df87ce"
+   },
+   "proto_subfields": {
+    "file": "group/proto_subfields.json",
+    "kind": "json",
+    "sha256": "e1b54a89eedbeb8a7db3239378c26f9c96caea6ea02419050c8634c7b3c57365"
+   },
+   "term_labels": {
+    "count": 448,
+    "file": "group/term_labels.json",
+    "kind": "labels",
+    "sha256": "40c0c78fa536c739d36dd3d4efe28484c552ab2ec2d76b381202b904ee6de928"
+   },
+   "term_scores": {
+    "file": "group/term_scores.npy",
+    "kind": "array",
+    "role": "values",
+    "sha256": "8166cc4e3163cea112f00893c19b9a028265b26d161fc6f2c2dee78fd6c8d4e6",
+    "shape": [
+     448
+    ],
+    "stored_dtype": "float64"
+   }
+  },
+  "layout": {
+   "clustered_table": {
+    "kind": "hash",
+    "of": "table",
+    "sha256": "8657c39601c342b7452017a0e0a96bc1a1e1cf3d3c2641d93bb2de53d5a190eb"
+   },
+   "diagnostics": {
+    "file": "layout/diagnostics.json",
+    "kind": "json",
+    "sha256": "296d7be89303ab3949649bbee48d6db0695b5c7b577288a564d2b412ae606f0e"
+   },
+   "groups": {
+    "columns": [
+     "group",
+     "umap_x",
+     "umap_y",
+     "size",
+     "cov_xx",
+     "cov_yy",
+     "cov_xy",
+     "sx",
+     "sy",
+     "rho"
+    ],
+    "dtypes": {
+     "cov_xx": "float",
+     "cov_xy": "float",
+     "cov_yy": "float",
+     "group": "str",
+     "rho": "float",
+     "size": "int",
+     "sx": "float",
+     "sy": "float",
+     "umap_x": "float",
+     "umap_y": "float"
+    },
+    "file": "layout/groups.csv",
+    "keys": [],
+    "kind": "table",
+    "ordered": true,
+    "rows": 6,
+    "sha256": "acd7b4e3d1688755f29019639a9cf307c55b730156b0523f545aeadc6596ea89"
+   },
+   "person_table": {
+    "kind": "hash",
+    "of": "table",
+    "sha256": "01f7b75f438c56c3cb4c75061111e54393257b30273cef8ed8623f6c753e193b"
+   },
+   "person_xy": {
+    "file": "layout/person_xy.npy",
+    "kind": "array",
+    "role": "layout",
+    "sha256": "e97096d772aa68ab170f4f1c505e3bd5354c37948a92f9b7c88b3a416a572d82",
+    "shape": [
+     38,
+     2
+    ],
+    "stored_dtype": "float64"
+   },
+   "term_table": {
+    "kind": "hash",
+    "of": "table",
+    "sha256": "e7ae5e809c1472a64baa2d89af38ba8bd08d7edef8511df733ceabc3a1d9f4a9"
+   },
+   "term_xy": {
+    "file": "layout/term_xy.npy",
+    "kind": "array",
+    "role": "layout",
+    "sha256": "857b748f6f724bee60d9cd23dc80a244688320aad18429e347edd5fbf13d7f9f",
+    "shape": [
+     448,
+     2
+    ],
+    "stored_dtype": "float64"
+   }
+  },
+  "projection": {
+   "applicants_coords": {
+    "file": "projection/applicants_coords.npy",
+    "kind": "array",
+    "role": "values",
+    "sha256": "a27a947516e37f598436f72df6f013bc040ecd111511d38850d60ff3875d07b6",
+    "shape": [
+     4,
+     20
+    ],
+    "stored_dtype": "float64"
+   },
+   "applicants_details": {
+    "file": "projection/applicants_details.json",
+    "kind": "json",
+    "sha256": "7151c39759113cd6bdbc37124f69d299d535e78b1a45ba73f1453c8e6f196781"
+   },
+   "applicants_items": {
+    "count": 4,
+    "file": "projection/applicants_items.json",
+    "kind": "strings",
+    "sha256": "dd9d89fe8ff6b6955b70ac457f48e0f5ddcd9dcc4df0c1f8f5c93d1fdd62fd92"
+   },
+   "applicants_xy": {
+    "file": "projection/applicants_xy.npy",
+    "kind": "array",
+    "role": "values",
+    "sha256": "9d1b658e2eb3883c13d9570e2b6356cec40d7b8c9738cca524d29b55bbc5e8f2",
+    "shape": [
+     4,
+     2
+    ],
+    "stored_dtype": "float64"
+   }
+  },
+  "roster": {
+   "persons": {
+    "columns": [
+     "person",
+     "group"
+    ],
+    "dtypes": {
+     "group": "str",
+     "person": "str"
+    },
+    "file": "roster/persons.csv",
+    "keys": [
+     "person"
+    ],
+    "kind": "table",
+    "ordered": true,
+    "rows": 39,
+    "sha256": "87e2a52b2c6a30c6ad3670d5dffa10ff948007a9d3762329bd5c2e4db0197e7e"
+   },
+   "summary": {
+    "file": "roster/summary.json",
+    "kind": "json",
+    "sha256": "f162b80ef31bab20a025c57e7556bde8aee34fb377e5764d597097c03b0922dc"
+   }
+  },
+  "space": {
+   "explained_variance_ratio": {
+    "file": "space/explained_variance_ratio.npy",
+    "kind": "array",
+    "role": "values",
+    "sha256": "6edabb5f304deec86a8684d1c44d21bdd53217bb5f77b3e0afe0cf28d4b60ca5",
+    "shape": [
+     20
+    ],
+    "stored_dtype": "float64"
+   },
+   "matrix": {
+    "columns": [
+     "row",
+     "col",
+     "score",
+     "tf"
+    ],
+    "dtypes": {
+     "col": "int",
+     "row": "int",
+     "score": "float",
+     "tf": "float"
+    },
+    "file": "space/matrix.csv.gz",
+    "keys": [
+     "row",
+     "col"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 1053,
+    "sha256": "d97d2e09cd3b58730fe16795e2776aafd10a6a8b96cbaf7657649f7d9b09480f"
+   },
+   "person_coords": {
+    "file": "space/person_coords.npy",
+    "kind": "array",
+    "role": "embedding",
+    "sha256": "b2347d2b4ee11d55c778936ad9cfbc9b35959ea2d53f132896de7d63935c0ef2",
+    "shape": [
+     38,
+     20
+    ],
+    "stored_dtype": "float64"
+   },
+   "person_table": {
+    "kind": "hash",
+    "of": "table",
+    "sha256": "2d801ac77146fe758f75f8e87af0c858aa42d6e0c2e503ecc4dc80e2ee0c6edb"
+   },
+   "persons": {
+    "count": 38,
+    "file": "space/persons.json",
+    "kind": "strings",
+    "sha256": "83d7557980b55d0d370603bb1860fc0907a3e939452ec855487abcadd6c121da"
+   },
+   "singular_values": {
+    "file": "space/singular_values.npy",
+    "kind": "array",
+    "role": "spectrum",
+    "sha256": "5ca6d6be71f8c1da9360e3d2fb4933a18586ebd2d6c4067c89388ec31aa09fc4",
+    "shape": [
+     20
+    ],
+    "stored_dtype": "float64"
+   },
+   "term_coords": {
+    "file": "space/term_coords.npy.gz",
+    "kind": "array",
+    "role": "embedding",
+    "sha256": "a62d1db8ee44b5d47b2a69d43ee7fbfd2849314c7fed707b75b659423b839cec",
+    "shape": [
+     448,
+     20
+    ],
+    "stored_dtype": "float64"
+   },
+   "term_table": {
+    "kind": "hash",
+    "of": "table",
+    "sha256": "40134263abdf9873d1cd5e9a4cfc03d2094ac26a750722c3de37cd63dd6e4c02"
+   },
+   "terms": {
+    "count": 448,
+    "file": "space/terms.json",
+    "kind": "strings",
+    "sha256": "05e173a74796c25d60fa41ad4134ccdd564fcfcc4dd7c7287f6ea460f6618cfb"
+   }
+  },
+  "trajectories": {
+   "points": {
+    "columns": [
+     "person",
+     "bin_start",
+     "bin_end",
+     "n_docs",
+     "top_terms",
+     "umap_x",
+     "umap_y"
+    ],
+    "dtypes": {
+     "bin_end": "int",
+     "bin_start": "int",
+     "n_docs": "int",
+     "person": "str",
+     "top_terms": "str",
+     "umap_x": "float",
+     "umap_y": "float"
+    },
+    "file": "trajectories/points.csv",
+    "keys": [
+     "person",
+     "bin_start"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 140,
+    "sha256": "040f90fe0f3fd991667120bacda2421afdf5fd99bb5f63f91ac5f14cf35234e3"
+   },
+   "windows": {
+    "file": "trajectories/windows.json.gz",
+    "kind": "json",
+    "sha256": "843c6161a73dd3bb9436d39f736d9cccd9851af96eb92766ade781244b14178f"
+   }
+  },
+  "triage": {
+   "batch_cache": {
+    "file": "triage/batch_cache.json.gz",
+    "kind": "json",
+    "sha256": "1823fd74e3b8319c4ed6171abbdb0d6fc11c5112bbd82eda064f0db8f5283d9a"
+   },
+   "calls": {
+    "file": "triage/calls.json",
+    "kind": "json",
+    "sha256": "cd96d3527ae2890d9afa40d9ff1c23643c78b3e0e431912bdf8a1ad8b8ad587a"
+   },
+   "decisions": {
+    "file": "triage/decisions.json.gz",
+    "kind": "json",
+    "sha256": "a57409058d2a69676c611e3393a59ca8b58e845a1e74b61490a05fe608cc535a"
+   },
+   "term_cache": {
+    "file": "triage/term_cache.json.gz",
+    "kind": "json",
+    "sha256": "6fcd88365bc0d114c828e9713df1eca5e01e4956f4d38c08b4c14e47ba8df319"
+   },
+   "translations": {
+    "file": "triage/translations.json",
+    "kind": "json",
+    "sha256": "1bd14a076b12f1a90756b3651be082bce674ba27b496dbb0187ef702dce9dc98"
+   }
+  }
+ },
+ "baseline": {
+  "date": "2026-09-27",
+  "reason": "The first stored run of this tree: noun-phrase candidates, the trilingual demo vocabulary and the triage without a catalogue anchor."
+ },
+ "environment": {
+  "engine_fingerprint": "d6f60378cbaf488dd9eac19faac7934b02b547137216cbd6d18611d000b409a1",
+  "engine_version": "1.0.0.dev0",
+  "implementation": "CPython",
+  "libraries": {
+   "en_core_web_md": "3.8.0",
+   "fr_core_news_md": "3.8.0",
+   "joblib": "1.6.0",
+   "langdetect": "1.0.9",
+   "llvmlite": "0.49.0",
+   "matplotlib": "3.11.2",
+   "numba": "0.67.0",
+   "numpy": "2.5.3",
+   "pandas": "3.0.6",
+   "pdfminer.six": "20260107",
+   "pt_core_news_md": "3.8.0",
+   "pynndescent": "0.6.0",
+   "pypdf": "6.19.0",
+   "scikit-learn": "1.9.1",
+   "scipy": "1.18.1",
+   "spacy": "3.8.16",
+   "thinc": "8.3.13",
+   "threadpoolctl": "3.7.0",
+   "umap-learn": "0.5.12"
+  },
+  "native_libraries": [
+   "openblas 0.3.31.dev",
+   "openblas 0.3.34.106.0",
+   "openmp None"
+  ],
+  "platform": "linux-x86_64",
+  "python": "3.12.14",
+  "settings": {
+   "LC_ALL": "C.UTF-8",
+   "MKL_NUM_THREADS": "1",
+   "NUMBA_NUM_THREADS": "1",
+   "OMP_NUM_THREADS": "1",
+   "OPENBLAS_NUM_THREADS": "1",
+   "PYTHONHASHSEED": "0",
+   "TZ": "UTC"
+  }
+ },
+ "format": "cartolex-reference/1",
+ "inputs": {
+  "truth_sha256": "db5e4195056421cfcd019c0b96b8c03877231c66502551fef476c256de7f9fbf",
+  "workspace_sha256": "4d54f87afa7ddb56163ca8ead49058bb1b0dcbe3ab1a5161cf1f25cd957da8dc"
+ },
+ "mode": "single",
+ "plots": {
+  "images": 9,
+  "ran": true
+ },
+ "settings": {
+  "domain_id": "a",
+  "engine": {
+   "clustering": {},
+   "keywords": {
+    "recency_years": 0
+   },
+   "svd": {},
+   "umap": {}
+  },
+  "now_year": 2026,
+  "triage": {
+   "domain_name": "Coastal and marine systems",
+   "llm_max_concurrent": 1
+  }
+ },
+ "stages": [
+  "extract",
+  "triage",
+  "build",
+  "roster",
+  "space",
+  "group",
+  "layout",
+  "draft",
+  "apply",
+  "trajectories",
+  "projection",
+  "bundle"
+ ]
+}

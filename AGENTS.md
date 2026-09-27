@@ -32,10 +32,12 @@ evaluation procedure or any particular field.
   code, the site builder or web frameworks. `tests/test_layering.py` enforces
   it.
 - **Numeric continuity.** A change that can move an engine output is compared
-  with the stored reference run (`tools/reference/`, see
-  `docs/dev/reference.md`). A difference is removed, or explained in the
-  change's description, before it is accepted. Never edit a reference file to
-  make a comparison pass.
+  with the stored runs (`tools/reference/`, see `docs/dev/reference.md`): the
+  baseline of this tree must be reproduced, and every difference from the
+  released engine's reference is explained. A difference is removed, or
+  explained in the change's description, before it is accepted. Never edit a
+  stored run to make a comparison pass; the baseline changes only through
+  `check_reference.py --update-baseline` with a reason.
 - **AI cache keys never change.** `tests/test_ai_cache_keys.py` pins them:
   changing one would make existing users pay again for answers they already
   have.

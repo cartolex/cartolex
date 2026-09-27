@@ -393,6 +393,41 @@ def test_regenerating_needs_the_frozen_runner(capsys: pytest.CaptureFixture[str]
         check.main(["--size", "S", "--runner", "run.py"])
 
 
+def test_the_baseline_changes_only_with_a_reason(capsys: pytest.CaptureFixture[str]) -> None:
+    """``--update-baseline`` needs a reason, and it never combines with ``--regenerate``."""
+    check = _load("reference_check", "check_reference.py")
+    for argv in (
+        ["--update-baseline", "--regenerate", "--runner", "run.py"],
+        ["--reason", "a reason without an update"],
+    ):
+        with pytest.raises(SystemExit) as exc:
+            check.main(argv)
+        assert exc.value.code == 2
+    with pytest.raises(SystemExit, match="needs --reason"):
+        check._check_reason("")
+    with pytest.raises(SystemExit, match="needs --reason"):
+        check._check_reason("because")
+    assert check._check_reason("  outputs  move\n on purpose ") == "outputs move on purpose"
+
+
+def test_a_baseline_update_records_its_reason(tmp_path: Path, monkeypatch) -> None:
+    check = _load("reference_check", "check_reference.py")
+    monkeypatch.setattr(check, "BASELINE", tmp_path / "baseline")
+    monkeypatch.setattr(check, "BASELINE_LOG", tmp_path / "baseline" / "LOG.md")
+    run = _write_run(tmp_path / "run", _artifacts())
+    target = check.write_baseline(run, "S", "outputs move on purpose")
+    manifest = json.loads((target / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["baseline"]["reason"] == "outputs move on purpose"
+    assert compare.compare_runs(target, run).verdict == "identical"
+    env = {"engine_version": "1.0", "engine_fingerprint": "f" * 64}
+    check.log_baseline(["S"], "outputs move on purpose", {"S": "the first baseline"}, env)
+    check.log_baseline(["S"], "a second reason here", {"S": "2 stages: 2 identical"}, env)
+    log = (tmp_path / "baseline" / "LOG.md").read_text(encoding="utf-8")
+    assert log.startswith("# Baseline updates")
+    assert log.count("\n## ") == 2
+    assert "- Reason: outputs move on purpose" in log and "- S: 2 stages: 2 identical" in log
+
+
 def test_changed_artifact_without_stored_data(tmp_path: Path) -> None:
     """A changed artifact whose stored file is missing is reported, not a crash."""
     ref = _write_run(tmp_path / "ref", _artifacts())
