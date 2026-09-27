@@ -63,3 +63,16 @@ nothing in the engine names a particular deployment, source or procedure.
 - **Errors a caller can catch.** `SettingsError`, `CorpusError` and
   `FileNotFoundError` instead of `SystemExit`, with English messages. A corpus
   language with no text is skipped with a warning.
+- **The build.** `cartolex.build` runs a project's stages
+  (`docs/dev/build.md`). Each stage declares what it reads, its parameters
+  (a default, a rule computed from the project's sizes, or a value set in
+  `decisions/params.json`, refused with the reason when impossible), its cost
+  and whether it asks consent. `status()` gives each stage one of six states
+  from its `run.json` and the current fingerprints of what it read, with the
+  reasons for an update; `plan()` is the dry run, with estimates of time and
+  memory; `build()` runs exactly that plan, in staging folders swapped into
+  place through a journal that opening a project for writing completes or
+  undoes, with consent, a memory budget, monotonic progress with a heartbeat,
+  a cooperative cancel and resumption of a killed run from its last chunk. The
+  last failed or cancelled attempt of a stage is recorded in
+  `derived/.attempts/<stage id>.json`.

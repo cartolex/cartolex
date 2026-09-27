@@ -398,8 +398,8 @@ STAGES = Registry(
                 ParamSpec(
                     "provider_priority",
                     "list",
-                    "which provider's words win when several give the same part, first first; "
-                    "providers not listed follow in alphabetical order",
+                    "which provider's words win when several give the same part, in order; "
+                    "providers not listed come after, alphabetically",
                     default=[
                         "folder",
                         "openalex",
