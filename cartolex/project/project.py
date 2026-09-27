@@ -9,8 +9,9 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from .files import atomic_write_bytes, fingerprint, json_bytes, read_model, write_decision
+from .generations import recover
 from .layout import ProjectLayout
-from .lock import ProjectLock
+from .lock import LockInfo, ProjectLock
 from .models import (
     AppStamp,
     Created,
@@ -80,6 +81,8 @@ class Project:
         self.config = config
         self._lock = lock
         self._config_fp = fingerprint(layout.project_json)
+        #: What opening for writing had to repair: an interrupted swap completed or undone.
+        self.recovered: list[str] = []
 
     # ── creating ──
     @classmethod
@@ -128,14 +131,25 @@ class Project:
     # ── opening ──
     @classmethod
     def open(cls, root: Path, *, write: bool = False, app: str = "cartolex") -> Project:
-        """Open the project in *root*; take its lock when *write* is true."""
+        """Open the project in *root*; take its lock when *write* is true.
+
+        A writer first repairs what a killed build may have left half done (see
+        :func:`cartolex.project.generations.recover`); :attr:`recovered` says what.
+        """
         layout = ProjectLayout(Path(root))
         if not layout.project_json.exists():
             raise NotAProject(f"{root} holds no project.json")
         _check_format(layout.project_json)
         config = read_model(layout.project_json, ProjectFile)
         lock = ProjectLock(layout, app).acquire() if write else None
-        return cls(layout, config, lock)  # type: ignore[arg-type]
+        project = cls(layout, config, lock)  # type: ignore[arg-type]
+        if lock is not None:
+            try:
+                project.recovered = recover(layout)
+            except BaseException:
+                project.close()
+                raise
+        return project
 
     def close(self) -> None:
         if self._lock is not None:
@@ -151,6 +165,11 @@ class Project:
     @property
     def writable(self) -> bool:
         return self._lock is not None
+
+    @property
+    def lock_info(self) -> LockInfo | None:
+        """The lock this project holds (``None`` when open read-only)."""
+        return self._lock.info if self._lock is not None else None
 
     # ── project.json and params.json ──
     def save_config(self, config: ProjectFile, *, action: str) -> None:

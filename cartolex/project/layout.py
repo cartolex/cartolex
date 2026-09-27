@@ -143,13 +143,22 @@ class ProjectLayout:
         """The current results of a stage."""
         return self.derived / _known(stage_id)
 
+    @property
+    def staging_root(self) -> Path:
+        """The folder of every staging folder."""
+        return self.derived / ".staging"
+
     def staging(self, stage_id: str, run_id: str) -> Path:
         """Where a running stage writes, until it succeeds."""
-        return self.derived / ".staging" / f"{_known(stage_id)}.{run_id}"
+        return self.staging_root / f"{_known(stage_id)}.{run_id}"
 
     def previous(self, stage_id: str) -> Path:
         """The generation a successful run replaced, kept to put back."""
         return self.derived / ".previous" / _known(stage_id)
+
+    def attempt(self, stage_id: str) -> Path:
+        """The record of a stage's last failed or cancelled attempt."""
+        return self.derived / ".attempts" / f"{_known(stage_id)}.json"
 
     @property
     def journal(self) -> Path:

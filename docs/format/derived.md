@@ -63,7 +63,7 @@ A stage is in exactly one state, computed from the records alone:
 | up to date | its last run succeeded, every input fingerprint matches the current file, every upstream run it read is still the current one, and its parameters equal today's effective ones |
 | needs update | its last run succeeded but something it read has changed; the record says what |
 | running | a job holds the stage now |
-| failed | its last attempt failed or was cancelled; the previous results are still in place and still usable |
+| failed | its last attempt failed or was cancelled (recorded in `derived/.attempts/<stage id>.json`), or its process was killed; the previous results are still in place and still usable |
 | skipped | the stage does not apply: AI clean-up switched off, no overlay |
 
 A stage whose upstream needs an update needs one too, and says which upstream
@@ -79,7 +79,13 @@ A stage never writes into its own folder while it runs:
    `derived/.journal.json` first, so an interrupted swap is completed or undone
    when the project is next opened;
 3. when it fails or is cancelled, the staging folder is removed and nothing else
-   changes.
+   changes, except the record of the attempt.
+
+The last failed or cancelled attempt of a stage is recorded in
+`derived/.attempts/<stage id>.json`: a run record like `run.json`, whose
+`outcome` is `failed` or `cancelled` and whose `error` says why. It is removed
+when a later run of the stage succeeds. `derived/<stage id>/run.json` is only
+ever the record of a successful run.
 
 Long stages also checkpoint by chunk inside their staging folder, so a killed
 run resumes from its last chunk instead of starting over. A cancel therefore

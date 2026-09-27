@@ -257,7 +257,12 @@ RUN_ID_PATTERN = re.compile(r"^\d{8}T\d{6}Z-[0-9a-f]{4,}$")
 
 
 class RunRecord(_Model):
-    """``derived/<stage>/run.json``: the record of the run that produced a stage's results."""
+    """``derived/<stage>/run.json``: the record of the run that produced a stage's results.
+
+    The same record, with the outcome ``failed`` or ``cancelled`` and an
+    ``error``, is kept for a stage's last unsuccessful attempt in
+    ``derived/.attempts/<stage>.json``.
+    """
 
     format: Literal["cartolex-run/1"] = "cartolex-run/1"
     stage: NonEmpty
@@ -273,6 +278,8 @@ class RunRecord(_Model):
     identity: dict[str, Any] = Field(default_factory=dict)
     measures: Measures = Field(default_factory=Measures)
     warnings: list[str] = Field(default_factory=list)
+    #: Why an attempt failed (``derived/.attempts/<stage>.json`` only).
+    error: str | None = None
 
     @field_validator("stage")
     @classmethod
