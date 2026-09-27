@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Callable
 from datetime import date
 from typing import TYPE_CHECKING
@@ -71,6 +72,57 @@ def load_and_merge_raw_keywords(ctx: RunContext) -> pd.DataFrame:
     df["term"] = df["term"].astype(str).replace("nan", "")
     df = df[df["term"].str.strip() != ""]
     return df
+
+
+#: The words the attribution vectorizer counts (scikit-learn's default token pattern).
+_COUNTED_WORD = re.compile(r"(?u)\b\w\w+\b")
+#: Separator of the surface forms in a raw table's ``forms`` column.
+_FORMS_SEPARATOR = "|"
+
+
+def counted_form(text: str) -> str:
+    """*text* as the attribution vectorizer counts it: lower case, words of two letters or more.
+
+    ``masse d'eau`` → ``masse eau``, ``zone à risque`` → ``zone risque``,
+    ``Bayesian inference`` → ``bayesian inference``. A raw term of the n-gram
+    extraction was already in this form.
+    """
+    return " ".join(_COUNTED_WORD.findall(str(text).lower()))
+
+
+def counted_forms(raw: pd.DataFrame) -> dict[str, str]:
+    """``{counted form: concept}`` for every surface form of the raw terms in *raw*.
+
+    A raw term counts under its own form and, when its table has a ``forms``
+    column (the noun-phrase extraction), under every surface form it was found
+    in (``tide gauge``, ``tide gauges``). Rows are taken in order: a form
+    shared by two rows maps to the concept of the last.
+    """
+    out: dict[str, str] = {}
+    has_forms = "forms" in raw.columns
+    for row in raw.itertuples(index=False):
+        variants = [str(row.term)]
+        extra = getattr(row, "forms", None) if has_forms else None
+        if isinstance(extra, str) and extra:
+            variants += extra.split(_FORMS_SEPARATOR)
+        for variant in variants:
+            form = counted_form(variant)
+            if form:
+                out[form] = row.concept
+    return out
+
+
+def counting_ngram_range(
+    configured: tuple[int, int], forms: dict[str, str] | list[str]
+) -> tuple[int, int]:
+    """The attribution vectorizer's n-gram range: *configured*, widened to the longest form.
+
+    A noun phrase can hold more words than the configured upper bound
+    (``variabilité interannuelle du niveau marin``); the range grows so that
+    every counted form can be found.
+    """
+    longest = max((len(f.split()) for f in forms), default=0)
+    return (configured[0], max(configured[1], longest))
 
 
 def _run_pipeline_core(
@@ -346,10 +398,10 @@ def _run_pipeline_core(
     # Filter global_df to only terms mapping to accepted concepts
     relevant_raw = global_df[global_df["concept"].isin(accepted_concepts)]
 
-    # Build Term -> Concept map for 'folding' later
-    # Note: 'term' in global_df might be duplicated (same term in FR and EN file).
-    # Unique terms:
-    term_alias_map = dict(zip(relevant_raw["term"], relevant_raw["concept"], strict=False))
+    # Build the counted form -> concept map for 'folding' later: every surface
+    # form of every raw term, as the vectorizer's tokenizer writes it (see
+    # counted_forms). A term found in two language tables: the last one wins.
+    term_alias_map = counted_forms(relevant_raw)
 
     # Whitelist handling: axis whitelist plus the operator-curated person
     # whitelist, so force-accepted person keywords ride the same protected
@@ -387,7 +439,7 @@ def _run_pipeline_core(
     vectorizer = TfidfVectorizer(
         lowercase=True,
         vocabulary=vocab_list,
-        ngram_range=cfg.ngram_range,
+        ngram_range=counting_ngram_range(cfg.ngram_range, term_alias_map),
     )
 
     X = vectorizer.fit_transform(docs)

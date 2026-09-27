@@ -2,14 +2,26 @@
 
 The engine is being cleaned up and restructured in steps. Each step must leave
 every output unchanged, or make each difference explicit. The *numeric
-reference* is how that is proved: a stored run of the released engine on fixed
-demo worlds, and a comparison that says, stage by stage, whether a new run is
-**identical**, **within tolerance** or **different**.
+reference* is how that is proved: stored runs on fixed demo worlds, and a
+comparison that says, stage by stage, whether a new run is **identical**,
+**within tolerance** or **different**.
 
 ## What is stored
 
-`tests/reference/` holds three reference runs, made with the released engine
-(the *baseline*):
+Two stored runs, in the same format and on the same worlds:
+
+- **the reference** (`tests/reference/`), made by the released engine 0.7.2:
+  every difference of the current engine from it is explained in
+  `tools/reference/explained.toml`;
+- **the baseline** (`tests/baseline/`), made by this tree: the current engine
+  must reproduce it (identical or within tolerance, no ledger). A deliberate
+  change early in the pipeline — the noun-phrase extraction, for example —
+  moves every later stage, so the reference ledger explains those stages by
+  their upstream cause; the baseline is what still catches an accidental
+  change anywhere. It changes only through an explicit command that records
+  why (see [the baseline](#the-baseline)).
+
+Each holds three runs:
 
 | folder | world | what runs |
 | --- | --- | --- |
@@ -72,9 +84,10 @@ workspace:
 
 - **Pinned environments.** `tools/reference/envs.py` builds two virtual
   environments from the same lock file (`tools/reference/requirements-ref.txt`)
-  and the same uv-managed Python: `baseline` holds the engine wheel built from
-  the released tag, `current` this working tree (editable). They differ only in
-  the engine code.
+  and the same uv-managed Python: `released` holds the engine wheel built from
+  the released tag, `current` this working tree (editable) and the pinned
+  language models of the extraction (`tools/requirements-models.txt`). They
+  differ only in the engine code.
 - **Fixed settings.** One thread for every numeric library, a fixed hash seed,
   UTC, the `C.UTF-8` locale, and a pinned current year (2026) wherever the
   engine accepts one. The runner re-executes itself when a setting is missing.
@@ -104,15 +117,21 @@ python tools/reference/check_reference.py --size S --via-project   # the same th
 ```
 
 `check_reference.py` ensures the `current` environment, generates the demo
-worlds with the demo generator, runs `run.py` in that environment, compares the
-result with `tests/reference/` and prints the comparison. It fails when a stage
-is *different*, or when the runs cannot be compared (another format, or other
-input worlds — for example after a change of the demo generator). A merge run
+worlds with the demo generator, runs `run.py` in that environment once, and
+compares the result twice: with `tests/baseline/` (no ledger: every stage must
+be identical or within tolerance) and with `tests/reference/` (through the
+ledger of explained differences). It prints both comparisons and fails when a
+stage is *different* in either, or when the runs cannot be compared (another
+format, or other input worlds — for example after a change of the demo
+generator). The last line sums up the four comparisons of size S (`S
+baseline`, `S reference`, `merge baseline`, `merge reference`) or the two of
+size L. A merge run
 also records the hashes of its two cohorts' bundles: they are engine outputs,
 not input worlds, so when they differ the comparison goes on and lists them in
 the notes (the single-run comparison's `bundle` stage shows why). Reports are
-kept in `.cache/reference/reports/`, the runs' logs in `.cache/reference/logs/`
-and the runs themselves in `.cache/reference/runs/`.
+kept in `.cache/reference/reports/` (`<name>.md` for the reference,
+`<name>.baseline.md` for the baseline), the runs' logs in
+`.cache/reference/logs/` and the runs themselves in `.cache/reference/runs/`.
 
 ### Through a project
 
@@ -184,28 +203,45 @@ An explanation goes into the change's description as a table:
 | stage | artifact | change (metrics from the report) | cause | why it is correct |
 | --- | --- | --- | --- | --- |
 
-Never edit a reference file to make a comparison pass, and never regenerate the
-reference to hide a difference. The reference is regenerated only when the
-baseline itself changes (a new released engine adopted as the baseline, or a
-change of the demo worlds or of the reference format), in a change of its own
-that says why.
+Never edit a reference or baseline file to make a comparison pass, and never
+regenerate the reference to hide a difference. The reference is regenerated
+only when the released engine it stands for changes (a new release adopted as
+the reference, or a change of the demo worlds or of the reference format), in
+a change of its own that says why. The baseline is rewritten only with
+`--update-baseline` and a reason, in the change that moves the outputs, whose
+description explains the difference as above.
+
+## The baseline
+
+```bash
+python tools/reference/check_reference.py --size S --update-baseline --reason "why the outputs move"
+python tools/reference/check_reference.py --size L --update-baseline --reason "why the outputs move"
+```
+
+The command runs this tree like a check, compares the run with the baseline
+it replaces, then writes it to `tests/baseline/<S|L|merge>`: the manifest
+gains a `baseline` record (the reason and the date), and an entry is appended
+to `tests/baseline/LOG.md` with the reason, the engine's version and source
+fingerprint, and the comparison with the previous baseline. It refuses to run
+without a reason. The run is still compared with the reference: a baseline
+update never bypasses the ledger. Only one run of size L at a time.
 
 ## Regenerating the reference
 
 The stored reference is made by the released engine, run by the runner frozen
 with the release that produced the reference: `run.py` in this tree follows
 this tree's API and cannot drive an older engine. Regenerating therefore needs
-both the `baseline` environment and that runner, given explicitly:
+both the `released` environment and that runner, given explicitly:
 
 ```bash
-python tools/reference/envs.py baseline --rebuild          # when the lock or the tag changed
+python tools/reference/envs.py released --rebuild          # when the lock or the tag changed
 python tools/reference/check_reference.py --size S --regenerate --runner RUNNER.py   # S and merge
 python tools/reference/check_reference.py --size L --regenerate --runner RUNNER.py
 ```
 
 `RUNNER.py` is the runner frozen with the release that produced the reference
 (for example, extracted from that release's tag). `--regenerate` refuses to
-run without it. It runs the same worlds in the `baseline` environment and
+run without it. It runs the same worlds in the `released` environment and
 writes `tests/reference/`. Run it twice and check that the manifests are
 identical, then run the normal check: today the `current` environment must
 reproduce the reference exactly. Only one run of size L at a time: it is the
@@ -243,3 +279,19 @@ The comparison then reports that artifact as *explained*, and the check passes.
 The entry pins the new hash: any further change to the same artifact is
 *different* again, and an entry that no longer matches anything is listed in the
 report's notes so that it can be removed.
+
+A change early in the pipeline moves every later stage. Rather than pinning each
+of their artifacts, an entry may explain a whole stage by an **upstream cause**:
+
+```toml
+[[difference]]
+reference = "S"
+stage = "space"
+upstream = "build"             # an earlier stage of the same run
+reason = "the SVD input is built from other candidate terms"
+```
+
+Every changed artifact of the stage is then *explained*, provided the upstream
+stage changed too in the same comparison (for a merge run, `upstream =
+"bundle"` names the cohorts' bundles). Such an entry pins nothing: the stored
+baseline is what catches a further, accidental change.

@@ -123,7 +123,6 @@ ENGINE_FILES: dict[str, Place] = {
         "decision", "decisions/prompts/triage_typed_system.txt"
     ),
     "subfields_curated_json": Owned("themes.apply", "curated.json"),
-    "domain_catalog_jsons": NotProvided("a project has no domain catalogue"),
     # ── extraction, triage and consolidation ──
     "raw_terms_csv": Owned("keywords.extract", "raw_keywords_{}.csv"),
     "global_terms_csv": Owned("keywords.extract", "keywords_global.csv"),
@@ -140,6 +139,7 @@ ENGINE_FILES: dict[str, Place] = {
     "triage_batch_cache_json": FromProject("cache", "cache/ai/triage_batch_cache.json"),
     "triage_term_cache_json": FromProject("cache", "cache/ai/triage_term_cache.json"),
     "ai_usage_json": FromProject("cache", "cache/ai/usage.json"),
+    "parse_cache_dir": FromProject("cache", "cache/parse"),
     "roster_csv": Owned("keywords.build", "researcher_index.csv"),
     "vectorizer_json": Owned("keywords.build", "models/tfidf_restricted.json", model=True),
     "term_aliases_csv": Owned("keywords.build", "models/term_aliases.csv"),
@@ -211,8 +211,6 @@ def _resolve(
         return base / rel
     # Not provided: a path in the staging folder that nothing writes.
     target = own / UNAVAILABLE / name
-    if name == "domain_catalog_jsons":
-        return (target,)
     if pattern:
         return PathPattern(target, "{}")
     return target

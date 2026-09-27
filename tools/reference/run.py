@@ -1617,6 +1617,11 @@ _LIBRARIES = (
     "matplotlib",
     "pypdf",
     "pdfminer.six",
+    "spacy",
+    "thinc",
+    "en_core_web_md",
+    "fr_core_news_md",
+    "pt_core_news_md",
 )
 
 

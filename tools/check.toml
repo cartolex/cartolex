@@ -5,8 +5,9 @@
 # history.
 commits = "HEAD"
 tags = false
-# Generated demo worlds (size:seed) scanned as well: invented names can match real ones.
-demo_worlds = ["XS:0", "S:0", "S:1", "L:0", "L:1"]
+# Generated demo worlds (size:seed[:languages]) scanned as well: invented names can match
+# real ones. The trilingual worlds hold every Portuguese phrase of the vocabulary.
+demo_worlds = ["XS:0", "S:0", "S:1", "L:0", "L:1", "S:0:en,fr,pt", "L:0:en,fr,pt"]
 
 [tests]
 # Every supported Python; each gets its own virtual environment in .venvs/.

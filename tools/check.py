@@ -32,6 +32,8 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "tools" / "check.toml"
+#: The pinned language models every test environment holds (the extraction's parsers).
+MODELS = ROOT / "tools" / "requirements-models.txt"
 VENVS = ROOT / ".venvs"
 LOGS = ROOT / ".cache" / "check"
 ALL_CHECKS = ("lint", "vocab", "tests", "reference", "docs")
@@ -52,15 +54,20 @@ def load_config() -> dict:
     return tomllib.loads(CONFIG.read_text(encoding="utf-8")) if CONFIG.is_file() else {}
 
 
-def _pyproject_hash() -> str:
-    return hashlib.sha256((ROOT / "pyproject.toml").read_bytes()).hexdigest()
+def _file_hash(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def ensure_venv(python: str, extras: str = "dev") -> Path:
-    """Create or refresh ``.venvs/py<python>`` with the project and its *extras*."""
+    """Create or refresh ``.venvs/py<python>``: the project, its *extras* and the language models.
+
+    The environment is rebuilt only when ``pyproject.toml``, the pinned models
+    (``tools/requirements-models.txt``) or the extras change; the models are
+    installed from their pinned wheels, checked against their hashes.
+    """
     venv = VENVS / f"py{python}"
     stamp = venv / ".cartolex-stamp"
-    want = f"{_pyproject_hash()}:{extras}"
+    want = f"{_file_hash(ROOT / 'pyproject.toml')}:{_file_hash(MODELS)}:{extras}"
     if stamp.is_file() and stamp.read_text() == want:
         return venv
     subprocess.run(
@@ -69,6 +76,11 @@ def ensure_venv(python: str, extras: str = "dev") -> Path:
     )
     subprocess.run(
         ["uv", "pip", "install", "--quiet", "-p", str(venv), "-e", f".[{extras}]"],
+        cwd=ROOT,
+        check=True,
+    )
+    subprocess.run(
+        ["uv", "pip", "install", "--quiet", "-p", str(venv), "--require-hashes", "-r", str(MODELS)],
         cwd=ROOT,
         check=True,
     )
@@ -119,7 +131,9 @@ def check_vocab(cfg: dict, dev: Path) -> Result:
     worlds = LOGS / "demo-worlds"
     shutil.rmtree(worlds, ignore_errors=True)
     for spec in vcfg.get("demo_worlds", []):
-        size, seed = spec.split(":")
+        size, seed, *rest = spec.split(":")
+        languages = rest[0] if rest else "en,fr"
+        name = f"{size}-{seed}" + (f"-{languages.replace(',', '')}" if rest else "")
         run(
             [
                 bin_of(dev, "python"),
@@ -130,11 +144,13 @@ def check_vocab(cfg: dict, dev: Path) -> Result:
                 size,
                 "--seed",
                 seed,
+                "--languages",
+                languages,
                 "--out",
-                str(worlds / f"{size}-{seed}"),
+                str(worlds / name),
                 "--corpus",
             ],
-            LOGS / f"demo-{size}-{seed}.log",
+            LOGS / f"demo-{name}.log",
         )
     rc2, tail2 = (0, "")
     if worlds.is_dir():
@@ -160,7 +176,17 @@ def check_tests(pythons: list[str], jobs: int) -> Result:
             py, venv = pending.pop(0)
             log = LOGS / f"tests-py{py}.log"
             log.parent.mkdir(parents=True, exist_ok=True)
-            cmd = [bin_of(venv, "python"), "-m", "pytest", "-q", "-p", "no:cacheprovider"]
+            cmd = [
+                bin_of(venv, "python"),
+                "-m",
+                "pytest",
+                "-q",
+                "-p",
+                "no:cacheprovider",
+                # The models are installed with the environment: a test that
+                # needs one must run, never be skipped.
+                "--require-models",
+            ]
             # Each Python keeps its bytecode out of the source tree, so suites running
             # side by side never see each other's cache files.
             env = {**os.environ, "PYTHONPYCACHEPREFIX": str(ROOT / ".cache" / "pycache" / py)}

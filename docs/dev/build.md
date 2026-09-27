@@ -311,10 +311,10 @@ The figures and the portable bundle are outputs, not build stages.
 **Where the engine's files go.** `enginefiles.ENGINE_FILES` gives every field of
 `EnginePaths` a place: a file a stage writes (`Owned`, relative to its folder),
 a file of the project (`FromProject`: the triage prompt override in
-`decisions/prompts/`, the AI caches in `cache/ai/`), the running stage's own
-folder (`OwnFolder`), or nothing (`NotProvided`: a workspace's operator files,
-the frozen atlas parameters, the domain catalogue, the API key file, and the
-figures). `engine_paths(stage, folders, root)` points a stage's own files into
+`decisions/prompts/`, the AI caches in `cache/ai/`, the parse cache in
+`cache/parse/`), the running stage's own folder (`OwnFolder`), or nothing
+(`NotProvided`: a workspace's operator files, the frozen atlas parameters, the
+API key file, and the figures). `engine_paths(stage, folders, root)` points a stage's own files into
 its staging folder and every other file at its latest writer among the stages
 the run may read (those upstream of it, directly or not, that have results);
 a file with no such writer points into `<staging>/.unavailable/`, where nothing
@@ -344,6 +344,7 @@ made with.
 | `map.trajectories.window_years` | `run_trajectories(bin_years=…)` |
 | the pinned map version | `run_umap(umap_random_state=seed, …)` with its layout parameters (`n_neighbors`, `min_dist`, `metric`, `layout`…) |
 | `identity.ai.model` | `KeywordsConfig.llm_model` |
+| `identity.domain_title`, `identity.domain_description` | `KeywordsConfig.domain_title`, `.domain_description` (the AI's only context besides the terms) |
 | `decisions/stopwords.json` | the stop-word profile: every word added or removed, in any language, extends or shrinks the list of words that are never keywords |
 
 The engine builds two theme levels, themes over topics. A tree of one level

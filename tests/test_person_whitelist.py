@@ -146,14 +146,14 @@ class TestPromptMention:
 
     def test_prompt_lists_whitelisted_names(self):
         system, _ = build_typed_prompt(
-            ["x"], "Some domain", [], person_whitelist={"Quintor", "Ysolde Marrow"}
+            ["x"], "Some domain", person_whitelist={"Quintor", "Ysolde Marrow"}
         )
         assert "names on the provided whitelist are accepted as research" in system
         assert "Quintor" in system
         assert "Ysolde Marrow" in system
 
     def test_prompt_without_whitelist_has_no_block(self):
-        system, _ = build_typed_prompt(["x"], "Some domain", [])
+        system, _ = build_typed_prompt(["x"], "Some domain")
         assert "provided whitelist" not in system
 
     def test_triage_stage_reads_the_workspace_whitelist(self, tmp_path, caplog):
@@ -196,7 +196,6 @@ class TestRunTypedTriageWiring:
         result = run_typed_triage(
             global_terms=["quintor", "soft matter"],
             domain_title="Synthetic domain",
-            reference_keywords=[],
             api_key="k",
             cache_path=tmp_path / "llm_cache.json",
             term_cache_path=tmp_path / "term_cache.json",

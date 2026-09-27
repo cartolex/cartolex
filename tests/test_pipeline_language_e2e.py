@@ -14,6 +14,7 @@ import random
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from cartolex.context import RunContext
 from cartolex.lexicon import KeywordsConfig, run_pipeline_stage_1, run_pipeline_stage_3
@@ -91,6 +92,7 @@ def _build_pt_workspace(ws: Path) -> None:
         w.writerows(rows)
 
 
+@pytest.mark.models("pt", "en")
 def test_portuguese_corpus_end_to_end(tmp_path: Path) -> None:
     ws = tmp_path / "pt_ws"
     ws.mkdir()
@@ -132,6 +134,7 @@ def test_portuguese_corpus_end_to_end(tmp_path: Path) -> None:
     assert len(umap) > 0
 
 
+@pytest.mark.models("fr", "en")
 def test_default_config_produces_fr_en_pairs(tmp_path: Path) -> None:
     """Back-compat: the default configuration still writes term_fr/term_en pairs."""
     ws = tmp_path / "fr_ws"
@@ -171,6 +174,7 @@ def test_default_config_produces_fr_en_pairs(tmp_path: Path) -> None:
     assert {"term_fr", "term_en"} <= set(pairs.columns)
 
 
+@pytest.mark.models("en")
 def test_a_corpus_language_without_text_is_skipped(tmp_path: Path, caplog) -> None:
     """An English-only corpus with the default two corpus languages runs through.
 

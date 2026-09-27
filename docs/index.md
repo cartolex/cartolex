@@ -23,6 +23,7 @@ format/index
 :maxdepth: 1
 
 dev/engine
+dev/extraction
 dev/build
 dev/themes
 dev/checks

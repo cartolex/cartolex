@@ -21,13 +21,17 @@ settings are in `tools/check.toml`.
 | `lint` | `ruff check` and `ruff format --check`, with the ruff pinned in the `dev` extra | any finding |
 | `vocab` | `tools/vocab_scan.py` over the tree and the commit messages listed in `tools/check.toml` | a banned term appears outside a stated exception |
 | `tests` | `pytest` on every Python in `tools/check.toml`, in parallel | any test fails on any version |
-| `reference` | `tools/reference/check_reference.py`: the demo world run through the engine and compared with the stored reference, then the same world written as a project and built with `cartolex.build`, compared with the stored reference and with the first run | a stage is *different*, or the project build differs from the workspace run in any artifact |
+| `reference` | `tools/reference/check_reference.py`: the demo world run through the engine and compared with the stored baseline and the stored reference; then the same world written as a project and built with `cartolex.build`, compared the same way | a stage is *different* from the baseline, or differs from the reference without an explanation, or the project build is not identical to the baseline in every artifact |
 | `docs` | a strict Sphinx build of `docs/` | any warning |
 
 ## Virtual environments
 
 Each Python gets `.venvs/py<version>`, created with uv and refreshed when
-`pyproject.toml` changes. Supported versions span two generations of the
+`pyproject.toml` or the pinned language models (`tools/requirements-models.txt`)
+change; the three language models of the extraction are installed into each
+from their pinned wheels. Tests that parse texts are marked `models`: without
+the models they are skipped, but the check runs pytest with
+`--require-models`, which makes them fail instead. Supported versions span two generations of the
 scientific libraries (for example, older numpy and pandas releases on the
 oldest Python), so the tests run on all of them.
 

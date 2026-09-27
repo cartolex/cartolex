@@ -1,0 +1,6 @@
+{
+ "ss::gulf heat budget::a::b": "merge",
+ "ss::pharmaceutical residu::a::b": "split",
+ "ss::sea level ris::a::b": "merge",
+ "ss::tourist beach planning::a::b": "split"
+}

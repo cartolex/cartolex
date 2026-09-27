@@ -146,4 +146,20 @@ PROCEEDINGS_EN: tuple[str, ...] = (
     "Proceedings of the Port Aurel Ocean Sciences Meeting",
 )
 PROCEEDINGS_FR: tuple[str, ...] = ("Actes des Journées littorales de Saint-Onval",)
+# Portuguese venues: as many as the English ones, so that choosing one draws the
+# same random numbers (the bibliography of a trilingual world stays the same).
+VENUES_PT: tuple[str, ...] = (
+    "Revista de Ciências do Mar de Veldhaven",
+    "Cadernos Costeiros de Port Aurel",
+    "Revista de Estudos Oceânicos de Saint-Onval",
+    "Boletim de Pesquisa Estuarina de Tidewick",
+    "Revista de Pesca de Brenmouth",
+    "Boletim do Círculo Oceanográfico de Havrelune",
+    "Estudos de Sociedades Costeiras de Pontrevel",
+    "Revista do Mar e do Litoral de Corvanne",
+)
+PROCEEDINGS_PT: tuple[str, ...] = (
+    "Anais do Simpósio Costeiro de Veldhaven",
+    "Anais do Encontro de Ciências do Mar de Port Aurel",
+)
 PREPRINT_SERVER = "OpenTide Preprints"

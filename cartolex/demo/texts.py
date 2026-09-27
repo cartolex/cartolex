@@ -3,15 +3,18 @@
 
 Templates are written so that a term never governs an agreement (it is never
 the subject of a present-tense verb, never qualified by an adjective that
-agrees with it): English and French terms can then be singular or plural,
-masculine or feminine, and every sentence stays grammatical. French templates use the
+agrees with it): terms can then be singular or plural, masculine or feminine,
+and every sentence stays grammatical. French and Portuguese templates use the
 article forms of :class:`~cartolex.demo.vocabulary.Term` (``{de:T}`` gives
-``du transport``, ``de la dérive``, ``de l'érosion`` or ``des vagues``).
+``du transport``, ``de la dérive``, ``de l'érosion`` or ``des vagues``; in
+Portuguese ``do transporte``, ``da deriva``, ``dos bancos``, ``das praias``).
 
 Placeholders: ``T`` and ``T2`` theme terms, ``M`` and ``M2`` methods, ``D`` a
 driver, ``S`` a setting (a whole locative phrase), ``N`` a count, ``P`` a
 percentage, ``Y1`` and ``Y2`` years. ``{^X}`` capitalises the first letter;
-``{de:X}`` and ``{a:X}`` are the French forms after *de* and *à*.
+``{de:X}`` and ``{a:X}`` are the forms after *de* and *à* (French) or *de* and
+*a* (Portuguese); ``{em:X}`` and ``{por:X}`` the Portuguese forms after *em*
+and *por* (``no``, ``pela`` …).
 """
 
 from __future__ import annotations
@@ -90,6 +93,34 @@ LEADINS: dict[str, dict[str, tuple[str, ...]]] = {
             "En pratique, cela implique que",
             "Ces résultats indiquent que",
             "Nous estimons que",
+        ),
+    },
+    "pt": {
+        "result": (
+            "Nossos resultados mostram que",
+            "Constatamos que",
+            "Verifica-se que",
+            "Nossa análise indica que",
+            "Esses dados sugerem que",
+            "Observamos que",
+            "No conjunto, constatamos que",
+            "Em suma, nossas observações mostram que",
+            "Como esperado, constatamos que",
+            "Cabe notar que",
+            "Essas análises revelam que",
+            "Nossas estimativas indicam que",
+            "Chama a atenção que",
+            "Na maioria dos casos, constatamos que",
+        ),
+        "implication": (
+            "Esses resultados sugerem que",
+            "Nossos resultados indicam que",
+            "Concluímos que",
+            "Decorre daí que",
+            "Defendemos que",
+            "Isso sugere que",
+            "Na prática, isso significa que",
+            "Esses resultados apontam que",
         ),
     },
 }
@@ -419,6 +450,168 @@ TEMPLATES: dict[tuple[str, str], dict[str, tuple[str, ...]]] = {
     },
 }
 
+TEMPLATES[("pt", "natural")] = {
+    "context": (
+        "A compreensão {de:T} é essencial para antecipar os efeitos {de:D}.",
+        "A questão {de:T} se coloca com acuidade crescente {S}.",
+        "O acoplamento entre {T} e {T2} é uma questão central para as ciências do mar e da zona costeira.",
+        "A variabilidade observada {S} está em grande parte ligada {a:T}.",
+        "A previsão {de:T} é difícil, em particular no contexto {de:D}.",
+        "Trabalhos recentes destacaram o papel {de:T} e seu efeito sobre a evolução {de:T2}.",
+        "Nota-se que o interesse {por:T} cresce fortemente desde que se passou a considerar {D}.",
+        "Poucos processos são tão mal conhecidos {S} quanto {T}.",
+        "Está hoje estabelecido que o estado {de:T} é sensível {a:D}.",
+        "Há várias décadas, as pesquisas sobre {T} frequentemente negligenciaram suas relações com {T2}.",
+        "A questão {de:T} desperta hoje um interesse crescente entre gestores e cientistas.",
+        "Na última década, novas observações {de:T} tornaram-se disponíveis {S}.",
+    ),
+    "gap": (
+        "Em contrapartida, a relação entre {T} e {T2} é mal delimitada.",
+        "Ora, poucos conjuntos de dados sobre {T} são longos o suficiente para distinguir as tendências da variabilidade natural.",
+        "Além disso, a consideração {de:T2} é rara nas abordagens existentes, o que limita seu alcance para {T}.",
+        "Em particular, a influência {de:T2} sobre {T} raramente é quantificada.",
+        "Ainda não se sabe em que medida a dinâmica {de:T} é controlada {por:T2}.",
+        "Por isso, as estimativas {de:T} são incertas.",
+        "Essas lacunas limitam nossa capacidade de antecipar a evolução {de:T}.",
+        "Não há consenso sobre os mecanismos de controle {de:T}.",
+    ),
+    "aim": (
+        "Combinamos aqui {M} e {M2} com o objetivo de quantificar {T} {S}.",
+        "Este trabalho mobiliza {M} para examinar a resposta {de:T} {a:D}.",
+        "Propomos um arcabouço que relaciona {T} {a:T2}, que confrontamos com as observações.",
+        "Este artigo analisa {T} com base {em:M} e em {N} sítios.",
+        "Avaliamos, por meio {de:M}, a sensibilidade {de:T} {a:T2}.",
+        "Nosso objetivo é distinguir os efeitos {de:T2} daqueles {de:D} sobre {T}.",
+        "Um novo conjunto de dados sobre {T} {S} é analisado por meio {de:M}.",
+        "Apresentamos as primeiras estimativas {de:T} para {N} sítios {S}.",
+        "Este estudo se apoia {em:M} e também {em:M2} para mapear {T} {S}.",
+        "Nosso objetivo é uma melhor descrição {de:T} e de suas relações com {T2}.",
+    ),
+    "data": (
+        "Nossa análise se baseia em observações obtidas entre {Y1} e {Y2} em {N} estações.",
+        "Complementamos as observações de {N} estações de monitoramento com {M}.",
+        "O conjunto de dados associa {M} e {M2} de {Y1} a {Y2}.",
+        "No total, {N} campanhas de campo foram realizadas entre {Y1} e {Y2}.",
+        "Esses dados cobrem o período de {Y1} a {Y2}.",
+        "Acompanhamos {N} pontos de amostragem todos os meses de {Y1} a {Y2}.",
+        "Esses registros foram controlados por meio {de:M}.",
+        "O modelo é forçado por observações de {Y1} a {Y2}.",
+    ),
+    "result": (
+        "a intensidade {de:T} aumenta nitidamente em caso de evento extremo, ao passo que nenhuma evolução significativa {de:T2} é detectada",
+        "cerca de {P}% da variância observada {de:T} é explicada {por:T2}",
+        "um sinal sazonal marcado {de:T} é modulado {por:T2}",
+        "a resposta {de:T} {a:D} é muito variável de um sítio para outro",
+        "as simulações reproduzem corretamente a estrutura espacial {de:T}",
+        "a distribuição espacial {de:T} está estreitamente associada {a:T2}",
+        "as mudanças mais marcadas {de:T} ocorrem {S}",
+        "as diferenças {de:T} de um sítio para outro se explicam principalmente {por:T2}",
+        "nenhuma tendência significativa {de:T} é detectável ao longo do período estudado",
+        "a dependência {de:T} em relação {a:D} é não linear",
+        "a maior parte da variabilidade {de:T} se deve {a:T2}",
+        "o efeito {de:T2} sobre {T} é máximo {S}",
+        "a relação entre {T} e {T2} mudou desde o início dos anos 2000",
+        "as estimativas {de:T} são sensíveis à escolha {de:M}",
+        "a contribuição {de:T2} para {T} é maior do que se pensava",
+        "uma relação clara entre {T} e {T2} é observada em {N} dos sítios",
+    ),
+    "implication": (
+        "é necessária uma atenção maior {a:T} na avaliação {de:T2}",
+        "o monitoramento {de:T} deveria ser estendido a outros sítios",
+        "a gestão {de:T} pode se beneficiar {de:M}",
+        "a integração {de:T} nos modelos {de:T2} constitui uma prioridade",
+        "observações de longo prazo {de:T} são indispensáveis no contexto {de:D}",
+        "o papel {de:T} para {T2} foi subestimado",
+        "essa abordagem é transponível ao estudo {de:T} em outras regiões",
+        "as previsões {de:T} no contexto {de:D} continuam incertas",
+    ),
+    "title": (
+        "{^T} {S}: contribuições {de:M}",
+        "{^T} e {T2} {S}",
+        "Relacionar {T} {a:T2} {S}",
+        "Quantificar {T} por meio {de:M}",
+        "Os fatores de controle {de:T} {S}",
+        "Evolução de longo prazo {de:T} {S}",
+        "Por uma abordagem integrada {de:T} e {de:T2}",
+        "Avaliar {T} {S} por meio {de:M}",
+        "O papel {de:T2} na dinâmica {de:T}",
+        "{^T} diante {de:D}",
+        "Novas estimativas {de:T} {S}",
+        "Os mecanismos de controle {de:T} {S}",
+        "O que controla {T}? Contribuições de {N} sítios",
+    ),
+}
+TEMPLATES[("pt", "social")] = {
+    "context": (
+        "Nos últimos vinte anos, os debates relativos {a:T} se intensificaram {S}.",
+        "Hoje, a ação pública relativa {a:T} está cada vez mais ligada {a:T2}.",
+        "A questão {de:T} tornou-se central para os territórios costeiros expostos {a:D}.",
+        "As pesquisas sobre {T} por muito tempo negligenciaram o papel {de:T2}.",
+        "Nas sociedades litorâneas, o lugar {de:T} mudou profundamente desde os anos 1980.",
+        "É muitas vezes nos conflitos em torno {de:T} que se negocia o futuro do litoral.",
+        "Poucos temas são tão disputados {S} quanto {T}.",
+        "A regulação {de:T} é objeto de nova atenção diante da crescente pressão sobre o litoral.",
+    ),
+    "gap": (
+        "Sabe-se, contudo, pouco sobre a experiência cotidiana {de:T} e sobre a maneira como as pessoas envolvidas a vivem.",
+        "Os trabalhos existentes raramente relacionam {T} {a:T2}.",
+        "Essas questões raramente foram abordadas do ponto de vista dos atores locais.",
+        "A literatura raramente relaciona a análise {de:T} {a:T2}.",
+        "Sua dimensão política, em particular, foi negligenciada.",
+        "Até agora, deu-se pouca atenção à história {de:T}.",
+    ),
+    "aim": (
+        "Este artigo examina {T} {S} a partir {de:M}.",
+        "Analisamos as negociações em torno {de:T} e o papel dos atores locais, dos poderes públicos e dos usuários do litoral.",
+        "Este artigo combina {M} e {M2} para reconstituir as trajetórias {de:T} {S}.",
+        "Nosso objetivo é compreender como a questão {de:T} é construída por diferentes atores.",
+        "Acompanhamos aqui as controvérsias relativas {a:T} {S}.",
+        "Exploramos as relações entre {T} e {T2} por meio {de:M}.",
+        "Este artigo se interroga sobre os beneficiários {de:T} e sobre aqueles que arcam com seus custos.",
+        "Comparamos {N} situações relativas {a:T} {S}.",
+    ),
+    "data": (
+        "Nossa análise se baseia em {N} entrevistas, observações de campo e documentos de arquivo.",
+        "O material foi coletado entre {Y1} e {Y2} em {N} municípios costeiros.",
+        "O corpus reúne documentos de planejamento, matérias de imprensa e {N} entrevistas realizadas entre {Y1} e {Y2}.",
+        "No total, {N} pessoas foram entrevistadas entre {Y1} e {Y2}.",
+        "Analisamos também {N} atas de câmaras municipais.",
+        "Essas fontes foram codificadas por meio {de:M}.",
+    ),
+    "result": (
+        "as trajetórias {de:T} estão estreitamente ligadas {a:T2} e a tensões antigas em torno do espaço litorâneo",
+        "moradores e eleitos têm representações contrastantes {de:T}",
+        "os casos estudados diferem nitidamente pela importância atribuída {a:T}",
+        "os arranjos locais relativos {a:T} estão muitas vezes distantes dos marcos nacionais",
+        "o lugar {de:T} é crescente nos debates locais",
+        "a ação pública relativa {a:T} é moldada {por:T2}",
+        "os conflitos em torno {de:T} têm raízes {em:T2}",
+        "o enquadramento midiático {de:T} mudou ao longo do período",
+        "a voz dos pescadores nos debates sobre {T} continua fraca",
+        "a regulação {de:T} se apoia em arranjos informais",
+        "a história {de:T} é essencial para a compreensão {de:T2}",
+        "a governança {de:T} continua muito fragmentada",
+    ),
+    "implication": (
+        "as políticas relativas {a:T} deveriam dar mais atenção {a:T2}",
+        "a governança {de:T} exige novas formas de participação",
+        "os debates sobre {T} ganhariam ao considerar melhor {T2}",
+        "a questão {de:T} é também uma questão de justiça",
+        "trabalhos comparativos sobre {T} são necessários",
+        "a ação pública relativa {a:T} diante {de:D} precisa ser repensada",
+    ),
+    "title": (
+        "Negociar {T} {S}",
+        "Repensar {T} diante {de:D}",
+        "{^T} e {T2}: pesquisa em {N} municípios costeiros",
+        "Quem governa {T}? Atores, arenas e conflitos {S}",
+        "{^T} {S}: uma perspectiva comparada",
+        "A política {de:T} {S}",
+        "Viver com {T}: uma etnografia {S}",
+        "{^T}, um problema público",
+    ),
+}
+
 _ELISION = re.compile(r"\bque (?=[aeiouyâàéèêëîïôû])", re.IGNORECASE)
 
 
@@ -427,7 +620,7 @@ def elide(text: str) -> str:
     return _ELISION.sub("qu'", text)
 
 
-_SLOT_RE = re.compile(r"\{(\^?)(?:(de|a):)?([A-Z][A-Z0-9]*)\}")
+_SLOT_RE = re.compile(r"\{(\^?)(?:(de|a|em|por):)?([A-Z][A-Z0-9]*)\}")
 
 
 def capitalise(text: str) -> str:
@@ -449,10 +642,18 @@ def render(template: str, slots: dict[str, object], language: str) -> str:
         if isinstance(value, Term):
             if language == "en":
                 text = value.en
+            elif language == "pt":
+                text = {
+                    None: value.pt_def,
+                    "de": value.pt_de,
+                    "a": value.pt_a,
+                    "em": value.pt_em,
+                    "por": value.pt_por,
+                }[form]
             else:
                 text = {None: value.fr_def, "de": value.fr_de, "a": value.fr_a}[form]
         elif isinstance(value, Setting):
-            text = value.en if language == "en" else value.fr
+            text = {"en": value.en, "fr": value.fr, "pt": value.pt}[language]
         else:
             text = str(value)
         return capitalise(text) if cap else text
@@ -463,6 +664,12 @@ def render(template: str, slots: dict[str, object], language: str) -> str:
 def slot_names(template: str) -> set[str]:
     """The slot names a template uses."""
     return {m.group(3) for m in _SLOT_RE.finditer(template)}
+
+
+def slot_free_pieces(template: str) -> list[str]:
+    """The literal pieces of a template between its slots (stripped, with a letter)."""
+    pieces = (p.strip() for p in _SLOT_RE.split(template)[::4])
+    return [p for p in pieces if any(c.isalpha() for c in p)]
 
 
 def weighted_sample(rng: random.Random, items: Sequence, weights: Sequence[float], k: int) -> list:
@@ -489,7 +696,7 @@ def weighted_sample(rng: random.Random, items: Sequence, weights: Sequence[float
 class TextPlan:
     """What a work is about: everything the composer needs besides randomness."""
 
-    language: str  # "en" or "fr"
+    language: str  # "en", "fr" or "pt"
     kind: str  # "natural" or "social"
     year: int
     primary: Theme

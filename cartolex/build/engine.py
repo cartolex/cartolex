@@ -133,6 +133,7 @@ def keywords_settings(
         "corpus_languages": tuple(config.languages.corpus),
         "display_languages": tuple(config.languages.display),
         "domain_title": config.identity.domain_title,
+        "domain_description": config.identity.domain_description,
     }
     if config.identity.ai is not None:
         values["llm_model"] = config.identity.ai.model

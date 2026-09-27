@@ -60,10 +60,15 @@ driver.run_svd(ctx)
 The packaged lists (`cartolex/_data/stopwords/core.json`) are read once, with
 `importlib.resources`, into an immutable `StopwordLists`. A run's additions and
 removals (the `add` / `remove` blocks of the workspace override file) produce
-a new object; nothing shared is modified. Extraction and triage use
-`ctx.stopwords.packaged`; consolidation uses `ctx.stopwords.adjusted` and
+a new object; nothing shared is modified. The triage's deterministic prefilter
+uses `ctx.stopwords.packaged`; consolidation uses `ctx.stopwords.adjusted` and
 `ctx.stopwords.consolidation_blacklist` — where the additions and removals have
 always taken effect.
+
+The candidate extraction uses none of these lists: its part-of-speech patterns
+and short per-language function-word lists
+(`cartolex/_data/stopwords/function_words.json`) decide what a candidate is
+(see [the extraction](extraction.md)).
 
 ## Packaged data and prompts
 

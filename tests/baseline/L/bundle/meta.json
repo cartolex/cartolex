@@ -1,0 +1,14 @@
+{
+ "build_date": "2026-01-01",
+ "counters": {
+  "n_entities": 343,
+  "n_term_rows": 9578,
+  "n_terms": 2871
+ },
+ "domain_id": "a",
+ "producer": "reference",
+ "profile": {
+  "producer": "reference run"
+ },
+ "schema": "map_bundle/2"
+}
