@@ -18,12 +18,22 @@ python examples/synthetic_cohort.py /tmp/demo-workspace
 pip install "cartolex @ git+ssh://git@github.com/<org>/cartolex@v0.1.0"
 # or, during development
 pip install -e ../cartolex
+# the language model of each corpus language (pinned wheels, with their hashes)
+pip install --require-hashes -r ../cartolex/tools/requirements-models.txt
 ```
+
+The keyword extraction parses texts with one spaCy model per corpus language
+(`en_core_web_md` MIT, `fr_core_news_md` LGPL-LR, `pt_core_news_md`
+CC BY-SA 4.0, all 3.8.0). They are separate installs, never bundled; install
+only those of your corpus languages if you prefer (the exact command for one
+model is in the `LanguageModelMissing` error, and in
+`cartolex/lexicon/language_models.py`).
 
 Two engine packages under the `cartolex` namespace: `cartolex.lexicon` (extraction, LLM triage,
 consolidation, subfields, positioning) and `cartolex.atlas` (SVD, concept
 clustering, UMAP, trajectories, plots, and the `driver` that orchestrates
-them). Everything is pure Python; heavy lifting is numpy/scikit-learn/umap.
+them). Everything is pure Python; heavy lifting is spaCy (parsing),
+numpy/scikit-learn and umap.
 
 ## 2. The workspace and the corpus contract
 
@@ -296,8 +306,11 @@ packaged one-call helper is on the roadmap — until then, follow
   are safe; gate expensive re-runs on your own dirty-flags (or pass the
   context's staleness hooks).
 - **State = the workspace directory.** Back it up, version it, or throw it
-  away wholesale; nothing lives outside it except the pip-installed code and
-  the stop-word lists shipped in the package (`cartolex/_data/stopwords/core.json`).
+  away wholesale; nothing lives outside it except the pip-installed code (and
+  language models) and the stop-word lists shipped in the package
+  (`cartolex/_data/stopwords/`). The parse cache of the extraction lives in the
+  workspace too (`automatic_data/parse_cache/`): deleting it only costs a new
+  parse.
 
 ## 5. "All features" checklist
 
