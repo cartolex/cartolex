@@ -1,0 +1,2007 @@
+[
+ {
+  "concept_weights": [
+   {
+    "id": 1,
+    "weight": 0.0844
+   },
+   {
+    "id": 4,
+    "weight": 0.0843
+   },
+   {
+    "id": 6,
+    "weight": 0.084
+   },
+   {
+    "id": 5,
+    "weight": 0.0835
+   },
+   {
+    "id": 0,
+    "weight": 0.0832
+   },
+   {
+    "id": 7,
+    "weight": 0.0805
+   },
+   {
+    "id": 3,
+    "weight": 0.0785
+   },
+   {
+    "id": 2,
+    "weight": 0.0726
+   },
+   {
+    "id": 8,
+    "weight": 0.0695
+   },
+   {
+    "id": 51,
+    "weight": 0.0536
+   },
+   {
+    "id": 35,
+    "weight": 0.0283
+   },
+   {
+    "id": 34,
+    "weight": 0.0166
+   },
+   {
+    "id": 31,
+    "weight": 0.0151
+   },
+   {
+    "id": 30,
+    "weight": 0.014
+   },
+   {
+    "id": 27,
+    "weight": 0.0122
+   },
+   {
+    "id": 122,
+    "weight": 0.0101
+   },
+   {
+    "id": 143,
+    "weight": 0.007
+   },
+   {
+    "id": 144,
+    "weight": 0.0066
+   },
+   {
+    "id": 145,
+    "weight": 0.0063
+   },
+   {
+    "id": 33,
+    "weight": 0.0048
+   },
+   {
+    "id": 84,
+    "weight": 0.0037
+   },
+   {
+    "id": 85,
+    "weight": 0.0037
+   },
+   {
+    "id": 100,
+    "weight": 0.0034
+   },
+   {
+    "id": 99,
+    "weight": 0.0032
+   },
+   {
+    "id": 149,
+    "weight": 0.003
+   },
+   {
+    "id": 87,
+    "weight": 0.0029
+   },
+   {
+    "id": 89,
+    "weight": 0.0029
+   },
+   {
+    "id": 101,
+    "weight": 0.0029
+   },
+   {
+    "id": 146,
+    "weight": 0.0029
+   },
+   {
+    "id": 98,
+    "weight": 0.0028
+   },
+   {
+    "id": 11,
+    "weight": 0.0026
+   },
+   {
+    "id": 135,
+    "weight": 0.0026
+   },
+   {
+    "id": 10,
+    "weight": 0.0025
+   },
+   {
+    "id": 88,
+    "weight": 0.0025
+   },
+   {
+    "id": 90,
+    "weight": 0.0025
+   },
+   {
+    "id": 95,
+    "weight": 0.0024
+   },
+   {
+    "id": 148,
+    "weight": 0.0022
+   },
+   {
+    "id": 53,
+    "weight": 0.002
+   },
+   {
+    "id": 92,
+    "weight": 0.002
+   },
+   {
+    "id": 124,
+    "weight": 0.002
+   },
+   {
+    "id": 125,
+    "weight": 0.0019
+   },
+   {
+    "id": 147,
+    "weight": 0.0019
+   },
+   {
+    "id": 48,
+    "weight": 0.0018
+   },
+   {
+    "id": 96,
+    "weight": 0.0018
+   },
+   {
+    "id": 9,
+    "weight": 0.0017
+   },
+   {
+    "id": 134,
+    "weight": 0.0017
+   },
+   {
+    "id": 91,
+    "weight": 0.0016
+   },
+   {
+    "id": 97,
+    "weight": 0.0016
+   },
+   {
+    "id": 12,
+    "weight": 0.0015
+   },
+   {
+    "id": 15,
+    "weight": 0.0015
+   },
+   {
+    "id": 23,
+    "weight": 0.0015
+   },
+   {
+    "id": 38,
+    "weight": 0.0015
+   },
+   {
+    "id": 39,
+    "weight": 0.0015
+   },
+   {
+    "id": 126,
+    "weight": 0.0014
+   },
+   {
+    "id": 49,
+    "weight": 0.0013
+   },
+   {
+    "id": 136,
+    "weight": 0.0013
+   },
+   {
+    "id": 94,
+    "weight": 0.0011
+   },
+   {
+    "id": 21,
+    "weight": 0.001
+   },
+   {
+    "id": 50,
+    "weight": 0.001
+   },
+   {
+    "id": 86,
+    "weight": 0.001
+   },
+   {
+    "id": 111,
+    "weight": 0.001
+   },
+   {
+    "id": 14,
+    "weight": 0.0009
+   },
+   {
+    "id": 47,
+    "weight": 0.0009
+   },
+   {
+    "id": 52,
+    "weight": 0.0009
+   },
+   {
+    "id": 71,
+    "weight": 0.0009
+   },
+   {
+    "id": 22,
+    "weight": 0.0008
+   },
+   {
+    "id": 55,
+    "weight": 0.0008
+   },
+   {
+    "id": 130,
+    "weight": 0.0008
+   },
+   {
+    "id": 37,
+    "weight": 0.0007
+   },
+   {
+    "id": 57,
+    "weight": 0.0007
+   },
+   {
+    "id": 70,
+    "weight": 0.0007
+   },
+   {
+    "id": 115,
+    "weight": 0.0007
+   },
+   {
+    "id": 13,
+    "weight": 0.0006
+   },
+   {
+    "id": 20,
+    "weight": 0.0006
+   },
+   {
+    "id": 40,
+    "weight": 0.0006
+   },
+   {
+    "id": 62,
+    "weight": 0.0006
+   },
+   {
+    "id": 114,
+    "weight": 0.0006
+   },
+   {
+    "id": 26,
+    "weight": 0.0005
+   },
+   {
+    "id": 107,
+    "weight": 0.0005
+   },
+   {
+    "id": 112,
+    "weight": 0.0005
+   },
+   {
+    "id": 133,
+    "weight": 0.0005
+   },
+   {
+    "id": 25,
+    "weight": 0.0004
+   },
+   {
+    "id": 54,
+    "weight": 0.0004
+   },
+   {
+    "id": 56,
+    "weight": 0.0004
+   },
+   {
+    "id": 58,
+    "weight": 0.0004
+   },
+   {
+    "id": 72,
+    "weight": 0.0004
+   },
+   {
+    "id": 73,
+    "weight": 0.0004
+   },
+   {
+    "id": 102,
+    "weight": 0.0004
+   },
+   {
+    "id": 106,
+    "weight": 0.0004
+   },
+   {
+    "id": 108,
+    "weight": 0.0003
+   },
+   {
+    "id": 127,
+    "weight": 0.0003
+   },
+   {
+    "id": 60,
+    "weight": 0.0002
+   },
+   {
+    "id": 69,
+    "weight": 0.0002
+   },
+   {
+    "id": 109,
+    "weight": 0.0002
+   },
+   {
+    "id": 128,
+    "weight": 0.0002
+   },
+   {
+    "id": 137,
+    "weight": 0.0002
+   },
+   {
+    "id": 19,
+    "weight": 0.0001
+   },
+   {
+    "id": 42,
+    "weight": 0.0001
+   },
+   {
+    "id": 59,
+    "weight": 0.0001
+   },
+   {
+    "id": 61,
+    "weight": 0.0001
+   },
+   {
+    "id": 63,
+    "weight": 0.0001
+   },
+   {
+    "id": 75,
+    "weight": 0.0001
+   },
+   {
+    "id": 93,
+    "weight": 0.0001
+   },
+   {
+    "id": 110,
+    "weight": 0.0001
+   },
+   {
+    "id": 132,
+    "weight": 0.0001
+   },
+   {
+    "id": 18,
+    "weight": 0.0
+   },
+   {
+    "id": 64,
+    "weight": 0.0
+   }
+  ],
+  "item": "p58434ef2e3",
+  "keyword_scores": [
+   3.002639221327036,
+   1.8766495133293977,
+   1.8015835327962215,
+   1.1259897079976384,
+   0.8557180565292097,
+   0.7701462508762886,
+   0.42785902826460487,
+   0.42643110716328914,
+   0.2567154169587629,
+   0.239370098608357
+  ],
+  "keywords": "inherent optical properties;sea surface temperature;radar backscatter;sea surface salinity;shelf sea dynamics;delta progradation;coastal railway resilience;appendicularian respiration;embayed beaches;coastal eutrophication",
+  "near_terms": [
+   {
+    "score": 0.9943,
+    "term": "extreme rainfall impacts"
+   },
+   {
+    "score": 0.9943,
+    "term": "high tide flood trends"
+   },
+   {
+    "score": 0.9943,
+    "term": "beach erosion"
+   },
+   {
+    "score": 0.9938,
+    "term": "inherent optical properties"
+   },
+   {
+    "score": 0.993,
+    "term": "surface current seasonal cycle"
+   },
+   {
+    "score": 0.9927,
+    "term": "thermocline seasonal cycle"
+   },
+   {
+    "score": 0.9925,
+    "term": "sea surface salinity"
+   },
+   {
+    "score": 0.9919,
+    "term": "ekman layer variability"
+   },
+   {
+    "score": 0.9919,
+    "term": "tidal energy dissipation"
+   },
+   {
+    "score": 0.9914,
+    "term": "tidal eddy dissipation"
+   }
+  ],
+  "subfield_weights": [
+   {
+    "id": 1,
+    "weight": 0.8043
+   },
+   {
+    "id": 3,
+    "weight": 0.0969
+   },
+   {
+    "id": 9,
+    "weight": 0.0327
+   },
+   {
+    "id": 8,
+    "weight": 0.0272
+   },
+   {
+    "id": 4,
+    "weight": 0.0195
+   },
+   {
+    "id": 0,
+    "weight": 0.0078
+   },
+   {
+    "id": 7,
+    "weight": 0.0058
+   },
+   {
+    "id": 6,
+    "weight": 0.0036
+   },
+   {
+    "id": 11,
+    "weight": 0.0022
+   }
+  ]
+ },
+ {
+  "concept_weights": [
+   {
+    "id": 1,
+    "weight": 0.0837
+   },
+   {
+    "id": 4,
+    "weight": 0.0836
+   },
+   {
+    "id": 6,
+    "weight": 0.0832
+   },
+   {
+    "id": 0,
+    "weight": 0.0827
+   },
+   {
+    "id": 5,
+    "weight": 0.0827
+   },
+   {
+    "id": 7,
+    "weight": 0.0795
+   },
+   {
+    "id": 3,
+    "weight": 0.078
+   },
+   {
+    "id": 2,
+    "weight": 0.0723
+   },
+   {
+    "id": 8,
+    "weight": 0.0684
+   },
+   {
+    "id": 51,
+    "weight": 0.0517
+   },
+   {
+    "id": 35,
+    "weight": 0.0271
+   },
+   {
+    "id": 34,
+    "weight": 0.0157
+   },
+   {
+    "id": 31,
+    "weight": 0.0147
+   },
+   {
+    "id": 30,
+    "weight": 0.0134
+   },
+   {
+    "id": 27,
+    "weight": 0.0115
+   },
+   {
+    "id": 122,
+    "weight": 0.0105
+   },
+   {
+    "id": 143,
+    "weight": 0.0079
+   },
+   {
+    "id": 144,
+    "weight": 0.0075
+   },
+   {
+    "id": 145,
+    "weight": 0.0072
+   },
+   {
+    "id": 84,
+    "weight": 0.0046
+   },
+   {
+    "id": 85,
+    "weight": 0.0045
+   },
+   {
+    "id": 33,
+    "weight": 0.0041
+   },
+   {
+    "id": 100,
+    "weight": 0.0036
+   },
+   {
+    "id": 89,
+    "weight": 0.0035
+   },
+   {
+    "id": 99,
+    "weight": 0.0035
+   },
+   {
+    "id": 149,
+    "weight": 0.0035
+   },
+   {
+    "id": 146,
+    "weight": 0.0034
+   },
+   {
+    "id": 11,
+    "weight": 0.0032
+   },
+   {
+    "id": 98,
+    "weight": 0.0032
+   },
+   {
+    "id": 87,
+    "weight": 0.0031
+   },
+   {
+    "id": 90,
+    "weight": 0.0031
+   },
+   {
+    "id": 10,
+    "weight": 0.003
+   },
+   {
+    "id": 135,
+    "weight": 0.0028
+   },
+   {
+    "id": 148,
+    "weight": 0.0027
+   },
+   {
+    "id": 95,
+    "weight": 0.0026
+   },
+   {
+    "id": 101,
+    "weight": 0.0026
+   },
+   {
+    "id": 88,
+    "weight": 0.0025
+   },
+   {
+    "id": 91,
+    "weight": 0.0025
+   },
+   {
+    "id": 92,
+    "weight": 0.0025
+   },
+   {
+    "id": 124,
+    "weight": 0.0024
+   },
+   {
+    "id": 125,
+    "weight": 0.0023
+   },
+   {
+    "id": 134,
+    "weight": 0.0023
+   },
+   {
+    "id": 147,
+    "weight": 0.0023
+   },
+   {
+    "id": 9,
+    "weight": 0.0022
+   },
+   {
+    "id": 96,
+    "weight": 0.0022
+   },
+   {
+    "id": 97,
+    "weight": 0.0021
+   },
+   {
+    "id": 15,
+    "weight": 0.002
+   },
+   {
+    "id": 48,
+    "weight": 0.002
+   },
+   {
+    "id": 12,
+    "weight": 0.0018
+   },
+   {
+    "id": 23,
+    "weight": 0.0018
+   },
+   {
+    "id": 38,
+    "weight": 0.0018
+   },
+   {
+    "id": 39,
+    "weight": 0.0018
+   },
+   {
+    "id": 126,
+    "weight": 0.0017
+   },
+   {
+    "id": 86,
+    "weight": 0.0016
+   },
+   {
+    "id": 136,
+    "weight": 0.0016
+   },
+   {
+    "id": 14,
+    "weight": 0.0012
+   },
+   {
+    "id": 94,
+    "weight": 0.0012
+   },
+   {
+    "id": 21,
+    "weight": 0.0011
+   },
+   {
+    "id": 111,
+    "weight": 0.0011
+   },
+   {
+    "id": 13,
+    "weight": 0.001
+   },
+   {
+    "id": 22,
+    "weight": 0.001
+   },
+   {
+    "id": 47,
+    "weight": 0.0009
+   },
+   {
+    "id": 130,
+    "weight": 0.0009
+   },
+   {
+    "id": 102,
+    "weight": 0.0008
+   },
+   {
+    "id": 114,
+    "weight": 0.0008
+   },
+   {
+    "id": 133,
+    "weight": 0.0008
+   },
+   {
+    "id": 37,
+    "weight": 0.0007
+   },
+   {
+    "id": 53,
+    "weight": 0.0007
+   },
+   {
+    "id": 69,
+    "weight": 0.0007
+   },
+   {
+    "id": 112,
+    "weight": 0.0007
+   },
+   {
+    "id": 127,
+    "weight": 0.0007
+   },
+   {
+    "id": 20,
+    "weight": 0.0006
+   },
+   {
+    "id": 40,
+    "weight": 0.0006
+   },
+   {
+    "id": 67,
+    "weight": 0.0006
+   },
+   {
+    "id": 107,
+    "weight": 0.0006
+   },
+   {
+    "id": 26,
+    "weight": 0.0005
+   },
+   {
+    "id": 64,
+    "weight": 0.0004
+   },
+   {
+    "id": 68,
+    "weight": 0.0004
+   },
+   {
+    "id": 108,
+    "weight": 0.0004
+   },
+   {
+    "id": 19,
+    "weight": 0.0003
+   },
+   {
+    "id": 25,
+    "weight": 0.0003
+   },
+   {
+    "id": 59,
+    "weight": 0.0003
+   },
+   {
+    "id": 65,
+    "weight": 0.0003
+   },
+   {
+    "id": 103,
+    "weight": 0.0003
+   },
+   {
+    "id": 106,
+    "weight": 0.0003
+   },
+   {
+    "id": 115,
+    "weight": 0.0003
+   },
+   {
+    "id": 128,
+    "weight": 0.0003
+   },
+   {
+    "id": 42,
+    "weight": 0.0002
+   },
+   {
+    "id": 137,
+    "weight": 0.0002
+   },
+   {
+    "id": 18,
+    "weight": 0.0001
+   },
+   {
+    "id": 54,
+    "weight": 0.0001
+   },
+   {
+    "id": 62,
+    "weight": 0.0001
+   },
+   {
+    "id": 66,
+    "weight": 0.0001
+   },
+   {
+    "id": 71,
+    "weight": 0.0001
+   },
+   {
+    "id": 73,
+    "weight": 0.0001
+   },
+   {
+    "id": 75,
+    "weight": 0.0001
+   },
+   {
+    "id": 93,
+    "weight": 0.0001
+   },
+   {
+    "id": 109,
+    "weight": 0.0001
+   },
+   {
+    "id": 110,
+    "weight": 0.0001
+   },
+   {
+    "id": 132,
+    "weight": 0.0001
+   },
+   {
+    "id": 72,
+    "weight": 0.0
+   }
+  ],
+  "item": "p815ae890f7",
+  "keyword_scores": [
+   3.373994525160593,
+   2.1087465782253707,
+   1.2652479469352222,
+   1.0121983575481779,
+   0.8653950882854131,
+   0.4807750490474517,
+   0.47917052795015147,
+   0.2884650294284711,
+   0.26897450631275277,
+   0.2279219347894719
+  ],
+  "keywords": "inherent optical properties;sea surface temperature;sea surface salinity;radar backscatter;delta progradation;coastal railway resilience;appendicularian respiration;embayed beaches;coastal eutrophication;tidal resonance",
+  "near_terms": [
+   {
+    "score": 0.993,
+    "term": "extreme rainfall impacts"
+   },
+   {
+    "score": 0.993,
+    "term": "high tide flood trends"
+   },
+   {
+    "score": 0.993,
+    "term": "beach erosion"
+   },
+   {
+    "score": 0.9925,
+    "term": "inherent optical properties"
+   },
+   {
+    "score": 0.9918,
+    "term": "surface current seasonal cycle"
+   },
+   {
+    "score": 0.9904,
+    "term": "ekman layer variability"
+   },
+   {
+    "score": 0.9904,
+    "term": "tidal energy dissipation"
+   },
+   {
+    "score": 0.9904,
+    "term": "eddy transport"
+   },
+   {
+    "score": 0.9903,
+    "term": "sea surface salinity"
+   },
+   {
+    "score": 0.9897,
+    "term": "thermocline seasonal cycle"
+   }
+  ],
+  "subfield_weights": [
+   {
+    "id": 1,
+    "weight": 0.8028
+   },
+   {
+    "id": 3,
+    "weight": 0.0906
+   },
+   {
+    "id": 9,
+    "weight": 0.0385
+   },
+   {
+    "id": 8,
+    "weight": 0.0313
+   },
+   {
+    "id": 4,
+    "weight": 0.0225
+   },
+   {
+    "id": 0,
+    "weight": 0.0097
+   },
+   {
+    "id": 11,
+    "weight": 0.003
+   },
+   {
+    "id": 7,
+    "weight": 0.0014
+   },
+   {
+    "id": 2,
+    "weight": 0.0001
+   }
+  ]
+ },
+ {
+  "concept_weights": [
+   {
+    "id": 7,
+    "weight": 0.0639
+   },
+   {
+    "id": 5,
+    "weight": 0.0621
+   },
+   {
+    "id": 6,
+    "weight": 0.0621
+   },
+   {
+    "id": 8,
+    "weight": 0.0621
+   },
+   {
+    "id": 4,
+    "weight": 0.0607
+   },
+   {
+    "id": 1,
+    "weight": 0.0591
+   },
+   {
+    "id": 3,
+    "weight": 0.0586
+   },
+   {
+    "id": 0,
+    "weight": 0.055
+   },
+   {
+    "id": 2,
+    "weight": 0.051
+   },
+   {
+    "id": 51,
+    "weight": 0.0452
+   },
+   {
+    "id": 35,
+    "weight": 0.0415
+   },
+   {
+    "id": 34,
+    "weight": 0.034
+   },
+   {
+    "id": 30,
+    "weight": 0.0299
+   },
+   {
+    "id": 31,
+    "weight": 0.0299
+   },
+   {
+    "id": 27,
+    "weight": 0.0275
+   },
+   {
+    "id": 33,
+    "weight": 0.0255
+   },
+   {
+    "id": 32,
+    "weight": 0.0179
+   },
+   {
+    "id": 28,
+    "weight": 0.013
+   },
+   {
+    "id": 29,
+    "weight": 0.0103
+   },
+   {
+    "id": 41,
+    "weight": 0.0097
+   },
+   {
+    "id": 122,
+    "weight": 0.0088
+   },
+   {
+    "id": 143,
+    "weight": 0.0083
+   },
+   {
+    "id": 144,
+    "weight": 0.0073
+   },
+   {
+    "id": 120,
+    "weight": 0.0068
+   },
+   {
+    "id": 145,
+    "weight": 0.0068
+   },
+   {
+    "id": 49,
+    "weight": 0.0057
+   },
+   {
+    "id": 53,
+    "weight": 0.0053
+   },
+   {
+    "id": 44,
+    "weight": 0.0052
+   },
+   {
+    "id": 45,
+    "weight": 0.0046
+   },
+   {
+    "id": 50,
+    "weight": 0.0044
+   },
+   {
+    "id": 101,
+    "weight": 0.0044
+   },
+   {
+    "id": 131,
+    "weight": 0.0038
+   },
+   {
+    "id": 36,
+    "weight": 0.0037
+   },
+   {
+    "id": 100,
+    "weight": 0.0036
+   },
+   {
+    "id": 52,
+    "weight": 0.0033
+   },
+   {
+    "id": 57,
+    "weight": 0.0033
+   },
+   {
+    "id": 87,
+    "weight": 0.0033
+   },
+   {
+    "id": 71,
+    "weight": 0.0032
+   },
+   {
+    "id": 99,
+    "weight": 0.0032
+   },
+   {
+    "id": 55,
+    "weight": 0.0031
+   },
+   {
+    "id": 88,
+    "weight": 0.0031
+   },
+   {
+    "id": 46,
+    "weight": 0.003
+   },
+   {
+    "id": 124,
+    "weight": 0.003
+   },
+   {
+    "id": 97,
+    "weight": 0.0029
+   },
+   {
+    "id": 58,
+    "weight": 0.0028
+   },
+   {
+    "id": 95,
+    "weight": 0.0027
+   },
+   {
+    "id": 98,
+    "weight": 0.0027
+   },
+   {
+    "id": 127,
+    "weight": 0.0027
+   },
+   {
+    "id": 85,
+    "weight": 0.0026
+   },
+   {
+    "id": 84,
+    "weight": 0.0025
+   },
+   {
+    "id": 126,
+    "weight": 0.0025
+   },
+   {
+    "id": 56,
+    "weight": 0.0024
+   },
+   {
+    "id": 70,
+    "weight": 0.0024
+   },
+   {
+    "id": 62,
+    "weight": 0.0023
+   },
+   {
+    "id": 43,
+    "weight": 0.0022
+   },
+   {
+    "id": 146,
+    "weight": 0.0022
+   },
+   {
+    "id": 149,
+    "weight": 0.0022
+   },
+   {
+    "id": 89,
+    "weight": 0.0021
+   },
+   {
+    "id": 135,
+    "weight": 0.0021
+   },
+   {
+    "id": 132,
+    "weight": 0.0019
+   },
+   {
+    "id": 94,
+    "weight": 0.0016
+   },
+   {
+    "id": 96,
+    "weight": 0.0016
+   },
+   {
+    "id": 106,
+    "weight": 0.0016
+   },
+   {
+    "id": 11,
+    "weight": 0.0015
+   },
+   {
+    "id": 125,
+    "weight": 0.0015
+   },
+   {
+    "id": 72,
+    "weight": 0.0014
+   },
+   {
+    "id": 147,
+    "weight": 0.0014
+   },
+   {
+    "id": 54,
+    "weight": 0.0013
+   },
+   {
+    "id": 90,
+    "weight": 0.0013
+   },
+   {
+    "id": 148,
+    "weight": 0.0013
+   },
+   {
+    "id": 22,
+    "weight": 0.0012
+   },
+   {
+    "id": 42,
+    "weight": 0.0012
+   },
+   {
+    "id": 60,
+    "weight": 0.0012
+   },
+   {
+    "id": 73,
+    "weight": 0.0012
+   },
+   {
+    "id": 92,
+    "weight": 0.001
+   },
+   {
+    "id": 24,
+    "weight": 0.0009
+   },
+   {
+    "id": 93,
+    "weight": 0.0009
+   },
+   {
+    "id": 104,
+    "weight": 0.0009
+   },
+   {
+    "id": 115,
+    "weight": 0.0008
+   },
+   {
+    "id": 80,
+    "weight": 0.0007
+   },
+   {
+    "id": 109,
+    "weight": 0.0007
+   },
+   {
+    "id": 19,
+    "weight": 0.0006
+   },
+   {
+    "id": 23,
+    "weight": 0.0006
+   },
+   {
+    "id": 136,
+    "weight": 0.0006
+   },
+   {
+    "id": 61,
+    "weight": 0.0005
+   },
+   {
+    "id": 63,
+    "weight": 0.0005
+   },
+   {
+    "id": 105,
+    "weight": 0.0005
+   },
+   {
+    "id": 118,
+    "weight": 0.0005
+   },
+   {
+    "id": 9,
+    "weight": 0.0004
+   },
+   {
+    "id": 107,
+    "weight": 0.0004
+   },
+   {
+    "id": 108,
+    "weight": 0.0004
+   },
+   {
+    "id": 123,
+    "weight": 0.0004
+   },
+   {
+    "id": 134,
+    "weight": 0.0004
+   },
+   {
+    "id": 18,
+    "weight": 0.0003
+   },
+   {
+    "id": 37,
+    "weight": 0.0003
+   },
+   {
+    "id": 111,
+    "weight": 0.0003
+   },
+   {
+    "id": 128,
+    "weight": 0.0003
+   },
+   {
+    "id": 130,
+    "weight": 0.0003
+   },
+   {
+    "id": 59,
+    "weight": 0.0002
+   },
+   {
+    "id": 91,
+    "weight": 0.0
+   }
+  ],
+  "item": "p90a4fb1370",
+  "keyword_scores": [
+   2.4405831433021814,
+   1.651588281852859,
+   1.5292484091230174,
+   1.223398727298414,
+   0.9762332573208726,
+   0.697309469514909,
+   0.611699363649207,
+   0.4881166286604363,
+   0.3486547347574545,
+   0.3486547347574545
+  ],
+  "keywords": "shelf sea dynamics;radar backscatter;sea surface temperature;inherent optical properties;surface current forcing mechanisms;marginal sea stratification;front vertical structure;tidal inlet vertical structure;eddy seasonal cycle;coastal railway resilience",
+  "near_terms": [
+   {
+    "score": 0.9852,
+    "term": "tidal resonance"
+   },
+   {
+    "score": 0.9763,
+    "term": "silicic acid fluxes"
+   },
+   {
+    "score": 0.9758,
+    "term": "topographic steering"
+   },
+   {
+    "score": 0.9758,
+    "term": "eddy variability"
+   },
+   {
+    "score": 0.9758,
+    "term": "slope currents"
+   },
+   {
+    "score": 0.974,
+    "term": "wave overtopping"
+   },
+   {
+    "score": 0.9636,
+    "term": "sonar data quality"
+   },
+   {
+    "score": 0.9636,
+    "term": "mixed layer intensity"
+   },
+   {
+    "score": 0.9631,
+    "term": "marina flood risk"
+   },
+   {
+    "score": 0.9631,
+    "term": "swash zone roughness"
+   }
+  ],
+  "subfield_weights": [
+   {
+    "id": 1,
+    "weight": 0.5834
+   },
+   {
+    "id": 3,
+    "weight": 0.2712
+   },
+   {
+    "id": 4,
+    "weight": 0.0378
+   },
+   {
+    "id": 9,
+    "weight": 0.0294
+   },
+   {
+    "id": 8,
+    "weight": 0.0258
+   },
+   {
+    "id": 2,
+    "weight": 0.0172
+   },
+   {
+    "id": 6,
+    "weight": 0.017
+   },
+   {
+    "id": 7,
+    "weight": 0.0168
+   },
+   {
+    "id": 11,
+    "weight": 0.0015
+   }
+  ]
+ },
+ {
+  "concept_weights": [
+   {
+    "id": 148,
+    "weight": 0.0436
+   },
+   {
+    "id": 149,
+    "weight": 0.042
+   },
+   {
+    "id": 147,
+    "weight": 0.0408
+   },
+   {
+    "id": 146,
+    "weight": 0.0403
+   },
+   {
+    "id": 111,
+    "weight": 0.0355
+   },
+   {
+    "id": 84,
+    "weight": 0.0344
+   },
+   {
+    "id": 145,
+    "weight": 0.0286
+   },
+   {
+    "id": 137,
+    "weight": 0.0279
+   },
+   {
+    "id": 110,
+    "weight": 0.0263
+   },
+   {
+    "id": 141,
+    "weight": 0.0261
+   },
+   {
+    "id": 144,
+    "weight": 0.0239
+   },
+   {
+    "id": 112,
+    "weight": 0.0236
+   },
+   {
+    "id": 2,
+    "weight": 0.0219
+   },
+   {
+    "id": 136,
+    "weight": 0.0215
+   },
+   {
+    "id": 115,
+    "weight": 0.021
+   },
+   {
+    "id": 85,
+    "weight": 0.0207
+   },
+   {
+    "id": 86,
+    "weight": 0.0189
+   },
+   {
+    "id": 134,
+    "weight": 0.0186
+   },
+   {
+    "id": 138,
+    "weight": 0.0185
+   },
+   {
+    "id": 140,
+    "weight": 0.0185
+   },
+   {
+    "id": 133,
+    "weight": 0.0181
+   },
+   {
+    "id": 139,
+    "weight": 0.0173
+   },
+   {
+    "id": 40,
+    "weight": 0.0168
+   },
+   {
+    "id": 114,
+    "weight": 0.0162
+   },
+   {
+    "id": 142,
+    "weight": 0.016
+   },
+   {
+    "id": 119,
+    "weight": 0.0158
+   },
+   {
+    "id": 44,
+    "weight": 0.0149
+   },
+   {
+    "id": 135,
+    "weight": 0.0139
+   },
+   {
+    "id": 39,
+    "weight": 0.0138
+   },
+   {
+    "id": 42,
+    "weight": 0.0138
+   },
+   {
+    "id": 47,
+    "weight": 0.0135
+   },
+   {
+    "id": 38,
+    "weight": 0.0126
+   },
+   {
+    "id": 69,
+    "weight": 0.0126
+   },
+   {
+    "id": 46,
+    "weight": 0.0125
+   },
+   {
+    "id": 45,
+    "weight": 0.0122
+   },
+   {
+    "id": 29,
+    "weight": 0.0119
+   },
+   {
+    "id": 43,
+    "weight": 0.0114
+   },
+   {
+    "id": 143,
+    "weight": 0.0105
+   },
+   {
+    "id": 27,
+    "weight": 0.0091
+   },
+   {
+    "id": 48,
+    "weight": 0.0089
+   },
+   {
+    "id": 91,
+    "weight": 0.0088
+   },
+   {
+    "id": 28,
+    "weight": 0.0086
+   },
+   {
+    "id": 20,
+    "weight": 0.0077
+   },
+   {
+    "id": 16,
+    "weight": 0.0076
+   },
+   {
+    "id": 41,
+    "weight": 0.0076
+   },
+   {
+    "id": 113,
+    "weight": 0.0075
+   },
+   {
+    "id": 116,
+    "weight": 0.0074
+   },
+   {
+    "id": 17,
+    "weight": 0.0073
+   },
+   {
+    "id": 15,
+    "weight": 0.0068
+   },
+   {
+    "id": 25,
+    "weight": 0.0068
+   },
+   {
+    "id": 21,
+    "weight": 0.0064
+   },
+   {
+    "id": 105,
+    "weight": 0.0056
+   },
+   {
+    "id": 90,
+    "weight": 0.0053
+   },
+   {
+    "id": 24,
+    "weight": 0.005
+   },
+   {
+    "id": 129,
+    "weight": 0.005
+   },
+   {
+    "id": 26,
+    "weight": 0.0048
+   },
+   {
+    "id": 103,
+    "weight": 0.0048
+   },
+   {
+    "id": 82,
+    "weight": 0.0045
+   },
+   {
+    "id": 76,
+    "weight": 0.0038
+   },
+   {
+    "id": 92,
+    "weight": 0.0038
+   },
+   {
+    "id": 128,
+    "weight": 0.0035
+   },
+   {
+    "id": 36,
+    "weight": 0.0031
+   },
+   {
+    "id": 102,
+    "weight": 0.0031
+   },
+   {
+    "id": 33,
+    "weight": 0.0029
+   },
+   {
+    "id": 77,
+    "weight": 0.0029
+   },
+   {
+    "id": 131,
+    "weight": 0.0028
+   },
+   {
+    "id": 18,
+    "weight": 0.0027
+   },
+   {
+    "id": 60,
+    "weight": 0.0022
+   },
+   {
+    "id": 14,
+    "weight": 0.0021
+   },
+   {
+    "id": 56,
+    "weight": 0.0019
+   },
+   {
+    "id": 58,
+    "weight": 0.0019
+   },
+   {
+    "id": 89,
+    "weight": 0.0019
+   },
+   {
+    "id": 88,
+    "weight": 0.0018
+   },
+   {
+    "id": 78,
+    "weight": 0.0016
+   },
+   {
+    "id": 120,
+    "weight": 0.0016
+   },
+   {
+    "id": 12,
+    "weight": 0.0015
+   },
+   {
+    "id": 121,
+    "weight": 0.0015
+   },
+   {
+    "id": 122,
+    "weight": 0.0014
+   },
+   {
+    "id": 79,
+    "weight": 0.0012
+   },
+   {
+    "id": 83,
+    "weight": 0.0012
+   },
+   {
+    "id": 19,
+    "weight": 0.0011
+   },
+   {
+    "id": 132,
+    "weight": 0.0009
+   },
+   {
+    "id": 65,
+    "weight": 0.0008
+   },
+   {
+    "id": 123,
+    "weight": 0.0007
+   },
+   {
+    "id": 37,
+    "weight": 0.0006
+   },
+   {
+    "id": 66,
+    "weight": 0.0006
+   },
+   {
+    "id": 87,
+    "weight": 0.0006
+   },
+   {
+    "id": 32,
+    "weight": 0.0005
+   },
+   {
+    "id": 57,
+    "weight": 0.0005
+   },
+   {
+    "id": 80,
+    "weight": 0.0005
+   },
+   {
+    "id": 34,
+    "weight": 0.0004
+   },
+   {
+    "id": 8,
+    "weight": 0.0002
+   },
+   {
+    "id": 74,
+    "weight": 0.0002
+   },
+   {
+    "id": 0,
+    "weight": 0.0001
+   },
+   {
+    "id": 1,
+    "weight": 0.0
+   },
+   {
+    "id": 61,
+    "weight": 0.0
+   },
+   {
+    "id": 63,
+    "weight": 0.0
+   }
+  ],
+  "item": "pf2052b7aef",
+  "keyword_scores": [
+   2.187284409033676,
+   0.938312065436694,
+   0.8749137636134703,
+   0.8231135792997102,
+   0.7819267211972449,
+   0.469156032718347,
+   0.43745688180673514
+  ],
+  "keywords": "otter trawl selectivity;glyphosate toxicity;microplastic ingestion;sediment contamination;hake size structure;cuttlefish abundance;sardine growth",
+  "near_terms": [
+   {
+    "score": 0.9255,
+    "term": "otter trawl selectivity"
+   },
+   {
+    "score": 0.9255,
+    "term": "tuna growth"
+   },
+   {
+    "score": 0.8914,
+    "term": "coastal housing insurance"
+   },
+   {
+    "score": 0.8812,
+    "term": "sardine growth"
+   },
+   {
+    "score": 0.8565,
+    "term": "coastal village exposure"
+   },
+   {
+    "score": 0.8565,
+    "term": "atlantic salmon growth performance"
+   },
+   {
+    "score": 0.8565,
+    "term": "albacore abundance indices"
+   },
+   {
+    "score": 0.8565,
+    "term": "hake size structure"
+   },
+   {
+    "score": 0.8565,
+    "term": "blue mussel mortality"
+   },
+   {
+    "score": 0.8445,
+    "term": "longline catchability"
+   }
+  ],
+  "subfield_weights": [
+   {
+    "id": 9,
+    "weight": 0.46
+   },
+   {
+    "id": 10,
+    "weight": 0.25
+   },
+   {
+    "id": 2,
+    "weight": 0.1465
+   },
+   {
+    "id": 3,
+    "weight": 0.0508
+   },
+   {
+    "id": 4,
+    "weight": 0.0506
+   },
+   {
+    "id": 11,
+    "weight": 0.0201
+   },
+   {
+    "id": 5,
+    "weight": 0.0171
+   },
+   {
+    "id": 0,
+    "weight": 0.005
+   }
+  ]
+ }
+]

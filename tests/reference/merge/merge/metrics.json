@@ -1,0 +1,1222 @@
+{
+ "bridges": [
+  {
+   "a": "a:p600045bde2",
+   "b": "b:p76b1882c71",
+   "cosine": 0.6941,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:p476f1392b7",
+   "b": "b:p76b1882c71",
+   "cosine": 0.6608,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:p0bd60b5341",
+   "b": "b:p7fac96d8e8",
+   "cosine": 0.6039,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:pd49950db2e",
+   "b": "b:p38dc6b5bc8",
+   "cosine": 0.5496,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:p1d254376e4",
+   "b": "b:p7fac96d8e8",
+   "cosine": 0.4975,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:p1b7407135a",
+   "b": "b:pd4963f0c4f",
+   "cosine": 0.4701,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:p600045bde2",
+   "b": "b:p6d316c99cb",
+   "cosine": 0.3738,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:pe204ac5764",
+   "b": "b:p38dc6b5bc8",
+   "cosine": 0.3645,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:p64ef7d8bcb",
+   "b": "b:p76b1882c71",
+   "cosine": 0.3358,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:p64ef7d8bcb",
+   "b": "b:p7fac96d8e8",
+   "cosine": 0.3297,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:p768b2b9d1a",
+   "b": "b:pd4963f0c4f",
+   "cosine": 0.325,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:p8d2037a6c8",
+   "b": "b:p38dc6b5bc8",
+   "cosine": 0.325,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:p1024cb3851",
+   "b": "b:p7fac96d8e8",
+   "cosine": 0.3142,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:p8b5ea16451",
+   "b": "b:pd4963f0c4f",
+   "cosine": 0.3094,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:paa897d91b8",
+   "b": "b:p38dc6b5bc8",
+   "cosine": 0.3,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:p64ef7d8bcb",
+   "b": "b:pcc792bd7b9",
+   "cosine": 0.2992,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:p600045bde2",
+   "b": "b:p23199c3371",
+   "cosine": 0.296,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:pd6311dcf3c",
+   "b": "b:pd4963f0c4f",
+   "cosine": 0.2954,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:p9d99ad3759",
+   "b": "b:p028926e1ba",
+   "cosine": 0.2938,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  },
+  {
+   "a": "a:pe327f31153",
+   "b": "b:p3f0a53cd5a",
+   "cosine": 0.2928,
+   "domain_a": "a",
+   "domain_b": "b",
+   "threshold": 0.1551
+  }
+ ],
+ "conductance": [
+  [
+   0.0,
+   0.3195402298850575
+  ],
+  [
+   0.3195402298850575,
+   0.0
+  ]
+ ],
+ "domains": [
+  "a",
+  "b"
+ ],
+ "entropy_mean": 0.9112853152602793,
+ "entropy_z_mean": -8.929172845123382,
+ "explained_variance": 0.4834790189477345,
+ "gap": {
+  "a|b": {
+   "frac_continuum": 1.0,
+   "frac_gap": 0.0,
+   "median_ratio": 0.8143721303717131
+  },
+  "b|a": {
+   "frac_continuum": 1.0,
+   "frac_gap": 0.0,
+   "median_ratio": 0.8618607230404847
+  }
+ },
+ "integrity": [
+  {
+   "concept_id": 0,
+   "domain_id": "a",
+   "ratio": 0.9086606778043819
+  },
+  {
+   "concept_id": 1,
+   "domain_id": "a",
+   "ratio": 0.9585874290918354
+  },
+  {
+   "concept_id": 3,
+   "domain_id": "a",
+   "ratio": 0.9088052485565731
+  },
+  {
+   "concept_id": 4,
+   "domain_id": "a",
+   "ratio": 1.0915832541845956
+  },
+  {
+   "concept_id": 5,
+   "domain_id": "a",
+   "ratio": 1.087015552725974
+  },
+  {
+   "concept_id": 6,
+   "domain_id": "a",
+   "ratio": 0.9912206726662947
+  },
+  {
+   "concept_id": 7,
+   "domain_id": "a",
+   "ratio": 1.3153111131861268
+  },
+  {
+   "concept_id": 12,
+   "domain_id": "a",
+   "ratio": 0.7676542711044286
+  },
+  {
+   "concept_id": 13,
+   "domain_id": "a",
+   "ratio": 1.0003068583759889
+  },
+  {
+   "concept_id": 14,
+   "domain_id": "a",
+   "ratio": 0.9670311037747102
+  },
+  {
+   "concept_id": 16,
+   "domain_id": "a",
+   "ratio": 0.7199886308458012
+  },
+  {
+   "concept_id": 17,
+   "domain_id": "a",
+   "ratio": 0.879965319315368
+  },
+  {
+   "concept_id": 18,
+   "domain_id": "a",
+   "ratio": 0.9207760272072606
+  },
+  {
+   "concept_id": 19,
+   "domain_id": "a",
+   "ratio": 1.013172745211226
+  },
+  {
+   "concept_id": 20,
+   "domain_id": "a",
+   "ratio": 1.0198876622980764
+  },
+  {
+   "concept_id": 21,
+   "domain_id": "a",
+   "ratio": 0.96404506389403
+  },
+  {
+   "concept_id": 22,
+   "domain_id": "a",
+   "ratio": 1.078799089437269
+  },
+  {
+   "concept_id": 24,
+   "domain_id": "a",
+   "ratio": 0.9980216116647088
+  },
+  {
+   "concept_id": 25,
+   "domain_id": "a",
+   "ratio": 1.0245599806989474
+  },
+  {
+   "concept_id": 26,
+   "domain_id": "a",
+   "ratio": 0.5441162728184317
+  },
+  {
+   "concept_id": 27,
+   "domain_id": "a",
+   "ratio": 1.0001592568445956
+  },
+  {
+   "concept_id": 28,
+   "domain_id": "a",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 29,
+   "domain_id": "a",
+   "ratio": 1.049826174810109
+  },
+  {
+   "concept_id": 30,
+   "domain_id": "a",
+   "ratio": 0.9999802707069757
+  },
+  {
+   "concept_id": 32,
+   "domain_id": "a",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 33,
+   "domain_id": "a",
+   "ratio": 1.0072888309468477
+  },
+  {
+   "concept_id": 34,
+   "domain_id": "a",
+   "ratio": 1.217414131853529
+  },
+  {
+   "concept_id": 36,
+   "domain_id": "a",
+   "ratio": 0.9111402212859012
+  },
+  {
+   "concept_id": 37,
+   "domain_id": "a",
+   "ratio": 0.9527372989015641
+  },
+  {
+   "concept_id": 38,
+   "domain_id": "a",
+   "ratio": 1.0029039899268977
+  },
+  {
+   "concept_id": 39,
+   "domain_id": "a",
+   "ratio": 0.7964003709124048
+  },
+  {
+   "concept_id": 41,
+   "domain_id": "a",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 42,
+   "domain_id": "a",
+   "ratio": 0.9891891516172001
+  },
+  {
+   "concept_id": 44,
+   "domain_id": "a",
+   "ratio": 1.001104031853346
+  },
+  {
+   "concept_id": 45,
+   "domain_id": "a",
+   "ratio": 0.39704406986003465
+  },
+  {
+   "concept_id": 46,
+   "domain_id": "a",
+   "ratio": 1.0126367357639359
+  },
+  {
+   "concept_id": 49,
+   "domain_id": "a",
+   "ratio": 1.0000000000000004
+  },
+  {
+   "concept_id": 50,
+   "domain_id": "a",
+   "ratio": 0.9683918822668738
+  },
+  {
+   "concept_id": 52,
+   "domain_id": "a",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 53,
+   "domain_id": "a",
+   "ratio": 1.0000924517566974
+  },
+  {
+   "concept_id": 54,
+   "domain_id": "a",
+   "ratio": 1.007526717995778
+  },
+  {
+   "concept_id": 55,
+   "domain_id": "a",
+   "ratio": 1.1192434142047822
+  },
+  {
+   "concept_id": 57,
+   "domain_id": "a",
+   "ratio": 0.9910402798009824
+  },
+  {
+   "concept_id": 59,
+   "domain_id": "a",
+   "ratio": 0.9995438662564736
+  },
+  {
+   "concept_id": 62,
+   "domain_id": "a",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 63,
+   "domain_id": "a",
+   "ratio": 0.9743307131410682
+  },
+  {
+   "concept_id": 65,
+   "domain_id": "a",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 66,
+   "domain_id": "a",
+   "ratio": 1.088380679272078
+  },
+  {
+   "concept_id": 67,
+   "domain_id": "a",
+   "ratio": 1.0000000000000004
+  },
+  {
+   "concept_id": 68,
+   "domain_id": "a",
+   "ratio": 1.1010742794975632
+  },
+  {
+   "concept_id": 70,
+   "domain_id": "a",
+   "ratio": 1.0000000000000002
+  },
+  {
+   "concept_id": 72,
+   "domain_id": "a",
+   "ratio": 1.0303465602893838
+  },
+  {
+   "concept_id": 73,
+   "domain_id": "a",
+   "ratio": 1.0661275430935047
+  },
+  {
+   "concept_id": 74,
+   "domain_id": "a",
+   "ratio": 1.0000000001220273
+  },
+  {
+   "concept_id": 76,
+   "domain_id": "a",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 81,
+   "domain_id": "a",
+   "ratio": 1.0000022498410719
+  },
+  {
+   "concept_id": 82,
+   "domain_id": "a",
+   "ratio": 1.0000000000000002
+  },
+  {
+   "concept_id": 87,
+   "domain_id": "a",
+   "ratio": 1.0014815329775322
+  },
+  {
+   "concept_id": 88,
+   "domain_id": "a",
+   "ratio": 1.0017945231751682
+  },
+  {
+   "concept_id": 89,
+   "domain_id": "a",
+   "ratio": 1.0000388743207418
+  },
+  {
+   "concept_id": 90,
+   "domain_id": "a",
+   "ratio": 1.000079365514479
+  },
+  {
+   "concept_id": 93,
+   "domain_id": "a",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 95,
+   "domain_id": "a",
+   "ratio": 1.0001280658687075
+  },
+  {
+   "concept_id": 96,
+   "domain_id": "a",
+   "ratio": 1.0064045953228513
+  },
+  {
+   "concept_id": 98,
+   "domain_id": "a",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 99,
+   "domain_id": "a",
+   "ratio": 1.0000035461471555
+  },
+  {
+   "concept_id": 102,
+   "domain_id": "a",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 104,
+   "domain_id": "a",
+   "ratio": 1.0005666424870971
+  },
+  {
+   "concept_id": 105,
+   "domain_id": "a",
+   "ratio": 0.7745518831436411
+  },
+  {
+   "concept_id": 106,
+   "domain_id": "a",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 107,
+   "domain_id": "a",
+   "ratio": 0.9040698948244676
+  },
+  {
+   "concept_id": 108,
+   "domain_id": "a",
+   "ratio": 1.0000344550172227
+  },
+  {
+   "concept_id": 109,
+   "domain_id": "a",
+   "ratio": 1.0000416329162511
+  },
+  {
+   "concept_id": 112,
+   "domain_id": "a",
+   "ratio": 0.9999999999999998
+  },
+  {
+   "concept_id": 116,
+   "domain_id": "a",
+   "ratio": 0.9879486608703593
+  },
+  {
+   "concept_id": 117,
+   "domain_id": "a",
+   "ratio": 1.0002001654349286
+  },
+  {
+   "concept_id": 120,
+   "domain_id": "a",
+   "ratio": 0.8379300329207233
+  },
+  {
+   "concept_id": 121,
+   "domain_id": "a",
+   "ratio": 0.7021952391936596
+  },
+  {
+   "concept_id": 122,
+   "domain_id": "a",
+   "ratio": 1.5684862779337907
+  },
+  {
+   "concept_id": 124,
+   "domain_id": "a",
+   "ratio": 0.9373248610629765
+  },
+  {
+   "concept_id": 125,
+   "domain_id": "a",
+   "ratio": 0.7735220470161469
+  },
+  {
+   "concept_id": 128,
+   "domain_id": "a",
+   "ratio": 0.9313098762179044
+  },
+  {
+   "concept_id": 129,
+   "domain_id": "a",
+   "ratio": 1.0238209751944567
+  },
+  {
+   "concept_id": 130,
+   "domain_id": "a",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 133,
+   "domain_id": "a",
+   "ratio": 0.9999883736659216
+  },
+  {
+   "concept_id": 134,
+   "domain_id": "a",
+   "ratio": 1.0000000000000002
+  },
+  {
+   "concept_id": 137,
+   "domain_id": "a",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 138,
+   "domain_id": "a",
+   "ratio": 1.0668406774076238
+  },
+  {
+   "concept_id": 139,
+   "domain_id": "a",
+   "ratio": 1.0008251353435313
+  },
+  {
+   "concept_id": 140,
+   "domain_id": "a",
+   "ratio": 0.8865705232929599
+  },
+  {
+   "concept_id": 143,
+   "domain_id": "a",
+   "ratio": 1.2786678366450064
+  },
+  {
+   "concept_id": 144,
+   "domain_id": "a",
+   "ratio": 0.9522728619356347
+  },
+  {
+   "concept_id": 146,
+   "domain_id": "a",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 147,
+   "domain_id": "a",
+   "ratio": 0.9998532546234336
+  },
+  {
+   "concept_id": 148,
+   "domain_id": "a",
+   "ratio": 0.9999736769810263
+  },
+  {
+   "concept_id": 0,
+   "domain_id": "b",
+   "ratio": 1.082534649310172
+  },
+  {
+   "concept_id": 1,
+   "domain_id": "b",
+   "ratio": 1.002238915704405
+  },
+  {
+   "concept_id": 3,
+   "domain_id": "b",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 4,
+   "domain_id": "b",
+   "ratio": 1.0057950392254622
+  },
+  {
+   "concept_id": 6,
+   "domain_id": "b",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 7,
+   "domain_id": "b",
+   "ratio": 0.9471531830557047
+  },
+  {
+   "concept_id": 8,
+   "domain_id": "b",
+   "ratio": 0.8907029090043104
+  },
+  {
+   "concept_id": 9,
+   "domain_id": "b",
+   "ratio": 1.0000165459151378
+  },
+  {
+   "concept_id": 10,
+   "domain_id": "b",
+   "ratio": 0.9333990553932962
+  },
+  {
+   "concept_id": 11,
+   "domain_id": "b",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 12,
+   "domain_id": "b",
+   "ratio": 0.9685106435712187
+  },
+  {
+   "concept_id": 13,
+   "domain_id": "b",
+   "ratio": 1.0445989562310725
+  },
+  {
+   "concept_id": 15,
+   "domain_id": "b",
+   "ratio": 1.0030513108108408
+  },
+  {
+   "concept_id": 16,
+   "domain_id": "b",
+   "ratio": 1.034964019167396
+  },
+  {
+   "concept_id": 18,
+   "domain_id": "b",
+   "ratio": 1.020225348910414
+  },
+  {
+   "concept_id": 21,
+   "domain_id": "b",
+   "ratio": 1.0000000000000004
+  },
+  {
+   "concept_id": 23,
+   "domain_id": "b",
+   "ratio": 0.9974140154873455
+  },
+  {
+   "concept_id": 25,
+   "domain_id": "b",
+   "ratio": 1.02242930838316
+  },
+  {
+   "concept_id": 26,
+   "domain_id": "b",
+   "ratio": 0.5903503816525858
+  },
+  {
+   "concept_id": 29,
+   "domain_id": "b",
+   "ratio": 0.9999999939912418
+  },
+  {
+   "concept_id": 30,
+   "domain_id": "b",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 31,
+   "domain_id": "b",
+   "ratio": 0.9999999999999997
+  },
+  {
+   "concept_id": 32,
+   "domain_id": "b",
+   "ratio": 0.9687389789931595
+  },
+  {
+   "concept_id": 33,
+   "domain_id": "b",
+   "ratio": 1.0000000000000004
+  },
+  {
+   "concept_id": 34,
+   "domain_id": "b",
+   "ratio": 1.0546568213939977
+  },
+  {
+   "concept_id": 35,
+   "domain_id": "b",
+   "ratio": 0.8694497174531716
+  },
+  {
+   "concept_id": 36,
+   "domain_id": "b",
+   "ratio": 1.0912412236271674
+  },
+  {
+   "concept_id": 37,
+   "domain_id": "b",
+   "ratio": 1.0012299810172356
+  },
+  {
+   "concept_id": 38,
+   "domain_id": "b",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 39,
+   "domain_id": "b",
+   "ratio": 0.918774029772606
+  },
+  {
+   "concept_id": 40,
+   "domain_id": "b",
+   "ratio": 0.9999999999999996
+  },
+  {
+   "concept_id": 42,
+   "domain_id": "b",
+   "ratio": 0.9978660054565266
+  },
+  {
+   "concept_id": 44,
+   "domain_id": "b",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 45,
+   "domain_id": "b",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 46,
+   "domain_id": "b",
+   "ratio": 0.87166085933258
+  },
+  {
+   "concept_id": 47,
+   "domain_id": "b",
+   "ratio": 0.8542400952525514
+  },
+  {
+   "concept_id": 48,
+   "domain_id": "b",
+   "ratio": 0.893355733658677
+  },
+  {
+   "concept_id": 49,
+   "domain_id": "b",
+   "ratio": 1.0190228265577055
+  },
+  {
+   "concept_id": 50,
+   "domain_id": "b",
+   "ratio": 0.6811135961924452
+  },
+  {
+   "concept_id": 51,
+   "domain_id": "b",
+   "ratio": 0.8947470737815095
+  },
+  {
+   "concept_id": 52,
+   "domain_id": "b",
+   "ratio": 1.0512276900269528
+  },
+  {
+   "concept_id": 53,
+   "domain_id": "b",
+   "ratio": 0.6982503571756655
+  },
+  {
+   "concept_id": 54,
+   "domain_id": "b",
+   "ratio": 0.9999999999999991
+  },
+  {
+   "concept_id": 56,
+   "domain_id": "b",
+   "ratio": 0.7176080518352065
+  },
+  {
+   "concept_id": 57,
+   "domain_id": "b",
+   "ratio": 1.0009615328342147
+  },
+  {
+   "concept_id": 58,
+   "domain_id": "b",
+   "ratio": 0.9449572314070458
+  },
+  {
+   "concept_id": 59,
+   "domain_id": "b",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 60,
+   "domain_id": "b",
+   "ratio": 1.0005897814527986
+  },
+  {
+   "concept_id": 61,
+   "domain_id": "b",
+   "ratio": 0.8169515045704085
+  },
+  {
+   "concept_id": 62,
+   "domain_id": "b",
+   "ratio": 1.0000000000000002
+  },
+  {
+   "concept_id": 63,
+   "domain_id": "b",
+   "ratio": 1.048521271511867
+  },
+  {
+   "concept_id": 66,
+   "domain_id": "b",
+   "ratio": 0.8242537308854078
+  },
+  {
+   "concept_id": 69,
+   "domain_id": "b",
+   "ratio": 1.0050762252490508
+  },
+  {
+   "concept_id": 70,
+   "domain_id": "b",
+   "ratio": 1.0248855840976538
+  },
+  {
+   "concept_id": 72,
+   "domain_id": "b",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 74,
+   "domain_id": "b",
+   "ratio": 0.9999999999999997
+  },
+  {
+   "concept_id": 75,
+   "domain_id": "b",
+   "ratio": 1.0050113998992187
+  },
+  {
+   "concept_id": 76,
+   "domain_id": "b",
+   "ratio": 1.0002423934607614
+  },
+  {
+   "concept_id": 79,
+   "domain_id": "b",
+   "ratio": 1.0000128338286847
+  },
+  {
+   "concept_id": 80,
+   "domain_id": "b",
+   "ratio": 1.007352779750254
+  },
+  {
+   "concept_id": 81,
+   "domain_id": "b",
+   "ratio": 0.7660918338422907
+  },
+  {
+   "concept_id": 82,
+   "domain_id": "b",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 83,
+   "domain_id": "b",
+   "ratio": 1.0000685897361334
+  },
+  {
+   "concept_id": 84,
+   "domain_id": "b",
+   "ratio": 0.7679670611182178
+  },
+  {
+   "concept_id": 86,
+   "domain_id": "b",
+   "ratio": 0.8635910107046632
+  },
+  {
+   "concept_id": 88,
+   "domain_id": "b",
+   "ratio": 1.000006034680525
+  },
+  {
+   "concept_id": 89,
+   "domain_id": "b",
+   "ratio": 1.0000054527540443
+  },
+  {
+   "concept_id": 93,
+   "domain_id": "b",
+   "ratio": 1.0005983171009922
+  },
+  {
+   "concept_id": 99,
+   "domain_id": "b",
+   "ratio": 0.8493539019428693
+  },
+  {
+   "concept_id": 100,
+   "domain_id": "b",
+   "ratio": 0.8812170681188433
+  },
+  {
+   "concept_id": 105,
+   "domain_id": "b",
+   "ratio": 0.8399642847379228
+  },
+  {
+   "concept_id": 106,
+   "domain_id": "b",
+   "ratio": 0.8554999040118832
+  },
+  {
+   "concept_id": 108,
+   "domain_id": "b",
+   "ratio": 0.9999330270225733
+  },
+  {
+   "concept_id": 111,
+   "domain_id": "b",
+   "ratio": 0.6500535015137425
+  },
+  {
+   "concept_id": 112,
+   "domain_id": "b",
+   "ratio": 1.0806622937396084
+  },
+  {
+   "concept_id": 114,
+   "domain_id": "b",
+   "ratio": 0.794835359114906
+  },
+  {
+   "concept_id": 115,
+   "domain_id": "b",
+   "ratio": 1.0000314704248325
+  },
+  {
+   "concept_id": 116,
+   "domain_id": "b",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 117,
+   "domain_id": "b",
+   "ratio": 0.9522907544062287
+  },
+  {
+   "concept_id": 118,
+   "domain_id": "b",
+   "ratio": 1.0661383802125617
+  },
+  {
+   "concept_id": 119,
+   "domain_id": "b",
+   "ratio": 1.004393223993092
+  },
+  {
+   "concept_id": 120,
+   "domain_id": "b",
+   "ratio": 1.116719982850314
+  },
+  {
+   "concept_id": 122,
+   "domain_id": "b",
+   "ratio": 0.9999999999999993
+  },
+  {
+   "concept_id": 123,
+   "domain_id": "b",
+   "ratio": 0.9659336887631763
+  },
+  {
+   "concept_id": 124,
+   "domain_id": "b",
+   "ratio": 1.0000343632162927
+  },
+  {
+   "concept_id": 125,
+   "domain_id": "b",
+   "ratio": 0.7955364077669496
+  },
+  {
+   "concept_id": 126,
+   "domain_id": "b",
+   "ratio": 0.7842624892432863
+  },
+  {
+   "concept_id": 127,
+   "domain_id": "b",
+   "ratio": 0.9920095384035489
+  },
+  {
+   "concept_id": 129,
+   "domain_id": "b",
+   "ratio": 0.48738656258827034
+  },
+  {
+   "concept_id": 130,
+   "domain_id": "b",
+   "ratio": 1.0287512403139523
+  },
+  {
+   "concept_id": 131,
+   "domain_id": "b",
+   "ratio": 1.0937789799410305
+  },
+  {
+   "concept_id": 133,
+   "domain_id": "b",
+   "ratio": 0.9876108905887097
+  },
+  {
+   "concept_id": 134,
+   "domain_id": "b",
+   "ratio": 0.9999999999999999
+  },
+  {
+   "concept_id": 135,
+   "domain_id": "b",
+   "ratio": 1.000051463795317
+  },
+  {
+   "concept_id": 136,
+   "domain_id": "b",
+   "ratio": 0.8455570375305309
+  },
+  {
+   "concept_id": 137,
+   "domain_id": "b",
+   "ratio": 0.8866432576444945
+  },
+  {
+   "concept_id": 141,
+   "domain_id": "b",
+   "ratio": 0.8226467650433271
+  },
+  {
+   "concept_id": 142,
+   "domain_id": "b",
+   "ratio": 1.002896985009031
+  },
+  {
+   "concept_id": 143,
+   "domain_id": "b",
+   "ratio": 0.8359459552681479
+  },
+  {
+   "concept_id": 144,
+   "domain_id": "b",
+   "ratio": 1.0
+  },
+  {
+   "concept_id": 147,
+   "domain_id": "b",
+   "ratio": 0.8969103180915657
+  },
+  {
+   "concept_id": 148,
+   "domain_id": "b",
+   "ratio": 1.0044458990965601
+  }
+ ],
+ "mean_pairwise_cosine_anchors": 0.08129340095926031,
+ "mixing": [
+  [
+   0.6350877192982455,
+   0.3649122807017544
+  ],
+  [
+   0.31111111111111117,
+   0.6888888888888892
+  ]
+ ],
+ "mixing_z": [
+  [
+   5.099029938506763,
+   -5.099029938506757
+  ],
+  [
+   -6.566673950156634,
+   6.56667395015665
+  ]
+ ],
+ "n_fit_rows": 77,
+ "procrustes_residual": 0.8753254326340669,
+ "restricted_knn_overlap": {
+  "a": 0.6342105263157894,
+  "b": 0.694871794871795
+ },
+ "same_group_auc": null,
+ "shared_vocab_mass": [
+  [
+   1.0,
+   0.10735537284700844
+  ],
+  [
+   0.10735537284700844,
+   1.0
+  ]
+ ],
+ "unmapped_terms": {},
+ "weak_link_ratio": {
+  "a|b": 1.5335926608528032
+ }
+}

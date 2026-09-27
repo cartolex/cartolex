@@ -1,0 +1,411 @@
+{
+ "about": "Keys of the AI answer caches. Existing workspaces store paid answers under these keys: they must never change. Generated once from the released engine; never regenerate this file to make a test pass.",
+ "batch_keys": [
+  {
+   "phase": "typed_v2",
+   "terms": [
+    "phase transition",
+    "soft matter",
+    "active matter"
+   ],
+   "domain": "12 — Coastal and marine systems",
+   "model": "mistral-small-latest",
+   "key": "058b5885702b77070ef00144b9d8abc78a4a89de1b9b4adf5366eedc850604bb"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [
+    "phase transition",
+    "soft matter",
+    "active matter"
+   ],
+   "domain": "Synthetic field",
+   "model": "mistral-medium-latest",
+   "key": "5c92054ba00cb9ab8f478321e78e6817880e27ca0fa99ac886915184d9854855"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [
+    "phase transition",
+    "soft matter",
+    "active matter"
+   ],
+   "domain": "",
+   "model": "mistral-large-2411",
+   "key": "48ee2bb06511891d04242bfea003a4a12ba828c207998e7fa4776e6a489f13fc"
+  },
+  {
+   "phase": "typed_v2",
+   "terms": [
+    "phase transition",
+    "soft matter",
+    "active matter"
+   ],
+   "domain": "Physique de la matière condensée",
+   "model": "open-mistral-nemo",
+   "key": "da8ae802a00d04c42e37fa1cdc803e0a4bbff15457fd7124ac7f3172bf001f03"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [
+    "matière molle",
+    "écoulement diphasique",
+    "Soft Matter",
+    "soft matter"
+   ],
+   "domain": "Synthetic field",
+   "model": "mistral-small-latest",
+   "key": "436672b0498b86a27a3dd450cf04c02643d1da2a52643dfb1220437ee41088a3"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [
+    "matière molle",
+    "écoulement diphasique",
+    "Soft Matter",
+    "soft matter"
+   ],
+   "domain": "",
+   "model": "mistral-medium-latest",
+   "key": "fac520578a240f71d40bb243a75f21ec46854e2d7aadc15300016573af36c988"
+  },
+  {
+   "phase": "typed_v2",
+   "terms": [
+    "matière molle",
+    "écoulement diphasique",
+    "Soft Matter",
+    "soft matter"
+   ],
+   "domain": "Physique de la matière condensée",
+   "model": "mistral-large-2411",
+   "key": "51c51cfde6be99250a438de72b17cd09ee9a4e63a803de9ad44c6f48b3075b37"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [
+    "matière molle",
+    "écoulement diphasique",
+    "Soft Matter",
+    "soft matter"
+   ],
+   "domain": "04 — Atoms, molecules & light",
+   "model": "open-mistral-nemo",
+   "key": "3b3dd2904a6134cf62c4880197380ca87ac7dd4b65875b78013fe6e8395b00b1"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [
+    "  soft  matter ",
+    "x-ray diffraction",
+    "l'eau de mer",
+    "field survey (ed.)",
+    "c++ compilers",
+    "semi-conducteurs; dopage"
+   ],
+   "domain": "",
+   "model": "mistral-small-latest",
+   "key": "ceca72d4e8b640b6834c52a87b0a6d60684648271a338736911c7e8f1b089373"
+  },
+  {
+   "phase": "typed_v2",
+   "terms": [
+    "  soft  matter ",
+    "x-ray diffraction",
+    "l'eau de mer",
+    "field survey (ed.)",
+    "c++ compilers",
+    "semi-conducteurs; dopage"
+   ],
+   "domain": "Physique de la matière condensée",
+   "model": "mistral-medium-latest",
+   "key": "a5e8ea4f5fc6e04ada234f005dbdc3edf83443cfc5f3b33159f87258f7bf4662"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [
+    "  soft  matter ",
+    "x-ray diffraction",
+    "l'eau de mer",
+    "field survey (ed.)",
+    "c++ compilers",
+    "semi-conducteurs; dopage"
+   ],
+   "domain": "04 — Atoms, molecules & light",
+   "model": "mistral-large-2411",
+   "key": "db743faac98b62c1fad8e0f338a4805a8ebe24af1f013945173a4eeaa414ee39"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [
+    "  soft  matter ",
+    "x-ray diffraction",
+    "l'eau de mer",
+    "field survey (ed.)",
+    "c++ compilers",
+    "semi-conducteurs; dopage"
+   ],
+   "domain": "12 — Coastal and marine systems",
+   "model": "open-mistral-nemo",
+   "key": "d66d7a0999abe7e830b5d1843c4b21b448554ad6c922a145f541ee3b1a1c169d"
+  },
+  {
+   "phase": "typed_v2",
+   "terms": [
+    "écoulement",
+    "écoulement"
+   ],
+   "domain": "Physique de la matière condensée",
+   "model": "mistral-small-latest",
+   "key": "da3197a02e204aec6b48fccee38a205be4e01f8c3549923ecf230e3c41adc646"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [
+    "écoulement",
+    "écoulement"
+   ],
+   "domain": "04 — Atoms, molecules & light",
+   "model": "mistral-medium-latest",
+   "key": "e4504dbbb5fbdf0e3a71849c82c1403c2ebe2deefb92d1a94bc0ccf9e1ab528c"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [
+    "écoulement",
+    "écoulement"
+   ],
+   "domain": "12 — Coastal and marine systems",
+   "model": "mistral-large-2411",
+   "key": "9576c8b70c846dbdb43598042f31651fb06d72c81caae2a94d088d75d6d34a9b"
+  },
+  {
+   "phase": "typed_v2",
+   "terms": [
+    "écoulement",
+    "écoulement"
+   ],
+   "domain": "Synthetic field",
+   "model": "open-mistral-nemo",
+   "key": "d513d275f20f547c8d128711e1cfdb3721c2e8ead4c290acf71d52f8f0c3ad49"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [],
+   "domain": "04 — Atoms, molecules & light",
+   "model": "mistral-small-latest",
+   "key": "8c53a082528f5df4c1b45106021e74c958c33ff39fc7b42c9a4c8741ac0f90ab"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [],
+   "domain": "12 — Coastal and marine systems",
+   "model": "mistral-medium-latest",
+   "key": "21035cb6273efad46edb8099873ebc0429cd7451fb35140339521c6a66b94fdd"
+  },
+  {
+   "phase": "typed_v2",
+   "terms": [],
+   "domain": "Synthetic field",
+   "model": "mistral-large-2411",
+   "key": "6bc13ed809dc604cbf19ffc50ea911b9d0df05a7408a6e7d437b026b27de867a"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [],
+   "domain": "",
+   "model": "open-mistral-nemo",
+   "key": "149eb3d54557eb70dd214c03632dc1b65d1b1469487f24a859a53687804521e3"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [
+    "soft matter",
+    "soft matter"
+   ],
+   "domain": "12 — Coastal and marine systems",
+   "model": "mistral-small-latest",
+   "key": "677d73b2459323c5bc87afd9c38600e48f89bd9be5d4d4102ae67ebf5104094e"
+  },
+  {
+   "phase": "typed_v2",
+   "terms": [
+    "soft matter",
+    "soft matter"
+   ],
+   "domain": "Synthetic field",
+   "model": "mistral-medium-latest",
+   "key": "b7c08962021047a9ba4d3fba9b2ed23bafdf430ea01c2231908c63216726ffe1"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [
+    "soft matter",
+    "soft matter"
+   ],
+   "domain": "",
+   "model": "mistral-large-2411",
+   "key": "5b922b3b477cbac1af6d41f856e8c25e3359858e65d76f02e685eecd4a806807"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [
+    "soft matter",
+    "soft matter"
+   ],
+   "domain": "Physique de la matière condensée",
+   "model": "open-mistral-nemo",
+   "key": "582832fd953a68577e76dfb77887fa90c90f7f56d1ba882e6522e6e6f8cda097"
+  },
+  {
+   "phase": "typed_v2",
+   "terms": [
+    "Zeta",
+    "alpha",
+    "Émile",
+    "émile",
+    "ÉMILE"
+   ],
+   "domain": "Synthetic field",
+   "model": "mistral-small-latest",
+   "key": "4f9f38facf223d5199eb0596a8cc746ce0ce968670fde7f4358dd9ddace70bdb"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [
+    "Zeta",
+    "alpha",
+    "Émile",
+    "émile",
+    "ÉMILE"
+   ],
+   "domain": "",
+   "model": "mistral-medium-latest",
+   "key": "d5b748c317f971a566aa0ff272e376cf633ae641be6234bd69150ab583eb0fc3"
+  },
+  {
+   "phase": "typed_v3",
+   "terms": [
+    "Zeta",
+    "alpha",
+    "Émile",
+    "émile",
+    "ÉMILE"
+   ],
+   "domain": "Physique de la matière condensée",
+   "model": "mistral-large-2411",
+   "key": "718f1232c253793f9394164d7371a38df00e7b3909d6288ed27f94d3ac16aa58"
+  },
+  {
+   "phase": "typed_v2",
+   "terms": [
+    "Zeta",
+    "alpha",
+    "Émile",
+    "émile",
+    "ÉMILE"
+   ],
+   "domain": "04 — Atoms, molecules & light",
+   "model": "open-mistral-nemo",
+   "key": "0f6b6e3b4184ad7ca5f6b3cf0d54284531657752822e3e80106790dafac22326"
+  }
+ ],
+ "term_keys": [
+  {
+   "phase": "typed_v3",
+   "term": "phase transition",
+   "domain": "12 — Coastal and marine systems",
+   "model": "mistral-small-latest",
+   "key": "typed_v3:mistral-small-latest:12 — Coastal and marine systems:phase transition"
+  },
+  {
+   "phase": "typed_v3",
+   "term": "matière molle",
+   "domain": "Synthetic field",
+   "model": "mistral-medium-latest",
+   "key": "typed_v3:mistral-medium-latest:Synthetic field:matière molle"
+  },
+  {
+   "phase": "typed_v3",
+   "term": "Soft Matter",
+   "domain": "",
+   "model": "mistral-large-2411",
+   "key": "typed_v3:mistral-large-2411::Soft Matter"
+  },
+  {
+   "phase": "typed_v3",
+   "term": "  soft  matter ",
+   "domain": "Physique de la matière condensée",
+   "model": "open-mistral-nemo",
+   "key": "typed_v3:open-mistral-nemo:Physique de la matière condensée:  soft  matter "
+  },
+  {
+   "phase": "typed_v3",
+   "term": "x-ray diffraction",
+   "domain": "04 — Atoms, molecules & light",
+   "model": "mistral-small-latest",
+   "key": "typed_v3:mistral-small-latest:04 — Atoms, molecules & light:x-ray diffraction"
+  },
+  {
+   "phase": "typed_v3",
+   "term": "l'eau de mer",
+   "domain": "12 — Coastal and marine systems",
+   "model": "mistral-medium-latest",
+   "key": "typed_v3:mistral-medium-latest:12 — Coastal and marine systems:l'eau de mer"
+  },
+  {
+   "phase": "typed_v3",
+   "term": "field survey (ed.)",
+   "domain": "Synthetic field",
+   "model": "mistral-large-2411",
+   "key": "typed_v3:mistral-large-2411:Synthetic field:field survey (ed.)"
+  },
+  {
+   "phase": "typed_v3",
+   "term": "écoulement",
+   "domain": "",
+   "model": "open-mistral-nemo",
+   "key": "typed_v3:open-mistral-nemo::écoulement"
+  },
+  {
+   "phase": "typed_v3",
+   "term": "écoulement",
+   "domain": "Physique de la matière condensée",
+   "model": "mistral-small-latest",
+   "key": "typed_v3:mistral-small-latest:Physique de la matière condensée:écoulement"
+  },
+  {
+   "phase": "typed_v3",
+   "term": "a:b:c",
+   "domain": "04 — Atoms, molecules & light",
+   "model": "mistral-medium-latest",
+   "key": "typed_v3:mistral-medium-latest:04 — Atoms, molecules & light:a:b:c"
+  },
+  {
+   "phase": "typed_v3",
+   "term": "",
+   "domain": "12 — Coastal and marine systems",
+   "model": "mistral-large-2411",
+   "key": "typed_v3:mistral-large-2411:12 — Coastal and marine systems:"
+  }
+ ],
+ "triage_sample": {
+  "terms": [
+   "phase transition",
+   "soft matter",
+   "écoulement diphasique",
+   "x-ray diffraction"
+  ],
+  "domain": "12 — Coastal and marine systems",
+  "model": "mistral-small-latest",
+  "batch_keys": [
+   "5875729c5fc4c514c2eb7df5f4463ee2976b45e7b38f88588fde74b8aad80f07"
+  ],
+  "term_keys": [
+   "typed_v3:mistral-small-latest:12 — Coastal and marine systems:phase transition",
+   "typed_v3:mistral-small-latest:12 — Coastal and marine systems:soft matter",
+   "typed_v3:mistral-small-latest:12 — Coastal and marine systems:x-ray diffraction",
+   "typed_v3:mistral-small-latest:12 — Coastal and marine systems:écoulement diphasique"
+  ]
+ }
+}

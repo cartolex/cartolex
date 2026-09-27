@@ -1,0 +1,14 @@
+{
+ "corona": true,
+ "k": 15,
+ "layout_engine": "umap",
+ "mixing_index": 0.06703463508830713,
+ "n_points": 508,
+ "n_researchers": 38,
+ "n_terms": 470,
+ "quality_score": 0.20795213997946538,
+ "radial_ratio": 1.694615682326419,
+ "researcher_neighbours_of_terms": 0.002127659574468085,
+ "term_neighbours_of_researchers": 0.5052631578947369,
+ "trustworthiness": 0.8355331872175772
+}

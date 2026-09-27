@@ -1,0 +1,12 @@
+{
+ "ss::carbonat sand grain siz::a::b": "merge",
+ "ss::coastal barrier evolution::a::b": "split",
+ "ss::coastal peat chronology::a::b": "merge",
+ "ss::eddy dynamic::a::b": "split",
+ "ss::eddy persistenc::a::b": "merge",
+ "ss::eddy seasonal cycl::a::b": "split",
+ "ss::front intensity::a::b": "merge",
+ "ss::radar backscatter::a::b": "split",
+ "ss::sea surfac salinity::a::b": "merge",
+ "ss::shellfish aquacultur::a::b": "split"
+}

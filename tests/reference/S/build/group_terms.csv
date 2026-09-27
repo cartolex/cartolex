@@ -1,0 +1,301 @@
+group,term,score,n_tokens,lang
+g387ea29293,abrupt climate events,0.500179856446674,3,en
+g387ea29293,appendicularian respiration,0.2735090912351973,2,en
+g387ea29293,chironomid preservation,0.2708955466058297,2,en
+g387ea29293,chironomid stable isotopes,0.2542602345099995,3,en
+g387ea29293,coastal barrier evolution,0.2847660143744857,3,en
+g387ea29293,coastal dune sequence stratigraphy,0.4420747214580057,4,en
+g387ea29293,coastal peat chronology,0.5246810018727324,3,en
+g387ea29293,coastal peat records,0.2361579527121188,3,en
+g387ea29293,deep-sea core stratigraphy,0.2717203131392392,3,en
+g387ea29293,diatom frustule abundance changes,0.5996991367362814,4,en
+g387ea29293,diatom frustule preservation,0.5842737713098416,3,en
+g387ea29293,diatom frustule stable isotopes,1.3179930193857692,4,en
+g387ea29293,dinoflagellate cysts,0.1574920821737865,2,en
+g387ea29293,dust deposition reconstruction,0.4347527637514742,3,en
+g387ea29293,enso variability,0.6073334904695339,2,en
+g387ea29293,estuarine core stratigraphy,0.6116629966360667,3,en
+g387ea29293,foraminifera palaeoecology,0.2141651318822895,2,en
+g387ea29293,foraminifera records,0.3793124523633774,2,en
+g387ea29293,foraminiferal ooze chronology,0.2866380461285442,3,en
+g387ea29293,foraminiferal ooze palaeoecology,0.3470612503367745,3,en
+g387ea29293,fossil beach stratigraphy,0.2825838444386316,3,en
+g387ea29293,fossil reef palaeoecology,0.2625095690271141,3,en
+g387ea29293,glacial runoff trends,0.5712352401227148,3,en
+g387ea29293,gulf heat budget,0.4243233755818787,3,en
+g387ea29293,internal wave persistence,0.626396112800971,3,en
+g387ea29293,lagoon sediment chronology,0.5712898751199502,3,en
+g387ea29293,lagoon sediment palaeoecology,0.2986053481145018,3,en
+g387ea29293,lagoon sediment records,0.7817789494717946,3,en
+g387ea29293,lipid biomarkers,0.1803458709887125,2,en
+g387ea29293,midden palaeoecology,0.2362381232606798,2,en
+g387ea29293,mollusc shell records,0.3005764516478542,3,en
+g387ea29293,monsoon intensity variability,1.6312126559845304,3,en
+g387ea29293,ocean oxygenation trends,0.3710199489208624,3,en
+g387ea29293,organic matter remineralisation,0.282143867287226,3,en
+g387ea29293,ostracod stable isotopes,0.2653884571836853,3,en
+g387ea29293,paleostorm records,0.2167720574669191,2,en
+g387ea29293,planktonic foraminifera,0.5125913981656618,2,en
+g387ea29293,pteropod abundance,0.1692863203723356,2,en
+g387ea29293,salt marsh core records,0.4208070323069958,4,en
+g387ea29293,sea ice extent trends,0.8207025218451832,4,en
+g387ea29293,sediment drift records,0.3660813288935242,3,en
+g387ea29293,sediment flux trends,0.6562170090574442,3,en
+g387ea29293,shell middens,0.3619711521028767,2,en
+g387ea29293,skeletonema seasonal succession,0.282143867287226,3,en
+g387ea29293,submerged forest records,0.7220946946693529,3,en
+g387ea29293,submerged landscapes,0.2876361530918573,2,en
+g387ea29293,tephra layer records,0.4881084385246989,3,en
+g387ea29293,testate amoeba transfer functions,0.3697242018483767,4,en
+g387ea29293,turbulent kinetic energy,0.4193645165202657,3,en
+g387ea29293,varved sediments,0.1697293502327514,2,en
+g3d6ddec43c,beach access rights,0.4089879659662446,3,en
+g3d6ddec43c,beach regulation,0.3065434094568099,2,en
+g3d6ddec43c,coastal forest valuation,0.4418056472141252,3,en
+g3d6ddec43c,coastal risk perception,0.2480218725263522,3,en
+g3d6ddec43c,coastal setback enforcement,0.3574838774702314,3,en
+g3d6ddec43c,coastal setback legal status,0.375879889393768,4,en
+g3d6ddec43c,coastal wetland management,0.3412395227936029,3,en
+g3d6ddec43c,coastal wetland planning,0.2492936610775297,3,en
+g3d6ddec43c,disaster memory,0.5574466992799412,2,en
+g3d6ddec43c,dune system perceptions,0.2737930949875693,3,en
+g3d6ddec43c,estuary planning,0.2117371150483712,2,en
+g3d6ddec43c,estuary social uses,0.349071924298722,3,en
+g3d6ddec43c,estuary use conflicts,0.4745767796709111,3,en
+g3d6ddec43c,fisheries governance,0.2936723722930876,2,en
+g3d6ddec43c,fishing village history,0.6001428784621264,3,en
+g3d6ddec43c,front transport,0.2046138294641382,2,en
+g3d6ddec43c,harbour access rights,0.2507539439200676,3,en
+g3d6ddec43c,harbour district heritage,0.2532160710766483,3,en
+g3d6ddec43c,harbour district representations,0.3847237431119499,3,en
+g3d6ddec43c,harbour valuation,0.6047294158341223,2,en
+g3d6ddec43c,internal wave variability,0.40096659308949,3,en
+g3d6ddec43c,internal wave vertical structure,0.3190557156402999,4,en
+g3d6ddec43c,island regulation,0.3066572108132983,2,en
+g3d6ddec43c,lighthouse heritage,0.1513880795209193,2,en
+g3d6ddec43c,local ecological knowledge,0.5037108344002363,3,en
+g3d6ddec43c,marine park access rights,0.383310332982597,4,en
+g3d6ddec43c,maritime law,0.1438172654501161,2,en
+g3d6ddec43c,media coverage,0.2511422476394757,2,en
+g3d6ddec43c,mixed layer persistence,0.48447790020969,3,en
+g3d6ddec43c,mooring area planning,0.2480158407807314,3,en
+g3d6ddec43c,mooring concession zoning,0.563031496611329,3,en
+g3d6ddec43c,naval dockyard history,0.4469607431827976,3,en
+g3d6ddec43c,ocean literacy,0.1481057684984793,2,en
+g3d6ddec43c,oyster basin perceptions,0.341084633755468,3,en
+g3d6ddec43c,pacific oyster growth performance,0.4449573506001514,4,en
+g3d6ddec43c,policy instruments,0.2758042048778145,2,en
+g3d6ddec43c,pollack landings,0.1694093291173844,2,en
+g3d6ddec43c,pot fishery bycatch rates,0.4926042951529115,4,en
+g3d6ddec43c,protected coastline regulation,0.4105667187389114,3,en
+g3d6ddec43c,salt marsh regulation,0.3747891034574904,3,en
+g3d6ddec43c,sea bathing heritage,0.3973775067642322,3,en
+g3d6ddec43c,seaside town perceptions,0.3788208302123662,3,en
+g3d6ddec43c,shipwreck memory,0.1410128932132451,2,en
+g3d6ddec43c,shipwreck representations,0.2242675440223373,2,en
+g3d6ddec43c,shoreline access,0.4724595053443798,2,en
+g3d6ddec43c,skate discards,0.1421589171207201,2,en
+g3d6ddec43c,tourist beach planning,0.3319464212414338,3,en
+g3d6ddec43c,wild coast governance,0.4818671627912862,3,en
+g3d6ddec43c,wild coast management,0.2372088216249765,3,en
+g3d6ddec43c,wild coast regulation,0.5771945763291668,3,en
+g9bfb7a1043,autonomous underwater vehicles,0.1925920677472955,3,en
+g9bfb7a1043,bay flushing,0.1833843161162338,2,en
+g9bfb7a1043,beach erosion,0.1361743542405527,2,en
+g9bfb7a1043,bottom boundary layer dynamics,0.4278967376045456,4,en
+g9bfb7a1043,coastal erosion hazard,0.2534207201435118,3,en
+g9bfb7a1043,coastal railway exposure,0.2482370862167817,3,en
+g9bfb7a1043,coastal road adaptation,0.1925920677472955,3,en
+g9bfb7a1043,cobalt budget,0.2205322031117755,2,en
+g9bfb7a1043,cold pool persistence,0.1959559357170164,3,en
+g9bfb7a1043,cold pool transport,0.3687141909003273,3,en
+g9bfb7a1043,cyanobacteria respiration,0.1285954689064254,2,en
+g9bfb7a1043,drinking water supply damage,0.6740722371155343,4,en
+g9bfb7a1043,eddy dynamics,0.1222562107441559,2,en
+g9bfb7a1043,eddy transport,0.2222466951432312,2,en
+g9bfb7a1043,eddy variability,0.1223170995337002,2,en
+g9bfb7a1043,ekman layer variability,0.3989699957540818,3,en
+g9bfb7a1043,extreme rainfall impacts,0.4539145141351756,3,en
+g9bfb7a1043,flood defence failure,0.2888881016209432,3,en
+g9bfb7a1043,front transport,0.1161848618573798,2,en
+g9bfb7a1043,gulf flushing,0.1494713928962564,2,en
+g9bfb7a1043,high tide flood trends,0.3177401598946229,4,en
+g9bfb7a1043,inherent optical properties,1.3947248009610014,3,en
+g9bfb7a1043,marina flood risk,0.3309827816223756,3,en
+g9bfb7a1043,mixed layer intensity,0.2491189881604274,3,en
+g9bfb7a1043,mixed layer persistence,0.2249472849925432,3,en
+g9bfb7a1043,nitrite uptake,0.1697873967412049,2,en
+g9bfb7a1043,nonlinear tidal constituents,0.3999293526491137,3,en
+g9bfb7a1043,phosphorus dynamics,0.1627035495756549,2,en
+g9bfb7a1043,plankton biodiversity,0.2503634140314761,2,en
+g9bfb7a1043,radar backscatter,1.4315566219741127,2,en
+g9bfb7a1043,radiolarian diversity,0.1880230605351733,2,en
+g9bfb7a1043,sea surface salinity,1.0648130360845292,3,en
+g9bfb7a1043,sea surface temperature,1.1179352910349534,3,en
+g9bfb7a1043,slope currents,0.182928061872699,2,en
+g9bfb7a1043,sonar data quality,0.2086361783595634,3,en
+g9bfb7a1043,storm surge intensity,0.2534207201435118,3,en
+g9bfb7a1043,surface current forcing mechanisms,0.5145751405941428,4,en
+g9bfb7a1043,surface current seasonal cycle,0.3186092601239382,4,en
+g9bfb7a1043,swash zone roughness,0.2829789945686748,3,en
+g9bfb7a1043,thermocline seasonal cycle,0.2525209800738657,3,en
+g9bfb7a1043,tidal asymmetry,0.3134043660083336,2,en
+g9bfb7a1043,tidal eddy dissipation,0.3160707858064404,3,en
+g9bfb7a1043,tidal eddy entrainment,0.1959559357170164,3,en
+g9bfb7a1043,tidal energy dissipation,0.2659799971693879,3,en
+g9bfb7a1043,tidal jet seasonal cycle,0.733783958480089,4,en
+g9bfb7a1043,tidal rectification,0.2892051283450724,2,en
+g9bfb7a1043,tidal resonance,0.4084071104291539,2,en
+g9bfb7a1043,topographic steering,0.156465907522357,2,en
+g9bfb7a1043,tsunami return levels,0.1925920677472955,3,en
+g9bfb7a1043,tsunami trends,0.1361743542405527,2,en
+gc29b4f67c0,albacore size structure,0.1932701967848634,3,en
+gc29b4f67c0,bayesian stock models,0.2729440042624901,3,en
+gc29b4f67c0,breakwater maintenance costs,0.5554336714751057,3,en
+gc29b4f67c0,brown crab exploitation status,0.2492016720383773,4,en
+gc29b4f67c0,campsite relocation,0.1406524101950184,2,en
+gc29b4f67c0,coastal commune governance,0.3673374433123764,3,en
+gc29b4f67c0,coastal farmland resilience,0.4396683768800124,3,en
+gc29b4f67c0,coastal flood intensity,0.5018677098912929,3,en
+gc29b4f67c0,coastal railway damage assessment,0.3110428560260592,4,en
+gc29b4f67c0,coastal railway resilience,0.5554336714751057,3,en
+gc29b4f67c0,coastal railway vulnerability,0.4443469371800846,3,en
+gc29b4f67c0,coastal railway vulnerability assessment,0.3110428560260592,4,en
+gc29b4f67c0,coastal resilience,0.2578067960492651,2,en
+gc29b4f67c0,coastal risk perception,0.3575498170091445,3,en
+gc29b4f67c0,coastal village exposure,0.1948967786868126,3,en
+gc29b4f67c0,compound event hindcast,0.3393993370447285,3,en
+gc29b4f67c0,compound event impacts,0.1966216535839142,3,en
+gc29b4f67c0,erosion hotspots,0.1089812593246983,2,en
+gc29b4f67c0,estuary governance,0.1271753158996054,2,en
+gc29b4f67c0,estuary planning,0.1006217158814652,2,en
+gc29b4f67c0,fisheries governance,0.1835139076158665,2,en
+gc29b4f67c0,fishing mortality,0.1582816181866082,2,en
+gc29b4f67c0,gillnet seabed contact,0.4454482205460555,3,en
+gc29b4f67c0,grazed salt marsh insurance,0.5325933593928835,4,en
+gc29b4f67c0,harbour district representations,0.5826974040444809,3,en
+gc29b4f67c0,hazard zoning,0.1683847458079943,2,en
+gc29b4f67c0,heritage site flood risk,0.3110428560260592,4,en
+gc29b4f67c0,john dory discards,0.2016650448617321,3,en
+gc29b4f67c0,john dory landings,0.307513498630186,3,en
+gc29b4f67c0,marine reserve management,0.2590399884292161,3,en
+gc29b4f67c0,marine reserve regulation,0.237959249814458,3,en
+gc29b4f67c0,monkfish diet,0.1929759620872702,2,en
+gc29b4f67c0,pathogenic vibrios,0.114886673418297,2,en
+gc29b4f67c0,port infrastructure flood risk,0.4098110331039922,4,en
+gc29b4f67c0,river flood impacts,0.5998026887043812,3,en
+gc29b4f67c0,saltwater intrusion,0.1340620185718996,2,en
+gc29b4f67c0,sea cucumber selective breeding,0.2836818071809547,4,en
+gc29b4f67c0,shipwreck representations,0.1426053890286471,2,en
+gc29b4f67c0,silicate depletion,0.2333912308763359,2,en
+gc29b4f67c0,skate discards,0.2006352230866757,2,en
+gc29b4f67c0,skate recruitment,0.1353253874826981,2,en
+gc29b4f67c0,squid catch,0.3107430343369399,2,en
+gc29b4f67c0,storm surge trends,0.5443733545234976,3,en
+gc29b4f67c0,storm trends,0.3241645342275479,2,en
+gc29b4f67c0,swell event intensity,0.1849804629668435,3,en
+gc29b4f67c0,territorial identity,0.446978460710866,2,en
+gc29b4f67c0,tourist resort damage,1.0269023371725234,3,en
+gc29b4f67c0,tsunami forecasting,0.1683847458079943,2,en
+gc29b4f67c0,tuna size structure,0.553603874712526,3,en
+gc29b4f67c0,wave climate,0.1801215990177365,2,en
+gcbcad3f71a,alexandrium biomass,0.2369504120774165,2,en
+gcbcad3f71a,amphipod distribution,0.1766410527394891,2,en
+gcbcad3f71a,antibiotic toxicity,0.1980869160506257,2,en
+gcbcad3f71a,arsenic exposure,0.2587962737777107,2,en
+gcbcad3f71a,barnacle abundance,0.1766410527394891,2,en
+gcbcad3f71a,blue carbon ecosystems,0.3628286117765938,3,en
+gcbcad3f71a,brominated compound exposure,0.2916406828731946,3,en
+gcbcad3f71a,carbamazepine bioavailability,0.1738282979170268,2,en
+gcbcad3f71a,cephalopod thermal tolerance,0.3260851690550948,3,en
+gcbcad3f71a,coastal wetland biodiversity,0.3510968742158862,3,en
+gcbcad3f71a,contaminant fate modelling,0.4139178441523514,3,en
+gcbcad3f71a,copper toxicity,0.2161720529204795,2,en
+gcbcad3f71a,cryptophyte diversity,0.1579669413849443,2,en
+gcbcad3f71a,cuttlefish abundance,0.1549544704021279,2,en
+gcbcad3f71a,diatom time series,0.263278235641574,3,en
+gcbcad3f71a,estuarine water quality,0.9409289206146992,3,en
+gcbcad3f71a,fish embryo immunotoxicity,0.2557374426458608,3,en
+gcbcad3f71a,freshwater marsh ecology,0.2821629156039842,3,en
+gcbcad3f71a,freshwater marsh vegetation,0.3752832856139027,3,en
+gcbcad3f71a,glyphosate toxicity,0.1980869160506257,2,en
+gcbcad3f71a,grey seal distribution,0.2944017545658153,3,en
+gcbcad3f71a,grey seal physiology,0.2944017545658153,3,en
+gcbcad3f71a,hydrocarbon degradation,0.1951749166294071,2,en
+gcbcad3f71a,lagoon carbon storage,0.3339009413059767,3,en
+gcbcad3f71a,marsh creek morphology,0.8040456517396066,3,en
+gcbcad3f71a,microplastic fibre bioaccumulation,0.2972996390533077,3,en
+gcbcad3f71a,microplastic ingestion,0.1982711509497786,2,en
+gcbcad3f71a,nickel degradation,0.1432593786611489,2,en
+gcbcad3f71a,nickel monitoring,0.1738282979170268,2,en
+gcbcad3f71a,nutrient retention,0.2594059456673565,2,en
+gcbcad3f71a,octopus abundance,0.1766410527394891,2,en
+gcbcad3f71a,organic nitrogen cycling,0.3139811006055887,3,en
+gcbcad3f71a,oyster larvae neurotoxicity,0.3802187231448832,3,en
+gcbcad3f71a,pharmaceutical residues,0.18680095304187,2,en
+gcbcad3f71a,phthalate bioavailability,0.2078677006554811,2,en
+gcbcad3f71a,picoeukaryote biomass,0.1781619292966672,2,en
+gcbcad3f71a,plastic additives,0.2641158880675011,2,en
+gcbcad3f71a,plastic weathering,0.1980869160506257,2,en
+gcbcad3f71a,prochlorococcus respiration,0.1546645415037334,2,en
+gcbcad3f71a,prochlorococcus seasonal succession,0.3949173534623609,3,en
+gcbcad3f71a,sandflat carbon storage,0.4702715260066404,3,en
+gcbcad3f71a,sediment contamination,0.1761402535198637,2,en
+gcbcad3f71a,sewage outfalls,0.193535430535668,2,en
+gcbcad3f71a,species richness,0.1766410527394891,2,en
+gcbcad3f71a,thermal discharges,0.6125230877389848,2,en
+gcbcad3f71a,thermal tolerance,0.2144413500227981,2,en
+gcbcad3f71a,uv filter exposure,0.3949173534623609,3,en
+gcbcad3f71a,uv filter sources,0.7974240243561516,3,en
+gcbcad3f71a,whale growth,0.1766410527394891,2,en
+gcbcad3f71a,whale physiology,0.1766410527394891,2,en
+gde9f489fd7,aeolian sand mineralogy,0.2026798309863819,3,en
+gde9f489fd7,barrier island sediment budget,0.2837517633809348,4,en
+gde9f489fd7,cephalopod growth,0.1596683103338536,2,en
+gde9f489fd7,cephalopod reproduction,0.4181507996276756,2,en
+gde9f489fd7,cephalopod tagging,0.1691600922832613,2,en
+gde9f489fd7,cephalopod thermal tolerance,0.1997820314599754,3,en
+gde9f489fd7,coastal forest social uses,0.2621802688509356,4,en
+gde9f489fd7,coral cover,0.3696946195738654,2,en
+gde9f489fd7,coral reef resilience,0.4920984158225734,3,en
+gde9f489fd7,cuttlefish mortality,0.1252474323652938,2,en
+gde9f489fd7,delta progradation,0.2544773831089074,2,en
+gde9f489fd7,embayed beaches,0.1216078985918291,2,en
+gde9f489fd7,estuarine beach water quality,0.2922308492711422,4,en
+gde9f489fd7,front vertical structure,0.2913920672267495,3,en
+gde9f489fd7,harbour seal recruitment,0.4340303964411496,3,en
+gde9f489fd7,harbour seal reproduction,0.3263984692750774,3,en
+gde9f489fd7,holothurian behaviour,0.1552891511959576,2,en
+gde9f489fd7,holothurian tagging,0.1958390815650464,2,en
+gde9f489fd7,longline catchability,0.2272480047333992,2,en
+gde9f489fd7,longshore sediment flux,0.2026798309863819,3,en
+gde9f489fd7,maerl bed fragmentation,1.0017310247745093,3,en
+gde9f489fd7,maerl bed mapping,0.217052974288966,3,en
+gde9f489fd7,maritime law,0.255848274815736,2,en
+gde9f489fd7,mooring concession compensation schemes,0.3777777109991708,4,en
+gde9f489fd7,mussel mortality,0.2776099519532679,2,en
+gde9f489fd7,nursery grounds,0.1557132308395268,2,en
+gde9f489fd7,otter trawl selectivity,0.2572265434715865,3,en
+gde9f489fd7,oyster basin access rights,0.4746021423295408,4,en
+gde9f489fd7,oyster basin regulation,0.2367828146910477,3,en
+gde9f489fd7,pocket beach monitoring,0.2026798309863819,3,en
+gde9f489fd7,pocket beach resilience,0.2026798309863819,3,en
+gde9f489fd7,policy instruments,0.1818315069614783,2,en
+gde9f489fd7,property rights regimes,0.2008417611404996,3,en
+gde9f489fd7,salt marsh valuation,0.2008417611404996,3,en
+gde9f489fd7,sardine growth,0.2856092174203355,2,en
+gde9f489fd7,sea bathing heritage,0.4179683049165331,3,en
+gde9f489fd7,sea star diet,0.3263984692750774,3,en
+gde9f489fd7,sea urchin habitat use,0.2922440088523523,4,en
+gde9f489fd7,seagrass decline,0.2366541420056303,2,en
+gde9f489fd7,shelf sediment sorting,0.2026798309863819,3,en
+gde9f489fd7,shrimp behaviour,0.2937586223475696,2,en
+gde9f489fd7,skate maturity,0.5448647817601739,2,en
+gde9f489fd7,tern reproduction,0.4864315943673167,2,en
+gde9f489fd7,thermal tolerance,0.5105314483050876,2,en
+gde9f489fd7,tombolo dynamics,0.1216078985918291,2,en
+gde9f489fd7,tombolo morphology,0.1216078985918291,2,en
+gde9f489fd7,tourism carrying capacity,0.2008417611404996,3,en
+gde9f489fd7,tube worm distribution,0.347282102505295,3,en
+gde9f489fd7,tuna growth,0.2057812347772692,2,en
+gde9f489fd7,wild coast use conflicts,0.2621802688509356,4,en

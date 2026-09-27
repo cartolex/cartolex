@@ -1,0 +1,471 @@
+term,term_index,concept_id,subfield_id,weight,share
+abrupt climate events,0,21,0,0.108333,0.002851
+adaptive governance,1,68,7,0.040787,0.001073
+aeolian sand mineralogy,2,144,9,0.067857,0.001786
+aeolian sand transport,3,70,7,0.060329,0.001588
+agricultural runoff,4,38,2,0.024691,0.00065
+albacore abundance indices,5,146,9,0.017857,0.00047
+albacore size structure,6,133,9,0.101564,0.002673
+alexandrium biomass,7,42,2,0.122899,0.003234
+amphipod distribution,8,128,4,0.090909,0.002392
+anchovy exploitation status,9,50,7,0.060329,0.001588
+anchovy spatial distribution,10,116,10,0.021277,0.00056
+antibiotic bioaccumulation,11,38,2,0.024691,0.00065
+antibiotic toxicity,12,39,2,0.09456,0.002488
+appendicularian respiration,13,19,0,0.123031,0.003238
+aquaculture carrying capacity,14,116,10,0.021277,0.00056
+arsenic exposure,15,42,2,0.133734,0.003519
+artificial light pollution,16,82,5,0.016129,0.000424
+atlantic salmon growth performance,17,146,9,0.017857,0.00047
+autonomous underwater vehicles,18,4,1,0.034533,0.000909
+backbarrier marsh restoration,19,130,4,0.071429,0.00188
+barnacle abundance,20,128,4,0.103255,0.002717
+barnacle monitoring,21,116,10,0.021277,0.00056
+barrier island sediment budget,22,144,9,0.067857,0.001786
+bay flushing,23,30,3,0.10964,0.002885
+bay valuation,24,93,8,0.016393,0.000431
+bayesian stock models,25,99,8,0.051996,0.001368
+beach access rights,26,50,7,0.090493,0.002381
+beach erosion,27,1,1,0.059659,0.00157
+beach regulation,28,55,7,0.132536,0.003488
+beach ridge plain morphology,29,70,7,0.060329,0.001588
+beach ridge records,30,21,0,0.027032,0.000711
+beam trawl fuel efficiency,31,134,9,0.059318,0.001561
+beam trawl selectivity,32,137,9,0.070816,0.001864
+berm sediment supply,33,0,1,0.014493,0.000381
+bivalve thermal tolerance,34,106,11,0.018182,0.000478
+blue carbon ecosystems,35,131,4,0.127291,0.00335
+blue mussel mortality,36,146,9,0.017857,0.00047
+bottom boundary layer dynamics,37,30,3,0.10964,0.002885
+bottom current dynamics,38,0,1,0.014493,0.000381
+bottom current energetics,39,121,4,0.058824,0.001548
+bottom current transport,40,124,0,0.029412,0.000774
+bottom current variability,41,0,1,0.014493,0.000381
+brackish lagoon carbon storage,42,130,4,0.071429,0.00188
+brackish lagoon sedimentation,43,36,2,0.05559,0.001463
+breakwater maintenance costs,44,89,8,0.139291,0.003666
+brominated compound exposure,45,47,2,0.057523,0.001514
+brown crab exploitation status,46,90,8,0.048386,0.001273
+brown crab recruitment,47,50,7,0.060329,0.001588
+carbamazepine bioavailability,48,46,2,0.085862,0.00226
+carbamazepine sources,49,41,2,0.02,0.000526
+carbonate chemistry,50,43,2,0.06304,0.001659
+carbonate sand grain size,51,124,0,0.029412,0.000774
+cephalopod feeding ecology,52,116,10,0.021277,0.00056
+cephalopod growth,53,141,9,0.030612,0.000806
+cephalopod habitat use,54,137,9,0.070816,0.001864
+cephalopod reproduction,55,109,11,0.207425,0.005459
+cephalopod tagging,56,104,11,0.047028,0.001238
+cephalopod thermal tolerance,57,129,4,0.131416,0.003458
+chaetoceros abundance,58,32,3,0.015873,0.000418
+chenier evolution,59,0,1,0.014493,0.000381
+chironomid preservation,60,22,0,0.080938,0.00213
+chironomid stable isotopes,61,16,0,0.027397,0.000721
+coastal barrier evolution,62,24,0,0.049136,0.001293
+coastal commune governance,63,83,5,0.082698,0.002176
+coastal commune perceptions,64,81,5,0.034311,0.000903
+coastal commune regulation,65,74,5,0.032522,0.000856
+coastal dune sequence stratigraphy,66,26,0,0.026316,0.000693
+coastal erosion hazard,67,5,1,0.075422,0.001985
+coastal eutrophication,68,124,0,0.029412,0.000774
+coastal farmland resilience,69,94,8,0.101288,0.002665
+coastal flood intensity,70,89,8,0.118239,0.003112
+coastal forest valuation,71,63,6,0.126081,0.003318
+coastal hospital insurance,72,84,8,0.074624,0.001964
+coastal housing insurance,73,149,9,0.072929,0.001919
+coastal lagoons,74,37,2,0.053385,0.001405
+coastal peat chronology,75,125,0,0.110349,0.002904
+coastal peat records,76,26,0,0.017544,0.000462
+coastal peat sampling,77,26,0,0.017544,0.000462
+coastal peat stratigraphy,78,17,0,0.022471,0.000591
+coastal pond ecology,79,37,2,0.03559,0.000937
+coastal railway damage assessment,80,89,8,0.055716,0.001466
+coastal railway exposure,81,6,1,0.072796,0.001916
+coastal railway resilience,82,89,8,0.139291,0.003666
+coastal railway vulnerability,83,89,8,0.111433,0.002932
+coastal railway vulnerability assessment,84,89,8,0.055716,0.001466
+coastal resilience,85,85,8,0.158199,0.004163
+coastal risk perception,86,101,8,0.161985,0.004263
+coastal road adaptation,87,5,1,0.050281,0.001323
+coastal road damage,88,6,1,0.048531,0.001277
+coastal setback enforcement,89,72,7,0.060911,0.001603
+coastal setback legal status,90,65,7,0.021739,0.000572
+coastal village exposure,91,146,9,0.035714,0.00094
+coastal wetland biodiversity,92,36,2,0.10118,0.002663
+coastal wetland management,93,73,7,0.078343,0.002062
+coastal wetland planning,94,65,7,0.021739,0.000572
+coastal wetland stakeholder mapping,95,52,7,0.021053,0.000554
+cobalt budget,96,33,3,0.134988,0.003552
+coccolithophore time series,97,41,2,0.02,0.000526
+cold pool energetics,98,0,1,0.014493,0.000381
+cold pool transport,99,34,3,0.074405,0.001958
+collective action,100,65,7,0.021739,0.000572
+common cuttlefish catch,101,52,7,0.031579,0.000831
+commons management,102,64,6,0.037916,0.000998
+compound event hindcast,103,95,8,0.084783,0.002231
+contaminant fate modelling,104,39,2,0.096211,0.002532
+copper toxicity,105,39,2,0.090553,0.002383
+coral cover,106,139,9,0.170497,0.004487
+coral reef resilience,107,105,11,0.143439,0.003775
+coral resilience,108,107,11,0.03779,0.000994
+coral restoration,109,107,11,0.03779,0.000994
+cross-shelf flow vorticity,110,121,4,0.058824,0.001548
+cryptophyte diversity,111,38,2,0.024691,0.00065
+cuttlefish abundance,112,129,4,0.11014,0.002898
+cuttlefish mortality,113,138,9,0.089458,0.002354
+deep-sea core records,114,25,0,0.016807,0.000442
+deep-sea core stratigraphy,115,124,0,0.029412,0.000774
+delta plain biodiversity,116,37,2,0.03559,0.000937
+delta plain biogeochemistry,117,37,2,0.053385,0.001405
+delta plain restoration,118,130,4,0.071429,0.00188
+delta plain sedimentation,119,36,2,0.05559,0.001463
+delta progradation,120,143,9,0.167857,0.004417
+delta residence time,121,102,11,0.019608,0.000516
+density current entrainment,122,3,1,0.019608,0.000516
+diatom frustule abundance changes,123,9,0,0.091151,0.002399
+diatom frustule preservation,124,17,0,0.131899,0.003471
+diatom frustule stable isotopes,125,23,0,0.274118,0.007214
+diatom frustule transfer functions,126,25,0,0.016807,0.000442
+diatom growth rates,127,3,1,0.019608,0.000516
+diatom time series,128,38,2,0.024691,0.00065
+dinoflagellate cysts,129,17,0,0.061748,0.001625
+disaster memory,130,55,7,0.25033,0.006588
+dissolved inorganic carbon budget,131,27,3,0.066671,0.001755
+drinking water supply damage,132,5,1,0.125703,0.003308
+drinking water supply exposure,133,0,1,0.014493,0.000381
+drinking water supply insurance,134,93,8,0.016393,0.000431
+dune morphology,135,0,1,0.014493,0.000381
+dune slack resilience,136,126,0,0.04311,0.001134
+dune system access rights,137,62,6,0.056783,0.001494
+dune system perceptions,138,54,7,0.042792,0.001126
+dune system stakeholder mapping,139,74,5,0.032522,0.000856
+dust deposition reconstruction,140,24,0,0.087403,0.0023
+dust deposition variability,141,19,0,0.039283,0.001034
+eddy dynamics,142,30,3,0.073093,0.001924
+eddy persistence,143,120,4,0.074697,0.001966
+eddy seasonal cycle,144,0,1,0.014493,0.000381
+eddy transport,145,4,1,0.095278,0.002507
+eddy variability,146,7,1,0.035714,0.00094
+ekman layer variability,147,4,1,0.099676,0.002623
+embayed beaches,148,144,9,0.067857,0.001786
+emiliania huxleyi biomass,149,32,3,0.015873,0.000418
+enso variability,150,14,0,0.240232,0.006322
+epibenthic megafauna,151,104,11,0.037413,0.000985
+erosion hotspots,152,99,8,0.034664,0.000912
+estuarine beach biogeochemistry,153,102,11,0.039216,0.001032
+estuarine beach water quality,154,86,11,0.080676,0.002123
+estuarine core palaeoecology,155,12,0,0.026667,0.000702
+estuarine core stratigraphy,156,14,0,0.147969,0.003894
+estuarine water quality,157,37,2,0.297751,0.007836
+estuary governance,158,74,5,0.065045,0.001712
+estuary mouth ecology,159,102,11,0.019608,0.000516
+estuary planning,160,77,5,0.150779,0.003968
+estuary social uses,161,60,6,0.068707,0.001808
+estuary use conflicts,162,73,7,0.140898,0.003708
+extreme rainfall impacts,163,1,1,0.119318,0.00314
+fish embryo immunotoxicity,164,37,2,0.027523,0.000724
+fisheries governance,165,59,6,0.169886,0.004471
+fishing mortality,166,90,8,0.075719,0.001993
+fishing village history,167,58,6,0.207229,0.005453
+fishing village representations,168,82,5,0.016129,0.000424
+flood defence failure,169,5,1,0.075422,0.001985
+floodplain mapping,170,37,2,0.053385,0.001405
+foraminifera chronology,171,16,0,0.027397,0.000721
+foraminifera palaeoecology,172,12,0,0.053333,0.001404
+foraminifera records,173,20,0,0.158938,0.004183
+foraminiferal ooze chronology,174,125,0,0.046956,0.001236
+foraminiferal ooze palaeoecology,175,25,0,0.059929,0.001577
+fossil beach stratigraphy,176,19,0,0.048055,0.001265
+fossil reef chronology,177,17,0,0.030505,0.000803
+fossil reef palaeoecology,178,16,0,0.027397,0.000721
+fossil reef stratigraphy,179,16,0,0.013699,0.00036
+freshwater marsh ecology,180,36,2,0.083385,0.002194
+freshwater marsh hydrodynamics,181,37,2,0.03559,0.000937
+freshwater marsh morphology,182,37,2,0.062006,0.001632
+freshwater marsh vegetation,183,37,2,0.106216,0.002795
+front energetics,184,5,1,0.035356,0.00093
+front intensity,185,121,4,0.058824,0.001548
+front seasonal cycle,186,124,0,0.029412,0.000774
+front transport,187,122,4,0.149997,0.003947
+front vertical structure,188,143,9,0.179412,0.004721
+gannet colony size,189,116,10,0.021277,0.00056
+gillnet seabed contact,190,87,8,0.15089,0.003971
+gilthead sea bream welfare,191,133,9,0.060692,0.001597
+glacial isostatic adjustment,192,0,1,0.014493,0.000381
+glacial runoff trends,193,14,0,0.131899,0.003471
+glyphosate toxicity,194,39,2,0.09456,0.002488
+grain size distribution,195,143,9,0.05,0.001316
+grazed salt marsh insurance,196,96,8,0.097019,0.002553
+grey seal distribution,197,128,4,0.090909,0.002392
+grey seal physiology,198,128,4,0.090909,0.002392
+grey seal thermal tolerance,199,116,10,0.021277,0.00056
+gulf flushing,200,3,1,0.019608,0.000516
+gulf heat budget,201,24,0,0.098915,0.002603
+hake biomass,202,65,7,0.032609,0.000858
+hake size structure,203,146,9,0.017857,0.00047
+harbour district heritage,204,49,7,0.028302,0.000745
+harbour district representations,205,78,5,0.308095,0.008108
+harbour seal recruitment,206,119,10,0.123288,0.003244
+harbour seal reproduction,207,108,11,0.09481,0.002495
+harbour valuation,208,73,7,0.328537,0.008646
+hazard zoning,209,96,8,0.071697,0.001887
+heritage site adaptation,210,0,1,0.014493,0.000381
+heritage site flood risk,211,89,8,0.055716,0.001466
+heritage site resilience,212,0,1,0.014493,0.000381
+high tide flood trends,213,1,1,0.059659,0.00157
+holothurian behaviour,214,105,11,0.076003,0.002
+holothurian feeding ecology,215,116,10,0.021277,0.00056
+holothurian tagging,216,108,11,0.09481,0.002495
+hydrocarbon degradation,217,48,2,0.061389,0.001615
+industrial zone resilience,218,93,8,0.016393,0.000431
+inherent optical properties,219,4,1,0.410114,0.010792
+internal wave persistence,220,127,0,0.274743,0.00723
+internal wave variability,221,123,4,0.1387,0.00365
+internal wave vertical structure,222,121,4,0.117647,0.003096
+island regulation,223,63,6,0.145809,0.003837
+john dory discards,224,100,8,0.02521,0.000663
+john dory landings,225,135,9,0.091011,0.002395
+lagoon carbon storage,226,130,4,0.142857,0.003759
+lagoon morphology,227,130,4,0.071429,0.00188
+lagoon oxygen levels,228,102,11,0.019608,0.000516
+lagoon sediment chronology,229,17,0,0.123127,0.00324
+lagoon sediment palaeoecology,230,17,0,0.070151,0.001846
+lagoon sediment records,231,22,0,0.213828,0.005627
+lagoon sediment stratigraphy,232,12,0,0.026667,0.000702
+lagoon water quality,233,130,4,0.071429,0.00188
+lagoon water sampling,234,130,4,0.071429,0.00188
+lidar uncertainty,235,0,1,0.014493,0.000381
+lighthouse heritage,236,67,7,0.028302,0.000745
+limpet physiology,237,116,10,0.021277,0.00056
+lipid biomarkers,238,21,0,0.054064,0.001423
+litter drift modelling,239,39,2,0.061933,0.00163
+local ecological knowledge,240,68,7,0.11922,0.003137
+longline catchability,241,147,9,0.11303,0.002974
+longshore sediment flux,242,144,9,0.067857,0.001786
+mackerel discards,243,117,10,0.039458,0.001038
+maerl bed decline,244,116,10,0.021277,0.00056
+maerl bed fragmentation,245,109,11,0.292243,0.007691
+maerl bed mapping,246,104,11,0.037413,0.000985
+marginal sea stratification,247,32,3,0.015873,0.000418
+marina flood risk,248,6,1,0.097061,0.002554
+marine park access rights,249,65,7,0.021739,0.000572
+marine park planning,250,59,6,0.054309,0.001429
+marine park social uses,251,68,7,0.059655,0.00157
+marine pollen records,252,12,0,0.013333,0.000351
+marine reserve management,253,81,5,0.068622,0.001806
+marine reserve planning,254,74,5,0.032522,0.000856
+marine reserve regulation,255,74,5,0.065045,0.001712
+marine viruses,256,34,3,0.047494,0.00125
+maritime law,257,118,10,0.223871,0.005891
+marsh creek morphology,258,132,4,0.360197,0.009479
+media coverage,259,71,7,0.125096,0.003292
+microplastic fibre bioaccumulation,260,46,2,0.087523,0.002303
+microplastic ingestion,261,45,2,0.074691,0.001966
+midden palaeoecology,262,17,0,0.092622,0.002437
+mixed layer intensity,263,5,1,0.037465,0.000986
+mixed layer persistence,264,122,4,0.27451,0.007224
+mollusc shell chronology,265,12,0,0.013333,0.000351
+mollusc shell records,266,20,0,0.070871,0.001865
+mollusc shell stratigraphy,267,12,0,0.013333,0.000351
+monkfish diet,268,88,8,0.105175,0.002768
+monsoon intensity variability,269,22,0,0.450056,0.011844
+mooring area social uses,270,67,7,0.018868,0.000497
+mooring concession compensation schemes,271,117,10,0.078917,0.002077
+mooring concession zoning,272,66,7,0.169739,0.004467
+mussel mortality,273,116,10,0.104337,0.002746
+mysid counts,274,32,3,0.015873,0.000418
+mysid diversity,275,44,2,0.05,0.001316
+naval dockyard history,276,63,6,0.126171,0.00332
+nickel monitoring,277,46,2,0.085862,0.00226
+nitrite uptake,278,6,1,0.072796,0.001916
+nonlinear tidal constituents,279,34,3,0.099206,0.002611
+nursery grounds,280,133,9,0.121383,0.003194
+nutrient retention,281,37,2,0.10677,0.00281
+ocean literacy,282,49,7,0.028302,0.000745
+ocean oxygenation trends,283,10,0,0.082394,0.002168
+ocean warming impacts,284,140,9,0.049843,0.001312
+octopus abundance,285,128,4,0.090909,0.002392
+octopus growth,286,107,11,0.03779,0.000994
+offshore island planning,287,82,5,0.016129,0.000424
+offshore island use conflicts,288,74,5,0.032522,0.000856
+oithona diversity,289,12,0,0.013333,0.000351
+organic matter remineralisation,290,13,0,0.048406,0.001274
+organic nitrogen cycling,291,29,3,0.144656,0.003807
+ostracod stable isotopes,292,24,0,0.049136,0.001293
+otter trawl selectivity,293,148,9,0.084184,0.002215
+oyster basin access rights,294,114,10,0.097957,0.002578
+oyster basin perceptions,295,55,7,0.08393,0.002209
+oyster basin regulation,296,102,11,0.039216,0.001032
+oyster basin stakeholder mapping,297,74,5,0.032522,0.000856
+oyster herpesvirus,298,110,10,0.055263,0.001454
+oyster larvae neurotoxicity,299,46,2,0.097523,0.002566
+oyster spat collection,300,82,5,0.016129,0.000424
+pacific oyster growth performance,301,50,7,0.090493,0.002381
+paleoproductivity proxies,302,12,0,0.013333,0.000351
+paleostorm records,303,13,0,0.059275,0.00156
+paleotsunami deposits,304,12,0,0.013333,0.000351
+pathogenic vibrios,305,75,5,0.076439,0.002012
+pharmaceutical residues,306,45,2,0.077037,0.002027
+phosphorus dynamics,307,27,3,0.100007,0.002632
+phthalate bioavailability,308,38,2,0.067037,0.001764
+phytodetritus aggregation,309,124,0,0.029412,0.000774
+picoeukaryote biomass,310,29,3,0.070564,0.001857
+plankton biodiversity,311,5,1,0.104781,0.002757
+plankton imaging,312,32,3,0.015873,0.000418
+planktonic foraminifera,313,26,0,0.198424,0.005222
+plastic additives,314,39,2,0.12608,0.003318
+plastic weathering,315,39,2,0.09456,0.002488
+pocket beach monitoring,316,144,9,0.067857,0.001786
+pocket beach resilience,317,144,9,0.067857,0.001786
+policy implementation gaps,318,52,7,0.021053,0.000554
+policy instruments,319,69,7,0.26662,0.007016
+policy mobilities,320,72,7,0.061839,0.001627
+pollack landings,321,53,7,0.113455,0.002986
+porpoise abundance,322,106,11,0.018182,0.000478
+port infrastructure flood risk,323,99,8,0.051996,0.001368
+pot fishery bycatch rates,324,53,7,0.133415,0.003511
+prochlorococcus biomass,325,32,3,0.015873,0.000418
+prochlorococcus respiration,326,44,2,0.06,0.001579
+prochlorococcus seasonal succession,327,42,2,0.122899,0.003234
+property rights regimes,328,112,10,0.058742,0.001546
+protected coastline perceptions,329,93,8,0.016393,0.000431
+protected coastline regulation,330,57,6,0.116647,0.00307
+protected coastline use conflicts,331,74,5,0.032522,0.000856
+pteropod abundance,332,15,0,0.073097,0.001924
+radar backscatter,333,6,1,0.703249,0.018507
+radiolarian diversity,334,6,1,0.097061,0.002554
+radiometer maintenance,335,6,1,0.048531,0.001277
+raised beach records,336,16,0,0.013699,0.00036
+reed bed biogeochemistry,337,102,11,0.019608,0.000516
+river flood impacts,338,96,8,0.162848,0.004285
+river mouth governance,339,57,6,0.058324,0.001535
+river mouth regulation,340,106,11,0.018182,0.000478
+river plume dynamics,341,31,3,0.080766,0.002125
+rubble mound design standards,342,93,8,0.016393,0.000431
+salp grazing losses,343,28,3,0.056437,0.001485
+salt marsh core records,344,20,0,0.070871,0.001865
+salt marsh governance,345,103,11,0.091082,0.002397
+salt marsh regulation,346,57,6,0.113403,0.002984
+salt marsh valuation,347,112,10,0.058742,0.001546
+salt wedge dynamics,348,130,4,0.071429,0.00188
+saltwater intrusion,349,98,8,0.026786,0.000705
+sand bank sediment budget,350,50,7,0.041461,0.001091
+sandflat carbon storage,351,36,2,0.138975,0.003657
+sardine growth,352,147,9,0.130887,0.003444
+sea bathing heritage,353,115,10,0.29836,0.007852
+sea cucumber selective breeding,354,82,5,0.032258,0.000849
+sea ice extent trends,355,14,0,0.132889,0.003497
+sea star diet,356,108,11,0.09481,0.002495
+sea surface salinity,357,6,1,0.309661,0.008149
+sea surface temperature,358,6,1,0.330954,0.008709
+sea turtle thermal tolerance,359,107,11,0.03779,0.000994
+sea urchin habitat use,360,133,9,0.091037,0.002396
+sea urchin thermal tolerance,361,107,11,0.03779,0.000994
+seabird abundance,362,116,10,0.021277,0.00056
+seabird foraging,363,116,10,0.021277,0.00056
+seagrass decline,364,139,9,0.120374,0.003168
+seagrass meadows,365,140,9,0.039639,0.001043
+seaside town perceptions,366,66,7,0.100291,0.002639
+seaside town regulation,367,76,5,0.053997,0.001421
+seaside town use conflicts,368,74,5,0.032522,0.000856
+sedge zonation,369,102,11,0.019608,0.000516
+sediment connectivity,370,70,7,0.060329,0.001588
+sediment contamination,371,40,2,0.03,0.000789
+sediment drift palaeoecology,372,124,0,0.029412,0.000774
+sediment drift records,373,18,0,0.084135,0.002214
+sediment flux trends,374,17,0,0.15437,0.004062
+sewage outfalls,375,39,2,0.092899,0.002445
+shelf current persistence,376,62,6,0.056783,0.001494
+shelf sea dynamics,377,51,7,0.045654,0.001201
+shelf sea exchange flow,378,33,3,0.051746,0.001362
+shelf sediment sorting,379,143,9,0.05,0.001316
+shell middens,380,17,0,0.140671,0.003702
+shellfish aquaculture,381,49,7,0.028302,0.000745
+shellfish farming access rights,382,63,6,0.058324,0.001535
+shellfish farming perceptions,383,65,7,0.021739,0.000572
+shellfish farming planning,384,65,7,0.021739,0.000572
+shipwreck representations,385,80,6,0.178083,0.004686
+shoreline access,386,68,7,0.230757,0.006073
+shrimp behaviour,387,108,11,0.142215,0.003743
+silicate depletion,388,97,8,0.138578,0.003647
+silicic acid fluxes,389,7,1,0.033605,0.000884
+silver nanoparticle bioaccumulation,390,37,2,0.025862,0.000681
+skate discards,391,88,8,0.138877,0.003655
+skate maturity,392,111,10,0.289384,0.007615
+skate recruitment,393,88,8,0.088368,0.002325
+skeletonema seasonal succession,394,13,0,0.048406,0.001274
+slope currents,395,7,1,0.026786,0.000705
+sonar data quality,396,5,1,0.037465,0.000986
+species richness,397,128,4,0.090909,0.002392
+spider crab recruitment,398,82,5,0.016129,0.000424
+spit elongation,399,50,7,0.041461,0.001091
+squid catch,400,87,8,0.191923,0.005051
+storm surge intensity,401,5,1,0.075422,0.001985
+storm surge trends,402,95,8,0.13584,0.003575
+storm trends,403,99,8,0.11292,0.002972
+submerged forest records,404,14,0,0.160679,0.004228
+submerged landscapes,405,22,0,0.109333,0.002877
+surface buoy maintenance,406,5,1,0.050281,0.001323
+surface current forcing mechanisms,407,33,3,0.134988,0.003552
+surface current seasonal cycle,408,1,1,0.029851,0.000786
+swash zone roughness,409,6,1,0.072796,0.001916
+swell event hindcast,410,93,8,0.016393,0.000431
+synechococcus vertical distribution,411,32,3,0.031746,0.000835
+tephra layer records,412,18,0,0.112179,0.002952
+tern reproduction,413,145,9,0.312245,0.008217
+territorial identity,414,79,5,0.281495,0.007408
+testate amoeba transfer functions,415,12,0,0.04,0.001053
+thermal discharges,416,42,2,0.337187,0.008873
+thermal tolerance,417,142,11,0.425779,0.011205
+thermocline forcing mechanisms,418,0,1,0.014493,0.000381
+thermocline seasonal cycle,419,6,1,0.055771,0.001468
+thermohaline circulation,420,121,4,0.058824,0.001548
+tidal asymmetry,421,35,3,0.213218,0.005611
+tidal eddy dissipation,422,4,1,0.075379,0.001984
+tidal eddy vorticity,423,0,1,0.014493,0.000381
+tidal energy dissipation,424,4,1,0.06645,0.001749
+tidal flat carbon storage,425,102,11,0.019608,0.000516
+tidal freshwater marshes,426,102,11,0.019608,0.000516
+tidal inlet vertical structure,427,120,4,0.074697,0.001966
+tidal jet modelling,428,32,3,0.015873,0.000418
+tidal jet seasonal cycle,429,5,1,0.143739,0.003783
+tidal mixing fronts,430,61,6,0.028571,0.000752
+tidal rectification,431,8,1,0.139317,0.003666
+tidal resonance,432,7,1,0.183402,0.004826
+tidal wetland mapping,433,102,11,0.019608,0.000516
+tombolo dynamics,434,144,9,0.067857,0.001786
+tombolo morphology,435,144,9,0.067857,0.001786
+topographic steering,436,7,1,0.035714,0.00094
+tourism carrying capacity,437,113,10,0.040884,0.001076
+tourist beach access rights,438,57,6,0.058324,0.001535
+tourist beach planning,439,63,6,0.09769,0.002571
+tourist resort damage,440,95,8,0.264215,0.006953
+tsunami forecasting,441,96,8,0.05384,0.001417
+tsunami return levels,442,5,1,0.050281,0.001323
+tsunami trends,443,2,1,0.077516,0.00204
+tube worm distribution,444,138,9,0.147075,0.00387
+tube worm feeding ecology,445,37,2,0.053385,0.001405
+tube worm growth,446,106,11,0.018182,0.000478
+tube worm reproduction,447,140,9,0.039639,0.001043
+tuna discards,448,91,8,0.021053,0.000554
+tuna growth,449,148,9,0.112245,0.002954
+tuna maturity,450,134,9,0.059318,0.001561
+tuna size structure,451,92,8,0.148769,0.003915
+turbulent kinetic energy,452,11,0,0.08549,0.00225
+turf algae cover,453,106,11,0.018182,0.000478
+turf algae decline,454,116,10,0.021277,0.00056
+undercurrent seasonal cycle,455,32,3,0.015873,0.000418
+urea limitation,456,28,3,0.056437,0.001485
+uv filter exposure,457,42,2,0.122899,0.003234
+uv filter sources,458,46,2,0.250908,0.006603
+varved sediments,459,24,0,0.065943,0.001735
+wastewater discharges,460,38,2,0.024691,0.00065
+wave climate,461,98,8,0.026786,0.000705
+wave overtopping,462,7,1,0.015748,0.000414
+whale growth,463,128,4,0.090909,0.002392
+whale physiology,464,128,4,0.090909,0.002392
+whiting landings,465,136,9,0.038265,0.001007
+wild coast governance,466,54,7,0.095767,0.00252
+wild coast management,467,76,5,0.053997,0.001421
+wild coast regulation,468,56,7,0.216802,0.005705
+wild coast use conflicts,469,116,10,0.021277,0.00056

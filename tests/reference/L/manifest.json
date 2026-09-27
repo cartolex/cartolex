@@ -1,0 +1,827 @@
+{
+ "artifacts": {
+  "apply": {
+   "applied": {
+    "file": "apply/applied.json.gz",
+    "kind": "json",
+    "sha256": "bddc53f5f97d1fd0989032d150351de0e5fef9fcb05d00e7c8a520de3d0fd02a"
+   },
+   "lexicon_weights": {
+    "columns": [
+     "term",
+     "term_index",
+     "concept_id",
+     "subfield_id",
+     "weight",
+     "share"
+    ],
+    "dtypes": {
+     "concept_id": "int",
+     "share": "float",
+     "subfield_id": "int",
+     "term": "str",
+     "term_index": "int",
+     "weight": "float"
+    },
+    "file": "apply/lexicon_weights.csv.gz",
+    "keys": [
+     "term_index"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 3018,
+    "sha256": "d7ed75a07235d1ead9fa44c30d6478883ce4631c3060970adc4b36ea9ef79ed6"
+   },
+   "person_weights": {
+    "columns": [
+     "person",
+     "subfield_id",
+     "weight"
+    ],
+    "dtypes": {
+     "person": "str",
+     "subfield_id": "int",
+     "weight": "float"
+    },
+    "file": "apply/person_weights.csv.gz",
+    "keys": [
+     "person",
+     "subfield_id"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 3112,
+    "sha256": "7b1c2ca2638ed92b5b63ff04a46b50163da123200262a274ed8beca688f207dc"
+   },
+   "returned_matches_file": {
+    "file": "apply/returned_matches_file.json",
+    "kind": "json",
+    "sha256": "8c5aaab6e1efdec7f7f9f65cc0de77461c36a46e6b7c9ee7a35299dd6e8449ee"
+   }
+  },
+  "build": {
+   "aliases": {
+    "columns": [
+     "alias",
+     "canonical"
+    ],
+    "dtypes": {
+     "alias": "str",
+     "canonical": "str"
+    },
+    "file": "build/aliases.csv.gz",
+    "keys": [
+     "alias"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 4914,
+    "sha256": "741eb532d3322a474e13f8da95420897e563632cc70ef7a80b91760546de87dd"
+   },
+   "domain_terms": {
+    "columns": [
+     "term",
+     "score",
+     "n_tokens",
+     "lang"
+    ],
+    "dtypes": {
+     "lang": "str",
+     "n_tokens": "int",
+     "score": "float",
+     "term": "str"
+    },
+    "file": "build/domain_terms.csv",
+    "keys": [
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 200,
+    "sha256": "02564bd740cc2a91b3f036b1f48a15b7717d20ddb7a596abcc9048aa03379806"
+   },
+   "group_terms": {
+    "columns": [
+     "group",
+     "term",
+     "score",
+     "n_tokens",
+     "lang"
+    ],
+    "dtypes": {
+     "group": "str",
+     "lang": "str",
+     "n_tokens": "int",
+     "score": "float",
+     "term": "str"
+    },
+    "file": "build/group_terms.csv.gz",
+    "keys": [
+     "group",
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 1500,
+    "sha256": "62e2021a8847fff25465a0755e7f02fdc3e2f0c2af87e847765d3c86e40e6cf6"
+   },
+   "pairs": {
+    "columns": [
+     "concept",
+     "term_fr",
+     "score_fr",
+     "term_en",
+     "score_en",
+     "total_score"
+    ],
+    "dtypes": {
+     "concept": "str",
+     "score_en": "float",
+     "score_fr": "float",
+     "term_en": "str",
+     "term_fr": "str",
+     "total_score": "float"
+    },
+    "file": "build/pairs.csv.gz",
+    "keys": [
+     "concept"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 4162,
+    "sha256": "3cb2776ed5c26f4d84bdac9119f2ba90b067c1e85da35eb5254ebeb84a3ed07c"
+   },
+   "person_terms": {
+    "columns": [
+     "person",
+     "rank",
+     "start_year",
+     "term",
+     "score",
+     "n_tokens",
+     "score_tf",
+     "lang"
+    ],
+    "dtypes": {
+     "lang": "str",
+     "n_tokens": "int",
+     "person": "str",
+     "rank": "float",
+     "score": "float",
+     "score_tf": "float",
+     "start_year": "float",
+     "term": "str"
+    },
+    "file": "build/person_terms.csv.gz",
+    "keys": [
+     "person",
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 9572,
+    "sha256": "04c0a35e9f1e98ccb88b162ed4041dcd96f74361ef8fc7ff7de9c0b3bdd05493"
+   },
+   "refined": {
+    "columns": [
+     "term",
+     "concept",
+     "score",
+     "n_tokens",
+     "lang"
+    ],
+    "dtypes": {
+     "concept": "str",
+     "lang": "str",
+     "n_tokens": "float",
+     "score": "float",
+     "term": "str"
+    },
+    "file": "build/refined.csv.gz",
+    "keys": [
+     "concept",
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 4162,
+    "sha256": "c6bafeeb90ee5228ce434fc5cb4452bf4ee9067ee637cc67e59b76abad912847"
+   },
+   "refined_en": {
+    "kind": "hash",
+    "of": "table",
+    "sha256": "680a32dae26a2c4966e425e91d1875abc71137650a09516aa05602de4552b69c"
+   },
+   "refined_fr": {
+    "kind": "hash",
+    "of": "table",
+    "sha256": "4b7f541ad39ce175cf016510d3fa562901faff6098a61b5df335fdbb9baccc50"
+   },
+   "settings": {
+    "file": "build/settings.json",
+    "kind": "json",
+    "sha256": "12bc2abea52b997bf0a788e24868fcf936ebaa925ef3a37307704741160a606c"
+   },
+   "vectorizer": {
+    "columns": [
+     "term",
+     "idf"
+    ],
+    "dtypes": {
+     "idf": "float",
+     "term": "str"
+    },
+    "file": "build/vectorizer.csv.gz",
+    "keys": [
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 4914,
+    "sha256": "8928d2e81d733e5e4e334ff8008f758e4bcf9d0d34d5d2e3326354fd838cc8a2"
+   }
+  },
+  "bundle": {
+   "entities": {
+    "columns": [
+     "entity_id",
+     "group"
+    ],
+    "dtypes": {
+     "entity_id": "str",
+     "group": "str"
+    },
+    "file": "bundle/entities.csv",
+    "keys": [
+     "entity_id"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 343,
+    "sha256": "e1019c460ddfc00da326889bda334fb5c298d97968de3ff84bee258b6fe0c28c"
+   },
+   "entity_terms": {
+    "columns": [
+     "entity_id",
+     "term",
+     "tf",
+     "score"
+    ],
+    "dtypes": {
+     "entity_id": "str",
+     "score": "float",
+     "term": "str",
+     "tf": "float"
+    },
+    "file": "bundle/entity_terms.csv.gz",
+    "keys": [
+     "entity_id",
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 9572,
+    "sha256": "497ed81c7361285ab377d321cb275ac6a08c3fd767ef3b4107ad96b2032b8e1c"
+   },
+   "meta": {
+    "file": "bundle/meta.json",
+    "kind": "json",
+    "sha256": "f1447524e904b8b950fecbdcb1cd83d72d974c3e0bbada0c9aaa56473ca749ad"
+   },
+   "round_trip": {
+    "file": "bundle/round_trip.json",
+    "kind": "json",
+    "sha256": "dcf25b6dab889b23bbb35a08fcb976ca4d3e85ab72fb3cba9167564c800beb84"
+   },
+   "taxonomy": {
+    "file": "bundle/taxonomy.json.gz",
+    "kind": "json",
+    "sha256": "8ba3e434f379193c12d5fb087bd8464dafc9b7e08b1a17a0ecd71fcb2d17f7a8"
+   },
+   "vocabulary": {
+    "columns": [
+     "term",
+     "n_entities",
+     "tf_total",
+     "score_total"
+    ],
+    "dtypes": {
+     "n_entities": "int",
+     "score_total": "float",
+     "term": "str",
+     "tf_total": "float"
+    },
+    "file": "bundle/vocabulary.csv.gz",
+    "keys": [
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 3018,
+    "sha256": "d3c39038e0bd74521851f02a15c3a0af3cb2776d073fd9d282b2d4db211a580d"
+   },
+   "zip": {
+    "file": "bundle/zip.json",
+    "kind": "json",
+    "sha256": "58e906615c35b1224dc43a2a214eb4420e54f1e22b4f621ca9fb6639169aa48a"
+   }
+  },
+  "draft": {
+   "draft": {
+    "file": "draft/draft.json.gz",
+    "kind": "json",
+    "sha256": "a953ef91edd6d800e89c483dc4971b64edcbb6c4b3089ff039f7a5e5be0a2a7c"
+   }
+  },
+  "extract": {
+   "terms_en": {
+    "columns": [
+     "term",
+     "score",
+     "n_tokens",
+     "score_len"
+    ],
+    "dtypes": {
+     "n_tokens": "float",
+     "score": "float",
+     "score_len": "float",
+     "term": "str"
+    },
+    "file": "extract/terms_en.csv.gz",
+    "keys": [
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 14030,
+    "sha256": "9b7bd38f6e4175196eb107486dfcfd1b07e902baae24288431fba454dbd9dab6"
+   },
+   "terms_fr": {
+    "columns": [
+     "term",
+     "score",
+     "n_tokens",
+     "score_len"
+    ],
+    "dtypes": {
+     "n_tokens": "float",
+     "score": "float",
+     "score_len": "float",
+     "term": "str"
+    },
+    "file": "extract/terms_fr.csv.gz",
+    "keys": [
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 7163,
+    "sha256": "d15bd1cba574e484b0d8e3d4c46473b7765b6f038b932c0bf889c520718b179f"
+   },
+   "terms_merged": {
+    "columns": [
+     "term",
+     "score_raw",
+     "n_tokens",
+     "score_len",
+     "lang"
+    ],
+    "dtypes": {
+     "lang": "str",
+     "n_tokens": "float",
+     "score_len": "float",
+     "score_raw": "float",
+     "term": "str"
+    },
+    "file": "extract/terms_merged.csv.gz",
+    "keys": [
+     "term"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 20998,
+    "sha256": "08ed599f52d952c9d0a1ee4ee10a729d3d2759f2f4579eaf5bbf07933e0f1c6e"
+   }
+  },
+  "group": {
+   "clusters": {
+    "columns": [
+     "cluster",
+     "size",
+     "terms"
+    ],
+    "dtypes": {
+     "cluster": "int",
+     "size": "int",
+     "terms": "str"
+    },
+    "file": "group/clusters.csv.gz",
+    "keys": [
+     "cluster"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 150,
+    "sha256": "5ae2153d12e5445b199bc5b15c6364225fa48d2016fe5a2fdc6390f1ac996d07"
+   },
+   "proto_subfields": {
+    "file": "group/proto_subfields.json",
+    "kind": "json",
+    "sha256": "9e200e3eb88be06f1430e34ce9af0f81cabe2d56076d152f838ca01125a39c56"
+   },
+   "term_labels": {
+    "count": 3018,
+    "file": "group/term_labels.json",
+    "kind": "labels",
+    "sha256": "9fcc24edeb1c9ca6afff9a96cbaf0da920af12cb62832b0df034bf96e3aa26ce"
+   },
+   "term_scores": {
+    "file": "group/term_scores.npy",
+    "kind": "array",
+    "role": "values",
+    "sha256": "517a402b9e8847145979d68b0e9909654032182ab3c3e472b1bb81bae46be5e5",
+    "shape": [
+     3018
+    ],
+    "stored_dtype": "float64"
+   }
+  },
+  "layout": {
+   "clustered_table": {
+    "kind": "hash",
+    "of": "table",
+    "sha256": "1f0c82fa21656cae4c0cb36cf9b03b2671b1a233ce9cc314921de061d7ef68e9"
+   },
+   "diagnostics": {
+    "file": "layout/diagnostics.json",
+    "kind": "json",
+    "sha256": "c2d4b718069d38eec77dc976d82dd0be574fdc588b838875a2fb34f3cdca74db"
+   },
+   "groups": {
+    "columns": [
+     "group_code",
+     "group_label",
+     "umap_x",
+     "umap_y",
+     "size",
+     "cov_xx",
+     "cov_yy",
+     "cov_xy",
+     "sx",
+     "sy",
+     "rho"
+    ],
+    "dtypes": {
+     "cov_xx": "float",
+     "cov_xy": "float",
+     "cov_yy": "float",
+     "group_code": "str",
+     "group_label": "str",
+     "rho": "float",
+     "size": "int",
+     "sx": "float",
+     "sy": "float",
+     "umap_x": "float",
+     "umap_y": "float"
+    },
+    "file": "layout/groups.csv",
+    "keys": [],
+    "kind": "table",
+    "ordered": true,
+    "rows": 30,
+    "sha256": "0405f28b97d1b5b26b5b8d261ad6ac303495c0b6e1c39a11c715a07ba2cc40fe"
+   },
+   "person_table": {
+    "kind": "hash",
+    "of": "table",
+    "sha256": "72b8e5168bf43a2ff5dcc5f1d799ede46bf2b6aecd1a99c5b62e89f11d8dea82"
+   },
+   "person_xy": {
+    "file": "layout/person_xy.npy",
+    "kind": "array",
+    "role": "layout",
+    "sha256": "94b6a3538b23047b3df7d769aa05ca80b80cf1c0ce51dc59917a2e800c28fb1d",
+    "shape": [
+     343,
+     2
+    ],
+    "stored_dtype": "float64"
+   },
+   "term_table": {
+    "kind": "hash",
+    "of": "table",
+    "sha256": "83b2ea636cd7db6f95f35875033d34b45961b1080788fec4d6845d58a3e8beaf"
+   },
+   "term_xy": {
+    "file": "layout/term_xy.npy.gz",
+    "kind": "array",
+    "role": "layout",
+    "sha256": "ff9e948bb4490437faed55b735cb3e663af1f2bc6b54708c87852a41d3247647",
+    "shape": [
+     3018,
+     2
+    ],
+    "stored_dtype": "float64"
+   }
+  },
+  "projection": {
+   "applicants_coords": {
+    "file": "projection/applicants_coords.npy",
+    "kind": "array",
+    "role": "values",
+    "sha256": "6e77e59d02c0cfbb7c86a789e5811bd870633f7e78eeb95b1498ea1c53623a76",
+    "shape": [
+     35,
+     20
+    ],
+    "stored_dtype": "float64"
+   },
+   "applicants_details": {
+    "file": "projection/applicants_details.json.gz",
+    "kind": "json",
+    "sha256": "6872069b622ec379189c5159bafd743c7a54e7c1cfde477fba2ffb75d28bc1e8"
+   },
+   "applicants_items": {
+    "count": 35,
+    "file": "projection/applicants_items.json",
+    "kind": "strings",
+    "sha256": "b95804a8dff3d26a12a00da3232613d3eded4765b049e9e8d51ab35ac7e8d7dc"
+   },
+   "applicants_xy": {
+    "file": "projection/applicants_xy.npy",
+    "kind": "array",
+    "role": "values",
+    "sha256": "8f06ce9d40a3420b010d52eafeaf8642d3ccde319df0de593c964646e242945e",
+    "shape": [
+     35,
+     2
+    ],
+    "stored_dtype": "float64"
+   }
+  },
+  "roster": {
+   "persons": {
+    "columns": [
+     "person",
+     "group",
+     "rank",
+     "start_year"
+    ],
+    "dtypes": {
+     "group": "str",
+     "person": "str",
+     "rank": "str",
+     "start_year": "str"
+    },
+    "file": "roster/persons.csv",
+    "keys": [
+     "person"
+    ],
+    "kind": "table",
+    "ordered": true,
+    "rows": 343,
+    "sha256": "3df433689c312ef1f582e366b4c8742dd961d0924739ce849ee643ae24ea666c"
+   },
+   "summary": {
+    "file": "roster/summary.json",
+    "kind": "json",
+    "sha256": "c420b1b96727395044e325317c0f63bdd0308b84bb4596f2904d0827b1a7366b"
+   }
+  },
+  "space": {
+   "explained_variance_ratio": {
+    "file": "space/explained_variance_ratio.npy",
+    "kind": "array",
+    "role": "values",
+    "sha256": "53a8b9b056c369c4832c44276a758bb8bf7a69f58f7f5631ef419d0ab6e79317",
+    "shape": [
+     20
+    ],
+    "stored_dtype": "float64"
+   },
+   "matrix": {
+    "columns": [
+     "row",
+     "col",
+     "score",
+     "tf"
+    ],
+    "dtypes": {
+     "col": "int",
+     "row": "int",
+     "score": "float",
+     "tf": "float"
+    },
+    "file": "space/matrix.csv.gz",
+    "keys": [
+     "row",
+     "col"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 9572,
+    "sha256": "12015c47637c1153fae47d0eee2b2761f3fddf3a25d656e4bc9ab16f2ceca1ce"
+   },
+   "person_coords": {
+    "file": "space/person_coords.npy.gz",
+    "kind": "array",
+    "role": "embedding",
+    "sha256": "19cb0e35c27b82cedf5af2e39b9d937929a2098ed74e7b6ea299201c339e9eb2",
+    "shape": [
+     343,
+     20
+    ],
+    "stored_dtype": "float64"
+   },
+   "person_table": {
+    "kind": "hash",
+    "of": "table",
+    "sha256": "9c48a5b9e94a09ec170024c4a41c488acc0697d2ce4612ab5b392ebe8603fc1f"
+   },
+   "persons": {
+    "count": 343,
+    "file": "space/persons.json",
+    "kind": "strings",
+    "sha256": "b1ed548d191ad64d77db7727802d07baecc4c594708000db1454efc002d1fc31"
+   },
+   "singular_values": {
+    "file": "space/singular_values.npy",
+    "kind": "array",
+    "role": "spectrum",
+    "sha256": "23b606dbcbf0cd91466df51fc465cfbf883e4c6e0252b7fdb18767d672864656",
+    "shape": [
+     20
+    ],
+    "stored_dtype": "float64"
+   },
+   "term_coords": {
+    "file": "space/term_coords.npy.gz",
+    "kind": "array",
+    "role": "embedding",
+    "sha256": "9887370428177d7ae4d47807ad9958cb0c7da2a00b291c5c900441465bd8b4ef",
+    "shape": [
+     3018,
+     20
+    ],
+    "stored_dtype": "float32"
+   },
+   "term_table": {
+    "kind": "hash",
+    "of": "table",
+    "sha256": "56a7220b00e8c9bc373f06a188e40a06a210ed53e3ce91877b6db8a3e8d092cd"
+   },
+   "terms": {
+    "count": 3018,
+    "file": "space/terms.json.gz",
+    "kind": "strings",
+    "sha256": "4e0572e69e8e81839fd43b7d3e424c005b8db1e3b29f0c42464aa9eda8fb5054"
+   }
+  },
+  "trajectories": {
+   "points": {
+    "columns": [
+     "person",
+     "bin_start",
+     "bin_end",
+     "n_docs",
+     "n_type_1",
+     "n_type_2",
+     "top_terms",
+     "umap_x",
+     "umap_y"
+    ],
+    "dtypes": {
+     "bin_end": "int",
+     "bin_start": "int",
+     "n_docs": "int",
+     "n_type_1": "int",
+     "n_type_2": "int",
+     "person": "str",
+     "top_terms": "str",
+     "umap_x": "float",
+     "umap_y": "float"
+    },
+    "file": "trajectories/points.csv.gz",
+    "keys": [
+     "person",
+     "bin_start"
+    ],
+    "kind": "table",
+    "ordered": false,
+    "rows": 1253,
+    "sha256": "e1633863f7f7c7d3e8f6e85e0ee8e986e3e748a7de2ac5ee5c7b19bacdbd2954"
+   },
+   "windows": {
+    "file": "trajectories/windows.json.gz",
+    "kind": "json",
+    "sha256": "71c8c1775e01890a9d7ace61eb6b6696a3f18c5335bd1fdc6e6d3919437df572"
+   }
+  },
+  "triage": {
+   "batch_cache": {
+    "file": "triage/batch_cache.json.gz",
+    "kind": "json",
+    "sha256": "2a3368340bf404cf414b8a5ecb1c13bbe936d6b5382d914db8a9f0a1a401884f"
+   },
+   "calls": {
+    "file": "triage/calls.json",
+    "kind": "json",
+    "sha256": "da71f401170895314bb1c5482ddfd0475088d1ff78496c80d553208ef4a97c70"
+   },
+   "decisions": {
+    "file": "triage/decisions.json.gz",
+    "kind": "json",
+    "sha256": "59ea0ebe247b968fbf7271a5b8893eaf20f31bfabfe75553018cf106710fea63"
+   },
+   "term_cache": {
+    "file": "triage/term_cache.json.gz",
+    "kind": "json",
+    "sha256": "fd6335964dbc1193b4a5cb82e9364c68f24bf3364173b724e2ebe9b169ce4adb"
+   },
+   "translations": {
+    "file": "triage/translations.json.gz",
+    "kind": "json",
+    "sha256": "f32313e4645c0c338f50841cb53bc5fc526a80be40795e9c13f4a39663fd6fa5"
+   }
+  }
+ },
+ "environment": {
+  "engine_fingerprint": "b2ef783337f9c48f614a401e88874493c4dd35d2193d95ecf22040f835d5994c",
+  "engine_version": "0.7.2",
+  "implementation": "CPython",
+  "libraries": {
+   "joblib": "1.6.0",
+   "langdetect": "1.0.9",
+   "llvmlite": "0.49.0",
+   "matplotlib": "3.11.2",
+   "numba": "0.67.0",
+   "numpy": "2.5.3",
+   "pandas": "3.0.6",
+   "pdfminer.six": "20260107",
+   "pynndescent": "0.6.0",
+   "pypdf": "6.19.0",
+   "scikit-learn": "1.9.1",
+   "scipy": "1.18.1",
+   "threadpoolctl": "3.7.0",
+   "umap-learn": "0.5.12"
+  },
+  "native_libraries": [
+   "openblas 0.3.31.dev",
+   "openblas 0.3.34.106.0",
+   "openmp None"
+  ],
+  "platform": "linux-x86_64",
+  "python": "3.12.14",
+  "settings": {
+   "LC_ALL": "C.UTF-8",
+   "MKL_NUM_THREADS": "1",
+   "NUMBA_NUM_THREADS": "1",
+   "OMP_NUM_THREADS": "1",
+   "OPENBLAS_NUM_THREADS": "1",
+   "PYTHONHASHSEED": "0",
+   "TZ": "UTC"
+  }
+ },
+ "format": "cartolex-reference/1",
+ "inputs": {
+  "truth_sha256": "19f2ff8eb35967df3028534a446eb38266878d5d20ee20f9b4f6e893844ff330",
+  "workspace_sha256": "c940429c6515d7785f1a26ba8ee4596a93221419ef381afb20db5baa7fae60af"
+ },
+ "mode": "single",
+ "plots": {
+  "images": 9,
+  "ran": true
+ },
+ "settings": {
+  "domain_id": "a",
+  "engine": {
+   "clustering": {},
+   "keywords": {
+    "include_slot_1": false,
+    "include_slot_2": false,
+    "recency_years": 0
+   },
+   "svd": {},
+   "umap": {}
+  },
+  "now_year": 2026,
+  "triage": {
+   "domain_name": "Coastal and marine systems",
+   "llm_max_concurrent": 1
+  }
+ },
+ "stages": [
+  "extract",
+  "triage",
+  "build",
+  "roster",
+  "space",
+  "group",
+  "layout",
+  "draft",
+  "apply",
+  "trajectories",
+  "projection",
+  "bundle"
+ ]
+}

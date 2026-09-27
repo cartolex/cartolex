@@ -1,0 +1,104 @@
+You are curating scientific keywords for the research domain "{domain_title}".
+
+The domain's reference scope is the following set of subfields. Use them
+as the relevance anchor when judging whether a term is in-scope:
+{subfields_block}
+
+A VALID keyword is ONE well-formed noun phrase in its source language
+that names exactly one of:
+  C  CONCEPT / phenomenon / theory / model
+     e.g. "phase transition", "active matter", "morphogenesis"
+  M  METHOD / technique / instrument / numerical scheme
+     e.g. "atomic force microscopy", "molecular dynamics", "femtosecond laser"
+  O  OBJECT of study / material / system / organism / device class
+     e.g. "polymer brush", "budding yeast", "granular medium"
+
+SCOPE RULE (read carefully):
+The subfields above are the *core* of this domain, but researchers of the
+domain legitimately work at interfaces with neighbouring disciplines
+(astrophysics, chemistry, biology, computer science, mathematics, earth
+sciences, engineering...). Such interdisciplinary terms are SIGNAL,
+not noise. ACCEPT them as long as they name a real scientific
+concept / method / object — even if they sit outside the listed
+subfields. Only treat a term as out-of-scope if it is clearly NOT a
+natural-science / engineering / quantitative-method term at all (pure
+humanities, pure law, pure literature, etc.); in that case still use
+code G or N as appropriate, not a dedicated out-of-scope code.
+
+PERSON NAMES (read carefully):
+In some fields (history, philology, archaeology, art history...) persons
+are legitimate OBJECTS of study. A person-name keyword is ACCEPTED
+(code O) ONLY when BOTH conditions hold:
+  1. The person is famous in the research field AS a research object —
+     someone studied, edited, excavated or collected (ancient authors,
+     historical figures, notable collectors: "Galen", "Titus Livius",
+     "Vivant Denon").
+  2. The keyword is the complete, unambiguously recognizable name of
+     that person — NEVER a fragment of a name, a bare common-word name
+     part ("vivant"), a lone surname ("garcia"), or a citation artefact
+     ("vellmoor (ed.)").
+Contemporary researchers, co-authors, collaborators, supervisors and
+cited scholars NEVER qualify, however often they appear in the corpus —
+reject them with N. When in doubt about a person name, REJECT with N.{person_whitelist_block}
+
+ACCEPT only if ALL of these hold:
+  1. The phrase is fluent in its source language. No reordering, no
+     missing preposition or conjunction would be required to translate.
+  2. The phrase is informative on its own — a scientist could place it
+     under some scientific subfield from the term alone.
+  3. It names a specific concept / method / object — not a bare ultra-
+     generic noun.
+
+REJECT with the most specific code:
+  N  person (unless accepted under the PERSON NAMES rule above), name
+     fragment, citation artefact ("x (ed.)") / lab / institution /
+     journal / publisher / city / venue
+  K  admin, CV, project-management or generic action-verb phrase
+     ("team leader", "funded project", "PhD supervision")
+  G  bare ultra-generic noun usable in any field with no specific
+     scientific content (measurement, simulation, function, structure,
+     property, method, system, approach, result...)
+  F  fragment, header artefact, bag-of-words co-occurrence, garbled
+     or OCR-broken token; phrase whose tokens are not in a valid
+     order or would need a connective ("of", "and", "de", "des") to
+     be fluent; bare acronym you cannot confidently expand
+
+WHEN IN DOUBT, prefer ACCEPT for any term that looks like a real
+scientific concept / method / object, even if interdisciplinary or
+unfamiliar. Silently dropping a valid term loses information; the only
+things that *must* go are admin / proper-noun / generic / fragment
+cases.
+
+CANONICAL {reference_language_name} FORM (only for C / M / O):
+  - Give the canonical form of the term in {reference_language_name}.
+  - Singularize plurals ("polymers" -> "polymer").
+  - Prefer the substantive: when a natural noun names the same notion,
+    the canonical form is that noun, not the adjective ("hagiographic"
+    -> "hagiography"). Keep an adjective-derived form when it IS the
+    discipline's name ("numismatics", "ceramics" stay as they are).
+    When unsure, keep the corpus's dominant surface form.
+  - Translate terms from other languages into {reference_language_name}
+    (e.g. when the reference language is English, "matière molle" ->
+    "soft matter", "polymère" -> "polymer", "fluide complexe" ->
+    "complex fluid"). Keep established technical terms that specialists
+    in this field use untranslated.
+  - Expand standard abbreviations ("NMR" -> "nuclear magnetic
+    resonance", "AFM" -> "atomic force microscopy").
+  - Reorder to a fluent {reference_language_name} noun phrase (e.g. the
+    French adjective-after-noun -> English adjective-before-noun flip,
+    "matière molle" -> "soft matter"). Never insert "of", "and", "the",
+    "interface", "between", or any new word that does not directly
+    translate one of the input words.
+
+OUTPUT FORMAT — exactly one line per input term, in input order:
+  C <lang> <term>=<canonical>
+  M <lang> <term>=<canonical>
+  O <lang> <term>=<canonical>
+  N <term>
+  K <term>
+  G <term>
+  F <term>
+Where <lang> is the two-letter ISO code of the term's source language
+and <canonical> is its canonical {reference_language_name} form. No
+numbering, no commentary, no blank lines. If the input has N terms,
+output exactly N lines.

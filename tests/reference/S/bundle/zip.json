@@ -1,0 +1,72 @@
+{
+ "members": {
+  "bundle_meta.json": {
+   "compress_type": 8,
+   "date_time": [
+    1980,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "sha256": "0138153647b0bc884355e03cc232de0a7eb8f78ed40aa7117d6bb0d15802b9eb"
+  },
+  "entities.csv": {
+   "compress_type": 8,
+   "date_time": [
+    1980,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "sha256": "274357e89fd3d639f7353f69605315e121ab33512bb1a044ed5995a45d8269e5"
+  },
+  "entity_terms.csv": {
+   "compress_type": 8,
+   "date_time": [
+    1980,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "sha256": "36511bd46fb9753ba8e5bd6a40b06d847deefb3930d8f162f01a45dcd3ad5c1c"
+  },
+  "taxonomy.json": {
+   "compress_type": 8,
+   "date_time": [
+    1980,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "sha256": "215c61cb232337d54d1c7e669552f7921547d9bc433a1c1ce99981e639399030"
+  },
+  "vocabulary.csv": {
+   "compress_type": 8,
+   "date_time": [
+    1980,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "sha256": "e3c60d5b110031154103ecee712fe5bc15cc701340c9880e0492d4d618bda062"
+  }
+ },
+ "order": [
+  "bundle_meta.json",
+  "entities.csv",
+  "entity_terms.csv",
+  "taxonomy.json",
+  "vocabulary.csv"
+ ],
+ "rewrite_identical": true
+}

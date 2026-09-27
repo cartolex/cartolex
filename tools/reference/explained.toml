@@ -1,0 +1,284 @@
+# Differences from the stored reference, each with its reason (docs/dev/reference.md).
+# An entry pins the artifact's new hash: any further change is 'different' again.
+
+[[difference]]
+reference = "S"
+stage = "build"
+artifact = "settings"
+sha256 = "8a9a7a90e63dabafaac4b2fd4ef27a93b02141af7a0c2d81ad994747edc38b7c"
+step = "1c"
+reason = "The settings record lists the ordered corpus slots instead of per-source switches (snapshot version 3)."
+
+[[difference]]
+reference = "S"
+stage = "bundle"
+artifact = "meta"
+sha256 = "fede5edb2b2f066c3d3383436328b494c8a9a0f5bb6859915e895b11ce91a2c9"
+step = "1c"
+reason = "Map bundle format map_bundle/2: cohort_id replaces the former identifier field."
+
+[[difference]]
+reference = "S"
+stage = "bundle"
+artifact = "zip"
+sha256 = "ede671cd66e1edad59e28083ec68a577216382d2023484bec3bf6aa543cc588c"
+step = "1c"
+reason = "The bundle's metadata member changes with the map_bundle/2 format; every other member is identical."
+
+[[difference]]
+reference = "S"
+stage = "extract"
+artifact = "terms_fr"
+sha256 = "04261d3d4c5f6065b26db4ae9442cad342bf8c160a4448bbcdd00aa270bea313"
+step = "1c"
+reason = "The packaged stop words no longer hold personal names; one of them is also a common French noun found in the demo corpus, so it and one phrase containing it become candidates (both are rejected at triage)."
+
+[[difference]]
+reference = "S"
+stage = "extract"
+artifact = "terms_merged"
+sha256 = "e5a3703bd301e3186536dffdb862b54f820fac1cf92d3fd6e2e9ab3242a8f80a"
+step = "1c"
+reason = "Same two new candidates as terms_fr (stop words no longer hold personal names)."
+
+[[difference]]
+reference = "S"
+stage = "trajectories"
+artifact = "points"
+sha256 = "88792c388ca6baa6ff4c90261dab23d390dd7b038b1c3d171a299f96932a7900"
+step = "1c"
+reason = "Two per-type document counts tied to a removed source-specific type filter are gone (they were zero); every other column is identical."
+
+[[difference]]
+reference = "S"
+stage = "triage"
+artifact = "batch_cache"
+sha256 = "c0ff581e4fff38f3e36fd77ada77a2a0974918676d7aaceff985a4b46da89d3f"
+step = "1c"
+reason = "The two new candidates are sent to the model, so batches are cut differently and their cache keys differ; the key format is unchanged."
+
+[[difference]]
+reference = "S"
+stage = "triage"
+artifact = "calls"
+sha256 = "1703e212e7c9e1a9c4ccaad17cfcc8f04c263430efcc976d59e39f5bd2ebffc4"
+step = "1c"
+reason = "Two more per-term cache entries: the two new candidates."
+
+[[difference]]
+reference = "S"
+stage = "triage"
+artifact = "decisions"
+sha256 = "cf1decadba7f19a726829cfd04c3c18cec892d64bc8ab002979926817afec756"
+step = "1c"
+reason = "The two new candidates are rejected; no other decision changes."
+
+[[difference]]
+reference = "S"
+stage = "triage"
+artifact = "term_cache"
+sha256 = "806293c20e9f0463c634d22dd1c686137b1a4af772f0f8c97bcc87684f4d45e9"
+step = "1c"
+reason = "Two added per-term entries for the two new candidates; existing keys are unchanged."
+
+[[difference]]
+reference = "L"
+stage = "build"
+artifact = "settings"
+sha256 = "8a9a7a90e63dabafaac4b2fd4ef27a93b02141af7a0c2d81ad994747edc38b7c"
+step = "1c"
+reason = "The settings record lists the ordered corpus slots instead of per-source switches (snapshot version 3)."
+
+[[difference]]
+reference = "L"
+stage = "bundle"
+artifact = "meta"
+sha256 = "9901207a70f2c3bc693f7aa3efe4c65a6453198d5762d3720b6e295aaa729f43"
+step = "1c"
+reason = "Map bundle format map_bundle/2: cohort_id replaces the former identifier field."
+
+[[difference]]
+reference = "L"
+stage = "bundle"
+artifact = "zip"
+sha256 = "08008151f8784a5ba28bbab2a2bead9ba7ada744944338f569f0a76d042694c6"
+step = "1c"
+reason = "The bundle's metadata member changes with the map_bundle/2 format; every other member is identical."
+
+[[difference]]
+reference = "L"
+stage = "extract"
+artifact = "terms_fr"
+sha256 = "ee5123085bd7e7d6311c1e546daabe6ae572c73f458bae66c1566433f07d4e5f"
+step = "1c"
+reason = "The packaged stop words no longer hold personal names; one of them is also a common French noun found in the demo corpus, so it and one phrase containing it become candidates (both are rejected at triage)."
+
+[[difference]]
+reference = "L"
+stage = "extract"
+artifact = "terms_merged"
+sha256 = "bca1196b657f7c524e0bb049d4d098984407e0f98fbefc18e195ba2acec71791"
+step = "1c"
+reason = "Same two new candidates as terms_fr (stop words no longer hold personal names)."
+
+[[difference]]
+reference = "L"
+stage = "trajectories"
+artifact = "points"
+sha256 = "b6b45b6db3f5657123c7a18adcee5c358934760782b02a9c174b8baa4dbc06be"
+step = "1c"
+reason = "Two per-type document counts tied to a removed source-specific type filter are gone (they were zero); every other column is identical."
+
+[[difference]]
+reference = "L"
+stage = "triage"
+artifact = "batch_cache"
+sha256 = "23751a3255280263e348fdca0e5fc94590b0619ae9eec3eae5084c4db3536149"
+step = "1c"
+reason = "The two new candidates are sent to the model, so batches are cut differently and their cache keys differ; the key format is unchanged."
+
+[[difference]]
+reference = "L"
+stage = "triage"
+artifact = "calls"
+sha256 = "a40cd8e6a74082b5bdd8a9cc0a3786003e172102bbac9d4b549977782175902d"
+step = "1c"
+reason = "Two more per-term cache entries: the two new candidates."
+
+[[difference]]
+reference = "L"
+stage = "triage"
+artifact = "decisions"
+sha256 = "1928ca3fb6b8d3b41e58620cc475f8565936871697888cf27f9c5b5dc7cdb533"
+step = "1c"
+reason = "The two new candidates are rejected; no other decision changes."
+
+[[difference]]
+reference = "L"
+stage = "triage"
+artifact = "term_cache"
+sha256 = "90d23e6499e1ae5af0b6c8fdc09aa7b4502c48f39e0bd5e39b5272e19a0068fd"
+step = "1c"
+reason = "Two added per-term entries for the two new candidates; existing keys are unchanged."
+
+[[difference]]
+reference = "merge"
+stage = "merge"
+artifact = "naive_table"
+sha256 = "fd865b305271c4ee52f63cb8f997c5b4247ce522e4e41e42a2559a7217610641"
+step = "1c"
+reason = "Reconcile table format map_reconcile/2: member records carry cohort_id."
+
+[[difference]]
+reference = "merge"
+stage = "merge"
+artifact = "table"
+sha256 = "634ff524afec16e18c6a13e65e4b28c0d2806a2ba5e34e403bb8c972282ace75"
+step = "1c"
+reason = "Reconcile table format map_reconcile/2: member records carry cohort_id."
+
+[[difference]]
+reference = "merge"
+stage = "merge"
+artifact = "table_first_pass"
+sha256 = "aa076f75d1877a2d271b31b61df2ad94f4ba770c8d95aa429ae90371a57dffb1"
+step = "1c"
+reason = "Reconcile table format map_reconcile/2: member records carry cohort_id."
+
+[[difference]]
+reference = "S"
+stage = "build"
+artifact = "person_terms"
+sha256 = "978ed7a10741ae0c02e6c6d7c366e1572f1ae512199f1db9d4ed4f394e23c075"
+step = "1d"
+reason = "The per-person keyword table no longer repeats the two roster attribute columns the engine used to add; they were empty for the demo index, which has no such column. Every other column and row is identical."
+
+[[difference]]
+reference = "S"
+stage = "roster"
+artifact = "persons"
+sha256 = "87e2a52b2c6a30c6ad3670d5dffa10ff948007a9d3762329bd5c2e4db0197e7e"
+step = "1d"
+reason = "The roster keeps only the attribute columns the corpus index has; the demo index has none, so the two always-empty attribute columns the engine used to add are gone. Persons, order and groups are identical."
+
+[[difference]]
+reference = "S"
+stage = "space"
+artifact = "person_table"
+sha256 = "39ad9a08e8a7515b6892ee2f3de5817c63aff6327596bd69af5f7401c22e172f"
+step = "1d"
+reason = "Hash-only copy of the SVD person table: the two always-empty roster attribute columns are gone (see roster/persons); the coordinates (person_coords) are identical."
+
+[[difference]]
+reference = "S"
+stage = "layout"
+artifact = "groups"
+sha256 = "c1408f189d15353941eaccc990ef9c985140a9a70869d21326c9899e4df13bcc"
+step = "1d"
+reason = "Groups are labelled by the group column itself: the separate code and label columns (equal for every group, no label registry) become one group column with the same values; every other column is identical."
+
+[[difference]]
+reference = "S"
+stage = "layout"
+artifact = "person_table"
+sha256 = "31789c6406a6fb7d9bc4595263d9a73d22cda9b355d0863efd71bf0a76830755"
+step = "1d"
+reason = "Hash-only copy of the layout person table: the two always-empty roster attribute columns are gone (see roster/persons); the coordinates (person_xy) are identical."
+
+[[difference]]
+reference = "L"
+stage = "build"
+artifact = "person_terms"
+sha256 = "c5e3d6899b55abdd57ba4505b4eb810724a2308cd55a7a6701dff5cd9a2aea4b"
+step = "1d"
+reason = "The per-person keyword table no longer repeats the two roster attribute columns the engine used to add; they were empty for the demo index, which has no such column. Every other column and row is identical."
+
+[[difference]]
+reference = "L"
+stage = "roster"
+artifact = "persons"
+sha256 = "fb72c8c09ffc49ebb85c5c0fbf990e8a0d4138781bcddedcc464dae7ebc4c4f6"
+step = "1d"
+reason = "The roster keeps only the attribute columns the corpus index has; the demo index has none, so the two always-empty attribute columns the engine used to add are gone. Persons, order and groups are identical."
+
+[[difference]]
+reference = "L"
+stage = "space"
+artifact = "person_table"
+sha256 = "ff015c8d7f89ad9efebeb6e3acaca891fc3f679f45f2178a7a3ce24f373a2f04"
+step = "1d"
+reason = "Hash-only copy of the SVD person table: the two always-empty roster attribute columns are gone (see roster/persons); the coordinates (person_coords) are identical."
+
+[[difference]]
+reference = "L"
+stage = "layout"
+artifact = "groups"
+sha256 = "973c36374c662f829630e9f297391357bb4b7ea29924e9c9d10e0abcc566f5a8"
+step = "1d"
+reason = "Groups are labelled by the group column itself: the separate code and label columns (equal for every group, no label registry) become one group column with the same values; every other column is identical."
+
+[[difference]]
+reference = "L"
+stage = "layout"
+artifact = "person_table"
+sha256 = "74205863b4d4d906aa6a25833c22f2ad825dc38f813a0f66886a612c1cd359d3"
+step = "1d"
+reason = "Hash-only copy of the layout person table: the two always-empty roster attribute columns are gone (see roster/persons); the coordinates (person_xy) are identical."
+
+
+[[difference]]
+reference = "S"
+stage = "draft"
+artifact = "draft"
+sha256 = "4b31ace3d425b749c21eacebae6401d8675167faf3b2dff72574d5debc2ba095"
+step = "1d"
+reason = "The draft document's instructions text names the stage in words (term clustering) instead of a stage code, and no longer points at a particular editor; every other field is identical."
+
+[[difference]]
+reference = "L"
+stage = "draft"
+artifact = "draft"
+sha256 = "0fe5513fb5975398bc6d40338b5cf4ca9634467f8970a72d6e3be02eb5ae87c6"
+step = "1d"
+reason = "The draft document's instructions text names the stage in words (term clustering) instead of a stage code, and no longer points at a particular editor; every other field is identical."
+

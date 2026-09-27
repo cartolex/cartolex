@@ -1,0 +1,18 @@
+# Settings for tools/check.py.
+
+[vocab]
+# Commit messages scanned for banned terms and co-author trailers: the whole
+# history.
+commits = "HEAD"
+tags = false
+# Generated demo worlds (size:seed) scanned as well: invented names can match real ones.
+demo_worlds = ["XS:0", "S:0", "S:1", "L:0", "L:1"]
+
+[tests]
+# Every supported Python; each gets its own virtual environment in .venvs/.
+pythons = ["3.10", "3.11", "3.12", "3.13", "3.14"]
+# The one used by --quick, lint and docs.
+quick = "3.12"
+# How many Python versions are tested at the same time (memory: each run can
+# take a few GB with the large scientific libraries).
+jobs = 2

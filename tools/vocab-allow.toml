@@ -1,0 +1,12 @@
+# File-level exceptions for tools/vocab_scan.py: a file pattern, the numbers of the
+# banned patterns it may contain, and why. Keep this list short.
+
+[[allow]]
+path = "CITATION.cff"
+patterns = [4, 64]
+reason = "author affiliations"
+
+[[allow]]
+path = "codemeta.json"
+patterns = [4, 64]
+reason = "author affiliations"

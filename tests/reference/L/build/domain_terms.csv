@@ -1,0 +1,201 @@
+term,score,n_tokens,lang
+adaptation pathways,0.0178224211078425,2,en
+alexandrium abundance,0.0248283889523057,2,en
+alexandrium respiration,0.0181520618580849,2,en
+alexandrium vertical distribution,0.0269575329481302,3,en
+appendicularian respiration,0.0162439917992597,2,en
+artificial reefs,0.019709718346083,2,en
+barnacle feeding ecology,0.0279785634252066,3,en
+barrier topography,0.0192465700000989,2,en
+bay exchange flow,0.0261294876981422,3,en
+bay stratification,0.0169555596420289,2,en
+beach dynamics,0.0257731997405483,2,en
+beach erosion,0.0248321432165452,2,en
+beach morphology,0.0369097140647815,2,en
+beach planning,0.0176007157469664,2,en
+beach ridge plain evolution,0.0371922864869458,4,en
+beach rotation,0.0195604210426159,2,en
+beach sediment budget,0.0372062970435366,3,en
+beach sediment supply,0.0511730563701842,3,en
+beach stability,0.0295659574487058,2,en
+beach topography,0.0213574297120134,2,en
+beach vulnerability,0.0159689317075586,2,en
+benthic nutrient fluxes,0.0287404496886019,3,en
+biological carbon pump,0.0303031503718377,3,en
+blue carbon,0.0251225472809894,2,en
+calcifying organisms,0.0211357619015939,2,en
+campsite damage,0.0203145647582125,2,en
+carbonate chemistry,0.0229259739776351,2,en
+cephalopod feeding ecology,0.0278904974205021,3,en
+cephalopod physiology,0.0158483600478711,2,en
+chironomid preservation,0.0194305312493047,2,en
+cliff erosion,0.0171461929462089,2,en
+cliff resilience,0.0306207771845183,2,en
+cliff vulnerability,0.0158718828905843,2,en
+climate change adaptation,0.0268077879461327,3,en
+coastal defence structures,0.0304687429402638,3,en
+coastal eutrophication,0.0255320624438197,2,en
+coastal hypoxia,0.0193935089920005,2,en
+coastal lake palaeoecology,0.0289195063993976,3,en
+coastal morphodynamics,0.0175843714151569,2,en
+coastal squeeze,0.0220391428504659,2,en
+coastal trapped waves,0.0346057527040716,3,en
+coastal village damage,0.0263671235727179,3,en
+coccolithophore growth rates,0.0267583560593492,3,en
+cohesive sediment dynamics,0.0432081230977518,3,en
+compound flooding,0.0156629913718042,2,en
+continental margin sedimentation,0.041971205243612,3,en
+contourite drifts,0.0313645491564918,2,en
+coral reef resilience,0.0392075205008392,3,en
+crab mortality,0.0166911998226029,2,en
+cryptophyte diversity,0.0157764126463513,2,en
+cryptophyte seasonal succession,0.032789601907611,3,en
+cryptophyte vertical distribution,0.0290713378843224,3,en
+cumulative impacts,0.020655518446703,2,en
+cuttlefish abundance,0.0155282533261651,2,en
+delta oxygen levels,0.0264335533884969,3,en
+dinocyst assemblages,0.0171602963124459,2,en
+dinoflagellate cysts,0.0181876691933885,2,en
+dinophysis biomass,0.0155026580077292,2,en
+dinophysis respiration,0.0165539688907798,2,en
+dioxin degradation,0.0156347196351625,2,en
+disaster memory,0.0176436435235024,2,en
+dissolved organic matter,0.0365347527384364,3,en
+dune erosion,0.0183290035532882,2,en
+dune stabilisation,0.0182359372919625,2,en
+early warning systems,0.0483038698073736,3,en
+ecosystem functioning,0.023569426310605,2,en
+eddy kinetic energy,0.0346897592362976,3,en
+elemental stoichiometry,0.0276532748041188,2,en
+emergency response planning,0.0353288861227881,3,en
+endocrine disruptors,0.0218915937053386,2,en
+erosion thresholds,0.0167875430922467,2,en
+estuarine circulation,0.0164253775433595,2,en
+estuarine core palaeoecology,0.0259147802814653,3,en
+estuarine core stratigraphy,0.0496452668751508,3,en
+estuarine hypoxia,0.0193949349889824,2,en
+fleet dynamics,0.0172282164259908,2,en
+flood gate maintenance costs,0.0372648575667444,4,en
+fluvial sediment supply,0.0314945435857389,3,en
+foraminiferal assemblages,0.0256073360761245,2,en
+foredune recovery,0.0196026196469634,2,en
+fossil reef stratigraphy,0.0267223457365462,3,en
+front dynamics,0.030650898365981,2,en
+front forcing mechanisms,0.0289004071484801,3,en
+front intensity,0.0217755891102994,2,en
+front variability,0.0205743504752467,2,en
+front vertical structure,0.0286705280556463,3,en
+geostrophic currents,0.0242540331779615,2,en
+glacial isostatic adjustment,0.0471054169178069,3,en
+harbour town vulnerability,0.0357303912610554,3,en
+hazard zoning,0.0162669672405525,2,en
+heinrich events,0.0206140169893149,2,en
+heritage site adaptation,0.0290399558314098,3,en
+heritage site insurance,0.0318534377274737,3,en
+heritage site relocation,0.0281459159009745,3,en
+heterotrophic bacteria grazing losses,0.0374160384811761,4,en
+hydrocarbon bioavailability,0.0155384733596918,2,en
+ice sheet extent reconstruction,0.0431215962083907,4,en
+inherent optical properties,0.1408667511724811,3,en
+internal wave dynamics,0.0292990301311151,3,en
+internal wave variability,0.0274928800798685,3,en
+island regulation,0.0162641249943065,2,en
+lagoon eutrophication,0.0158428002388428,2,en
+lagoon sediment palaeoecology,0.0324732194809072,3,en
+land subsidence,0.0171497645092911,2,en
+larval connectivity,0.0198080816104713,2,en
+little ice age,0.0345338624766602,3,en
+mangrove forests,0.0157658429043895,2,en
+mangrove vegetation,0.017445183295087,2,en
+marginal sea exchange flow,0.0473898085218862,4,en
+marine snow,0.0174447900544216,2,en
+marine viruses,0.0223278534494562,2,en
+maritime economics,0.0156183105494553,2,en
+maritime safety,0.0184537392127357,2,en
+mercury degradation,0.017044584643241,2,en
+microalgal culture gene expression,0.0445835200223083,4,en
+microbial loop,0.0220457254527066,2,en
+mixotrophic protists,0.0174158278397254,2,en
+morphological equilibrium,0.0181981616002567,2,en
+mud provenance,0.0205632065463485,2,en
+mussel beds,0.0172753107147745,2,en
+nanoflagellate diversity,0.016380455979677,2,en
+nitrite uptake,0.0267374440519088,2,en
+nitrogen cycling,0.0158575681053196,2,en
+offshore oil economics,0.0291183844335884,3,en
+orbital forcing,0.0225375824479537,2,en
+pfas contamination,0.0223833437788264,2,en
+phosphate distribution,0.0193825544410033,2,en
+phosphorus dynamics,0.0236954042837832,2,en
+phthalate environmental fate,0.0378703412621812,3,en
+phytoplankton phenology,0.0155839108364628,2,en
+phytoplankton photophysiology,0.0261715242332725,2,en
+picoeukaryote diversity,0.0176801313292012,2,en
+picoeukaryote grazing losses,0.0309307743253089,3,en
+picoeukaryote seasonal succession,0.0301747813802156,3,en
+picoeukaryote size structure,0.0290629934373264,3,en
+plankton community structure,0.0313009655928551,3,en
+planktonic foraminifera,0.0207782335671923,2,en
+plastic additives,0.0193109260847009,2,en
+plastic weathering,0.0201885692407417,2,en
+polder management,0.0164863305577107,2,en
+population genetics,0.016736116902702,2,en
+porpoise thermal tolerance,0.0278669216652478,3,en
+potential vorticity,0.0175716152753574,2,en
+primary production,0.0270546390938787,2,en
+pteropod biomass,0.0195929070358665,2,en
+pteropod seasonal succession,0.0319467380565683,3,en
+radar backscatter,0.1207454230081595,2,en
+radiolarian abundance,0.020772689308208,2,en
+radiolarian size structure,0.0291884700250036,3,en
+recruitment variability,0.0289371003514507,2,en
+risk governance,0.0159035799216631,2,en
+rocky shore sediment supply,0.0387923406904941,4,en
+rotifer grazing losses,0.0260680417504534,3,en
+rotifer respiration,0.0158912640552797,2,en
+runnel infiltration,0.015718460364237,2,en
+salicornia decomposition,0.0175437027455207,2,en
+salinity gradients,0.0159236987398649,2,en
+saltwater intrusion,0.0165040416495995,2,en
+sea ice reconstruction,0.0281337959214344,3,en
+sea surface salinity,0.1311256982517232,3,en
+sea surface temperature,0.1851804698903175,3,en
+sea surface temperature reconstruction,0.0571261741383056,4,en
+sea turtle distribution,0.0289581886544549,3,en
+seabird feeding ecology,0.0261717683698894,3,en
+seabird physiology,0.018187170942165,2,en
+seabird thermal tolerance,0.0296210737225784,3,en
+seaweed cultivation,0.0166334008917023,2,en
+sediment accretion rates,0.0291069242063791,3,en
+sediment budget,0.1243837812980074,2,en
+sediment connectivity,0.0165983235906614,2,en
+sediment flux variability,0.0311936265168195,3,en
+sediment provenance,0.0398030467479348,2,en
+shelf circulation,0.0233754905491718,2,en
+shellfish aquaculture,0.0180471009990822,2,en
+silica cycle,0.0160819610766889,2,en
+silicate depletion,0.0195376624538316,2,en
+sill overflow entrainment,0.0288986291959739,3,en
+spit dynamics,0.0162436123542141,2,en
+storm surge frequency,0.0295996964011564,3,en
+storm tides,0.0207968535327672,2,en
+surface current persistence,0.0283500418845921,3,en
+suspended sediment concentration,0.02702207818886,3,en
+swell event intensity,0.0283581366086558,3,en
+synechococcus seasonal succession,0.0283598615238087,3,en
+thermal tolerance,0.113169150303773,2,en
+tidal flat morphology,0.0338211125991418,3,en
+tidal resonance,0.0313809727583836,2,en
+tourist resort flood risk,0.0460667092710886,4,en
+tourist resort resilience,0.0303839172809192,3,en
+tourist resort vulnerability,0.0529205648149214,3,en
+trace metal speciation,0.0562255572293374,3,en
+trophic cascades,0.016727745261926,2,en
+tuna fisheries,0.0183270403772685,2,en
+underwater radiated noise,0.036067125587042,3,en
+upper beach evolution,0.0294112017181071,3,en
+upwelled nutrient supply,0.0272123152547935,3,en
+upwelling intensity,0.0182820171134066,2,en
+varved sediments,0.0182449455579242,2,en
+wave setup,0.0206898581415937,2,en
+western boundary currents,0.0459220129213712,3,en

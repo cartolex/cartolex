@@ -1,0 +1,56 @@
+# Checks
+
+One command runs every check that must pass before a merge:
+
+```bash
+python tools/check.py            # everything
+python tools/check.py --quick    # lint, vocabulary, tests on one Python, small reference
+python tools/check.py --full     # also the large reference comparison
+python tools/check.py --only tests --pythons 3.10,3.14
+```
+
+It prints one line per check (`PASS`, `FAIL` or `SKIP`, the time taken and a
+summary) and keeps each check's full output in `.cache/check/`. It needs
+[uv](https://docs.astral.sh/uv/) and Python 3.11 or later to run itself;
+settings are in `tools/check.toml`.
+
+## The checks
+
+| Check | What it runs | Fails when |
+| --- | --- | --- |
+| `lint` | `ruff check` and `ruff format --check`, with the ruff pinned in the `dev` extra | any finding |
+| `vocab` | `tools/vocab_scan.py` over the tree and the commit messages listed in `tools/check.toml` | a banned term appears outside a stated exception |
+| `tests` | `pytest` on every Python in `tools/check.toml`, in parallel | any test fails on any version |
+| `reference` | `tools/reference/check_reference.py`: the demo project run through the engine and compared with the stored reference | a stage is *different* |
+| `docs` | a strict Sphinx build of `docs/` | any warning |
+
+## Virtual environments
+
+Each Python gets `.venvs/py<version>`, created with uv and refreshed when
+`pyproject.toml` changes. Supported versions span two generations of the
+scientific libraries (for example, older numpy and pandas releases on the
+oldest Python), so the tests run on all of them.
+
+## The vocabulary scan
+
+The scan keeps project-specific terms out of the repository. The list of terms
+is not part of the repository: the scanner reads it from `--list`, from
+`$CARTOLEX_DENYLIST`, or from `~/.config/cartolex-dev/deny-list.txt`, and
+skips with a notice when there is none. A match is reported by the term's
+number and its place, never by its text.
+
+The check runs the scan in strict mode, which ignores inline exceptions: they may
+explain a line to a reader, never hide a term from the check. Two kinds of exception
+exist, each with a reason:
+
+- a line containing `vocab-allow: <reason>`, or the line just after it;
+- an `[[allow]]` entry in `tools/vocab-allow.toml` naming a file pattern and
+  the numbers it may contain.
+
+Commit and tag messages have no exceptions.
+
+## The network
+
+The test suite blocks every outbound connection except loopback
+(`tests/conftest.py`). A test that needs data from a web service uses a
+synthetic fixture or a local fake server.

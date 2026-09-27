@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use cartolex, please cite it as below."
+title: "cartolex"
+abstract: >-
+  cartolex maps a research field from the texts of the people who work in it:
+  keywords, themes and a two-dimensional atlas, with an offline site to share it.
+type: software
+license: MIT
+authors:
+  - given-names: "Elisa"
+    family-names: "Klüger"
+    orcid: "https://orcid.org/0000-0002-2375-8565"
+    affiliation: "Laboratoire d'Économie et de Sociologie du Travail, Aix-Marseille Université, France"
+    email: "elisa.kluger@univ-amu.fr"
+  - given-names: "Pierre"
+    family-names: "Ronceray"
+    orcid: "https://orcid.org/0000-0002-9012-7544"
+    affiliation: "Turing Center for Living Systems, Centre Interdisciplinaire de Nanosciences de Marseille (CINaM), Aix-Marseille Université/CNRS, France"
+    email: "pierre.ronceray@univ-amu.fr"
