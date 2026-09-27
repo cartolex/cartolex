@@ -447,21 +447,94 @@ def _apply(ctx: StageContext, rctx: RunContext) -> dict[str, int]:
 
 def run_apply(ctx: StageContext) -> dict[str, int]:
     """``themes.apply``: the curated theme tree when there is one, else the draft."""
+    counts: dict[str, int] = {}
     if ctx.layout.themes_json.exists():
+        counts["curated"] = 1
         _curated_from_themes(ctx)
     rctx = run_context(ctx, _settings(ctx))
-    return _apply(ctx, rctx)
+    return {**counts, **_apply(ctx, rctx)}
+
+
+def _vocabulary(folder: Path) -> tuple[list[str], dict[str, float]]:
+    """The lexical data's terms in row order, and each term's summed score."""
+    import numpy as np
+
+    from ..atlas.model_files import load_lexical_data
+
+    data = load_lexical_data(folder / "models" / "lexical_data.json")
+    terms = [str(t) for t in data.terms]
+    sums = np.asarray(data.X.sum(axis=0)).ravel()
+    return terms, {t: float(v) for t, v in zip(terms, sums, strict=True)}
+
+
+def prepare_themes(project: Project) -> list[str]:
+    """Before ``themes.apply``: rebase ``decisions/themes.json`` onto the current vocabulary.
+
+    A new keyword is proposed the node of its draft topic when the tree has it,
+    else set aside; either way it is marked « to check ». The rebase is saved as
+    a new version of the tree (its reconciliation is in the description).
+    """
+    from ..project.themes import rebase, vocabulary_fingerprint, vocabulary_of
+    from ..project.themes_versions import read_themes, save_themes
+    from .records import read_record
+
+    tree, fp = read_themes(project)
+    space = project.layout.stage("themes.space")
+    if tree is None or not (space / "models" / "lexical_data.json").exists():
+        return []
+    terms, _ = _vocabulary(space)
+    if tree.based_on.vocabulary == vocabulary_fingerprint(terms):
+        return []
+    draft_path = project.layout.stage("themes.group") / "subfields_draft.json"
+    topic_of: dict[str, str] = {}
+    if draft_path.exists():
+        draft = json.loads(draft_path.read_text(encoding="utf-8"))
+        for concept in draft.get("concepts", []):
+            for i in concept.get("term_indices", []):
+                if 0 <= int(i) < len(terms):
+                    topic_of[terms[int(i)]] = f"c{concept['id']}"
+    deepest = {n.id for n in tree.nodes if n.id not in {m.parent for m in tree.nodes if m.parent}}
+    known = vocabulary_of(tree)
+    proposals = {
+        t: (topic_of[t] if topic_of.get(t) in deepest else None) for t in terms if t not in known
+    }
+    record = read_record(project.layout, "themes.space")
+    rebased = rebase(
+        tree, terms, proposals, run=f"themes.space/{record.run_id}" if record else None
+    )
+    saved = save_themes(project, rebased.tree, expected=fp, action="rebase onto the new vocabulary")
+    return [f"theme tree rebased: {rebased.description}"] if saved.written else []
 
 
 def _curated_from_themes(ctx: StageContext) -> None:
-    try:
-        from ..project import themes_curated  # noqa: F401
-    except ImportError:
+    """Write the engine's curated document (``curated.json``) from ``decisions/themes.json``."""
+    from ..project.files import atomic_write_bytes, json_bytes
+    from ..project.themes import vocabulary_fingerprint
+    from ..project.themes_curated import to_curated
+    from ..project.themes_versions import read_themes
+
+    tree, _ = read_themes(ctx.project)
+    if tree is None:
+        return
+    if tree.depth != 2:
         raise StageRefused(
-            "decisions/themes.json cannot be applied by this cartolex yet (no theme "
-            "converter); remove it to apply the draft"
-        ) from None
-    raise StageRefused("applying decisions/themes.json is not connected yet")
+            f"decisions/themes.json has {tree.depth} level(s); the engine applies trees of "
+            "two levels (themes over topics) for now"
+        )
+    terms, scores = _vocabulary(ctx.folder("themes.space"))
+    if tree.based_on.vocabulary != vocabulary_fingerprint(terms):
+        raise StageRefused(
+            "decisions/themes.json is not based on the current vocabulary (its rebase failed)"
+        )
+    config = ctx.project.config
+    doc = to_curated(
+        tree,
+        terms,
+        reference_language=config.languages.reference,
+        domain_title=config.identity.domain_title,
+        scores=scores,
+    )
+    atomic_write_bytes(ctx.out / "curated.json", json_bytes(doc))
 
 
 #: Keys of a map version's layout parameters → the layout stage's arguments.

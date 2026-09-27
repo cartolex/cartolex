@@ -375,6 +375,12 @@ def _no_ai_key(ctx: StageContext) -> Mapping[str, int] | None:
     return engine.triage_runner(None)(ctx)
 
 
+def _prepare_themes(project: Project) -> list[str]:
+    from . import engine
+
+    return engine.prepare_themes(project)
+
+
 def _prepare_maps(project: Project) -> list[str]:
     from . import engine
 
@@ -626,6 +632,7 @@ STAGES = Registry(
             upstream=("themes.group",),
             decisions=("decisions/themes.json",),
             cost=CostModel("kept_keywords", 1.0, 1e-4, 200.0, 0.01),
+            prepare=_prepare_themes,
             run=_engine("run_apply"),
         ),
         Stage(
