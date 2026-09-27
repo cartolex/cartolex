@@ -21,7 +21,7 @@ from ..project.models import CodeStamp, FileInput, StageInput
 from ..project.project import cartolex_version
 from .fingerprints import code_fingerprint, input_files
 from .machine import available_memory_mb, resident_memory_mb
-from .params import Resolved
+from .params import ProjectSizes, Resolved
 from .stages import STAGES, Estimate, Registry, Stage
 from .validity import StageState, StageStatus, _status_of, _View, project_parts
 
@@ -237,9 +237,11 @@ def plan(
     never built, needs an update, failed, is in *force*, or an upstream stage
     runs. *budget_mb* is the peak memory a stage may reach (default: the memory
     available now, plus what this process already holds, since a stage's peak
-    is measured for the whole process). Raises :class:`BuildBusy` when a job runs a stage the build
-    would run, and :class:`~cartolex.build.params.ParamsError` when
-    ``params.json`` does not fit the stages.
+    is measured for the whole process). A cross-check that needs a size an
+    upstream stage of this build will report again waits for the run. Raises
+    :class:`BuildBusy` when a job runs a stage the build would run, and
+    :class:`~cartolex.build.params.ParamsError` when ``params.json`` does not
+    fit the stages.
     """
     registry = registry or STAGES
     forced = set(force)
@@ -273,10 +275,17 @@ def plan(
         if not (must or stage.id in forced or upstream_runs):
             items.append(PlanItem(stage.id, stage.name, "keep", st.state, ("up to date",)))
             continue
+        # Sizes an upstream stage of this build will report again are not known yet.
+        pending = {
+            n for u in registry.upstream_of(stage.id) if u in runs for n in registry[u].provides
+        }
         runs.add(stage.id)
         estimate = stage.estimate(view.sizes, st.record)
         resolved = view.resolve(stage)
-        problems = resolved.problems(stage, view.sizes, project.config)
+        known_now = ProjectSizes(
+            **{n: (None if n in pending else v) for n, v in view.sizes.as_dict().items()}
+        )
+        problems = resolved.problems(stage, known_now, project.config)
         refusal = "; ".join(problems) or None
         over = (
             budget is not None

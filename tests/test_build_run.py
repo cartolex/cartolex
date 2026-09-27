@@ -246,6 +246,26 @@ def test_an_impossible_parameter_blocks_its_stage_with_the_reason(env):
     assert result.ran == () and "themes.group" in result.refused
 
 
+def test_a_cross_check_waits_for_sizes_an_upstream_stage_will_report_again(env):
+    env.controls.sizes["kept_keywords"] = 10
+    env.build()
+    params, fp = env.project.read_params()
+    stages = {"themes.group": {"top_groups": 12}}
+    env.project.save_params(params.model_copy(update={"stages": stages}), expected=fp, action="t")
+    assert env.plan().item("themes.group").blocked  # 12 groups for 10 keywords
+    env.controls.sizes["kept_keywords"] = 500  # the next vocabulary is larger
+    planned = env.plan(force=["keywords.build"])
+    assert planned.item("themes.group").blocked is None  # judged when keywords.build has run
+    result = env.build(force=["keywords.build"])
+    assert result.ran_ids == ("keywords.build", "themes.group")
+    env.controls.sizes["kept_keywords"] = 8
+    result = env.build(force=["keywords.build"])
+    assert result.outcome == "failed" and result.ran_ids == ("keywords.build",)
+    assert "top_groups is 12 for 8 keywords" in result.failed[1]
+    attempt = status(env.project, env.registry, year=YEAR)["themes.group"].attempt
+    assert attempt.outcome == "failed" and "top_groups is 12" in attempt.error
+
+
 def test_estimates_scale_the_last_run():
     model = CostModel("texts", 1.0, 0.5, 100.0, 2.0)
     assert model.estimate(ProjectSizes(texts=10), None).seconds == 6.0

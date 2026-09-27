@@ -99,7 +99,9 @@ stage it does not know, a parameter a stage does not know, a value of the wrong
 type, outside its range or not among its choices. A `CrossCheck` refuses a
 value that is only impossible for this project, once the sizes it needs are
 known: the plan marks the stage as unable to run, and a run that meets it
-records a failed attempt with the reason.
+records a failed attempt with the reason. When a stage upstream in the same
+build will report a size again (the vocabulary is being rebuilt), the plan
+leaves the check to the run.
 
 | stage | parameter | default | allowed |
 | --- | --- | --- | --- |
