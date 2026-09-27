@@ -206,6 +206,7 @@ class KeywordsConfig:
     #       as a special case.
     #   corpus_languages   : accepted ingest streams, auto-detected per
     #       paragraph; paragraphs in other languages are dropped at extraction.
+    #       Any subset of the languages with a language model (en, fr, pt).
     #   display_languages  : translation skins rendered at display surfaces
     #       through the single relabel choke point (labels.py).
     reference_language: str = "en"
@@ -255,6 +256,15 @@ class KeywordsConfig:
         if not corpus:
             raise SettingsError(
                 "KeywordsConfig.corpus_languages must list at least one language code."
+            )
+        # The extraction parses each corpus language with its own language model.
+        from .language_models import supported_languages
+
+        unsupported = [c for c in corpus if c not in supported_languages()]
+        if unsupported:
+            raise SettingsError(
+                f"KeywordsConfig.corpus_languages holds {', '.join(map(repr, unsupported))}: "
+                f"the keyword extraction supports {', '.join(supported_languages())}."
             )
         self.corpus_languages = corpus
 

@@ -4,10 +4,11 @@
 Locates every occurrence of canonical-term surface forms (aliases) in one raw
 document, with character spans in the ORIGINAL text and word-window context
 snippets. Token regex, lowercasing and sliding n-gram semantics are exactly
-those of the sklearn vectorizers used at extraction and consolidation
+those of the attribution vectorizer of the consolidation, whose alias table
+holds every surface form of a term as that vectorizer writes it
 (``lowercase=True``, ``token_pattern=r"(?u)\\b\\w\\w+\\b"``,
 ``strip_accents=None``, overlapping n-grams all counted), so occurrence counts
-agree with the counts behind the pipeline scores.
+agree with the counts behind the attribution.
 
 One deliberate divergence: sklearn lowercases the whole document before
 tokenizing, while this module tokenizes the original text and lowercases each

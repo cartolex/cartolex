@@ -12,8 +12,9 @@ stages (AI triage, consolidation, the atlas) read the same tables as before.
 1. **People and languages.** Each person is one document: the texts of all
    their corpus documents, concatenated. Each paragraph is routed to a corpus
    language by language detection (`KeywordsConfig.corpus_languages`, any
-   subset of English, French and Portuguese); a paragraph in another language
-   is dropped.
+   subset of English, French and Portuguese — another code is refused with a
+   `SettingsError` when the settings are made); a paragraph in another
+   language is dropped.
 2. **Clean-up.** Words that PDF extraction split in two (`adh esion`) are
    rejoined, using the corpus as its own dictionary.
 3. **Parsing.** Every paragraph is parsed by the language's model (see
