@@ -673,12 +673,16 @@ def _apply_explained(
             if upstream_ok:
                 a.verdict = "explained"
                 a.detail = (
-                    f"{a.detail} — explained by an upstream change ({stage_entry.upstream}): "
-                    f"{stage_entry.reason}"
+                    f"{a.detail} — explained by an upstream change ({stage_entry.upstream})"
                 ).lstrip(" —")
                 used.add((s.stage, None))
         s.verdict = worst(a.verdict for a in s.artifacts)
-    return [
+    notes = [
+        f"{e.stage}: explained by an upstream change ({e.upstream}): {e.reason}"
+        for e in ledger
+        if e.artifact is None and (e.stage, None) in used
+    ]
+    return notes + [
         f"explained entry no longer matches: {e.stage}/{e.artifact}"
         if e.artifact is not None
         else f"explained entry no longer matches: {e.stage} (upstream {e.upstream})"

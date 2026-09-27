@@ -327,10 +327,11 @@ def test_a_stage_is_explained_by_its_upstream_cause(tmp_path: Path) -> None:
     report = compare.compare_runs(ref, cur, compare.load_explained(ledger, "S"))
     by_name = {a.name: a for s in report.stages for a in s.artifacts}
     assert by_name["labels"].verdict == "explained"
-    assert "upstream change (first): other terms" in by_name["labels"].detail
+    assert by_name["labels"].detail.endswith("explained by an upstream change (first)")
+    assert "second: explained by an upstream change (first): other terms" in report.notes
     assert by_name["copy"].verdict == "identical"
     assert report.summary_line() == "2 stages: 0 identical, 2 explained"
-    assert not report.notes or not any("no longer matches" in n for n in report.notes)
+    assert not any("no longer matches" in n for n in report.notes)
 
 
 @needs_tomllib
