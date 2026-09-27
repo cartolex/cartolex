@@ -28,8 +28,8 @@ with Project.open(root, write=True) as project:
     edit = create_node(edit.tree, "n1", {"en": "Storm surge"})
     vocabulary = ["storm surge model", "sea level"]
     result = rebase(edit.tree, vocabulary, {"storm surge model": "n2", "sea level": None})
-    fp = save_themes(project, result.tree, expected=fp, action=result.description)
-    edit = move_keywords(result.tree, ["storm surge model"], "n2")
+    saved = save_themes(project, result.tree, expected=fp, action=result.description)
+    edit = move_keywords(saved.tree, ["storm surge model"], "n2")
 ```
 
 ## Operations
@@ -52,6 +52,8 @@ version.
 | `set_aside(tree, keywords, reason="")` | sets placed keywords aside, recording where each came from and why; for a keyword already set aside, changes the reason | a keyword is unknown |
 | `put_back(tree, keywords, id=None)` | places set-aside keywords under `id`, or where each came from | a keyword is not set aside; its origin is gone and no target is given |
 | `set_review(tree, keywords, state)` | `to_check`, `reviewed` or `None` | unknown state or keyword |
+| `set_attribution(tree, keywords, levels)` | how many levels, from the top, placed keywords count toward: `None` (every level), `0` (none) or `1` to `depth − 1` (see below) | a keyword is set aside or unknown; `levels` out of range |
+| `prune_empty(tree)` | removes every node with no keyword in its subtree, as every save does | — |
 | `insert_level(tree, at, root_names=None)` | adds a level (see below) | the tree has 4 levels already |
 | `remove_level(tree, at)` | removes a level (see below) | the tree has one level |
 
@@ -59,6 +61,35 @@ No operation adds or loses a keyword: the set of keywords a tree holds changes
 only with a rebase. New nodes get the id `n<k>`, the next free number; a number
 that a set-aside origin still names is never given again, so putting a keyword
 back never lands in an unrelated node.
+
+## Attribution and the carry rule
+
+A keyword's usage counts toward the shares of the nodes above it. Its
+attribution limits that: `n` counts it toward levels 1 to `n` only, `0` shows
+it without counting it, and no attribution counts it at every level. At depth
+2 these are the engine's term statuses: `1` is *subfield-only* (the keyword is
+broader than its topic, so it counts toward its theme only), `0` is
+*ride-along* (broader than the field: shown, counted nowhere).
+
+**The carry rule.** An attribution `n ≥ 1` is relative to the keyword's node on
+level `n`. After a move of keywords, a move of a node, a merge or a split, it
+survives when the keyword's node on level `n` is the same as before (for a
+merge, the merged-away node stands for the node it merged into), and is dropped
+otherwise: the keyword counts at every level again. `0` always survives. This is
+the rule of the engine's `carry_status` (a subfield-only term keeps its status
+within its subfield and resets across subfields), at any depth.
+
+Setting a keyword aside keeps its attribution in its set-aside entry; putting it
+back applies the carry rule between the node it came from and its new node.
+
+**Depth changes shift attributions.** Inserting a level at position `at ≤ n`
+(at or above the last level the keyword counts toward) makes `n` into `n + 1`,
+so the keyword counts toward the same nodes and the inserted copy; a level
+inserted below leaves `n`. Removing a level at position `at ≤ n` makes `n` into
+`n − 1`: a keyword that counted toward the removed top level only counts toward
+no remaining level (`0`). An attribution that would reach the new deepest level
+is dropped (the keyword counts at every level). Inserting a level then removing
+it gives every attribution back.
 
 ## Changing the depth
 
@@ -108,12 +139,13 @@ for example from the new grouping), or `None`.
 3. A keyword that vanished is removed with its review state; a set-aside one
    is dropped.
 4. A node whose subtree held keywords before and holds none after is removed,
-   with the nodes under it (the carry-forward rule: a sub-group emptied by the
-   new vocabulary goes). A node that was already empty stays.
+   with the nodes under it. A node that was already empty stays in the result,
+   and the save removes it (a saved tree has no empty node).
 5. `based_on` records `run` and the vocabulary's fingerprint.
 
-Nothing else changes: no node is renamed, moved or renumbered, and set-aside
-origins stay as they were, even when they name a removed node. Nothing is
+Nothing else changes: no node is renamed, moved or renumbered, surviving
+keywords keep their attribution, and set-aside origins stay as they were, even
+when they name a removed node. Nothing is
 placed by default either: a new keyword without an entry in `proposals`, or a
 proposal that is not a node of the deepest level, refuses the whole rebase.
 
@@ -141,28 +173,42 @@ first, then nodes by id, then keywords by text.
 | `node_reordered` | `node` | the two orders |
 | `node_changed` | `node` | another key of the node changed |
 | `added`, `removed`, `moved` | `keyword` | its places: a node id, or `SET_ASIDE` |
-| `set_aside_changed` | `keyword` | the two set-aside entries (origin, reason) |
+| `set_aside_changed` | `keyword` | the two set-aside entries (origin, reason, attribution) |
+| `attribution` | `keyword` | the two attributions (`None`: every level) |
 | `review` | `keyword` | the two review states |
 
 `Change.as_dict()` gives the JSON form, without empty fields.
 
 ## Versions
 
-`save_themes(project, tree, expected=…, action=…)` writes the tree in its
-canonical form through the guarded decision write: it is refused
-(`StaleWrite`) when the file changed since it was read with `read_themes`, and
-the version it replaces goes to `decisions/history/themes.json/<UTC
-time>-<action>.json`. Saving the tree that is already current writes nothing.
-The project must be open for writing.
+`save_themes(project, tree, expected=…, action=…)` saves a tree:
+
+1. it removes every node with no keyword in its subtree (`prune_empty`, the
+   carry-forward rule: sub-groups left empty are removed at save) and appends
+   the removed nodes to the action: `move 2 keywords to n7; remove empty nodes
+   n3, n5`;
+2. it stamps the tree with `saved`: the time and that action;
+3. it writes the tree in its canonical form through the guarded decision
+   write, refused (`StaleWrite`) when the file changed since it was read with
+   `read_themes`; the version it replaces goes to
+   `decisions/history/themes.json/<UTC time>-<action>.json`.
+
+It returns a `Saved`: the tree as written, its fingerprint, the action and the
+removed nodes. When the pruned tree is the one already current (its stamp
+aside), nothing is written (`Saved.written` is false). The project must be open
+for writing. A tree being edited may keep empty nodes; only saved versions
+never do.
 
 `list_versions(project)` returns every version, the current one first. A
 version's id is `current` or its history file's name without `.json`. Its
-`made_at` and `made_by` come from the history entry of the version it
-replaced (so the first version the history knows has none), `replaced_at` and
-`replaced_by` from its own. Entries saved in the same second are ordered by
-the time their file was written. `read_version(project, id)` reads one, and
-`restore_version(project, id, expected=…)` saves it again as a new version
-named `restore <id>`, so a restore is undone like any other change.
+`made_at` and `made_by` are its own `saved` stamp; a version saved without one
+takes them from the history entry of the version it replaced (the action as the
+file name spells it), and the first such version has none. `replaced_at` and
+`replaced_by` come from its history file's name. Entries saved in the same
+second are ordered by the time their file was written.
+`read_version(project, id)` reads one, and `restore_version(project, id,
+expected=…)` saves it again as a new version with the action `restore <id>`, so
+a restore is undone like any other change.
 
 ## The curated document, until the apply stage reads a tree
 
@@ -176,6 +222,11 @@ vocabulary in row order.
 - Level-1 nodes are subfields, level-2 nodes concepts, keywords term indices;
   `label` holds the reference language's name, `label_<lang>` the others;
   set-aside keywords are trashed terms.
+- Attributions are term statuses: `1` lists the keyword in its concept's
+  `subfield_only_terms`, `0` in its `ride_along_terms`; a trashed term's
+  `status` carries a set-aside keyword's. The engine matches statuses without
+  case, so `to_curated` refuses two keywords of one concept that differ only
+  by case and have different attributions.
 - A subfield keeps the number of an `s<k>` node and a concept of a `c<k>` node,
   so a tree imported from a draft keeps its numbers and colours; other nodes
   take the next free numbers in tree order.
@@ -189,11 +240,16 @@ vocabulary in row order.
   gives the tree back exactly.
 - `from_curated` names nodes `s<id>` and `c<id>`, uses the default level names
   and places every keyword of `terms`. What a tree cannot hold is set aside
-  with a reason and listed in `Imported.notes`: merge variants (merges belong
-  in `keywords.csv`), the keywords of subfields not kept, stashed and trashed
-  items, keywords in no group; term statuses and pinned colours are dropped. A
-  document that places a keyword twice or names a row outside `terms` is
-  refused.
+  with a reason and listed in `Imported.notes`: merge variants, the keywords of
+  subfields not kept, stashed and trashed items, keywords in no group. Term
+  statuses become attributions (kept in the set-aside entry of a keyword set
+  aside); a status naming no keyword of its concept, and pinned colours, are
+  dropped and noted. A document that places a keyword twice or names a row
+  outside `terms` is refused.
+- Merges belong in `keywords.csv`: `Imported.merges` lists each merge variant
+  with the keyword it merges into, and `Imported.keyword_rows(language=…,
+  decided_at=…)` turns them into `keywords.csv` rows (decision `merge`, source
+  `person`).
 
 ## Tests
 
@@ -203,11 +259,14 @@ trees of every depth, random vocabulary changes and random sequences of
 operations (`tests/themes_random.py`, seeded, no extra dependency):
 
 - every operation returns a valid, canonical tree, leaves its argument
-  unchanged and keeps the set of keywords;
+  unchanged and keeps the set of keywords; only `set_attribution` and depth
+  changes set an attribution, the others keep it or drop it by the carry rule;
 - inserting then removing a level gives the tree back;
 - a rebase keeps every surviving keyword's place; its reconciliation list is
   the symmetric difference of the vocabularies plus the removed nodes; a
   rebase onto the same vocabulary changes nothing;
-- versions read back as saved, and a restore round-trips;
-- the converters' round trip is exact, the engine's checks accept the curated
-  document, and its apply stage runs on it.
+- every save removes the empty nodes and names them; versions read back as
+  saved, each with its own action, and a restore round-trips;
+- the converters' round trip is exact, attributions included; the engine's
+  checks accept the curated document, reads the same placements and statuses,
+  and its apply stage runs on it.
