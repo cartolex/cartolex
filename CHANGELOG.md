@@ -87,7 +87,8 @@ nothing in the engine names a particular deployment, source or procedure.
   parse cache (`EnginePaths.parse_cache_dir`); parallel parsing gives the same
   output as serial. The raw keyword tables gain a `forms` column, and the
   attribution counts every form of a term. Portuguese is a full corpus
-  language. See `docs/dev/extraction.md`.
+  language: `corpus_languages` is any subset of `en`, `fr` and `pt`, and
+  another code is refused with `SettingsError`. See `docs/dev/extraction.md`.
 - **A trilingual demo world.** The demo vocabulary has Portuguese forms
   (Brazilian spelling) for every theme term, compound, method, driver and
   setting, and Portuguese sentence templates; `generate(..., languages=
