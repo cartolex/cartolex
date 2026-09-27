@@ -11,7 +11,6 @@ lock is still held by that live process.
 
 from __future__ import annotations
 
-import contextlib
 import json
 import secrets
 import socket
@@ -85,11 +84,6 @@ def write_attempt(layout: ProjectLayout, record: RunRecord) -> None:
     if record.outcome == "succeeded":
         raise ValueError("an attempt record is for a failed or cancelled run")
     atomic_write_bytes(layout.attempt(record.stage), record_bytes(record))
-
-
-def clear_attempt(layout: ProjectLayout, stage_id: str) -> None:
-    with contextlib.suppress(FileNotFoundError):
-        layout.attempt(stage_id).unlink()
 
 
 # ── staging folders ──────────────────────────────────────────────────────────
