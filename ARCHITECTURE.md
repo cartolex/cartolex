@@ -40,10 +40,13 @@ See `docs/dev/engine.md`.
 | Module | Role |
 |---|---|
 | `config` | `KeywordsConfig` — the settings dataclass a run context carries, with its ordered registry of `CorpusSlot`s (which sources build the map, which feed the trajectories, which document types each keeps) |
-| `extract_raw` | **Stage 1**: corpus loading, per-language detection & split (`KeywordsConfig.corpus_languages`), TF-IDF (1–4-grams), length bonus |
+| `extract_raw` | **Stage 1**: corpus loading, per-language detection & split (`KeywordsConfig.corpus_languages`), parsing (cached, optionally in worker processes), noun-phrase candidates scored by TF-IDF with the length bonus |
+| `noun_phrases` | The part-of-speech patterns of English, French and Portuguese: word units, classes, nested spans, keys grouped by lemma (see `docs/dev/extraction.md`) |
+| `language_models` | The pinned spaCy model of each corpus language: install check (`LanguageModelMissing`), loading, identity |
+| `parse_cache` | The parse cache: each text's analysis, keyed by text, model and pattern version (immutable JSON-lines parts) |
 | `io_helpers` | Corpus-contract readers; the roster stage `build_researcher_index(ctx)` and `write_roster` |
 | `stopwords_config` | `StopwordLists` (immutable, read from `cartolex/_data/stopwords/core.json`) and the per-run `StopwordProfile` |
-| `lexical_filters`, `text_utils`, `lang_utils`, `tfidf_utils` | Tokenization, filters, language detection, scoring |
+| `lexical_filters`, `text_utils`, `lang_utils`, `tfidf_utils` | The malformed-term gate, tokenization, language detection, scoring |
 | `llm_triage`, `triage_typed`, `llm_filter`, `llm_prompts`, `llm_usage`, `mistral_client`, `credentials` | **Stage 2 (optional)**: LLM keyword triage — term strings only, cached; token usage recorded by the run's `UsageRecorder` |
 | `prompt_store` | Loads prompt templates from a prompt directory (default: `cartolex/_data/prompts/`), checked when used |
 | `consolidation`, `canonicalization` | **Stage 3**: canonical dedup, scoring, per-entity/unit/global outputs |

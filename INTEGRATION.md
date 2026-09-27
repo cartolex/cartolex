@@ -124,7 +124,7 @@ A Portuguese study is `reference_language="pt", corpus_languages=("pt","en"),
 display_languages=("pt","en")`; the LLM prompts are rendered in the reference
 language. Merging cohorts (§7) requires them to share a `reference_language`.
 
-### 3.1 Extraction (TF-IDF)
+### 3.1 Extraction (noun phrases, TF-IDF)
 
 ```python
 from cartolex.lexicon import run_pipeline_stage_1
@@ -132,8 +132,14 @@ run_pipeline_stage_1(ctx)
 ```
 
 Each paragraph is language-detected and routed to its `corpus_languages` stream
-(default `("fr", "en")`; text in a non-configured language is dropped); n-grams
-1–4 per stream write `automatic_data/raw_keywords_<lang>.csv`. Offline.
+(any subset of `en`, `fr`, `pt`; default `("fr", "en")`; text in a
+non-configured language is dropped). Each stream is parsed by the language's
+spaCy model and its noun phrases, scored by TF-IDF, are written to
+`automatic_data/raw_keywords_<lang>.csv`. Offline. The model of every language
+with text must be installed (pinned versions in
+`cartolex/lexicon/language_models.py`; otherwise `LanguageModelMissing` gives
+the install command); parsed texts are kept in `ctx.paths.parse_cache_dir`, so
+a re-run parses only new texts. See `docs/dev/extraction.md`.
 
 ### 3.2 Keyword triage — optional LLM stage
 
