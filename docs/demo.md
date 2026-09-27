@@ -198,43 +198,50 @@ roster, SVD, concept clustering, UMAP) and reports what comes out:
 ```bash
 python tools/demo_stats.py --size S
 python tools/demo_stats.py --size L --json stats-L.json
+python tools/demo_stats.py --size S --languages en,fr,pt
 ```
 
-Seed 0, Python 3.12, one process on a laptop:
+Seed 0, Python 3.12, one process on a laptop, parse cache empty; the last two
+columns are the trilingual worlds (read with the three corpus languages):
 
-| | S | L |
-| --- | --- | --- |
-| People in the cohort (with works) | 40 (39) | 350 (343) |
-| People in the projected set | 4 | 35 |
-| Groups | 7 | 33 |
-| Works in the corpus (in French) | 226 (66) | 2,137 (437) |
-| Index rows | 535 | 5,241 |
-| Words | 46,036 | 435,872 |
-| Raw keywords, English / French | 3,687 / 1,976 | 14,030 / 7,163 |
-| Global keywords | 5,582 | 20,998 |
-| Refined keywords | 2,147 | 10,358 |
-| Atlas terms (rows of `umap_terms.csv`) | 553 | 3,215 |
-| Concepts / proto-subfields | 150 / 30 | 150 / 30 |
-| Atlas terms that are theme terms or methods | 45 % | 68 % |
-| … parts of one (a head word, a piece) | 31 % | 23 % |
-| … study settings or drivers | 6 % | 2 % |
-| … generic phrasing of the templates | 18 % | 8 % |
-| Engine run, total | 25.1 s | 70.3 s |
-| … extraction / consolidation / UMAP | 3.5 / 4.1 / 17.3 s | 29.7 / 18.7 / 21.0 s |
-| Peak memory | 579 MB | 827 MB |
+| | S | L | S, trilingual | L, trilingual |
+| --- | --- | --- | --- | --- |
+| People in the cohort (with works) | 40 (39) | 350 (343) | 40 (39) | 350 (343) |
+| People in the projected set | 4 | 35 | 4 | 35 |
+| Groups | 7 | 33 | 7 | 33 |
+| Works in the corpus | 226 | 2,137 | 226 | 2,137 |
+| … in French / in Portuguese | 66 / – | 437 / – | 66 / 34 | 437 / 266 |
+| Index rows | 535 | 5,241 | 535 | 5,241 |
+| Words | 46,036 | 435,872 | 46,509 | 438,880 |
+| Candidate terms, English / French / Portuguese | 3,985 / 1,467 / – | 22,722 / 6,042 / – | 3,511 / 1,451 / 942 | 20,267 / 5,987 / 4,794 |
+| Global keywords | 5,400 | 28,644 | 5,842 | 30,903 |
+| Refined keywords | 2,228 | 15,731 | 2,482 | 17,193 |
+| Atlas terms (rows of `umap_terms.csv`) | 546 | 3,328 | 573 | 3,430 |
+| Concepts / proto-subfields | 150 / 30 | 150 / 30 | 150 / 30 | 150 / 30 |
+| Atlas terms that are theme terms or methods | 46 % | 62 % | 40 % | 57 % |
+| … parts of one (a head word, a piece) | 33 % | 27 % | 39 % | 31 % |
+| … study settings or drivers | 6 % | 2 % | 7 % | 2 % |
+| … generic phrasing of the templates | 15 % | 9 % | 14 % | 10 % |
+| Engine run, total | 35.1 s | 105.6 s | 33.7 s | 109.4 s |
+| … extraction / consolidation / UMAP | 13.1 / 4.4 / 17.4 s | 62.0 / 20.1 / 22.4 s | 10.8 / 4.2 / 18.6 s | 66.3 / 24.4 / 17.8 s |
+| Peak memory | 770 MB | 896 MB | 778 MB | 879 MB |
 
-Seed 1 gives 535 atlas terms for S and 3,071 for L. Most of the UMAP time is
-the one-off compilation of its numerical code. Generic phrasing is a long
-tail of template phrases that each reach one person's list; the engine's
-optional clean-up stage, not run here, is meant to remove such phrases. It is
-higher for S seed 0, the most French of these worlds.
+Seed 1 gives 504 atlas terms for S and 3,157 for L. Most of the extraction
+time is parsing, done once: with the parse cache filled by a first run, the
+extraction of L takes about 30 s (most of it the language detection), and
+with four worker processes a first run takes about 30 s too. A language
+model takes a few hundred MB while its language is parsed, hence most of the
+peak memory. Most of the UMAP time is the one-off compilation of its
+numerical code. Generic phrasing is a long tail of template phrases that each
+reach one person's list; the engine's optional clean-up stage, not run here,
+is meant to remove such phrases.
 
 Two behaviours of the current engine show in these runs:
 
-- a French term that contains a word of one or two letters (`le trait de
-  côte`, `la biomasse du merlu`) is never kept whole by the extraction
-  filters, so French terms reach the atlas as adjective phrases
-  (`érosion dunaire`) or as pieces (`biomasse`, `merlu`);
+- the extraction's English pattern allows one `of` complement (`degrees of
+  freedom`), and the English templates are full of `the X of Y` phrasing: at
+  size L about 13,500 of the 22,722 English candidates contain `of`, and only
+  a handful of them are theme terms (the triage is meant to drop the others);
 - at size L the refined keyword list is cut to the 10,000 best-scored terms
   (the default of `global_top_n`).
 
@@ -248,9 +255,12 @@ reuses that dictionary verbatim.
 | --- | --- | --- |
 | `kw_recency_years` | `0` | works span 2012–2026: use the whole history |
 
-The demo corpus sits in the engine's default corpus slot, `manual`, alone.
+The demo corpus sits in the engine's default corpus slot, `manual`, alone. A
+trilingual world is read with `corpus_languages` and `display_languages` set
+to its three languages.
 
-Defaults in effect, for reference: n-grams of 1 to 4 words, `min_df` 3,
+Defaults in effect, for reference: noun-phrase candidates of at most five
+word units (see [the extraction](dev/extraction.md)), `min_df` 3,
 `max_df` 0.6, length bonus 2.0, `nested_threshold` 1.3, 30 keywords per
 person, `global_top_n` 10,000, `corpus_languages` French and English with
 English as the reference language; 20 SVD components, 150 concepts from 50
