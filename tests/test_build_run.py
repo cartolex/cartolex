@@ -261,6 +261,11 @@ def test_estimates_scale_the_last_run():
     assert "scaled by texts" in str(scaled)
     assert model.estimate(ProjectSizes(), None).seconds is None
     assert STAGES["themes.group"].cost.memory_exponent == 2.0
+    stand_in = CostModel("kept_keywords", 1.0, 0.01, 100.0, 1.0, fallback=("people", 10.0))
+    assert stand_in.estimate(ProjectSizes(people=20), None).seconds == pytest.approx(3.0)
+    assert stand_in.estimate(ProjectSizes(kept_keywords=100), None).seconds == pytest.approx(2.0)
+    with pytest.raises(ValueError, match="unknown cost driver"):
+        CostModel("texts", 1, 1, 1, 1, fallback=("pages", 1.0))
 
 
 # ── progress and cancel ──────────────────────────────────────────────────────

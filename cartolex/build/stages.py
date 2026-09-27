@@ -89,7 +89,9 @@ class CostModel:
 
     Without a previous run, the estimate is ``fixed + per_unit × driver^exponent``.
     With one, the previous run's measures are scaled by the ratio of the driver
-    now to the driver then (recorded in its counts), to the same exponent.
+    now to the driver then (recorded in its counts), to the same exponent. A
+    *fallback* stands in for the driver before it is known (the vocabulary's
+    size before a first vocabulary is built, from the people).
     """
 
     driver: str
@@ -99,13 +101,19 @@ class CostModel:
     memory_mb_per_unit: float
     time_exponent: float = 1.0
     memory_exponent: float = 1.0
+    #: When the driver is not known yet: another size, and how many driver units per unit.
+    fallback: tuple[str, float] | None = None
 
     def __post_init__(self) -> None:
-        if self.driver not in SIZE_NAMES:
-            raise ValueError(f"unknown cost driver {self.driver!r}; known: {list(SIZE_NAMES)}")
+        for name in (self.driver, *(self.fallback[:1] if self.fallback else ())):
+            if name not in SIZE_NAMES:
+                raise ValueError(f"unknown cost driver {name!r}; known: {list(SIZE_NAMES)}")
 
     def estimate(self, sizes: ProjectSizes, last: RunRecord | None) -> Estimate:
         now = sizes.get(self.driver)
+        if now is None and self.fallback is not None:
+            other = sizes.get(self.fallback[0])
+            now = round(other * self.fallback[1]) if other is not None else None
         if last is not None and last.measures.seconds is not None:
             then = last.measures.counts.get(self.driver)
             s, m = last.measures.seconds, last.measures.peak_memory_mb
