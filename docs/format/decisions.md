@@ -111,22 +111,57 @@ texts; its inner nodes have stable ids and names in each interface language.
     {"id": "n1", "parent": null, "names": {"en": "Coastal hazards"}, "order": 1},
     {"id": "n7", "parent": "n1", "names": {"en": "Storm surge"}, "order": 1}
   ],
-  "keywords": {"storm surge model": "n7", "coastal flooding": "n7"},
+  "keywords": {"coastal flooding": "n7", "storm surge model": "n7", "tidal inlet": "n7"},
   "set_aside": {"numerical results": {"from": "n7", "reason": "too general"}},
   "review": {"tidal inlet": "to_check"},
   "based_on": {"run": "themes.group/20260928T101500Z-3f2a", "vocabulary": "sha256:…"}
 }
 ```
 
+| key | meaning |
+| --- | --- |
+| `depth`, `levels` | the number of levels (1 to 4) and their names, from the top level down |
+| `nodes` | every node: a stable `id` (letters, digits, `-` and `_`), its `parent` (`null` on the top level), its `names` per language (possibly none), its `order` among its siblings (ties by id) |
+| `keywords` | each placed keyword and the node of the deepest level it is under |
+| `set_aside` | each keyword set aside: `from`, the node it was set aside from (`null` when it never had a place), and `reason` |
+| `review` | `to_check` for a keyword a rebase added, `reviewed` once someone checked it; a keyword with nothing to check is absent |
+| `based_on` | the run and the vocabulary the tree was built or last rebased on |
+
 - Every keyword of the current vocabulary is either under a node of the deepest
-  level or set aside.
-- `based_on` names the vocabulary the tree was built or last rebased on. After a
-  new extraction the tree is **rebased**: kept keywords stay where they are, new
-  keywords go to « To check » with a proposed place, vanished keywords are
-  listed, and a node left empty is removed. The rebase writes a new version and
-  a reconciliation list that names every changed keyword.
+  level or set aside, never both; `review` names only keywords the tree holds.
+- A node's level is its distance from the top: keywords sit only under nodes of
+  the deepest level, and a node never sits below it. A node may be empty.
+- `from` may name a node that no longer exists (merged away, or removed by a
+  rebase); putting the keyword back then needs a target. cartolex never gives
+  a new node such an id.
+- cartolex writes the file in one form: nodes in tree order (depth first,
+  siblings by `order` then id), keywords, set-aside keywords and review states
+  sorted by text.
+- `based_on.vocabulary` is the fingerprint of a vocabulary: `sha256:` and the
+  SHA-256 of the JSON list of its distinct keywords, sorted, written without
+  spaces (`["a","b"]`) in UTF-8.
+- After a new extraction or a new grouping the tree is **rebased** onto the new
+  vocabulary: kept keywords stay where they are (set-aside ones stay set
+  aside); each new keyword goes to the place proposed for it, marked
+  `to_check` (set aside, with the reason `new keyword, no place proposed`, when
+  no place is proposed); vanished keywords are removed, set-aside ones too; a
+  node whose keywords all vanished is removed, with the nodes under it, and a
+  node that was already empty stays. Nothing else changes: no node is renamed,
+  moved or renumbered. The rebase is saved as a new version, and its
+  reconciliation list names every added or removed keyword and every removed
+  node. That list is the difference between the version before the rebase and
+  the version it wrote, so the history keeps it.
 - Level names are the defaults for the depth (Theme; Theme › Topic; Field ›
-  Theme › Topic; Domain › Field › Theme › Topic) until someone renames them.
+  Theme › Topic; Domain › Field › Theme › Topic, in English, French and
+  Portuguese) until someone renames them. When the depth changes, a name still
+  equal to its default follows the defaults of the new depth; a name someone
+  gave stays.
+- Every change is a new version: `decisions/history/themes.json/<UTC
+  time>-<action>.json` holds the version that `<action>` replaced at that time.
+  Restoring a version saves it again as a new version.
+
+The operations on a tree and their rules are described in
+[The theme tree](../dev/themes.md).
 
 ## `maps.json`: map versions
 

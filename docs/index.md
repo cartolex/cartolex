@@ -22,6 +22,7 @@ format/index
 :maxdepth: 1
 
 dev/engine
+dev/themes
 dev/checks
 dev/reference
 ```
