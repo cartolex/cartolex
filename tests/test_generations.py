@@ -179,3 +179,13 @@ def test_opening_for_writing_repairs_an_interrupted_swap(tmp_path):
     with Project.open(layout.root, write=True) as project:
         assert project.recovered and "completed" in project.recovered[0]
     _assert_whole(layout, RUNS[1], RUNS[0])
+
+
+def test_a_damaged_journal_is_reported_never_guessed(tmp_path):
+    layout = _layout(tmp_path)
+    layout.journal.write_text('{"format": "cartolex-journal/1", "stage": "nope"}')
+    with pytest.raises(ValueError, match="damaged outside cartolex"):
+        recover(layout)
+    with pytest.raises(ValueError, match="damaged"):
+        Project.open(layout.root, write=True)
+    assert not layout.lock.exists()  # a refused open leaves no lock behind

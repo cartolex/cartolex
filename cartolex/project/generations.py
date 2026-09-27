@@ -36,6 +36,7 @@ from typing import Any
 
 from .files import _fsync_dir, atomic_write_bytes, json_bytes
 from .layout import ProjectLayout
+from .models import STAGE_IDS
 
 __all__ = [
     "CHUNKS",
@@ -58,6 +59,11 @@ CHUNKS = ".chunks"
 DISCARD_SUFFIX = ".discard"
 
 Probe = Callable[[str], None]
+
+_DAMAGED = (
+    "; it was damaged outside cartolex. Remove it, then rebuild the stages whose folders "
+    "in derived/ look incomplete (derived/ can always be rebuilt)"
+)
 
 
 def _noop(_: str) -> None:
@@ -111,9 +117,14 @@ def _read_journal(layout: ProjectLayout) -> dict[str, Any] | None:
     except FileNotFoundError:
         return None
     except (OSError, ValueError) as exc:
-        raise ValueError(f"{layout.journal}: unreadable swap journal ({exc})") from exc
-    if not isinstance(raw, dict) or raw.get("format") != JOURNAL_FORMAT:
-        raise ValueError(f"{layout.journal}: not a {JOURNAL_FORMAT} file")
+        raise ValueError(f"{layout.journal}: unreadable swap journal ({exc}){_DAMAGED}") from exc
+    if (
+        not isinstance(raw, dict)
+        or raw.get("format") != JOURNAL_FORMAT
+        or raw.get("stage") not in STAGE_IDS
+        or not isinstance(raw.get("run_id"), str)
+    ):
+        raise ValueError(f"{layout.journal}: not a {JOURNAL_FORMAT} file{_DAMAGED}")
     return raw
 
 
