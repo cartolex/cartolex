@@ -226,7 +226,7 @@
     },
     "Overlay": {
       "additionalProperties": true,
-      "description": "A projected set: placed on the finished map, never shaping it.",
+      "description": "A projected set: placed on the finished map, never shaping it.\n\nWithout a ``root``, its people are in the project's own tables, with the role\n``projected`` and this set's id in ``decisions/people.csv``; with one, the set\nis a folder of its own, laid out like ``sources/``.",
       "properties": {
         "id": {
           "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
@@ -234,9 +234,17 @@
           "type": "string"
         },
         "root": {
-          "minLength": 1,
-          "title": "Root",
-          "type": "string"
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Root"
         },
         "trajectory": {
           "default": false,
@@ -245,8 +253,7 @@
         }
       },
       "required": [
-        "id",
-        "root"
+        "id"
       ],
       "title": "Overlay",
       "type": "object"

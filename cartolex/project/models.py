@@ -141,10 +141,15 @@ class Slot(_Model):
 
 
 class Overlay(_Model):
-    """A projected set: placed on the finished map, never shaping it."""
+    """A projected set: placed on the finished map, never shaping it.
+
+    Without a ``root``, its people are in the project's own tables, with the role
+    ``projected`` and this set's id in ``decisions/people.csv``; with one, the set
+    is a folder of its own, laid out like ``sources/``.
+    """
 
     id: Slug
-    root: NonEmpty
+    root: NonEmpty | None = None
     trajectory: bool = False
 
 

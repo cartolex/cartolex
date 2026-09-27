@@ -13,9 +13,9 @@ texts ──< text_parts
 ```
 
 Every table is sorted by its key, and every key is a stable string: an id, once
-given, never changes and is never reused. Ids are opaque (`t…`, `p…`, `o…`
-followed by letters and digits); the ids a source uses (DOI, ORCID, OpenAlex,
-ROR, HAL, arXiv…) are kept in their own columns.
+given, never changes and is never reused. Ids are opaque: those cartolex gives
+start with `t`, `p` or `o`, and an importer may keep its own. The ids a source
+uses (DOI, ORCID, OpenAlex, ROR, HAL, arXiv…) are kept in their own columns.
 
 Dates are kept everywhere: every text has its year, every affiliation its
 years, every row its retrieval time. Changes over time are computed from them.
@@ -62,9 +62,10 @@ The key is (`text_id`, `part`, `language`, `provider`). Which provider wins when
 several give the same part is a parameter (`sources.provider_priority`), so
 the choice can change without collecting again.
 
-**Reading order.** A text is read as its chosen parts joined by a blank line, in
-the order title, abstract, body; `full` stands alone. A person's texts are read
-in slot order, then `position`.
+**Reading order.** A text is read as its chosen parts in the order title,
+abstract, body, each part in every language it has, separated by a blank line
+and ending with a newline; `full` stands alone. People are read in `person_id`
+order, and each person's texts in slot order, then `position`.
 
 ## `people.parquet`: one row per person record
 

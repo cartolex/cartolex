@@ -82,9 +82,11 @@ hence the rows of every matrix. Slots are declared, never discovered.
 ## Overlays
 
 An overlay is a projected set: people placed on the finished map by their texts,
-who never shape it. Its `root` is a folder, relative to the project or
-absolute, laid out like `sources/`; it may live outside the project, where a host
-application keeps it. An overlay is never a fit slot.
+who never shape it. Without a `root`, its people are in the project's own
+tables, with the role `projected` and the set's id in `decisions/people.csv`.
+With a `root`, the set is a folder of its own, relative to the project or
+absolute, laid out like `sources/`; it may live outside the project, where a
+host application keeps it. An overlay is never a fit slot.
 
 ## Bases
 
