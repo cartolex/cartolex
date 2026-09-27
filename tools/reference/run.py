@@ -13,8 +13,13 @@ bundle (each in its own process) and writes the map-merge stage.
 
 Usage::
 
-    python run.py --workspace WS [--truth TRUTH.json] --out DIR
-    python run.py --workspace WS --merge-with WS2 [--truth T] [--merge-truth T2] --out DIR
+    python run.py --workspace WS [--truth TRUTH.json] [--project PROJECT] --out DIR
+    python run.py --workspace WS --merge-with WS2 [--truth T] [--merge-truth T2]
+                  [--project P --merge-project P2] --out DIR
+
+With ``--project`` (the same world written as a cartolex project), the stages
+run through a project build instead of being called on the workspace, and the
+artifacts are read where the build put them: they must be the same.
 
 Self-contained on purpose: it imports only the standard library, the installed
 engine and the engine's dependencies, never this repository. Only the part
@@ -741,6 +746,10 @@ class Engine:
     def _run_plots(self) -> None:
         _mod("atlas.driver").run_lexical_plots(self.ctx)
 
+    def _overlay_root(self) -> Path:
+        """The folder of the projected sets: one folder per set, each with an index."""
+        return self.ws / "overlay"
+
     def _positioning_models(self) -> tuple:
         return _mod("lexicon.positioning").load_positioning_models(self.ctx)
 
@@ -1034,7 +1043,7 @@ class Engine:
         import pandas as pd
 
         sets: dict[str, list[tuple[str, str]]] = {}
-        root = self.ws / "overlay"
+        root = self._overlay_root()
         if not root.is_dir():
             return sets
         for folder in sorted(p for p in root.iterdir() if p.is_dir()):
@@ -1204,6 +1213,177 @@ class Engine:
                 {"directory": same(back, sorted_input), "zip": same(back_zip, sorted_input)}
             ),
         }
+
+
+#: The number of themes of the subfield draft in a run of the engine alone (its default).
+def _draft_themes() -> int:
+    import inspect
+
+    fn = _mod("lexicon.subfields").draft_subfields
+    return int(inspect.signature(fn).parameters["n_subfields"].default)
+
+
+def set_reference_decisions(project: Any) -> None:
+    """Give a project the settings of the workspace run (``ENGINE_SETTINGS``, ``TRIAGE_SETTINGS``).
+
+    The AI clean-up is on, with the model a workspace run uses; the recency
+    window is the workspace run's; the themes and topics are the engine's
+    default counts (explicit level sizes: the draft's themes over the
+    clustering's topics); the first map version takes the layout's default seed.
+    """
+    from cartolex.project.models import AIIdentity
+
+    defaults = _mod("atlas.driver").DEFAULTS
+    settings = _mod("lexicon").KeywordsConfig()
+    config = project.config
+    if config.identity.domain_title != TRIAGE_SETTINGS["domain_title"]:
+        raise SystemExit(
+            f"reference: the project's domain title {config.identity.domain_title!r} is not "
+            f"the reference's {TRIAGE_SETTINGS['domain_title']!r}"
+        )
+    identity = config.identity.model_copy(
+        update={"ai": AIIdentity(provider="mistral", model=settings.llm_model)}
+    )
+    project.save_config(config.model_copy(update={"identity": identity}), action="reference")
+    params, fp = project.read_params()
+    stages = {
+        "corpus.assemble": {"recency_years": ENGINE_SETTINGS["keywords"]["kw_recency_years"]},
+        "keywords.triage": {"enabled": True},
+        "themes.group": {"level_sizes": [_draft_themes(), defaults.clustering_n_concepts]},
+    }
+    updated = params.model_copy(update={"seed": defaults.umap_random_state, "stages": stages})
+    project.save_params(updated, expected=fp, action="reference settings")
+
+
+class _ResultFiles:
+    """The engine's paths over a project's results, resolved when each one is asked for."""
+
+    def __init__(self, root: Path, scratch: Path) -> None:
+        self._root, self._scratch = root, scratch
+
+    def paths(self) -> Any:
+        from cartolex.build.enginefiles import results_paths
+
+        return results_paths(self._root / "derived", self._scratch, self._root)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.paths(), name)
+
+
+class ProjectEngine(Engine):
+    """Runs the engine through a project build, and reads each stage's results from derived/.
+
+    Each stage of the workspace run builds the project's matching stage with
+    ``cartolex.build.build`` (the AI triage answered by the fake model, through
+    the injectable client) and then reads the same files, where the build put
+    them. What the workspace run checks by calling a stage twice, the stages
+    record in their counts (the roster rewritten identically, the applied
+    document equal to what the stage returned); the triage is run a second time
+    by forcing it.
+    """
+
+    def __init__(self, project_dir: Path, *, judge: Callable[[str], Verdict], domain_id: str):
+        self.project_dir = project_dir
+        self._triage_runs = 0
+        super().__init__(project_dir, judge=judge, domain_id=domain_id)
+
+    def _setup(self) -> None:
+        from cartolex.build import engine as wiring
+        from cartolex.project import Project
+
+        self.project = Project.open(self.project_dir, write=True)
+        set_reference_decisions(self.project)
+        judge = self.judge
+
+        def client(**kwargs: Any) -> FakeModelClient:
+            return FakeModelClient(judge, **kwargs)
+
+        self.registry = wiring.engine_registry(
+            wiring.AIAccess(
+                client_factory=client, max_concurrent=TRIAGE_SETTINGS["llm_max_concurrent"]
+            )
+        )
+        self.cfg = wiring.keywords_settings(
+            self.project.config,
+            recency_years=ENGINE_SETTINGS["keywords"]["kw_recency_years"],
+            llm_max_concurrent=TRIAGE_SETTINGS["llm_max_concurrent"],
+        )
+        scratch = self.project_dir.parent / "figures"
+        self.files = _ResultFiles(self.project_dir, scratch)
+
+    def _context(self) -> Any:
+        from cartolex.context import RunContext
+
+        return RunContext(paths=self.files.paths(), settings=self.cfg, now_year=NOW_YEAR)
+
+    def _build(self, stage: str, *, force: bool = False) -> Any:
+        from cartolex.build import build
+
+        result = build(
+            self.project,
+            [stage],
+            registry=self.registry,
+            force=[stage] if force else (),
+            year=NOW_YEAR,
+            budget_mb=1e12,
+            consent=lambda request: True,
+        )
+        if result.outcome != "succeeded" or result.refused:
+            raise SystemExit(f"reference: the project build of {stage} failed: {result.summary()}")
+        return result
+
+    def _counts(self, stage: str) -> dict[str, int]:
+        record = json.loads((self.project_dir / "derived" / stage / "run.json").read_text("utf-8"))
+        return record["measures"]["counts"]
+
+    def _run_extract(self) -> None:
+        self._build("keywords.extract")
+
+    def _run_triage(self) -> Any:
+        self._build("keywords.triage", force=self._triage_runs > 0)
+        self._triage_runs += 1
+        return json.loads(self.files.triage_decisions_json.read_text(encoding="utf-8"))
+
+    def _run_build(self) -> None:
+        self._build("keywords.build")
+
+    def _run_roster(self) -> int:
+        counts = self._counts("keywords.build")
+        if counts.get("roster_rewrite_identical") != 1:
+            raise SystemExit("reference: the roster written again differs from the first")
+        return int(counts["roster_people"])
+
+    def _run_space(self) -> None:
+        self._build("themes.space")
+
+    def _run_group(self) -> None:
+        self._build("themes.group")  # the clustering, and the subfield draft
+
+    def _run_layout(self) -> None:
+        self._build("map.layout")  # the draft applied, the layout, the themes placed on it
+
+    def _run_draft(self) -> None:
+        return None
+
+    def _run_apply(self) -> Any:
+        applied = json.loads(self.files.subfields_json.read_text(encoding="utf-8"))
+        same = all(
+            self._counts(s).get("applied_matches_file") == 1 for s in ("themes.apply", "map.layout")
+        )
+        return applied if same else None
+
+    def _run_trajectories(self) -> None:
+        self._build("map.trajectories")
+
+    def _run_plots(self) -> None:
+        _mod("atlas.driver").run_lexical_plots(self._context())
+
+    def _positioning_models(self) -> tuple:
+        self._build("overlays.position")  # the stage runs; the runner projects as a workspace does
+        return _mod("lexicon.positioning").load_positioning_models(self._context())
+
+    def _overlay_root(self) -> Path:
+        return self.project_dir / "derived" / "corpus.assemble" / "overlays"
 
 
 def _zip_summary(path: Path) -> dict[str, Any]:
@@ -1520,6 +1700,7 @@ def run_single(
     out: Path,
     *,
     truth: Path | None,
+    project: Path | None = None,
     domain_id: str,
     until: str | None,
     export_bundle: Path | None,
@@ -1536,7 +1717,11 @@ def run_single(
         cwd.mkdir()
         os.chdir(cwd)  # some engine modules create folders in the current directory
         judge = make_judge(load_truth(truth))
-        engine = Engine(ws, judge=judge, domain_id=domain_id)
+        if project is not None:
+            shutil.copytree(project, work / "project")
+            engine: Engine = ProjectEngine(work / "project", judge=judge, domain_id=domain_id)
+        else:
+            engine = Engine(ws, judge=judge, domain_id=domain_id)
         artifacts: dict[str, Any] = {}
         images: list[str] = []
         stages = list(STAGES)
@@ -1573,6 +1758,9 @@ def run_single(
             "environment": environment_record(),
         }
     finally:
+        opened = locals().get("engine")
+        if getattr(opened, "project", None) is not None:
+            opened.project.close()
         os.chdir(out.parent if out.parent.exists() else Path.home())
         if keep_work is not None:
             if keep_work.exists():
@@ -1589,6 +1777,7 @@ def run_merge(
     *,
     runlog: RunLog,
     work_root: Path | None,
+    projects: list[Path | None] | None = None,
 ) -> dict[str, Any]:
     """Run both workspaces up to the bundle (one process each), then the merge stage."""
     work = Path(tempfile.mkdtemp(prefix="reference-merge-", dir=work_root))
@@ -1615,6 +1804,8 @@ def run_merge(
             ]
             if truth is not None:
                 cmd += ["--truth", str(truth)]
+            if projects is not None and projects[i] is not None:
+                cmd += ["--project", str(projects[i])]
             children.append((domain, subprocess.Popen(cmd), time.monotonic()))
         failed = []
         for domain, proc, t0 in children:
@@ -1667,6 +1858,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", required=True, type=Path, help="output directory")
     parser.add_argument("--merge-with", type=Path, help="second workspace: run the merge stage")
     parser.add_argument("--merge-truth", type=Path, help="truth file of the second workspace")
+    parser.add_argument(
+        "--project",
+        type=Path,
+        help="run through this project (the same world written as a project) with the build",
+    )
+    parser.add_argument("--merge-project", type=Path, help="the second world's project")
     parser.add_argument("--domain-id", default="a", help="identifier of this cohort (default a)")
     parser.add_argument("--until", choices=STAGES, help="stop after this stage")
     parser.add_argument("--export-bundle", type=Path, help="also write the engine bundle here")
@@ -1703,12 +1900,17 @@ def main(argv: list[str] | None = None) -> int:
             out,
             runlog=runlog,
             work_root=work_root,
+            projects=[
+                args.project.resolve() if args.project else None,
+                args.merge_project.resolve() if args.merge_project else None,
+            ],
         )
     else:
         manifest = run_single(
             args.workspace.resolve(),
             out,
             truth=args.truth.resolve() if args.truth else None,
+            project=args.project.resolve() if args.project else None,
             domain_id=args.domain_id,
             until=args.until,
             export_bundle=args.export_bundle.resolve() if args.export_bundle else None,

@@ -83,9 +83,14 @@ class OwnFolder:
 
 @dataclass(frozen=True)
 class NotProvided:
-    """A path a project does not provide; the reason says where the information comes from."""
+    """A path a project does not provide; the reason says where the information comes from.
+
+    *figure* names a figure file: a build draws no figure, but a view of the
+    results (:func:`results_paths`) draws it there, in its scratch folder.
+    """
 
     reason: str
+    figure: str | None = None
 
 
 Place = Owned | FromProject | OwnFolder | NotProvided
@@ -160,11 +165,11 @@ ENGINE_FILES: dict[str, Place] = {
     "proto_subfields_json": Owned("themes.group", "proto_subfields.json"),
     "trajectories_csv": Owned("map.trajectories", "umap_trajectories.csv"),
     "trajectory_windows_json": Owned("map.trajectories", "trajectory_windows.json"),
-    "persons_groups_png": NotProvided(_FIGURE),
-    "term_clusters_png": NotProvided(_FIGURE),
-    "superposed_png": NotProvided(_FIGURE),
-    "cohort_trajectories_png": NotProvided(_FIGURE),
-    "group_panel_png": NotProvided(_FIGURE),
+    "persons_groups_png": NotProvided(_FIGURE, "umap_individuals_labs.png"),
+    "term_clusters_png": NotProvided(_FIGURE, "umap_terms_clusters.png"),
+    "superposed_png": NotProvided(_FIGURE, "umap_superposed_all.png"),
+    "cohort_trajectories_png": NotProvided(_FIGURE, "umap_cohort_trajectories.png"),
+    "group_panel_png": NotProvided(_FIGURE, "umap_lab_{}.png"),
     # ── subfields ──
     "subfields_draft_json": Owned("themes.group", "subfields_draft.json"),
     "subfields_json": Owned("themes.apply", "subfields.json", amended_by=("map.layout",)),
@@ -251,6 +256,9 @@ def results_paths(derived: Path, scratch: Path, project_root: Path) -> EnginePat
             values[name] = (
                 PathPattern(base, place.rel) if _pattern_field(name) else base / place.rel
             )
+        elif isinstance(place, NotProvided) and place.figure is not None:
+            fig = place.figure
+            values[name] = PathPattern(scratch, fig) if _pattern_field(name) else scratch / fig
         else:
             values[name] = _resolve(name, place, "_", {"_": scratch}, Path(project_root))
     return EnginePaths(**values)  # type: ignore[arg-type]

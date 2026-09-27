@@ -97,9 +97,10 @@ workspace:
 The check runner calls the reference check (see [the checks](checks.md)):
 
 ```bash
-python tools/check.py --quick      # includes the S and merge comparisons
+python tools/check.py --quick      # includes the S and merge comparisons, both ways
 python tools/check.py --full       # also L
-python tools/reference/check_reference.py --size S    # this check alone
+python tools/reference/check_reference.py --size S                 # this check alone
+python tools/reference/check_reference.py --size S --via-project   # the same through a project
 ```
 
 `check_reference.py` ensures the `current` environment, generates the demo
@@ -112,6 +113,25 @@ not input worlds, so when they differ the comparison goes on and lists them in
 the notes (the single-run comparison's `bundle` stage shows why). Reports are
 kept in `.cache/reference/reports/`, the runs' logs in `.cache/reference/logs/`
 and the runs themselves in `.cache/reference/runs/`.
+
+### Through a project
+
+With `--via-project`, each demo world is also written as a cartolex project
+(`cartolex.demo.project.write_project`) and `run.py --project` runs the engine
+through the project build (`cartolex.build.build`) instead of calling it on the
+workspace. The adapter's `ProjectEngine` sets the project's decisions to the
+workspace run's settings (`set_reference_decisions`: the recency window, the AI
+clean-up on with the same model, the draft's themes and the clustering's
+topics as explicit level sizes, the layout's default seed for the first map
+version), builds each stage when the workspace run would call it, the triage
+answered by the same fake model through the injectable client, and reads the
+same files where the build put them. What the workspace run checks by calling a
+stage twice, the stages record in their counts (the roster written again is
+identical, the applied document is what the stage returned); the triage runs a
+second time by forcing it. The result is compared with the stored reference,
+and with the workspace run of the same tree in `.cache/reference/runs/<name>`:
+every artifact must be identical. The check runner runs both, the workspace run
+first.
 
 To compare two runs directly:
 
