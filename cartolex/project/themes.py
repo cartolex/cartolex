@@ -391,6 +391,15 @@ class _Work:
     def edit(self, description: str) -> Edit:
         return Edit(self.finish(), description)
 
+    def remap_leaves(self, mapping: Mapping[str, str | None]) -> None:
+        """Move the keywords of each leaf in *mapping*, and set-aside origins, to its new leaf."""
+        for k, node_id in self.keywords.items():
+            if node_id in mapping:
+                self.keywords[k] = mapping[node_id]  # type: ignore[assignment]
+        for entry in self.set_aside.values():
+            if entry.get("from") in mapping:
+                entry["from"] = mapping[entry["from"]]
+
 
 def _ordered_names(names: Mapping[str, str]) -> dict[str, str]:
     return {lang: names[lang] for lang in LANGUAGES if lang in names}
@@ -774,11 +783,11 @@ def insert_level(
             raise ThemeEditError(
                 "root_names only names the new root of a level inserted at the top"
             )
+        new_leaf: dict[str, str | None] = {}
         for pid in work.at_level(at - 1):
             parent = work.nodes[pid]
             cid = work.new_id()
             held_nodes = work.children(pid)
-            held_keywords = work.keywords_of(pid) if at - 1 == depth else []
             work.nodes[cid] = {
                 "id": cid,
                 "parent": pid,
@@ -787,12 +796,9 @@ def insert_level(
             }
             for kid in held_nodes:
                 work.nodes[kid]["parent"] = cid
-            for k in held_keywords:
-                work.keywords[k] = cid
             if at - 1 == depth:
-                for entry in work.set_aside.values():
-                    if entry.get("from") == pid:
-                        entry["from"] = cid
+                new_leaf[pid] = cid
+        work.remap_leaves(new_leaf)
     source: list[int | None] = list(range(depth))
     source.insert(at - 1, None)
     work.doc["levels"] = _relevel(work.doc["levels"], depth, new_depth, source)
@@ -818,17 +824,14 @@ def remove_level(tree: ThemesFile, at: int) -> Edit:
         raise ThemeEditError(f"the tree has levels 1 to {depth}, not {at!r}")
     doomed = work.at_level(at)
     new_children: dict[str | None, list[str]] = {}
+    new_leaf: dict[str, str | None] = {}
     for nid in doomed:
         parent = work.nodes[nid]["parent"]
-        bucket = new_children.setdefault(parent, [])
         if at == depth:
-            for k in work.keywords_of(nid):
-                work.keywords[k] = parent  # at >= 2: a parent exists
-            for entry in work.set_aside.values():
-                if entry.get("from") == nid:
-                    entry["from"] = parent
+            new_leaf[nid] = parent  # at >= 2: a parent exists
         else:
-            bucket.extend(work.children(nid))
+            new_children.setdefault(parent, []).extend(work.children(nid))
+    work.remap_leaves(new_leaf)
     for parent, kids in new_children.items():
         for rank, kid in enumerate(kids, start=1):
             work.nodes[kid]["parent"] = parent
