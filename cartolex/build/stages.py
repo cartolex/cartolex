@@ -160,6 +160,8 @@ class Stage:
     id: str
     name: str
     upstream: tuple[str, ...] = ()
+    #: Raised when cartolex deliberately changes what this stage produces.
+    version: int = 1
     decisions: tuple[str, ...] = ()
     sources: tuple[str, ...] = ()
     project: tuple[str, ...] = ()
@@ -182,6 +184,8 @@ class Stage:
     def __post_init__(self) -> None:
         if self.id not in STAGE_IDS:
             raise ValueError(f"unknown stage id {self.id!r}; known: {list(STAGE_IDS)}")
+        if isinstance(self.version, bool) or not isinstance(self.version, int) or self.version < 1:
+            raise ValueError(f"{self.id}: a stage version is a whole number from 1")
         if self.opt_in and not any(p.name == "enabled" for p in self.params):
             enabled = ParamSpec("enabled", "bool", "run this opt-in stage", default=False)
             object.__setattr__(self, "params", (enabled, *self.params))
@@ -365,8 +369,15 @@ def _has_overlays(config: ProjectFile, _: ParamsFile) -> str | None:
 
 
 def _overlay_tables(project: Project) -> list[tuple[str, Path]]:
+    """The tables of the projected sets kept in folders of their own.
+
+    A set without a ``root`` lives in the project's own tables, which
+    ``corpus.assemble`` reads.
+    """
     files: list[tuple[str, Path]] = []
     for overlay in project.config.overlays:
+        if overlay.root is None:
+            continue
         root = Path(overlay.root)
         root = root if root.is_absolute() else project.layout.root / root
         files.extend(("overlay", root / "tables" / f"{t}.parquet") for t in SOURCE_TABLES)

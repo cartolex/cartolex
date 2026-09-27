@@ -21,7 +21,7 @@ from cartolex.build import (
     theme_level_sizes,
 )
 from cartolex.build.params import check_params, resolve_params
-from cartolex.project import STAGE_IDS
+from cartolex.project import SOURCE_TABLES, STAGE_IDS
 from cartolex.project.models import ParamsFile
 
 # ── the rules the build ships ────────────────────────────────────────────────
@@ -266,3 +266,18 @@ def test_ai_clean_up_needs_a_provider():
     resolved = resolve_params(stage, ParamsFile(), ProjectSizes(), year=YEAR)
     problems = resolved.problems(stage, ProjectSizes(), make_config())
     assert problems and "identity.ai" in problems[0]
+
+
+def test_overlay_inputs_are_the_tables_of_sets_with_their_own_folder(tmp_path):
+    from cartolex.build.fingerprints import input_files
+    from cartolex.project.models import Overlay
+
+    project = make_project(tmp_path / "p")
+    config = project.config.model_copy(
+        update={"overlays": [Overlay(id="inside"), Overlay(id="outside", root="../elsewhere")]}
+    )
+    project.save_config(config, action="test")
+    files = input_files(project, STAGES["overlays.position"])
+    assert {f.kind for f in files} == {"overlay"}
+    assert {f.path for f in files} == {f"../elsewhere/tables/{t}.parquet" for t in SOURCE_TABLES}
+    project.close()

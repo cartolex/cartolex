@@ -54,8 +54,8 @@ class StageState(str, Enum):
 class Reason:
     """One thing that changed since a stage's results were computed."""
 
-    kind: Literal["input", "parameter", "project", "upstream"]
-    subject: str  # the path, parameter name, project.json part or upstream stage id
+    kind: Literal["code", "input", "parameter", "project", "upstream"]
+    subject: str  # the stage id, path, parameter name, project.json part or upstream stage id
     detail: str
 
     def __str__(self) -> str:
@@ -71,7 +71,8 @@ class StageStatus:
     killed run left (a new run resumes from it when nothing changed);
     ``running`` the staging folder of the job running the stage now.
     ``code_changed`` says the results were computed by other code than this
-    one; it is information, not a reason for an update.
+    one; it is information, not a reason for an update (a deliberate change of
+    what the stage produces raises its version, which is one).
     """
 
     stage: str
@@ -237,6 +238,15 @@ def _changes(
     view: _View, stage: Stage, record: RunRecord, earlier: dict[str, StageStatus]
 ) -> list[Reason]:
     reasons: list[Reason] = []
+    before = record.code.stage_version
+    if before != stage.version:
+        reasons.append(
+            Reason(
+                "code",
+                stage.id,
+                f"cartolex changed how this stage works (version {before} → {stage.version})",
+            )
+        )
     used = {i.stage: i.run_id for i in record.inputs if i.kind == "stage"}
     for up in stage.upstream:
         up_status = earlier[up]

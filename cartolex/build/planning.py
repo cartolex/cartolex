@@ -150,6 +150,7 @@ class RunInputs:
         """A digest of the inputs, parameters and code: a killed run resumes only when it matches."""
         data = {
             "code": self.code.fingerprint,
+            "stage_version": self.code.stage_version,
             "parameters": {k: v.value for k, v in sorted(self.resolved.values.items())},
             "stages": [[s.stage, s.run_id] for s in self.stages],
             "files": [[f.path, f.fingerprint] for f in self.files],
@@ -181,7 +182,11 @@ def run_inputs(view: _View, stage: Stage) -> RunInputs:
         stages=tuple(stages),
         files=tuple(files),
         identity=project_parts(view.project.config, stage.project),
-        code=CodeStamp(version=cartolex_version(), fingerprint=code_fingerprint()),
+        code=CodeStamp(
+            version=cartolex_version(),
+            fingerprint=code_fingerprint(),
+            stage_version=stage.version,
+        ),
         missing_upstream=tuple(missing),
     )
 

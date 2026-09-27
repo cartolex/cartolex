@@ -154,8 +154,12 @@ A run id is the UTC start time and six random hex digits
   is seen as changed without reading its data).
 - `identity`: the values of the parts of `project.json` the stage declares
   (`languages`, `slots`, `ai`, `language_models`…).
-- `code`: the version, and a SHA-256 over the source and data files of the
-  `cartolex` package (the demo generator excepted), computed once per process.
+- `code`: the cartolex version, a SHA-256 over the source and data files of
+  the `cartolex` package (the demo generator excepted), computed once per
+  process, and the stage's own version (`Stage.version`, from 1). A change of
+  code alone leaves results up to date (`StageStatus.code_changed` says so); a
+  deliberate change of what a stage produces raises its version, and every
+  result made by the earlier version then needs an update.
 - `measures`: wall seconds, peak memory and counts. The counts include the
   stage's cost driver (the size its cost grows with), so a later dry run can
   scale the measures to the project's new size. The peak memory is the process's
@@ -178,14 +182,15 @@ fingerprints, never from file dates:
 5. **needs update** when something changed, with one `Reason` per change;
 6. **up to date** otherwise.
 
-The reasons name what changed: an input file (changed, added, removed), a
+The reasons name what changed: the stage's version (« cartolex changed how this
+stage works (version 1 → 2) »), an input file (changed, added, removed), a
 parameter (`min_people: 3 → 2 (from params.json)`, `year: 2026 → 2027
 (default)`), a part of `project.json`, or an upstream stage (rebuilt, without
 results, now skipped, now with results, itself needing an update, failed or
 running). A stage whose upstream stage needs an update needs one too.
 
-A result computed by other code is not out of date: `StageStatus.code_changed`
-says so, as information. A reader that opens a project while another process
+A result computed by other code of the same stage version is not out of date:
+`StageStatus.code_changed` says so, as information. A reader that opens a project while another process
 swaps a stage may see that stage without results for an instant; a writer
 never does.
 
@@ -196,8 +201,8 @@ A stage writes only into its staging folder,
 its own:
 
 - `.staging.json`: the run id, the process, the host and the project lock it
-  runs under, the boot of the machine, and a key: a digest of the code, the
-  effective parameters, the upstream runs, the input fingerprints and the
+  runs under, the boot of the machine, and a key: a digest of the code and the
+  stage's version, the effective parameters, the upstream runs, the input fingerprints and the
   `project.json` parts it reads;
 - `.chunks/`: for a chunked stage, `chunks.json` (the number of chunks), a
   folder per chunk for its own files, and an empty `<n>.done` file per finished
