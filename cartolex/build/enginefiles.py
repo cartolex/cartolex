@@ -41,6 +41,7 @@ __all__ = [
     "copy_amended",
     "engine_paths",
     "files_of",
+    "results_paths",
 ]
 
 #: The folder, inside a staging folder, where paths the stage cannot see point.
@@ -224,6 +225,34 @@ def engine_paths(stage_id: str, folders: Mapping[str, Path], project_root: Path)
         name: _resolve(name, place, stage_id, folders, Path(project_root))
         for name, place in ENGINE_FILES.items()
     }
+    return EnginePaths(**values)  # type: ignore[arg-type]
+
+
+def results_paths(derived: Path, scratch: Path, project_root: Path) -> EnginePaths:
+    """The engine's paths over a project's current results, to read them.
+
+    Each file is taken from the latest stage that wrote it among those whose
+    folder exists when the path is built (else from its first writer); folders,
+    and files a project does not provide, point into *scratch* (figures drawn
+    from the results go there).
+    """
+    derived, scratch = Path(derived), Path(scratch)
+    present = {
+        s: derived / s
+        for s in {p.stage for p in ENGINE_FILES.values() if isinstance(p, Owned)}
+        | {w for p in ENGINE_FILES.values() if isinstance(p, Owned) for w in p.amended_by}
+        if (derived / s).is_dir()
+    }
+    values: dict[str, object] = {}
+    for name, place in ENGINE_FILES.items():
+        if isinstance(place, Owned):
+            writer = next((w for w in reversed(place.writers) if w in present), place.stage)
+            base = derived / writer
+            values[name] = (
+                PathPattern(base, place.rel) if _pattern_field(name) else base / place.rel
+            )
+        else:
+            values[name] = _resolve(name, place, "_", {"_": scratch}, Path(project_root))
     return EnginePaths(**values)  # type: ignore[arg-type]
 
 
