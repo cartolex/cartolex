@@ -31,10 +31,18 @@ def main(argv: list[str] | None = None) -> int:
         help="also write the engine's corpus contract in OUT/workspace",
     )
     create.add_argument("--force", action="store_true", help="replace a demo world already in OUT")
+    create.add_argument(
+        "--languages",
+        default="en,fr",
+        help="languages of the texts: en,fr (default) or en,fr,pt",
+    )
     args = parser.parse_args(argv)
 
     started = time.perf_counter()
-    world = generate(size=args.size, seed=args.seed)
+    try:
+        world = generate(size=args.size, seed=args.seed, languages=args.languages)
+    except ValueError as exc:
+        parser.error(str(exc))
     try:
         manifest = world.write(args.out, overwrite=args.force)
         corpus = (
@@ -49,7 +57,9 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"demo world {args.size}/{args.seed}: {counts['cohort']} people in the cohort, "
         f"{counts['applicants']} in projected sets, {counts['groups']} groups, "
-        f"{counts['works']} works ({counts['works_fr']} in French), "
+        f"{counts['works']} works ({counts['works_fr']} in French"
+        + (f", {counts['works_pt']} in Portuguese" if "works_pt" in counts else "")
+        + "), "
         f"{counts['words']} words -> {args.out}"
     )
     if corpus is not None:

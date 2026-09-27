@@ -1,8 +1,8 @@
 # The demo world
 
 `cartolex.demo` generates an invented research community: people, groups,
-works and their texts, in English and French. Everything is synthetic and
-deterministic. The same size and seed always give the same files, byte for
+works and their texts, in English and French — or, as a variant, in English,
+French and Portuguese. Everything is synthetic and deterministic. The same size and seed always give the same files, byte for
 byte, so the demo world serves the test suite, the numeric reference run,
 this documentation, screenshots and usability sessions alike.
 
@@ -25,28 +25,31 @@ is given.
 ## The invented field
 
 The community works on **coastal and marine systems**. Twelve themes make up
-the field, each with a list of technical terms in English and French:
+the field, each with a list of technical terms in English, French and
+Portuguese (Brazilian spelling):
 
-| Theme | English name | French name |
-| --- | --- | --- |
-| `coastal-geomorphology` | Coastal geomorphology and sediment transport | Géomorphologie côtière et transport sédimentaire |
-| `ocean-circulation` | Ocean circulation and tides | Circulation océanique et marées |
-| `marine-ecology` | Marine ecology and biodiversity | Écologie marine et biodiversité |
-| `fisheries-aquaculture` | Fisheries and aquaculture | Pêche et aquaculture |
-| `plankton-biogeochemistry` | Plankton and biogeochemistry | Plancton et biogéochimie |
-| `coastal-hazards` | Coastal hazards and sea-level rise | Risques côtiers et élévation du niveau de la mer |
-| `ocean-observation` | Ocean observation and remote sensing | Observation de l'océan et télédétection |
-| `marine-pollution` | Marine pollution and microplastics | Pollution marine et microplastiques |
-| `coastal-governance` | Coastal communities and governance | Sociétés littorales et gouvernance |
-| `blue-economy` | Ports, shipping and the blue economy | Ports, transport maritime et économie bleue |
-| `estuaries-wetlands` | Estuaries and wetlands | Estuaires et zones humides |
-| `paleoceanography` | Paleoceanography and climate archives | Paléocéanographie et archives climatiques |
+| Theme | English name | French name | Portuguese name |
+| --- | --- | --- | --- |
+| `coastal-geomorphology` | Coastal geomorphology and sediment transport | Géomorphologie côtière et transport sédimentaire | Geomorfologia costeira e transporte de sedimentos |
+| `ocean-circulation` | Ocean circulation and tides | Circulation océanique et marées | Circulação oceânica e marés |
+| `marine-ecology` | Marine ecology and biodiversity | Écologie marine et biodiversité | Ecologia marinha e biodiversidade |
+| `fisheries-aquaculture` | Fisheries and aquaculture | Pêche et aquaculture | Pesca e aquicultura |
+| `plankton-biogeochemistry` | Plankton and biogeochemistry | Plancton et biogéochimie | Plâncton e biogeoquímica |
+| `coastal-hazards` | Coastal hazards and sea-level rise | Risques côtiers et élévation du niveau de la mer | Riscos costeiros e elevação do nível do mar |
+| `ocean-observation` | Ocean observation and remote sensing | Observation de l'océan et télédétection | Observação do oceano e sensoriamento remoto |
+| `marine-pollution` | Marine pollution and microplastics | Pollution marine et microplastiques | Poluição marinha e microplásticos |
+| `coastal-governance` | Coastal communities and governance | Sociétés littorales et gouvernance | Sociedades costeiras e governança |
+| `blue-economy` | Ports, shipping and the blue economy | Ports, transport maritime et économie bleue | Portos, transporte marítimo e economia azul |
+| `estuaries-wetlands` | Estuaries and wetlands | Estuaires et zones humides | Estuários e áreas úmidas |
+| `paleoceanography` | Paleoceanography and climate archives | Paléocéanographie et archives climatiques | Paleoceanografia e arquivos climáticos |
 
 Each theme has about seventy hand-written terms (`sediment transport` /
-`le transport sédimentaire`) and several hundred compound terms built from
-families of aspects and objects (`hake biomass` / `la biomasse du merlu`,
-`glider calibration` / `l'étalonnage des planeurs`): 5,669 distinct terms in
-all. A few terms belong to two themes, so themes overlap as they do in a real
+`le transport sédimentaire` / `o transporte de sedimentos`) and several
+hundred compound terms built from families of aspects and objects
+(`hake biomass` / `la biomasse du merlu` / `a biomassa da merluza`,
+`glider calibration` / `l'étalonnage des planeurs` /
+`a calibração dos planadores`): 5,669 distinct terms in all, each with one
+form per language. A few terms belong to two themes, so themes overlap as they do in a real
 field. Terms are tagged as topics (what a work is about) or techniques (how
 it is done), and a shared pool holds 53 methods, 20 study settings and 10
 drivers (`climate change`, `storm events` …). Two themes use the phrasing of
@@ -85,6 +88,33 @@ tests.
 About 10 % more people form a **projected set** (role `overlay:applicants`)
 with works of their own. They are never part of the fitted cohort: they never
 co-author with it and never reach the corpus index of the cohort.
+
+### The trilingual variant
+
+```bash
+python -m cartolex.demo create --size S --seed 0 --languages en,fr,pt --out demo-S-pt --corpus
+```
+
+```python
+world = generate(size="S", seed=0, languages="en,fr,pt")
+```
+
+A trilingual world has the groups, people and bibliography of the default
+world of the same size and seed: the same works, years, types, authors, DOIs
+and sources. About one group in five writes often in Portuguese (never one
+that writes often in French), so some English works become Portuguese ones;
+French works stay French. Every text is written again, and Portuguese
+articles go to Portuguese venues. For seed 0:
+
+| Size | Works | English | French | Portuguese | Words |
+| --- | --- | --- | --- | --- | --- |
+| `XS` | 75 | 45 | 19 | 11 | 15,027 |
+| `S` | 259 | 143 | 76 | 40 | 53,326 |
+| `L` | 2,309 | 1,551 | 460 | 298 | 475,044 |
+
+The default worlds (`en,fr`) do not change with this option: their files are
+byte-identical to those of earlier versions (`tests/test_demo_trilingual.py`
+pins their manifests), since the numeric reference is made on them.
 
 ## Sizes
 
@@ -125,6 +155,24 @@ UTF-8 with `\n` line endings.
   to 1);
 - `works`: the themes of each work, primary first;
 - `coverage`: `good`, `thin` or `no_data` per person.
+
+A trilingual world's truth also has `name_pt`, `pt` and `pt_article` in its
+themes and terms, its `languages`, and a `lexicon`: one record per phrase
+the texts are written with and per language — `text`, `lang`, `kind` and
+`field` (whether it is a field term):
+
+| `kind` | what | `field` | more |
+| --- | --- | --- | --- |
+| `theme` | a theme term, without its article | yes | `canonical` (English form), `themes`, `technique` |
+| `method` | a shared method | yes | `canonical`, `scope` (natural, social, any) |
+| `driver` | a driver of change (`climate change`) | no | `canonical` |
+| `setting` | a study-setting phrase (`on sandy beaches`) | no | `canonical` |
+| `template` | a literal piece of a sentence template or lead-in: generic filler | no | |
+
+`cartolex.demo.lexicon_truth(languages)` gives the same records for any
+language set. A default world's truth keeps the format above, byte for byte.
+The manifest of a trilingual world names its `languages`, and its counts give
+`works_pt`.
 
 ## The corpus contract
 
@@ -217,6 +265,9 @@ The generator draws everything from `random.Random` instances seeded from the
 size, the seed and one named stream per concern (structure, people, works,
 text), never from the global random state, and writes rows and keys in a
 fixed order. A change to the sentence templates therefore leaves the people
-and the bibliography unchanged. The `generator` field of the manifest names
+and the bibliography unchanged. The Portuguese shares of a trilingual world
+come from a stream of their own (languages), and a work's language is one
+draw whatever the language set, so a trilingual world keeps the bibliography
+of the default one. The `generator` field of the manifest names
 the generator version (`GENERATOR_VERSION` in `cartolex.demo`): raise it with
 any change that alters the output.

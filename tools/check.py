@@ -131,7 +131,9 @@ def check_vocab(cfg: dict, dev: Path) -> Result:
     worlds = LOGS / "demo-worlds"
     shutil.rmtree(worlds, ignore_errors=True)
     for spec in vcfg.get("demo_worlds", []):
-        size, seed = spec.split(":")
+        size, seed, *rest = spec.split(":")
+        languages = rest[0] if rest else "en,fr"
+        name = f"{size}-{seed}" + (f"-{languages.replace(',', '')}" if rest else "")
         run(
             [
                 bin_of(dev, "python"),
@@ -142,11 +144,13 @@ def check_vocab(cfg: dict, dev: Path) -> Result:
                 size,
                 "--seed",
                 seed,
+                "--languages",
+                languages,
                 "--out",
-                str(worlds / f"{size}-{seed}"),
+                str(worlds / name),
                 "--corpus",
             ],
-            LOGS / f"demo-{size}-{seed}.log",
+            LOGS / f"demo-{name}.log",
         )
     rc2, tail2 = (0, "")
     if worlds.is_dir():

@@ -88,3 +88,11 @@ nothing in the engine names a particular deployment, source or procedure.
   output as serial. The raw keyword tables gain a `forms` column, and the
   attribution counts every form of a term. Portuguese is a full corpus
   language. See `docs/dev/extraction.md`.
+- **A trilingual demo world.** The demo vocabulary has Portuguese forms
+  (Brazilian spelling) for every theme term, compound, method, driver and
+  setting, and Portuguese sentence templates; `generate(..., languages=
+  "en,fr,pt")` (`--languages en,fr,pt`) writes a world whose groups, people
+  and bibliography are those of the default world, with some works in
+  Portuguese. Its `truth.json` records every phrase of the texts with its
+  language and whether it is a field term or generic filler (`lexicon`). The
+  default `en,fr` worlds are byte-identical to before.

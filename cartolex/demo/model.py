@@ -19,6 +19,8 @@ COVERAGES = ("good", "thin", "no_data")
 SOURCES = ("openalex", "hal", "orcid")
 DOC_TYPES = ("article", "preprint", "proceedings", "report", "thesis")
 LANGUAGES = ("en", "fr")
+#: The language sets a world can be written in: the default, and a trilingual variant.
+LANGUAGE_SETS: tuple[tuple[str, ...], ...] = (("en", "fr"), ("en", "fr", "pt"))
 
 # Years a person can publish in, by career stage.
 CAREER_WINDOWS: dict[str, tuple[int, int]] = {
@@ -67,6 +69,7 @@ class Group:
     settings: tuple[Setting, ...] = field(repr=False, default=())
     methods: tuple[Method, ...] = field(repr=False, default=())
     external: bool = False  # hosts only people of the projected set
+    portuguese_share: float = 0.0  # same for Portuguese (trilingual worlds only)
 
 
 @dataclass(frozen=True)
@@ -132,6 +135,12 @@ class DemoWorld:
     people: tuple[Person, ...]
     works: tuple[Work, ...]
     themes: tuple[Theme, ...]
+    languages: tuple[str, ...] = LANGUAGES
+
+    @property
+    def trilingual(self) -> bool:
+        """Whether the world is written in another language set than the default one."""
+        return tuple(self.languages) != LANGUAGES
 
     @property
     def cohort(self) -> tuple[Person, ...]:
@@ -163,8 +172,8 @@ class DemoWorld:
         return tuple(w for w in self.works if person_id in w.authors)
 
     def counts(self) -> dict[str, int]:
-        """Headline counts, as written in the manifest."""
-        return {
+        """Headline counts, as written in the manifest (works per language of the world)."""
+        counts = {
             "people": len(self.people),
             "cohort": len(self.cohort),
             "applicants": sum(len(v) for v in self.overlay_sets.values()),
@@ -172,11 +181,12 @@ class DemoWorld:
             "institutions": len({g.institution for g in self.groups}),
             "sites": len({g.site for g in self.groups}),
             "works": len(self.works),
-            "works_en": sum(1 for w in self.works if w.language == "en"),
-            "works_fr": sum(1 for w in self.works if w.language == "fr"),
-            "authorships": sum(len(w.authors) for w in self.works),
-            "words": sum(w.words for w in self.works),
         }
+        for lang in self.languages:
+            counts[f"works_{lang}"] = sum(1 for w in self.works if w.language == lang)
+        counts["authorships"] = sum(len(w.authors) for w in self.works)
+        counts["words"] = sum(w.words for w in self.works)
+        return counts
 
     def write(self, out_dir: Path | str, *, overwrite: bool = False) -> dict:
         """Write the neutral ``cartolex-demo/1`` files into *out_dir*; return the manifest.
