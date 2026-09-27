@@ -353,6 +353,9 @@ class ThemesFile(_Model):
         both = set(self.keywords) & set(self.set_aside)
         if both:
             raise ValueError(f"keyword(s) both placed and set aside: {sorted(both)[:5]}")
+        stray = set(self.review) - set(self.keywords) - set(self.set_aside)
+        if stray:
+            raise ValueError(f"review names keyword(s) the tree does not hold: {sorted(stray)[:5]}")
         return self
 
 
