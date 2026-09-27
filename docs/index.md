@@ -11,10 +11,18 @@ demo
 ```
 
 ```{toctree}
+:caption: Reference
+:maxdepth: 2
+
+format/index
+```
+
+```{toctree}
 :caption: Development
 :maxdepth: 1
 
 dev/engine
 dev/checks
 dev/reference
+dev/placement
 ```

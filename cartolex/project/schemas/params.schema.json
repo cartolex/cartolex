@@ -1,0 +1,45 @@
+{
+  "$id": "https://cartolex.github.io/schemas/1/params.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "``decisions/params.json``: the parameters people set, and nothing else.",
+  "properties": {
+    "format": {
+      "const": "cartolex-params/1",
+      "default": "cartolex-params/1",
+      "title": "Format",
+      "type": "string"
+    },
+    "pinned_year": {
+      "anyOf": [
+        {
+          "maximum": 2200,
+          "minimum": 1900,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Pinned Year"
+    },
+    "seed": {
+      "default": 0,
+      "exclusiveMaximum": 4294967296,
+      "minimum": 0,
+      "title": "Seed",
+      "type": "integer"
+    },
+    "stages": {
+      "additionalProperties": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Stages",
+      "type": "object"
+    }
+  },
+  "title": "ParamsFile",
+  "type": "object"
+}
