@@ -53,6 +53,7 @@ __all__ = [
     "ThemeNode",
     "ThemesBasis",
     "ThemesFile",
+    "ThemesSaved",
 ]
 
 #: The languages cartolex extracts keywords from and shows its interface in.
@@ -324,6 +325,13 @@ class ThemesBasis(_Model):
     vocabulary: Fingerprint | None = None
 
 
+class ThemesSaved(_Model):
+    """When a version of the tree was saved, and the action that saved it."""
+
+    at: datetime
+    action: NonEmpty
+
+
 class ThemesFile(_Model):
     """``decisions/themes.json``: the theme tree, 1 to 4 levels above the keywords."""
 
@@ -336,6 +344,7 @@ class ThemesFile(_Model):
     set_aside: dict[str, SetAside] = Field(default_factory=dict)
     review: dict[str, Literal["to_check", "reviewed"]] = Field(default_factory=dict)
     based_on: ThemesBasis = Field(default_factory=ThemesBasis)
+    saved: ThemesSaved | None = None
 
     @model_validator(mode="after")
     def _tree(self) -> ThemesFile:

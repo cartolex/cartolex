@@ -142,6 +142,28 @@
       },
       "title": "ThemesBasis",
       "type": "object"
+    },
+    "ThemesSaved": {
+      "additionalProperties": true,
+      "description": "When a version of the tree was saved, and the action that saved it.",
+      "properties": {
+        "action": {
+          "minLength": 1,
+          "title": "Action",
+          "type": "string"
+        },
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "at",
+        "action"
+      ],
+      "title": "ThemesSaved",
+      "type": "object"
     }
   },
   "$id": "https://cartolex.github.io/schemas/1/themes.schema.json",
@@ -204,6 +226,17 @@
       },
       "title": "Review",
       "type": "object"
+    },
+    "saved": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ThemesSaved"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "set_aside": {
       "additionalProperties": {

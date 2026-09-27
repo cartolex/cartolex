@@ -60,6 +60,7 @@ __all__ = [
     "move_node",
     "new_tree",
     "node_level",
+    "prune_empty",
     "put_back",
     "rebase",
     "remove_level",
@@ -833,6 +834,22 @@ def set_attribution(tree: ThemesFile, keywords: Iterable[str] | str, levels: int
     if levels == 0:
         return work.edit(f"count {n} nowhere")
     return work.edit(f"count {n} down to level {levels}")
+
+
+def prune_empty(tree: ThemesFile) -> Edit:
+    """Remove every node with no keyword in its subtree (the rule applied at every save).
+
+    The description names the removed nodes. Set-aside keywords that came from a
+    removed node keep that origin.
+    """
+    work = _Work(tree)
+    counts = work.subtree_counts()
+    empty = [nid for nid in work.tree_order() if counts[nid] == 0]
+    for nid in empty:
+        del work.nodes[nid]
+    if not empty:
+        return work.edit("no empty node")
+    return work.edit(f"remove empty {'node' if len(empty) == 1 else 'nodes'} {', '.join(empty)}")
 
 
 # ── depth ────────────────────────────────────────────────────────────────────
