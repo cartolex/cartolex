@@ -315,10 +315,12 @@ def _run_svd(ctx: RunContext, *, svd_n_components: int | None, force: bool) -> N
 
     eff_svd_n_components = svd_n_components or defaults.n_components_svd
 
+    ctx.report(0.0, "building the person × keyword matrix")
     data = build_lexical_matrix(
         kw_researcher_csv=paths.person_terms_csv,
         researcher_index_csv=paths.roster_csv,
     )
+    ctx.report(0.3, "fitting the space")
     paths.atlas_dir.mkdir(parents=True, exist_ok=True)
     paths.models_dir.mkdir(parents=True, exist_ok=True)
     pd.DataFrame({"term": data.terms}).to_csv(paths.atlas_terms_csv, index=False)
@@ -330,6 +332,7 @@ def _run_svd(ctx: RunContext, *, svd_n_components: int | None, force: bool) -> N
         model_path=paths.svd_model_json,
     )
 
+    ctx.report(0.8, "writing the space")
     pcs_ind = pd.DataFrame(
         emb.Z_ind,
         columns=[f"PC{k + 1}" for k in range(emb.Z_ind.shape[1])],
@@ -495,6 +498,7 @@ def _run_umap(
         # Anchored layouts (UMAP or t-SNE) and the t-SNE preview all need the anchors.
         anchor_vectors = _concept_anchor_vectors(data.terms, emb.Z_terms, ctx=ctx)
 
+    ctx.report(0.1, "fitting the layout")
     emb = compute_umap(
         emb,
         n_neighbors=eff_umap_n_neighbors,
@@ -521,6 +525,7 @@ def _run_umap(
         else ("tsne-preview" if preview else "umap")
     )
 
+    ctx.report(0.8, "writing the layout")
     df_umap_ind = data.meta_ind.copy()
     df_umap_ind["umap_x"] = emb.umap_ind[:, 0]
     df_umap_ind["umap_y"] = emb.umap_ind[:, 1]
@@ -699,6 +704,7 @@ def _run_clustering(
     eff_target_subfields = target_subfields or d.clustering_target_subfields
 
     paths.atlas_dir.mkdir(parents=True, exist_ok=True)
+    ctx.report(0.1, "grouping keywords into topics")
     df_terms_clustered = cluster_terms(
         data,
         emb,
@@ -710,6 +716,7 @@ def _run_clustering(
     df_terms_clustered.to_csv(paths.terms_clustered_csv, index=False)
     n_clusters = df_terms_clustered["cluster"].nunique()
 
+    ctx.report(0.8, "grouping topics")
     proto = _compute_proto_subfields(
         df_terms_clustered,
         emb.Z_terms,
@@ -1001,6 +1008,7 @@ def _run_trajectories(
     svd_model = load_svd(paths.svd_model_json)
     umap_model = load_layout_model(paths.layout_model_json)
 
+    ctx.report(0.2, "time windows")
     traj = build_trajectory_matrix(
         docs,
         vectorizer=vectorizer,
@@ -1033,6 +1041,7 @@ def _run_trajectories(
         umap_model=umap_model,
         term_to_concept=term_to_concept,
         concept_to_subfield=concept_to_subfield,
+        report=lambda f, m: ctx.report(0.5 + 0.45 * f, m),
     )
     windows_path = paths.trajectory_windows_json
     windows_path.write_text(json.dumps(windows, ensure_ascii=False), encoding="utf-8")

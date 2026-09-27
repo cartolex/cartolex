@@ -406,3 +406,29 @@ def test_the_domain_label_defaults_from_the_workspace(tmp_path: Path) -> None:
     assert named.settings.domain_title == "Reefs"
     fallback = RunContext.for_workspace(tmp_path / "empty")
     assert fallback.settings.domain_title
+
+
+def test_progress_and_cancel_reach_a_stage_through_its_context(
+    synthetic_corpus, minimal_context
+) -> None:
+    """A stage reports through ``ctx.progress`` and stops at a report once ``cancel`` says so."""
+    from cartolex.context import RunCancelled
+    from cartolex.lexicon import run_pipeline_stage_1
+
+    seen: list[tuple[float, str]] = []
+    ctx = minimal_context.replace(progress=lambda f, m: seen.append((f, m)))
+    run_pipeline_stage_1(ctx)
+    assert seen and all(0.0 <= f <= 1.0 for f, _ in seen) and seen[-1][0] == 1.0
+
+    calls = {"n": 0}
+
+    def cancel_after_two() -> bool:
+        calls["n"] += 1
+        return calls["n"] > 2
+
+    with pytest.raises(RunCancelled):
+        run_pipeline_stage_1(minimal_context.replace(cancel=cancel_after_two))
+    forwarded: list[int] = []
+    reporter = minimal_context.percent_reporter(lambda p, m: forwarded.append(p))
+    reporter(40, "half")
+    assert forwarded == [40]

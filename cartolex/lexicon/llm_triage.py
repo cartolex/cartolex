@@ -204,7 +204,7 @@ def run_pipeline_stage_2_llm(
     should_cancel : callable, optional
         ``() -> bool``, polled before every API call and during every backoff
         wait.  Lets a GUI stop a run of hundreds of calls; the stage then raises
-        ``LLMCancelled``.
+        ``LLMCancelled``. Without one, the context's ``cancel`` is polled.
 
     Returns
     -------
@@ -214,11 +214,11 @@ def run_pipeline_stage_2_llm(
     with ctx.threads.applied():
         return _triage(
             ctx,
-            progress_callback=progress_callback,
+            progress_callback=ctx.percent_reporter(progress_callback),
             api_key=api_key,
             domain_title=domain_title,
             dry_run=dry_run,
-            should_cancel=should_cancel,
+            should_cancel=should_cancel or ctx.cancel,
         )
 
 
@@ -320,6 +320,7 @@ def _triage(
         timeout_s=cfg.llm_timeout_s,
         should_cancel=should_cancel,
         usage=ctx.usage,
+        client_factory=ctx.ai_client,
     )
 
     # 5. Save decisions

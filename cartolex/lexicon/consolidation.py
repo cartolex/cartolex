@@ -547,7 +547,7 @@ def run_pipeline(ctx: RunContext, *, progress_callback=None) -> None:
     the person roster and the run's settings snapshot.
     """
     with ctx.threads.applied():
-        _run_pipeline_core(ctx, progress_callback=progress_callback)
+        _run_pipeline_core(ctx, progress_callback=ctx.percent_reporter(progress_callback))
 
 
 run_pipeline_stage_3 = run_pipeline

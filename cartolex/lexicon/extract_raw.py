@@ -113,10 +113,11 @@ def run_pipeline_stage_1(
     Loads the index of every ``fit`` corpus slot (``ctx.settings.corpus_slots``,
     in order), detects the language of each paragraph, applies the lexical
     filters (the packaged stop-word lists) and writes one raw keyword table per
-    corpus language plus the merged list.
+    corpus language plus the merged list. Progress also reaches the context's
+    ``progress``, and its ``cancel`` is honoured at each report.
     """
     with ctx.threads.applied():
-        _extract(ctx, progress_callback)
+        _extract(ctx, ctx.percent_reporter(progress_callback))
 
 
 def _extract(ctx: RunContext, progress_callback) -> None:
