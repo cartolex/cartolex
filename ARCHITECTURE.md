@@ -51,7 +51,6 @@ See `docs/dev/engine.md`.
 | `prompt_store` | Loads prompt templates from a prompt directory (default: `cartolex/_data/prompts/`), checked when used |
 | `consolidation`, `canonicalization` | **Stage 3**: canonical dedup, scoring, per-entity/unit/global outputs |
 | `subfields`, `subfields_edit`, `labels`, `lexicon_store` | Concept → subfield hierarchy (deterministic draft), curation apply/edit, optional LLM translation of display labels |
-| `domain_catalog` | Optional domain catalog (the first existing of `ctx.paths.domain_catalog_jsons`) for prompt anchoring |
 | `positioning` | Project new documents (a projected set) into a fitted SVD/UMAP space; nearest terms and concept/subfield weights of a projected vector |
 | `pdf_text`, `pdf_corpus` | Generic PDF→text extraction with a per-document hook |
 | `whitelist` | The axis and person whitelists, read from the explicit files given |

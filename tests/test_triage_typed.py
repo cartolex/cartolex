@@ -163,11 +163,11 @@ class TestParser:
 
 class TestPromptLanguage:
     def test_build_typed_prompt_defaults_to_english_reference(self):
-        system, _user = build_typed_prompt(["x"], "Some domain", [])
+        system, _user = build_typed_prompt(["x"], "Some domain")
         assert "English" in system
 
     def test_build_typed_prompt_uses_reference_language(self):
-        system, _user = build_typed_prompt(["x"], "Some domain", [], reference_language="pt")
+        system, _user = build_typed_prompt(["x"], "Some domain", reference_language="pt")
         assert "Portuguese" in system
 
 
@@ -227,7 +227,7 @@ class TestPersonNamePolicy:
     """The triage prompt must carry the person-name keyword policy."""
 
     def _system(self) -> str:
-        system, _user = build_typed_prompt(["x"], "Some domain", [])
+        system, _user = build_typed_prompt(["x"], "Some domain")
         return system
 
     def test_prompt_has_person_names_rule_block(self):
@@ -260,7 +260,7 @@ class TestSubstantiveCanonicalPolicy:
     """The canonical-form instructions must prefer the discipline noun."""
 
     def _system(self) -> str:
-        system, _user = build_typed_prompt(["x"], "Some domain", [])
+        system, _user = build_typed_prompt(["x"], "Some domain")
         return system
 
     def test_prompt_prefers_substantive_over_adjective(self):
@@ -313,21 +313,33 @@ class TestPostCheck:
 
 
 class TestPromptBuilder:
-    def test_subfields_inlined(self):
-        sys_prompt, user = build_typed_prompt(
-            ["soft matter"], "08 — Physique", ["sub one", "sub two"]
-        )
-        assert "Physique" in sys_prompt
-        assert "sub one" in sys_prompt
-        assert "sub two" in sys_prompt
+    def test_title_and_terms(self):
+        sys_prompt, user = build_typed_prompt(["soft matter"], "Invented physics")
+        assert '"Invented physics"' in sys_prompt
         assert "soft matter" in user
 
-    def test_no_subfields_block(self):
-        sys_prompt, _ = build_typed_prompt(["x"], "Test domain", [])
-        assert "no reference subfields" in sys_prompt
+    def test_no_catalogue_anchor(self):
+        """The prompt names no reference subfields: the domain catalogue is gone."""
+        sys_prompt, _ = build_typed_prompt(["x"], "Test domain")
+        for anchor in ("reference scope", "subfields above", "listed subfields", "anchor"):
+            assert anchor not in sys_prompt.lower()
+        assert "{" not in sys_prompt
+
+    def test_description_is_given_as_context(self):
+        plain, _ = build_typed_prompt(["x"], "Coastal systems")
+        described, _ = build_typed_prompt(
+            ["x"], "Coastal systems", domain_description="  Beaches,\n dunes and estuaries. "
+        )
+        assert "describes the domain" not in plain
+        assert "The project's owner describes the domain" in described
+        assert "Beaches, dunes and estuaries." in described
+        # Nothing else of the prompt moves.
+        head, _, tail = described.partition("\n\nThe project's owner")
+        assert plain.startswith(head)
+        assert plain.endswith(tail.split("\n", 1)[1][len("  Beaches, dunes and estuaries.") :])
 
     def test_response_codes_documented(self):
-        sys_prompt, _ = build_typed_prompt(["x"], "s", ["k"])
+        sys_prompt, _ = build_typed_prompt(["x"], "s")
         for code in ACCEPT_CODES | REJECT_CODES:
             assert f" {code} " in sys_prompt or f"\n  {code}" in sys_prompt
 

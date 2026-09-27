@@ -21,10 +21,20 @@ nothing in the engine names a particular deployment, source or procedure.
   `manual` by default. A slot's index and text folder derive from its id;
   `fit` slots build the map, `trajectory` slots feed the trajectories, and a
   slot's `doc_types` filter its own documents. Slot order is document order.
-- **Domain words.** The settings name the mapped field `domain_title`,
-  `domain_id` and `top_n_domain`; the optional catalog is
-  `cartolex.lexicon.domain_catalog`; the triage placeholder is
-  `{domain_title}`. The AI cache keys are unchanged.
+- **Domain words.** The settings name the mapped field `domain_title` and
+  `top_n_domain`; the triage placeholder is `{domain_title}`. The AI cache
+  keys are unchanged.
+- **No catalogue anchor in the triage.** The optional domain catalogue
+  (`cartolex.lexicon.domain_catalog`, `KeywordsConfig.domain_id`,
+  `EnginePaths.domain_catalog_jsons`) and the prompt's block of reference
+  subfields are gone: the lexicon comes from the corpus alone.
+  `KeywordsConfig.domain_description`, a short text the project owner writes,
+  is given to the model as context through `{domain_description}`. The AI
+  cache keys do not change; a prompt template that still uses
+  `{subfields_block}` is refused with a message saying what replaces it. A
+  workspace whose domain title came from a catalogue entry
+  (`<code> — <title>`) keeps its cached answers by setting that same string as
+  its `domain_title`.
 - **Cohorts in the map merge.** `CohortInput`, `CohortBundle`, `CohortSense`,
   `cohort_id`; the bundle format is `map_bundle/2` and the reconciliation table
   `map_reconcile/2`.

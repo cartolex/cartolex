@@ -4,8 +4,8 @@
 This module:
   1. Loads the hard-filtered global keyword list (``ctx.paths.global_terms_csv``)
   2. Runs the typed single-pass Mistral triage (deterministic prefilter →
-     one typed LLM classification pass → deterministic post-check), anchored
-     on the domain's reference keywords when a domain catalog lists them.
+     one typed LLM classification pass → deterministic post-check), with the
+     domain's title and the project owner's description of it as context.
   3. Saves decisions (``ctx.paths.triage_decisions_json``)
   4. Updates the backward-compatible translation cache
      (``ctx.paths.translation_cache_json``)
@@ -20,7 +20,6 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from .domain_catalog import DomainCatalogError, load_catalog
 from .lexical_filters import is_malformed_term
 from .llm_filter import save_decisions
 from .mistral_client import load_api_key
@@ -135,40 +134,6 @@ def _strip_leading_trailing_midwords(
     return deduped
 
 
-def _resolve_domain_anchor(ctx: RunContext, domain_title: str) -> tuple[str, list[str]]:
-    """Resolve the domain title and reference keywords for prompt anchoring.
-
-    Reads the optional domain catalogue (``ctx.paths.domain_catalog_jsons``);
-    tries it by ``settings.domain_id`` first, then by matching *domain_title*
-    against catalog ``code``, ``domain_id`` or ``title`` (case-insensitive
-    substring). A catalog entry gives the title ``"<code> — <title>"`` (the
-    string that enters the AI cache keys). Falls back to ``(domain_title, [])``
-    if nothing matches so the typed prompt can still run, just without
-    subfield anchors.
-    """
-    cfg = ctx.settings
-    try:
-        catalog = load_catalog(ctx.paths.domain_catalog_jsons)
-    except (FileNotFoundError, DomainCatalogError, ValueError):
-        return domain_title, []
-
-    did = (cfg.domain_id or "").strip()
-    if did and did in catalog:
-        e = catalog[did]
-        return f"{e.code} — {e.title}", list(e.reference_keywords)
-
-    needle = (domain_title or "").strip().lower()
-    if needle:
-        for e in catalog.values():
-            if needle in (e.code.lower(), e.domain_id.lower()):
-                return f"{e.code} — {e.title}", list(e.reference_keywords)
-        for e in catalog.values():
-            if needle in e.title.lower():
-                return f"{e.code} — {e.title}", list(e.reference_keywords)
-
-    return domain_title, []
-
-
 def run_pipeline_stage_2_llm(
     ctx: RunContext,
     *,
@@ -256,11 +221,10 @@ def _triage(
     if dry_run:
         log(5, "=== DRY RUN: showing prompts only ===")
         template, person_whitelist = prompt_inputs()
-        anchored_title, reference_keywords = _resolve_domain_anchor(ctx, title)
         sys_typed, usr_typed = build_typed_prompt(
             terms[:5],
-            anchored_title,
-            reference_keywords,
+            title,
+            domain_description=cfg.domain_description,
             template=template,
             reference_language=cfg.reference_language,
             person_whitelist=person_whitelist,
@@ -282,18 +246,17 @@ def _triage(
 
     # 4. Run typed single-pass triage
     template, person_whitelist = prompt_inputs()
-    anchored_title, reference_keywords = _resolve_domain_anchor(ctx, title)
     log(
         5,
         f"Starting typed single-pass LLM triage: "
         f"model={cfg.llm_model}, batch_size={cfg.llm_batch_size}, "
         f"max_concurrent={cfg.llm_max_concurrent}, "
-        f'domain="{anchored_title}", subfields={len(reference_keywords)}',
+        f'domain="{title}"' + (", with its description" if cfg.domain_description else ""),
     )
     result = run_typed_triage(
         global_terms=terms,
-        domain_title=anchored_title,
-        reference_keywords=reference_keywords,
+        domain_title=title,
+        domain_description=cfg.domain_description,
         api_key=key,
         model=cfg.llm_model,
         api_url=cfg.llm_api_url,
@@ -354,9 +317,9 @@ def main(argv: list[str] | None = None) -> None:
         "--domain-title", default=None, help="Domain title used in prompts (default: from config)"
     )
     parser.add_argument(
-        "--domain-id",
+        "--domain-description",
         default=None,
-        help="Domain-catalog entry id used to pull reference keywords for prompt anchoring",
+        help="Short description of the domain, given to the model as context",
     )
     parser.add_argument(
         "--model",
@@ -375,8 +338,8 @@ def main(argv: list[str] | None = None) -> None:
     )
     if args.domain_title:
         cfg.domain_title = args.domain_title
-    if args.domain_id:
-        cfg.domain_id = args.domain_id
+    if args.domain_description:
+        cfg.domain_description = args.domain_description
     ctx = RunContext.for_workspace(args.workspace, cfg)
 
     if not args.dry_run:

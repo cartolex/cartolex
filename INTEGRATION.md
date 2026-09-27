@@ -161,13 +161,14 @@ run_pipeline_stage_2_llm(ctx, api_key=None)   # None → MISTRAL_API_KEY env
   your own copies, pass `prompt_dir=` to `RunContext.for_workspace`; templates
   are checked when a stage uses them (a missing file or placeholder raises
   `PromptTemplateError`). A per-workspace override of the triage template
-  also exists (`ctx.paths.triage_prompt_override_txt`, placeholders preserved).
-- **Prompt anchoring (optional):** ship a
-  `<workspace>/config/domain_catalog.json` (`ctx.paths.domain_catalog_jsons`;
-  schema and loader in `cartolex/lexicon/domain_catalog.py`) and set
-  `cfg.domain_id` to anchor
-  the prompts on your domain's reference keywords. Without a catalog,
-  prompts run unanchored — perfectly fine for most deployments.
+  also exists (`ctx.paths.triage_prompt_override_txt`, placeholders preserved;
+  one that still uses the removed `{subfields_block}` is refused with a message
+  saying what replaces it).
+- **Domain description (optional):** `cfg.domain_description` is a short
+  text the project owner writes about the domain; the triage prompt gives it
+  to the model as context (`{domain_description}`). It never enters the AI
+  cache keys, which depend on the terms, the domain title and the model only.
+  Without it the prompt names the domain by its title alone.
 - Skipping this stage entirely is supported — consolidation then works from
   the raw extraction (the synthetic example does exactly that).
 

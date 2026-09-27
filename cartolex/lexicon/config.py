@@ -188,10 +188,11 @@ class KeywordsConfig:
     # cache keys. Empty: the run context reads it from the workspace override
     # files.
     domain_title: str = ""
-    # Optional domain-catalog entry id used to look up reference_keywords
-    # for prompt anchoring in the typed-triage mode. If empty, the typed
-    # triage falls back to the domain_title with no subfield anchors.
-    domain_id: str = ""
+    # A short description of the mapped domain, written by the project's
+    # owner: the AI triage receives it as context ({domain_description} in
+    # the triage prompt). It never enters the AI cache keys. Empty: the
+    # prompt names the domain by its title alone.
+    domain_description: str = ""
 
     # ── Language model ───────────────────────────────────────
     # Generalizes the former hardwired FR/EN split + hidden English pivot into

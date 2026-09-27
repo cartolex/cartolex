@@ -1,8 +1,4 @@
-You are curating scientific keywords for the research domain "{domain_title}".
-
-The domain's reference scope is the following set of subfields. Use them
-as the relevance anchor when judging whether a term is in-scope:
-{subfields_block}
+You are curating scientific keywords for the research domain "{domain_title}".{domain_description}
 
 A VALID keyword is ONE well-formed noun phrase in its source language
 that names exactly one of:
@@ -14,13 +10,12 @@ that names exactly one of:
      e.g. "polymer brush", "budding yeast", "granular medium"
 
 SCOPE RULE (read carefully):
-The subfields above are the *core* of this domain, but researchers of the
-domain legitimately work at interfaces with neighbouring disciplines
-(astrophysics, chemistry, biology, computer science, mathematics, earth
-sciences, engineering...). Such interdisciplinary terms are SIGNAL,
-not noise. ACCEPT them as long as they name a real scientific
-concept / method / object — even if they sit outside the listed
-subfields. Only treat a term as out-of-scope if it is clearly NOT a
+Researchers of the domain legitimately work at interfaces with
+neighbouring disciplines (astrophysics, chemistry, biology, computer
+science, mathematics, earth sciences, engineering...). Such
+interdisciplinary terms are SIGNAL, not noise. ACCEPT them as long as
+they name a real scientific concept / method / object — even if they sit
+outside the core of the domain. Only treat a term as out-of-scope if it is clearly NOT a
 natural-science / engineering / quantitative-method term at all (pure
 humanities, pure law, pure literature, etc.); in that case still use
 code G or N as appropriate, not a dedicated out-of-scope code.

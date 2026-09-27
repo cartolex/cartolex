@@ -283,7 +283,51 @@ def test_a_broken_prompt_raises_a_clear_error_only_when_used(tmp_path, monkeypat
     with pytest.raises(PromptTemplateError) as excinfo:
         run_pipeline_stage_2_llm(ctx, dry_run=True)
     message = str(excinfo.value)
-    assert "triage_typed_system.txt" in message and "{subfields_block}" in message
+    assert "triage_typed_system.txt" in message and "{domain_description}" in message
+
+
+def test_a_template_with_the_removed_catalogue_anchor_is_refused(tmp_path) -> None:
+    """A prompt written for the removed domain catalogue says what replaces it."""
+    from cartolex.lexicon.llm_triage import run_pipeline_stage_2_llm
+
+    old_template = (
+        "Domain {domain_title}; subfields:\n{subfields_block}\n"
+        "{reference_language_name} {person_whitelist_block}"
+    )
+    # A workspace override ...
+    ctx = RunContext.for_workspace(tmp_path / "ws", KeywordsConfig())
+    ctx.paths.global_terms_csv.parent.mkdir(parents=True)
+    ctx.paths.global_terms_csv.write_text("term,score_len\nsoft matter,1.0\n", encoding="utf-8")
+    override = ctx.paths.triage_prompt_override_txt
+    override.parent.mkdir(parents=True)
+    override.write_text(old_template, encoding="utf-8")
+    with pytest.raises(PromptTemplateError) as excinfo:
+        run_pipeline_stage_2_llm(ctx, dry_run=True)
+    message = str(excinfo.value)
+    assert str(override) in message
+    assert "{subfields_block}" in message and "{domain_description}" in message
+    # ... or a prompt folder of the run.
+    prompts = tmp_path / "prompts"
+    prompts.mkdir()
+    (prompts / "triage_typed_system.txt").write_text(old_template, encoding="utf-8")
+    ctx = _triage_workspace(tmp_path / "ws2", prompts)
+    with pytest.raises(PromptTemplateError, match=r"\{subfields_block\}, which no longer exists"):
+        run_pipeline_stage_2_llm(ctx, dry_run=True)
+
+
+def test_the_domain_description_reaches_the_prompt(tmp_path, caplog) -> None:
+    import logging
+
+    from cartolex.lexicon.llm_triage import run_pipeline_stage_2_llm
+
+    settings = KeywordsConfig(domain_title="Coastal systems", domain_description="Dunes and tides.")
+    ctx = RunContext.for_workspace(tmp_path, settings)
+    ctx.paths.global_terms_csv.parent.mkdir(parents=True)
+    ctx.paths.global_terms_csv.write_text("term,score_len\nsoft matter,1.0\n", encoding="utf-8")
+    with caplog.at_level(logging.INFO, logger="cartolex.lexicon.llm_triage"):
+        run_pipeline_stage_2_llm(ctx, dry_run=True)
+    assert "describes the domain as follows" in caplog.text
+    assert "Dunes and tides." in caplog.text
 
 
 def test_an_unknown_placeholder_is_named_when_rendered(tmp_path) -> None:
@@ -292,7 +336,7 @@ def test_an_unknown_placeholder_is_named_when_rendered(tmp_path) -> None:
     prompts = tmp_path / "prompts"
     prompts.mkdir()
     (prompts / "triage_typed_system.txt").write_text(
-        "{domain_title} {subfields_block} {reference_language_name} "
+        "{domain_title} {domain_description} {reference_language_name} "
         "{person_whitelist_block} {typo}",
         encoding="utf-8",
     )

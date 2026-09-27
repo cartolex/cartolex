@@ -11,7 +11,7 @@ from cartolex.lexicon.prompt_store import PromptTemplateError, load_prompt, pack
 SHIPPED = {
     "triage_typed_system": (
         "{domain_title}",
-        "{subfields_block}",
+        "{domain_description}",
         "{reference_language_name}",
         "{person_whitelist_block}",
     ),

@@ -270,7 +270,6 @@ class TestRunnerFailsFast:
             run_typed_triage(
                 global_terms=_TERMS,
                 domain_title="Synthetic domain",
-                reference_keywords=[],
                 api_key="k",
                 batch_size=1,
                 cache_path=tmp_path / "llm_cache.json",
@@ -310,7 +309,6 @@ class TestRunnerFailsFast:
             run_typed_triage(
                 global_terms=_TERMS,
                 domain_title="Synthetic domain",
-                reference_keywords=[],
                 api_key="k",
                 batch_size=1,
                 cache_path=tmp_path / "llm_cache.json",
