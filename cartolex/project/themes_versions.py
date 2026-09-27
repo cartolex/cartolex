@@ -140,9 +140,8 @@ def save_themes(
     layout = project.layout
     path = layout.themes_json
     pruned = prune_empty(tree)
-    removed = tuple(
-        n.id for n in canonical(tree).nodes if n.id not in {m.id for m in pruned.tree.nodes}
-    )
+    kept = {n.id for n in pruned.tree.nodes}
+    removed = tuple(n.id for n in canonical(tree).nodes if n.id not in kept)
     action = action.strip() + (f"; {pruned.description}" if removed else "")
     if expected is not None:
         try:
