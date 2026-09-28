@@ -29,7 +29,7 @@ and two runs in one process share nothing unless the caller shares it.
 | Object | Role |
 |---|---|
 | `EnginePaths` | Names every file and folder the engine reads or writes. `EnginePaths.for_workspace(base)` builds today's workspace layout, where each corpus slot's index and text folder derive from the slot's id; stages never join path parts themselves |
-| `RunContext` | `paths`, `settings` (`KeywordsConfig`), `stopwords` (`StopwordProfile`), `prompt_dir`, `staleness_guard` / `staleness_erase`, `now_year`, `threads` (`ThreadLimits`), `usage` (`UsageRecorder`). `RunContext.for_workspace(base, settings, **overrides)` builds the default |
+| `RunContext` | `paths`, `settings` (`KeywordsConfig`), `stopwords` (`StopwordProfile`), `prompt_dir`, `staleness_guard` / `staleness_erase`, `now_year`, `threads` (`ThreadLimits`), `usage` (`UsageRecorder`), `progress`, `cancel`, `ai_client`. `RunContext.for_workspace(base, settings, **overrides)` builds the default |
 
 See `docs/dev/engine.md`.
 

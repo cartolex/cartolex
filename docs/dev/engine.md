@@ -37,6 +37,9 @@ Lower-level functions take the explicit files they need (for example
 | `now_year` | the year every date window is counted from | the current year |
 | `threads` | `ThreadLimits`: a cap on the numeric libraries' threads and on worker processes | no cap |
 | `usage` | the run's `UsageRecorder` of AI token counts | a new recorder |
+| `progress` | `progress(fraction, message)`: how far the running stage is, from 0 to 1 | none |
+| `cancel` | `cancel() -> bool`, asked between the stages' steps and in their long loops: when true, the stage raises `RunCancelled` (the AI triage its own `LLMCancelled`) | none |
+| `ai_client` | builds the AI provider's client instead of the provider SDK's class, called with the same arguments (a test or a reference run answers with a model of its own) | none |
 
 `RunContext.for_workspace(base, settings, **overrides)` builds the default
 context of a workspace folder; any field can be overridden
