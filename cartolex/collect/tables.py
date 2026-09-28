@@ -727,14 +727,19 @@ def default_readers() -> dict[str, Reader]:
     """cartolex's readers, by raw folder name, in the order they run."""
     from .hal import read_hal_runs
     from .harvest import read_openalex_runs, read_orcid_runs
+    from .institutions import read_institution_runs
     from .people_import import read_corpus_runs, read_folder_runs, read_people_runs
     from .providers import read_improve_runs
     from .scielo import read_scielo_runs
+    from .snowball import read_snowball_runs
 
     return {
         "people": read_people_runs,
         "corpus": read_corpus_runs,
         "folder": read_folder_runs,
+        # People taken from institutions come before the works harvested for them.
+        "institution": read_institution_runs,
+        "snowball": read_snowball_runs,
         "openalex": read_openalex_runs,
         "orcid": read_orcid_runs,
         # Resolution proposals are kept for the record; no table is built from them.
@@ -748,6 +753,8 @@ def default_readers() -> dict[str, Reader]:
         "scielo_candidates": lambda runs, builder: None,
         # Failures are kept for the coverage report: no table is built from them.
         "failures": lambda runs, builder: None,
+        # An institution's proposal: people enter only when taken (``institution`` runs).
+        "institution_proposals": lambda runs, builder: None,
     }
 
 
