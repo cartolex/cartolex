@@ -17,7 +17,7 @@ import math
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Literal
+from typing import Any
 from urllib.parse import urlsplit
 
 from cartolex.project import Project
@@ -131,55 +131,134 @@ def _targets(project: Project, action: str, people: Sequence[str] | None) -> lis
     return out
 
 
+#: What each action sends to each service, in words.
+SENDS = {
+    ("resolve", "openalex"): ("names", "identifiers", "institution names"),
+    ("resolve", "orcid"): ("ORCID iDs",),
+    ("harvest", "openalex"): ("author identifiers", "DOIs"),
+    ("harvest", "orcid"): ("ORCID iDs",),
+    ("institutions", "openalex"): ("institution identifiers",),
+    ("institution search", "openalex"): ("institution names",),
+    ("collaborators", "openalex"): ("author identifiers",),
+}
+#: Why each action contacts a service.
+PURPOSES = {
+    "institutions": "find an institution, the units below it and the works signed there",
+    "institution search": "find the institutions that bear a name, for you to choose",
+    "collaborators": "read the works of the seeds and of each round's collaborators",
+}
+ACTIONS = ("resolve", "harvest", "institutions", "collaborators", "coverage")
+
+
 def plan_collection(
     project: Project,
-    action: Literal["resolve", "harvest"],
+    action: str,
     settings: CollectSettings,
     *,
     people: Sequence[str] | None = None,
+    institutions: Sequence[str] = (),
+    search: str | None = None,
+    rounds: int = 1,
+    seeds: int | None = None,
+    cap: int | None = None,
+    snapshot: str | None = None,
 ) -> CollectionPlan:
     """The summary of what a planned *action* sends, before anything is sent.
 
+    *action* is ``resolve``, ``harvest``, ``institutions`` (the *institutions*
+    named, or a *search* by name), ``collaborators`` (*rounds* rounds from
+    *seeds* seeds, up to *cap* people) or ``coverage`` (a retry of the people
+    whose collection failed, or of *people*). With *snapshot* (its folder's
+    name), OpenAlex is read on this computer: only the registry is asked.
+
     Request counts are estimates: a resolution makes one search per name
     variant and per stated institution, a harvest at least one list per person
-    and record kind (more for people with many works). Answers already in the
-    cache are not sent again, so the real count can be lower.
+    and record kind (more for people with many works), an institution one list
+    of its units and at least one of its works, a round of collaborators a
+    list per 50 records. Answers already in the cache are not sent again, so
+    the real count can be lower.
     """
-    targets = _targets(project, action, people)
-    plan = CollectionPlan(action=action, people=len(targets))
+    if action not in ACTIONS:
+        raise ValueError(f"unknown action {action!r}; expected one of {ACTIONS}")
     counts: dict[str, dict[str, int]] = {"openalex": {}, "orcid": {}}
+    purposes: dict[str, str] = {}
+    sends: dict[str, tuple[str, ...]] = {}
 
     def add(service: str, kind: str, n: int = 1) -> None:
         counts[service][kind] = counts[service].get(kind, 0) + n
 
-    for person in targets:
-        ids = dict(person.get("ids") or [])
-        if action == "resolve":
-            add("openalex", "search", len(variants(person["last_name"], person["first_name"])))
-            add("openalex", "search", 2)  # a stated institution and the restricted search
-            add("openalex", "singleton", len(ids.get("openalex", [])))
-            if person.get("orcid"):
-                add("openalex", "list")
-                add("orcid", "works")
-            add("orcid", "works")  # the registry of a likely record's ORCID
-            add("openalex", "list")  # that record's DOIs, to compare
+    notes: list[str] = []
+    n_people = 0
+    if action == "coverage":
+        from .coverage import person_coverage
+
+        failed = [p for p in person_coverage(project, people=people) if p.state == "failed"]
+        by_finder: dict[str, list[str]] = {}
+        for p in failed:
+            by_finder.setdefault((p.failure or {}).get("finder", ""), []).append(p.person_id)
+        n_people = len(failed)
+        for finder, pids in sorted(by_finder.items()):
+            if finder in ("resolve", "harvest"):
+                sub = plan_collection(project, finder, settings, people=pids, snapshot=snapshot)
+                for h in sub.hosts:
+                    counts[h.service][f"{finder}"] = counts[h.service].get(finder, 0) + h.requests
+                    sends[h.service] = tuple(dict.fromkeys(sends.get(h.service, ()) + h.sends))
+            else:
+                notes.append(f"{len(pids)} failure(s) of {finder} are retried by its own command")
+        if not failed:
+            notes.append("nobody's collection failed: nothing to retry")
+    elif action == "institutions":
+        n_people = 0
+        if search:
+            add("openalex", "search")
+            purposes["openalex"] = PURPOSES["institution search"]
+            sends["openalex"] = SENDS[("institution search", "openalex")]
         else:
-            records = person["_records"]
-            n_oa = sum(1 for r in records if r.startswith("openalex:"))
-            n_orcid = sum(1 for r in records if r.startswith("orcid:"))
-            add("openalex", "singleton", n_oa)
-            if n_oa:
-                add("openalex", "list")
-            if n_orcid:
-                add("orcid", "works", n_orcid)
-                add("orcid", "record", n_orcid)
-                add("openalex", "list", n_orcid)
-    sends = {
-        ("resolve", "openalex"): ("names", "identifiers", "institution names"),
-        ("resolve", "orcid"): ("ORCID iDs",),
-        ("harvest", "openalex"): ("author identifiers", "DOIs"),
-        ("harvest", "orcid"): ("ORCID iDs",),
-    }
+            n = max(1, len(institutions))
+            add("openalex", "singleton", 2 * n)  # the institutions, and the other parents of units
+            add("openalex", "list", 2)  # the units below them, and the works signed there
+            purposes["openalex"] = PURPOSES["institutions"]
+            sends["openalex"] = SENDS[("institutions", "openalex")]
+            notes.append("the works signed at a large institution take one request per 100 works")
+    elif action == "collaborators":
+        n_people = seeds or 0
+        per_round = math.ceil(max(1, n_people) / 50) + math.ceil(max(1, cap or 200) / 50)
+        add("openalex", "list", per_round * max(1, rounds))
+        purposes["openalex"] = PURPOSES["collaborators"]
+        sends["openalex"] = SENDS[("collaborators", "openalex")]
+    else:
+        targets = _targets(project, action, people)
+        n_people = len(targets)
+        for person in targets:
+            ids = dict(person.get("ids") or [])
+            if action == "resolve":
+                add("openalex", "search", len(variants(person["last_name"], person["first_name"])))
+                add("openalex", "search", 2)  # a stated institution and the restricted search
+                add("openalex", "singleton", len(ids.get("openalex", [])))
+                if person.get("orcid"):
+                    add("openalex", "list")
+                    add("orcid", "works")
+                add("orcid", "works")  # the registry of a likely record's ORCID
+                add("openalex", "list")  # that record's DOIs, to compare
+            else:
+                records = person["_records"]
+                n_oa = sum(1 for r in records if r.startswith("openalex:"))
+                n_orcid = sum(1 for r in records if r.startswith("orcid:"))
+                add("openalex", "singleton", n_oa)
+                if n_oa:
+                    add("openalex", "list")
+                if n_orcid:
+                    add("orcid", "works", n_orcid)
+                    add("orcid", "record", n_orcid)
+                    add("openalex", "list", n_orcid)
+        for name in ("openalex", "orcid"):
+            sends.setdefault(name, SENDS[(action, name)])
+    plan = CollectionPlan(action=action, people=n_people)
+    if snapshot is not None and counts["openalex"]:
+        counts["openalex"] = {}
+        notes.append(
+            f"OpenAlex is read from the snapshot {snapshot} on this computer: nothing is sent to it"
+        )
     for name in ("openalex", "orcid"):
         n = sum(counts[name].values())
         if not n:
@@ -192,14 +271,15 @@ def plan_collection(
             extra.append("your API key")
         cost = None
         if name == "openalex":
-            cost = sum(OPENALEX_PRICES[k] * v for k, v in counts[name].items())
+            cost = sum(OPENALEX_PRICES.get(k, OPENALEX_PRICES["list"]) * v
+                       for k, v in counts[name].items())  # fmt: skip
         plan.hosts.append(
             PlannedHost(
                 service=name,
                 label=svc.label,
                 host=_host(svc.base_url),
-                purpose=svc.purpose,
-                sends=tuple(sends[(action, name)]) + tuple(extra),
+                purpose=purposes.get(name, svc.purpose),
+                sends=tuple(dict.fromkeys(sends.get(name, ()) + tuple(extra))),
                 requests=n,
                 cost_usd=cost,
                 policy=svc.policy,
@@ -217,7 +297,9 @@ def plan_collection(
                 + ("with your key" if settings.api_key("openalex") else "without a key")
                 + f": this collection needs about {days} days of it"
                 + ("" if settings.api_key("openalex") else ", or a free API key")
+                + "; from a national size up, read the snapshot instead (collect snapshot)"
             )
+    plan.notes += notes
     return plan
 
 
