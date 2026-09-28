@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: MIT
 """Converters between a depth-2 theme tree and the engine's two-level curated document.
 
-The engine's apply stage (:func:`cartolex.lexicon.subfields.apply_subfield_files`)
-reads a curated document with two levels: subfields, each holding concepts, each
-holding term indices (rows of the lexical data). Until that stage reads a theme
-tree itself, :func:`to_curated` writes a depth-2 tree in that format, and
-:func:`from_curated` reads such a document — or the deterministic draft of the
-grouping stage — into a tree.
+The apply stage reads a theme tree of any depth itself
+(:mod:`cartolex.lexicon.theme_tree`). At depth 2 it also writes the engine's
+two-level outputs, for the numeric reference and for migrating older projects:
+the two-level apply (:func:`cartolex.lexicon.subfields.apply_subfield_files`)
+reads a curated document with two levels, subfields, each holding concepts,
+each holding term indices (rows of the lexical data). :func:`to_curated` writes
+a depth-2 tree in that format, and :func:`from_curated` reads such a document —
+or the grouping stage's two-level draft — into a tree.
 
 The correspondence:
 

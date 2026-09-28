@@ -11,6 +11,10 @@ most-general, largest subfield is flagged ``general``.
 Each node is seeded by its **dominant keyword** (the member term with the highest
 ``global_score``), a first-pass label the operator refines while curating the draft
 (``cartolex.lexicon.subfields``). See INTEGRATION.md.
+
+:func:`level_groups` generalises the cut to a theme tree of any depth: each
+coarser level is the same Ward cut of the centroids of the level below
+(:mod:`cartolex.lexicon.theme_tree` builds the tree from it).
 """
 
 from __future__ import annotations
