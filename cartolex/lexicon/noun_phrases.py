@@ -36,6 +36,15 @@ pattern is one occurrence of a candidate — nested spans included, so
   contraction as one token tagged as a preposition, so ``linha da costa`` is
   ``N P N``.
 
+An elided word (``l'``, ``d'``, ``qu'`` … in French, ``d'`` in Portuguese;
+straight or typographic apostrophe) is a word unit of its own, and the word
+after it starts a unit, as after a space: French models split it off
+(``l'``, ``apprentissage``), and a token the tokenizer leaves whole
+(Portuguese ``d'água``) is split here, so ``coluna d'água`` is ``N P N``.
+:func:`join_surface` writes no space after an elided word, and
+:func:`cartolex.lexicon.text_utils.term_words` cuts a shown term back into
+the same words.
+
 Occurrences are grouped by a *key*: each content unit is replaced by the
 corpus lemma of its words (the lemma the corpus most often gives that word,
 so a word the tagger hesitates on stays in one group), a preposition by its
@@ -61,6 +70,8 @@ from importlib.resources import files
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
+from .text_utils import APOSTROPHES, ELIDED_WORDS, split_elision
+
 if TYPE_CHECKING:
     from spacy.tokens import Doc, Token
 
@@ -82,7 +93,7 @@ __all__ = [
 
 #: Version of what :func:`analyse` records (classes, surfaces, patterns):
 #: part of every parse-cache key.
-PATTERN_VERSION = "np1"
+PATTERN_VERSION = "np2"
 #: Longest candidate, in word units (prepositions and articles included).
 MAX_UNITS = 5
 
@@ -105,7 +116,10 @@ class LanguagePatterns:
     included) to the base form used in keys; ``preposition_pos`` are the
     part-of-speech tags under which such a word is a preposition (French
     taggers mark ``du`` and ``des`` as determiners too); ``articles`` are the
-    definite articles allowed right after a preposition.
+    definite articles allowed right after a preposition; ``elided`` the words
+    the language writes elided with an apostrophe (``d'``, ``l'`` …, without
+    it), each a word unit of its own even when the tokenizer leaves it
+    attached to the next word.
     """
 
     lang: str
@@ -113,6 +127,7 @@ class LanguagePatterns:
     prepositions: Mapping[str, str]
     preposition_pos: frozenset[str]
     articles: frozenset[str] = frozenset()
+    elided: frozenset[str] = frozenset()
 
     @functools.cached_property
     def regex(self) -> re.Pattern[str]:
@@ -143,13 +158,14 @@ PATTERNS: Mapping[str, LanguagePatterns] = MappingProxyType(
             ),
             preposition_pos=frozenset({"ADP", "DET"}),
             articles=frozenset({"le", "la", "les", "l'", "l’"}),
+            elided=ELIDED_WORDS,
         ),
         "pt": LanguagePatterns(
             lang="pt",
             pattern="NA*(?:PD?[NR]A*)?",
             prepositions=_prep_map(
                 {
-                    "de": ("de", "do", "da", "dos", "das"),
+                    "de": ("de", "d'", "d’", "do", "da", "dos", "das"),
                     "em": ("em", "no", "na", "nos", "nas"),
                     "por": ("por", "pelo", "pela", "pelos", "pelas"),
                     "para": ("para",),
@@ -159,6 +175,7 @@ PATTERNS: Mapping[str, LanguagePatterns] = MappingProxyType(
             ),
             preposition_pos=frozenset({"ADP"}),
             articles=frozenset({"o", "a", "os", "as"}),
+            elided=frozenset({"d"}),
         ),
     }
 )
@@ -240,12 +257,13 @@ def _units(doc: Doc) -> list[list[Token]]:
     return units
 
 
-def _is_breaker(tok: Token, fwords: frozenset[str]) -> bool:
+def _is_breaker(tok: Token, fwords: frozenset[str], text: str | None = None) -> bool:
     if tok.is_punct or tok.like_url or tok.like_email or tok.like_num or tok.pos_ in _BREAK_POS:
         return True
-    if len(tok.text) == 1:
+    text = tok.text if text is None else text
+    if len(text) == 1:
         return True
-    return tok.text.lower() in fwords
+    return text.lower() in fwords
 
 
 def unit_class(
@@ -263,13 +281,19 @@ def unit_class(
         ):
             return "X"
         return "N" if words[-1].pos_ in ("NOUN", "PROPN") else "A"
-    tok = unit[0]
-    low = tok.text.lower()
+    return _token_class(unit[0], lp, fwords)
+
+
+def _token_class(
+    tok: Token, lp: LanguagePatterns, fwords: frozenset[str], text: str | None = None
+) -> str:
+    """The class of a one-token unit; *text* replaces the token's text (its part after an elision)."""
+    low = (tok.text if text is None else text).lower()
     if low in lp.prepositions and tok.pos_ in lp.preposition_pos:
         return "P"
     if low in lp.articles and tok.pos_ == "DET":
         return "D"
-    if _is_breaker(tok, fwords):
+    if _is_breaker(tok, fwords, text):
         return "X"
     pos = tok.pos_
     if pos == "NOUN":
@@ -290,14 +314,29 @@ def unit_class(
     return "X"
 
 
+def _shown(tok: Token, text: str) -> str:
+    keep = tok.pos_ == "PROPN" or any(c.isupper() for c in text[1:])
+    return text if keep else text.lower()
+
+
 def _surface(unit: Sequence[Token]) -> str:
     """A unit as displayed: lower case, except proper nouns and words with inner capitals."""
-    out = []
-    for tok in unit:
-        text = tok.text
-        keep = tok.pos_ == "PROPN" or any(c.isupper() for c in text[1:])
-        out.append(text if keep else text.lower())
-    return "".join(out)
+    return "".join(_shown(tok, tok.text) for tok in unit)
+
+
+def _elided_parts(unit: Sequence[Token], lp: LanguagePatterns) -> tuple[str, str] | None:
+    """The two words of a token the tokenizer left whole after an elided word (``d'água``).
+
+    Portuguese models keep ``d'água`` as one token; the elided preposition is
+    a word unit of its own, as French models make it, so that ``coluna
+    d'água`` is a noun, a preposition and a noun.
+    """
+    if len(unit) != 1 or not lp.elided:
+        return None
+    parts = split_elision(unit[0].text)
+    if parts is None or parts[0][:-1].lower() not in lp.elided:
+        return None
+    return parts
 
 
 def analyse(doc: Doc, lang: str) -> TextAnalysis:
@@ -315,6 +354,28 @@ def analyse(doc: Doc, lang: str) -> TextAnalysis:
         current.clear()
 
     for unit in _units(doc):
+        parts = _elided_parts(unit, lp)
+        if parts is not None:
+            # The elided word, then the rest of the token as a word of its own.
+            elided, rest = parts
+            low = elided.lower()
+            elided_cls = "P" if low in lp.prepositions else "D" if low in lp.articles else "X"
+            if elided_cls == "X":
+                close()
+            else:
+                current.append((low, elided_cls))
+            tok = unit[0]
+            cls = _token_class(tok, lp, fwords, rest)
+            if cls == "X":
+                close()
+                continue
+            if cls in _CONTENT:
+                lemma = tok.lemma_ or tok.text
+                lemma_parts = split_elision(lemma)
+                lemma = lemma_parts[1] if lemma_parts is not None else lemma
+                lemmas[(rest.lower(), lemma.lower())] += 1
+            current.append((_shown(tok, rest), cls))
+            continue
         cls = unit_class(unit, lp, fwords)
         if cls == "X":
             close()
@@ -348,10 +409,13 @@ def lemma_table(analyses: Iterable[TextAnalysis]) -> dict[str, str]:
 
 
 def join_surface(parts: Iterable[str]) -> str:
-    """Unit surfaces joined by spaces, with no space after an elided article (``d'eau``)."""
+    """Unit surfaces joined by spaces, with no space after an elided word (``d'eau``).
+
+    :func:`cartolex.lexicon.text_utils.term_words` is its inverse.
+    """
     out = ""
     for p in parts:
-        if out and not out.endswith(("'", "’")):
+        if out and not out.endswith(APOSTROPHES):
             out += " "
         out += p
     return out

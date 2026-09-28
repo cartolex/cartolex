@@ -185,6 +185,18 @@ nothing in the engine names a particular deployment, source or procedure.
   format, zipped; parts sized to fit one conversation), and
   `tools/lexicon_lab/score_handoff.py` scores the answers against the
   world's truth, beside the lab's oracle.
+- **Elided words are words of their own.** An elided article, preposition,
+  pronoun or conjunction (`l'`, `d'`, `qu'`, `s'` …, straight or typographic
+  apostrophe) is a word unit of its own, and the word after it starts one, as
+  after a space. A token the language model leaves whole is split: the
+  Portuguese model keeps `d'água` as one noun, so `coluna d'água` or `massas
+  d'água` were never candidates (`keywords.extract`, stage version 3; parse
+  cache patterns `np2`). `text_utils.term_words` cuts a shown term back into
+  the extraction's words, and a word of the project's rejections now blocks a
+  term after an elision too. The part-of rule already saw the elision; the
+  nested filter and the length bonus still read words between spaces, a
+  choice the lexicon lab measured (`docs/dev/lexicon-lab.md`). English and
+  French candidates of the demo worlds are unchanged.
 - **Demo bodies.** `generate(..., bodies=True)` (`--bodies`) gives every work
   a long, repetitive body with generic filler (introduction, methods,
   results, discussion, captions) in its language, from a random stream of its

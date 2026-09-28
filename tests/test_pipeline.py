@@ -20,7 +20,8 @@ from cartolex.lexicon.lang_utils import detect_language_term
 from cartolex.lexicon.lexical_filters import is_malformed_term
 from cartolex.lexicon.lexicon_store import load_canonical_decision_blacklist
 from cartolex.lexicon.llm_triage import _load_global_terms
-from cartolex.lexicon.text_utils import heal_split_words, length_bonus
+from cartolex.lexicon.noun_phrases import join_surface
+from cartolex.lexicon.text_utils import heal_split_words, length_bonus, split_elision, term_words
 
 # ---------------------------------------------------------------------------
 # canonicalization.py
@@ -216,6 +217,51 @@ class TestLengthBonus:
         scores, lengths = length_bonus(["two words"], np.array([1.0]), alpha=2.0)
         assert lengths[0] == 2.0
         assert scores[0] == pytest.approx(3.0)  # 1 * (1 + 2*(2-1)) = 3
+
+
+class TestTermWords:
+    """The words of a term, cut where the extraction cuts them: after an elided word too."""
+
+    @pytest.mark.parametrize(
+        ("term", "words"),
+        [
+            (
+                "systèmes d'information géographique",
+                ["systèmes", "d'", "information", "géographique"],
+            ),
+            ("masse d’eau", ["masse", "d’", "eau"]),
+            ("choix de l'apprentissage profond", ["choix", "de", "l'", "apprentissage", "profond"]),
+            ("L’Atlantique", ["l’", "atlantique"]),
+            ("qu'une étude", ["qu'", "une", "étude"]),
+            ("coluna d'água", ["coluna", "d'", "água"]),
+            # Portuguese contractions are words of their own, never split.
+            ("nível do mar", ["nível", "do", "mar"]),
+            ("transporte pela corrente", ["transporte", "pela", "corrente"]),
+            # An apostrophe inside a word, or in a compound, keeps it whole.
+            ("aujourd'hui", ["aujourd'hui"]),
+            ("presqu'île", ["presqu'île"]),
+            ("olho-d'água", ["olho-d'água"]),
+            ("l'île-barrière", ["l'", "île-barrière"]),
+            ("trait de côte", ["trait", "de", "côte"]),
+        ],
+    )
+    def test_words(self, term, words):
+        assert term_words(term) == words
+
+    def test_inverse_of_the_shown_form(self):
+        """The extraction writes no space after an elided word; the words come back."""
+        for units in (
+            ["masse", "d'", "eau"],
+            ["couleur", "de", "l’", "océan"],
+            ["coluna", "d'", "água"],
+        ):
+            assert term_words(join_surface(units)) == units
+
+    def test_split_elision(self):
+        assert split_elision("d'água") == ("d'", "água")
+        assert split_elision("L’apprentissage") == ("L’", "apprentissage")
+        assert split_elision("aujourd'hui") is None
+        assert split_elision("d'") is None
 
 
 class TestHealSplitWords:

@@ -199,6 +199,50 @@ def test_bands_and_reasons() -> None:
     assert "low-score" in reasons and not any(r.startswith("part-of") for r in reasons)
 
 
+def test_a_phrase_after_an_elision_gets_the_band_it_gets_after_a_space() -> None:
+    """French: « l'apprentissage profond » and « la méthode statistique » are treated alike."""
+    elided = "choix/N de/P l'/D apprentissage/N profond/A"
+    spaced = "choix/N de/P la/D méthode/N statistique/A"
+    always_inside = [unit(i, f"a{i}", ("full", text(elided, spaced))) for i in range(3)]
+    bands = score_units("fr", always_inside, 3, min_df=3, max_df=1.0).table.set_index("term")
+    # Never seen outside the longer phrase: both are fragments of it.
+    assert tuple(bands.loc["apprentissage profond", ["band", "reason"]]) == (
+        "aside",
+        "part-of: choix de l'apprentissage profond",
+    )
+    assert tuple(bands.loc["méthode statistique", ["band", "reason"]]) == (
+        "aside",
+        "part-of: choix de la méthode statistique",
+    )
+    # Also seen on its own (after « l' » opening a stretch): kept, both alike.
+    alone = [
+        unit(
+            3,
+            "b3",
+            ("full", text("l'/D apprentissage/N profond/A", "la/D méthode/N statistique/A")),
+        )
+    ]
+    bands = score_units("fr", always_inside + alone, 4, min_df=3, max_df=1.0).table
+    bands = bands.set_index("term")
+    assert tuple(bands.loc["apprentissage profond", ["band", "reason"]]) == ("kept", "multiword")
+    assert tuple(bands.loc["méthode statistique", ["band", "reason"]]) == ("kept", "multiword")
+
+
+def test_a_rejected_word_blocks_a_term_after_an_elision_too() -> None:
+    """A word of the project's rejections blocks the terms it is a word of, elided or not."""
+    units = [
+        unit(i, f"t{i}", ("full", text("systèmes/N d'/P information/N géographique/A")))
+        for i in range(3)
+    ]
+    terms = set(score_units("fr", units, 3, min_df=1, max_df=1.0).table["term"])
+    assert "systèmes d'information géographique" in terms
+    blocked = set(
+        score_units("fr", units, 3, min_df=1, max_df=1.0, blacklist={"information"}).table["term"]
+    )
+    assert "systèmes d'information géographique" not in blocked
+    assert "information géographique" not in blocked and "systèmes" in blocked
+
+
 def test_names_are_set_aside_when_known() -> None:
     a = text("Port/R Aurel/R", "tide/N gauge/N")
     units = [TextUnit(i, "G1", f"t{i}", (("full", (a,)),)) for i in range(3)]

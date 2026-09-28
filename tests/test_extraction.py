@@ -166,6 +166,28 @@ def test_output_does_not_depend_on_workers_or_on_the_cache(tmp_path: Path, monke
     assert any(ctx.paths.parse_cache_dir.rglob("part-*.jsonl"))
 
 
+@pytest.mark.models("fr", "pt")
+def test_a_phrase_after_an_elided_word_with_the_real_models() -> None:
+    """The word after « l' », « d' » starts a phrase, whichever apostrophe and model."""
+    from cartolex.lexicon import noun_phrases as npx
+
+    def found(lang: str, text: str) -> dict[str, tuple[str, ...]]:
+        a = npx.analyse(lm.load(lang)(text), lang)
+        spans = npx.spans(a, npx.PATTERNS[lang], npx.lemma_table([a]))
+        return {s.surface: s.containers for s in spans}
+
+    fr = found(
+        "fr",
+        "Le choix de l'apprentissage profond et des systèmes d’information géographique.",
+    )
+    assert {"choix de l'apprentissage profond", "systèmes d’information géographique"} <= set(fr)
+    assert fr["apprentissage profond"] and fr["information géographique"]
+    # The Portuguese model keeps « d'água » as one token: it is split into « d' » and « água ».
+    pt = found("pt", "A coluna d'água e a lâmina d’água no solo arenoso.")
+    assert {"coluna d'água", "lâmina d’água", "água no solo"} <= set(pt)
+    assert not any(s.startswith(("d'", "d’")) for s in pt)
+
+
 def test_a_missing_model_stops_the_run_before_any_parsing(tmp_path: Path, monkeypatch) -> None:
     trilingual(tmp_path)
     versions = {"en": "3.8.0", "fr": "3.8.0", "pt": None}

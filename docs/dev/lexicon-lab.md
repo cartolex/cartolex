@@ -901,6 +901,139 @@ the final lexicon as the lab measures it, and the agreement of the English
 forms with the truth's. The report goes to
 `.cache/lexicon_lab/handoff-score.md`, never into the test folder.
 
+## Word boundaries and elision
+
+French writes some words elided with an apostrophe (`l'`, `d'`, `qu'` …),
+Portuguese `d'` (`d'água`). Without the AI clean-up, the consolidation's
+nested filter drops most set-aside candidates anyway; the few it keeps are
+French candidates written after an elided article or preposition (`eau
+douce` in `apports d'eau douce`, `information géographique`, `apprentissage
+profond`), which is what setting the whole band aside removes. The question
+was whether the rules cut words at the elision the way the extraction does,
+and what field terms it costs. The study used the lab's corpora, parse and
+scoring, and the consolidation of the theme recovery, run with the oracle's
+answers and without any answer (the route without the AI clean-up, which
+reads every candidate); its variants were not kept as switches.
+
+**What sees the elision.** The extraction's units split the elided word off
+(the French model does it), and the part-of rule works on units: a phrase
+after `l'` is set aside exactly when its twin after `la ` is
+(`tests/test_scoring.py`). The field terms the bands set aside are, with or
+without an elision, phrases only ever seen inside one longer phrase: the
+complement of a phrase with a generic head (`ostréiculture` in `histoire de
+l'ostréiculture`, like `justice environnementale` in `histoire de la justice
+environnementale` and `malacocultura` in `acesso da malacocultura`), or a
+compound without its first word (`beach resilience` in `pocket beach
+resilience`). Few of them follow an elision:
+
+| corpus | field terms set aside | French | after an elision |
+|---|---|---|---|
+| demo S | 29 | 9 | 1 (`ostréiculture`) |
+| demo S trilingual | 31 | 8 | 1 (`interface science-politique`) |
+| demo S bodies | 54 | 27 | 1 (`observation participante`) |
+| demo L | 18 | 11 | 1 (`analyse spectrale`, in `aide de l'analyse spectrale`) |
+| demo L trilingual | 70 | 22 | 2 (`analyse spectrale`, `ostréiculture`) |
+
+Two rules read the words between spaces instead, where the elided word goes
+with the next one: the consolidation's nested filter (for it,
+`information géographique` is not inside `systèmes d'information
+géographique`, while `méthode statistique` is inside `choix de la méthode
+statistique`), and the length bonus (`masse d'eau` counts two words). That
+is why only elided fragments survived the consolidation without the AI
+clean-up. The Portuguese model, finally, keeps `d'água` as one noun, so
+`coluna d'água` or `massas d'água` were never candidates; Portuguese
+contractions (`do`, `na`, `pelo`) are single prepositions and behave.
+
+**Measured.** *After* is the change adopted: an elided word the tokenizer
+leaves attached is split off (`d'água`), and the project's rejections see the
+elided word. *Same boundaries* also gives the nested filter and the length
+bonus the extraction's words (not adopted). The measures are the lab's
+(kept band, and the to-check terms the oracle accepts).
+
+| corpus | variant | kept (gold) | to check (gold) | set aside (gold) | precision | recall | F1 | AUC | best 10 % |
+|---|---|---|---|---|---|---|---|---|---|
+| demo S | before, after | 1,961 (1,018) | 652 (4) | 1,370 (29) | 52.0 % | 84.6 % | 64.4 % | 0.525 | 25.1 % |
+| demo S | same boundaries | 1,961 (1,018) | 652 (4) | 1,370 (29) | 52.0 % | 84.6 % | 64.4 % | 0.523 | 24.9 % |
+| demo S trilingual | before, after | 2,218 (982) | 852 (6) | 1,591 (31) | 44.4 % | 80.5 % | 57.2 % | 0.555 | 25.3 % |
+| demo S trilingual | same boundaries | 2,218 (982) | 852 (6) | 1,591 (31) | 44.4 % | 80.5 % | 57.2 % | 0.553 | 24.7 % |
+| demo S bodies | before, after | 4,868 (2,467) | 875 (6) | 2,672 (54) | 50.7 % | 83.9 % | 63.2 % | 0.499 | 31.9 % |
+| demo S bodies | same boundaries | 4,868 (2,467) | 875 (6) | 2,672 (54) | 50.7 % | 83.9 % | 63.2 % | 0.496 | 31.4 % |
+| demo L | before, after | 9,527 (5,619) | 1,287 (9) | 4,482 (18) | 59.0 % | 85.6 % | 69.9 % | 0.516 | 28.0 % |
+| demo L | same boundaries | 9,527 (5,619) | 1,287 (9) | 4,482 (18) | 59.0 % | 85.6 % | 69.9 % | 0.511 | 27.5 % |
+| demo L trilingual | before | 12,349 (6,168) | 1,874 (12) | 5,300 (70) | 50.0 % | 80.4 % | 61.7 % | 0.520 | 24.1 % |
+| demo L trilingual | after | 12,350 (6,168) | 1,874 (12) | 5,298 (70) | 50.0 % | 80.4 % | 61.7 % | 0.520 | 24.1 % |
+| demo L trilingual | same boundaries | 12,350 (6,168) | 1,874 (12) | 5,298 (70) | 50.0 % | 80.4 % | 61.7 % | 0.518 | 24.2 % |
+
+The consolidated lexicon, as the reference-language concepts it holds:
+
+| corpus | variant | route | terms | precision | recall |
+|---|---|---|---|---|---|
+| demo S | before, after | oracle's answers | 1,631 | 57.8 % | 84.8 % |
+| demo S | same boundaries | oracle's answers | 1,630 | 57.8 % | 84.8 % |
+| demo S | before, after | no answers | 1,820 | 55.1 % | 85.1 % |
+| demo S | same boundaries | no answers | 1,804 | 55.5 % | 85.1 % |
+| demo S bodies | before, after | oracle's answers | 3,975 | 52.7 % | 88.0 % |
+| demo S bodies | same boundaries | oracle's answers | 3,965 | 52.8 % | 87.9 % |
+| demo S bodies | before, after | no answers | 4,436 | 54.5 % | 88.5 % |
+| demo S bodies | same boundaries | no answers | 4,394 | 54.8 % | 88.4 % |
+| demo L | before, after | oracle's answers | 7,632 | 58.5 % | 94.9 % |
+| demo L | same boundaries | oracle's answers | 7,623 | 58.6 % | 94.8 % |
+| demo L | before, after | no answers | 8,865 | 62.0 % | 95.0 % |
+| demo L | same boundaries | no answers | 8,819 | 62.3 % | 95.0 % |
+| demo L trilingual | before, after | oracle's answers | 9,613 | 45.0 % | 93.4 % |
+| demo L trilingual | same boundaries | oracle's answers | 9,605 | 45.0 % | 93.3 % |
+| demo L trilingual | before, after | no answers | 11,594 | 52.0 % | 93.9 % |
+| demo L trilingual | same boundaries | no answers | 11,549 | 52.2 % | 93.9 % |
+
+(Recall here is over the concepts of the reachable field terms, each
+counted once whatever its language; without the nested filter, the oracle's
+lexicon reaches 86.4 % on demo S and 95.9 % on demo L, at 50.4 % and
+53.6 % precision.)
+
+- **The change** moves no English or French candidate: the French model
+  left no elided word attached in the demo texts. In Portuguese the demo
+  writes `d'água` in one phrase only at size L (`massas d'água frias`, ten
+  people): `d'água frias de fundo` becomes `água frias de fundo`, since the
+  model tags `massas` as an adjective there, so no field term is gained on
+  the demo worlds; hand-written sentences (`coluna d'água`, `lâmina d’água`,
+  `níveis d'água extremos`) are tested with the real model.
+- **Same boundaries** moves no band. The length bonus lowers the ranking
+  measures (demo L: AUC 0.516 → 0.511, best tenth 28.0 % → 27.5 %), and the
+  nested filter removes, without the AI clean-up, exactly those elided
+  fragments (`eau douce`, `océan`, `éolien`, `information géographique` …),
+  but also field terms (`apprentissage automatique`, `ostréiculture`,
+  `analyse spectrale` at size L), and, with the oracle's answers, field terms
+  accepted inside a longer accepted phrase (`apprentissage profond`,
+  `hypoxie côtière`, `analyse documentaire` in demo S bodies): a few tenths
+  of a point of precision for a loss of recall. Not adopted.
+
+**A complement is not a fragment (an option).** What does set field terms
+aside is the complement: a phrase that follows a preposition (and its
+article, elided or not) in its only longer phrase. Sending such a phrase to
+check instead of setting it aside was measured too; it is a change of the
+band rules, left to the owner:
+
+| corpus | variant | AI load | precision | recall | lexicon, oracle's answers | lexicon, no answers |
+|---|---|---|---|---|---|---|
+| demo S | today | 652 | 52.0 % | 84.6 % | 57.8 %, 84.8 % | 55.1 %, 85.1 % |
+| demo S | complement to check | 754 | 52.2 % | 85.1 % | 57.7 %, 84.7 % | 55.1 %, 85.1 % |
+| demo S | and in the nested filter | 754 | 52.2 % | 85.1 % | 56.9 %, 85.5 % | 51.0 %, 85.7 % |
+| demo L | today | 1,287 | 59.0 % | 85.6 % | 58.5 %, 94.9 % | 62.0 %, 95.0 % |
+| demo L | complement to check | 1,427 | 59.1 % | 85.7 % | 58.5 %, 94.9 % | 62.0 %, 95.0 % |
+| demo L | and in the nested filter | 1,427 | 59.1 % | 85.7 % | 57.8 %, 95.0 % | 60.1 %, 95.1 % |
+| demo L trilingual | today | 1,874 | 50.0 % | 80.4 % | 45.0 %, 93.4 % | 52.0 %, 93.9 % |
+| demo L trilingual | complement to check | 2,182 | 50.2 % | 80.9 % | 45.0 %, 93.3 % | 52.0 %, 93.9 % |
+| demo L trilingual | and in the nested filter | 2,182 | 50.2 % | 80.9 % | 44.3 %, 93.7 % | 49.7 %, 94.1 % |
+
+(precision and recall of the consolidated lexicon in the last two columns).
+The bands alone find a few more field terms (demo L trilingual: 36 fewer
+field terms set aside, recall 80.4 % → 80.9 %) for 11–16 % more terms to
+check, but the nested filter then removes them from the lexicon; letting it
+keep a complement as well gains 0.1–0.7 points of recall for 0.7–0.8 points of
+precision with the oracle's answers, and 2–4 points of precision without
+the AI clean-up. Not adopted: a change of the band rules and of the nested
+filter for the owner to weigh.
+
 ## Time and memory
 
 | corpus | words | parsing, first run (s) | name recognition (s) | scoring, one variant (s) | whole corpus in the lab (s) |
