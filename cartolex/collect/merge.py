@@ -39,7 +39,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
 
@@ -187,6 +187,11 @@ def _stamp(ts: datetime) -> float:
     return ts.timestamp() if ts.tzinfo else ts.replace(tzinfo=timezone.utc).timestamp()
 
 
+def _content(record: WorkRecord) -> str:
+    """A record's values, whatever text id it carries (the last tie-break)."""
+    return repr(replace(record, text_id=""))
+
+
 def _same(fld: str, a: Any, b: Any) -> bool:
     if fld == "title":
         return normalise_title(a) == normalise_title(b)
@@ -200,9 +205,7 @@ def _choose(records: Sequence[WorkRecord], rank) -> tuple[dict[str, Any], dict[s
     fields: dict[str, Any] = {}
     prov: dict[str, str] = {}
     conflicts: list[tuple[str, Any, str, Any, str]] = []
-    ordered = sorted(
-        records, key=lambda r: (rank(r.source), -_stamp(r.retrieved_at), r.text_id, repr(r))
-    )
+    ordered = sorted(records, key=lambda r: (rank(r.source), -_stamp(r.retrieved_at), _content(r)))
     for fld in _FIELDS:
         with_value = [r for r in ordered if getattr(r, fld) not in (None, "", 0)]
         if not with_value:
@@ -245,11 +248,11 @@ class _Groups:
     """Union-find over text ids, with each group's DOIs, types and members; the smallest id
     of a group names it."""
 
-    def __init__(self, units: Mapping[str, Mapping[str, Any]]) -> None:
-        self.parent = {i: i for i in units}
-        self.dois = {i: {u["doi"]} if u["doi"] else set() for i, u in units.items()}
-        self.types = {i: {u["doc_type"]} for i, u in units.items()}
-        self.members = {i: [i] for i in units}
+    def __init__(self, by_id: Mapping[str, Sequence[WorkRecord]]) -> None:
+        self.parent = {i: i for i in by_id}
+        self.dois = {i: _dois(recs) for i, recs in by_id.items()}
+        self.types = {i: {r.doc_type for r in recs} for i, recs in by_id.items()}
+        self.members = {i: [i] for i in by_id}
 
     def find(self, x: str) -> str:
         while self.parent[x] != x:
@@ -315,7 +318,7 @@ def merge_works(
     by_slot: dict[str, list[str]] = defaultdict(list)
     for tid in sorted(units):
         by_slot[units[tid]["slot"]].append(tid)
-    groups = _Groups(units)
+    groups = _Groups(by_id)
     version_edges: list[tuple[str, str, str, str]] = []
     for slot, tids in sorted(by_slot.items()):
         for rule, a, b, evidence in _edges(tids, units, by_id, people):
@@ -375,6 +378,7 @@ def _versions(
         if fields["doi"]:
             by_doi.setdefault((fields["slot"], fields["doi"]), root)
     chosen: dict[str, tuple[str, str, str]] = {}
+    said: dict[str, dict[str, str]] = defaultdict(dict)
     for tid, doi in sorted(set(stated_versions)):
         d = normalise_doi(doi)
         pre = roots.get(tid)
@@ -382,7 +386,14 @@ def _versions(
             continue
         pub = by_doi.get((texts[pre]["slot"], d))
         if pub and pub != pre:
-            chosen.setdefault(pre, (pub, "stated", d))
+            said[pre].setdefault(pub, d)
+    for pre, pubs in sorted(said.items()):
+        if len(pubs) == 1:
+            ((pub, d),) = pubs.items()
+            chosen[pre] = (pub, "stated", d)
+        else:
+            reason = f"providers name several published versions {sorted(pubs)}"
+            result.refused.append(Refusal(texts[pre]["slot"], (pre, min(pubs)), "stated", reason))
     candidates: dict[str, dict[str, tuple[str, str]]] = defaultdict(dict)
     for pre, pub, rule, evidence in version_edges:
         rp, rb = roots[pre], roots[pub]
@@ -411,21 +422,31 @@ def _versions(
         result.versions.append(VersionLink(texts[pre]["slot"], pre, pub, rule, evidence))
 
 
+def _dois(records: Iterable[WorkRecord]) -> set[str]:
+    return {d for d in (normalise_doi(r.doi) for r in records) if d}
+
+
 def _edges(
     tids: Sequence[str],
     units: Mapping[str, Mapping[str, Any]],
     by_id: Mapping[str, Sequence[WorkRecord]],
     people: Mapping[str, set[str]],
 ) -> list[tuple[str, str, str, str]]:
-    """Every pair a rule matches, as ``(rule, a, b, evidence)`` in a fixed order."""
+    """Every pair a rule matches, as ``(rule, a, b, evidence)`` in a fixed order.
+
+    Every record of a text counts (its DOI, its identifiers, its own title, year
+    and people), not only the values the text kept: a merged text then matches
+    exactly what its records matched, and merging again changes nothing.
+    """
     edges: list[tuple[str, str, str, str]] = []
     by_doi: dict[str, list[str]] = defaultdict(list)
     for t in tids:
-        if units[t]["doi"]:
-            by_doi[units[t]["doi"]].append(t)
+        for d in sorted(_dois(by_id[t])):
+            by_doi[d].append(t)
     for doi, group in sorted(by_doi.items()):
         for other in group[1:]:
-            sources = {r.source for r in by_id[group[0]]} | {r.source for r in by_id[other]}
+            sources = {r.source for t in (group[0], other) for r in by_id[t]
+                       if normalise_doi(r.doi) == doi}  # fmt: skip
             rule = "hal_doi" if "hal" in sources else "doi"
             edges.append((rule, group[0], other, doi))
     for scheme in LINK_SCHEMES:
@@ -438,20 +459,21 @@ def _edges(
             group = sorted(set(group))
             for other in group[1:]:
                 edges.append((f"link:{scheme}", group[0], other, f"{scheme} {value}"))
-    by_person_title: dict[tuple[str, str], list[str]] = defaultdict(list)
+    by_person_title: dict[tuple[str, str], set[tuple[str, int]]] = defaultdict(set)
     for t in tids:
-        title = normalise_title(units[t]["title"])
-        if len(title.split()) < MIN_TITLE_WORDS or units[t]["year"] is None:
-            continue
-        for pid in people.get(t, ()):
-            by_person_title[(pid, title)].append(t)
+        for r in by_id[t]:
+            title = normalise_title(r.title)
+            if len(title.split()) < MIN_TITLE_WORDS or r.year is None:
+                continue
+            for pid in r.people:
+                by_person_title[(pid, title)].add((t, r.year))
     pairs: dict[tuple[str, str], str] = {}
-    for (pid, title), group in sorted(by_person_title.items()):
-        group = sorted(set(group))
-        for i, a in enumerate(group):
-            for b in group[i + 1 :]:
-                if abs(units[a]["year"] - units[b]["year"]) <= MAX_YEAR_GAP:
-                    pairs.setdefault((a, b), f"{pid}: {title[:60]}")
+    for (pid, title), found in sorted(by_person_title.items()):
+        ordered = sorted(found)
+        for i, (a, ya) in enumerate(ordered):
+            for b, yb in ordered[i + 1 :]:
+                if a != b and abs(ya - yb) <= MAX_YEAR_GAP:
+                    pairs.setdefault((min(a, b), max(a, b)), f"{pid}: {title[:60]}")
     edges += [("title_year", a, b, ev) for (a, b), ev in sorted(pairs.items())]
     edges.sort(key=lambda e: (_RULE_RANK.get(e[0].split(":")[0], 9), e[1], e[2], e[0]))
     return edges
