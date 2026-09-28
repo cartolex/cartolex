@@ -120,7 +120,17 @@ def cmd_build(args: argparse.Namespace) -> int:
         before = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
         t0 = time.perf_counter()
         proc = subprocess.run(
-            [sys.executable, "-m", "cartolex.cli", "build", str(folder), "--only", stage, "--yes"],
+            [
+                sys.executable,
+                "-m",
+                "cartolex.cli",
+                "build",
+                str(folder),
+                "--only",
+                stage,
+                "--yes",
+                *(["--force", stage] if args.force else []),
+            ],
             cwd=ROOT,
             env=env,
             capture_output=True,
@@ -181,6 +191,7 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--results", type=Path, required=True)
     b.add_argument("--stages", nargs="+", choices=STAGES)
     b.add_argument("--label", default="")
+    b.add_argument("--force", action="store_true", help="run each stage even if up to date")
     b.set_defaults(run=cmd_build)
     t = sub.add_parser("table", help="print measures as a Markdown table")
     t.add_argument("files", nargs="+")
