@@ -660,7 +660,7 @@ STAGES = Registry(
             upstream=("themes.apply",),
             decisions=("decisions/maps.json",),
             project=("levels",),
-            cost=CostModel("mapped_units", 17.4, 0.011, 665.0, 1.0),
+            cost=CostModel("mapped_units", 14.7, 0.0054, 605.0, 1.09),
             prepare=_prepare_maps,
             run=_engine("run_layout"),
         ),
@@ -681,7 +681,7 @@ STAGES = Registry(
                 ),
             ),
             uses=("year",),
-            cost=CostModel("mapped_units", 0.1, 0.053, 686.0, 0.91),
+            cost=CostModel("mapped_units", 0.08, 0.0157, 612.0, 1.03),
             run=_engine("run_trajectories"),
         ),
         Stage(
@@ -692,7 +692,7 @@ STAGES = Registry(
             project=("overlays",),
             applies=_has_overlays,
             extra_inputs=_overlay_tables,
-            cost=CostModel("mapped_units", 0.0, 0.02, 705.0, 0.42),
+            cost=CostModel("mapped_units", 0.0, 0.012, 635.0, 0.43),
             run=_engine("run_overlays"),
         ),
     ]
