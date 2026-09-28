@@ -3,6 +3,9 @@
 
 ::
 
+    cartolex                                   (the app: same as `cartolex app`)
+    cartolex app [FOLDER] [--port N] [--no-browser]
+    cartolex api [FOLDER] [--host H] [--port N] [--allowed-host NAME…] [--projects-root DIR]
     cartolex init FOLDER --name NAME --field TITLE [--description TEXT] [--languages en,fr]
     cartolex status FOLDER
     cartolex build FOLDER [--dry-run] [--only STAGE…] [--force STAGE…] [--yes]
@@ -17,7 +20,10 @@
 
 Each verb prints what it did and exits with 0 on success, 1 when the project
 refuses the action or a build fails (the message says why), 2 on a usage error,
-130 when a build was cancelled. ``cartolex build`` reads the AI key from
+130 when a build was cancelled. ``cartolex app`` starts the app on a free
+loopback port and opens the browser with a launch link that works once;
+``cartolex api`` serves it without a browser, for hosting. ``cartolex build``
+and the app read the AI key from
 ``MISTRAL_API_KEY``, asks before a stage that reaches the network or costs money
 (``--yes`` accepts), prints « phase k of n » at least every ten seconds, and
 stops cleanly at the first Ctrl-C (the second one stops at once).
@@ -28,7 +34,12 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cartolex.app.extensions import Extension
 
 __all__ = ["main"]
 
@@ -249,6 +260,56 @@ def _versions(args: argparse.Namespace) -> int:
         project.close()
 
 
+def _app_settings(args: argparse.Namespace, *, hosted: bool) -> object:
+    import os
+
+    from cartolex.app import AppSettings
+    from cartolex.app.server import default_data_dir
+    from cartolex.build.engine import AIAccess
+
+    key = os.environ.get("MISTRAL_API_KEY") or None
+    names = [e.settings_dir_name for e in args.extensions if e.settings_dir_name]
+    data_dir = args.data_dir or default_data_dir(names[0] if names else "cartolex")
+    return AppSettings(
+        mode="hosted" if hosted else "local",
+        project=None if hosted or args.folder is None else args.folder,
+        projects_root=getattr(args, "projects_root", None),
+        data_dir=data_dir,
+        allowed_hosts=tuple(getattr(args, "allowed_host", None) or ()),
+        secure_cookies=bool(getattr(args, "secure_cookies", False)),
+        ai_access=AIAccess(api_key=key) if key else None,
+    )
+
+
+def _app(args: argparse.Namespace) -> int:
+    from cartolex.app.server import serve
+
+    settings = _app_settings(args, hosted=False)
+    return serve(
+        settings,  # type: ignore[arg-type]
+        args.extensions,
+        host="127.0.0.1",
+        port=args.port,
+        open_browser=not args.no_browser,
+    )
+
+
+def _api(args: argparse.Namespace) -> int:
+    from cartolex.app.server import serve
+
+    hosted = args.projects_root is not None
+    if hosted and args.folder is not None:
+        raise ValueError("give a project folder, or --projects-root for many projects, not both")
+    settings = _app_settings(args, hosted=hosted)
+    return serve(
+        settings,  # type: ignore[arg-type]
+        args.extensions,
+        host=args.host,
+        port=args.port,
+        open_browser=False,
+    )
+
+
 def _demo(argv: list[str]) -> int:
     from cartolex.demo.cli import main as demo_main
 
@@ -318,11 +379,36 @@ def _models(args: argparse.Namespace) -> int:
     return status
 
 
-def _parser() -> argparse.ArgumentParser:
+def _parser(extensions: Sequence[Extension] = ()) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cartolex", description="Map a research field from the texts of its people."
     )
     sub = parser.add_subparsers(dest="verb", required=True)
+
+    app = sub.add_parser("app", help="open the app in the browser (the default)")
+    app.add_argument("folder", type=Path, nargs="?", help="the project to open")
+    app.add_argument("--port", type=int, default=0, help="the port (default: a free one)")
+    app.add_argument("--no-browser", action="store_true", help="print the link, open nothing")
+    app.add_argument("--data-dir", type=Path, help="the app's own folder (recent projects)")
+    app.set_defaults(run=_app)
+
+    api = sub.add_parser("api", help="serve the app without a browser (hosting)")
+    api.add_argument("folder", type=Path, nargs="?", help="the project to serve")
+    api.add_argument("--host", default="127.0.0.1", help="the address to listen on")
+    api.add_argument("--port", type=int, default=8000, help="the port (0: a free one)")
+    api.add_argument(
+        "--allowed-host",
+        action="append",
+        metavar="NAME",
+        help="a host name the app answers to (repeat for several); loopback names always work "
+        "for one project",
+    )
+    api.add_argument(
+        "--projects-root", type=Path, help="serve every project in this folder (hosted mode)"
+    )
+    api.add_argument("--secure-cookies", action="store_true", help="behind HTTPS: Secure cookies")
+    api.add_argument("--data-dir", type=Path, help="the app's own folder")
+    api.set_defaults(run=_api)
 
     init = sub.add_parser("init", help="create a project in an empty folder")
     init.add_argument("folder", type=Path)
@@ -397,15 +483,32 @@ def _parser() -> argparse.ArgumentParser:
     add_collect(sub)
 
     sub.add_parser("demo", help="generate the synthetic demo world", add_help=False)
+    taken = set(sub.choices)
+    for ext in extensions:
+        for verb in ext.cli:
+            if verb.name in taken:
+                raise ValueError(f"extension {ext.id!r}: the verb {verb.name!r} is taken")
+            taken.add(verb.name)
+            p = sub.add_parser(verb.name, help=verb.help)
+            if verb.configure is not None:
+                verb.configure(p)
+            p.set_defaults(run=verb.run)
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    """Entry point of the ``cartolex`` command; returns the exit status."""
+def main(argv: list[str] | None = None, *, extensions: Sequence[Extension] = ()) -> int:
+    """Entry point of the ``cartolex`` command; returns the exit status.
+
+    A host application passes its *extensions*: their command verbs are added,
+    and ``cartolex app`` / ``cartolex api`` run the app with them.
+    """
     argv = list(sys.argv[1:] if argv is None else argv)
+    if not argv:
+        argv = ["app"]
     if argv[:1] == ["demo"]:
         return _demo(argv[1:])
-    args = _parser().parse_args(argv)
+    args = _parser(extensions).parse_args(argv)
+    args.extensions = tuple(extensions)
     try:
         return args.run(args)
     except (

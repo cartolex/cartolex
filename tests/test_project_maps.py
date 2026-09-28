@@ -8,7 +8,15 @@ from datetime import datetime, timezone
 import pytest
 
 from cartolex.project import Project, StaleWrite
-from cartolex.project.maps import add_version, pin, pinned, read_maps, save_maps, try_another
+from cartolex.project.maps import (
+    add_version,
+    discard,
+    pin,
+    pinned,
+    read_maps,
+    save_maps,
+    try_another,
+)
 from cartolex.project.models import MapsFile
 
 NOW = datetime(2026, 9, 28, tzinfo=timezone.utc)
@@ -28,6 +36,19 @@ def test_versions_and_the_pin():
         pin(maps, "v9")
     with pytest.raises(ValueError, match="no pinned"):
         try_another(MapsFile(), seed=1)
+
+
+def test_a_version_nobody_pinned_can_be_discarded():
+    maps, _ = add_version(MapsFile(), seed=7, now=NOW)
+    maps, tried = try_another(maps, seed=8, now=NOW)
+    with pytest.raises(ValueError, match="pinned"):
+        discard(maps, "v1")
+    with pytest.raises(KeyError):
+        discard(maps, "v9")
+    kept = discard(maps, tried)
+    assert [v.id for v in kept.versions] == ["v1"] and kept.pinned == "v1"
+    maps, again = try_another(kept, seed=9, now=NOW)
+    assert again == "v2"  # ids restart after the highest kept
 
 
 def test_saving_is_guarded(tmp_path):

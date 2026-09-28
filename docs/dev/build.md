@@ -287,7 +287,9 @@ and runs exactly its `run` items, one at a time, in order:
   failed attempt; the build stops there, and the stages after it do not run.
 - **Log.** `logs/jobs/<job id>.jsonl` records the start, each phase, each stage's
   end (run id, seconds, peak memory, counts), and the end: stage names, counts
-  and times, never texts or names.
+  and times, never texts or names. The job id is a new run id, or the
+  `job_id` a job runner passes (letters, digits, `-` and `_`): the build then
+  appends to the log the runner started.
 
 One build runs at a time on a project: `plan` raises `BuildBusy` while a job
 runs a stage it would run.
@@ -370,6 +372,14 @@ and the result is saved as a new version. The stage converts the tree with
 `cartolex.project.themes_curated.to_curated` and applies it. A tree of
 another depth than two is refused with the reason, until the engine applies
 other depths.
+
+**A host's options.** `engine_registry(ai, EngineOptions(prompt_dir=…,
+stopword_overlay=…))` gives every stage a host application's prompt folder
+(replacing the packaged templates) and its function words (`{"add": {"en":
+[…]}, "remove": {…}}`), applied under each project's own
+`decisions/stopwords.json`, which wins where both name a word. Like the
+packaged lists, they are the host's code: changing them does not by itself
+make a result out of date; force the stages that read them.
 
 **The AI clean-up** needs an `AIAccess`: the provider's key, or a client of
 one's own (`client_factory`, called like the provider SDK's client; the tests

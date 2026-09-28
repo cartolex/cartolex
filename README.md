@@ -23,6 +23,9 @@ in the corpus index. It consumes only the *corpus contract* below, whatever prod
   corpus; who is who in OpenAlex and the ORCID registry; the harvest of their
   works into the project's source tables; what leaves the computer, said before
   it does (`docs/collection.md`, `docs/privacy.md`).
+- `cartolex.project`, `cartolex.build` — the project format and the build of its
+  stages; `cartolex.app` — the web app (`cartolex` opens it in the browser,
+  `cartolex api` serves it for hosting, see `docs/hosting.md`).
 
 ## The corpus contract
 

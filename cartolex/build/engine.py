@@ -22,7 +22,8 @@ from __future__ import annotations
 import csv
 import json
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -41,6 +42,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "AIAccess",
+    "EngineOptions",
     "engine_registry",
     "keywords_settings",
     "run_context",
@@ -69,6 +71,25 @@ class AIAccess:
             f"client_factory={'set' if self.client_factory else None}, "
             f"max_concurrent={self.max_concurrent})"
         )
+
+
+@dataclass(frozen=True)
+class EngineOptions:
+    """What a host application gives every stage: its prompts and its function words.
+
+    *prompt_dir* replaces the packaged prompt templates; *stopword_overlay*
+    adds or removes words, per language (``{"add": {"en": [...]}}``), on top
+    of each project's ``decisions/stopwords.json``. Both are the host's code,
+    like cartolex's packaged lists: changing them does not by itself make a
+    result out of date (force the stages that read them).
+    """
+
+    prompt_dir: Path | None = None
+    stopword_overlay: Mapping[str, Mapping[str, Sequence[str]]] | None = None
+
+
+#: The options of the stage running in this context (set around a runner's call).
+_OPTIONS: ContextVar[EngineOptions | None] = ContextVar("cartolex_engine_options", default=None)
 
 
 # ── settings ─────────────────────────────────────────────────────────────────
@@ -102,6 +123,39 @@ def stopword_overrides(project: Project) -> dict[str, Any]:
     if not add and not remove:
         return {}
     return {"add": {"basic_blacklist": add}, "remove": {"basic_blacklist": remove}}
+
+
+def _overlay_overrides(
+    overlay: Mapping[str, Mapping[str, Sequence[str]]] | None,
+) -> dict[str, Any]:
+    """A host's stop-word overlay as the engine's override blocks (``{}`` when empty)."""
+    if not overlay:
+        return {}
+    blocks = {
+        block: sorted({w for words in (overlay.get(block) or {}).values() for w in words})
+        for block in ("add", "remove")
+    }
+    if not blocks["add"] and not blocks["remove"]:
+        return {}
+    return {block: {"basic_blacklist": words} for block, words in blocks.items()}
+
+
+def _merged_overrides(host: Mapping[str, Any], project: Mapping[str, Any]) -> dict[str, Any]:
+    """A host's overlay, then the project's own decisions on top (the project wins)."""
+    if not host:
+        return dict(project)
+
+    def words(doc: Mapping[str, Any], block: str) -> set[str]:
+        return set((doc.get(block) or {}).get("basic_blacklist", []))
+
+    p_add, p_remove = words(project, "add"), words(project, "remove")
+    add = (words(host, "add") - p_remove) | p_add
+    remove = (words(host, "remove") - p_add) | p_remove
+    return {
+        block: {"basic_blacklist": sorted(ws)}
+        for block, ws in (("add", add), ("remove", remove))
+        if ws
+    }
 
 
 def keywords_settings(
@@ -183,10 +237,17 @@ def run_context(
 
     year = _param(ctx, "corpus.assemble", "year", None)
     extra: dict[str, Any] = {} if year is None else {"now_year": int(year)}
+    options = _OPTIONS.get() or EngineOptions()
+    if options.prompt_dir is not None:
+        extra["prompt_dir"] = Path(options.prompt_dir)
+    overrides = _merged_overrides(
+        _overlay_overrides(options.stopword_overlay), stopword_overrides(ctx.project)
+    )
+    stopwords = StopwordProfile.default().with_overrides(overrides)
     return RunContext(
         paths=engine_paths(ctx.stage.id, _folders(ctx), ctx.layout.root),
         settings=settings,
-        stopwords=StopwordProfile.default().with_overrides(stopword_overrides(ctx.project)),
+        stopwords=stopwords,
         progress=_progress_bridge(ctx, lo, hi),
         cancel=lambda: ctx.cancel_requested,
         ai_client=ai_client,
@@ -714,8 +775,28 @@ RUNNERS: dict[str, Callable[[StageContext], Mapping[str, int] | None]] = {
 }
 
 
-def engine_registry(ai: AIAccess | None = None) -> Registry:
-    """cartolex's stages with their runners; the AI clean-up reaches its provider through *ai*."""
+def _with_options(
+    run: Callable[[StageContext], Mapping[str, int] | None], options: EngineOptions
+) -> Callable[[StageContext], Mapping[str, int] | None]:
+    def runner(ctx: StageContext) -> Mapping[str, int] | None:
+        token = _OPTIONS.set(options)
+        try:
+            return run(ctx)
+        finally:
+            _OPTIONS.reset(token)
+
+    runner.__name__ = runner.__qualname__ = getattr(run, "__name__", "runner")
+    return runner
+
+
+def engine_registry(ai: AIAccess | None = None, options: EngineOptions | None = None) -> Registry:
+    """cartolex's stages with their runners; the AI clean-up reaches its provider through *ai*.
+
+    *options* (a host's prompts and function words) reach every stage.
+    """
     from .stages import STAGES
 
-    return STAGES.with_runners({"keywords.triage": triage_runner(ai)})
+    registry = STAGES.with_runners({"keywords.triage": triage_runner(ai)})
+    if options is None or options == EngineOptions():
+        return registry
+    return registry.with_runners({s.id: _with_options(s.run, options) for s in registry})

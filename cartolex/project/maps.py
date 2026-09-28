@@ -5,7 +5,8 @@ A map version records what a map shows and how it was drawn (layout method,
 seed, parameters, an optional base). One version is pinned: rebuilds reuse its
 layout, so the map people know does not move. « Try another layout » adds a
 version beside it; the pinned one changes only when someone pins another.
-Versions are never edited in place and never removed by these functions.
+Versions are never edited in place; :func:`discard` removes one that is not
+pinned (the file's history keeps it, like every earlier version).
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ from .files import fingerprint, json_bytes, read_model, write_decision
 from .layout import ProjectLayout
 from .models import MapLayout, MapsFile, MapVersion
 
-__all__ = ["add_version", "pin", "pinned", "read_maps", "save_maps", "try_another"]
+__all__ = ["add_version", "discard", "pin", "pinned", "read_maps", "save_maps", "try_another"]
 
 
 def read_maps(layout: ProjectLayout) -> tuple[MapsFile, str | None]:
@@ -100,6 +101,15 @@ def pin(maps: MapsFile, version_id: str) -> MapsFile:
     if version_id not in {v.id for v in maps.versions}:
         raise KeyError(f"no map version {version_id!r}")
     return maps.model_copy(update={"pinned": version_id})
+
+
+def discard(maps: MapsFile, version_id: str) -> MapsFile:
+    """Remove *version_id*, a version that is not pinned (a tried layout nobody kept)."""
+    if version_id not in {v.id for v in maps.versions}:
+        raise KeyError(f"no map version {version_id!r}")
+    if version_id == maps.pinned:
+        raise ValueError(f"{version_id} is pinned: pin another version before discarding it")
+    return maps.model_copy(update={"versions": [v for v in maps.versions if v.id != version_id]})
 
 
 def pinned(maps: MapsFile) -> MapVersion | None:

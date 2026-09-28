@@ -271,3 +271,39 @@ nothing in the engine names a particular deployment, source or procedure.
   catalogues, contrast) and `browser` (`tests/browser/` in headless Chromium,
   offline: axe, keyboard scripts, budgets, teardown and leaks). A fixture
   server (`tools/ui_fixture_server.py`) stands in for the app's routes.
+- **The app's core.** `cartolex.app` is the web app, for one person on their
+  computer or a hosted service (`docs/dev/api.md`): `create_app(settings,
+  extensions)` returns the ASGI app; FastAPI, uvicorn and python-multipart
+  become dependencies. `cartolex` (or `cartolex app [FOLDER]`) starts it on a
+  free loopback port and opens the browser with a launch link that works once;
+  `cartolex api` serves it for hosting. Every request gets its project from
+  the app's own state (one project open locally, many chosen by the route or
+  the principal when hosted): nothing is process-wide. Builds and collections
+  run as jobs (`JobRunner`, a local thread runner): one per project at a time
+  (a second gets 409 naming the first), cancelled at a safe point, logged in
+  `logs/jobs/<job id>.jsonl`, and reported `interrupted` when their process is
+  gone. Security: a host check, the launch token exchanged for a session, a
+  CSRF header bound to it, no CORS, a strict Content-Security-Policy on every
+  response, bounded inputs and checked uploads. Every route calls
+  `authorize(principal, action, resource)`; decision files are read with their
+  version as `ETag` and written with `If-Match` (412 when stale). Every error,
+  empty result, skipped stage and failed attempt carries a stable code and its
+  params, for the interface to show in its own language (English text as a
+  fallback), and the next action. Per-person preferences
+  (`/api/me/preferences`) are kept in the app's own folder for a hosted
+  service. The manifest the interface starts from
+  is `cartolex-manifest/1`, with a generated JSON Schema
+  (`docs/dev/app-manifest.md`). Host applications add pages, routes, slots,
+  stage declarations and patches, branding and more through `Extension`
+  (`docs/dev/extensions.md`). The routes cover the project state, building,
+  parameters, map versions (discarding a version nobody pinned is new),
+  snapshots, people and their import, collection behind a protocol with
+  stand-ins, keywords in their three bands, the theme tree's operations,
+  versions and apply, the atlas bundle cached by lineage, sharing, settings
+  and the AI handoff, whose reusable part (the parts a person gives a chat
+  assistant, the prompt, reading the answer back; `cartolex-handoff/1`) is
+  ported from the lexicon lab into `cartolex.project.handoff`. JSON log lines
+  and a diagnostic without project data; a container image
+  (`deploy/Dockerfile`, `docs/hosting.md`). The build takes the job id of its
+  log from a runner, and a host's prompt folder and function words
+  (`EngineOptions`).

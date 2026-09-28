@@ -14,15 +14,19 @@ module they import must be one of
 
 Anything else — the demo generator, an application, collection code, a site
 builder, a web framework — fails the test, so the engine stays reusable on any
-corpus.
+corpus. Web frameworks are refused even though the app declares them as
+dependencies, and no package below the app (the project format, the build,
+the demo) imports ``cartolex.app`` or a web framework either.
 
 The collection package ``cartolex.collect`` has an allowlist of its own: the
 project format (``cartolex.project``), the packaged data and two engine
 helpers (PDF text and language detection). The demo world and its fake
 services are for tests only: collection never imports them, and they never
-import collection, so the fakes stay an independent picture of the services. Both directions between the two engine packages exist today (the atlas
-reads lexicon helpers at module level; two lexicon modules import atlas
-helpers inside functions).
+import collection, so the fakes stay an independent picture of the services.
+
+Both directions between the two engine packages exist today (the atlas reads
+lexicon helpers at module level; two lexicon modules import atlas helpers
+inside functions).
 """
 
 from __future__ import annotations
@@ -40,6 +44,11 @@ ENGINE_PACKAGES = ("cartolex.lexicon", "cartolex.atlas")
 ALLOWED_INTERNAL = ("cartolex.lexicon", "cartolex.atlas", "cartolex._data")
 #: Modules the engine may import only for annotations or inside a function.
 ALLOWED_FOR_TYPES = ("cartolex.context",)
+
+#: Web frameworks: declared for the app, never imported by the engine or the packages below it.
+WEB_FRAMEWORKS = ("fastapi", "starlette", "uvicorn", "multipart", "python_multipart", "httpx")
+#: Packages the app is built on; they never import it (nor a web framework).
+BELOW_THE_APP = ("cartolex.project", "cartolex.build", "cartolex.demo", "cartolex.context")
 
 #: Import name of a declared distribution, where it differs from the distribution name.
 IMPORT_NAMES = {
@@ -137,6 +146,8 @@ def _within(name: str, modules: tuple[str, ...]) -> bool:
 
 def _allowed(name: str, declared: set[str], *, for_types: bool = False) -> bool:
     root = name.split(".")[0]
+    if root in WEB_FRAMEWORKS:
+        return False
     if root == "cartolex":
         return _within(name, ALLOWED_INTERNAL) or (for_types and _within(name, ALLOWED_FOR_TYPES))
     return root in sys.stdlib_module_names or root in declared
@@ -184,6 +195,9 @@ def test_the_guard_rejects_what_it_must() -> None:
         "cartolex.collect.http",
         "cartolex",
         "fastapi",
+        "starlette.requests",
+        "uvicorn",
+        "cartolex.app",
         "playwright",
     ):
         assert not _allowed(name, declared), name
@@ -191,6 +205,19 @@ def test_the_guard_rejects_what_it_must() -> None:
         assert _allowed(name, declared), name
     assert _allowed("cartolex.context", declared, for_types=True)
     assert not _allowed("cartolex.context", declared)
+
+
+def test_nothing_below_the_app_imports_it_or_a_web_framework() -> None:
+    violations = []
+    for package in BELOW_THE_APP:
+        path = REPO_ROOT.joinpath(*package.split("."))
+        files = sorted(path.rglob("*.py")) if path.is_dir() else [path.with_suffix(".py")]
+        assert files and files[0].exists(), f"missing package {package} (guard would be vacuous)"
+        for py_file in files:
+            for name in sorted(_imports(py_file)):
+                if _within(name, ("cartolex.app",)) or name.split(".")[0] in WEB_FRAMEWORKS:
+                    violations.append(f"{py_file.relative_to(REPO_ROOT)} imports {name}")
+    assert not violations, "Layering violations:\n" + "\n".join(violations)
 
 
 def test_relative_imports_are_resolved(tmp_path: Path) -> None:

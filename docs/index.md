@@ -12,6 +12,7 @@ collection
 privacy
 build
 keywords
+hosting
 ```
 
 ```{toctree}
@@ -25,6 +26,9 @@ format/index
 :caption: Development
 :maxdepth: 1
 
+dev/api
+dev/extensions
+dev/app-manifest
 dev/engine
 dev/extraction
 dev/lexicon-lab

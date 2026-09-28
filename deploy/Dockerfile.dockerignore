@@ -1,0 +1,9 @@
+# The build context is the repository; only the package and its metadata go in.
+*
+!pyproject.toml
+!README.md
+!LICENSE
+!cartolex/**
+!tools/requirements-models.txt
+**/__pycache__
+**/*.pyc

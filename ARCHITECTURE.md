@@ -74,6 +74,23 @@ See `docs/dev/engine.md`.
 | `map_merge`, `reconcile`, `map_metrics` | Merging several fitted maps into one (multi-cohort reconciliation + quality metrics) |
 | `diagnostics`, `types` | Diagnostics and shared dataclasses |
 
+### `cartolex.project`, `cartolex.build` and `cartolex.app` — projects, builds, the app
+
+`cartolex.project` reads and writes the project format (`docs/format/`),
+`cartolex.build` runs a project's stages on the engine (`docs/dev/build.md`),
+and `cartolex.app` is the web app on top of both (`docs/dev/api.md`):
+
+| Module | Role |
+|---|---|
+| `app.app`, `app.settings`, `app.runtime` | `create_app(settings, extensions)`: the ASGI app and the state one app holds (sessions, open projects, jobs, caches), nothing at module level |
+| `app.extensions`, `app.manifest` | what a host application adds (`Extension`), and the manifest the interface starts from (`cartolex-manifest/1`) |
+| `app.projects`, `app.deps` | the project context of each request: one project locally, many hosted |
+| `app.security`, `app.routing`, `app.auth` | the launch link and sessions, the host check, CSRF, the response headers; the guard that calls `authorize` on every route |
+| `app.jobs` | `JobRunner` and the local thread runner; job logs, interrupted jobs |
+| `app.collection`, `app.share` | the collection and site builder protocols, with stand-ins |
+| `app.routes.*` | the API of the screens: state, build, parameters, map versions, snapshots, people, collection, sources, keywords, themes, atlas, share, settings, handoff |
+| `app.server` | `cartolex app` / `cartolex api`: uvicorn on a free loopback port, JSON logs |
+
 ## Layering rules
 
 - The engine packages import only the standard library, their declared
@@ -83,5 +100,8 @@ See `docs/dev/engine.md`.
 - Consuming applications integrate through: the corpus contract, `RunContext`
   and `EnginePaths`, `KeywordsConfig`, and the public functions above. Anything
   else is private and may change without notice.
+- The project format, the build and the demo never import the app nor a web
+  framework; the engine never imports a web framework either, although the app
+  declares them as dependencies (`tests/test_layering.py`).
 - The only permitted network egress is the opt-in Mistral triage
   (anonymized term strings). See AGENTS.md for the full rules.

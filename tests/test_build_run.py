@@ -369,6 +369,18 @@ def test_the_job_log_holds_stage_names_counts_and_times(env):
     assert "Survey" not in (env.layout.jobs / f"{result.job_id}.jsonl").read_text()
 
 
+def test_a_job_runner_names_the_log_the_build_appends_to(env):
+    log = env.layout.jobs / "job-7.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text('{"event": "submitted"}\n', encoding="utf-8")
+    result = env.build(job_id="job-7")
+    assert result.job_id == "job-7"
+    events = [json.loads(x)["event"] for x in log.read_text().splitlines()]
+    assert events[0] == "submitted" and events[1] == "start" and events[-1] == "end"
+    with pytest.raises(ValueError, match="job id"):
+        env.build(job_id="../elsewhere")
+
+
 def test_a_failed_stage_leaves_no_staging_and_changes_nothing_else(env):
     env.controls.fail.add("keywords.extract")
     result = env.build()
