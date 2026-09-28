@@ -8,13 +8,20 @@
   settings a job is given;
 * :mod:`~cartolex.collect.text` — text hygiene at the boundary;
 * :mod:`~cartolex.collect.tables` — the source writers: raw records in each
-  slot's ``raw/`` folder, stable ids, and the six source tables rebuilt from them.
+  slot's ``raw/`` folder, stable ids, and the six source tables rebuilt from them;
+* :mod:`~cartolex.collect.people_import` — a list of people, a folder of
+  documents, a corpus; duplicates proposed, merges confirmed;
+* :mod:`~cartolex.collect.resolve` — who is who: candidates, scores,
+  confirmations; :mod:`~cartolex.collect.harvest` — the works of confirmed people;
+  :mod:`~cartolex.collect.openalex` and :mod:`~cartolex.collect.orcid` — the requests;
+* :mod:`~cartolex.collect.privacy` — what leaves the computer, before and after.
 
 The engine never imports this package; this package imports the project format
 (:mod:`cartolex.project`) and a few engine helpers (PDF text, language detection).
 See ``docs/collection.md`` and ``docs/dev/collection.md``.
 """
 
+from .harvest import HarvestReport, harvest
 from .http import (
     CacheMiss,
     Cancelled,
@@ -31,6 +38,27 @@ from .http import (
     ServiceError,
     ServiceUnavailable,
 )
+from .people_import import (
+    ImportMapping,
+    ImportReport,
+    confirm_merge,
+    find_duplicates,
+    import_corpus,
+    import_folder,
+    import_people,
+    propose_mapping,
+)
+from .privacy import CollectionPlan, plan_collection, record_job
+from .resolve import (
+    THRESHOLD,
+    Candidate,
+    Resolution,
+    ResolveReport,
+    confirm,
+    confirm_none,
+    confirm_pasted,
+    resolve,
+)
 from .services import (
     SERVICES,
     CollectSettings,
@@ -44,6 +72,27 @@ from .tables import IdRegistry, RawWriter, SourceBuilder, read_runs, rebuild_sou
 
 __all__ = [
     "SERVICES",
+    "THRESHOLD",
+    "Candidate",
+    "CollectionPlan",
+    "HarvestReport",
+    "ImportMapping",
+    "ImportReport",
+    "Resolution",
+    "ResolveReport",
+    "confirm",
+    "confirm_merge",
+    "confirm_none",
+    "confirm_pasted",
+    "find_duplicates",
+    "harvest",
+    "import_corpus",
+    "import_folder",
+    "import_people",
+    "plan_collection",
+    "propose_mapping",
+    "record_job",
+    "resolve",
     "CacheMiss",
     "Cancelled",
     "CollectError",

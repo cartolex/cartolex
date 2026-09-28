@@ -179,6 +179,22 @@ nothing in the engine names a particular deployment, source or procedure.
   without records, registry works, affiliation histories, outside
   co-authors), with fault injection; `python -m cartolex.demo services`
   starts it. See `docs/dev/collection.md`.
+- **Collection.** `cartolex collect` brings people and texts into a project
+  (`docs/collection.md`): a list of people (CSV or pasted, with a column
+  mapping proposed from the header; e-mail addresses refused and never
+  stored; other columns kept as filters; duplicates proposed, never merged),
+  a folder of documents matched file by file, or a corpus in the engine's
+  contract. Resolution finds each person's OpenAlex records from every
+  variant of their name, with the stated institution ranking candidates and
+  never filtering them, explains each score, accepts a single clear match
+  automatically (to review), and compares records with the ORCID registry
+  to separate people an index merged. The harvest unites the works of every
+  confirmed record and registry, removes duplicates, and fills the source
+  tables with texts, parts, authorships and dated affiliations. Before every
+  collection, cartolex says what will leave the computer, where and why
+  (`--dry-run`, `cartolex.collect.privacy`); `docs/privacy.md` describes
+  what is sent, what never is, what is kept and how to delete it.
+  `--services demo` runs everything against the demo services, offline.
 - **The engine on a project.** Each stage runs the engine
   (`cartolex.build.engine`): an ownership table gives every engine file a
   place in the project, the layout's amendments of earlier files are copied

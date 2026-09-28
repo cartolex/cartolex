@@ -4,7 +4,8 @@
 page describes its machinery: the HTTP layer every finder goes through, the
 source writers that turn what was collected into the tables of
 {doc}`../format/sources`, and the demo services that let everything run
-offline.
+offline. The user's view is in {doc}`../collection`, and what leaves the
+computer in {doc}`../privacy`.
 
 ## Layering
 
@@ -54,7 +55,10 @@ JSON entry each (`cartolex-http-cache/1`: service, kind, method, canonical URL,
 parameters, status, the headers kept, retrieval time, body), written
 atomically. The key is the SHA-256 of the method, the canonical URL (lower-case
 scheme and host, no default port, no trailing slash) and the sorted parameters
-that change the answer. A paged list is cached whole, once complete, under its
+that change the answer. A service on this computer (the demo services) has the
+host `loopback` whatever its port, so its answers survive a restart on another
+port; the demo services put the world they serve in the first segment of their
+URLs, so answers of one demo world are never taken for another's. A paged list is cached whole, once complete, under its
 own key; its pages are not cached one by one, so a cancelled list leaves
 nothing partial.
 
@@ -126,6 +130,25 @@ sources/<slot>/raw/
 - **Aliases.** A person merged into another (`merged_into` in
   `decisions/people.csv`) gives their name form to the other's `aliases`.
 
+The kinds of raw runs cartolex writes, and what their readers build:
+
+| kind | written by | header | records | rows built |
+| --- | --- | --- | --- | --- |
+| `people` | `import_people` | the source's name, the mapping, rows read | one per list row (no e-mail): names, identifiers, filters, organisations with levels and parents | people (`import`), organisations, affiliations (`import`, no years) |
+| `folder` | `import_folder` | the folder given, files seen | one per file read: its path, digest, person, title, year, language, text | texts (`folder`), one `full` part, one authorship; people created from sub-folders (`folder`) |
+| `corpus` | `import_corpus` | the index's name, the unit level | one per index row: names, unit, attributes, file, year, type, language, text | people (`import`), units as organisations, texts with a `full` part, authorships in row order |
+| `openalex` | `harvest` | the year window; per person: records, names, ORCID, declared DOIs | author records and works as received, with the person and how each work was reached | texts, title and abstract parts, authorships, organisations, affiliations (`stated` per work, `openalex` from the records' years) |
+| `orcid` | `harvest` | per person: ORCID iDs | the registry's works and records as received | affiliations (`orcid`) to organisations of the same name the person is already affiliated with |
+| `resolve` | `resolve` | the threshold, whether acceptance was automatic | each person's candidates with their evidence and scores | none (kept for the record) |
+
+A harvest writes one `openalex` and one `orcid` run with the same run id. A
+person's latest harvest replaces their earlier ones: the readers take, for each
+person, the lines of the latest run that names them. Within one rebuild, the
+first record of a text, a part or an authorship wins and later ones only fill
+what it lacks; readers order their records so that this is the right one (a
+work with a DOI before a copy without one; the newest folder or corpus run
+first).
+
 Text hygiene (`cartolex.collect.text`) happens at the boundary: NFC, lone
 surrogates and control characters removed, JATS and HTML stripped (block tags
 become paragraph breaks, a leading « Abstract » label goes), inverted-index
@@ -187,6 +210,31 @@ under `10.5555`.
 seconds), `drop` (closes the connection), `malformed` (a body cut in half),
 `cut_page` (half of a cursor page missing) and `early_end` (a null cursor too
 early). `services.requests` lists every request received, with its headers.
+
+## Resolution and harvest
+
+`cartolex.collect.names` gives the normal form of a name (folded, particles set
+aside), the search variants of a person and the similarity of two names;
+`cartolex.collect.openalex` and `cartolex.collect.orcid` the requests and how
+their answers are read; `cartolex.collect.resolve` the candidates and their
+scores (see {doc}`../collection` for the rules and the points); and
+`cartolex.collect.harvest` the harvest and its readers. The linking rule of a
+harvested work: a project person is on it at the rank where one of their
+confirmed OpenAlex records appears, or, when the work's DOI is one they
+declared in the registry, at the rank whose ORCID is theirs or whose name
+matches theirs (similarity 0.75 or more). `last` is null when the list is
+truncated or when four authors or more are in alphabetical order;
+`corresponding` is null when no author is flagged.
+
+`cartolex.collect.privacy.plan_collection` estimates the requests of a planned
+resolution or harvest per host and the OpenAlex cost at its published prices,
+and lists what is sent and what never is; `record_job` writes the job's record
+(hosts, kinds of data, counts) to `logs/jobs/`.
+
+The command line (`cartolex.cli_collect`) reads the contact address and the
+OpenAlex key from `--contact` / `$CARTOLEX_CONTACT` and `--openalex-key` /
+`$OPENALEX_API_KEY`, and passes them in as settings; `--services demo` starts
+the demo services of `--world SIZE:SEED` for the command.
 
 ## Plug-in points for new finders
 

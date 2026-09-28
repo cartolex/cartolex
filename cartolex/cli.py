@@ -12,6 +12,7 @@
     cartolex project unlock FOLDER
     cartolex models list
     cartolex models add LANG… [--yes]
+    cartolex collect people|folder|corpus|resolve|confirm|harvest|duplicates|merge FOLDER …
     cartolex demo create --size S --seed 0 --out DIR [--corpus]
 
 Each verb prints what it did and exits with 0 on success, 1 when the project
@@ -20,6 +21,7 @@ refuses the action or a build fails (the message says why), 2 on a usage error,
 ``MISTRAL_API_KEY``, asks before a stage that reaches the network or costs money
 (``--yes`` accepts), prints « phase k of n » at least every ten seconds, and
 stops cleanly at the first Ctrl-C (the second one stops at once).
+``cartolex collect`` is described in :mod:`cartolex.cli_collect`.
 """
 
 from __future__ import annotations
@@ -389,6 +391,10 @@ def _parser() -> argparse.ArgumentParser:
     madd.add_argument("languages", nargs="+", choices=("en", "fr", "pt"))
     madd.add_argument("--yes", action="store_true", help="install without asking")
     madd.set_defaults(run=_models)
+
+    from cartolex.cli_collect import add_parser as add_collect
+
+    add_collect(sub)
 
     sub.add_parser("demo", help="generate the synthetic demo world", add_help=False)
     return parser
