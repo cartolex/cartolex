@@ -221,7 +221,11 @@ def plan_collection(
             sends["openalex"] = SENDS[("institutions", "openalex")]
             notes.append("the works signed at a large institution take one request per 100 works")
     elif action == "collaborators":
-        n_people = seeds or 0
+        if seeds is None:
+            from .snowball import _seed_people
+
+            seeds = len(_seed_people(project, None))
+        n_people = seeds
         per_round = math.ceil(max(1, n_people) / 50) + math.ceil(max(1, cap or 200) / 50)
         add("openalex", "list", per_round * max(1, rounds))
         purposes["openalex"] = PURPOSES["collaborators"]
