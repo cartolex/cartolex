@@ -96,6 +96,11 @@ class Runtime:
             ),
         )
         self.registry: Registry = extensions.registry(base)
+        #: Preferences per principal when the app has no folder of its own (``/api/me``).
+        self.preferences: dict[str, Any] = {}
+        self.preferences_lock = threading.Lock()
+        #: What was warned about once (a nav entry whose module is missing).
+        self.warned: set[tuple[str, str]] = set()
         self.atlas_cache = Cache(8)
         self.table_cache = Cache(16)
         self._upload_tmp: tempfile.TemporaryDirectory[str] | None = None

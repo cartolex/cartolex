@@ -14,6 +14,7 @@ from . import (
     jobs,
     keywords,
     maps,
+    me,
     params,
     people,
     projects,
@@ -30,6 +31,7 @@ ROUTERS: list[APIRouter] = [
     m.routes.router
     for m in (
         app_routes,
+        me,
         projects,
         state,
         build,

@@ -64,6 +64,27 @@ def test_the_fixture_is_a_valid_manifest_and_the_app_serves_its_shape(tmp_path):
         app.state.cartolex.shutdown()
 
 
+def test_a_page_whose_module_is_missing_shows_the_placeholder(tmp_path, caplog):
+    static = tmp_path / "ui"
+    (static / "pages").mkdir(parents=True)
+    for page in ("overview", "placeholder"):
+        (static / "pages" / f"{page}.js").write_text("export {};\n", encoding="utf-8")
+    app, _ = fake_app(fake_project(tmp_path / "p"), tmp_path / "c.log", static_dir=static)
+    try:
+        client = Client(app)
+        with caplog.at_level(logging.WARNING, logger="cartolex.app"):
+            first = client.get("/api/app/manifest").json()
+            client.get("/api/app/manifest")
+        modules = {n["id"]: n["module"] for n in first["nav"]}
+        assert modules["overview"] == "/static/pages/overview.js"
+        assert modules["people"] == modules["settings"] == "/static/pages/placeholder.js"
+        warnings = [r for r in caplog.records if getattr(r, "event", "") == "missing_module"]
+        assert len(warnings) == 6  # once per page, not once per request
+        assert client.get("/static/pages/people.js").status_code == 404
+    finally:
+        app.state.cartolex.shutdown()
+
+
 def test_the_stored_schema_is_the_models(tmp_path):
     from cartolex.app.schemas import main
 

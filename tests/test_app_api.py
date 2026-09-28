@@ -312,3 +312,23 @@ def test_share_sources_and_empty_results(client):
         assert body["empty"]["next"]["action"] in ("build", "none"), url
     assert client.get("/api/themes").json()["empty"]["next"]["action"] == "build"
     assert client.post("/api/handoff/export", json={}).status_code == 409
+
+
+def test_preferences_are_kept_per_person_outside_the_project(client, tmp_path):
+    empty = client.get("/api/me/preferences").json()
+    assert empty["stored"] is False and empty["preferences"]["locale"] is None
+    saved = client.put(
+        "/api/me/preferences",
+        json={"locale": "pt-BR", "theme": "dark", "other": {"table.density": "compact"}},
+    )
+    assert saved.status_code == 200 and saved.json()["stored"] is True
+    again = client.get("/api/me/preferences").json()["preferences"]
+    assert again == {"locale": "pt-BR", "theme": "dark", "other": {"table.density": "compact"}}
+    files = list((tmp_path / "data" / "users").glob("*.json"))
+    assert len(files) == 1 and "local" not in files[0].name
+    assert not any((tmp_path / "p").rglob("*preferences*"))
+    bad = client.put("/api/me/preferences", json={"locale": "es"})
+    assert bad.status_code == 422 and bad.json()["error"]["code"] == "unknown_locale"
+    assert client.put("/api/me/preferences", json={"theme": "pink"}).status_code == 422
+    stranger = Client(client.app, sign_in=False)
+    assert stranger.get("/api/me/preferences").status_code == 401

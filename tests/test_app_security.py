@@ -159,8 +159,11 @@ def test_a_strict_csp_on_every_html_and_js_response(app, tmp_path):
             assert "default-src 'self'" in csp and "script-src 'self'" in csp
             assert "unsafe-inline" not in csp and "unsafe-eval" not in csp
             assert r.headers["x-content-type-options"] == "nosniff"
+        # an address outside /api and /static is a page: the shell, never a file
+        page = client.get("/pyproject.toml")
+        assert page.status_code == 200 and page.text.startswith("<!doctype html>")
         for url in (
-            "/static/../pyproject.toml",
+            "/static/%2e%2e/pyproject.toml",
             "/static/%2e%2e/%2e%2e/pyproject.toml",
             "/static/ext/reports/%2e%2e/%2e%2e/index.html",
             "/static/ext/nobody/index.js",

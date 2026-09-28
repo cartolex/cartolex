@@ -17,6 +17,7 @@ keys it does not know. ``docs/dev/app-manifest.md`` describes every key.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -141,10 +142,39 @@ CORE_NAV: tuple[tuple[str, int, str], ...] = (
 )
 
 DEFAULT_LOGO = "/static/brand/logo.svg"
+#: The page a nav entry shows when its module is missing.
+PLACEHOLDER = "/static/pages/placeholder.js"
 
 
 def _ext_path(ext_id: str, rel: str) -> str:
     return rel if rel.startswith("/static/") else f"/static/ext/{ext_id}/{rel}"
+
+
+def _file_of(runtime: Runtime, url: str) -> Path | None:
+    """The file a ``/static/…`` address serves, or ``None`` when there is none."""
+    from .static_files import PACKAGE_STATIC, safe_file
+
+    rel = url.removeprefix("/static/")
+    if rel.startswith("ext/"):
+        parts = rel.split("/", 2)  # ext, the extension's id, the path in its folder
+        ext = runtime.extensions.by_id(parts[1]) if len(parts) == 3 else None
+        if ext is None or ext.static_dir is None:
+            return None
+        return safe_file(ext.static_dir, parts[2])
+    return safe_file(runtime.settings.static_dir or PACKAGE_STATIC, rel)
+
+
+def module_or_placeholder(runtime: Runtime, entry: str, module: str) -> str:
+    """*module* when its file exists, else the placeholder page (a warning is logged once)."""
+    if _file_of(runtime, module) is not None:
+        return module
+    if (entry, module) not in runtime.warned:
+        runtime.warned.add((entry, module))
+        logging.getLogger("cartolex.app").warning(
+            "a page's module is missing; the placeholder page stands in",
+            extra={"event": "missing_module", "route": module},
+        )
+    return PLACEHOLDER
 
 
 def build_manifest(runtime: Runtime, principal: Principal, project: dict | None) -> Manifest:
@@ -177,7 +207,7 @@ def build_manifest(runtime: Runtime, principal: Principal, project: dict | None)
             id=page,
             label=f"nav.{page}",
             route=f"/{page}",
-            module=f"/static/pages/{page}.js",
+            module=module_or_placeholder(runtime, page, f"/static/pages/{page}.js"),
             order=order,
             placement=placement,  # type: ignore[arg-type]
         )
@@ -189,7 +219,7 @@ def build_manifest(runtime: Runtime, principal: Principal, project: dict | None)
                 id=entry.id,
                 label=entry.label,
                 route=entry.route,
-                module=_ext_path(ext.id, entry.module),
+                module=module_or_placeholder(runtime, entry.id, _ext_path(ext.id, entry.module)),
                 order=entry.order,
                 placement=entry.placement,  # type: ignore[arg-type]
             )

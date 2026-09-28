@@ -242,9 +242,19 @@ version, so it can be undone too).
 | `POST /api/handoff/import {bundle, answer}` | keep the answer as it came in `decisions/history/ai/` (with the part it answers) and propose a decision per answered term, with what could not be read (lines ignored, renumbered, unmatched); the first answers freeze the identity |
 | `GET /api/handoff/proposals`, `GET /api/handoff/proposals/{id}`, `POST /api/handoff/proposals/{id}/accept {terms, all}` | proposals; accepted ones reach `keywords.csv` with the source `ai-handoff` |
 
-**The interface**: `/static/…` (the interface's files), `/static/ext/<id>/…`
-(an extension's), and any other page path answered with the shell
-(`index.html`).
+**The person**: `GET /api/me/preferences` and `PUT /api/me/preferences
+{locale, theme, other}`: the interface language, the theme and a few other
+settings of the person signed in, kept in the app's own folder (a hosted
+service: they follow a person from one browser to another). Locally the
+interface keeps them in the browser.
+
+**The interface**: `/static/…` (the interface's files: `.js` as
+`text/javascript; charset=utf-8`, `.css` as `text/css`, `.json` as
+`application/json`, `.svg` as `image/svg+xml`), `/static/ext/<id>/…` (an
+extension's), and every other address that is not under `/api` or `/static`
+answered with the shell (`index.html`): the interface routes in the browser.
+A page whose module is missing is listed in the manifest with
+`/static/pages/placeholder.js`, and a warning is logged once.
 
 ## Collection behind a protocol
 
@@ -281,6 +291,7 @@ catalogues give each code its text in every interface language.
 | `http_error` | 400 | the request was refused ({status}) | `status` | `none` |
 | `internal` | 500 | something went wrong inside cartolex ({error_type}) | `error_type` | `report` |
 | `static_missing` | 404 | no such file in the interface | — | `reload` |
+| `unknown_locale` | 422 | {locale} is not an interface language; choose among {locales} | `locale`, `locales` | `fix-input` |
 | `invalid_sort` | 422 | cannot sort by {sort}; sort by one of {sorts} | `sort`, `sorts` | `fix-input` |
 | `no_project` | 409 | no project is open: open one, or create one | — | `open-project` |
 | `project_not_named` | 400 | name the project in the address: /api/projects/<id>/… | — | `open-project` |

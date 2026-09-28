@@ -5,9 +5,10 @@ Files are served from ``cartolex/app/static/`` (or the settings' folder) at
 ``/static/``, and from each extension's ``static_dir`` at
 ``/static/ext/<id>/``. The media type comes from a fixed table, never from the
 platform (``.js`` is ``text/javascript`` everywhere); a path that leaves its
-folder, names a hidden file or a type not in the table is not found. Any other
-page address (``/keywords``, ``/themes/n7``) is answered with the shell,
-``index.html``: the interface routes in the browser (history routes).
+folder, names a hidden file or a type not in the table is not found. Every
+other address that is not under ``/api`` or ``/static`` (``/keywords``,
+``/themes/n7``) is answered with the shell, ``index.html``: the interface routes
+in the browser (history routes).
 """
 
 from __future__ import annotations
@@ -192,7 +193,6 @@ def shell_root(request: Request) -> Response:
 @routes.get("/{path:path}", action="static.read", resource="static", include_in_schema=False)
 def shell(request: Request, path: str) -> Response:
     """Any page address: the shell (the interface routes in the browser)."""
-    first = path.split("/", 1)[0]
-    if first in ("api", "static", "launch") or "." in PurePosixPath(path).name:
+    if path.split("/", 1)[0] in ("api", "static"):
         raise ApiError.of("no_route")
     return _shell(request)

@@ -131,6 +131,9 @@ ERRORS: dict[str, ErrorKind] = {
     "http_error": ErrorKind(400, "the request was refused ({status})"),
     "internal": ErrorKind(500, "something went wrong inside cartolex ({error_type})", "report"),
     "static_missing": ErrorKind(404, "no such file in the interface", "reload"),
+    "unknown_locale": ErrorKind(
+        422, "{locale} is not an interface language; choose among {locales}", "fix-input"
+    ),
     "invalid_sort": ErrorKind(422, "cannot sort by {sort}; sort by one of {sorts}", "fix-input"),
     # projects
     "no_project": ErrorKind(409, "no project is open: open one, or create one", "open-project"),
