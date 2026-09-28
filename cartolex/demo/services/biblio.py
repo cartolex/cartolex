@@ -697,7 +697,10 @@ def build_bibliography(world: DemoWorld, seed: int = 0) -> Bibliography:
     for aid, name, inst in pool:
         if not record_works.get(aid):
             continue
-        theme = rng.choice([t for t in THEMES if len(t.topics) >= MIN_TOPICS])
+        # Their own works are on a theme none of their joint works is about.
+        joint = {t for w in record_works[aid] for t in b.works[w].themes}
+        themes = [t for t in THEMES if len(t.topics) >= MIN_TOPICS and t.id not in joint]
+        theme = rng.choice(themes or [t for t in THEMES if len(t.topics) >= MIN_TOPICS])
         for _ in range(rng.randint(1, 3)):
             doi_n += 1
             work = _invented_work(

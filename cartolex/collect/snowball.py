@@ -21,8 +21,9 @@ part of its vocabulary. :func:`snowball` proposes them **round by round**:
   work, and the **topical fit** (:func:`topical_fit`).
 
 **Topical fit.** The cosine similarity between the words of the candidate's
-titles and abstracts in the window (their own works and the joint ones) and
-the words of the seeds' titles and abstracts: words of three letters or more,
+titles and abstracts in the window (their works other than the joint ones, which
+say what they work on beyond the collaboration; the joint ones when they have
+no other) and the words of the seeds' titles and abstracts: words of three letters or more,
 folded (case and accents aside), function words left out, each weighted by
 ``(1 + ln tf) × idf`` with ``idf = 1 + ln((1 + N) / (1 + df))`` over the N
 texts of the seeds and the round's candidates; every seed weighs the same in
@@ -83,7 +84,8 @@ DECISIONS = {
 FIT_MEASURE = (
     "cosine similarity of the words of titles and abstracts (three letters or more, folded, "
     "function words left out), weighted by (1 + ln tf) × idf over the round's texts, "
-    "between the candidate and the seeds (every seed weighing the same)"
+    "between the candidate's works other than the joint ones (the joint ones when there is "
+    "no other) and the seeds' works (every seed weighing the same)"
 )
 KIND = "snowball"
 
@@ -306,6 +308,22 @@ def _known_records(project: Project) -> dict[str, str]:
     return out
 
 
+def _known_orcids(project: Project) -> set[str]:
+    """The ORCIDs of the project's people: an index record showing one of them is that
+    person, even when it is not among their confirmed records (a record mixing two people)."""
+    out = set()
+    for row in read_people(project.layout).values():
+        for record in (row.get("records") or "").split(";"):
+            if record.startswith("orcid:"):
+                out.add(record.split(":", 1)[1])
+    path = project.layout.table("people")
+    if path.exists():
+        from cartolex.project.tables import read_source_table
+
+        out |= {o for o in read_source_table(path, "people", ["orcid"])["orcid"].to_pylist() if o}
+    return out
+
+
 def snowball(
     project: Project,
     source: OpenAlexSource,
@@ -338,6 +356,7 @@ def snowball(
     previous = read_snowball(project)
     last_round = max((int(r["round"]) for r in previous), default=0)
     known = _known_records(project)
+    known_orcids = _known_orcids(project)
     report = SnowballReport(cap=cap, max_authors=max_authors, already=len(previous))
     seed_people = _first_seeds(project) if last_round else None
     if seed_people is None:
@@ -406,6 +425,8 @@ def snowball(
                     cid = short_id(shown.get("id"))
                     if not cid or cid in seen or cid in owner:
                         continue
+                    if (shown.get("orcid") or "").rsplit("/", 1)[-1] in known_orcids:
+                        continue  # a record of someone already in the project
                     entry = found.setdefault(
                         cid,
                         {
@@ -434,10 +455,7 @@ def snowball(
         cand_works = source.works_of_authors(sorted(found), years) if found else {}
         fits = topical_fit(
             seed_texts,
-            {
-                c: _dedupe([*cand_works.get(c, ()), *_joint_works(parent_works, found[c])])
-                for c in found
-            },
+            {c: _own_texts(cand_works.get(c, ()), parent_works, found[c]) for c in found},
         )
         next_parents: dict[str, list[str]] = {}
         for cid in sorted(found):
@@ -556,11 +574,18 @@ def _dedupe(works: Iterable[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
     return list(out.values())
 
 
-def _joint_works(
-    parent_works: Mapping[str, Sequence[Mapping[str, Any]]], entry: Mapping[str, Any]
+def _own_texts(
+    works: Sequence[Mapping[str, Any]],
+    parent_works: Mapping[str, Sequence[Mapping[str, Any]]],
+    entry: Mapping[str, Any],
 ) -> list[Mapping[str, Any]]:
-    wanted = set(entry["joint"])
-    return [w for works in parent_works.values() for w in works if short_id(w.get("id")) in wanted]
+    """The texts a candidate's fit is measured on: their works other than the joint ones,
+    or the joint ones when they have no other."""
+    joint = set(entry["joint"])
+    own = [w for w in _dedupe(works) if short_id(w.get("id")) not in joint]
+    if own:
+        return own
+    return _dedupe(w for ws in parent_works.values() for w in ws if short_id(w.get("id")) in joint)
 
 
 def decide_collaborators(
