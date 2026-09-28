@@ -19,6 +19,11 @@ nothing.
 | resolution | `pub.orcid.org` | count the works a person declared, to tell records apart | ORCID iDs |
 | harvest | `api.openalex.org` | fetch the works of the confirmed records | author identifiers, DOIs |
 | harvest | `pub.orcid.org` | read the works and employments a person declared | ORCID iDs |
+| institution search | `api.openalex.org` | find the institutions that bear a name, for you to choose | the name you typed |
+| people from institutions | `api.openalex.org` | read the institutions, the units below them and the works signed there | institution identifiers (OpenAlex or ROR) |
+| collaborators | `api.openalex.org` | read the works of the seeds and of each round's collaborators | author identifiers |
+| coverage: retry | as the collection retried | collect again for the people whose collection failed | as that collection |
+| the snapshot | nothing: it is read on your computer | the harvest, the institutions and the collaborators from a downloaded OpenAlex snapshot | nothing to OpenAlex; the ORCID registry still receives ORCID iDs |
 
 With every request go, as with any web request, your computer's network
 address, and the program's name (`cartolex`). If you give a contact address
@@ -27,9 +32,11 @@ OpenAlex, as a parameter; if you give an API key, it goes to its service only.
 
 **Before every collection**, cartolex prints this summary for the planned
 work: the hosts, why, the kinds of data, the number of requests and, where a
-service charges, the estimated cost (`cartolex collect resolve … --dry-run`,
-`cartolex collect harvest … --dry-run`; in Python,
-`cartolex.collect.privacy.plan_collection`). After a collection, the job's
+service charges, the estimated cost (`--dry-run` on `cartolex collect resolve`,
+`harvest`, `snapshot`, `institutions`, `collaborators` and `coverage --retry`;
+in Python, `cartolex.collect.privacy.plan_collection`). The people of an
+institution and the collaborators found are people too: what the harvest then
+sends for them is what it sends for anyone. After a collection, the job's
 record in `logs/jobs/` names every host contacted and the kinds of data sent,
 never a name or an identifier.
 
@@ -50,6 +57,7 @@ Everything stays in the project folder:
 | `sources/tables/` | people, organisations, affiliations, texts, their parts, authorships |
 | `sources/<slot>/raw/` | the imported list (without e-mail addresses), the documents' text, the service records as received, and the id registry; the tables are rebuilt from them |
 | `cache/http/` | the services' answers, each with its lifetime (a person search a few days, a work by DOI three months) |
+| `cache/sources/` | digests of the harvests' records, to rebuild the tables quickly; deleting them costs one full reading |
 | `decisions/` | what people decided, with every earlier version in `decisions/history/` |
 | `logs/jobs/` | what each job did: counts, times, hosts and kinds of data |
 
@@ -59,8 +67,9 @@ Nothing is kept anywhere else: cartolex has no server and sends no usage data.
 
 - **The services' answers**: delete `cache/http/`. The next collection fetches
   again.
-- **Everything collected**: delete `sources/<slot>/raw/` for the slot and the
-  tables in `sources/tables/`; the project keeps its decisions.
+- **Everything collected**: delete `sources/<slot>/raw/` for the slot, the
+  tables in `sources/tables/` and `cache/sources/`; the project keeps its
+  decisions.
 - **The whole project**: delete its folder. Copies you made (backups, shared
   bundles, exported sites) are yours to delete too.
 - **One person**: set their role to `excluded` so that nothing uses them. Erasing

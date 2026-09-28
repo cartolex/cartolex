@@ -161,11 +161,157 @@ reports and communications only (the rule `doc_types_by_slot_kind`); a slot's
 own `doc_types` in `project.json` replace the list.
 
 Harvesting a person again replaces what the earlier harvest brought for them;
-texts keep their ids. `--years` keeps a window of years (by default, every
-year). Answers are cached in the project: `--refresh` fetches again,
-`--cache-only` works offline from what was fetched before and says what is
-missing. Ctrl-C stops after the current request: the people harvested before
-it are kept.
+texts keep their ids. `--years` keeps a window of years; without it, the
+harvest uses the slot's window, set once for all its collections:
+
+```bash
+cartolex collect window my-project 2015-      # from 2015 on (2015-2024, 2020, none)
+```
+
+(`years` of the slot in `project.json`; by default, every year). Answers are
+cached in the project: `--refresh` fetches again, `--cache-only` works offline
+from what was fetched before and says what is missing. Ctrl-C stops after the
+current request: the people harvested before it are kept. A person whose
+collection fails (a service that keeps failing, a page cut short) is reported
+with the cause and the others go on; after three failures in a row the
+harvest stops and keeps what it collected (see the coverage report below).
+
+## From institutions
+
+A project can start from one or several institutions instead of a list:
+
+```bash
+cartolex collect institutions my-project --search "Marine Station"     # find it
+cartolex collect institutions my-project --institution I999… --dry-run  # what is sent
+cartolex collect institutions my-project --institution https://ror.org/0… --years 2015-
+cartolex collect institutions my-project --take all                     # or --take A1 A2+A3
+cartolex collect harvest my-project
+```
+
+An institution is given by its OpenAlex id or its ROR id, or searched by name:
+the search only lists the institutions that bear the name, with their type,
+ROR id, parents and works, for you to choose. cartolex then reads the
+institution and **every unit below it** (labs, departments), and every work
+signed there in the window, and proposes the authors with at least two works
+there (`--min-works`). Each comes with its evidence: the works in the window,
+the first and the last year, the units they stated (a lab below the
+institution, several when they moved), their ORCID when the index shows one,
+and the person of the project they already are, if any.
+
+- **Years come from the works.** Each work states where each author was that
+  year: a person who left keeps the years they were there, and only those.
+- **Levels.** The units enter as organisations of the project's levels: the
+  index's types of institution are mapped to them (by default, education,
+  government, health, companies and non-profits to the largest level, the
+  others, such as facilities, to the smallest; a project without levels gets
+  `unit` and `institution`). The proposal prints the mapping; change it with
+  `--level facility=lab`.
+- **Several parents.** A unit that belongs to several institutions (a joint
+  unit) enters with all of them.
+- **Split records** of one person (the same name, first names that agree, one
+  may be an initial, at the same unit, with no work in common; or a shared
+  ORCID) are suggested, never merged: `--take A1+A2` takes them as one person.
+
+The people taken are `mapped` by default (`--role context`, `projected` or
+`excluded` otherwise), with their records confirmed; their works come with the
+harvest.
+
+## From collaborators
+
+From confirmed seeds (every mapped person with an OpenAlex record, or
+`--seeds`), their co-authors are proposed round by round:
+
+```bash
+cartolex collect collaborators my-project --dry-run
+cartolex collect collaborators my-project              # round 1; again: round 2
+cartolex collect collaborators my-project --decide p000123=mapped p000124=no
+```
+
+Each collaborator comes with the works written together, the people of the
+round before they wrote with (the seeds, in round 1), the **path** back to a
+seed, the last joint year, the organisation stated on the latest joint work,
+and their **topical fit**: the cosine similarity between the words of their
+own titles and abstracts (those not written with the seeds; the joint ones
+when there is no other) and the seeds', each word weighted by its frequency
+and its rarity; 1 is the same vocabulary, 0 no word in common.
+
+- A work with **more than 25 authors** is left out of the co-author graph: a
+  large collaboration says little about who works with whom
+  (`collect.snowball.max_authors` in `params.json`, or `--max-authors`).
+- **Whole rounds only**, up to a **cap** of 200 people proposed
+  (`collect.snowball.cap`, or `--cap`): a round that would pass it is left out
+  whole, with a warning that names it.
+- A collaborator is **context** by default: their texts shape the lexicon
+  with a weight, they are not on the map. Decide otherwise with `--decide`:
+  `mapped`, `projected`, `no` (excluded) or `later`. Decisions go to
+  `decisions/snowball.csv`; the next round starts from the collaborators not
+  refused.
+
+## Large collections: the OpenAlex snapshot
+
+From a national size up, asking OpenAlex person by person costs days of its
+daily budget; the **snapshot** holds the same records, to download once:
+
+- **What:** every OpenAlex entity (works, authors, institutions…) as
+  gzip-compressed JSON lines, one entity per line in the API's shape, under
+  `data/jsonl/<entity>/updated_date=YYYY-MM-DD/part_NNNN.gz`, with a
+  `manifest.json` per entity and a log of deleted works (a Parquet copy sits
+  beside it; cartolex reads the JSON lines).
+- **Size:** about 626 million records and 745 GB compressed in the September
+  2026 release (the manifests give the current figures).
+- **Licence:** CC0: public domain, no condition of use.
+- **Updates:** the public snapshot is released four times a year, on the
+  second Wednesday of January, April, July and October (daily snapshots are a
+  paid service).
+- **Download:** free, no account: `aws s3 sync "s3://openalex/data/jsonl"
+  "openalex-snapshot/data/jsonl" --no-sign-request` (the whole of it, or only
+  `works`, `authors` and `institutions`, the entities cartolex reads).
+
+(Checked on 28 September 2026 on OpenAlex's help pages, « Snapshot » and
+« Snapshot data format », dated 24 September 2026.)
+
+```bash
+cartolex collect snapshot my-project openalex-snapshot/ --dry-run
+cartolex collect snapshot my-project openalex-snapshot/          # the harvest, from it
+cartolex collect institutions my-project --institution I… --snapshot openalex-snapshot/
+cartolex collect collaborators my-project --snapshot openalex-snapshot/
+```
+
+The snapshot is read on your computer: nothing is sent to OpenAlex (the ORCID
+registry is still asked for what people declared). It is **streamed**: each
+part is read line by line and only the lines that may concern the people,
+institutions or identifiers asked for are parsed, so memory holds what is
+found, never a part. A harvest makes one pass over the authors and one over
+the works for all its people; a round of collaborators two passes over the
+works. The tables are the same as from the API; a record's retrieval time is
+the snapshot's release date.
+
+## What was collected for whom: coverage
+
+```bash
+cartolex collect coverage my-project                    # every person's state
+cartolex collect coverage my-project --person p000017   # why this profile
+cartolex collect coverage my-project --json
+cartolex collect coverage my-project --retry --dry-run  # what a retry would send
+```
+
+Each person is **good** (three texts with an abstract or more:
+`collect.coverage.good` in `params.json`, or `--good`), **thin** (fewer;
+titles without an abstract are counted apart), **failed** (the latest
+collection for them failed, with its cause) or **no data** (nothing exists).
+A failure is never shown as « no data », and never kept once a later
+collection reaches the person. The report counts the states by organisation,
+and the texts by year and by language.
+
+The person sheet says the sources used (each finder, with its texts) and
+discarded (candidate records not confirmed, proposals found by name, preprints
+read through their published version), and the **first blocking cause**: a
+service failure; no record found; not collected yet; a record found but no
+works in the window; works without abstracts; fewer texts with an abstract
+than a good profile has. It offers what can be done: **retry** (a failure
+only: `--retry` collects again for the people who failed, and them only),
+**add documents** (`--add-documents p000017 reports/`, a folder of that
+person's documents) and **exclude** (`--exclude p000017`).
 
 ## Trying it offline
 
@@ -179,6 +325,19 @@ cartolex collect people demo-project people.csv
 cartolex collect resolve demo-project --services demo --world S:0 --auto
 cartolex collect harvest demo-project --services demo --world S:0
 cartolex build demo-project
+```
+
+Or from an institution of the demo world, and a mini snapshot of its index:
+
+```bash
+cartolex init inst-project --name "Demo" --field "Coastal systems" --languages en,fr
+cartolex collect institutions inst-project --search "Marine" --services demo --world S:0
+cartolex collect institutions inst-project --institution I999… --services demo --world S:0
+cartolex collect institutions inst-project --take all
+python -m cartolex.demo snapshot --size S --out demo-snapshot
+cartolex collect snapshot inst-project demo-snapshot --services demo --world S:0
+cartolex collect coverage inst-project
+cartolex build inst-project
 ```
 
 `python -m cartolex.demo services` without `--list-only` keeps them running
