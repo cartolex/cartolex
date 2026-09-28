@@ -255,7 +255,7 @@ def _measures_summary(data: dict) -> str:
         slowest = max(rows, key=lambda r: r["ready_ms"])
         parts.append(
             f"slowest route {slowest['ready_ms']:.0f} ms ({slowest['page']}), "
-            f"at most {max(r['requests'] for r in rows)} requests"
+            f"at most {max(r['api_calls'] for r in rows)} API calls"
         )
     leaks = data.get("leaks")
     if leaks:

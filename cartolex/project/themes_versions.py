@@ -222,6 +222,19 @@ def list_versions(project: Project | ProjectLayout) -> list[ThemesVersion]:
     return versions[::-1]
 
 
+def made_at(project: Project | ProjectLayout, action: str) -> datetime | None:
+    """When the newest earlier version was replaced by an action starting with *action*.
+
+    From the history's names alone (no version is read), so to the second;
+    ``None`` when no such action replaced a version.
+    """
+    slug = "".join(c if c.isalnum() or c in "-_" else "-" for c in action)
+    for at, name, _path in reversed(_history(_layout(project))):
+        if name.startswith(slug):
+            return at
+    return None
+
+
 def _version_path(layout: ProjectLayout, version_id: str) -> Path:
     if version_id == CURRENT:
         path = layout.themes_json

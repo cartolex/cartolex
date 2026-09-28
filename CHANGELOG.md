@@ -342,8 +342,11 @@ nothing in the engine names a particular deployment, source or procedure.
   in the page; a save refused because the tree changed reloads and merges;
   versions can be read, compared and restored. The « To check » queue, the
   banner for another vocabulary (with a rebase on demand), agreeing once on a
-  clustering-only change, and « Save and apply » in the background are part
-  of it. AI curation goes through a theme handoff
+  clustering-only change (an apply made without an answer keeps the tree
+  over it, as a version that says so), and « Save and apply » in the
+  background are part of it; people's shares and the map refresh after an
+  apply. The page is a set of modules under `pages/themes/`, and the
+  navigation budget counts API calls only. AI curation goes through a theme handoff
   (`cartolex.project.themes_handoff`, `cartolex-themes-handoff/1`): the tree
   and each node's most used keywords out, a list of operations back, each
   reviewed before it applies. New components: `TreeView`, `Treemap`,

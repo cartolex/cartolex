@@ -294,9 +294,18 @@ path, and the app's Content-Security-Policy on every answer.
 The core pages' modules (`pages/people.js`, `keywords.js`, `map.js`,
 `share.js`, `settings.js`) are placeholders until their screens are built;
 pages placed in `settings` are listed in the header's settings menu. The
-themes screen (`pages/themes.js`, {doc}`themes-editor`) is built: one module,
-so that opening it costs one request for its code. It also answers the
-fixture server with a small tree (`tests/fixtures/ui/themes.example.json`).
+themes screen (`pages/themes.js`, {doc}`themes-editor`) is built. A screen
+is split into modules of a few hundred lines each, under a folder named after
+it, with a small entry module: `pages/themes.js` loads `pages/themes/editor.js`,
+which puts together the outline (`outline.js`, `rows.js`, `review.js`), the
+treemap and map panels (`treemap.js`, `map.js`, `centre.js`), the side panel
+(`panel.js`), the actions and operations (`actions.js`, `operations.js`,
+`dialogs.js`), the draft store (`store.js`), the versions (`versions.js`) and
+the AI handoff (`handoff.js`), over the tree's model (`model.js`,
+`labels.js`). Static modules cost nothing after the first load (they are
+cached), so the budget of a navigation counts API calls only. The fixture
+server answers the themes screen with a small tree
+(`tests/fixtures/ui/themes.example.json`).
 
 ## Checks
 
@@ -322,8 +331,9 @@ console error, an uncaught exception or a CSP violation fails a test:
   drawer and menus: no serious or critical violation;
 - **keyboard scripts**: Tab reaches every interactive section in order, and
   each component is operated with the keyboard alone;
-- **budgets**: every navigation ready in under 1 s with at most 5 requests
-  (the jobs poller's own reads are not counted);
+- **budgets**: every navigation ready in under 1 s with at most 5 API calls
+  (static modules and style sheets, cached after the first load, and the jobs
+  poller's own reads are not counted);
 - **teardown and leaks**: ten round trips between the gallery and the
   overview; DOM nodes and event listeners within 2 %, the JS heap within 10 %,
   after a forced garbage collection;

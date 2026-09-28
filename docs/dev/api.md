@@ -514,3 +514,13 @@ unreadable lines have a `problem`: `unknown_action`, `missing_fields`,
 | `proposal_changed` | 409 | a newer proposal ({run}) replaced the one you saw: look at it first | `reload` |
 | `theme_handoff_empty` | 404 | the tree holds no keyword to send | — |
 | `invalid_theme_bundle` | 422 | this is not a theme bundle of cartolex: {detail} | `fix-input` |
+
+**Keeping over an unanswered proposal, and the versions' names.** When a
+new grouping of the same vocabulary waits for an answer
+(`GET /api/themes` → `proposal.pending`), `POST /api/themes/apply` first keeps
+the saved tree over it, as a new version whose action is « keep the curated
+tree over the proposal `<run id>` at an apply », and its answer adds
+`kept: {run, action, version}`. `GET /api/themes/versions` gives each version
+`names` and `names_after`: the names of the nodes its action names, in the
+version before it and in the one it made (a node merged away is named by the
+version that still had it).

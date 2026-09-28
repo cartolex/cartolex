@@ -1,6 +1,7 @@
 # The theme editor
 
-The themes screen (`/themes`, `static/pages/themes.js`) edits the project's
+The themes screen (`/themes`, `static/pages/themes.js` and its modules in
+`static/pages/themes/`, listed in {doc}`ui`) edits the project's
 theme tree ({doc}`themes`) at any depth, one to four levels. It shows one
 tree in three views kept in sync, with a side panel, and every change goes
 through the operations of `POST /api/themes/ops`; nothing reaches
@@ -73,7 +74,9 @@ be applied again to another tree (below).
   the newest tree (`POST /api/themes/ops` with `lenient`); what no longer
   applies is listed with the reason, and nothing is saved until the person
   saves.
-- **Versions**: the list (when, by which action), a version opened read-only,
+- **Versions**: the list (when, by which action; the nodes an action names
+  are named as in the versions around it, so a node merged away since keeps
+  its name), a version opened read-only,
   compared with the current tree (keywords added, removed and moved, nodes
   renamed, added, removed, moved), restored (a restore is a new version).
 
@@ -88,14 +91,23 @@ be applied again to another tree (below).
 - A **clustering-only change** (the grouping ran again with other parameters
   on the same keywords) leaves the tree as it is: a banner offers the new
   proposal as a comparison with the tree, then « Adopt the proposal » or
-  « Keep my tree », once (`POST /api/themes/proposal`).
+  « Keep my tree », once (`POST /api/themes/proposal`). An apply made while
+  the question waits does not drop it silently: it keeps the tree over the
+  proposal as a version of its own (« keep the curated tree over the proposal
+  … at an apply », in the versions list), and a one-line notice says so. A
+  rebase agrees with the grouping it placed the new keywords from: the
+  question comes back only if the grouping runs again after it.
 
 ## Apply
 
 « Save and apply » saves if needed and starts `POST /api/themes/apply` in the
 background: a banner and the header's Activity indicator follow the job, the
-editor stays usable, the map and the treemap's people refresh when it ends,
-and a failure shows an error card with its code and what to do.
+editor stays usable, and a failure shows an error card with its code and what
+to do. What depends on people is not recomputed while editing: people's
+shares (the side panel's « people who weigh most »), their colours and the
+map itself refresh when the apply ends, and the editor says so under the map
+and in the side panel. The keywords' places, their colours on the map and
+the treemap's areas follow each edit at once.
 
 ## AI curation through the theme handoff
 
@@ -130,7 +142,9 @@ them all, in order, raises the B-cubed F1 of the top level against the known
 themes from 0.548 to 0.679, and leaves 10 top-level nodes for the world's 12
 themes. The neutral moves are mostly of keywords the world spreads over
 several themes; what worsens is setting aside or counting nowhere keywords
-that do belong to one theme.
+that do belong to one theme. The assistant sets aside too much (51 keywords,
+11 of them wrongly): the prompt's wording on setting aside is left for the
+step that works on the AI handoff.
 
 ## Components
 

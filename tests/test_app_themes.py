@@ -173,6 +173,27 @@ def test_a_saved_tree_is_applied_and_the_atlas_follows(depths, client_for, tmp_p
     assert node["names"]["en"] == "Coastal hazards"
     placed = next(k for k in bundle["keywords"] if k["term"] == keyword)
     assert placed["node"] == top and placed["level"] == 1
+    # a node merged away keeps its name in the versions list: from the version that had it
+    other = next(n for n in tree["nodes"] if n["parent"] is None and n["id"] != top)
+    merged = client.post(
+        "/api/themes/ops",
+        json={
+            "tree": saved.json()["tree"],
+            "ops": [{"op": "merge_nodes", "source": other["id"], "target": top}],
+        },
+    ).json()
+    action = merged["steps"][0]["description"]
+    again = client.put(
+        "/api/themes",
+        json={"tree": merged["tree"], "action": action},
+        headers={"If-Match": etag(saved)},
+    )
+    assert again.status_code == 200, again.text
+    latest = client.get("/api/themes/versions").json()["items"][0]
+    assert latest["made_by"] == action == f"merge {other['id']} into {top}"
+    assert latest["names"][other["id"]] == other["names"]
+    assert other["id"] not in latest["names_after"]
+    assert latest["names_after"][top]["en"] == "Coastal hazards"
 
 
 def test_a_clustering_only_change_is_agreed_once(depths, client_for, tmp_path):
@@ -245,6 +266,21 @@ def test_a_clustering_only_change_is_agreed_once(depths, client_for, tmp_path):
     versions = client.get("/api/themes/versions").json()["items"]
     assert versions[0]["made_by"].startswith("adopt the grouping proposal")
 
+    # an apply made without an answer keeps the tree over the proposal, and says so
+    regroup(11)
+    now = client.get("/api/themes").json()
+    assert now["proposal"]["pending"]
+    applied = client.post("/api/themes/apply").json()
+    assert applied["kept"]["run"] == now["proposal"]["run"]
+    assert applied["kept"]["action"].startswith("keep the curated tree over the proposal")
+    assert client.wait_job(applied["job"]["id"], timeout=600)["state"] == "succeeded"
+    after = client.get("/api/themes").json()
+    assert after["proposal"]["pending"] is False
+    assert after["tree"]["keywords"] == now["tree"]["keywords"]
+    versions = client.get("/api/themes/versions").json()["items"]
+    assert versions[0]["made_by"] == applied["kept"]["action"]
+    assert versions[0]["made_by"].endswith("at an apply")
+
 
 def test_a_tree_of_another_vocabulary_is_rebased_on_demand(depths, client_for, tmp_path):
     root = _copy(depths[1], tmp_path)
@@ -281,6 +317,8 @@ def test_a_tree_of_another_vocabulary_is_rebased_on_demand(depths, client_for, t
     assert rebased.json()["written"] and rebased.json()["notes"][0].startswith("theme tree rebased")
     after = client.get("/api/themes").json()
     assert after["based_on_current"] and after["extra_count"] == 0
+    # the grouping ran before the rebase, which placed the new keywords after it: nothing to agree on
+    assert after["proposal"]["same_vocabulary"] and after["proposal"]["pending"] is False
     assert all(t not in after["tree"]["keywords"] for t, _ in gone)
     again = client.post("/api/themes/rebase", headers={"If-Match": etag(client.get("/api/themes"))})
     assert again.status_code == 200 and again.json()["written"] is False

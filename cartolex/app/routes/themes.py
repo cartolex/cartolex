@@ -5,6 +5,9 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import timezone
+from functools import lru_cache
+from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import Path as PathParam
@@ -32,6 +35,11 @@ Keywords = Annotated[
 ]
 #: The most operations one request applies.
 MAX_OPS = 500
+#: The action of a « keep » (``<KEEP_ACTION> <grouping run id>``), with ``ON_APPLY`` when an apply made it.
+KEEP_ACTION = "keep the curated tree over the proposal"
+ON_APPLY = " at an apply"
+#: The start of the action of a rebase onto a new vocabulary.
+REBASE_ACTION = "rebase onto"
 
 
 class RenameNode(BaseModel):
@@ -264,19 +272,46 @@ def _usage(runtime: Any, ctx: Any) -> tuple[dict[str, list[float]], int, str | N
     return usage, counted, record.run_id
 
 
-def _agreed_group_run(ctx: Any, tree: ThemesFile) -> str | None:
-    """The grouping run a curated tree has agreed with: named by the tree, else last applied.
+#: What :func:`_agreed_group_run` answers when the tree agreed with a grouping older than the current one.
+_EARLIER = "an earlier grouping"
 
-    A tree saved from a proposal, or whose owner kept it over a new proposal,
-    names the grouping in ``based_on.run``. A rebase names the space instead;
-    the grouping it was applied with is then the one the last ``themes.apply``
-    run read.
+
+def _utc(moment: Any) -> Any:
+    return moment.replace(tzinfo=timezone.utc) if moment.tzinfo is None else moment
+
+
+def _rebased_at(ctx: Any, tree: ThemesFile) -> Any:
+    """When the tree was last rebased onto a new vocabulary (to the second), or ``None``."""
+    from cartolex.project.themes_versions import made_at
+
+    saved = tree.saved
+    if saved is not None and saved.action.startswith(REBASE_ACTION):
+        return _utc(saved.at).replace(microsecond=0)
+    return made_at(ctx.project, REBASE_ACTION)
+
+
+def _agreed_group_run(ctx: Any, tree: ThemesFile) -> str | None:
+    """The grouping run a curated tree has agreed with (``None``: unknown).
+
+    A tree saved from a proposal, or kept over a new one (by « Keep my tree »,
+    or by an apply made without an answer), names the grouping in
+    ``based_on.run``. A rebase names the space instead: it placed the new
+    keywords after the proposal on disk at the time, so the tree agreed with
+    the current grouping if it had finished by then, and with an earlier one
+    if it ran again since. A tree with neither agreed with the grouping the
+    last ``themes.apply`` run read.
     """
     from cartolex.build.records import read_record
 
     run = tree.based_on.run or ""
     if run.startswith("themes.group/"):
         return run.split("/", 1)[1]
+    if run.startswith("themes.space/"):
+        group = read_record(ctx.layout, "themes.group")
+        rebased = _rebased_at(ctx, tree)
+        if group is not None and rebased is not None:
+            finished = _utc(group.finished_at or group.started_at).replace(microsecond=0)
+            return group.run_id if finished <= rebased else _EARLIER
     record = read_record(ctx.layout, "themes.apply")
     for entry in record.inputs if record else ():
         if getattr(entry, "stage", None) == "themes.group":
@@ -548,7 +583,7 @@ def decide_proposal(
         else:
             basis = tree.based_on.model_copy(update={"run": body.run})
             chosen = tree.model_copy(update={"based_on": basis})
-            action = f"keep the curated tree over the proposal {run_id}"
+            action = f"{KEEP_ACTION} {run_id}"
         saved = save_themes(ctx.project, chosen, expected=expected, action=action)
     response.headers["ETag"] = etag_of(saved.fingerprint)
     return _saved_json(saved)
@@ -570,12 +605,57 @@ def _version_json(v: Any) -> dict[str, Any]:
     }
 
 
+@lru_cache(maxsize=512)
+def _node_names(path: str, _mtime_ns: int, _size: int) -> dict[str, dict[str, str]]:
+    """Each node's names in a version file (keyed by the file's state: a version never changes)."""
+    try:
+        doc = json.loads(Path(path).read_text(encoding="utf-8"))
+        return {str(n["id"]): dict(n.get("names") or {}) for n in doc.get("nodes") or []}
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return {}
+
+
+def _names_in(path: Path) -> dict[str, dict[str, str]]:
+    try:
+        stat = path.stat()
+    except OSError:
+        return {}
+    return _node_names(str(path), stat.st_mtime_ns, stat.st_size)
+
+
+def _action_names(action: str | None, before: Path | None, after: Path) -> dict[str, Any]:
+    """The names of the nodes *action* names: in the version before it, and in the one it made.
+
+    A node merged away or deleted is named by the version that still had it,
+    a renamed one by both.
+    """
+    words = set(re.split(r"[\s,;]+", action or "")) - {""}
+    made = _names_in(after)
+    was = _names_in(before) if before is not None else made
+    return {
+        "names": {k: was[k] for k in sorted(words) if k in was},
+        "names_after": {k: made[k] for k in sorted(words) if k in made},
+    }
+
+
 @routes.get("/api/themes/versions", action="themes.read")
 def versions(ctx: ProjectDep) -> dict[str, Any]:
-    """Every saved version of the tree, the current one first."""
+    """Every saved version of the tree, the current one first.
+
+    Each gives the names of the nodes its action names (``names``, before the
+    action; ``names_after``, in the version it made), from the versions
+    themselves, so that a node merged away since keeps its name.
+    """
     from cartolex.project.themes_versions import list_versions
 
-    items = [_version_json(v) for v in list_versions(ctx.project)]
+    listed = list_versions(ctx.project)
+    items = [
+        {
+            **_version_json(v),
+            **_action_names(v.made_by, listed[i + 1].path if i + 1 < len(listed) else None, v.path),
+        }
+        for i, v in enumerate(listed)
+    ]
     return {
         "items": items,
         "total": len(items),
@@ -623,16 +703,54 @@ def restore(
 APPLY_TARGETS = ["themes.apply", "map.layout", "map.trajectories", "overlays.position"]
 
 
+def _keep_on_apply(runtime: Any, ctx: Any) -> dict[str, Any] | None:
+    """Keep the saved tree over a new grouping nobody answered, as a version of its own.
+
+    An apply builds from the saved tree; without this, the next « agreed »
+    grouping would be the one the apply read, and the proposal would vanish
+    unanswered. Nothing is done when no proposal is pending or the project is
+    read-only.
+    """
+    from cartolex.project.themes_versions import read_themes, save_themes
+
+    if not getattr(ctx.project, "writable", False):
+        return None
+    with ctx.handle.mutex:
+        tree, fp = read_themes(ctx.project)
+        if tree is None:
+            return None
+        state = _proposal_state(ctx, tree, _draft(runtime, ctx))
+        if not state["pending"]:
+            return None
+        run = state["run"]
+        basis = tree.based_on.model_copy(update={"run": run})
+        saved = save_themes(
+            ctx.project,
+            tree.model_copy(update={"based_on": basis}),
+            expected=fp,
+            action=f"{KEEP_ACTION} {run.split('/', 1)[1]}{ON_APPLY}",
+        )
+    return {"run": run, "action": saved.action, "version": version_of(saved.fingerprint)}
+
+
 @routes.post("/api/themes/apply", action="build.start")
 def apply(request: Request, ctx: ProjectDep) -> JSONResponse:
-    """Apply the saved tree: a build job of the themes and the map (``GET /api/build`` tracks it)."""
+    """Apply the saved tree: a build job of the themes and the map (``GET /api/build`` tracks it).
+
+    A new grouping of the same vocabulary still waiting for an answer is not
+    dropped silently: the apply first keeps the tree over it, as a new version
+    whose action says so (``keep the curated tree over the proposal <id> at an
+    apply``), and names it in ``kept`` (``{run, action, version}``).
+    """
     from .build import start_build_job
 
     runtime = runtime_of(request)
+    kept = _keep_on_apply(runtime, ctx)
     targets = [t for t in APPLY_TARGETS if t in runtime.registry]
-    return JSONResponse(
-        start_build_job(runtime, ctx, targets, title="apply the themes"), status_code=202
-    )
+    body = start_build_job(runtime, ctx, targets, title="apply the themes")
+    if kept is not None:
+        body = {**body, "kept": kept}
+    return JSONResponse(body, status_code=202)
 
 
 # ── AI curation by handoff ───────────────────────────────────────────────────
