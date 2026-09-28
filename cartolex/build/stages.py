@@ -359,12 +359,6 @@ def _levels_grow(values: Mapping[str, Any], sizes: ProjectSizes, _: ProjectFile)
     return None
 
 
-def _person_counting(values: Mapping[str, Any], _: ProjectSizes, __: ProjectFile) -> str | None:
-    if values["counting_unit"] != "person":
-        return "counting_unit 'text' is not available yet: keywords are counted per person"
-    return None
-
-
 def _engine(name: str) -> Runner:
     """A runner of :mod:`cartolex.build.engine`, imported when the stage runs."""
 
@@ -492,9 +486,10 @@ STAGES = Registry(
                 ParamSpec(
                     "counting_unit",
                     "str",
-                    "what one occurrence counts for: a person's texts together, or each text",
+                    "what weighs the same when keywords are scored: each person, each text, "
+                    "or each organisation of the chosen level",
                     default="person",
-                    choices=("person", "text"),
+                    choices=("person", "text", "organisation"),
                 ),
                 ParamSpec(
                     "min_people",
@@ -519,7 +514,6 @@ STAGES = Registry(
                     ("people",),
                     _min_people_fit,
                 ),
-                CrossCheck("keywords counted per person", ("counting_unit",), (), _person_counting),
             ),
             cost=CostModel("characters", 5.0, 2e-6, 500.0, 1e-5),
             run=_engine("run_extract"),

@@ -113,16 +113,18 @@ class Work:
     sources: tuple[str, ...]
     themes: tuple[str, ...]  # theme ids, primary first
     authors: tuple[str, ...]  # person ids in author order
+    body: str = ""  # only in worlds made with bodies
 
     @property
     def text(self) -> str:
-        """The text file content: title, blank line, abstract."""
-        return f"{self.title}\n\n{self.abstract}\n"
+        """The text file content: title, blank line, abstract (then a blank line and the body)."""
+        text = f"{self.title}\n\n{self.abstract}\n"
+        return f"{text}\n{self.body}\n" if self.body else text
 
     @property
     def words(self) -> int:
-        """Number of words in title and abstract."""
-        return len(self.title.split()) + len(self.abstract.split())
+        """Number of words in title, abstract and body."""
+        return len(self.title.split()) + len(self.abstract.split()) + len(self.body.split())
 
 
 @dataclass(frozen=True)
@@ -136,11 +138,17 @@ class DemoWorld:
     works: tuple[Work, ...]
     themes: tuple[Theme, ...]
     languages: tuple[str, ...] = LANGUAGES
+    bodies: bool = False
 
     @property
     def trilingual(self) -> bool:
         """Whether the world is written in another language set than the default one."""
         return tuple(self.languages) != LANGUAGES
+
+    @property
+    def is_default(self) -> bool:
+        """Whether the world uses the default options (its files keep the historical format)."""
+        return not self.trilingual and not self.bodies
 
     @property
     def cohort(self) -> tuple[Person, ...]:

@@ -312,11 +312,3 @@ def test_explicit_level_sizes_must_grow_and_fit_the_vocabulary():
             stage, sizes, make_config()
         )
         assert (not problems) if message is None else message in problems[0]
-
-
-def test_keywords_are_counted_per_person_for_now():
-    stage = STAGES["keywords.extract"]
-    params = ParamsFile(stages={"keywords.extract": {"counting_unit": "text"}})
-    sizes = ProjectSizes(people=10)
-    problems = resolve_params(stage, params, sizes, year=YEAR).problems(stage, sizes, make_config())
-    assert problems and "not available yet" in problems[0]

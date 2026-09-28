@@ -1,26 +1,27 @@
 # SPDX-License-Identifier: MIT
 """Stage 1: split the corpus by language and extract candidate terms (noun phrases).
 
-Each person is one document: their texts, concatenated, split into one stream
-per corpus language by paragraph. Every paragraph is parsed by the language's
-model (:mod:`cartolex.lexicon.language_models`); the noun phrases found by the
-language's patterns (:mod:`cartolex.lexicon.noun_phrases`), nested spans
-included and grouped by lemma, are the candidates. They are scored as before:
-a TF-IDF with the person as the document (``min_df`` people at least,
-``max_df`` of them at most), summed over people, times the length bonus.
+Each text is split into paragraphs by language; every paragraph is parsed by
+the language's model (:mod:`cartolex.lexicon.language_models`); the noun
+phrases found by the language's patterns (:mod:`cartolex.lexicon.noun_phrases`),
+nested spans included and grouped by lemma, are the candidates. They are
+scored by :mod:`cartolex.lexicon.scoring`: a window on the people who use
+them (``min_df`` people at least, ``max_df`` of them at most), a TF-IDF whose
+documents are the counting unit (``KeywordsConfig.counting_unit``: a person
+by default), summed, times the length bonus; each kept candidate falls in a
+band (kept, to check, set aside) with a reason.
 
 Output per language (``paths.raw_terms_csv(lang)``): ``term`` (the candidate's
 most frequent surface form), ``score``, ``len`` (words of the term),
-``score_len`` and ``forms`` (every surface form of the candidate, most frequent
-first, separated by ``|``), sorted by ``score_len``; and the merged list
-(``paths.global_terms_csv``).
+``score_len``, ``forms`` (every surface form, most frequent first, separated
+by ``|``), ``people`` and ``texts`` (how many use it), ``band`` and ``reason``,
+sorted by ``score_len``; and the merged list (``paths.global_terms_csv``).
 """
 
 from __future__ import annotations
 
 import logging
 import multiprocessing
-from collections import Counter
 from collections.abc import Callable, Collection, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from itertools import repeat
@@ -28,29 +29,46 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
 
 from . import language_models
 from .config import KeywordsConfig
-from .io_helpers import CorpusError, load_documents_split_by_language, slot_indexes
-from .lexical_filters import is_malformed_term
+from .io_helpers import (
+    CorpusError,
+    PersonTexts,
+    load_texts_split_by_language,
+    slot_indexes,
+)
 from .lexicon_store import (
     load_canonical_decision_blacklist,
     load_manual_blacklist,
 )
-from .noun_phrases import TextAnalysis, analyse, lemma_table, occurrences
+from .noun_phrases import TextAnalysis, analyse
 from .parse_cache import ParseCache, text_key
-from .text_utils import heal_split_words, length_bonus, tokenize
+from .scoring import (
+    FORMS_SEPARATOR,
+    RAW_COLUMNS,
+    ScoredCandidates,
+    ScoringOptions,
+    TextUnit,
+    score_units,
+)
+from .text_utils import heal_split_words
 
 if TYPE_CHECKING:
     from cartolex.context import RunContext
 
 logger = logging.getLogger(__name__)
 
-#: Columns of a raw keyword table (``raw_keywords_<lang>.csv``).
-RAW_COLUMNS = ["term", "score", "len", "score_len", "forms"]
-#: Separator of the surface forms in the ``forms`` column.
-FORMS_SEPARATOR = "|"
+__all__ = [
+    "FORMS_SEPARATOR",
+    "RAW_COLUMNS",
+    "analyse_texts",
+    "language_units",
+    "options_of",
+    "parse_texts",
+    "run_pipeline_stage_1",
+    "score_language",
+]
 #: Texts per parser batch (and per task of a worker process).
 PARSE_BATCH = 64
 #: Longest text parsed in one piece, in characters; a longer paragraph is cut
@@ -184,136 +202,91 @@ def analyse_texts(
 # ── Candidates and scores ───────────────────────────────────────────────────
 
 
-def _features(doc: list[str]) -> list[str]:
-    """The TF-IDF analyzer: a person's candidate keys are already the features."""
-    return doc
-
-
 def _empty() -> pd.DataFrame:
     return pd.DataFrame(columns=RAW_COLUMNS)
 
 
-def _blocked(term: str, blacklist: Collection[str]) -> bool:
-    low = term.lower()
-    return low in blacklist or any(t in blacklist for t in tokenize(low))
+def options_of(cfg: KeywordsConfig) -> ScoringOptions:
+    """The scoring options a run's settings give (the others keep their defaults)."""
+    return ScoringOptions(
+        counting_unit=cfg.counting_unit, length_bonus_alpha=cfg.length_bonus_alpha
+    )
 
 
-def score_candidates(
+def score_language(
     lang: str,
-    person_analyses: Sequence[Sequence[TextAnalysis]],
+    units: Sequence[TextUnit],
+    n_people: int,
     cfg: KeywordsConfig,
     *,
     blacklist: Collection[str] = frozenset(),
-) -> pd.DataFrame:
-    """The scored candidate terms of one language (its raw keyword table).
+    options: ScoringOptions | None = None,
+) -> ScoredCandidates:
+    """Score one language's candidates with the run's settings (see :mod:`.scoring`).
 
-    *person_analyses* holds, for each person, the analyses of their texts in
-    this language. Candidates are grouped by key; a person's counts form their
-    document; the TF-IDF keeps the keys found in at least ``cfg.min_df``
-    people and at most ``cfg.max_df`` of them, and a key's score is its TF-IDF
-    summed over people. A candidate whose shown form, or one of its words, is
-    in *blacklist* (the project's own rejections) is left out, as are
-    malformed strings. No language without candidates raises: it gives an
-    empty table, with a warning.
+    Logs a warning when no candidate reaches the document-frequency window
+    (no candidate at all, a window too few people can satisfy …): the table
+    is then empty.
     """
-    lemmas = lemma_table(a for person in person_analyses for a in person)
-    per_text: dict[int, Counter[tuple[str, str]]] = {}
-    surfaces: dict[str, Counter[str]] = {}
-    docs: list[list[str]] = []
-    for person in person_analyses:
-        counts: Counter[str] = Counter()
-        for a in person:
-            pairs = per_text.get(id(a))
-            if pairs is None:
-                pairs = per_text[id(a)] = Counter(occurrences([a], lang, lemmas))
-            for (key, surface), n in pairs.items():
-                counts[key] += n
-                surfaces.setdefault(key, Counter())[surface] += n
-        docs.append(list(counts.elements()))
-
-    vectorizer = TfidfVectorizer(
-        analyzer=_features,
+    scored = score_units(
+        lang,
+        units,
+        n_people,
         min_df=cfg.min_df,
         max_df=cfg.max_df,
         max_features=cfg.max_features,
+        options=options if options is not None else options_of(cfg),
+        blacklist=blacklist,
     )
-    try:
-        X = vectorizer.fit_transform(docs)
-    except ValueError as exc:
-        # No candidate at all, none inside the document-frequency window, or a
-        # window that too few people cannot satisfy.
+    if scored.empty:
         logger.warning(
             "[%s] No candidate term within the document-frequency window "
-            "(%d people, min_df=%s, max_df=%s): %s",
+            "(%d people, min_df=%s, max_df=%s).",
             lang,
-            len(docs),
+            n_people,
             cfg.min_df,
             cfg.max_df,
-            exc,
         )
-        return _empty()
-    keys = vectorizer.get_feature_names_out()
-    scores = X.sum(axis=0).A1
-
-    rows = []
-    for key, score in zip(keys, scores, strict=True):
-        ranked = sorted(surfaces[key].items(), key=lambda kv: (-kv[1], kv[0]))
-        term = ranked[0][0]
-        if is_malformed_term(term) or _blocked(term, blacklist):
-            continue
-        rows.append(
-            {
-                "term": term,
-                "score": float(score),
-                "forms": FORMS_SEPARATOR.join(form for form, _ in ranked),
-            }
-        )
-    if not rows:
-        return _empty()
-    df = pd.DataFrame(rows)
-    scores_len, lens = length_bonus(
-        df["term"].tolist(), df["score"].to_numpy(), alpha=cfg.length_bonus_alpha
-    )
-    df["len"] = lens
-    df["score_len"] = scores_len
-    df = df.sort_values(["score_len", "term"], ascending=[False, True], kind="mergesort")
-    # Two keys practically never share their most frequent form; keep one if they do.
-    df = df.drop_duplicates(subset="term", keep="first").reset_index(drop=True)
-    return df[RAW_COLUMNS]
+    return scored
 
 
-def extract_language(
+def language_units(
     lang: str,
-    docs: Sequence[str],
-    cfg: KeywordsConfig | None = None,
+    people: Sequence[PersonTexts],
     *,
     cache_dir: Path | None = None,
-    blacklist: Collection[str] = frozenset(),
     n_jobs: int = 1,
     progress: Callable[[int, int], None] | None = None,
-) -> pd.DataFrame:
-    """The raw keyword table of one language from its per-person documents.
+) -> list[TextUnit]:
+    """The analysed texts of one language, one :class:`TextUnit` per person and text.
 
-    *docs* holds one document per person (their paragraphs in *lang*, joined
-    by blank lines). Words split by PDF extraction are rejoined first
-    (:func:`~cartolex.lexicon.text_utils.heal_split_words`), then every
-    paragraph is analysed (:func:`analyse_texts`, with the parse cache under
-    *cache_dir*) and the candidates are scored (:func:`score_candidates`).
+    Words split by PDF extraction are rejoined first
+    (:func:`~cartolex.lexicon.text_utils.heal_split_words`, the corpus being its
+    own dictionary), then every paragraph is analysed (:func:`analyse_texts`,
+    with the parse cache under *cache_dir*). A text's paragraphs form one part,
+    ``full``: the corpus contract does not say which paragraph is a title.
     """
-    cfg = cfg if cfg is not None else KeywordsConfig()
-    docs, n_healed = heal_split_words(list(docs))
+    rows = [
+        (i, person.unit, text_id, paragraphs[lang])
+        for i, person in enumerate(people)
+        for text_id, paragraphs in person.texts
+        if paragraphs.get(lang)
+    ]
+    docs, n_healed = heal_split_words(["\n\n".join(paras) for *_, paras in rows])
     if n_healed:
         logger.info("[%s] Rejoined %d split-word artifact(s) before parsing.", lang, n_healed)
     pieces = [person_pieces(doc) for doc in docs]
     analyses = analyse_texts(
         lang,
-        {p for person in pieces for p in person},
+        {p for text in pieces for p in text},
         cache_dir=cache_dir,
         n_jobs=n_jobs,
         progress=progress,
     )
-    person_analyses = [[analyses[text_key(p)] for p in person] for person in pieces]
-    return score_candidates(lang, person_analyses, cfg, blacklist=blacklist)
+    return [
+        TextUnit(person, unit, text_id, (("full", tuple(analyses[text_key(p)] for p in parts)),))
+        for (person, unit, text_id, _), parts in zip(rows, pieces, strict=True)
+    ]
 
 
 # ── The stage ───────────────────────────────────────────────────────────────
@@ -353,7 +326,7 @@ def _extract(ctx: RunContext, progress_callback: ProgressCallback | None) -> Non
 
     log(0, "Loading documents and splitting by language...")
     n_jobs = ctx.threads.workers(cfg.extraction_n_jobs)
-    docs_by_lang, _meta_df = load_documents_split_by_language(
+    people, _meta_df = load_texts_split_by_language(
         slot_indexes(ctx),
         progress_callback=lambda p, m: log(p * 20 // 100, m),
         corpus_languages=cfg.corpus_languages,
@@ -361,16 +334,13 @@ def _extract(ctx: RunContext, progress_callback: ProgressCallback | None) -> Non
         now_year=ctx.now_year,
         recency_years=cfg.kw_recency_years or None,
     )
-    log(
-        20,
-        " | ".join(
-            f"Docs {lang.upper()}: {len(docs_by_lang[lang])}" for lang in cfg.corpus_languages
-        ),
-    )
+    texts_in = {
+        lang: sum(1 for person in people for _, paras in person.texts if paras.get(lang))
+        for lang in cfg.corpus_languages
+    }
+    log(20, " | ".join(f"Texts {lang.upper()}: {n}" for lang, n in texts_in.items()))
 
-    with_text = [
-        lang for lang in cfg.corpus_languages if any(d.strip() for d in docs_by_lang[lang])
-    ]
+    with_text = [lang for lang in cfg.corpus_languages if texts_in[lang]]
     # Every model the run needs, checked before any parsing starts.
     for lang in with_text:
         language_models.require(lang)
@@ -404,22 +374,17 @@ def _extract(ctx: RunContext, progress_callback: ProgressCallback | None) -> Non
             log(pct, f"Parsed {done}/{total} new {lang.upper()} texts")
 
         try:
-            df_lang = extract_language(
-                lang,
-                docs_by_lang[lang],
-                cfg,
-                cache_dir=paths.parse_cache_dir,
-                blacklist=blacklist,
-                n_jobs=n_jobs,
-                progress=parsed,
+            units = language_units(
+                lang, people, cache_dir=paths.parse_cache_dir, n_jobs=n_jobs, progress=parsed
             )
         finally:
             # A model holds a few hundred MB: only one is loaded at a time, and
             # none once the stage is over.
             language_models.release(lang)
+        df_lang = score_language(lang, units, len(people), cfg, blacklist=blacklist).table
         df_lang.to_csv(out_path, index=False)
         log(lo + span, f"Saved {len(df_lang)} {lang.upper()} candidate terms to {out_path}")
-        g = df_lang[["term", "score", "len", "score_len"]].copy()
+        g = df_lang[["term", "score", "len", "score_len", "band", "reason"]].copy()
         g["lang"] = lang
         g.rename(columns={"score": "score_raw"}, inplace=True)
         global_parts.append(g)

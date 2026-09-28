@@ -135,6 +135,32 @@ nothing in the engine names a particular deployment, source or procedure.
   only way to rewrite it: the reason goes into its manifest and
   `tests/baseline/LOG.md`. The released engine's environment is now called
   `released`.
+- **Counting units and bands in the extraction.** The scoring
+  (`cartolex.lexicon.scoring`) reads each person's texts apart:
+  `KeywordsConfig.counting_unit` (and the build's
+  `keywords.extract.counting_unit`) makes a TF-IDF document a person (the
+  default, unchanged), a text or an organisation. Each candidate falls in a
+  band — `kept`, `check` or `aside` — with a reason code (`multiword`,
+  `single-word`, `common-modifier: …`, `part-of: …`), and the raw keyword
+  tables gain the columns `people`, `texts`, `band` and `reason` (the merged
+  list gains `band` and `reason`). Bands remove nothing yet. The settings
+  snapshot records the counting unit.
+- **The lexicon lab.** `python tools/lexicon_lab/run.py --suite quick|full`
+  compares the open choices of the extraction (the English `of` complement,
+  counting units, text votes, part weights, the length bonus, name
+  recognition, the band rules, the AI triage routes) on the demo worlds and
+  on public benchmarks, and writes a report; see `docs/dev/lexicon-lab.md`.
+  It set three defaults: English phrases take no `of` complement (on the
+  demo worlds most `X of Y` spans are phrasing, and they hid the terms inside
+  them), nothing is set aside for a low score (the least specific tenth held
+  gold the rule lost), and a candidate is a fragment of a longer one only
+  when it is never seen outside it. The other choices are lab switches, not
+  settings.
+- **Demo bodies.** `generate(..., bodies=True)` (`--bodies`) gives every work
+  a long, repetitive body with generic filler (introduction, methods,
+  results, discussion, captions) in its language, from a random stream of its
+  own; the rest of the world, and every default world, is unchanged. The
+  truth's lexicon lists the body templates' pieces as filler.
 - **The engine on a project.** Each stage runs the engine
   (`cartolex.build.engine`): an ownership table gives every engine file a
   place in the project, the layout's amendments of earlier files are copied

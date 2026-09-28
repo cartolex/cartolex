@@ -1,6 +1,14 @@
 {
- "ss::gulf heat budget::a::b": "merge",
- "ss::pharmaceutical residu::a::b": "split",
- "ss::sea level ris::a::b": "merge",
- "ss::tourist beach planning::a::b": "split"
+ "ss::eddy dynamic::a::b": "merge",
+ "ss::fishery governanc::a::b": "split",
+ "ss::freshwater marsh vegetation::a::b": "merge",
+ "ss::gulf heat budget::a::b": "split",
+ "ss::salt wedg dynamic::a::b": "merge",
+ "ss::sea level ris::a::b": "split",
+ "ss::shellfish aquacultur::a::b": "merge",
+ "ss::shipwreck representation::a::b": "split",
+ "ss::specy richness::a::b": "merge",
+ "ss::spit elongation::a::b": "split",
+ "ss::tourist beach planning::a::b": "merge",
+ "ss::urea uptak::a::b": "split"
 }

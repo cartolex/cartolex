@@ -564,6 +564,7 @@ def _run_pipeline_core(
                 "ngram_range": list(cfg.ngram_range),
                 "min_df": cfg.min_df,
                 "max_df": cfg.max_df,
+                "counting_unit": cfg.counting_unit,
                 "max_features": cfg.max_features,
                 "weights_basis": cfg.weights_basis,
                 "length_bonus_alpha": cfg.length_bonus_alpha,

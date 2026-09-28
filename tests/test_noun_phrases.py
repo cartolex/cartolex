@@ -51,11 +51,11 @@ def make_doc(lang: str, tokens: list[tuple]) -> Doc:
     )
 
 
-def candidates(lang: str, *docs: Doc) -> Counter:
+def candidates(lang: str, *docs: Doc, lp: npx.LanguagePatterns | None = None) -> Counter:
     """``{(key, surface): occurrences}`` over *docs*, with their own lemma table."""
     analyses = [npx.analyse(d, lang) for d in docs]
     table = npx.lemma_table(analyses)
-    return Counter(npx.occurrences(analyses, lang, table))
+    return Counter(npx.occurrences(analyses, lang, table, lp=lp))
 
 
 def keys(counter: Counter) -> set[str]:
@@ -263,7 +263,7 @@ def test_english_nested_spans_and_head_rule() -> None:
 
 
 def test_english_additions() -> None:
-    """Participle modifiers, gerund heads, one ``of`` complement, compounds, proper nouns."""
+    """Participle modifiers, gerund heads, compounds, proper nouns; the ``of`` complement switch."""
     doc = make_doc(
         "en",
         [
@@ -288,7 +288,11 @@ def test_english_additions() -> None:
     )
     found = candidates("en", doc)
     s = surfaces(found)
-    assert {"distributed systems", "decision making", "degrees of freedom"} <= s
+    assert {"distributed systems", "decision making", "degrees", "freedom"} <= s
+    # The ``of`` complement is a switch of the lexicon lab, off by default.
+    assert "degrees of freedom" not in s
+    with_of = surfaces(candidates("en", doc, lp=npx.language_patterns("en", of_complement=True)))
+    assert with_of - s == {"degrees of freedom"}
     assert ("sand-gravel beach", "sand-gravel beaches") in found
     assert ("atlantic estuary", "Atlantic estuaries") in found
     # The preposition « in » is not part of the English pattern.

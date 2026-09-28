@@ -118,7 +118,7 @@ leaves the check to the run.
 | `corpus.assemble` | `parts` | title, abstract | title, abstract, body, full |
 | `corpus.assemble` | `provider_priority` | folder, openalex, hal, scielo, europepmc, arxiv, biorxiv | provider names; the others follow alphabetically |
 | `corpus.assemble` | `recency_years` | 5 | 0–200; 0 keeps every year |
-| `keywords.extract` | `counting_unit` | person | person (text: not available yet, refused with the reason) |
+| `keywords.extract` | `counting_unit` | person | person, text, organisation |
 | `keywords.extract` | `min_people` | 3 | ≥ 1, and no more than the people whose texts build the lexicon |
 | `keywords.extract` | `max_share` | 0.6 | 0.01–1 |
 | `keywords.triage` | `enabled` | false | true, false |
@@ -337,7 +337,7 @@ made with.
 | `corpus.assemble.parts`, `.provider_priority` | `assemble_corpus(parts=…, provider_priority=…)` |
 | `corpus.assemble.recency_years` | `KeywordsConfig.kw_recency_years` |
 | the `year` | `RunContext.now_year` |
-| `keywords.extract.min_people`, `.max_share` | `KeywordsConfig.min_df`, `.max_df` |
+| `keywords.extract.min_people`, `.max_share`, `.counting_unit` | `KeywordsConfig.min_df`, `.max_df`, `.counting_unit` |
 | `keywords.build.max_keywords` | `KeywordsConfig.global_top_n` |
 | `themes.space.dimensions` | `run_svd(svd_n_components=…)` |
 | the theme levels | the top level: `draft_subfields(n_subfields=…)`; the finest: `run_clustering(n_concepts=…)` |

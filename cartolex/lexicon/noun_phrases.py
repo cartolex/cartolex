@@ -27,8 +27,8 @@ pattern is one occurrence of a candidate — nested spans included, so
 ``sediment transport model`` also counts ``sediment transport``,
 ``transport model``, ``sediment``, ``transport`` and ``model``:
 
-- English: ``(ADJ|NOUN|PROPN)* (NOUN|PROPN|gerund)``, with at most one ``of``
-  complement (``degrees of freedom``);
+- English: ``(ADJ|NOUN|PROPN)* (NOUN|PROPN|gerund)``; one ``of`` complement
+  (``degrees of freedom``) is a switch of the lexicon lab, off by default;
 - French: ``NOUN ADJ* ((de|du|des|d'|à|au|aux) DET? (NOUN|PROPN) ADJ*)?``;
 - Portuguese: the French shape with ``de``, ``em``, ``por``, ``para``,
   ``com``, ``a`` and their contractions with the article (``do``, ``da``,
@@ -50,6 +50,7 @@ records), which is what makes it cacheable.
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 import json
 import re
@@ -68,12 +69,15 @@ __all__ = [
     "PATTERN_VERSION",
     "PATTERNS",
     "LanguagePatterns",
+    "Span",
     "TextAnalysis",
     "analyse",
     "function_words",
     "join_surface",
+    "language_patterns",
     "lemma_table",
     "occurrences",
+    "spans",
 ]
 
 #: Version of what :func:`analyse` records (classes, surfaces, patterns):
@@ -127,7 +131,7 @@ PATTERNS: Mapping[str, LanguagePatterns] = MappingProxyType(
     {
         "en": LanguagePatterns(
             lang="en",
-            pattern=f"{_EN_NP}(?:P{_EN_NP})?",
+            pattern=_EN_NP,
             prepositions=_prep_map({"of": ("of",)}),
             preposition_pos=frozenset({"ADP"}),
         ),
@@ -376,27 +380,83 @@ class _Keyer:
         return part
 
 
+def language_patterns(lang: str, *, of_complement: bool = False) -> LanguagePatterns:
+    """The patterns of *lang*; with *of_complement*, English phrases may take one ``of`` complement.
+
+    The complement (``degrees of freedom``) is a switch of the lexicon lab, off
+    by default: most ``X of Y`` spans are phrasing (``role of silicic acid
+    uptake``), and they made the terms inside them look like fragments of a
+    longer phrase.
+    """
+    lp = PATTERNS[lang]
+    if lang == "en" and of_complement:
+        return dataclasses.replace(lp, pattern=f"{_EN_NP}(?:P{_EN_NP})?")
+    return lp
+
+
+@dataclass(frozen=True)
+class Span:
+    """One occurrence of a candidate in a text.
+
+    ``classes`` are its units' classes (``NAPN`` …); ``containers`` the keys of
+    the longer candidates found around it in the same stretch (the spans that
+    strictly contain it).
+    """
+
+    key: str
+    surface: str
+    classes: str
+    containers: tuple[str, ...]
+
+
+def spans(
+    analysis: TextAnalysis,
+    lp: LanguagePatterns,
+    lemmas: Mapping[str, str],
+    *,
+    keyer: _Keyer | None = None,
+) -> list[Span]:
+    """Every candidate occurrence of one analysed text, with its containers (see :class:`Span`).
+
+    Every span of at most :data:`MAX_UNITS` units of a run that fully matches
+    the pattern *lp* is one occurrence, nested spans included; *lemmas* is the
+    corpus lemma table (:func:`lemma_table`).
+    """
+    rx = lp.regex
+    keyer = keyer if keyer is not None else _Keyer(lp, lemmas)
+    out: list[Span] = []
+    for run in analysis.runs:
+        classes = "".join(u[1] for u in run)
+        n = len(classes)
+        keys = [keyer.key(u) for u in run]
+        found: list[tuple[int, int, str]] = []
+        for i in range(n):
+            if classes[i] not in _CONTENT:
+                continue
+            for j in range(i + 1, min(i + MAX_UNITS, n) + 1):
+                if rx.fullmatch(classes, i, j):
+                    found.append((i, j, " ".join(k for k in keys[i:j] if k is not None)))
+        for i, j, key in found:
+            containers = tuple(
+                dict.fromkeys(k2 for a, b, k2 in found if a <= i and j <= b and (a, b) != (i, j))
+            )
+            out.append(Span(key, join_surface(u[0] for u in run[i:j]), classes[i:j], containers))
+    return out
+
+
 def occurrences(
-    analyses: Iterable[TextAnalysis], lang: str, lemmas: Mapping[str, str]
+    analyses: Iterable[TextAnalysis],
+    lang: str,
+    lemmas: Mapping[str, str],
+    *,
+    lp: LanguagePatterns | None = None,
 ) -> Iterator[tuple[str, str]]:
     """Every candidate occurrence in *analyses*: ``(key, surface)`` pairs.
 
-    Every span of at most :data:`MAX_UNITS` units of a run that fully matches
-    the pattern of *lang* is one occurrence, nested spans included; *lemmas*
-    is the corpus lemma table (:func:`lemma_table`).
+    See :func:`spans`; *lp* defaults to the patterns of *lang*.
     """
-    lp = PATTERNS[lang]
-    rx = lp.regex
+    lp = lp if lp is not None else PATTERNS[lang]
     keyer = _Keyer(lp, lemmas)
     for a in analyses:
-        for run in a.runs:
-            classes = "".join(u[1] for u in run)
-            n = len(classes)
-            keys = [keyer.key(u) for u in run]
-            for i in range(n):
-                if classes[i] not in _CONTENT:
-                    continue
-                for j in range(i + 1, min(i + MAX_UNITS, n) + 1):
-                    if rx.fullmatch(classes, i, j):
-                        key = " ".join(k for k in keys[i:j] if k is not None)
-                        yield key, join_surface(u[0] for u in run[i:j])
+        for span in spans(a, lp, lemmas, keyer=keyer):
+            yield span.key, span.surface

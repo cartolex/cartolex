@@ -111,6 +111,7 @@ def keywords_settings(
     min_people: int | None = None,
     max_share: float | None = None,
     max_keywords: int | None = None,
+    counting_unit: str | None = None,
     llm_max_concurrent: int | None = None,
 ) -> KeywordsConfig:
     """The engine's settings for a project: its slots, languages, domain and parameters.
@@ -142,6 +143,7 @@ def keywords_settings(
         ("min_df", min_people),
         ("max_df", max_share),
         ("global_top_n", max_keywords),
+        ("counting_unit", counting_unit),
         ("llm_max_concurrent", llm_max_concurrent),
     ):
         if value is not None:
@@ -199,6 +201,7 @@ def _settings(ctx: StageContext, **more: Any) -> KeywordsConfig:
         min_people=_param(ctx, "keywords.extract", "min_people"),
         max_share=_param(ctx, "keywords.extract", "max_share"),
         max_keywords=_param(ctx, "keywords.build", "max_keywords"),
+        counting_unit=_param(ctx, "keywords.extract", "counting_unit"),
         **more,
     )
 

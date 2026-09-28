@@ -89,6 +89,24 @@ About 10 % more people form a **projected set** (role `overlay:applicants`)
 with works of their own. They are never part of the fitted cohort: they never
 co-author with it and never reach the corpus index of the cohort.
 
+### Bodies: full texts
+
+```bash
+python -m cartolex.demo create --size S --seed 0 --bodies --out demo-S-full --corpus
+```
+
+With `--bodies` (`generate(..., bodies=True)`), every work also gets a body
+(`Work.body`), written after its title and abstract in its text file: an
+introduction, material and methods, results with two figure or table captions,
+and a discussion, each under its heading, about 700 words in all. Sentences
+are drawn with replacement from a small pool of templates filled with the
+work's focal terms, so the body is long, repetitive and full of generic
+phrasing (`the present study`, `the data set`, `a significant difference`),
+as full texts are. Bodies come from a random stream of their own: people,
+bibliography, titles and abstracts are those of the world without bodies.
+Size S with bodies holds about 243,000 words. They exist to measure choices
+that matter for full texts (lexicon lab, {doc}`dev/lexicon-lab`).
+
 ### The trilingual variant
 
 ```bash
@@ -156,10 +174,12 @@ UTF-8 with `\n` line endings.
 - `works`: the themes of each work, primary first;
 - `coverage`: `good`, `thin` or `no_data` per person.
 
-A trilingual world's truth also has `name_pt`, `pt` and `pt_article` in its
-themes and terms, its `languages`, and a `lexicon`: one record per phrase
-the texts are written with and per language — `text`, `lang`, `kind` and
-`field` (whether it is a field term):
+A world made with other options than the default ones (trilingual, or with
+bodies) also records its `languages`, `bodies` when it has them, the
+Portuguese `name_pt`, `pt` and `pt_article` of its themes and terms when it is
+trilingual, and a `lexicon`: one record per phrase the texts are written with
+and per language — `text`, `lang`, `kind` and `field` (whether it is a field
+term):
 
 | `kind` | what | `field` | more |
 | --- | --- | --- | --- |
@@ -169,10 +189,12 @@ the texts are written with and per language — `text`, `lang`, `kind` and
 | `setting` | a study-setting phrase (`on sandy beaches`) | no | `canonical` |
 | `template` | a literal piece of a sentence template or lead-in: generic filler | no | |
 
-`cartolex.demo.lexicon_truth(languages)` gives the same records for any
-language set. A default world's truth keeps the format above, byte for byte.
-The manifest of a trilingual world names its `languages`, and its counts give
-`works_pt`.
+With bodies, the pieces of the body templates and the section headings are
+`template` records too. `cartolex.demo.lexicon_truth(languages, bodies=…)`
+gives the same records for any language set. A default world's truth keeps
+the format above, byte for byte. The manifest of a trilingual world names its
+`languages`, and its counts give `works_pt`; that of a world with bodies has
+`"bodies": true`.
 
 ## The corpus contract
 
@@ -213,20 +235,20 @@ columns are the trilingual worlds (read with the three corpus languages):
 | … in French / in Portuguese | 66 / – | 437 / – | 66 / 34 | 437 / 266 |
 | Index rows | 535 | 5,241 | 535 | 5,241 |
 | Words | 46,036 | 435,872 | 46,509 | 438,880 |
-| Candidate terms, English / French / Portuguese | 3,985 / 1,467 / – | 22,722 / 6,042 / – | 3,511 / 1,451 / 942 | 20,267 / 5,987 / 4,794 |
-| Global keywords | 5,400 | 28,644 | 5,842 | 30,903 |
-| Refined keywords | 2,228 | 15,731 | 2,482 | 17,193 |
-| Atlas terms (rows of `umap_terms.csv`) | 546 | 3,328 | 573 | 3,430 |
+| Candidate terms, English / French / Portuguese | 2,516 / 1,467 / – | 9,260 / 6,042 / – | 2,268 / 1,451 / 942 | 8,742 / 5,987 / 4,794 |
+| Global keywords | 3,931 | 15,182 | 4,599 | 19,378 |
+| Refined keywords | 1,820 | 8,866 | 2,142 | 11,595 |
+| Atlas terms (rows of `umap_terms.csv`) | 552 | 3,254 | 574 | 3,468 |
 | Concepts / proto-subfields | 150 / 30 | 150 / 30 | 150 / 30 | 150 / 30 |
-| Atlas terms that are theme terms or methods | 46 % | 62 % | 40 % | 57 % |
-| … parts of one (a head word, a piece) | 33 % | 27 % | 39 % | 31 % |
-| … study settings or drivers | 6 % | 2 % | 7 % | 2 % |
-| … generic phrasing of the templates | 15 % | 9 % | 14 % | 10 % |
-| Engine run, total | 35.1 s | 105.6 s | 33.7 s | 109.4 s |
-| … extraction / consolidation / UMAP | 13.1 / 4.4 / 17.4 s | 62.0 / 20.1 / 22.4 s | 10.8 / 4.2 / 18.6 s | 66.3 / 24.4 / 17.8 s |
-| Peak memory | 770 MB | 896 MB | 778 MB | 879 MB |
+| Atlas terms that are theme terms or methods | 50 % | 72 % | 44 % | 64 % |
+| … parts of one (a head word, a piece) | 32 % | 22 % | 37 % | 27 % |
+| … study settings or drivers | 6 % | 1 % | 7 % | 2 % |
+| … generic phrasing of the templates | 12 % | 5 % | 12 % | 7 % |
+| Engine run, total | 36.6 s | 120.8 s | 40.4 s | 131.6 s |
+| … extraction / consolidation / UMAP | 12.7 / 5.8 / 17.8 s | 71.2 / 27.1 / 21.4 s | 15.1 / 7.5 / 17.5 s | 71.7 / 37.4 / 21.3 s |
+| Peak memory | 812 MB | 952 MB | 828 MB | 959 MB |
 
-Seed 1 gives 504 atlas terms for S and 3,157 for L. Most of the extraction
+Seed 1 gives 501 atlas terms for S and 3,137 for L. Most of the extraction
 time is parsing, done once: with the parse cache filled by a first run, the
 extraction of L takes about 30 s (most of it the language detection), and
 with four worker processes a first run takes about 30 s too. A language
@@ -238,12 +260,13 @@ is meant to remove such phrases.
 
 Two behaviours of the current engine show in these runs:
 
-- the extraction's English pattern allows one `of` complement (`degrees of
-  freedom`), and the English templates are full of `the X of Y` phrasing: at
-  size L about 13,500 of the 22,722 English candidates contain `of`, and only
-  a handful of them are theme terms (the triage is meant to drop the others);
-- at size L the refined keyword list is cut to the 10,000 best-scored terms
-  (the default of `global_top_n`).
+- the English templates are full of `the X of Y` phrasing; the extraction's
+  English pattern takes no `of` complement (the lexicon lab's default, see
+  {doc}`dev/lexicon-lab`), so such spans give their parts (`silicic acid
+  uptake`) rather than one long candidate each: with the complement, size L
+  had 22,722 English candidates, about 13,500 of them containing `of`;
+- at size L with Portuguese the refined keyword list is cut to the 10,000
+  best-scored terms (the default of `global_top_n`).
 
 ## Engine settings
 
