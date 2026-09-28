@@ -236,3 +236,12 @@ def test_rows_of_another_tool_are_kept(tmp_path) -> None:
     texts = read_source_table(project.layout.table("texts"), "texts")
     assert texts.num_rows == len(world.works) + 2
     project.close()
+
+
+def test_a_new_run_always_comes_after_the_others(tmp_path) -> None:
+    project = _project(tmp_path / "p")
+    first = _write(project, FIRST[:1], now=T0)
+    second = _write(project, FIRST[1:2], now=T0)  # the same time, twice
+    earlier = _write(project, FIRST[2:3], now=datetime(2020, 1, 1, tzinfo=timezone.utc))
+    runs = read_runs(project.layout, "collected")
+    assert [r.path for r in runs] == [first, second, earlier]

@@ -26,7 +26,6 @@ from __future__ import annotations
 import contextlib
 import json
 import os
-import re
 import secrets
 import tempfile
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
@@ -37,7 +36,7 @@ from typing import Any
 
 import pyarrow as pa
 
-from cartolex.project.files import atomic_write_bytes, utc_stamp
+from cartolex.project.files import atomic_write_bytes
 from cartolex.project.layout import SOURCE_TABLES, ProjectLayout
 from cartolex.project.models import ProjectFile
 from cartolex.project.tables import (
@@ -68,12 +67,12 @@ IDS_FORMAT = "cartolex-ids/1"
 #: The tables whose rows get ids, and their prefix.
 ID_PREFIX = {"texts": "t", "people": "p", "organisations": "o"}
 ID_WIDTH = 6
-_RUN_ID = re.compile(r"^\d{8}T\d{6}Z-[0-9a-f]{6}$")
 
 
 def new_run_id(now: datetime | None = None) -> str:
-    """``20260928T101200Z-3f2a1c``: the UTC time and a random tail."""
-    return f"{utc_stamp(now)}-{secrets.token_hex(3)}"
+    """``20260928T101200123456Z-3f2a1c``: the UTC time to the microsecond, and a random tail."""
+    now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    return f"{now.strftime('%Y%m%dT%H%M%S%fZ')}-{secrets.token_hex(3)}"
 
 
 def raw_folder(layout: ProjectLayout, slot: str) -> Path:
@@ -118,6 +117,11 @@ class RawWriter:
         self.run_id = run_id or new_run_id(now)
         self.folder = raw_folder(layout, slot) / kind
         self.folder.mkdir(parents=True, exist_ok=True)
+        # Runs are read in the order of their ids: a new run always comes after the others,
+        # even when the clock gives the same time twice or goes back.
+        latest = max((p.stem for p in self.folder.glob("*.jsonl")), default="")
+        if self.run_id <= latest:
+            self.run_id = latest + "0"
         self.path = self.folder / f"{self.run_id}.jsonl"
         fd, tmp = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".body", dir=self.folder)
         self._body = Path(tmp)

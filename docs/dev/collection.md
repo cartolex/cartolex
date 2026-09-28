@@ -107,8 +107,9 @@ sources/<slot>/raw/
 
 - **Runs.** `RawWriter(layout, slot, kind, header)` writes a run to a
   temporary file and moves it into place when closed: a failed or cancelled
-  job leaves no partial run. Run ids are `<UTC time>-<6 hex>`; runs are read in
-  that order.
+  job leaves no partial run. Run ids are `<UTC time to the microsecond>-<6 hex>`,
+  and a new run's id always sorts after the slot's earlier runs of its kind, even
+  when the clock repeats itself or goes back; runs are read in that order.
 - **Ids.** `IdRegistry` gives `t000001`, `p000001`, `o000001` from natural keys
   (a DOI, a service record, an imported row) and remembers every key forever,
   so an id is never given twice and a new collection never renumbers
