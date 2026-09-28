@@ -213,7 +213,7 @@ def check_reference(full: bool) -> Result:
     sizes = ["S", "L"] if full else ["S"]
     parts, ok = [], True
     for size in sizes:
-        # The workspace run first: the run through a project is compared with it too.
+        # The engine on the demo workspace, then the same world built as a project.
         for via, label in (([], size), (["--via-project"], f"{size} via a project")):
             rc, tail = run(
                 [sys.executable, str(script), "--size", size, *via],

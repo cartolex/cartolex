@@ -147,10 +147,11 @@ answered by the same fake model through the injectable client, and reads the
 same files where the build put them. What the workspace run checks by calling a
 stage twice, the stages record in their counts (the roster written again is
 identical, the applied document is what the stage returned); the triage runs a
-second time by forcing it. The result is compared with the stored reference,
-and with the workspace run of the same tree in `.cache/reference/runs/<name>`:
-every artifact must be identical. The check runner runs both, the workspace run
-first.
+second time by forcing it. The result is compared with the stored baseline,
+where every artifact must be identical (no tolerance: a project build computes
+exactly what the engine computes on a workspace), and with the stored
+reference through the ledger, as the workspace run is. The check runner runs
+both modes.
 
 To compare two runs directly:
 
