@@ -167,14 +167,14 @@ def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
     ys = [p["y"] for p in people if p["y"] is not None] + [
         k["y"] for k in keywords if k["y"] is not None
     ]
-    from cartolex.project.maps import pinned, read_maps
+    from cartolex.build.records import read_record
 
-    maps, _ = read_maps(layout)
-    version = pinned(maps)
+    record = read_record(layout, "map.layout")
+    drawn = record.measures.counts.get("version") if record else None
     return {
         "format": FORMAT,
         "lineage": runs,
-        "map_version": version.id if version else None,
+        "map_version": f"v{drawn}" if drawn else None,  # the version the map was drawn with
         "people": people,
         "keywords": keywords,
         "themes": themes,
