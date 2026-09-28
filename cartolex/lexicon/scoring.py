@@ -32,6 +32,9 @@ corpus (:class:`TextUnit`: a person's text, its organisation and its parts).
                 known)
    ===========  =====================================================
 
+   Only the ``kept`` and ``check`` bands (:data:`LEXICON_BANDS`) can reach the
+   lexicon; the ``aside`` band stays in the raw tables with its reason.
+
 The scores reproduce the historical scoring: people, raw frequency, equal
 parts, α = 2. The other choices are switches of the lexicon lab
 (``tools/lexicon_lab``, ``docs/dev/lexicon-lab.md``), which set the defaults.
@@ -56,6 +59,7 @@ from .text_utils import length_bonus, tokenize
 __all__ = [
     "BANDS",
     "COUNTING_UNITS",
+    "LEXICON_BANDS",
     "RAW_COLUMNS",
     "VOTES",
     "BandRules",
@@ -72,6 +76,10 @@ COUNTING_UNITS = ("person", "text", "organisation")
 VOTES = ("frequency", "presence", "sublinear")
 #: The three bands, in display order.
 BANDS = ("kept", "check", "aside")
+#: The bands that can reach the lexicon: the AI clean-up judges them, and the
+#: consolidation keeps nothing of the others (the set-aside band) unless a
+#: person keeps it explicitly.
+LEXICON_BANDS = ("kept", "check")
 #: Columns of a raw keyword table (``raw_keywords_<lang>.csv``).
 RAW_COLUMNS = ["term", "score", "len", "score_len", "forms", "people", "texts", "band", "reason"]
 #: Separator of the surface forms in the ``forms`` column.

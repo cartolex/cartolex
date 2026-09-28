@@ -966,3 +966,9 @@ lexicon — kept and to check ok. » The recommendations are approved:
   the same thing;
 - no paid API use for now: the handoff is tested with a blind judge instead
   (`tools/lexicon_lab/handoff_bundles.py`, `score_handoff.py`).
+
+Decided later by the owner: without the AI clean-up too, the set-aside band
+does not reach the lexicon (the consolidation's band gate, `keywords.build`
+stage version 2); an explicit keep still wins. The lab's final lexicon
+already left that band out, and the lab always consolidates with a judge's
+answers, so none of its numbers move.

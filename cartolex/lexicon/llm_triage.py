@@ -24,6 +24,7 @@ import pandas as pd
 from .lexical_filters import is_malformed_term
 from .llm_filter import save_decisions
 from .mistral_client import load_api_key
+from .scoring import LEXICON_BANDS
 from .stopwords_config import packaged_lists
 from .text_utils import tokenize
 from .triage_typed import build_typed_prompt, load_typed_template, run_typed_triage
@@ -34,15 +35,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-#: The bands the AI clean-up judges: everything that can reach the lexicon.
-#: The set-aside band (fragments of a longer candidate) is never sent.
-JUDGED_BANDS = ("kept", "check")
-
 
 def _load_global_terms(
     path: Path,
     min_score: float = 0.0,
-    bands: tuple[str, ...] = JUDGED_BANDS,
+    bands: tuple[str, ...] = LEXICON_BANDS,
 ) -> tuple[list[str], pd.DataFrame]:
     """Load the term list of the merged candidate table, with a safety net.
 
@@ -54,6 +51,9 @@ def _load_global_terms(
     bands : tuple of str
         Keep only the candidates of these bands (``band`` column of the
         extraction; a table without it, from an older run, is kept whole).
+        By default the bands that can reach the lexicon
+        (:data:`~cartolex.lexicon.scoring.LEXICON_BANDS`): the set-aside band
+        (fragments of a longer candidate) is never sent.
 
     The safety net drops what is never a term whatever the extraction:
     blank cells, numbers and malformed strings (web addresses, encoding
