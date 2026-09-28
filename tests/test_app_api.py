@@ -78,7 +78,9 @@ def test_importing_a_list_proposes_a_mapping_then_adds_people(client):
     # the same list again adds nobody; a pasted list adds by names
     _, again = _import(client)
     assert again["added"] == 0 and again["already_known"] == 3
-    _, pasted = _import(client, "Seaholm, Cleo\nDune Marlow\n", name="pasted.txt", role="projected")
+    _, pasted = _import(
+        client, "Name\nSeaholm, Cleo\nDune Marlow\n", name="pasted.txt", role="projected"
+    )
     assert pasted["added"] == 1
     marlow = client.get("/api/people?q=marlow").json()["items"][0]
     assert (marlow["last_name"], marlow["first_name"]) == ("Marlow", "Dune")

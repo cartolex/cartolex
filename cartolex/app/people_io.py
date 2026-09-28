@@ -364,6 +364,8 @@ def parse_list(data: bytes | str) -> ParsedList:
         if len(body) > MAX_ROWS:
             warnings.append(f"only the first {MAX_ROWS} rows are read")
         return ParsedList(columns, [r[: len(columns)] for r in body[:MAX_ROWS]], "table", warnings)
+    if _guess(lines[0]) in ("name", "last_name"):  # a one-column list with its header
+        lines = lines[1:]
     if len(lines) > MAX_ROWS:
         warnings.append(f"only the first {MAX_ROWS} lines are read")
     return ParsedList(["name"], [[line.strip()] for line in lines[:MAX_ROWS]], "lines", warnings)
