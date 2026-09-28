@@ -210,6 +210,29 @@ class TextAnalysis:
             "lemmas": [list(x) for x in self.lemmas],
         }
 
+    def shared(self, table: dict) -> TextAnalysis:
+        """The same analysis, its strings and word units shared through *table*.
+
+        A corpus repeats the same words and units in thousands of texts: sharing
+        one object per distinct value (*table* maps a value to its first copy)
+        holds them once. The analysis is equal to this one.
+        """
+
+        def one(value: Any) -> Any:
+            return table.setdefault(value, value)
+
+        runs = tuple(
+            tuple(
+                one((one(u[0]), one(u[1])))
+                if len(u) == 2
+                else one((one(u[0]), one(u[1]), one(tuple(one(w) for w in u[2]))))
+                for u in run
+            )
+            for run in self.runs
+        )
+        lemmas = tuple(one((one(w), one(lem), n)) for w, lem, n in self.lemmas)
+        return TextAnalysis(runs, lemmas)
+
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> TextAnalysis:
         """The analysis recorded by :meth:`to_json`."""

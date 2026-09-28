@@ -64,8 +64,14 @@ class ParseCache:
     def _header(self) -> dict[str, str]:
         return {"format": FORMAT, "model": self.model, "patterns": self.patterns}
 
-    def read(self, wanted: Collection[str] | None = None) -> dict[str, TextAnalysis]:
-        """The cached analyses, by text key (only those in *wanted* when given)."""
+    def read(
+        self, wanted: Collection[str] | None = None, *, share: dict | None = None
+    ) -> dict[str, TextAnalysis]:
+        """The cached analyses, by text key (only those in *wanted* when given).
+
+        With *share*, each analysis is read in its shared form
+        (:meth:`TextAnalysis.shared`), through that table.
+        """
         out: dict[str, TextAnalysis] = {}
         if not self.dir.is_dir():
             return out
@@ -85,7 +91,8 @@ class ParseCache:
                         entry = json.loads(line)
                         key = entry["sha256"]
                         if (want is None or key in want) and key not in out:
-                            found[key] = TextAnalysis.from_json(entry)
+                            analysis = TextAnalysis.from_json(entry)
+                            found[key] = analysis if share is None else analysis.shared(share)
             except (OSError, ValueError, KeyError, TypeError, IndexError) as exc:
                 logger.warning("Parse cache: skipping unreadable %s (%s).", part, exc)
                 continue

@@ -87,7 +87,7 @@ class CountingParser:
     def __init__(self) -> None:
         self.calls: list[list[str]] = []
 
-    def __call__(self, lang, texts, *, n_jobs=1, progress=None):
+    def __call__(self, lang, texts, *, n_jobs=1, progress=None, share=None):
         self.calls.append(list(texts))
         return [analysis(t.split()[0].lower()) for t in texts]
 
@@ -142,3 +142,17 @@ def test_long_paragraphs_are_cut_at_line_or_sentence_ends() -> None:
     assert all(p.endswith(".") for p in pieces)
     assert " ".join(pieces) == text.strip()
     assert extract_raw.person_pieces("a b\n\n\n\nc d\n\n") == ["a b", "c d"]
+
+
+def test_a_shared_analysis_equals_the_analysis():
+    table: dict = {}
+    a = TextAnalysis.from_json(
+        {"runs": [[["deep", "A"], ["sea", "N", ["sea"]]]], "lemmas": [["sea", "sea", 2]]}
+    )
+    b = TextAnalysis.from_json(
+        {"runs": [[["deep", "A"], ["sea", "N", ["sea"]]]], "lemmas": [["sea", "sea", 2]]}
+    )
+    sa, sb = a.shared(table), b.shared(table)
+    assert sa == a and sb == b and sa.to_json() == a.to_json()
+    assert sa.runs[0][0] is sb.runs[0][0]  # one object per distinct unit
+    assert sa.lemmas[0] is sb.lemmas[0]
