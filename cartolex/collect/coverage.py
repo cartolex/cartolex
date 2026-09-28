@@ -151,10 +151,13 @@ def _load(project: Project) -> _Tables:
 def _works_count(project: Project) -> dict[str, tuple[int, int]]:
     """person id → (works of their author records in the index, works received in the window),
     from their latest harvest."""
+    from .digests import DigestCache
+
     out: dict[str, tuple[int, int]] = {}
+    digests = DigestCache(project.layout, write=False)
     for slot in (s.id for s in project.config.slots):
         latest: dict[str, str] = {}
-        runs = read_runs(project.layout, slot, "openalex")
+        runs = read_runs(project.layout, slot, "openalex", digests=digests)
         for run in runs:
             for pid in run.header.get("people") or {}:
                 latest[pid] = run.run_id

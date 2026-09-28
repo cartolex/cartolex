@@ -183,15 +183,29 @@ class RawWriter:
 
 @dataclass(frozen=True)
 class RawRun:
-    """One raw run file: its slot, kind, id, header, and its records (read on demand)."""
+    """One raw run file: its slot, kind, id, header, and its records (read on demand).
+
+    With a *digests* cache (:class:`cartolex.collect.digests.DigestCache`), the
+    records of a digested kind come from the run's digest.
+    """
 
     path: Path
     slot: str
     kind: str
     run_id: str
     header: dict[str, Any]
+    digests: Any = field(default=None, compare=False, repr=False)
 
     def records(self) -> Iterator[dict[str, Any]]:
+        if self.digests is not None:
+            from .digests import DIGESTERS
+
+            if self.kind in DIGESTERS:
+                return self.digests.records(self)
+        return self.raw_records()
+
+    def raw_records(self) -> Iterator[dict[str, Any]]:
+        """The records as the run holds them."""
         with open(self.path, encoding="utf-8") as fh:
             next(fh, None)
             for n, line in enumerate(fh, start=2):
@@ -203,8 +217,11 @@ class RawRun:
                     raise ValueError(f"{self.path}, line {n}: not valid JSON ({exc})") from exc
 
 
-def read_runs(layout: ProjectLayout, slot: str, kind: str | None = None) -> list[RawRun]:
-    """The runs of *slot* (of one *kind*, or all), in time order."""
+def read_runs(
+    layout: ProjectLayout, slot: str, kind: str | None = None, *, digests: Any = None
+) -> list[RawRun]:
+    """The runs of *slot* (of one *kind*, or all), in time order; with *digests*, the records
+    of digested kinds are read from their digests."""
     root = raw_folder(layout, slot)
     if not root.is_dir():
         return []
@@ -223,7 +240,7 @@ def read_runs(layout: ProjectLayout, slot: str, kind: str | None = None) -> list
                 raise ValueError(f"{path}: the header line is not valid JSON ({exc})") from exc
             if header.get("format") != RAW_FORMAT:
                 raise ValueError(f"{path}: not a raw run (format {header.get('format')!r})")
-            runs.append(RawRun(path, slot, k, path.stem, header))
+            runs.append(RawRun(path, slot, k, path.stem, header, digests))
     return sorted(runs, key=lambda r: (r.run_id, r.kind))
 
 
@@ -786,6 +803,8 @@ class RebuildReport:
     skipped_kinds: list[str] = field(default_factory=list)
     #: Texts merged across finders, per rule (see ``sources/merges.json``).
     merges: dict[str, int] = field(default_factory=dict)
+    #: Runs read whole and digested by this rebuild (the others were read from their digests).
+    digested: int = 0
 
 
 def rebuild_sources(
@@ -794,6 +813,8 @@ def rebuild_sources(
     *,
     readers: Mapping[str, Reader] | None = None,
     finder_priority: Sequence[str] | None = None,
+    incremental: bool = True,
+    jobs: int | None = None,
 ) -> RebuildReport:
     """Rebuild the six source tables from every slot's raw runs and write them.
 
@@ -803,10 +824,18 @@ def rebuild_sources(
     (:mod:`cartolex.collect.merge`, fields filled by *finder_priority*) and the
     merges listed in ``sources/merges.json``. Rebuilding from the same raw
     records and the same kept rows writes the same bytes.
+
+    With *incremental* (the default), a harvest's runs are read from their
+    digests in ``cache/sources/`` (:mod:`cartolex.collect.digests`): only the
+    runs not digested yet are read whole, in *jobs* worker processes when they
+    are many, and a run superseded for everyone it names is not read at all.
     """
+    from .digests import DIGESTERS, DigestCache
+    from .harvest import current_runs
     from .merge import FINDER_PRIORITY, merge_texts, write_merge_log
 
     readers = dict(readers or default_readers())
+    digests = DigestCache(layout, jobs=jobs) if incremental else None
     slots = [s.id for s in config.slots]
     registry = IdRegistry(layout, slots)
     existing = {
@@ -817,8 +846,19 @@ def rebuild_sources(
     builder = SourceBuilder(layout, config, registry, existing)
     report = RebuildReport()
     order = list(readers)
+    every_run: list[RawRun] = []
+    by_slot = {slot: read_runs(layout, slot, digests=digests) for slot in slots}
+    if digests is not None:
+        needed = []
+        for runs in by_slot.values():
+            every_run += runs
+            for kind in DIGESTERS:
+                of_kind = [r for r in runs if r.kind == kind]
+                current = current_runs(of_kind)
+                needed += [r for r in of_kind if r.run_id in current]
+        digests.prepare(needed)
     for slot in slots:
-        runs = read_runs(layout, slot)
+        runs = by_slot[slot]
         report.runs += len(runs)
         kinds = sorted(
             {r.kind for r in runs},
@@ -837,6 +877,9 @@ def rebuild_sources(
         write_source_table(layout.table(name), name, table)
         report.rows[name] = table.num_rows
     write_merge_log(layout, merged)
+    if digests is not None:
+        digests.save(every_run)
+        report.digested = digests.digested
     report.counts = dict(builder.counts)
     report.warnings = list(builder.warnings)
     report.merges = merged.counts()

@@ -59,7 +59,14 @@ from .tables import (
 )
 from .text import DETECTED_LANGUAGES, abstract_from_inverted_index, detect_language, strip_markup
 
-__all__ = ["HarvestReport", "harvest", "read_openalex_runs", "read_orcid_runs"]
+__all__ = [
+    "HarvestReport",
+    "current_runs",
+    "harvest",
+    "read_openalex_runs",
+    "read_orcid_runs",
+    "work_text",
+]
 
 
 @dataclass
@@ -360,6 +367,15 @@ def _harvest_person(
 # ── readers ──────────────────────────────────────────────────────────────────
 
 
+def current_runs(runs: list[RawRun]) -> set[str]:
+    """The ids of the runs that are some person's latest (the others are superseded whole)."""
+    latest: dict[str, str] = {}
+    for run in runs:
+        for pid in run.header.get("people") or {}:
+            latest[pid] = run.run_id
+    return set(latest.values())
+
+
 def _current(runs: list[RawRun]) -> tuple[dict[str, dict], dict[str, list[tuple[RawRun, dict]]]]:
     """Each person's latest run's header entry, and the lines of those runs, by person."""
     latest: dict[str, str] = {}
@@ -465,27 +481,51 @@ def read_openalex_runs(runs: list[RawRun], builder: SourceBuilder) -> None:
                 builder.count("works read")
 
 
+def work_text(work: dict[str, Any]) -> dict[str, Any]:
+    """A work's title and abstract as a text holds them: markup stripped, the abstract rebuilt
+    from the inverted index, each part's language (the costly part of reading a harvest,
+    kept in the run's digest, :mod:`cartolex.collect.digests`)."""
+    title, title_format = strip_markup(work.get("title") or work.get("display_name") or "")
+    error = False
+    try:
+        raw_abstract = abstract_from_inverted_index(work.get("abstract_inverted_index"))
+    except ValueError:
+        error = True
+        raw_abstract = ""
+    abstract, abstract_format = strip_markup(raw_abstract)
+    lang_title, lang_abstract = (
+        _languages(title, abstract, work.get("language")) if title else ("und", "und")
+    )
+    return {
+        "title": title,
+        "title_format": title_format,
+        "abstract": abstract,
+        "abstract_format": abstract_format,
+        "abstract_error": error,
+        "lang_title": lang_title,
+        "lang_abstract": lang_abstract,
+    }
+
+
 def _text(builder: SourceBuilder, slot: str, pid: str, rec: dict[str, Any]) -> str | None:
     work = rec["record"]
     at = parse_time(rec["retrieved_at"])
-    title, title_format = strip_markup(work.get("title") or work.get("display_name") or "")
+    text = rec.get("text") or work_text(work)
+    title, title_format = text["title"], text["title_format"]
     wid = short_id(work.get("id"))
     if not title or not wid:
         builder.warnings.append(f"a work without a title or an id was left out ({wid})")
         return None
-    try:
-        raw_abstract = abstract_from_inverted_index(work.get("abstract_inverted_index"))
-    except ValueError:
+    if text["abstract_error"]:
         builder.warnings.append(f"{wid}: its abstract could not be rebuilt; left out")
-        raw_abstract = ""
-    abstract, abstract_format = strip_markup(raw_abstract)
+    abstract, abstract_format = text["abstract"], text["abstract_format"]
     doi = bare_doi(work.get("doi"))
     year = work.get("publication_year") if isinstance(work.get("publication_year"), int) else None
     keys = ([f"doi:{doi}"] if doi else []) + [
         f"openalex:{wid}",
         f"title:{pid}:{' '.join(words(title))}|{year}",
     ]
-    lang_title, lang_abstract = _languages(title, abstract, work.get("language"))
+    lang_title, lang_abstract = text["lang_title"], text["lang_abstract"]
     tid = builder.text(
         slot=slot,
         keys=keys,
