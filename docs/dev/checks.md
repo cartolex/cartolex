@@ -7,6 +7,7 @@ python tools/check.py            # everything
 python tools/check.py --quick    # lint, vocabulary, tests on one Python, small reference,
                                  # the browser checks without the slow ones
 python tools/check.py --full     # also the large reference comparison
+python tools/check.py --heavy    # also the heavy measures (memory-capped, an hour or more), before a release
 python tools/check.py --only tests --pythons 3.10,3.14
 ```
 

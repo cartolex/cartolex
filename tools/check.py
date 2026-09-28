@@ -271,7 +271,7 @@ def check_tests(pythons: list[str], jobs: int, heavy: str | None = None) -> Resu
     """pytest on every Python, at most *jobs* at a time; one summary per version.
 
     *heavy* names the Python that also runs the tests marked ``heavy`` (large
-    measures, memory-capped): the full check runs them once, the quick check never.
+    measures, memory-capped, an hour or more): only with ``--heavy``, before a release.
     """
     t0 = time.monotonic()
     pending = [(py, ensure_venv(py)) for py in pythons]
@@ -366,6 +366,11 @@ def main(argv: list[str] | None = None) -> int:
         "--quick", action="store_true", help="one Python, small reference, no slow browser test"
     )
     parser.add_argument("--full", action="store_true", help="also the large reference")
+    parser.add_argument(
+        "--heavy",
+        action="store_true",
+        help="also the tests marked heavy (large measures, memory-capped; an hour or more)",
+    )
     parser.add_argument("--pythons", help="comma-separated versions, e.g. 3.10,3.12")
     parser.add_argument("--only", nargs="+", choices=ALL_CHECKS, help="run only these checks")
     args = parser.parse_args(argv)
@@ -393,7 +398,7 @@ def main(argv: list[str] | None = None) -> int:
         elif name == "browser":
             results.append(check_browser(dev, args.quick))
         elif name == "tests":
-            heavy = None if args.quick else cfg.get("tests", {}).get("quick", "3.12")
+            heavy = cfg.get("tests", {}).get("quick", "3.12") if args.heavy else None
             results.append(check_tests(pythons, int(cfg.get("tests", {}).get("jobs", 2)), heavy))
         elif name == "reference":
             results.append(check_reference(args.full))
