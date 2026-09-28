@@ -54,9 +54,12 @@ def dense_rows(X: np.ndarray | sparse.spmatrix, rows: slice) -> np.ndarray:
 def as_csr(X: np.ndarray | sparse.spmatrix) -> sparse.csr_matrix:
     """*X* as a float64 CSR matrix with sorted column indices and no duplicate cells.
 
-    A dense matrix keeps only its non-zero cells. Raises ``ValueError`` when *X*
-    is not two-dimensional.
+    A dense matrix keeps only its non-zero cells; a matrix already in that form
+    is returned as it is (not copied). Raises ``ValueError`` when *X* is not
+    two-dimensional.
     """
+    if isinstance(X, sparse.csr_matrix) and X.dtype == np.float64 and X.has_canonical_format:
+        return X
     if sparse.issparse(X):
         M = sparse.csr_matrix(X, dtype=np.float64, copy=True)
     else:
