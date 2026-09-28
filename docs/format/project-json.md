@@ -83,6 +83,7 @@ hence the rows of every matrix. Slots are declared, never discovered.
 | `fit` | whether its texts build the lexicon and the map |
 | `trajectory` | whether its texts are used for changes over time |
 | `doc_types` | optional: only these document types are read |
+| `years` | optional: `{"from": 2015, "to": null}`, the window of publication years collections of this slot use by default, both ends inclusive, `null` for an open end; a collection given another window explicitly uses that one. Added within version 1 (an older reader ignores it) |
 
 ## Overlays
 

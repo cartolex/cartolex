@@ -2,8 +2,18 @@
   "$id": "https://cartolex.github.io/schemas/1/params.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
-  "description": "``decisions/params.json``: the parameters people set, and nothing else.",
+  "description": "``decisions/params.json``: the parameters people set, and nothing else.\n\n``collect`` (optional) holds the collection's parameters people set, by step\n(:data:`COLLECT_PARAMS`); it is left out of the file when empty.",
   "properties": {
+    "collect": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "type": "integer"
+        },
+        "type": "object"
+      },
+      "title": "Collect",
+      "type": "object"
+    },
     "format": {
       "const": "cartolex-params/1",
       "default": "cartolex-params/1",
