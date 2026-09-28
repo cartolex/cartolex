@@ -123,15 +123,20 @@ the comparison between variants.
 
 ## Results in brief
 
-The numbers below come from `--suite full` on this tree, after the default
-changes it led to (the first variant of each family is the default). Every
-table of the report is reproduced in this page; the report itself also has
-one detailed table per corpus and family.
+The numbers below come from `--suite full`, after the first default changes
+it led to (the first variant of each family is the default at that time). At
+gate G2 the owner approved the recommendations, putting quality first: the
+common-modifier rule is now off and the AI judges the kept and to-check
+bands. The tables were measured before that decision, with the
+common-modifier rule on; the *recommended* rows and the common-modifier
+table show the effect of turning it off. Every table of the report is
+reproduced in this page; the report itself also has one detailed table per
+corpus and family.
 
 | choice | options compared | recommendation | status |
 | --- | --- | --- | --- |
 | English `of` complement | on, off | **off** | default changed |
-| counting unit | person, text, organisation | **person** (People) | unchanged; whether to offer the three presets waits for the owner |
+| counting unit | person, text, organisation | **person** (People) | unchanged |
 | text vote | raw frequency, presence, 1 + ln n | **raw frequency** | unchanged; the others stay lab switches |
 | text-part weights | equal, body × 0.5, body × 0.25 | **equal** | unchanged; lab switch |
 | length bonus | α = 2, 1, 0 | **α = 2** | unchanged (the setting `length_bonus_alpha`) |
@@ -139,8 +144,8 @@ one detailed table per corpus and family.
 | band: part of a longer phrase | 90 %, 100 %, off | **100 %** (never seen outside it) | default changed |
 | band: low score | 0, 10 %, 20 % | **none** | default changed |
 | band: keep share | 100 %, 50 % | **100 %** (every multi-word phrase kept) | unchanged |
-| band: common modifiers | 20 %, off | **off** | waits for the owner |
-| what the AI judges | every candidate, kept and to check, to check only | **kept and to check** | waits for the owner (the triage still reads every candidate) |
+| band: common modifiers | 20 %, off | **off** | default changed at G2; lab switch |
+| what the AI judges | every candidate, kept and to check, to check only | **kept and to check** | decided at G2: the triage reads the kept and to-check bands only |
 
 With the recommended set, the three bands are: **kept**, a phrase of two
 words or more; **to check**, a single word; **set aside**, a phrase never
@@ -845,6 +850,57 @@ but needs a person to paste the bundle in parts and bring the answers back
 (`handoff.ReplayJudge` reads them). The harness is ready: a real judge only
 has to implement `handoff.Judge`.
 
+### The browser-handoff test
+
+```bash
+python tools/lexicon_lab/handoff_bundles.py --out ~/cartolex-work/handoff-test --suffix=-v2
+python tools/lexicon_lab/score_handoff.py ~/cartolex-work/handoff-test [--only tocheck-v2]
+```
+
+The first command writes a demo world (L, seed 0 by default) as a project,
+builds its `keywords.extract` stage with the default settings on every year
+of texts, and writes, in a folder outside the repository, the bundles a
+person would hand to a chat assistant: `tocheck/` (the to-check band, one
+bundle) and `kept-tocheck/` (the kept and to-check bands, cut into parts of
+at most `--max-tokens`, 45,000 by default, counted at three characters a
+token). Each part holds `prompt.txt` (the message to paste: the field, the
+triage codes, the answer format), `terms.txt` (the numbered terms with their
+evidence: people and texts, other spellings, the longer phrases they sit in;
+no band), `expected-answer.txt`, their zip, and `bundle.json` (the same items,
+to read the answer back). The candidates are those of the build: the
+engine's loader and scoring are run again on the built project and must
+equal its raw tables. The writer checks that no name or identifier of the
+world's people appears in the bundles, and the folder holds nothing of the
+world's truth; its `README.md` tells a person how to run one bundle in a
+chat assistant and where to save the answer (`answer.txt` next to the
+bundle). `--suffix` writes a new set of bundles (`tocheck-v2/`,
+`kept-tocheck-v2/`) beside the existing ones, which keep their answers; the
+writer never overwrites a folder that holds an answer. Each set records the
+build it comes from (`--project`), so that later sets, made after the
+defaults changed, are scored against their own candidates; each part records
+the version of the prompt (`handoff.PROMPT_VERSION`). Version 2 says that a
+phrase joining a process, a property or a measure to an object of the field
+(« X des Y » in French, a compound in English) is a keyword, and keeps F for
+broken pieces: with the first prompt, a blind judge rejected most French
+« X des Y » terms as fragments. Version 3 adds that a single everyday word is
+G unless it is a term of art, and that a French or Portuguese term takes as
+its English form the English term of the list that names the same thing.
+From version 3 the parts interleave the languages by rank (the best tenth of
+each language first, and so on), so that a term can meet its translation in
+its part; at size L, about a fifth of the French field terms whose English
+twin is a candidate find it in the same part.
+
+The second command scores every bundle present (or those named with
+`--only`). It reads every `answer*.txt` (`handoff.parse_answer`: the
+`<number> | <code> | <term> | <English form>` lines, checked against the
+repeated term; Markdown tables, tabs and the triage's line format also
+work), computes the truth in memory from the demo world, and reports, per
+bundle, for the answers, the oracle and a noisy oracle: how the answers were
+read, precision and recall of the accepted terms against the field terms,
+the final lexicon as the lab measures it, and the agreement of the English
+forms with the truth's. The report goes to
+`.cache/lexicon_lab/handoff-score.md`, never into the test folder.
+
 ## Time and memory
 
 | corpus | words | parsing, first run (s) | name recognition (s) | scoring, one variant (s) | whole corpus in the lab (s) |
@@ -882,26 +938,31 @@ on, name recognition dominate. The quick suite takes about 3 minutes.
    is gold about as often as any candidate (unchanged).
 7. **Three bands without a tuned share** — kept: a multi-word phrase; to
    check: a single word; set aside: a phrase never seen outside one longer
-   phrase (part-of at 100 % and no low-score rule applied; the
-   common-modifier rule dropped once the owner agrees).
+   phrase (applied; the common-modifier rule is off since G2).
 8. **The AI judges the kept and to-check bands** — left unjudged, the kept
    band is 41–56 % study settings and template phrasing on the demo worlds;
-   the set-aside band holds almost no gold (waits for the owner).
+   the set-aside band holds almost no gold (applied at G2).
 
 ## Choices recommended to drop
 
 These stay switches of `ScoringOptions` and `BandRules` for the lab, and
 never become settings: the `of` complement; presence and sublinear votes;
 text-part weights; name recognition; the low-score rule; a keep share below
-100 %; a part-of share below 100 %; the common-modifier rule (once the owner
-agrees).
+100 %; a part-of share below 100 %; the common-modifier rule.
 
-## Waiting for the owner
+## Decided at gate G2
 
-- whether to offer the three counting-unit presets, or only People;
-- the common-modifier rule (drop, as recommended, or keep);
-- what the AI judges (kept and to-check, as recommended; to-check only;
-  every candidate, as today), and whether the bands then decide what is
-  sent;
-- whether to run the real-model comparison (API against handoff), at the
-  cost above.
+The owner's words: « Quality first. Check everything that reaches the
+lexicon — kept and to check ok. » The recommendations are approved:
+
+- the common-modifier rule is off by default (a lab switch only);
+- the AI clean-up (`keywords.triage`, stage version 2) judges the kept and
+  to-check bands, never the set-aside band; the handoff bundles hold the same
+  two bands;
+- the engine's triage prompt follows the handoff prompt (version 3): F only
+  for broken pieces, a process, property or measure of an object is a
+  keyword, a single everyday word is G unless it is a term of art, and a term
+  of another language takes the English form of the English term that names
+  the same thing;
+- no paid API use for now: the handoff is tested with a blind judge instead
+  (`tools/lexicon_lab/handoff_bundles.py`, `score_handoff.py`).

@@ -23,32 +23,32 @@ reason = "The roster keeps only the attribute columns the corpus index has; the 
 reference = "S"
 stage = "extract"
 artifact = "terms_en"
-sha256 = "e85878162bf905ab3398cf67ef5c98b2902e9e1a672fc8eb52e1114e829ef885"
-step = "2a2"
-reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form; English phrases take no of complement) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the columns forms (every surface form of a candidate), people and texts (how many use it), band and reason, with the lexicon lab's band rules (step 2a2)."
+sha256 = "71b0381058b1a968fa783ea5706dddea7f7ba148d76d4c24be92bbf25196f661"
+step = "g2"
+reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form; English phrases take no of complement) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the columns forms (every surface form of a candidate), people and texts (how many use it), band and reason, with the lexicon lab's band rules, the common-modifier rule off (steps 2a2, g2)."
 
 [[difference]]
 reference = "S"
 stage = "extract"
 artifact = "terms_fr"
-sha256 = "c7c003943b1a1c1ec49ee736bea33b1c12cde8c48773a7cbe8c68bc27b04c72c"
-step = "2a2"
+sha256 = "e20748a45dfbaad0133245382590518f162b8cdf8f316bbb523c162a6295b0f0"
+step = "g2"
 reason = "Same change as terms_en; French terms with a word of one or two letters (trait de côte, masse d'eau) are now kept whole."
 
 [[difference]]
 reference = "S"
 stage = "extract"
 artifact = "terms_merged"
-sha256 = "b8ef737d7b3ece5fe4ff072cd332f9ee6a10f22cfac2b7ebad5452bd5cf00e2f"
-step = "2a2"
-reason = "The merged list of the new English and French candidates (see terms_en), with their band and reason (step 2a2)."
+sha256 = "2797ef59cb2dd607913812859453cfd3f2ad13b743132394820892aae60ceb33"
+step = "g2"
+reason = "The merged list of the new English and French candidates (see terms_en), with their band and reason (steps 2a2, g2)."
 
 [[difference]]
 reference = "S"
 stage = "triage"
 upstream = "extract"
 step = "2a1"
-reason = "The candidates sent to the model changed (see extract): other batches, other per-term cache entries and other decisions; the formats of the two caches' keys are unchanged."
+reason = "The candidates sent to the model changed (see extract), and only the kept and to-check bands are sent since gate G2: other batches, other per-term cache entries and other decisions; the formats of the two caches' keys are unchanged."
 
 [[difference]]
 reference = "S"
@@ -117,32 +117,32 @@ reason = "The bundle carries the new vocabulary, entity terms and taxonomy (see 
 reference = "L"
 stage = "extract"
 artifact = "terms_en"
-sha256 = "595d78063e2599ea1f86efc7dbf4024e164bc74b9ea8f2eab25e1db47a0c0a61"
-step = "2a2"
-reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form; English phrases take no of complement) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the columns forms (every surface form of a candidate), people and texts (how many use it), band and reason, with the lexicon lab's band rules (step 2a2)."
+sha256 = "61142d1dc9c37fbaef1dab445375a66efbc1bc9a1be2f432588c50d6ac417b1a"
+step = "g2"
+reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form; English phrases take no of complement) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the columns forms (every surface form of a candidate), people and texts (how many use it), band and reason, with the lexicon lab's band rules, the common-modifier rule off (steps 2a2, g2)."
 
 [[difference]]
 reference = "L"
 stage = "extract"
 artifact = "terms_fr"
-sha256 = "a6010b1279e0fe2a368c65e760d9854bc90bddd2d456d037d9c3b6b4c845f5e0"
-step = "2a2"
+sha256 = "b2915963749a6a455294d2d096de5b4fd5cdf0efd5632630dc6b2151efbe5926"
+step = "g2"
 reason = "Same change as terms_en; French terms with a word of one or two letters (trait de côte, masse d'eau) are now kept whole."
 
 [[difference]]
 reference = "L"
 stage = "extract"
 artifact = "terms_merged"
-sha256 = "91f60d144c3dc20b0b1cecbb3678f1f24db0ea77263c897634644abbdf960dea"
-step = "2a2"
-reason = "The merged list of the new English and French candidates (see terms_en), with their band and reason (step 2a2)."
+sha256 = "b6a15d9304fd44224e906d54168aa107cae280143d9559191e895ff909b190dc"
+step = "g2"
+reason = "The merged list of the new English and French candidates (see terms_en), with their band and reason (steps 2a2, g2)."
 
 [[difference]]
 reference = "L"
 stage = "triage"
 upstream = "extract"
 step = "2a1"
-reason = "The candidates sent to the model changed (see extract): other batches, other per-term cache entries and other decisions; the formats of the two caches' keys are unchanged."
+reason = "The candidates sent to the model changed (see extract), and only the kept and to-check bands are sent since gate G2: other batches, other per-term cache entries and other decisions; the formats of the two caches' keys are unchanged."
 
 [[difference]]
 reference = "L"

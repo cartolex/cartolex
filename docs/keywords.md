@@ -1,12 +1,11 @@
 # How keywords emerge
 
-```{admonition} Proposed
+```{admonition} Decided
 :class: note
 
-This page describes the defaults the lexicon lab recommends
-({doc}`dev/lexicon-lab`). They are proposed, not settled: the project's owner
-decides them at the next review. Where today's engine still differs, the
-page says so.
+This page describes the defaults the lexicon lab recommended
+({doc}`dev/lexicon-lab`) and the project's owner approved, quality first:
+everything that reaches the lexicon is checked.
 ```
 
 cartolex builds its keywords from the texts of the people it maps: nothing
@@ -77,31 +76,34 @@ and any candidate can be moved to another band by hand.
 - *single word*: one word alone (`erosion`, `plankton`) is often too general
   to be a keyword on its own, but not always.
 
+The kept terms are checked too when the AI clean-up runs: a phrase of
+several words is not always a keyword (`study area`, `recent decades`).
+
 **Set aside** — not used, but kept visible and restorable in one click.
 
 - *part of «…»*: the phrase is never seen outside the same longer phrase
   (`vector machine` is only ever part of `support vector machine`), so the
   longer phrase stands for it.
 
-Today's engine also sends to check a phrase whose edge adjective many people
-put everywhere (*common modifier*, such as `recent approach`); the lab
-recommends dropping that rule, and the owner decides.
-
 ## 5. What the AI sees
 
-The AI clean-up is optional. The lab recommends that it judge the **kept**
-and **to-check** candidates, and not those set aside: a phrase of several
-words is not always a keyword (`study area`, `recent decades`), and a phrase
-never seen outside a longer one adds nothing the longer one does not say.
-Today it receives every candidate.
+The AI clean-up is optional. It judges the **kept** and **to-check**
+candidates, never those set aside: a phrase never seen outside a longer one
+adds nothing the longer one does not say. When it runs, only the terms it
+accepts reach the lexicon.
 
 It sees the candidate phrases, in batches, with the title of the field and
 the short description the project's owner wrote — no text, and nothing about
 who uses a phrase. It answers, for each candidate, whether it names a
 concept, a method or an object of the field, or why it is not a keyword (a
-name, an administrative phrase, a word too general, a fragment), and gives
-its English form so that the languages meet on the map. Its answers are
-kept: the same candidate is never paid for twice.
+name, an administrative phrase, a word too general, a broken piece of a
+phrase), and gives its English form so that the languages meet on the map:
+`évolution du trait de côte` and `shoreline evolution` get the same English
+form, and become one keyword. A phrase that joins a process or a property to
+an object of the field (`sediment transport`, `régime alimentaire des
+amphipodes`) is a keyword; a single everyday word (`water`, `growth`) is
+not, unless the field uses it as a term of art. Its answers are kept: the
+same candidate is never paid for twice.
 
 A second route is being studied: instead of calling a paid service, export
 the candidates with their evidence — how many people and texts use each one,

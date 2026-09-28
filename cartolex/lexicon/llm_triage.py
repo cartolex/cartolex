@@ -2,7 +2,8 @@
 """Stage 2 (LLM): Mistral-powered keyword triage.
 
 This module:
-  1. Loads the hard-filtered global keyword list (``ctx.paths.global_terms_csv``)
+  1. Loads the hard-filtered global keyword list (``ctx.paths.global_terms_csv``):
+     the candidates of the kept and to-check bands, never the set-aside band
   2. Runs the typed single-pass Mistral triage (deterministic prefilter →
      one typed LLM classification pass → deterministic post-check), with the
      domain's title and the project owner's description of it as context.
@@ -33,10 +34,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+#: The bands the AI clean-up judges: everything that can reach the lexicon.
+#: The set-aside band (fragments of a longer candidate) is never sent.
+JUDGED_BANDS = ("kept", "check")
+
 
 def _load_global_terms(
     path: Path,
     min_score: float = 0.0,
+    bands: tuple[str, ...] = JUDGED_BANDS,
 ) -> tuple[list[str], pd.DataFrame]:
     """Load the term list of the merged candidate table, with a safety net.
 
@@ -45,6 +51,9 @@ def _load_global_terms(
     min_score : float
         Drop terms whose ``score_len`` is strictly below this value.
         Default 0.0 keeps everything.
+    bands : tuple of str
+        Keep only the candidates of these bands (``band`` column of the
+        extraction; a table without it, from an older run, is kept whole).
 
     The safety net drops what is never a term whatever the extraction:
     blank cells, numbers and malformed strings (web addresses, encoding
@@ -71,6 +80,16 @@ def _load_global_terms(
     df = df[df["term"].notna()].copy()
     df["term"] = df["term"].astype(str).str.strip()
     df = df[df["term"] != ""].copy()
+    if "band" in df.columns:
+        n_all = len(df)
+        df = df[df["band"].isin(bands)].copy()
+        if len(df) < n_all:
+            logger.info(
+                "Only the %s bands are judged: %d of %d candidates",
+                " and ".join(bands),
+                len(df),
+                n_all,
+            )
     n_raw = len(df)
 
     # Safety net: numbers and malformed strings are never terms.

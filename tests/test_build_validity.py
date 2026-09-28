@@ -331,16 +331,17 @@ def test_sizes_come_from_the_records_else_from_the_sources(env):
 def test_a_new_stage_version_needs_an_update(env):
     env.build()
     record = json.loads(env.layout.run_json("keywords.extract").read_text())
-    assert record["code"]["stage_version"] == 1
-    env.registry = env.registry.replace("keywords.extract", version=2)
+    before = env.registry["keywords.extract"].version
+    assert record["code"]["stage_version"] == before
+    env.registry = env.registry.replace("keywords.extract", version=before + 1)
     assert env.reasons("keywords.extract") == [
-        "cartolex changed how this stage works (version 1 → 2)"
+        f"cartolex changed how this stage works (version {before} → {before + 1})"
     ]
     assert env.reasons("keywords.build") == ["keywords.extract needs an update"]
     assert env.states()["corpus.assemble"] is OK
     env.build()
     assert set(env.states().values()) == {OK, SKIPPED}
     record = json.loads(env.layout.run_json("keywords.extract").read_text())
-    assert record["code"]["stage_version"] == 2
+    assert record["code"]["stage_version"] == before + 1
     with pytest.raises(ValueError, match="whole number"):
         env.registry.replace("keywords.extract", version=0)

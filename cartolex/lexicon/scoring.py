@@ -24,7 +24,8 @@ corpus (:class:`TextUnit`: a person's text, its organisation and its parts).
    ===========  =====================================================
    ``kept``     ``multiword``: a phrase of two content words or more
    ``check``    ``single-word``; ``common-modifier: <word>`` (its edge
-                adjective is used by many people); ``below-threshold``
+                adjective is used by many people; off by default);
+                ``below-threshold`` (off by default)
    ``aside``    ``part-of: <term>`` (never seen outside that longer
                 candidate); ``low-score`` (the least specific tail, off
                 by default); ``name: person|place`` (when names are
@@ -88,7 +89,8 @@ class BandRules:
     default). ``keep_share``: a multi-word phrase is kept only within the best
     ``keep_share`` of the candidates (1: every one, the default).
     ``generic_spread``: an edge adjective used by at least this share of
-    people makes a phrase common (to check). ``name_share``: a candidate this
+    people makes a phrase common (to check; off by default, a switch of the
+    lexicon lab). ``name_share``: a candidate this
     often inside a recognised name of a person or a place is set aside (only
     when names are known). The defaults are the lexicon lab's.
     """
@@ -96,7 +98,7 @@ class BandRules:
     fragment_share: float | None = 1.0
     drop_share: float = 0.0
     keep_share: float = 1.0
-    generic_spread: float | None = 0.2
+    generic_spread: float | None = None
     name_share: float = 0.5
 
 

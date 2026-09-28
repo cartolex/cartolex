@@ -159,6 +159,22 @@ nothing in the engine names a particular deployment, source or procedure.
   gold the rule lost), and a candidate is a fragment of a longer one only
   when it is never seen outside it. The other choices are lab switches, not
   settings.
+- **The owner's lexicon decisions (gate G2).** The common-modifier band rule
+  is off by default (a lab switch only): a phrase is kept, a single word is
+  to check, a fragment of a longer candidate is set aside
+  (`keywords.extract`, stage version 2). The AI clean-up judges the kept and
+  to-check bands and never sends the set-aside band (`keywords.triage`,
+  stage version 2); its prompt keeps F for broken pieces, accepts a process,
+  property or measure of an object of the field, treats a single everyday
+  word as too generic unless it is a term of art, and gives a term of
+  another language the canonical form of the reference-language term that
+  names the same thing. The AI caches' keys are unchanged.
+- **The browser-handoff test.** `tools/lexicon_lab/handoff_bundles.py` writes, from
+  a project build of a demo world, the bundles a person hands to a chat
+  assistant (a prompt, the numbered terms with their evidence, the answer
+  format, zipped; parts sized to fit one conversation), and
+  `tools/lexicon_lab/score_handoff.py` scores the answers against the
+  world's truth, beside the lab's oracle.
 - **Demo bodies.** `generate(..., bodies=True)` (`--bodies`) gives every work
   a long, repetitive body with generic filler (introduction, methods,
   results, discussion, captions) in its language, from a random stream of its

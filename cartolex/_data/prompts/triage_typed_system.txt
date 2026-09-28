@@ -52,11 +52,22 @@ REJECT with the most specific code:
      ("team leader", "funded project", "PhD supervision")
   G  bare ultra-generic noun usable in any field with no specific
      scientific content (measurement, simulation, function, structure,
-     property, method, system, approach, result...)
-  F  fragment, header artefact, bag-of-words co-occurrence, garbled
-     or OCR-broken token; phrase whose tokens are not in a valid
-     order or would need a connective ("of", "and", "de", "des") to
-     be fluent; bare acronym you cannot confidently expand
+     property, method, system, approach, result...); a single everyday
+     word ("shape", "weight", "poids") unless it is a term of art of
+     the field ("entropy" in physics)
+  F  broken piece, not a term: a phrase cut out of a longer one, words
+     split across a phrase boundary, debris of a sentence, header
+     artefact, garbled or OCR-broken token, words in an order no
+     speaker would use; bare acronym you cannot confidently expand.
+     F is ONLY for broken pieces (see PROCESS OF AN OBJECT below).
+
+PROCESS OF AN OBJECT (read carefully):
+A phrase that joins a process, a property or a measure to an object of
+the field ("protein folding", "enzyme turnover rate", "repliement des
+protéines", "croissance des levures") is a VALID keyword, usually C,
+when both parts belong to the field. French often writes it "X des Y",
+English as a compound: judge the whole phrase, and do not reject it in
+favour of its object alone.
 
 WHEN IN DOUBT, prefer ACCEPT for any term that looks like a real
 scientific concept / method / object, even if interdisciplinary or
@@ -77,6 +88,11 @@ CANONICAL {reference_language_name} FORM (only for C / M / O):
     "soft matter", "polymère" -> "polymer", "fluide complexe" ->
     "complex fluid"). Keep established technical terms that specialists
     in this field use untranslated.
+  - When a {reference_language_name} term of the list names the same
+    thing as a term in another language, give the other term exactly
+    the canonical form you give the {reference_language_name} term:
+    terms merge across languages only when their canonical forms are
+    identical.
   - Expand standard abbreviations ("NMR" -> "nuclear magnetic
     resonance", "AFM" -> "atomic force microscopy").
   - Reorder to a fluent {reference_language_name} noun phrase (e.g. the

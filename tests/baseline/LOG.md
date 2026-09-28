@@ -53,3 +53,16 @@ Each entry says when the stored baseline (`tests/baseline/`) was rewritten, why,
 - Reason: Points are placed on the finished map by their nearest mapped people instead of UMAP's transform (gate G2): each keyword, trajectory point and window, and projected person goes to the weighted mean of the heaviest linked group of its 8 nearest people in the SVD space (link radius a quarter of the map's radius). The people's own positions are unchanged; the layout's keyword positions and diagnostics, the trajectories and the projection move.
 - Engine: 1.0.0.dev0, source fingerprint `0461d2e57d55b3aa`
 - L: against the previous baseline, 12 stages: 9 identical, 3 different (layout, trajectories, projection)
+
+## 2026-09-28 — S, merge
+
+- Reason: The owner's lexicon decisions (gate G2): the common-modifier band rule is off, so phrases with a widespread edge adjective are kept instead of to check; the AI clean-up judges the kept and to-check bands only, never the set-aside band, with the third version of its prompt. The raw tables change in band and reason only; the triage sees fewer candidates, and every later stage follows.
+- Engine: 1.0.0.dev0, source fingerprint `a6b20ae5783613e1`
+- S: against the previous baseline, 12 stages: 1 identical, 6 within tolerance, 5 different (build, space, layout, trajectories, projection)
+- merge: against the previous baseline, 1 stage: 0 identical, 1 within tolerance
+
+## 2026-09-28 — L
+
+- Reason: The owner's lexicon decisions (gate G2): the common-modifier band rule is off, so phrases with a widespread edge adjective are kept instead of to check; the AI clean-up judges the kept and to-check bands only, never the set-aside band, with the third version of its prompt. The raw tables change in band and reason only; the triage sees fewer candidates, and every later stage follows.
+- Engine: 1.0.0.dev0, source fingerprint `a6b20ae5783613e1`
+- L: against the previous baseline, 12 stages: 1 identical, 6 within tolerance, 5 different (build, space, layout, trajectories, projection)

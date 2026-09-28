@@ -4,7 +4,7 @@
    "applied": {
     "file": "apply/applied.json.gz",
     "kind": "json",
-    "sha256": "f003a0cf8454f53bb79c6e5cbebe90d085c71f96c1bd1cbd15e9bb22dfb19635"
+    "sha256": "e3fc7309713c964c0cd37dcc0c342ae169c2b9207cba9c53a401ada3ba9dcb22"
    },
    "lexicon_weights": {
     "columns": [
@@ -29,8 +29,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 3072,
-    "sha256": "06a63938251b2d71e81008471cf4451f5a72ac4a2d471046f26cc11483113f50"
+    "rows": 3074,
+    "sha256": "00362239f266f1a229ec6ffa49619038d261ca654ad2e6612615c1c5850c9c38"
    },
    "person_weights": {
     "columns": [
@@ -50,8 +50,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 3086,
-    "sha256": "945c28b939eaeda27f887543d36a77c7395c0e2e81b97015501c4b9531ebc797"
+    "rows": 3075,
+    "sha256": "3f7b2d9336909864cdbac62ca6a4565eb1a8448358a61dd5e0f323e44c5b5118"
    },
    "returned_matches_file": {
     "file": "apply/returned_matches_file.json",
@@ -75,8 +75,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 5344,
-    "sha256": "1c402d755d2d481a19db2e87f0dff93ede73923db7c17a8e1e58f1b0a03eab55"
+    "rows": 5339,
+    "sha256": "092044196f4b0f5177bfed0484f6339d0e9d8f4cf62da5cc8a074e833dff1d55"
    },
    "domain_terms": {
     "columns": [
@@ -98,7 +98,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 200,
-    "sha256": "4194fecc2de4285937f37cce07611b945f1ff978fdb0e9d70f6e0c9ee9d7dd68"
+    "sha256": "e20a541edd7827866a34280bd4a4fd929c77f3d1bf52a2a7f0679de21b2bbf4e"
    },
    "group_terms": {
     "columns": [
@@ -123,7 +123,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 1500,
-    "sha256": "d9c7e9acdd147bb4df4c977a82ade1e2899d05bfcf59239da901ec0c60478e9a"
+    "sha256": "b14ef9ae033b411c49a74e023cb15821fe7379c2bc7c6a344f6c0ccd49b90900"
    },
    "pairs": {
     "columns": [
@@ -148,8 +148,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 4386,
-    "sha256": "b6de11dd8c39df878fce8ea7ae355e611fe1d506f8cb57bbb8786ecb084a59e0"
+    "rows": 4387,
+    "sha256": "d1eb01c7a640501a772a2fa8c45dfccabfb79875d1920fd1d1e55aa22eeb7358"
    },
    "person_terms": {
     "columns": [
@@ -176,7 +176,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 9637,
-    "sha256": "ab832f950e769e41e624ea9a7bcbe87e7e986ebb0d1453f509c9cdfd898b68a5"
+    "sha256": "3a3434789d492715a720ce63d7df7399b8ffc90a370e746f6427c588ec7dd150"
    },
    "refined": {
     "columns": [
@@ -200,18 +200,18 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 4386,
-    "sha256": "5d60fe4661c2dbb64b5d69cc83c1d37cd168bc08792960d1af889603e4826eae"
+    "rows": 4387,
+    "sha256": "48a00be1c735f7f2b71d02360111f223f9dfdc138316cad74e92010afa5c70f5"
    },
    "refined_en": {
     "kind": "hash",
     "of": "table",
-    "sha256": "01ed3bf2302059d8e2cf8878562874f619865ec2d7e363313f59237f78f90c97"
+    "sha256": "53a555af4b5dd8eb054f4c9061a32896554a3881c938eb051ec9bd40b4d2bab3"
    },
    "refined_fr": {
     "kind": "hash",
     "of": "table",
-    "sha256": "57168b7f8ddfa981c0f38274634c95961e8fdc2ab64baeae03a63ba28045bea5"
+    "sha256": "6ea06aaaffb9f718ff3811b17242d6d696c4eac34ed3a0c06c1de08aa0ec5776"
    },
    "settings": {
     "file": "build/settings.json",
@@ -233,8 +233,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 5344,
-    "sha256": "00718909ada6855e46bb0e3609aaf7879353f22828eda278445e140c4f649f19"
+    "rows": 5339,
+    "sha256": "bbe453a3613bce97a08b0a390ee277f789a6f1f2e8f56ec75f8c0a5b52b30826"
    }
   },
   "bundle": {
@@ -277,12 +277,12 @@
     "kind": "table",
     "ordered": false,
     "rows": 9637,
-    "sha256": "69ef36f38d57976a3b44376e61f6514dca219715d75d206e7569e3eb4acadd36"
+    "sha256": "e275eaec5ec26e6fc8a3cfea89d20f3a24a66db5657819f16567855c223978ae"
    },
    "meta": {
     "file": "bundle/meta.json",
     "kind": "json",
-    "sha256": "366aa0ac91078e156367e10ea2b078b0a5799c2b8130bc545183e0642e082627"
+    "sha256": "0d8579242cd221d25ac0b9d4c6c99435fcd17948e4695873a39441fa705103a9"
    },
    "round_trip": {
     "file": "bundle/round_trip.json",
@@ -292,7 +292,7 @@
    "taxonomy": {
     "file": "bundle/taxonomy.json.gz",
     "kind": "json",
-    "sha256": "9194fbfecd8bfad9f0cb35803aa3cca6511cbf21e8a70601c23c93488872f174"
+    "sha256": "c52394c77ff48d887f2aa8847d445e691f1c5ac63390f960b7bfcf9a67a9cb7e"
    },
    "vocabulary": {
     "columns": [
@@ -313,20 +313,20 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 3072,
-    "sha256": "1b10a482b90acb58dab030077ebcccdec5d2bc431e6ce54cfdfb019e3cbf6908"
+    "rows": 3074,
+    "sha256": "6147787a122cd001e819927fe5008b1b7604a726bce65a73e0f03a72d920ceda"
    },
    "zip": {
     "file": "bundle/zip.json",
     "kind": "json",
-    "sha256": "8672071544c396273635cb82fdea15215c6beda1155feaddd0c72cfbf88aec1c"
+    "sha256": "c160de22c0f4623ec11a09af37d3517f5226b491277f90bdc0a87bc827b1cb49"
    }
   },
   "draft": {
    "draft": {
     "file": "draft/draft.json.gz",
     "kind": "json",
-    "sha256": "2ee1c7537054107d411dffa0d71e08ead38259a6a2155f83da32ebf24200aa79"
+    "sha256": "5a3addb35de95927b9d37f4c55962ef875ed90e36c0151efec412511638f6149"
    }
   },
   "extract": {
@@ -360,7 +360,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 9260,
-    "sha256": "595d78063e2599ea1f86efc7dbf4024e164bc74b9ea8f2eab25e1db47a0c0a61"
+    "sha256": "61142d1dc9c37fbaef1dab445375a66efbc1bc9a1be2f432588c50d6ac417b1a"
    },
    "terms_fr": {
     "columns": [
@@ -392,7 +392,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 6042,
-    "sha256": "a6010b1279e0fe2a368c65e760d9854bc90bddd2d456d037d9c3b6b4c845f5e0"
+    "sha256": "b2915963749a6a455294d2d096de5b4fd5cdf0efd5632630dc6b2151efbe5926"
    },
    "terms_merged": {
     "columns": [
@@ -420,7 +420,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 15182,
-    "sha256": "91f60d144c3dc20b0b1cecbb3678f1f24db0ea77263c897634644abbdf960dea"
+    "sha256": "b6a15d9304fd44224e906d54168aa107cae280143d9559191e895ff909b190dc"
    }
   },
   "group": {
@@ -442,26 +442,26 @@
     "kind": "table",
     "ordered": false,
     "rows": 150,
-    "sha256": "7456801adf23b21d23a1ff8dbece8760f40101eeb3116298cd795920220ed671"
+    "sha256": "5894cf5e8336409bc0cc13373a4348249bd36e7bc4c5a3eaccab34ed2a42ee9e"
    },
    "proto_subfields": {
     "file": "group/proto_subfields.json",
     "kind": "json",
-    "sha256": "f7f2bcc6fbb6d62101e0dd979ca44ee58fac524303b775c0d1c705ef2ab6a890"
+    "sha256": "dfb3d36d53871e27b99f61c693f94596735ca9dd99e7ddf2017f994c4172411b"
    },
    "term_labels": {
-    "count": 3072,
+    "count": 3074,
     "file": "group/term_labels.json",
     "kind": "labels",
-    "sha256": "c3c52cea55d824c2f4214a9a181253215d749b168f739a0a88d5542ac10edf22"
+    "sha256": "dd98bc8994b704718d074a3854cb1f0f9c3cdead2999ee5cfafd4d51cc1527df"
    },
    "term_scores": {
     "file": "group/term_scores.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "a40eafdb56466af64a63c7b22e30a1c22304f6a1f20baae28370c3614d1c2140",
+    "sha256": "b2cd1f45dcf835694c377eb5b3847553fe894e6ff52e78784e6b2c6e03849e76",
     "shape": [
-     3072
+     3074
     ],
     "stored_dtype": "float64"
    }
@@ -470,12 +470,12 @@
    "clustered_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "2937ba8bdee787346e996f70342a53596600488f7f1220e0c9b28d578835b447"
+    "sha256": "4646be5a08b39d4c03a43b1d39905468a417d0620d3d3b39eaf8a2f5da1fa1c6"
    },
    "diagnostics": {
     "file": "layout/diagnostics.json",
     "kind": "json",
-    "sha256": "10c01b676556e343991b5d5be715cb5c8801d1a6dbc90d5286842c7a01e6764f"
+    "sha256": "a86ecdfe9183c72ffa1fca0d5438fc342e3c2f87afe9fec9b2bed3b6e89bf856"
    },
    "groups": {
     "columns": [
@@ -507,18 +507,18 @@
     "kind": "table",
     "ordered": true,
     "rows": 30,
-    "sha256": "9328baec73dcfbdbd7f8e1d33e204e27f2b949c47b94405f1a0c11bf36bed2d2"
+    "sha256": "47ddd3c62fb05ed868a0a55d6606dfdf1a2d256ad3eda399acae98b58b746008"
    },
    "person_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "b5441b592a936e4a832e44679ddc6e3762150ceaa73b05da8b8011df2337036d"
+    "sha256": "7bc647576393500cc081b70bfc88362c27d6b703b05e4dd0ec298bbe83f1ee8e"
    },
    "person_xy": {
     "file": "layout/person_xy.npy",
     "kind": "array",
     "role": "layout",
-    "sha256": "e46f06d2a038502d70e37a80bdb20b329c860d5f862b0e6be4a3ae99326052fc",
+    "sha256": "2da9c3cf7683a6de0cc1d2fe5d8d4f07df767dbce8b519dae8b830e2e54173ec",
     "shape": [
      343,
      2
@@ -528,15 +528,15 @@
    "term_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "1eb369ed59e476fefe6735808d8d111913ffee196a4b88892b345a8dce5e9b0a"
+    "sha256": "af31a22135a45a1aa0506b47791a4d1f72785f0c50c8c34e87a3709961059697"
    },
    "term_xy": {
     "file": "layout/term_xy.npy.gz",
     "kind": "array",
     "role": "layout",
-    "sha256": "66ed2bfe23602058f86c2dae3637cb71f2925d10225857de6d2138fca4cec263",
+    "sha256": "d40b436b272d815633094cb046441736b27a1f3c570d1aa7b9f50937d477e5cc",
     "shape": [
-     3072,
+     3074,
      2
     ],
     "stored_dtype": "float64"
@@ -547,7 +547,7 @@
     "file": "projection/applicants_coords.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "ba57ace137de0249981797e13694a8dfea30fbcfd8c2da63c0d5a70b27a4451f",
+    "sha256": "45e01bdcc3120a822092532b9bf5649a94962a8c7d3570d089337d21429f4ac4",
     "shape": [
      35,
      20
@@ -557,7 +557,7 @@
    "applicants_details": {
     "file": "projection/applicants_details.json.gz",
     "kind": "json",
-    "sha256": "29c2dbf885d4f96a03c1b7d5eea065d254693ad9689f6f20244853e1285286d3"
+    "sha256": "6f656a930ff3b1cd6d22e127d955274d065d9d011cd5594d8c889b5e6ed6de1c"
    },
    "applicants_items": {
     "count": 35,
@@ -569,7 +569,7 @@
     "file": "projection/applicants_xy.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "76019339f7c8a9a192b85f44cffd4db6c4c5351ef64a822223cd965c2ab2e242",
+    "sha256": "0708eb320f15a3a0d1de48ef19c6be8a889708702201703ebd2cec106e9905a4",
     "shape": [
      35,
      2
@@ -607,7 +607,7 @@
     "file": "space/explained_variance_ratio.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "ee4df716cd88cda7b3e41777ccad0938b94591617f4493a159c8f7bb69be7675",
+    "sha256": "05c3153ff530c5542c270d8a2275ce6ec803bc5608b091a6f508e10a6516134b",
     "shape": [
      20
     ],
@@ -634,13 +634,13 @@
     "kind": "table",
     "ordered": false,
     "rows": 9637,
-    "sha256": "98207090d9b1d05b164cc432eaa009c719ba19f33c1513ecf9989df363da84d8"
+    "sha256": "209514776205cc58fa0ee74bcd7f881927407f30acc71af0fc9cba4f874ce70c"
    },
    "person_coords": {
     "file": "space/person_coords.npy.gz",
     "kind": "array",
     "role": "embedding",
-    "sha256": "cc01f48f58c16ad9d29f6490951631af56dfbd597ba3bf621837f0c173c97834",
+    "sha256": "ea165479d8b1987c882cc794e1901c174f7e8f69eb53af87553c03a5abf48d61",
     "shape": [
      343,
      20
@@ -650,7 +650,7 @@
    "person_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "17f7d0cb9dc746c50a07cebdd669cd29ee3c4efd247310806484d4da16274808"
+    "sha256": "2aa25c67254dbfd8ef869b4e445d1be3bfca747ac9ddc47ee545e23edebb11cc"
    },
    "persons": {
     "count": 343,
@@ -662,7 +662,7 @@
     "file": "space/singular_values.npy",
     "kind": "array",
     "role": "spectrum",
-    "sha256": "71b327a9fc6e9f01e3ead9dd927468b8d50b17b88449b5add0bbc525ca46148d",
+    "sha256": "680af2fd6270aae332a1ee494c82e1f2b7cacd4ad71d126d7b630ce22247db7e",
     "shape": [
      20
     ],
@@ -672,9 +672,9 @@
     "file": "space/term_coords.npy.gz",
     "kind": "array",
     "role": "embedding",
-    "sha256": "c5aeda95ab9064a42ad731eb7821cf5e74002ed39f276684673d461ff95fd1de",
+    "sha256": "cde1095beb4ede0be398090fa188446571dfb67787c9f00479596cef53ceedb5",
     "shape": [
-     3072,
+     3074,
      20
     ],
     "stored_dtype": "float32"
@@ -682,13 +682,13 @@
    "term_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "c959d7aaf6d31a6efdc95bb939acfe91f3c8ebd6ad3292775a8c5489f4378013"
+    "sha256": "f0b0c5242b974cb6ca8fbbed5e1454afa1fb8940144d6d3dcb8c08daa5aacb67"
    },
    "terms": {
-    "count": 3072,
+    "count": 3074,
     "file": "space/terms.json.gz",
     "kind": "strings",
-    "sha256": "6e8816b117a04b43f344c621453f02fd3999a523f62a6583b8ce7d54cf439f50"
+    "sha256": "be64dc0b9b4e6311603f26cc2acefc467c7302257e0c6c64866b23dc5fedf6be"
    }
   },
   "trajectories": {
@@ -719,48 +719,48 @@
     "kind": "table",
     "ordered": false,
     "rows": 1253,
-    "sha256": "f77399dbb61d9b974bcc9acbcdd168d8e3a87918a98a5ccebb8fc3c3553e2eb8"
+    "sha256": "d2eb282be22bd40de2c2346f8eb8c054f18d1c7e8d2f62c21a746a05e6ecc495"
    },
    "windows": {
     "file": "trajectories/windows.json.gz",
     "kind": "json",
-    "sha256": "25a8033e75263652810dcb6429d3076b239809fa4bf7052fe08aa8adc1c5d0d2"
+    "sha256": "af43f70952eeb70af2e90da5da1b50a5ee71740ba100c0f960b7c60349c96529"
    }
   },
   "triage": {
    "batch_cache": {
     "file": "triage/batch_cache.json.gz",
     "kind": "json",
-    "sha256": "229f5b56d6cff849e2e7e51d79ac1a4b4cb7a3590432bc1b0ca3036ce3eef606"
+    "sha256": "719c91ce5709c2e4818c5fb08bef171152d4d4e2dad61d555e2570e0115819b6"
    },
    "calls": {
     "file": "triage/calls.json",
     "kind": "json",
-    "sha256": "6d796b92565164cd2540fac3920216f0176e9faa46345d9625ae6a60c754bb07"
+    "sha256": "955d93c5f7ec0068cf0c296df371cea84d7a1b06e8f61f7012ac735692435f64"
    },
    "decisions": {
     "file": "triage/decisions.json.gz",
     "kind": "json",
-    "sha256": "32831da4db3ea98d56dcfd1e0214b5f0d80e8f1a216572e9c5b8c22f967c12a3"
+    "sha256": "fbf58141c4bc37a12475039189aad9f748ba18605a46d2fa08eca2109ff814bc"
    },
    "term_cache": {
     "file": "triage/term_cache.json.gz",
     "kind": "json",
-    "sha256": "7d074478ee1a1f1637b590e6f3e95b1ce2dacaba7b1d361609e119e280d53711"
+    "sha256": "4b2439555281398c2fae6ac13d626d9559750fe6e2c180f34a883aee111a8db5"
    },
    "translations": {
     "file": "triage/translations.json.gz",
     "kind": "json",
-    "sha256": "7dded6f7362e4e6d2dd0054b3da198cf651aaa5c76892ca8af90124147e6eda8"
+    "sha256": "1ab23a2bd2b9c71c8847d271ed1da63ffa790afc064d3abea1a43094861cbc63"
    }
   }
  },
  "baseline": {
   "date": "2026-09-28",
-  "reason": "Points are placed on the finished map by their nearest mapped people instead of UMAP's transform (gate G2): each keyword, trajectory point and window, and projected person goes to the weighted mean of the heaviest linked group of its 8 nearest people in the SVD space (link radius a quarter of the map's radius). The people's own positions are unchanged; the layout's keyword positions and diagnostics, the trajectories and the projection move."
+  "reason": "The owner's lexicon decisions (gate G2): the common-modifier band rule is off, so phrases with a widespread edge adjective are kept instead of to check; the AI clean-up judges the kept and to-check bands only, never the set-aside band, with the third version of its prompt. The raw tables change in band and reason only; the triage sees fewer candidates, and every later stage follows."
  },
  "environment": {
-  "engine_fingerprint": "0461d2e57d55b3aad87c7a0a99cc8521f5025733f76621d4ec5fcc4b953588a0",
+  "engine_fingerprint": "a6b20ae5783613e196b3b5a647d88aded12885f3b6a598b6d7e8d006a3cbb47c",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {

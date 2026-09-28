@@ -64,8 +64,8 @@ FAMILIES: dict[str, list[Variant]] = {
         _v("names", "people and places set aside", names=True),
     ],
     "common modifiers": [
-        _v("common modifiers", "to check, 20 % (default)"),
-        _v("common modifiers", "off", bands=replace(BASE.bands, generic_spread=None)),
+        _v("common modifiers", "off (default)"),
+        _v("common modifiers", "to check, 20 %", bands=replace(BASE.bands, generic_spread=0.2)),
     ],
 }
 
@@ -82,13 +82,8 @@ def _band_label(r: BandRules) -> str:
 
 
 def recommended() -> Variant:
-    """The set the lab recommends (docs/dev/lexicon-lab.md): the defaults, common modifiers off.
-
-    The common-modifier rule waits for the owner's decision; everything else
-    the lab recommends is the default.
-    """
-    rules = replace(BASE.bands, generic_spread=None)
-    return Variant("recommended", "recommended set", replace(BASE, bands=rules))
+    """The set the lab recommends (docs/dev/lexicon-lab.md): the defaults, since gate G2."""
+    return Variant("recommended", "recommended set", BASE)
 
 
 _REC = recommended().options.bands
@@ -96,7 +91,7 @@ _REC = recommended().options.bands
 #: Operating points of the bands, around the recommended rules: every
 #: combination of the keep share, the low-score share and the part-of rule
 #: (every time, or off), then the part-of rule at 90 % and the common-modifier
-#: rule on.
+#: rule on (20 %).
 BAND_POINTS: list[BandRules] = [
     replace(_REC, keep_share=keep, drop_share=drop, fragment_share=fragments)
     for fragments in (_REC.fragment_share, None)
@@ -104,7 +99,7 @@ BAND_POINTS: list[BandRules] = [
     for drop in (0.0, 0.1, 0.2)
 ] + [
     replace(_REC, fragment_share=0.9),
-    replace(_REC, generic_spread=BASE.bands.generic_spread),
+    replace(_REC, generic_spread=0.2),
 ]
 
 
