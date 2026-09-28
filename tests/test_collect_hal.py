@@ -262,6 +262,11 @@ def test_a_name_candidate_is_confirmed_by_its_idhal_like_any_record(demo, tmp_pa
     confirm(project, person.person_id, [form["record"]])
     confirmed = next(p for p in people_refs(project.layout) if p.person_id == person.person_id)
     assert confirmed.idhal == (idhal,)
+    # The next rebuild writes it into the person's ids, as if the list had given it.
+    rebuild_sources(project.layout, project.config)
+    row = next(r for r in read_source_table(path, "people").to_pylist()
+               if r["person_id"] == person.person_id)  # fmt: skip
+    assert dict(row["ids"])["idhal"] == [idhal]
     found = collect_hal(client_for(demo, project), project.layout, SLOT, [confirmed], window=WINDOW)
     assert found.found[person.person_id] == len(_expected(demo, idhal))
     with pytest.raises(ValueError, match="hal:<idHAL>"):

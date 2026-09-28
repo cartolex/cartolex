@@ -85,7 +85,7 @@ published version is, so that a work counts once.
 | `person_id` | string | the key |
 | `last_name`, `first_name` | string | as the source gives them |
 | `orcid` | string, nullable | |
-| `ids` | map<string, list<string>> | other identifiers by scheme; a person may have several OpenAlex records |
+| `ids` | map<string, list<string>> | other identifiers by scheme; a person may have several OpenAlex records; an idHAL confirmed as a record in `people.csv` (`hal:<idHAL>`) joins `idhal` |
 | `source` | string | how the person entered: `import`, `collaborators`, `institution`, `folder` |
 | `columns` | map<string, string> | the extra columns of an imported list, kept as text; each becomes a filter, and a person attribute of the engine's index |
 | `aliases` | list<struct<last_name, first_name, source>> | every other name form a source gives for this person (marital name, name added by an institution, one half of a double surname, a transliteration); matching tries all of them |

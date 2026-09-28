@@ -333,8 +333,9 @@ author forms that match are only **proposed**: a `hal_candidates` run lists,
 per person, each form (its idHAL when HAL has one, its name, its deposits,
 structures and years, and `record`, `hal:<idHAL>` when it has one). No row is
 built from it; a form is confirmed like any record, `resolve.confirm(project,
-person, ["hal:<idHAL>"])`, and `people_refs` then reads the idHAL from the
-confirmed records of `decisions/people.csv` as from the people table. A SciELO
+person, ["hal:<idHAL>"])`: `people_refs` reads the idHAL from the confirmed
+records of `decisions/people.csv` at once, and the next rebuild writes it into
+the person's `ids` in the people table, where the next HAL collection finds it. A SciELO
 author proposed by name carries `orcid` and `record` (`orcid:…`) when the
 article shows an ORCID, confirmed the same way. `resolve.identity_queue(project)`
 lists the people whose identity waits with every finder's candidates, each with

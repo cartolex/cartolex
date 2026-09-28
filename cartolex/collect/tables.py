@@ -623,6 +623,22 @@ class SourceBuilder:
                     parents.append(pid)
             org.fields["parents"] = parents
 
+    def _confirmed_ids(self, people: dict[str, dict[str, Any]]) -> None:
+        """An idHAL confirmed as a person's record (``hal:<idHAL>`` in ``decisions/people.csv``)
+        joins their ``ids``, where the next HAL collection looks for it."""
+        if not self.layout.people_csv.exists():
+            return
+        for row in read_decision_csv(self.layout.people_csv, "people"):
+            person = people.get(row["person_id"])
+            if person is None or row["identity"] not in ("confirmed", "auto"):
+                continue
+            idhal = [r.split(":", 1)[1] for r in row["records"].split(";") if r.startswith("hal:")]
+            if not idhal:
+                continue
+            ids = dict(person["ids"] or {})
+            ids["idhal"] = sorted(set(ids.get("idhal") or []) | set(idhal))
+            person["ids"] = ids
+
     def _aliases(self, people: dict[str, dict[str, Any]]) -> None:
         """The name forms of rows merged into another join that person's aliases."""
         if not self.layout.people_csv.exists():
@@ -686,6 +702,7 @@ class SourceBuilder:
                     kept[name].append(row)
         people_all = {p["person_id"]: p for p in kept["people"] + built["people"]}
         self._aliases(people_all)
+        self._confirmed_ids(people_all)
         # Positions: a slot's texts in year order (unknown years last), then by id.
         texts = kept["texts"] + built["texts"]
         by_slot: dict[str, list[dict[str, Any]]] = {}
