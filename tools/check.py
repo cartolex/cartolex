@@ -132,7 +132,8 @@ def check_vocab(cfg: dict, dev: Path) -> Result:
     if rc == 0 and "skipped" in tail:
         return Result("vocab", "skip", tail, time.monotonic() - t0)
     # Invented names can collide with real ones by chance: scan the demo worlds that
-    # tests, the reference run and the docs use, exactly as they are generated.
+    # tests, the reference run and the docs use, exactly as they are generated, with every
+    # name their demo services invent (outside co-authors, homonyms, institutions).
     worlds = LOGS / "demo-worlds"
     shutil.rmtree(worlds, ignore_errors=True)
     for spec in vcfg.get("demo_worlds", []):
@@ -154,6 +155,7 @@ def check_vocab(cfg: dict, dev: Path) -> Result:
                 "--out",
                 str(worlds / name),
                 "--corpus",
+                "--layer",
             ],
             LOGS / f"demo-{name}.log",
         )

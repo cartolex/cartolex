@@ -12,12 +12,16 @@ What it holds:
 
 * **institutions** — one record per institution of the world, one lab-level
   record per group (whose parent is its institution; most groups' works never
-  cite it), and a few outside institutions;
+  cite it), and a few outside institutions; institution-level records carry a
+  ROR id whose check number is wrong (no real one can match), and one lab is a
+  **joint unit** with two parent institutions;
 * **author records** — one per person with works, except the people it misses;
   plus records for homonyms and for co-authors outside the cohort;
 * **index works** — the world's works the index covers (those whose sources
   include the index), with their authorships as the index states them, plus
-  works written by outside people;
+  works written by outside people: homonyms, the outside co-authors' own works
+  on other themes, and one **large collaboration** (30 authors, two of them
+  cohort people);
 * **the registry** — for people with an ORCID, the works and employments they
   declared;
 * **truth** — for each world person, the name an imported list shows and the
@@ -43,12 +47,12 @@ from __future__ import annotations
 import random
 import unicodedata
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from .. import names as nm
 from ..model import COHORT, DemoWorld, Person, Work
 from ..texts import MIN_TOPICS, TextPlan, compose
-from ..vocabulary import DRIVERS, METHODS, SETTINGS, THEMES
+from ..vocabulary import DRIVERS, METHODS, SETTINGS, THEME_BY_ID, THEMES, Theme
 
 __all__ = [
     "BIBLIO_VERSION",
@@ -77,6 +81,8 @@ P_DECLARED = 0.85
 P_EMPTY_REGISTRY = 0.2
 #: Share of works with co-authors from outside the cohort.
 P_OUTSIDE_COAUTHORS = 0.15
+#: Authors of the large collaboration (more than a co-author graph keeps by default).
+CONSORTIUM_AUTHORS = 30
 _OPENALEX_TYPES = {
     "article": ("article", "journal"),
     "proceedings": ("article", "conference"),
@@ -117,10 +123,18 @@ class Institution:
     site: str | None = None
     lat: float | None = None
     lon: float | None = None
+    #: Other parents, for a unit that belongs to several institutions.
+    also: tuple[str, ...] = ()
+    ror: str | None = None
+
+    @property
+    def parents(self) -> tuple[str, ...]:
+        """Every parent: the main one first."""
+        return ((self.parent,) if self.parent else ()) + self.also
 
     @property
     def lineage(self) -> tuple[str, ...]:
-        return (self.id, self.parent) if self.parent else (self.id,)
+        return (self.id, *self.parents)
 
 
 @dataclass(frozen=True)
@@ -237,6 +251,9 @@ class Bibliography:
     moved_year: int | None = None
     #: Works indexed per world work id (a world work may be indexed twice: the ``split`` copy).
     index_of: dict[str, list[str]] = field(default_factory=dict)
+    #: The lab-level record with two parents, and the large collaboration's work id.
+    joint_lab: str | None = None
+    consortium: str | None = None
 
     def record_ids(self, person_id: str) -> tuple[str, ...]:
         """The author records the index has for a world person (the mixed one included)."""
@@ -288,6 +305,19 @@ def _initial(first: str) -> str:
     return f"{first[0]}."
 
 
+_ROR_DIGITS = "0123456789abcdefghjkmnpqrstvwxyz"
+
+
+def _demo_ror(rng: random.Random) -> str:
+    """A ROR id in the demo block: ``0zz`` and four characters, with a wrong check number."""
+    body = "zz" + "".join(rng.choice(_ROR_DIGITS) for _ in range(4))
+    value = 0
+    for c in body:
+        value = value * 32 + _ROR_DIGITS.index(c)
+    check = 98 - (value * 100) % 97
+    return f"0{body}{(check + 1) % 100:02d}"
+
+
 def _accented(name: str) -> str:
     """The name with its first plain vowel accented (for a list that writes accents)."""
     swaps = {"e": "é", "a": "á", "o": "ó", "i": "í", "u": "ú"}
@@ -295,6 +325,51 @@ def _accented(name: str) -> str:
         if i > 0 and c in swaps:
             return name[:i] + swaps[c] + name[i + 1 :]
     return name + "é"
+
+
+def _invented_work(
+    rng: random.Random,
+    world: DemoWorld,
+    work_id: str,
+    theme: Theme,
+    doi: str,
+    authorships: tuple[Authorship, ...],
+    *,
+    year: int | None = None,
+) -> IndexWork:
+    """An English article outside the world, on *theme*, written from the same vocabulary."""
+    year = year if year is not None else rng.randint(2012, 2026)
+    settings = [s for s in SETTINGS if theme.kind == "natural" or s.social]
+    methods = [m for m in METHODS if m.kind in ("any", theme.kind)]
+    plan = TextPlan(
+        language="en",
+        kind=theme.kind,
+        year=year,
+        primary=theme,
+        primary_weights=tuple(1.0 for _ in theme.terms),
+        secondary=None,
+        secondary_weights=(),
+        methods=tuple(rng.sample(methods, 3)),
+        settings=tuple(rng.sample(settings, 3)),
+        drivers=DRIVERS,
+        all_methods=METHODS,
+        all_settings=SETTINGS,
+    )
+    title, abstract = compose(rng, plan)
+    return IndexWork(
+        id=work_id,
+        doi=doi,
+        title=title,
+        abstract=abstract,
+        year=year,
+        date=f"{year}-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}",
+        type="article",
+        source_type="journal",
+        venue=rng.choice(nm.VENUES_EN),
+        language="en",
+        themes=(theme.id,),
+        authorships=authorships,
+    )
 
 
 class _Ids:
@@ -357,6 +432,17 @@ def build_bibliography(world: DemoWorld, seed: int = 0) -> Bibliography:
     cohort_groups = [g.group_id for g in world.groups if not g.external]
     n_cited = max(1, round(CITED_LAB_SHARE * len(cohort_groups)))
     b.cited_labs = frozenset(rng.sample(cohort_groups, min(n_cited, len(cohort_groups) - 1)))
+    # Streams of their own: RORs on institution-level records, and one joint unit.
+    rng = _rng(world, seed, "ror")
+    for iid in sorted(i.id for i in b.institutions.values() if i.parent is None):
+        b.institutions[iid] = replace(b.institutions[iid], ror=_demo_ror(rng))
+    rng = _rng(world, seed, "joint")
+    tops = sorted(b.institution_of.values())
+    joint_group = rng.choice(sorted(b.cited_labs or cohort_groups))
+    lab = b.institutions[b.lab_of[joint_group]]
+    others = [i for i in tops if i != lab.parent] or [outside[-1]]
+    b.institutions[lab.id] = replace(lab, also=(rng.choice(others),))
+    b.joint_lab = lab.id
 
     # ── the special people ──
     rng = _rng(world, seed, "specials")
@@ -606,6 +692,85 @@ def build_bibliography(world: DemoWorld, seed: int = 0) -> Bibliography:
         n_other = max(4, len(indexed_of[pid]) // 2 + 2)
         outside_works(pid, record_of[pid], record_orcid[pid], outside[2], n_other)
 
+    # ── the outside co-authors' own works, and a large collaboration ──
+    rng = _rng(world, seed, "pool-works")
+    for aid, name, inst in pool:
+        if not record_works.get(aid):
+            continue
+        theme = rng.choice([t for t in THEMES if len(t.topics) >= MIN_TOPICS])
+        for _ in range(rng.randint(1, 3)):
+            doi_n += 1
+            work = _invented_work(
+                rng,
+                world,
+                ids.make("W"),
+                theme,
+                f"10.5555/cartolex-biblio.{world.size.lower()}.{doi_n}",
+                (Authorship(aid, name, None, (inst,), False, None),),
+            )
+            b.works[work.id] = work
+            record_works[aid].append(work.id)
+    rng = _rng(world, seed, "consortium")
+    members: list[Person] = []
+    for g in sorted(cohort_groups):
+        indexed_here = [
+            p
+            for p in cohort
+            if p.group == g
+            and p.person_id in record_of
+            and special_of.get(p.person_id) in (None, "compound", "diacritics", "moved")
+        ]
+        if len(indexed_here) >= 2:
+            members = rng.sample(sorted(indexed_here, key=lambda p: p.person_id), 2)
+            break
+    if members:
+        start = max(max(p.window[0] for p in members), 2016)
+        year = rng.randint(start, max(start, min(p.window[1] for p in members)))
+        authorships = [
+            Authorship(
+                record_of[p.person_id],
+                index_name[p.person_id],
+                record_orcid.get(p.person_id),
+                institutions_for(p, year),
+                False,
+                p.person_id,
+            )
+            for p in members
+        ]
+        while len(authorships) < CONSORTIUM_AUTHORS:
+            while True:
+                name = f"{rng.choice(nm.FIRST_NAMES)} {nm.invented_surname(rng)}"
+                if nm.slug(name) not in used:
+                    used.add(nm.slug(name))
+                    break
+            aid = ids.make("A")
+            authorships.append(Authorship(aid, name, None, (rng.choice(outside),), False, None))
+        order = authorships[2:]
+        rng.shuffle(order)
+        authorships = [
+            authorships[0],
+            *order[: len(order) // 2],
+            authorships[1],
+            *order[len(order) // 2 :],
+        ]
+        theme = THEME_BY_ID[next(iter(members[0].themes))]
+        doi_n += 1
+        work = _invented_work(
+            rng,
+            world,
+            ids.make("W"),
+            theme,
+            f"10.5555/cartolex-biblio.{world.size.lower()}.{doi_n}",
+            tuple(authorships),
+            year=year,
+        )
+        b.works[work.id] = work
+        b.consortium = work.id
+        for a in authorships:
+            record_works[a.author_id].append(work.id)
+            if a.person_id is None:
+                b.authors[a.author_id] = AuthorRecord(a.author_id, a.name, (), None, None, ())
+
     # ── author records ──
     for p in world.people:
         pid = p.person_id
@@ -633,6 +798,9 @@ def build_bibliography(world: DemoWorld, seed: int = 0) -> Bibliography:
     for aid, name, _inst in pool:
         if record_works.get(aid):
             b.authors[aid] = AuthorRecord(aid, name, (), None, None, tuple(record_works[aid]))
+    for aid, rec in list(b.authors.items()):
+        if rec.person_id is None and not rec.works:  # the large collaboration's outside authors
+            b.authors[aid] = replace(rec, works=tuple(record_works[aid]))
 
     # ── the registry ──
     rng = _rng(world, seed, "registry")

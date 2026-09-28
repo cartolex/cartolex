@@ -3,7 +3,8 @@
 
 Routes (under the service's prefix): ``authors`` (search, filters, paging) and
 ``authors/<id>``; ``works`` (filters, paging) and ``works/<id>``;
-``institutions`` (search, filters) and ``institutions/<id>``. Responses have
+``institutions`` (search, filters, among them ``lineage``: an institution and
+every unit below it) and ``institutions/<id>`` or ``institutions/ror:<ror>``. Responses have
 the documented shapes: a list is ``{"meta": {...}, "results": [...],
 "group_by": []}``, ``per_page`` is at most 100, ``cursor=*`` starts cursor
 paging and ``meta.next_cursor`` is ``null`` on the last page.
@@ -87,7 +88,7 @@ class OpenAlexService:
         return {
             "id": ROOT + inst.id,
             "display_name": inst.name,
-            "ror": None,
+            "ror": f"https://ror.org/{inst.ror}" if inst.ror else None,
             "country_code": None,
             "type": inst.type,
             "lineage": [ROOT + i for i in inst.lineage],
@@ -110,14 +111,21 @@ class OpenAlexService:
                 if inst.lat is not None
                 else None
             ),
-            associated_institutions=(
-                [dict(self._dehydrated(self.bib.institutions[inst.parent]), relationship="parent")]
-                if inst.parent
-                else []
-            ),
+            associated_institutions=[
+                dict(self._dehydrated(self.bib.institutions[p]), relationship="parent")
+                for p in inst.parents
+            ]
+            + [
+                dict(self._dehydrated(child), relationship="child")
+                for child in sorted(self.bib.institutions.values(), key=lambda i: i.id)
+                if inst.id in child.parents
+            ],
             works_count=self._inst_works.get(inst.id, 0),
             cited_by_count=0,
-            ids={"openalex": ROOT + inst.id},
+            ids={
+                "openalex": ROOT + inst.id,
+                **({"ror": f"https://ror.org/{inst.ror}"} if inst.ror else {}),
+            },
         )
         return out
 
@@ -327,6 +335,12 @@ class OpenAlexService:
                 )
             else:
                 found = self._works.get(_short(ident))
+        elif ident.lower().startswith("ror:"):
+            ror = ident[4:].strip().rsplit("/", 1)[-1].lower()
+            found = next(
+                (self._institutions[i.id] for i in self.bib.institutions.values() if i.ror == ror),
+                None,
+            )
         else:
             found = self._institutions.get(_short(ident))
         if found is None:
@@ -474,6 +488,13 @@ class OpenAlexService:
         if key == "authorships.institutions.id":
             wanted = {_short(v) for v in values}
             return lambda w: any(wanted & set(a.institutions) for a in w.authorships)
+        if key == "authorships.institutions.lineage":
+            wanted = {_short(v) for v in values}
+            return lambda w: any(
+                wanted & set(self.bib.institutions[i].lineage)
+                for a in w.authorships
+                for i in a.institutions
+            )
         raise _BadQuery(f"{key} is not a valid filter for works")
 
     def _institution_filter(self, key: str, value: str) -> Callable[[Institution], bool]:
@@ -484,7 +505,25 @@ class OpenAlexService:
         if key == "display_name.search":
             q = _words(value)
             return lambda i: set(q) <= set(_words(i.name))
+        if key == "lineage":
+            wanted = {_short(v) for v in values}
+            return lambda i: bool(wanted & set(self._ancestry(i)))
+        if key == "ror":
+            wanted = {v.rsplit("/", 1)[-1].lower() for v in values}
+            return lambda i: i.ror in wanted
+        if key == "type":
+            return lambda i: i.type in values
         raise _BadQuery(f"{key} is not a valid filter for institutions")
+
+    def _ancestry(self, inst: Institution) -> list[str]:
+        """The institution and every institution above it."""
+        out, todo = [], [inst.id]
+        while todo:
+            iid = todo.pop()
+            if iid not in out:
+                out.append(iid)
+                todo += list(self.bib.institutions[iid].parents)
+        return out
 
 
 def _parse_filters(text: str) -> Iterable[tuple[str, str]]:

@@ -196,7 +196,7 @@ exits after writing it.
 
 | service | routes served |
 | --- | --- |
-| OpenAlex | `authors` (search, filters `id`, `orcid`, `affiliations.institution.id`, `last_known_institutions.id`, `display_name.search`; page or cursor paging), `authors/<id>`, `works` (filters `author.id`, `doi` with up to 100 values, `publication_year`, `from_publication_date`, `to_publication_date`, `type`, `openalex`), `works/<id>`, `institutions` (search, filters), `institutions/<id>` |
+| OpenAlex | `authors` (search, filters `id`, `orcid`, `affiliations.institution.id`, `last_known_institutions.id`, `display_name.search`; page or cursor paging), `authors/<id>`, `works` (filters `author.id`, `doi` with up to 100 values, `publication_year`, `from_publication_date`, `to_publication_date`, `type`, `openalex`, `authorships.institutions.id`, `authorships.institutions.lineage`), `works/<id>`, `institutions` (search, filters `id`, `lineage` (an institution and every unit below it), `ror`, `type`, `display_name.search`), `institutions/<id>`, `institutions/ror:<ror>` |
 | ORCID | `v3.0/<orcid>/works`, `v3.0/<orcid>/record`; XML unless JSON is asked for; 404 for an unknown identifier |
 | HAL | `search/` (one clause on `authIdHal_s`, `authFullName_t`, `halId_s`, `doiId_s`, `arxivId_s` or `docid`; an `fq` range on `producedDateY_i`; `fl`; `rows` up to 10,000; `cursorMark` with `sort=docid asc`), `ref/structure/` (`q=docid:(…)`, parents in `parentDocid_i`), `files/<halId>/document` (a PDF) |
 | SciELO | `api/v1/article/identifiers/` (`collection`, `issn`, `from`, `until`, `offset`, `limit` up to 1,000), `api/v1/article/` (`code`, `collection`; JSON, or `format=xmlrsps`) |
@@ -214,11 +214,14 @@ accents kept, so the resolver's name variants are exercised as in real use.
 
 **The bibliographic layer** (`build_bibliography(world, seed)`) is derived from
 the world with random streams of its own; the world never changes. It holds
-institution records (one per institution, one lab-level record per group whose
-parent is its institution, a few outside ones), author records, index works
-(the world's works whose sources include the index, with their authorships as
-the index states them: institutions, ORCIDs, outside co-authors), outside
-works, the registry (declared works and employments) and the truth: for each
+institution records (one per institution, with a ROR id whose check number is
+wrong, one lab-level record per group whose parent is its institution, one of
+them a **joint unit** with a second parent, a few outside ones), author records,
+index works (the world's works whose sources include the index, with their
+authorships as the index states them: institutions, ORCIDs, outside
+co-authors), outside works (homonyms, the outside co-authors' own works on other
+themes, and a **large collaboration** of 30 authors, two of them cohort people),
+the registry (declared works and employments) and the truth: for each
 world person, the name an imported list shows and the records a careful person
 confirms. Eight cohort people carry the special cases: `homonym`, `trap` (a
 homonym whose record cites the person's own lab-level record), `split` (two
@@ -227,7 +230,16 @@ holding an outside homonym's works and the person's ORCID), `compound`,
 `diacritics`, `moved` (an earlier outside institution before a given year) and
 `none`. Identifiers stay in the demo blocks: `A999…`, `W999…`, `I999…`,
 `T999…`, `S999…` (numbers beyond those in use), ORCIDs in `0000-0000-…`, DOIs
-under `10.5555`.
+under `10.5555`, ROR ids `0zz…` with a wrong check number. `layer_strings(bib)`
+lists every name the layer invents; `python -m cartolex.demo create --layer`
+writes them for the vocabulary scan of `tools/check.py`.
+
+**The mini snapshot** (`write_snapshot(bib, folder)`, or `python -m cartolex.demo
+snapshot --size S --out DIR`) writes the works, authors and institutions the
+demo OpenAlex serves in the snapshot's layout (`data/jsonl/<entity>/updated_date=…/part_NNNN.gz`,
+manifests, the works' deletion log), record for record the API's JSON plus the
+fields the snapshot adds (`is_xpac`, `has_content`), over two update dates; a
+withdrawn work sits in the older partition and in the deletion log.
 
 **The sources layer** (`sources_layer(bibliography)`, built once per
 bibliography) says what the archive, the journal platform and the full-text

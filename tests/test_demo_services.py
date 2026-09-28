@@ -305,3 +305,112 @@ def test_faults_are_injected_as_asked(demo, kind) -> None:
             assert reply.json()["meta"]["next_cursor"] is None
     assert _get(demo, "openalex", "works", per_page=1, **params).status_code == 200
     assert len(demo.requests) == 2
+
+
+# ── units, several parents, outside works, the large collaboration, the snapshot ──
+
+
+def test_a_joint_unit_has_two_parents_and_institutions_have_a_demo_ror() -> None:
+    bib = build_bibliography(generate("XS", 0))
+    joint = bib.institutions[bib.joint_lab]
+    assert joint.parent and len(joint.parents) == 2 and joint.lineage == (joint.id, *joint.parents)
+    tops = [i for i in bib.institutions.values() if i.parent is None]
+    assert tops and all(i.ror and i.ror.startswith("0zz") and len(i.ror) == 9 for i in tops)
+    assert all(i.ror is None for i in bib.institutions.values() if i.parent)
+
+
+def test_outside_co_authors_write_on_other_themes_and_a_collaboration_has_thirty() -> None:
+    bib = build_bibliography(generate("S", 0))
+    big = bib.works[bib.consortium]
+    assert len(big.authorships) == 30 and big.doi.startswith("10.5555/")
+    inside = [a for a in big.authorships if a.person_id]
+    assert len(inside) == 2 and all(a.author_id in bib.authors for a in big.authorships)
+    own = [
+        w
+        for w in bib.works.values()
+        if w.world_work is None and len(w.authorships) == 1 and w.authorships[0].person_id is None
+    ]
+    outside_ids = {a.author_id for w in own for a in w.authorships}
+    joint = {
+        a.author_id
+        for w in bib.works.values()
+        if w.world_work
+        for a in w.authorships
+        if a.person_id is None
+    }
+    assert joint and joint <= outside_ids  # every outside co-author also has works of their own
+
+
+def test_institutions_by_ror_and_by_lineage(demo) -> None:
+    bib = demo.bibliography
+    joint = bib.institutions[bib.joint_lab]
+    second = joint.parents[1]
+    below = _get(demo, "openalex", "institutions", filter=f"lineage:{second}").json()
+    ids = {r["id"].rsplit("/", 1)[-1] for r in below["results"]}
+    assert {second, joint.id} <= ids
+    one = _get(demo, "openalex", f"institutions/{joint.id}").json()
+    parents = [a["id"].rsplit("/", 1)[-1] for a in one["associated_institutions"]
+               if a["relationship"] == "parent"]  # fmt: skip
+    assert parents == list(joint.parents)
+    top = bib.institutions[joint.parent]
+    by_ror = _get(demo, "openalex", f"institutions/ror:{top.ror}").json()
+    assert by_ror["id"].endswith(top.id) and by_ror["ror"] == f"https://ror.org/{top.ror}"
+    works = _get(
+        demo, "openalex", "works", filter=f"authorships.institutions.lineage:{top.id}", per_page=100
+    ).json()
+    cited = {
+        i["id"].rsplit("/", 1)[-1] for w in works["results"] for a in w["authorships"]
+        for i in a["institutions"]
+    }  # fmt: skip
+    assert works["meta"]["count"] > 0 and cited & ({top.id} | {joint.id})
+
+
+def test_the_mini_snapshot_holds_the_api_records(tmp_path) -> None:
+    import gzip
+    import json
+
+    from cartolex.demo.services import write_snapshot
+    from cartolex.demo.services.openalex import OpenAlexService
+
+    bib = build_bibliography(generate("XS", 0))
+    manifest = write_snapshot(bib, tmp_path / "snap", per_part=25)
+    service = OpenAlexService(bib)
+    seen: dict[str, dict] = {}
+    for entity in ("works", "authors", "institutions"):
+        folder = tmp_path / "snap" / "data" / "jsonl" / entity
+        parts = sorted(folder.glob("updated_date=*/part_*.gz"))
+        assert len({p.parent.name for p in parts}) == 2 and len(parts) >= 2
+        for path in parts:
+            for line in gzip.open(path, "rt", encoding="utf-8"):
+                record = json.loads(line)
+                seen[record["id"]] = record
+        entry = json.loads((folder / "manifest.json").read_text())
+        assert entry["entity"] == entity and entry["record_count"] == sum(
+            f["meta"]["record_count"] for f in entry["files"]
+        )
+    for wid, work in service._works.items():
+        got = dict(seen["https://openalex.org/" + wid])
+        assert got.pop("is_xpac") is False and "has_content" in got
+        got.pop("has_content")
+        assert got == work
+    deleted = gzip.open(tmp_path / "snap/data/jsonl/works/deleted_ids.csv.gz", "rt").read()
+    assert deleted.splitlines()[0] == "work_id,deleted_date"
+    gone = deleted.splitlines()[1].split(",")[0]
+    assert gone in seen and gone.rsplit("/", 1)[-1] not in service._works
+    assert manifest["meta"]["record_count"] == len(seen)
+    again = tmp_path / "again"
+    write_snapshot(bib, again, per_part=25)
+    first = sorted((p.relative_to(tmp_path / "snap"), p.read_bytes()) for p in
+                   (tmp_path / "snap").rglob("*") if p.is_file())  # fmt: skip
+    second = sorted((p.relative_to(again), p.read_bytes()) for p in again.rglob("*") if p.is_file())
+    assert first == second
+
+
+def test_the_layer_strings_are_written_for_the_vocabulary_scan(tmp_path, capsys) -> None:
+    out = tmp_path / "world"
+    assert demo_main(["create", "--size", "XS", "--out", str(out), "--layer"]) == 0
+    strings = (out / "layer" / "strings.txt").read_text(encoding="utf-8").splitlines()
+    bib = build_bibliography(generate("XS", 0))
+    big = bib.works[bib.consortium]
+    assert {a.name for a in big.authorships} <= set(strings)
+    assert bib.institutions[bib.joint_lab].name in strings
