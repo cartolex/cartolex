@@ -95,6 +95,26 @@ export function TreeView({
     };
   }, []);
 
+  // A row that goes away or moves under another parent (a keyword set aside, or moved to
+  // another node) hands the focus to the row now in its place: the keyboard carries on
+  // where it was, not where the row went.
+  const lastSeen = useRef({ index: -1, parent: undefined });
+  useLayoutEffect(() => {
+    const seen = lastSeen.current;
+    const gone = activeKey !== null && activeIndex < 0;
+    const moved = activeIndex >= 0 && seen.index >= 0 && seen.key === activeKey
+      && rows[activeIndex].parent !== seen.parent;
+    if ((gone || moved) && n && seen.index >= 0) {
+      const next = rows[Math.min(seen.index, n - 1)];
+      lastSeen.current = { index: Math.min(seen.index, n - 1), key: next.key, parent: next.parent };
+      onActiveChange(next.key);
+      return;
+    }
+    if (activeIndex >= 0) {
+      lastSeen.current = { index: activeIndex, key: activeKey, parent: rows[activeIndex].parent };
+    }
+  }, [rows, activeKey]);
+
   // Keep the active row in view when it changes from outside (a search, a click on the map).
   const lastActive = useRef(activeKey);
   useLayoutEffect(() => {

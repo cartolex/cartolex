@@ -61,8 +61,10 @@ def undo_label(ui) -> str:
 
 
 def wait_status(ui, pattern: str, timeout: float = 5000) -> None:
+    """Wait until the status says *pattern* and no dialog is open (the change is done)."""
     ui.page.wait_for_function(
-        "(p) => new RegExp(p).test(document.querySelector('.cx-themes__status').textContent)",
+        "(p) => new RegExp(p).test(document.querySelector('.cx-themes__status').textContent)"
+        " && !document.querySelector('dialog[open]')",
         arg=pattern,
         timeout=timeout,
     )
@@ -463,6 +465,136 @@ def test_ai_handoff_export_import_and_accept(editor):
     wait_status(ui, "proposal")
     proposals = api(ui, "GET", "/api/themes/handoff/proposals")["data"]["items"]
     assert len(proposals) == 1
+
+
+def test_every_action_by_the_keyboard_alone(editor):
+    """Rename, merge, move, set aside, attribution, split, create, delete, put back, a level,
+    undo, redo and save, with keys only (a focus() only starts the script)."""
+    ui = editor
+    page = ui.page
+    keys = page.keyboard
+    t = tree(ui)
+    tops = [n for n in t["nodes"] if n["parent"] is None]
+    topics = [n for n in t["nodes"] if n["parent"] == tops[0]["id"]]
+    count = iter(range(1, 100))
+
+    def changed() -> None:
+        n = next(count)
+        wait_status(ui, rf"^{n} unsaved change")
+
+    def menu(prefix: str) -> None:
+        keys.press("Shift+F10")
+        page.locator("[role=menu]").wait_for()
+        keys.type(prefix)
+        keys.press("Enter")
+
+    def closed() -> None:
+        page.wait_for_function("() => !document.querySelector('dialog[open]')")
+
+    def active_kind() -> str:
+        return page.evaluate(
+            "() => { const el = document.getElementById(document.activeElement"
+            ".getAttribute('aria-activedescendant')); return el ? (el.hasAttribute('aria-expanded')"
+            " ? 'node' : 'keyword') : 'none'; }"
+        )
+
+    outline(ui).focus()
+    keys.press("Home")
+    keys.press("F2")  # rename the first theme
+    dialog(ui).wait_for()
+    keys.press("Control+a")
+    keys.type("Keyboard theme")
+    keys.press("Enter")
+    closed()
+    changed()
+    keys.press("ArrowDown")  # its first topic: merge it into its sibling
+    menu("Mer")
+    dialog(ui).wait_for()
+    keys.type(name_of(topics[1]))
+    keys.press("Enter")
+    closed()
+    changed()
+    keys.press("Home")
+    keys.press("ArrowDown")
+    keys.press("ArrowRight")  # open the topic
+    keys.press("ArrowDown")
+    assert active_kind() == "keyword"
+    menu("Mo")  # move the keyword to another theme
+    dialog(ui).wait_for()
+    keys.type(name_of(tops[2]))
+    keys.press("Enter")
+    closed()
+    changed()
+    keys.press("Delete")  # set the next keyword aside
+    dialog(ui).wait_for()
+    keys.press("Enter")
+    closed()
+    changed()
+    assert active_kind() == "keyword"
+    menu("At")  # count the next one nowhere
+    dialog(ui).wait_for()
+    keys.press("ArrowDown")
+    keys.press("ArrowDown")
+    keys.press("Enter")
+    closed()
+    changed()
+    keys.press("ArrowUp")  # back to the topic: split two keywords off
+    while active_kind() != "node":
+        keys.press("ArrowUp")
+    menu("Sp")
+    dialog(ui).wait_for()
+    keys.type("Keyboard topic")
+    for _ in range(2):
+        while page.evaluate("() => document.activeElement.type") != "checkbox":
+            keys.press("Tab")
+        keys.press("Space")
+        keys.press("Tab")
+    while page.evaluate("() => document.activeElement.type") != "text":
+        keys.press("Shift+Tab")
+    keys.press("Enter")
+    closed()
+    changed()
+    menu("New")  # a node beside it, then delete it (it is empty); a space would choose
+    dialog(ui).wait_for()
+    keys.type("Empty for a moment")
+    keys.press("Enter")
+    closed()
+    changed()
+    page.wait_for_function(
+        "() => { const el = document.getElementById(document.activeElement"
+        ".getAttribute('aria-activedescendant')); return Boolean(el && el.textContent"
+        ".startsWith('Empty for a moment')); }"
+    )
+    keys.press("Delete")
+    changed()
+    for k in ("Shift+Tab", "Shift+Tab", "ArrowRight", "Tab", "Tab", "Home"):
+        keys.press(k)  # to the tabs, the « Set aside » tab, its list, its first keyword
+    keys.press("Shift+F10")  # « Put back » is the first item
+    page.locator("[role=menu]").wait_for()
+    keys.press("Enter")
+    changed()
+    page.locator(".cx-themes__toolbar").get_by_role("button", name="Levels").focus()
+    keys.press("Enter")  # a new level at the bottom
+    page.locator("[role=menu]").wait_for()
+    keys.type("Ins")
+    keys.press("Enter")
+    dialog(ui).wait_for()
+    keys.press("Enter")
+    closed()
+    changed()
+    assert tree_after(ui) is not None
+    keys.press("Control+z")
+    wait_status(ui, r"^9 unsaved change")
+    keys.press("Control+Shift+z")
+    wait_status(ui, r"^10 unsaved change")
+    keys.press("Control+s")
+    wait_status(ui, "^Saved")
+    saved = tree(ui)
+    assert saved["depth"] == 3
+    assert any(name_of(n) == "Keyboard theme" for n in saved["nodes"])
+    assert any(name_of(n) == "Keyboard topic" for n in saved["nodes"])
+    assert not any(name_of(n) == "Empty for a moment" for n in saved["nodes"])
+    assert 0 in saved["attribution"].values() and saved["set_aside"] == {}
 
 
 # ── accessibility, keyboard, languages ───────────────────────────────────────

@@ -104,7 +104,8 @@ export function Menu({ items, onSelect, onClose, anchor, labelledBy, label, focu
       const all = [...ref.current.querySelectorAll('[role^="menuitem"]:not([aria-disabled="true"])')];
       const start = all.indexOf(document.activeElement);
       const prefix = typed.current.text.toLocaleLowerCase();
-      for (let i = 1; i <= all.length; i += 1) {
+      // One letter goes to the next item starting with it; more letters refine the current one.
+      for (let i = prefix.length > 1 ? 0 : 1; i <= all.length; i += 1) {
         const el = all[(start + i) % all.length];
         if (el.textContent.trim().toLocaleLowerCase().startsWith(prefix)) {
           el.focus();
