@@ -99,19 +99,15 @@ writes each fitted object as two files side by side:
 | --- | --- | --- |
 | `vectorizer_json` | consolidation | a `TfidfVectorizer` from its parameters, vocabulary and IDF |
 | `lexical_data_json` | SVD | the matrices (CSR arrays), term and person lists and the person table (typed JSON columns) |
-| `embeddings_json` | SVD, then the layout | SVD and layout coordinates |
+| `embeddings_json` | SVD, then the layout | SVD and layout coordinates: the map |
 | `svd_model_json` | SVD | a `TruncatedSVD` with its fitted attributes |
-| `layout_model_json` | UMAP layout | a UMAP **re-fitted** from its stored inputs, parameters and seed, then checked against the stored map; or an anchored t-SNE rebuilt from its reference set and coordinates |
 
-The UMAP fit and its re-fit run the same calls in the same order on one BLAS
-thread (`reducers.UmapModel`), so the same libraries give the same model, bit
-for bit, and the same `transform`. When the re-fit does not reproduce the
-stored map exactly (other library versions, another machine), the model is
-still loaded: the stored coordinates remain the map, only points placed from
-then on use the re-fitted model, and a warning gives the largest displacement
-relative to the map's extent and what differs (`model.refit_deviation`).
-Re-running the layout stage rebuilds an exact model. Making the re-fit
-reproducible across machines is an open item.
+No layout model is stored. The layout fits the people (UMAP, or the anchored
+t-SNE preview), and every other point, the keywords at once and later projected
+documents and time bins, is placed on the map by its nearest people
+(`cartolex.atlas.placement`, see {doc}`placement`): the stored embeddings are the
+whole map, and `positioning.load_positioning_models` returns the map's anchors
+(`MapAnchors`: the people's vectors and positions) where it returned a model.
 
 A `.joblib` file of an earlier release is never read: asking for a model whose
 descriptor is absent while such a file is present raises `ModelFileError`,
