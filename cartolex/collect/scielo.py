@@ -250,6 +250,7 @@ def collect_scielo(
                     continue
                 for p in people:
                     if name_matches(p, given, surname):
+                        shown = _bare_orcid(orcid)
                         candidate = {
                             "type": "candidate",
                             "person_id": p.person_id,
@@ -258,6 +259,9 @@ def collect_scielo(
                             "rank": rank,
                             "title": work.title,
                             "year": work.year,
+                            # What confirms it, as for any finder (resolve.confirm).
+                            "orcid": shown,
+                            "record": f"orcid:{shown}" if shown else None,
                         }
                         proposals.append(candidate)
                         report.candidates.append(candidate)

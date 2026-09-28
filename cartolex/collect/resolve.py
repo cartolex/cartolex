@@ -13,6 +13,10 @@ The rules come from real use; each has a scenario test:
   (``records`` in ``decisions/people.csv``) and the harvest unites their works.
 * **« None » is a valid answer** (:func:`confirm_none`), and so is a pasted
   OpenAlex id, ORCID or URL holding one (:func:`confirm_pasted`).
+* **Every finder is confirmed alike**: a HAL author form is confirmed as
+  ``hal:<idHAL>``, a SciELO author as the ``orcid:`` the article shows, with the
+  same :func:`confirm`; :func:`identity_queue` lists every finder's candidates
+  of each person waiting, each with the record that confirms it.
 * **Automatic acceptance** only when a single candidate scores above the
   threshold and nothing contradicts it; it is recorded as ``identity = auto``
   and stays to be reviewed. Everything else waits (``pending``).
@@ -29,6 +33,7 @@ piece of evidence gave its score.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -63,6 +68,7 @@ __all__ = [
     "confirm",
     "confirm_none",
     "confirm_pasted",
+    "identity_queue",
     "parse_record",
     "resolve",
 ]
@@ -157,11 +163,18 @@ class ResolveReport:
 # ── confirmations ────────────────────────────────────────────────────────────
 
 
+_IDHAL = re.compile(r"^[a-z0-9][a-z0-9._-]{1,99}$", re.IGNORECASE)
+
+
 def parse_record(text: str) -> str | None:
-    """``openalex:A…`` or ``orcid:…`` from a record, an id, or a URL holding one."""
+    """``openalex:A…``, ``orcid:…`` or ``hal:<idHAL>`` from a record, an id, or a URL holding
+    one (an idHAL needs its ``hal:`` prefix: it is a free word)."""
     text = (text or "").strip()
     if not text:
         return None
+    if text.lower().startswith("hal:"):
+        idhal = text.split(":", 1)[1].strip()
+        return f"hal:{idhal}" if _IDHAL.match(idhal) else None
     if text.lower().startswith("openalex:"):
         found = normalise_openalex_author(text.split(":", 1)[1])
         return f"openalex:{found}" if found else None
@@ -180,7 +193,7 @@ def _records(records: Iterable[str]) -> list[str]:
     for text in records:
         parsed = parse_record(text)
         if parsed is None:
-            raise ValueError(f"{text!r} is not an OpenAlex author id or an ORCID")
+            raise ValueError(f"{text!r} is not an OpenAlex author id, an ORCID or hal:<idHAL>")
         if parsed not in out:
             out.append(parsed)
     return out
@@ -528,3 +541,88 @@ def resolve(
     if report.stopped and last_error is not None:
         raise last_error
     return report
+
+
+def identity_queue(project: Project) -> list[dict[str, Any]]:
+    """The people whose identity waits, each with every finder's candidates.
+
+    A candidate carries the ``record`` that :func:`confirm` takes: an OpenAlex
+    record from the resolution (with its score and evidence), a HAL author form
+    with its idHAL (``hal:<idHAL>``), a SciELO author whose article shows an
+    ORCID (``orcid:…``). Proposals without such a record (a HAL form without an
+    idHAL, a SciELO name without an ORCID) are listed without one: they can only
+    be seen, not confirmed. The latest run of each finder counts.
+    """
+    from .tables import read_runs
+
+    rows = read_source_table(project.layout.table("people"), "people").to_pylist()
+    decisions = read_people(project.layout)
+    waiting = {
+        r["person_id"]: r
+        for r in rows
+        if decisions.get(r["person_id"], {}).get("identity", "") in ("", "pending")
+        and not decisions.get(r["person_id"], {}).get("merged_into")
+        and decisions.get(r["person_id"], {}).get("role") != "excluded"
+    }
+    found: dict[str, dict[str, list[dict[str, Any]]]] = {pid: {} for pid in waiting}
+    for slot in (s.id for s in project.config.slots):
+        for kind in ("resolve", "hal_candidates", "scielo_candidates"):
+            for run in read_runs(project.layout, slot, kind):
+                latest: dict[str, list[dict[str, Any]]] = {}
+                for rec in run.records():
+                    pid = rec.get("person_id")
+                    if pid not in waiting:
+                        continue
+                    latest.setdefault(pid, []).extend(_queue_entries(kind, rec))
+                for pid, entries in latest.items():
+                    found[pid][kind] = entries  # a later run replaces an earlier one
+    out = []
+    for pid in sorted(waiting):
+        row = waiting[pid]
+        cands = [c for kind in ("resolve", "hal_candidates", "scielo_candidates")
+                 for c in found[pid].get(kind, [])]  # fmt: skip
+        out.append(
+            {
+                "person_id": pid,
+                "name": f"{row['first_name'] or ''} {row['last_name']}".strip(),
+                "candidates": cands,
+            }
+        )
+    return out
+
+
+def _queue_entries(kind: str, rec: dict[str, Any]) -> list[dict[str, Any]]:
+    if kind == "resolve":
+        return [
+            {
+                "finder": "openalex",
+                "record": c["record"],
+                "name": c["name"],
+                "score": c["score"],
+                "evidence": c.get("evidence") or [],
+                "detail": f"{c['works']} works, {c['first_year']}–{c['last_year']}",
+            }
+            for c in rec.get("candidates") or []
+        ]
+    if kind == "hal_candidates":
+        return [
+            {
+                "finder": "hal",
+                "record": f"hal:{rec['idhal']}" if rec.get("idhal") else None,
+                "name": rec.get("full_name") or "",
+                "score": None,
+                "evidence": [],
+                "detail": f"{len(rec.get('works') or [])} deposit(s); "
+                + ", ".join((rec.get("structures") or [])[:3]),
+            }
+        ]
+    return [
+        {
+            "finder": "scielo",
+            "record": f"orcid:{rec['orcid']}" if rec.get("orcid") else None,
+            "name": rec.get("name") or "",
+            "score": None,
+            "evidence": [],
+            "detail": f"{rec.get('title') or ''} ({rec.get('year')})",
+        }
+    ]

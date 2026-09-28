@@ -331,8 +331,14 @@ row the job stops asking and keeps what it found.
 A person **without an idHAL** is searched by name (`authFullName_t`), and the
 author forms that match are only **proposed**: a `hal_candidates` run lists,
 per person, each form (its idHAL when HAL has one, its name, its deposits,
-structures and years). No row is built from it; confirming a form means giving
-the person that idHAL.
+structures and years, and `record`, `hal:<idHAL>` when it has one). No row is
+built from it; a form is confirmed like any record, `resolve.confirm(project,
+person, ["hal:<idHAL>"])`, and `people_refs` then reads the idHAL from the
+confirmed records of `decisions/people.csv` as from the people table. A SciELO
+author proposed by name carries `orcid` and `record` (`orcid:…`) when the
+article shows an ORCID, confirmed the same way. `resolve.identity_queue(project)`
+lists the people whose identity waits with every finder's candidates, each with
+the record that confirms it (the resolution's with their score and evidence).
 
 `read_hal_runs` builds a text per deposit (key `hal:<halId>`, source `hal`):
 the document type (`ART` article, `COMM` and `POSTER` communication, `OUV`

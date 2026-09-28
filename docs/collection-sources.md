@@ -16,9 +16,12 @@ you, and what it sends.
 | HAL | their **idHAL** (a column of the people list) | proposes the author forms HAL has, with their idHAL when there is one |
 | SciELO | their **ORCID**, when the journal printed it on the article | proposes the articles where the name appears |
 
-A name never adds a text by itself: a proposal waits for you to confirm it
-(give the person the idHAL, or the ORCID). Both services are read over the
-project's window of years. SciELO cannot be searched by author: give it the
+A name never adds a text by itself: a proposal waits for you to confirm it,
+the same way as an OpenAlex record: a HAL author form by its idHAL, a SciELO
+author by the ORCID the article shows
+(`cartolex collect confirm my-project p000007 hal:ada-tavelin`, or
+`orcid:0000-…`). The waiting list shows every service's proposals side by side.
+Both services are read over the project's window of years. SciELO cannot be searched by author: give it the
 journals to read (their ISSNs), or it reads a whole collection, up to 5,000
 articles.
 

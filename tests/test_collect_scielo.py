@@ -221,3 +221,24 @@ def test_a_malformed_article_is_skipped(demo, tmp_path) -> None:
         service._json = original
     assert report.skipped["malformed record"] == 1
     assert _kept(project) == _expected(demo) - {broken}
+
+
+def test_a_name_candidate_is_confirmed_by_its_orcid_like_any_record(demo, tmp_path) -> None:
+    """A SciELO author proposed by name carries the ORCID the article shows: confirming it
+    with resolve.confirm, as an OpenAlex record, makes the next search find the person."""
+    from cartolex.collect.resolve import confirm, identity_queue
+
+    project = project_with_people(tmp_path / "p", demo.world, orcids=False)
+    report = _collect(demo, project)
+    with_orcid = [c for c in report.candidates if c["record"]]
+    assert with_orcid and all(c["record"] == f"orcid:{c['orcid']}" for c in with_orcid)
+    queue = {q["person_id"]: q for q in identity_queue(project)}
+    chosen = with_orcid[0]
+    offered = [c for c in queue[chosen["person_id"]]["candidates"] if c["finder"] == "scielo"]
+    assert chosen["record"] in {c["record"] for c in offered}
+    confirm(project, chosen["person_id"], [chosen["record"]])
+    ref = next(p for p in people_refs(project.layout) if p.person_id == chosen["person_id"])
+    assert ref.orcid == chosen["orcid"]
+    again = _collect(demo, project)
+    assert again.found.get(chosen["person_id"])
+    assert chosen["person_id"] not in {q["person_id"] for q in identity_queue(project)}

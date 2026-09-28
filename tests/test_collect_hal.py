@@ -230,3 +230,39 @@ def test_a_malformed_record_in_an_answer_is_skipped(demo, tmp_path) -> None:
         service._docs[broken] = saved
     assert report.skipped == {"malformed record": 1}
     assert _found(project, person.person_id) == expected - {broken}
+
+
+def test_a_name_candidate_is_confirmed_by_its_idhal_like_any_record(demo, tmp_path) -> None:
+    """A HAL author form proposed by name is confirmed as hal:<idHAL> with resolve.confirm,
+    the same way as an OpenAlex record; the next search finds the person's deposits."""
+    import pyarrow as pa
+
+    from cartolex.collect.resolve import confirm, identity_queue, parse_record
+    from cartolex.project.tables import SOURCE_SCHEMAS, write_source_table
+
+    project = project_with_people(tmp_path / "p", demo.world)
+    path = project.layout.table("people")
+    rows = read_source_table(path, "people").to_pylist()
+    target = next(r for r in rows if dict(r["ids"]).get("idhal"))
+    idhal = dict(target["ids"])["idhal"][0]
+    for r in rows:  # the list gave no idHAL
+        r["ids"] = []
+    schema = SOURCE_SCHEMAS["people"]
+    write_source_table(
+        path, "people", pa.table({f.name: [r[f.name] for r in rows] for f in schema}, schema=schema)
+    )
+    person = next(p for p in people_refs(project.layout) if p.person_id == target["person_id"])
+    assert not person.idhal
+    report = collect_hal(client_for(demo, project), project.layout, SLOT, [person], window=WINDOW)
+    assert report.works == 0
+    form = next(c for c in report.candidates if c["idhal"] == idhal)
+    assert form["record"] == f"hal:{idhal}" and parse_record(form["record"]) == form["record"]
+    (entry,) = [q for q in identity_queue(project) if q["person_id"] == person.person_id]
+    assert f"hal:{idhal}" in {c["record"] for c in entry["candidates"] if c["finder"] == "hal"}
+    confirm(project, person.person_id, [form["record"]])
+    confirmed = next(p for p in people_refs(project.layout) if p.person_id == person.person_id)
+    assert confirmed.idhal == (idhal,)
+    found = collect_hal(client_for(demo, project), project.layout, SLOT, [confirmed], window=WINDOW)
+    assert found.found[person.person_id] == len(_expected(demo, idhal))
+    with pytest.raises(ValueError, match="hal:<idHAL>"):
+        confirm(project, person.person_id, ["hal:"])

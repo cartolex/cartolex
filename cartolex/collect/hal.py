@@ -502,6 +502,8 @@ def _by_name(
                     key,
                     {
                         "idhal": form.idhal,
+                        # What confirms it, as for any finder (resolve.confirm).
+                        "record": f"hal:{form.idhal}" if form.idhal else None,
                         "full_name": form.full_name,
                         "works": [],
                         "structures": [],

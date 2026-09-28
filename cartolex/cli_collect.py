@@ -661,7 +661,9 @@ def add_parser(sub: Any) -> None:
     cf = verbs.add_parser("confirm", help="record which records are a person (or none)")
     cf.add_argument("folder", type=Path)
     cf.add_argument("person")
-    cf.add_argument("records", nargs="*", help="openalex:A…, orcid:…, an id or a URL holding one")
+    cf.add_argument(
+        "records", nargs="*", help="openalex:A…, orcid:…, hal:<idHAL>, an id or a URL holding one"
+    )
     cf.add_argument("--none", action="store_true", help="no record exists for this person")
     cf.set_defaults(run=_confirm)
 

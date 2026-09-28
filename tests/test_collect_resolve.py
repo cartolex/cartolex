@@ -281,3 +281,16 @@ def test_decided_people_are_left_alone(fresh, services) -> None:
     named = resolve(project, client(services, project), auto=True, people=[pid])
     assert [r.person_id for r in named.resolutions] == [pid]
     assert identities(project)[pid]["identity"] == "none"  # candidates shown, decision kept
+
+
+def test_the_identity_queue_lists_the_people_who_wait_with_their_candidates(resolved) -> None:
+    from cartolex.collect.resolve import identity_queue
+
+    project, bib, ids, report, by = resolved
+    waiting = {r.person_id for r in report.resolutions if r.status == "pending"}
+    queue = {q["person_id"]: q for q in identity_queue(project)}
+    assert set(queue) == waiting
+    trap = queue[by["trap"].person_id]
+    records = [c["record"] for c in trap["candidates"]]
+    assert records == _records(by["trap"])
+    assert all(c["finder"] == "openalex" and c["score"] is not None for c in trap["candidates"])
