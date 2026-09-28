@@ -1,0 +1,165 @@
+# SPDX-License-Identifier: MIT
+"""The state of one app: its settings, extensions, sessions, projects, jobs and services.
+
+:func:`cartolex.app.create_app` builds one :class:`Runtime` per app and keeps
+it in ``app.state.cartolex``; routes reach it through the request. Nothing is
+kept at module level, so two apps in one process share nothing.
+"""
+
+from __future__ import annotations
+
+import secrets
+import shutil
+import tempfile
+import threading
+from collections import OrderedDict
+from collections.abc import Callable
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from .auth import ANONYMOUS, LOCAL_USER, Principal, hosted_authorizer, local_authorizer
+from .jobs import LocalJobRunner
+from .projects import HostedProjects, LocalProjects, ProjectHost
+from .security import Session, SessionStore, same_secret
+
+if TYPE_CHECKING:
+    from fastapi import Request
+
+    from cartolex.build import Registry
+
+    from .auth import Authorizer
+    from .collection import CollectionService
+    from .extensions import Combined
+    from .jobs import JobRunner
+    from .settings import AppSettings
+    from .share import SiteBuilder
+
+__all__ = ["Cache", "Runtime"]
+
+
+class Cache:
+    """A small LRU cache of computed answers, keyed by what they were computed from."""
+
+    def __init__(self, size: int = 16) -> None:
+        self._items: OrderedDict[Any, Any] = OrderedDict()
+        self._size = size
+        self._lock = threading.Lock()
+
+    def get(self, key: Any, compute: Callable[[], Any]) -> Any:
+        with self._lock:
+            if key in self._items:
+                self._items.move_to_end(key)
+                return self._items[key]
+        value = compute()
+        with self._lock:
+            self._items[key] = value
+            self._items.move_to_end(key)
+            while len(self._items) > self._size:
+                self._items.popitem(last=False)
+        return value
+
+
+class Runtime:
+    """Everything one app holds while it runs."""
+
+    def __init__(self, settings: AppSettings, extensions: Combined) -> None:
+        from cartolex.build.engine import EngineOptions, engine_registry
+
+        from .collection import UnavailableCollection
+        from .share import StubSiteBuilder
+
+        self.settings = settings
+        self.extensions = extensions
+        #: This app instance: it names the cookies, so two apps never share a session.
+        self.instance = secrets.token_hex(4)
+        self.launch_token = settings.launch_token or secrets.token_urlsafe(32)
+        self._launch_used = False
+        self._launch_lock = threading.Lock()
+        self.sessions = SessionStore()
+        self.authorizer: Authorizer = settings.authorizer or (
+            hosted_authorizer if settings.hosted else local_authorizer
+        )
+        hooks = [e.on_project_open for e in extensions.extensions if e.on_project_open]
+        self.projects: ProjectHost = (
+            HostedProjects(settings.projects_root, hooks)  # type: ignore[arg-type]
+            if settings.hosted
+            else LocalProjects(settings.data_dir, hooks)
+        )
+        self.jobs: JobRunner = settings.job_runner or LocalJobRunner()
+        self.collection: CollectionService = settings.collection or UnavailableCollection()
+        self.site_builder: SiteBuilder = settings.site_builder or StubSiteBuilder()
+        base = settings.registry or engine_registry(
+            settings.ai_access,
+            EngineOptions(
+                prompt_dir=extensions.prompt_dir,
+                stopword_overlay=extensions.stopword_overlay or None,
+            ),
+        )
+        self.registry: Registry = extensions.registry(base)
+        self.atlas_cache = Cache(8)
+        self.table_cache = Cache(16)
+        self._upload_tmp: tempfile.TemporaryDirectory[str] | None = None
+        if settings.data_dir is not None:
+            self.upload_root = Path(settings.data_dir) / "uploads"
+        else:
+            self._upload_tmp = tempfile.TemporaryDirectory(prefix="cartolex-uploads-")
+            self.upload_root = Path(self._upload_tmp.name)
+
+    # ── cookies and sessions ──
+    @property
+    def session_cookie(self) -> str:
+        return f"cartolex_session_{self.instance}"
+
+    @property
+    def csrf_cookie(self) -> str:
+        return f"cartolex_csrf_{self.instance}"
+
+    def exchange(self, token: str | None) -> Session | None:
+        """Exchange the launch token for a session, once; ``None`` when it is wrong or used."""
+        with self._launch_lock:
+            if self._launch_used or not same_secret(token, self.launch_token):
+                return None
+            self._launch_used = True
+        return self.sessions.new(LOCAL_USER)
+
+    def session_of(self, request: Request) -> tuple[Session | None, Principal]:
+        """The request's session and principal (a host's sign-in opens a session when needed)."""
+        session = self.sessions.get(request.cookies.get(self.session_cookie))
+        if session is not None:
+            return session, session.principal
+        if self.settings.authenticate is not None:
+            principal = self.settings.authenticate(request)
+            if principal is not None and not principal.anonymous:
+                session = self.sessions.new(principal)
+                self.set_session_cookies(request, session)
+                return session, principal
+        return None, ANONYMOUS
+
+    def cookie_values(self, session: Session) -> list[str]:
+        from .security import cookie_header
+
+        secure = self.settings.secure_cookies
+        return [
+            cookie_header(self.session_cookie, session.id, http_only=True, secure=secure),
+            cookie_header(self.csrf_cookie, session.csrf, http_only=False, secure=secure),
+        ]
+
+    def set_session_cookies(self, request: Request, session: Session) -> None:
+        """Ask the security layer to set *session*'s cookies on the response."""
+        state = request.scope.setdefault("state", {})
+        state.setdefault("cartolex.cookies", []).extend(self.cookie_values(session))
+
+    # ── stopping ──
+    def shutdown(self) -> None:
+        self.jobs.shutdown()
+        self.projects.close_all()
+        if self._upload_tmp is not None:
+            self._upload_tmp.cleanup()
+
+    def uploads_of(self, project_id: str) -> Path:
+        folder = self.upload_root / project_id
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+    def drop_uploads(self, project_id: str, upload_id: str) -> None:
+        shutil.rmtree(self.upload_root / project_id / upload_id, ignore_errors=True)

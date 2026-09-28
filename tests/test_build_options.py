@@ -30,7 +30,11 @@ def test_the_host_overlay_and_prompts_reach_the_run_context(tmp_path):
     atomic_write_bytes(
         project.layout.stopwords_json,
         json_bytes(
-            {"format": "cartolex-stopwords/1", "add": {"en": ["mine"]}, "remove": {"en": ["shared"]}}
+            {
+                "format": "cartolex-stopwords/1",
+                "add": {"en": ["mine"]},
+                "remove": {"en": ["shared"]},
+            }
         ),
     )
     prompts = tmp_path / "prompts"

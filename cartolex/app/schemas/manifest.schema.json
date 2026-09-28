@@ -1,0 +1,327 @@
+{
+  "$defs": {
+    "Accent": {
+      "additionalProperties": false,
+      "description": "The accent of each theme, ``#rrggbb`` (4.5:1 against the theme's background).",
+      "properties": {
+        "dark": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dark"
+        },
+        "light": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Light"
+        }
+      },
+      "title": "Accent",
+      "type": "object"
+    },
+    "AppInfo": {
+      "additionalProperties": false,
+      "description": "The application: ``id`` and ``name`` (the host's brand, or cartolex), its version.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "version"
+      ],
+      "title": "AppInfo",
+      "type": "object"
+    },
+    "BrandingInfo": {
+      "additionalProperties": false,
+      "description": "The name and logo the interface shows, and the accent when a host sets one.",
+      "properties": {
+        "accent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Accent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "logo": {
+          "title": "Logo",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "logo"
+      ],
+      "title": "BrandingInfo",
+      "type": "object"
+    },
+    "Capabilities": {
+      "additionalProperties": true,
+      "description": "What this app can do; extensions add flags of their own (extra keys).",
+      "properties": {
+        "ai_api": {
+          "description": "the AI clean-up by API (a key was given)",
+          "title": "Ai Api",
+          "type": "boolean"
+        },
+        "ai_handoff": {
+          "description": "the AI clean-up by handoff (export, then import)",
+          "title": "Ai Handoff",
+          "type": "boolean"
+        },
+        "collection": {
+          "description": "collecting texts from bibliographic services",
+          "title": "Collection",
+          "type": "boolean"
+        },
+        "hosted": {
+          "description": "a hosted service (many projects, a host's sign-in)",
+          "title": "Hosted",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "collection",
+        "ai_api",
+        "ai_handoff",
+        "hosted"
+      ],
+      "title": "Capabilities",
+      "type": "object"
+    },
+    "Locales": {
+      "additionalProperties": false,
+      "description": "The interface languages, the default, and each one's catalogues, merged in order.",
+      "properties": {
+        "available": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Available",
+          "type": "array"
+        },
+        "catalogues": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Catalogues",
+          "type": "object"
+        },
+        "default": {
+          "title": "Default",
+          "type": "string"
+        }
+      },
+      "required": [
+        "available",
+        "default",
+        "catalogues"
+      ],
+      "title": "Locales",
+      "type": "object"
+    },
+    "NavItem": {
+      "additionalProperties": false,
+      "description": "A page: its id, label key, route, module, order and placement.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "module": {
+          "title": "Module",
+          "type": "string"
+        },
+        "order": {
+          "title": "Order",
+          "type": "integer"
+        },
+        "placement": {
+          "default": "main",
+          "enum": [
+            "main",
+            "settings",
+            "hidden"
+          ],
+          "title": "Placement",
+          "type": "string"
+        },
+        "route": {
+          "title": "Route",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "route",
+        "module",
+        "order"
+      ],
+      "title": "NavItem",
+      "type": "object"
+    },
+    "ProjectInfo": {
+      "additionalProperties": false,
+      "description": "The project the requests work on: open or not, its id and name.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "open": {
+          "title": "Open",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "open"
+      ],
+      "title": "ProjectInfo",
+      "type": "object"
+    },
+    "Security": {
+      "additionalProperties": false,
+      "description": "The header state-changing requests send, and the cookie holding its value.\n\nThe cookie's name carries the app instance's id (two apps on two loopback\nports never share a cookie); cartolex always sends it.",
+      "properties": {
+        "csrf_cookie": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Csrf Cookie"
+        },
+        "csrf_header": {
+          "title": "Csrf Header",
+          "type": "string"
+        }
+      },
+      "required": [
+        "csrf_header"
+      ],
+      "title": "Security",
+      "type": "object"
+    }
+  },
+  "$id": "https://cartolex.github.io/schemas/app/1/manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "``GET /api/app/manifest``: the contract the interface starts from.",
+  "properties": {
+    "app": {
+      "$ref": "#/$defs/AppInfo"
+    },
+    "branding": {
+      "$ref": "#/$defs/BrandingInfo"
+    },
+    "capabilities": {
+      "$ref": "#/$defs/Capabilities"
+    },
+    "format": {
+      "const": "cartolex-manifest/1",
+      "default": "cartolex-manifest/1",
+      "title": "Format",
+      "type": "string"
+    },
+    "locales": {
+      "$ref": "#/$defs/Locales"
+    },
+    "modules": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Modules",
+      "type": "array"
+    },
+    "nav": {
+      "items": {
+        "$ref": "#/$defs/NavItem"
+      },
+      "title": "Nav",
+      "type": "array"
+    },
+    "project": {
+      "$ref": "#/$defs/ProjectInfo"
+    },
+    "security": {
+      "$ref": "#/$defs/Security"
+    }
+  },
+  "required": [
+    "app",
+    "branding",
+    "locales",
+    "nav",
+    "modules",
+    "capabilities",
+    "project",
+    "security"
+  ],
+  "title": "Manifest",
+  "type": "object"
+}
