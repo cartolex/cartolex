@@ -72,7 +72,10 @@ def test_digests_give_the_bytes_of_the_raw_runs(harvested) -> None:
     shutil.rmtree(project.layout.cache / "sources")
     again = rebuild_sources(project.layout, project.config)
     assert again.digested == report.rebuild.digested and _bytes(project) == with_digests
-    rebuild_sources(project.layout, project.config, jobs=2, incremental=True)
+    # Many new runs are digested in worker processes, with the same result.
+    shutil.rmtree(project.layout.cache / "sources")
+    parallel = rebuild_sources(project.layout, project.config, jobs=2)
+    assert parallel.digested == report.rebuild.digested >= 2
     assert _bytes(project) == with_digests
 
 

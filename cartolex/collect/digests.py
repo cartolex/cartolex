@@ -227,11 +227,11 @@ class DigestCache:
 
         context = multiprocessing.get_context("spawn")
         with ProcessPoolExecutor(max_workers=jobs, mp_context=context) as pool:
-            futures = {
-                run: pool.submit(_write_digest, str(run.path), run.kind, str(self.path(run)))
+            futures = [
+                (run, pool.submit(_write_digest, str(run.path), run.kind, str(self.path(run))))
                 for run in todo
-            }
-            for run, future in futures.items():
+            ]
+            for run, future in futures:
                 self._record(run, *future.result())
 
     def records(self, run: Any) -> Iterator[dict[str, Any]]:
