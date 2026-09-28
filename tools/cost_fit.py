@@ -26,32 +26,54 @@ from scipy.optimize import least_squares
 ROOT = Path(__file__).resolve().parent.parent
 
 
+SIZES = ("people", "texts", "characters", "kept_keywords", "mapped_units")
+#: Stages fitted with a second, linear size besides their driver.
+EXTRA = {"keywords.extract": "texts"}
+
+
 def _rows(files: list[str]) -> list[dict]:
-    rows = []
+    """The successful measures, a later file's measure of a (world, stage) replacing an earlier one."""
+    rows: dict[tuple[str, str], dict] = {}
     for name in files:
         for line in Path(name).read_text(encoding="utf-8").splitlines():
             if line.strip():
                 row = json.loads(line)
                 if row.get("exit") == 0 and row.get("seconds") is not None:
-                    rows.append(row)
-    return rows
+                    rows[(row["label"], row["stage"])] = row
+    return list(rows.values())
 
 
-def _driver(stage: str, counts: dict) -> float | None:
-    from cartolex.build import STAGES
+def _sizes(rows: list[dict]) -> dict[str, dict[str, int]]:
+    """Each world's sizes, from the counts its stages recorded."""
+    out: dict[str, dict[str, int]] = {}
+    for r in rows:
+        mine = out.setdefault(r["label"], {})
+        for name in SIZES:
+            if name in r["counts"]:
+                mine[name] = int(r["counts"][name])
+    return out
 
-    model = STAGES[stage].cost
-    value = counts.get(model.driver)
-    return float(value) if value else None
 
-
-def _estimate(stage: str, x: float) -> tuple[float, float]:
+def _estimate(stage: str, sizes: dict[str, int]) -> tuple[float, float]:
     from cartolex.build import STAGES
     from cartolex.build.params import ProjectSizes
 
-    model = STAGES[stage].cost
-    est = model.estimate(ProjectSizes(**{model.driver: int(x)}), None)
+    est = STAGES[stage].estimate(ProjectSizes(**sizes), None)
     return est.seconds or 0.0, est.peak_memory_mb or 0.0
+
+
+def _fit_extra(x: np.ndarray, t: np.ndarray, y: np.ndarray) -> tuple[float, float, float]:
+    """fixed, per driver unit and per extra unit (all ≥ 0, linear) minimising the log ratios."""
+
+    def residual(p: np.ndarray) -> np.ndarray:
+        return np.log(p[0] + p[1] * x + p[2] * t) - np.log(y)
+
+    got = least_squares(
+        residual,
+        np.array([y.min() * 0.5, y.max() / x.max() / 2, y.max() / t.max() / 2]),
+        bounds=([1e-6, 0.0, 0.0], [max(y.max(), 1e-3), np.inf, np.inf]),
+    )
+    return tuple(float(v) for v in got.x)  # type: ignore[return-value]
 
 
 def _fit(x: np.ndarray, y: np.ndarray, exponent: tuple[float, float]) -> tuple[float, float, float]:
@@ -83,45 +105,60 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("files", nargs="+")
     parser.add_argument("--fit", action="store_true")
     args = parser.parse_args(argv)
+    from cartolex.build import STAGES
+
     rows = _rows(args.files)
+    sizes = _sizes(rows)
     stages: dict[str, list[dict]] = {}
     for r in rows:
         stages.setdefault(r["stage"], []).append(r)
     worst: dict[str, float] = {}
-    for stage, items in stages.items():
-        from cartolex.build import STAGES
-
+    for stage in [s.id for s in STAGES if s.id in stages]:
+        items = stages[stage]
         model = STAGES[stage].cost
         print(f"\n## {stage} (driver: {model.driver})")
         print("| world | driver | seconds | est. | ratio | peak MB | est. | ratio |")
         print("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
         pts = []
-        for r in sorted(items, key=lambda r: _driver(stage, r["counts"]) or 0):
-            x = _driver(stage, r["counts"])
-            if x is None:
+        for r in sorted(items, key=lambda r: sizes[r["label"]].get(model.driver, 0)):
+            size = sizes[r["label"]]
+            x = size.get(model.driver)
+            if not x:
                 continue
-            s_est, m_est = _estimate(stage, x)
+            s_est, m_est = _estimate(stage, size)
             rs, rm = s_est / max(r["seconds"], 1e-6), m_est / max(r["peak_mb"], 1e-6)
             worst[stage] = max(worst.get(stage, 1.0), rs, 1 / rs, rm, 1 / rm)
-            pts.append((x, r["seconds"], r["peak_mb"]))
+            pts.append((x, size.get(EXTRA.get(stage, model.driver), x), r["seconds"], r["peak_mb"]))
             print(
                 f"| {r['label']} | {x:.3g} | {r['seconds']:.1f} | {s_est:.1f} | {rs:.2f} "
                 f"| {r['peak_mb']:.0f} | {m_est:.0f} | {rm:.2f} |"
             )
         if args.fit and len(pts) >= 2:
-            x = np.array([p[0] for p in pts])
-            s = np.array([max(p[1], 1e-3) for p in pts])
-            m = np.array([p[2] for p in pts])
-            fs = _fit(x, s, (0.5, 2.0))
-            fm = _fit(x, m, (0.5, 2.0))
-            print(
-                f"fit: seconds = {fs[0]:.3g} + {fs[1]:.3g} × {model.driver}^{fs[2]:.2f}; "
-                f"memory MB = {fm[0]:.3g} + {fm[1]:.3g} × {model.driver}^{fm[2]:.2f}"
-            )
-            ratios = [
-                ((fs[0] + fs[1] * xi ** fs[2]) / si, (fm[0] + fm[1] * xi ** fm[2]) / mi)
-                for xi, si, mi in zip(x, s, m, strict=True)
-            ]
+            x = np.array([p[0] for p in pts], dtype=float)
+            t = np.array([p[1] for p in pts], dtype=float)
+            sec = np.array([max(p[2], 1e-3) for p in pts])
+            mem = np.array([p[3] for p in pts])
+            if stage in EXTRA:
+                fs, fm = _fit_extra(x, t, sec), _fit_extra(x, t, mem)
+                print(
+                    f"fit: seconds = {fs[0]:.3g} + {fs[1]:.3g} × {model.driver} + {fs[2]:.3g} × "
+                    f"{EXTRA[stage]}; memory MB = {fm[0]:.3g} + {fm[1]:.3g} × {model.driver} "
+                    f"+ {fm[2]:.3g} × {EXTRA[stage]}"
+                )
+                ratios = [
+                    ((fs[0] + fs[1] * a + fs[2] * b) / c, (fm[0] + fm[1] * a + fm[2] * b) / d)
+                    for a, b, c, d in zip(x, t, sec, mem, strict=True)
+                ]
+            else:
+                fs, fm = _fit(x, sec, (0.5, 2.0)), _fit(x, mem, (0.5, 2.0))
+                print(
+                    f"fit: seconds = {fs[0]:.3g} + {fs[1]:.3g} × {model.driver}^{fs[2]:.2f}; "
+                    f"memory MB = {fm[0]:.3g} + {fm[1]:.3g} × {model.driver}^{fm[2]:.2f}"
+                )
+                ratios = [
+                    ((fs[0] + fs[1] * a ** fs[2]) / c, (fm[0] + fm[1] * a ** fm[2]) / d)
+                    for a, c, d in zip(x, sec, mem, strict=True)
+                ]
             print("fitted ratios: " + ", ".join(f"{a:.2f}/{b:.2f}" for a, b in ratios))
     print(
         "\nworst ratio per stage (current models): "

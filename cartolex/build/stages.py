@@ -515,7 +515,7 @@ STAGES = Registry(
             ),
             uses=("year",),
             provides=("people", "texts", "characters", "mapped_units"),
-            cost=CostModel("characters", 0.03, 9e-8, 160.0, 2.7e-5),
+            cost=CostModel("characters", 0.5, 9e-8, 200.0, 2.8e-6),
             run=_engine("run_corpus"),
         ),
         Stage(
@@ -560,7 +560,7 @@ STAGES = Registry(
                     _min_people_fit,
                 ),
             ),
-            cost=CostModel("characters", 7.5, 2.24e-5, 850.0, 2.9e-5),
+            cost=CostModel("characters", 6.6, 7.5e-6, 765.0, 1.12e-5, extra=("texts", 3.7e-3, 0.0)),
             run=_engine("run_extract"),
         ),
         Stage(
@@ -605,7 +605,9 @@ STAGES = Registry(
                 ),
             ),
             provides=("kept_keywords",),
-            cost=CostModel("characters", 3.1, 8.5e-6, 515.0, 4.6e-5),
+            cost=CostModel(
+                "characters", 0.5, 8.3e-3, 234.0, 5.0e-5, time_exponent=0.53, memory_exponent=0.9
+            ),
             run=_engine("run_build"),
         ),
         Stage(
@@ -622,7 +624,7 @@ STAGES = Registry(
                     maximum=1000,
                 ),
             ),
-            cost=CostModel("people", 0.09, 6.3e-4, 510.0, 0.35),
+            cost=CostModel("people", 1.25, 3.8e-4, 213.0, 0.886, memory_exponent=0.5),
             run=_engine("run_space"),
         ),
         Stage(
@@ -676,12 +678,13 @@ STAGES = Registry(
             ),
             cost=CostModel(
                 "kept_keywords",
-                0.03,
-                2.5e-4,
-                518.0,
-                1.8e-5,
+                1.26,
+                5.4e-8,
+                206.0,
+                7.8e-6,
+                time_exponent=2.0,
                 memory_exponent=2.0,
-                fallback=("people", 12.0),
+                fallback=("people", 12.0, 10_000),
             ),
             run=_engine("run_group"),
         ),
@@ -691,7 +694,16 @@ STAGES = Registry(
             version=2,  # 2: trees of any depth, and the weights of every level
             upstream=("themes.group",),
             decisions=("decisions/themes.json",),
-            cost=CostModel("kept_keywords", 0.01, 2.2e-5, 502.0, 0.037, fallback=("people", 12.0)),
+            cost=CostModel(
+                "kept_keywords",
+                1.37,
+                3.05e-8,
+                187.0,
+                0.011,
+                time_exponent=2.0,
+                memory_exponent=1.14,
+                fallback=("people", 12.0, 10_000),
+            ),
             prepare=_prepare_themes,
             run=_engine("run_apply"),
         ),
@@ -702,7 +714,9 @@ STAGES = Registry(
             upstream=("themes.apply",),
             decisions=("decisions/maps.json",),
             project=("levels",),
-            cost=CostModel("mapped_units", 14.7, 0.0054, 605.0, 1.09),
+            cost=CostModel(
+                "mapped_units", 19.0, 4.05e-5, 567.0, 3.94, time_exponent=1.45, memory_exponent=0.5
+            ),
             prepare=_prepare_maps,
             run=_engine("run_layout"),
         ),
@@ -723,7 +737,9 @@ STAGES = Registry(
                 ),
             ),
             uses=("year",),
-            cost=CostModel("mapped_units", 0.08, 0.0157, 612.0, 1.03),
+            cost=CostModel(
+                "mapped_units", 0.3, 0.076, 260.0, 6.88, time_exponent=0.75, memory_exponent=0.5
+            ),
             run=_engine("run_trajectories"),
         ),
         Stage(
@@ -734,7 +750,9 @@ STAGES = Registry(
             project=("overlays",),
             applies=_has_overlays,
             extra_inputs=_overlay_tables,
-            cost=CostModel("mapped_units", 0.0, 0.012, 635.0, 0.43),
+            cost=CostModel(
+                "mapped_units", 1.4, 4.6e-4, 205.0, 0.058, time_exponent=1.12, memory_exponent=0.94
+            ),
             run=_engine("run_overlays"),
         ),
     ]
