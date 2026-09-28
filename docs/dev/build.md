@@ -108,7 +108,7 @@ leaves the check to the run.
 | `corpus.assemble` | `parts` | title, abstract | title, abstract, body, full |
 | `corpus.assemble` | `provider_priority` | folder, openalex, hal, scielo, europepmc, arxiv, biorxiv | provider names; the others follow alphabetically |
 | `corpus.assemble` | `recency_years` | 5 | 0–200; 0 keeps every year |
-| `keywords.extract` | `counting_unit` | person | person, text |
+| `keywords.extract` | `counting_unit` | person | person, text, organisation |
 | `keywords.extract` | `min_people` | 3 | ≥ 1, and no more than the people whose texts build the lexicon |
 | `keywords.extract` | `max_share` | 0.6 | 0.01–1 |
 | `keywords.triage` | `enabled` | false | true, false |

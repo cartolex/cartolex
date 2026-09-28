@@ -133,3 +133,14 @@ nothing in the engine names a particular deployment, source or procedure.
   only way to rewrite it: the reason goes into its manifest and
   `tests/baseline/LOG.md`. The released engine's environment is now called
   `released`.
+- **Counting units and bands in the extraction.** The scoring
+  (`cartolex.lexicon.scoring`) reads each person's texts apart:
+  `KeywordsConfig.counting_unit` (and the build's
+  `keywords.extract.counting_unit`) makes a TF-IDF document a person (the
+  default, unchanged), a text or an organisation. Each candidate falls in a
+  band — `kept`, `check` or `aside` — with a reason code (`multiword`,
+  `single-word`, `common-modifier: …`, `part-of: …`, `low-score` …), and the
+  raw keyword tables gain the columns `people`, `texts`, `band` and `reason`
+  (the merged list gains `band` and `reason`). Bands remove nothing yet. The
+  settings snapshot records the counting unit.
+

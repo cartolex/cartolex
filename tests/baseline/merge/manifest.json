@@ -177,11 +177,11 @@
   }
  },
  "baseline": {
-  "date": "2026-09-27",
-  "reason": "The first stored run of this tree: noun-phrase candidates, the trilingual demo vocabulary and the triage without a catalogue anchor."
+  "date": "2026-09-28",
+  "reason": "The extraction's raw tables gain the columns people, texts, band and reason (and the merged list band and reason), and the settings snapshot records the counting unit; every score is unchanged."
  },
  "environment": {
-  "engine_fingerprint": "d6f60378cbaf488dd9eac19faac7934b02b547137216cbd6d18611d000b409a1",
+  "engine_fingerprint": "faa3c93a5ed709243ce4da1ff626f49f551cc77af1d76547297a4076e358e82c",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {

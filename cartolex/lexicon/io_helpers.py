@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Collection, Iterable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -405,6 +406,108 @@ def _split_text_by_language(full_text: str, corpus_languages: tuple[str, ...]) -
         if lang in chunks:
             chunks[lang].append(para)
     return {lang: "\n\n".join(chunks[lang]) for lang in corpus_languages}
+
+
+@dataclass(frozen=True)
+class PersonTexts:
+    """One person's texts, each split into its paragraphs per corpus language.
+
+    ``texts`` holds ``(text id, {language: paragraphs})`` pairs in document
+    order; the text id is the resolved path of the text file, so a text two
+    people wrote has one id.
+    """
+
+    key: tuple[str, str, str]
+    unit: str
+    texts: tuple[tuple[str, dict[str, tuple[str, ...]]], ...]
+
+
+def _split_paragraphs(text: str, corpus_languages: tuple[str, ...]) -> dict[str, tuple[str, ...]]:
+    """One text's paragraphs, by detected corpus language (other languages dropped)."""
+    chunks: dict[str, list[str]] = {lang: [] for lang in corpus_languages}
+    for para in text.split("\n\n"):
+        para = para.strip()
+        if not para:
+            continue
+        lang = detect_language_text(para, allowed=corpus_languages, default="unknown")
+        if lang in chunks:
+            chunks[lang].append(para)
+    return {lang: tuple(paras) for lang, paras in chunks.items()}
+
+
+def load_texts_split_by_language(
+    indexes: Sequence[SlotIndex],
+    progress_callback: Callable[[int, str], None] | None = None,
+    recency_years: int | None = None,
+    now_year: int | None = None,
+    corpus_languages: tuple[str, ...] = ("fr", "en"),
+    n_jobs: int = 1,
+) -> tuple[list[PersonTexts], pd.DataFrame]:
+    """The texts of the corpus slots *indexes*, by person, each split by language.
+
+    Like :func:`load_documents_split_by_language`, but each person keeps their
+    texts apart (the scoring can then count a text, not only a person, and
+    know which texts two people share). Rows of the returned table and items
+    of the list are aligned; persons without any text are left out.
+    """
+    merged = _load_slots(
+        indexes,
+        progress_callback=progress_callback,
+        recency_years=recency_years,
+        now_year=now_year,
+    )
+    entities = []
+    for key, info in merged.items():
+        pairs = [
+            (str(path), text)
+            for text, path in zip(
+                info.get("text_parts", []), info.get("txt_paths", []), strict=True
+            )
+            if isinstance(text, str) and text.strip()
+        ]
+        if pairs:
+            entities.append((key, info, pairs))
+
+    # Per-paragraph language detection is the throughput wall and embarrassingly
+    # parallel; it is seeded, so parallel output is identical to serial.
+    texts = [text for _, _, pairs in entities for _, text in pairs]
+    if n_jobs and n_jobs > 1 and len(texts) > 1:
+        from concurrent.futures import ProcessPoolExecutor
+        from itertools import repeat
+
+        chunksize = max(1, len(texts) // (n_jobs * 4))
+        with ProcessPoolExecutor(max_workers=n_jobs) as pool:
+            splits = list(
+                pool.map(_split_paragraphs, texts, repeat(corpus_languages), chunksize=chunksize)
+            )
+    else:
+        splits = [_split_paragraphs(text, corpus_languages) for text in texts]
+
+    people: list[PersonTexts] = []
+    meta_rows: list[dict[str, str]] = []
+    position = 0
+    for key, info, pairs in entities:
+        person_texts = []
+        for path, _text in pairs:
+            person_texts.append((path, splits[position]))
+            position += 1
+        people.append(PersonTexts(key, str(info.get("unit", "")), tuple(person_texts)))
+        sources = sorted(set(info.get("sources", set())))
+        meta_rows.append(
+            {
+                "last_name": str(info.get("last_name", "")),
+                "first_name": str(info.get("first_name", "")),
+                "unit": str(info.get("unit", "")),
+                "txt_path": ";".join(list(info.get("txt_paths", []))),
+                "source": "+".join(sources) if sources else "",
+                "last_name_canon": key[0],
+                "first_name_canon": key[1],
+                "unit_canon": key[2],
+            }
+        )
+    if progress_callback:
+        progress_callback(100, "Texts split & loaded.")
+    return people, pd.DataFrame(meta_rows)
 
 
 def load_documents_split_by_language(

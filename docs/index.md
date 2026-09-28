@@ -23,6 +23,7 @@ format/index
 
 dev/engine
 dev/extraction
+dev/lexicon-lab
 dev/build
 dev/themes
 dev/checks

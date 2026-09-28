@@ -216,7 +216,7 @@
    "settings": {
     "file": "build/settings.json",
     "kind": "json",
-    "sha256": "8a9a7a90e63dabafaac4b2fd4ef27a93b02141af7a0c2d81ad994747edc38b7c"
+    "sha256": "28baf06416dc09670bf16e3296a6efbfba302742e9268563566b99ea7ac9bcf1"
    },
    "vectorizer": {
     "columns": [
@@ -336,14 +336,22 @@
      "score",
      "n_tokens",
      "score_len",
-     "forms"
+     "forms",
+     "people",
+     "texts",
+     "band",
+     "reason"
     ],
     "dtypes": {
+     "band": "str",
      "forms": "str",
      "n_tokens": "float",
+     "people": "int",
+     "reason": "str",
      "score": "float",
      "score_len": "float",
-     "term": "str"
+     "term": "str",
+     "texts": "int"
     },
     "file": "extract/terms_en.csv.gz",
     "keys": [
@@ -352,7 +360,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 3985,
-    "sha256": "c1bd973e72537ca9e93cb022f8f3c33f8a89a599df1bf566d0a27a3c1ccc46db"
+    "sha256": "3567ce3fe419987f6fcd7d967287ed6610557466235fd4edccd9e695df228b51"
    },
    "terms_fr": {
     "columns": [
@@ -360,14 +368,22 @@
      "score",
      "n_tokens",
      "score_len",
-     "forms"
+     "forms",
+     "people",
+     "texts",
+     "band",
+     "reason"
     ],
     "dtypes": {
+     "band": "str",
      "forms": "str",
      "n_tokens": "float",
+     "people": "int",
+     "reason": "str",
      "score": "float",
      "score_len": "float",
-     "term": "str"
+     "term": "str",
+     "texts": "int"
     },
     "file": "extract/terms_fr.csv.gz",
     "keys": [
@@ -376,7 +392,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 1467,
-    "sha256": "65ff00ce60ef351d040efe7e563ec76b92afd1f776f69d8fa06265d567fc2d2e"
+    "sha256": "109f0cc4911bcc0f302dc05beaa6faf0d8fd6f3d22c9ddfcacdf9cb62b1fac48"
    },
    "terms_merged": {
     "columns": [
@@ -384,11 +400,15 @@
      "score_raw",
      "n_tokens",
      "score_len",
+     "band",
+     "reason",
      "lang"
     ],
     "dtypes": {
+     "band": "str",
      "lang": "str",
      "n_tokens": "float",
+     "reason": "str",
      "score_len": "float",
      "score_raw": "float",
      "term": "str"
@@ -400,7 +420,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 5400,
-    "sha256": "1612f21ce65df1ad8bf46cf9b511154c7023b4cf3e92c04c45060d818601fc7e"
+    "sha256": "30a2266c4d33bc59358315fd50b61d5bf93b48c7f7ced038d9ae067cd8626bbe"
    }
   },
   "group": {
@@ -736,11 +756,11 @@
   }
  },
  "baseline": {
-  "date": "2026-09-27",
-  "reason": "The first stored run of this tree: noun-phrase candidates, the trilingual demo vocabulary and the triage without a catalogue anchor."
+  "date": "2026-09-28",
+  "reason": "The extraction's raw tables gain the columns people, texts, band and reason (and the merged list band and reason), and the settings snapshot records the counting unit; every score is unchanged."
  },
  "environment": {
-  "engine_fingerprint": "d6f60378cbaf488dd9eac19faac7934b02b547137216cbd6d18611d000b409a1",
+  "engine_fingerprint": "faa3c93a5ed709243ce4da1ff626f49f551cc77af1d76547297a4076e358e82c",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {

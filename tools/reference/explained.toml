@@ -5,22 +5,6 @@
 
 [[difference]]
 reference = "S"
-stage = "build"
-artifact = "settings"
-sha256 = "8a9a7a90e63dabafaac4b2fd4ef27a93b02141af7a0c2d81ad994747edc38b7c"
-step = "1c"
-reason = "The settings record lists the ordered corpus slots instead of per-source switches (snapshot version 3)."
-
-[[difference]]
-reference = "L"
-stage = "build"
-artifact = "settings"
-sha256 = "8a9a7a90e63dabafaac4b2fd4ef27a93b02141af7a0c2d81ad994747edc38b7c"
-step = "1c"
-reason = "The settings record lists the ordered corpus slots instead of per-source switches (snapshot version 3)."
-
-[[difference]]
-reference = "S"
 stage = "roster"
 artifact = "persons"
 sha256 = "87e2a52b2c6a30c6ad3670d5dffa10ff948007a9d3762329bd5c2e4db0197e7e"
@@ -39,25 +23,25 @@ reason = "The roster keeps only the attribute columns the corpus index has; the 
 reference = "S"
 stage = "extract"
 artifact = "terms_en"
-sha256 = "c1bd973e72537ca9e93cb022f8f3c33f8a89a599df1bf566d0a27a3c1ccc46db"
-step = "2a1"
-reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the forms column (every surface form of a candidate)."
+sha256 = "3567ce3fe419987f6fcd7d967287ed6610557466235fd4edccd9e695df228b51"
+step = "2a2"
+reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the columns forms (every surface form of a candidate), people and texts (how many use it), band and reason (step 2a2)."
 
 [[difference]]
 reference = "S"
 stage = "extract"
 artifact = "terms_fr"
-sha256 = "65ff00ce60ef351d040efe7e563ec76b92afd1f776f69d8fa06265d567fc2d2e"
-step = "2a1"
+sha256 = "109f0cc4911bcc0f302dc05beaa6faf0d8fd6f3d22c9ddfcacdf9cb62b1fac48"
+step = "2a2"
 reason = "Same change as terms_en; French terms with a word of one or two letters (trait de côte, masse d'eau) are now kept whole."
 
 [[difference]]
 reference = "S"
 stage = "extract"
 artifact = "terms_merged"
-sha256 = "1612f21ce65df1ad8bf46cf9b511154c7023b4cf3e92c04c45060d818601fc7e"
-step = "2a1"
-reason = "The merged list of the new English and French candidates (see terms_en)."
+sha256 = "30a2266c4d33bc59358315fd50b61d5bf93b48c7f7ced038d9ae067cd8626bbe"
+step = "2a2"
+reason = "The merged list of the new English and French candidates (see terms_en), with their band and reason (step 2a2)."
 
 [[difference]]
 reference = "S"
@@ -71,7 +55,7 @@ reference = "S"
 stage = "build"
 upstream = "triage"
 step = "2a1"
-reason = "Consolidation works from other accepted candidates: other refined terms, language pairs, aliases, vocabulary and IDF, and other per-person, per-group and domain terms. Every surface form of a candidate is an alias, written as the attribution vectorizer counts it. The per-person table also no longer repeats the two always-empty roster attribute columns (step 1d)."
+reason = "Consolidation works from other accepted candidates: other refined terms, language pairs, aliases, vocabulary and IDF, and other per-person, per-group and domain terms. Every surface form of a candidate is an alias, written as the attribution vectorizer counts it. The per-person table also no longer repeats the two always-empty roster attribute columns (step 1d), and the settings record lists the ordered corpus slots instead of per-source switches (step 1c) and the counting unit (step 2a2)."
 
 [[difference]]
 reference = "S"
@@ -133,25 +117,25 @@ reason = "The bundle carries the new vocabulary, entity terms and taxonomy (see 
 reference = "L"
 stage = "extract"
 artifact = "terms_en"
-sha256 = "91bea23ae3291e4f7c1576f25fa0840350d1a7fe1aba2d9dd357b27bcdca0df1"
-step = "2a1"
-reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the forms column (every surface form of a candidate)."
+sha256 = "c4c041ad8136f9aa818a025932509d4d07a94215d42f5b97b0ee1304b1dac969"
+step = "2a2"
+reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the columns forms (every surface form of a candidate), people and texts (how many use it), band and reason (step 2a2)."
 
 [[difference]]
 reference = "L"
 stage = "extract"
 artifact = "terms_fr"
-sha256 = "e526bca6d8bbfa7d8cc880a702f9d088deef98c6403aed45860ec746a3f916fb"
-step = "2a1"
+sha256 = "5d893e12a1ab4ff9b037d4cb4c44f7962c8260916c17b82eb39a032dd7acb335"
+step = "2a2"
 reason = "Same change as terms_en; French terms with a word of one or two letters (trait de côte, masse d'eau) are now kept whole."
 
 [[difference]]
 reference = "L"
 stage = "extract"
 artifact = "terms_merged"
-sha256 = "49c42851762109ba853ff8d1829047480686a6f44ec1da5ed605df2c3562e345"
-step = "2a1"
-reason = "The merged list of the new English and French candidates (see terms_en)."
+sha256 = "4ed2d5b89599d16e71de9abb0f9b241e86faf323dc0b4ecb6b48c711ccc0dbd1"
+step = "2a2"
+reason = "The merged list of the new English and French candidates (see terms_en), with their band and reason (step 2a2)."
 
 [[difference]]
 reference = "L"
@@ -165,7 +149,7 @@ reference = "L"
 stage = "build"
 upstream = "triage"
 step = "2a1"
-reason = "Consolidation works from other accepted candidates: other refined terms, language pairs, aliases, vocabulary and IDF, and other per-person, per-group and domain terms. Every surface form of a candidate is an alias, written as the attribution vectorizer counts it. The per-person table also no longer repeats the two always-empty roster attribute columns (step 1d)."
+reason = "Consolidation works from other accepted candidates: other refined terms, language pairs, aliases, vocabulary and IDF, and other per-person, per-group and domain terms. Every surface form of a candidate is an alias, written as the attribution vectorizer counts it. The per-person table also no longer repeats the two always-empty roster attribute columns (step 1d), and the settings record lists the ordered corpus slots instead of per-source switches (step 1c) and the counting unit (step 2a2)."
 
 [[difference]]
 reference = "L"
