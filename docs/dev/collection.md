@@ -73,7 +73,8 @@ stored:
 | OpenAlex | `person_search` | 3 days |
 | OpenAlex | `authors_by_orcid`, `works_by_author` | 7 days |
 | OpenAlex | `author` | 14 days |
-| OpenAlex | `institution_search` | 30 days |
+| OpenAlex | `institution_search`, `institution`, `institution_units` | 30 days |
+| OpenAlex | `works_by_institution` | 7 days |
 | OpenAlex | `works_by_doi` | 90 days |
 | ORCID | `registry_works` | 7 days |
 | ORCID | `registry_record` | 30 days |
@@ -106,6 +107,7 @@ what its public documentation said when last checked.
 | SciELO (ArticleMeta) | 2026-09-28 (the service's documentation and repository) | no key and no rate limit stated; `article/identifiers` lists by collection or journal (ISSN) and processing date, at most 1,000 a request with `offset`, and announces no count; `article` gives one article by PID, JSON or SciELO PS XML (`format=xmlrsps`); the monthly dumps are recommended for whole-collection loads | one request a second; an empty listing page asked twice; a collection without ISSNs listed only up to 5,000 articles |
 | bioRxiv and medRxiv | 2026-09-28 (api.biorxiv.org) | `details/<server>/<DOI>/na/json` gives a preprint's versions, abstract, `jatsxml` link and `published` DOI; 100 items a call with a cursor; no key and no rate limit stated | one request a second |
 | Europe PMC | 2026-09-28 (the REST documentation page answered 403; the service's support list of 2024-12-11) | the limit applies per address; no key; `search` with `resultType=core` gives `abstractText`, `pmcid` and `isOpenAccess`; `<PMCID>/fullTextXML` the JATS of open-access articles; rapid requests are reported to be throttled with 503 | one request a second |
+| OpenAlex snapshot | 2026-09-28 (help pages « Snapshot » and « Snapshot data format », 2026-09-24) | CC0; the public snapshot is released quarterly (the second Wednesday of January, April, July and October), about 626 million records, 745 GB of gzip JSON lines (a Parquet copy beside it) in September 2026; `s3://openalex/data/jsonl/<entity>/updated_date=YYYY-MM-DD/part_NNNN.gz`, a record sitting in the partition of the date it last changed; a `manifest.json` per entity (`date`, `record_count`, `content_length`, `files` with `url` and `meta`) and one per format; `works/deleted_ids.csv.gz` (`work_id,deleted_date`, since the 2026-09-23 release); records in the API's shape, with `is_xpac` and `has_content`, without `content_urls`; downloaded with `aws s3 sync … --no-sign-request`, no account; snapshots before 2026 under `legacy-data/`, laid out `data/<entity>/…` | streamed part by part, line by line, a line parsed only when its bytes may match; deleted works dropped; the newest partition wins when a copy holds a record twice; both layouts read |
 | open-access copies (`files`) | 2026-09-28 (OpenAlex help, pages of 2026-08-11 and 2026-09-18) | OpenAlex gives `best_oa_location.pdf_url` and each location's `pdf_url`, on the host that holds the copy; its own cached PDFs (content.openalex.org) need a key and are metered | one request a second per host; OpenAlex's cached PDFs are not used |
 
 ## The source writers
@@ -156,6 +158,10 @@ The kinds of raw runs cartolex writes, and what their readers build:
 | `openalex` | `harvest` | the year window; per person: records, names, ORCID, declared DOIs | author records and works as received, with the person and how each work was reached | texts, title and abstract parts, authorships, organisations, affiliations (`stated` per work, `openalex` from the records' years) |
 | `orcid` | `harvest` | per person: ORCID iDs | the registry's works and records as received | affiliations (`orcid`) to organisations of the same name the person is already affiliated with |
 | `resolve` | `resolve` | the threshold, whether acceptance was automatic | each person's candidates with their evidence and scores | none (kept for the record) |
+| `institution_proposals` | `propose_people` | the institutions, the years, the least works, the levels, the source | the institution records of the tree, then every author signed there: record, name, ORCID, works with year and units | none (a proposal) |
+| `institution` | `take_people` | the proposal's run, the levels | the units needed (the institutions above the stated ones included), then one per person taken: records, names, ORCID, aliases, units with years | organisations (`openalex`, levels, every parent), people (`institution`), affiliations (`stated`) |
+| `snowball` | `snowball` | the seeds and their records, years, cap, the author threshold, the rounds, the cut, the fit measure, the source | one per collaborator: round, record, name, ORCID, parents with joint works, path, joint works with the institutions stated, fit | people (`collaborators`), organisations, affiliations (`stated`) |
+| `failures` | any finder | the finder | one per person whose collection failed: finder, service, host, status, error, cause, time | none (the coverage report reads them) |
 
 A harvest writes one `openalex` and one `orcid` run with the same run id. A
 person's latest harvest replaces their earlier ones: the readers take, for each
@@ -304,8 +310,134 @@ OpenAlex key from `--contact` / `$CARTOLEX_CONTACT` and `--openalex-key` /
 `$OPENALEX_API_KEY`, and passes them in as settings; `--services demo` starts
 the demo services of `--world SIZE:SEED` for the command.
 
+## Sources of OpenAlex records: the API or the snapshot
+
+The finders ask OpenAlex through an `OpenAlexSource`
+(`cartolex.collect.openalex`): `author`, `works_by_authors`, `works_by_dois`,
+`institution` (an OpenAlex id or `ror:<id>`), `search_institutions`,
+`institution_units` (an institution and every record whose `lineage` holds it:
+`institutions?filter=lineage:`), `works_by_institutions`
+(`works?filter=authorships.institutions.lineage:`) and `works_of_authors` (the
+works of many records, asked 50 records at a time). `OpenAlexApi(client)`
+sends the requests; `SnapshotSource(Snapshot(folder))`
+(`cartolex.collect.snapshot`) answers them from a downloaded snapshot. Its
+`prefetch(author_ids, dois)` reads everything a harvest will ask in one pass
+over the authors and one over the works; the institutions (a small entity)
+are read once and kept; other questions cost one pass each. A pass streams
+each part (`gzip`, line by line), tests the raw bytes of each line against
+what is wanted (author, institution or work ids, DOIs, RORs) and parses only
+the lines that may match; the deletion log is streamed the same way, for the
+works found only. `Snapshot.report` counts the bytes, lines, lines parsed and
+seconds. `harvest(…, source=…)`, `propose_people(project, source, …)` and
+`snowball(project, source, …)` take either source and write the same raw runs,
+hence the same tables (the tests compare them on the demo world, from the mini
+snapshot `write_snapshot` writes).
+
+## People from institutions
+
+`cartolex.collect.institutions`: `find_institutions(source, name)` lists the
+institutions of a name, with their type, ROR id, parents and works, for a
+person to choose; `resolve_institutions(source, refs)` reads OpenAlex ids, ROR
+ids or URLs holding one. `propose_people(project, source, institutions,
+years=None, min_works=2, levels=None)` reads the institutions' units and the
+works signed there in the window (the slot's by default), and counts, per
+author record, the works where the authorship states a unit of the tree; the
+authors with `min_works` or more are proposed with their works, first and last
+years, units (works and years each), ORCID and the person of the project they
+already are. `propose_levels(units, levels, given)` maps each type of
+institution to a level: `given` first, then the largest level for
+`LARGE_TYPES` (education, government, healthcare, company, nonprofit,
+archive, funder) and the smallest for the others; a project without levels
+gets `unit` and `institution` when people are taken. Suggested merges pair two
+records with the same ORCID, or with the same surname, first names that agree
+(one may be an initial), a unit in common, no work in common and not two
+different ORCIDs, when one of them, or the two together, reach `min_works`.
+The other parents of a joint unit are read too, so that it enters with every
+parent.
+
+`take_people(project, take="all" | ["A1", "A2+A3"], role="mapped",
+levels=None)` takes people from the latest proposal (or `run_id`): a group
+`A2+A3` is one person with both records. People already confirmed with one of
+the records are reported, not taken again. Their decisions:
+`identity = confirmed`, the records, the role.
+
+## Collaborators
+
+`cartolex.collect.snowball.snowball(project, source, rounds=1, seeds=None,
+years=None, cap=None, max_authors=None)` proposes the next rounds: round 1
+from the seeds (the people named, else every confirmed mapped person with an
+OpenAlex record), a later round from the collaborators of the round before not
+refused (`decisions/snowball.csv`). A round reads the works of the people it
+starts from (`works_of_authors`), leaves out the works with more than
+`max_authors` authors, and gathers every co-author who is not a person of the
+project (by record, or by an ORCID a project person has), with the joint works,
+the people they wrote with and how often; the round is taken only if the
+people proposed stay within `cap`, else it is left out whole and named in
+`report.cut`. The collaborators' own works are read for their fit,
+`topical_fit(seeds, candidates)`: cosine similarity of `(1 + ln tf) × idf`
+vectors over the words (three letters or more, folded, the packaged function
+words left out) of titles and abstracts, idf over the round's texts
+(`1 + ln((1 + N) / (1 + df))`), the seeds' profile the mean of their unit
+vectors; a candidate is measured on their works other than the joint ones
+(the joint ones when there is no other). The path of a collaborator is the
+path of the person of the round before they wrote most with (ties by id), and
+themselves. `cap` and `max_authors` default to `params.json`'s `collect.snowball`
+(200, 25). Collaborators become people (`collaborators`), `context` and
+`confirmed` in `people.csv`, with a `context` row each in `snowball.csv`;
+`decide_collaborators(project, {person: decision})` changes both (`no` →
+`excluded`, `later` → `undecided`, `projected` → the set `collaborators`).
+Nothing is written when a request fails: a round is whole or absent.
+
+## Failures and coverage
+
+A person whose collection fails in a harvest, a resolution or a HAL search
+(`ServiceError`, or `CacheMiss` in `cache_only` mode) is recorded by
+`cartolex.collect.outcomes.failure_record` and the job goes on; after
+`MAX_FAILURES_IN_A_ROW` (3) failures in a row, or a wait longer than a job may
+block, it stops, keeps what it collected and raises the last error. The
+failures of a job are one `failures` run; `latest_outcomes(layout, config)`
+gives, per person and finder, the latest attempt, a finder's run naming the
+person (`people` in a harvest's header, `searched` in a HAL run's, the records
+of a resolution) superseding an earlier failure.
+
+`cartolex.collect.coverage`: `person_coverage(project, good=None)` gives each
+person's state, counts (texts, with an abstract or a full text, titles only),
+years and languages, and the first blocking cause (`service_failure`,
+`no_record`, `not_collected`, `no_works_in_window`, `no_abstracts`,
+`few_abstracts`); `coverage_report(project)` adds the states by organisation,
+the texts by year and by language (each text once) and the slots' summary;
+`person_sheet(project, person)` the sources used (finders with their texts,
+providers), discarded (candidate records not confirmed, HAL and SciELO
+proposals, preprints read through their published version) and the attempts;
+`retry_failed(project, client)` runs again the harvest, resolution or HAL
+search that failed, for those people only; `add_documents(project, person,
+folder)` imports a folder for one person (`import_folder(…, person_id=…)`);
+`exclude_person`.
+
+## Digests: rebuilding the tables quickly
+
+`rebuild_sources` reads a harvest's runs (`openalex`, `orcid`) through
+`cartolex.collect.digests.DigestCache`: each run is digested once into
+`cache/sources/<slot>/<kind>/<run id>.jsonl.gz`, the records its reader needs
+with the costly work done (`harvest.work_text`: the title and abstract
+stripped, the abstract rebuilt from the inverted index, their languages
+detected; the registry's works lists left out). `cache/sources/index.json`
+(`cartolex-digests/1`) holds, per run, the raw file's size and modification
+time and the digester's version (when one differs, the run is digested again),
+the records it holds and the people it names. Before the readers run, the runs
+that are someone's latest harvest and have no fresh digest are digested, in up
+to four worker processes when they weigh more than 32 MB; a run superseded for
+everyone is never read. A digest gives the same rows as its raw run: a rebuild
+gives the same bytes with digests, without them (`incremental=False`) or
+after `cache/sources/` is deleted (tested). `tools/collect_scale.py` measures
+it on a synthetic collection.
+
 ## Plug-in points for new finders
 
+- a finder that reads OpenAlex takes an `OpenAlexSource`, so the snapshot can
+  stand in for the API;
+- record a person's failed collection with `failure_record` and
+  `write_failures`, so the coverage report can say so;
 - declare the service in `SERVICES` (rate, lifetimes, policy with its date);
 - fetch through `HttpClient.get_json` / `get_all`, with a `kind` and the
   `sends` of every request;
@@ -484,6 +616,14 @@ the progress callback, the cancel check and the egress record:
 | `rebuild_sources(layout, config, finder_priority=None)` | the tables, merged | `RebuildReport` (rows, merges per rule) |
 | `provider_egress(providers=None)` | what each provider sends, to which service | a list for the privacy summary |
 | `coverage(layout)` | per slot: texts, with a title, an abstract, a full text, parts per provider; the merges of `sources/merges.json` | a dict for the coverage report |
+| `propose_people(project, source, institutions, years=…, min_works=2, levels=None)` | the authors of institutions and their units | `InstitutionProposal` (people with evidence, suggested merges, levels) |
+| `take_people(project, take="all", role="mapped", levels=None)` | people taken from the latest proposal | `TakeReport` (taken, already known, refused) |
+| `snowball(project, source, rounds=1, seeds=None, cap=None, max_authors=None)` | the next rounds of collaborators | `SnowballReport` (rounds, collaborators with evidence, the cut) |
+| `decide_collaborators(project, {person: decision})` | decisions on collaborators | rows changed |
+| `harvest(project, client, source=SnapshotSource(Snapshot(folder)))` | the harvest from a snapshot | `HarvestReport` |
+| `coverage_report(project)`, `person_sheet(project, person)` | states, causes, aggregates; one person's sheet | dicts for the interface |
+| `retry_failed(project, client)`, `add_documents(project, person, folder)`, `exclude_person(project, person)` | the coverage report's actions | the finders' reports |
+| `identity_queue(project)` | the people whose identity waits, with every finder's candidates | a list for the interface |
 
 A cancel raises `Cancelled` and leaves no partial run; the HTTP cache keeps
 every complete answer, so collecting again is quick. `client.egress.summary()`
