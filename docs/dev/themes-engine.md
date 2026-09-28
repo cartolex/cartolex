@@ -96,8 +96,12 @@ Tables written into `derived/themes.apply/`:
 When the applied tree has depth 2 the stage also writes today's `curated.json`
 (by `to_curated`, for a curated tree), `subfields.json`,
 `subfield_weights.csv` and `lexicon_weights.csv`, unchanged: they are what
-the drift baseline compares, and what readers of the two-level document still
-use.
+the drift baseline compares, and what migrating an older project needs.
+
+**The rule for readers.** The app, the site and every new consumer read only
+the generic files above, at every depth. The two-level files exist for the
+reference comparison and for migrating older projects; nothing new reads
+them.
 
 ## Consumers
 
