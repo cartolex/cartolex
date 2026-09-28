@@ -404,6 +404,7 @@ the progress callback, the cancel check and the egress record:
 | `improve_texts(client, layout, config, full_text=False, providers=None, …)` | missing abstracts; full texts on request | `ImproveReport` (per provider: asked, improved, none, failed; one outcome per text) |
 | `rebuild_sources(layout, config, finder_priority=None)` | the tables, merged | `RebuildReport` (rows, merges per rule) |
 | `provider_egress(providers=None)` | what each provider sends, to which service | a list for the privacy summary |
+| `coverage(layout)` | per slot: texts, with a title, an abstract, a full text, parts per provider; the merges of `sources/merges.json` | a dict for the coverage report |
 
 A cancel raises `Cancelled` and leaves no partial run; the HTTP cache keeps
 every complete answer, so collecting again is quick. `client.egress.summary()`

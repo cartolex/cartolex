@@ -236,3 +236,18 @@ def test_nothing_was_sent_to_openalex_and_every_host_was_recorded(collected) -> 
     assert {"hal", "scielo", "europepmc", "arxiv"} <= services
     for entry in collected["egress"]:
         assert set(entry["sends"]) <= {"identifier", "DOI", "name"}
+
+
+def test_the_coverage_counts_what_the_tables_hold(collected) -> None:
+    from cartolex.collect.providers import coverage
+
+    layout = collected["project"].layout
+    texts = read_source_table(layout.table("texts"), "texts").to_pylist()
+    cov = coverage(layout)
+    slot = cov[SLOT]
+    assert slot["texts"] == len(texts) == slot["title"] == slot["abstract"]
+    assert 0 < slot["full_text"] <= slot["texts"]
+    assert {"abstract:hal", "title:scielo", "body:europepmc", "full:hal"} <= set(slot["providers"])
+    report = collected["report"].merges
+    assert cov["merges"]["versions"] == report["version links"]
+    assert cov["merges"]["rules"].get("hal_doi", 0) == report.get("merged by hal_doi", 0)

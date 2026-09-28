@@ -57,6 +57,7 @@ __all__ = [
     "Found",
     "ImproveReport",
     "Provided",
+    "coverage",
     "Provider",
     "TextRef",
     "improve_texts",
@@ -142,6 +143,51 @@ def text_refs(
             )
         )
     return sorted(out, key=lambda t: t.text_id)
+
+
+def coverage(layout: ProjectLayout) -> dict[str, dict[str, Any]]:
+    """What the texts of each slot hold, for a coverage report: how many texts, how many
+    with a title, an abstract, a full text (``body`` or ``full``), and which providers gave
+    their parts; plus the merges of ``sources/merges.json`` when present (key ``merges``)."""
+    out: dict[str, dict[str, Any]] = {}
+    texts = text_refs(layout)
+    parts_of: dict[str, set[tuple[str, str]]] = {}
+    if layout.table("text_parts").exists():
+        table = read_source_table(
+            layout.table("text_parts"), "text_parts", ["text_id", "part", "provider"]
+        )
+        for tid, part, provider in zip(
+            *(table[c].to_pylist() for c in ("text_id", "part", "provider")), strict=True
+        ):
+            parts_of.setdefault(tid, set()).add((part, provider))
+    for t in texts:
+        slot = out.setdefault(
+            t.slot,
+            {"texts": 0, "title": 0, "abstract": 0, "full_text": 0, "providers": {}},
+        )
+        got = parts_of.get(t.text_id, set())
+        slot["texts"] += 1
+        slot["title"] += any(p == "title" for p, _ in got)
+        slot["abstract"] += t.has_abstract
+        slot["full_text"] += t.has_full_text
+        for part, provider in got:
+            key = f"{part}:{provider}"
+            slot["providers"][key] = slot["providers"].get(key, 0) + 1
+    log = layout.sources / "merges.json"
+    if log.exists():
+        import json
+
+        data = json.loads(log.read_text(encoding="utf-8"))
+        rules: dict[str, int] = {}
+        for m in data.get("merges", []):
+            rules[m["rule"]] = rules.get(m["rule"], 0) + max(1, len(m["merged"]))
+        out["merges"] = {
+            "rules": rules,
+            "versions": len(data.get("versions", [])),
+            "refused": len(data.get("refused", [])),
+            "conflicts": len(data.get("conflicts", [])),
+        }
+    return out
 
 
 @dataclass

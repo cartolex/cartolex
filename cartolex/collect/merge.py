@@ -171,7 +171,9 @@ class MergeResult:
         """Merges per rule, version links, refusals and conflicts."""
         out: dict[str, int] = {}
         for m in self.merges:
-            out[f"merged by {m.rule}"] = out.get(f"merged by {m.rule}", 0) + len(m.merged)
+            # Records a finder key had already joined into one text are counted apart.
+            what = f"merged by {m.rule}" if m.merged else "joined by a shared key"
+            out[what] = out.get(what, 0) + max(1, len(m.merged))
         out["version links"] = len(self.versions)
         out["refused"] = len(self.refused)
         out["conflicts"] = len(self.conflicts)
