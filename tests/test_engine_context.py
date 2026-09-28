@@ -452,6 +452,7 @@ def test_the_domain_label_defaults_from_the_workspace(tmp_path: Path) -> None:
     assert fallback.settings.domain_title
 
 
+@pytest.mark.models("en", "fr")
 def test_progress_and_cancel_reach_a_stage_through_its_context(
     synthetic_corpus, minimal_context
 ) -> None:

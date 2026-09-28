@@ -130,6 +130,7 @@ def _reasons(project: Project, stage: str) -> list[str]:
     return [str(r) for r in status(project, year=YEAR)[stage].reasons]
 
 
+@pytest.mark.models("en", "fr")
 def test_an_xs_project_builds_end_to_end(built):
     project = Project.open(built)
     states = _states(project)
@@ -168,6 +169,7 @@ def _matches(pattern: str, path: str) -> bool:
     return path.startswith(head) and path.endswith(tail)
 
 
+@pytest.mark.models("en", "fr")
 def test_the_settings_come_from_the_project(built):
     project = Project.open(built)
     settings = keywords_settings(project.config, recency_years=0, min_people=2)
@@ -177,6 +179,7 @@ def test_the_settings_come_from_the_project(built):
     assert (settings.kw_recency_years, settings.min_df) == (0, 2)
 
 
+@pytest.mark.models("en", "fr")
 def test_edited_decisions_make_the_right_stages_need_an_update(built, tmp_path):
     project = _copy(built, tmp_path)
     layout = project.layout
@@ -205,6 +208,7 @@ def test_edited_decisions_make_the_right_stages_need_an_update(built, tmp_path):
     project.close()
 
 
+@pytest.mark.models("en", "fr")
 def test_a_curated_theme_tree_is_applied(built, tmp_path):
     from cartolex.build.engine import _vocabulary
     from cartolex.project.themes import rename_node
@@ -246,6 +250,7 @@ class _FakeModel:
         return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=usage)
 
 
+@pytest.mark.models("en", "fr")
 def test_the_ai_clean_up_runs_with_an_injected_client(built, tmp_path):
     project = _copy(built, tmp_path)
     config = project.config
@@ -287,6 +292,7 @@ def test_the_ai_clean_up_runs_with_an_injected_client(built, tmp_path):
     project.close()
 
 
+@pytest.mark.models("en", "fr")
 def test_a_cancel_stops_a_real_stage_and_changes_nothing_in_it(built, tmp_path):
     project = _copy(built, tmp_path)
     before = (project.layout.stage("keywords.extract") / "keywords_global.csv").read_bytes()
@@ -313,6 +319,7 @@ def test_a_cancel_stops_a_real_stage_and_changes_nothing_in_it(built, tmp_path):
     project.close()
 
 
+@pytest.mark.models("en", "fr")
 def test_a_killed_build_of_real_stages_loses_nothing(built, tmp_path):
     project = _copy(built, tmp_path)
     params, fp = project.read_params()
@@ -353,6 +360,7 @@ def test_a_killed_build_of_real_stages_loses_nothing(built, tmp_path):
 # ── the command line ─────────────────────────────────────────────────────────
 
 
+@pytest.mark.models("en", "fr")
 def test_the_command_line_verbs(built, tmp_path, capsys):
     project = _copy(built, tmp_path)
     root = str(project.layout.root)
