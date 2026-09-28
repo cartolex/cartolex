@@ -571,14 +571,21 @@ def proposed_places(
     level gives one, or the group has no keyword *tree* places, the keyword gets
     ``None`` (it is set aside, « to check »).
     """
-    from ..project.themes import node_level
-
     group_of = dict(proposal.get("keywords") or {})
     members: dict[str, list[str]] = {}
     for keyword, group in group_of.items():
         members.setdefault(group, []).append(keyword)
     parent = {n.id: n.parent for n in tree.nodes}
-    level = {n.id: node_level(tree, n.id) for n in tree.nodes}
+    level: dict[str, int] = {}
+
+    def level_of(node: str) -> int:
+        if node not in level:
+            up = parent[node]
+            level[node] = 1 if up is None else level_of(up) + 1
+        return level[node]
+
+    for n in tree.nodes:
+        level_of(n.id)
 
     def ancestor(node: str, at: int) -> str:
         while level[node] > at:

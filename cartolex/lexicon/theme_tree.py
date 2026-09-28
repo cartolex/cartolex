@@ -865,14 +865,19 @@ def _people_table(
     r, lv, pos, w, s = (np.concatenate([p[i] for p in parts]) for i in range(5))
     order = np.lexsort((pos, lv, r))
     r, lv, pos, w, s = r[order], lv[order], pos[order], w[order], s[order]
-    level_nodes = {k: tree.at_level(k) for k in range(1, tree.depth + 1)}
-    ids = [str(researcher_ids[i]) for i in r.tolist()]
+    node_ids = np.array([n.id for n in tree.nodes], dtype=object)
+    node = np.empty(len(r), dtype=object)
+    for k in range(1, tree.depth + 1):
+        here = lv == k
+        node[here] = node_ids[tree.at_level(k)[pos[here]]]
+    rids = np.array([str(x) for x in researcher_ids], dtype=object)[r]
+    external = np.array([person_ids.get(str(x), "") for x in researcher_ids], dtype=object)[r]
     return pd.DataFrame(
         {
-            "researcher_id": ids,
-            "person_id": [person_ids.get(i, "") for i in ids],
+            "researcher_id": rids,
+            "person_id": external,
             "level": lv.astype(int),
-            "node": [tree.nodes[level_nodes[k][p]].id for k, p in zip(lv, pos, strict=True)],
+            "node": node,
             "weight": w,
             "share": s,
         },
