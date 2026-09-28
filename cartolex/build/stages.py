@@ -488,6 +488,9 @@ STAGES = Registry(
             "keywords.extract",
             "find keyword candidates",
             upstream=("corpus.assemble",),
+            # version 2: the lexicon lab's defaults (no English "of" complement,
+            # simpler bands, no common-modifier rule)
+            version=2,
             decisions=("decisions/stopwords.json",),
             project=("languages", "identity.language_models"),
             params=(
@@ -530,6 +533,9 @@ STAGES = Registry(
             "keywords.triage",
             "AI clean-up",
             upstream=("keywords.extract",),
+            # version 2: only the kept and to-check bands are judged; the prompt's
+            # third version (process of an object, everyday words, English forms)
+            version=2,
             decisions=("decisions/prompts/triage_typed_system.txt",),
             project=(
                 "identity.domain_title",

@@ -362,3 +362,14 @@ def test_the_handoff_test_is_written_and_scored(tmp_path: Path, monkeypatch) -> 
         handoff_bundles.write_handoff_test(
             out, size="XS", seed=0, project=tmp_path / "project", max_tokens=6_000
         )
+
+
+def test_bundles_can_interleave_the_languages() -> None:
+    en = _scored()["en"]
+    scored = {"fr": en, "en": en}  # the same candidates twice, as two languages
+    one_after = [it.lang for it in handoff.bundle(scored, bands=("kept", "check")).items]
+    n = len(one_after) // 2
+    assert one_after == ["fr"] * n + ["en"] * n
+    mixed = handoff.bundle(scored, bands=("kept", "check"), interleave=True).items
+    assert [it.lang for it in mixed] == ["fr", "en"] * n
+    assert [it.term for it in mixed[::2]] == [it.term for it in mixed[1::2]]

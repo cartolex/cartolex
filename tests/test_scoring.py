@@ -173,17 +173,19 @@ def test_bands_and_reasons() -> None:
     # Always inside the longer phrase: a fragment of it.
     assert tuple(bands.loc["vector machine"]) == ("aside", "part-of: support vector machine")
     assert tuple(bands.loc["data"]) == ("check", "single-word")
-    # An edge adjective every person uses makes a phrase common.
-    assert tuple(bands.loc["recent approach"]) == ("check", "common-modifier: recent")
-    plain = score_units(
+    # By default a widespread edge adjective changes nothing: the phrase is kept.
+    assert tuple(bands.loc["recent approach"]) == ("kept", "multiword")
+    # With the lab's switch, an edge adjective every person uses makes it common.
+    common = score_units(
         "en",
         units,
         10,
         min_df=3,
         max_df=1.0,
-        options=ScoringOptions(bands=BandRules(generic_spread=None)),
+        options=ScoringOptions(bands=BandRules(generic_spread=0.2)),
     )
-    assert plain.table.set_index("term").loc["recent approach", "band"] == "kept"
+    common_bands = common.table.set_index("term")[["band", "reason"]]
+    assert tuple(common_bands.loc["recent approach"]) == ("check", "common-modifier: recent")
     # The least specific tail is set aside.
     strict = score_units(
         "en",

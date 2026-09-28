@@ -109,16 +109,29 @@ def bundle(
     domain: str = "",
     description: str = "",
     usage: Mapping[str, Mapping[str, list[str]]] | None = None,
+    interleave: bool = False,
 ) -> Bundle:
-    """The bundle of the candidates in *bands*, every language, best scored first."""
-    items: list[BundleItem] = []
-    for lang, sc in scored.items():
+    """The bundle of the candidates in *bands*, best scored first.
+
+    By default one language after the other. With *interleave*, the languages
+    are merged by rank within their language (the best tenth of each first,
+    and so on), so that a part cut from the bundle holds the same stretch of
+    every language: a term and its translation, used alike, tend to meet in
+    the same part, where the judge can give them the same English form.
+    """
+    ranked: list[tuple[float, int, BundleItem]] = []
+    for k, (lang, sc) in enumerate(scored.items()):
         n_people = max(sc.n_people, 1)
-        for c in sorted(sc.candidates.values(), key=lambda c: (-c.score_len, c.term)):
-            if c.band not in bands:
-                continue
-            items.append(_item(lang, c, sc, n_people, (usage or {}).get(lang, {})))
-    return Bundle(domain, description, items)
+        mine = [
+            c
+            for c in sorted(sc.candidates.values(), key=lambda c: (-c.score_len, c.term))
+            if c.band in bands
+        ]
+        for rank, c in enumerate(mine):
+            item = _item(lang, c, sc, n_people, (usage or {}).get(lang, {}))
+            ranked.append(((rank + 0.5) / len(mine) if interleave else float(k), k, item))
+    ranked.sort(key=lambda x: (x[0], x[1]) if interleave else (x[1],))
+    return Bundle(domain, description, [item for _, _, item in ranked])
 
 
 def _item(lang: str, c: Candidate, sc: ScoredCandidates, n_people: int, usage) -> BundleItem:
@@ -287,8 +300,10 @@ def priced(cost: Mapping[str, int], price: Price) -> float:
 #: Format of ``bundle.json``, the machine-readable half of a handoff part.
 HANDOFF_FORMAT = "cartolex-handoff/1"
 #: Version of :data:`PROMPT`, recorded in each part. 2: a process, property or
-#: measure of an object is a keyword; F is only for broken pieces.
-PROMPT_VERSION = 2
+#: measure of an object is a keyword; F is only for broken pieces. 3: a single
+#: everyday word is G unless a term of art; a term of another language takes
+#: the English term of the list that names the same thing as its English form.
+PROMPT_VERSION = 3
 #: The codes of the answer (the engine's triage codes).
 ACCEPT_CODES = ("C", "M", "O")
 REJECT_CODES = ("N", "K", "G", "F")
@@ -312,7 +327,9 @@ their work. Accept it with one of these codes:
 or reject it with one of these:
   N  a name: a person, a particular place, an institution, a project, a journal
   K  administrative, career or project-management wording
-  G  too generic to be a keyword on its own: it could be said of any field or study
+  G  too generic to be a keyword on its own: it could be said of any field or
+     study. A single everyday word (shape, weight, poids) is G, unless it is a
+     term of art of the field (entropy, in physics)
   F  a broken piece, not a term: a phrase cut out of a longer one, words split
      across a phrase boundary, or debris of a sentence
 
@@ -322,6 +339,12 @@ reaction) is a good keyword, usually C, when both parts belong to the field.
 French often writes it « X des Y », English as a compound: judge the whole
 phrase, and do not reject it in favour of its object alone. F is only for
 broken pieces.
+
+When an English term of the list names the same thing as a French or
+Portuguese term of the list, give exactly that English term, as listed, as
+the English form of the French or Portuguese term: the map merges the terms
+whose English forms are identical (in the examples below, term 12 takes
+term 1).
 
 The evidence after each term (how many people and texts use it, its other
 spellings, the longer phrases it appears in) is there to help; judge the term
@@ -347,6 +370,9 @@ For example, with terms from another field:
   7 | C | enzyme turnover rate
   8 | F | matter physics
   9 | F | égard des mesures
+  10 | G | shape
+  11 | C | entropy
+  12 | C | transition de phase | phase transition
 
 Read and judge every term yourself; do not write or run a program to decide.
 Give the whole answer as plain text in one code block, or as a downloadable

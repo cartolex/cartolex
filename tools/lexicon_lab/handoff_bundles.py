@@ -192,6 +192,7 @@ def write_handoff_test(
     rebuild: bool = False,
     split_tocheck: bool = False,
     suffix: str = "",
+    interleave: bool = True,
 ) -> dict:
     """Build, check, and write both scopes' bundles, the manifest and the README in *out*.
 
@@ -249,7 +250,9 @@ def write_handoff_test(
     }
     leaks: list[str] = []
     for scope, bands in SCOPES.items():
-        b = handoff.bundle(scored, bands=bands, domain=domain, description=description)
+        b = handoff.bundle(
+            scored, bands=bands, domain=domain, description=description, interleave=interleave
+        )
         if scope == "tocheck" and not split_tocheck:
             chunks = [b.items]
         else:
@@ -288,6 +291,9 @@ def write_handoff_test(
             "scope": scope,
             "prompt_version": handoff.PROMPT_VERSION,
             "commit": _git_commit(),
+            "order": "languages interleaved by rank"
+            if interleave
+            else "one language after the other",
             "bands": list(bands),
             "items": len(b.items),
             "by_language": {

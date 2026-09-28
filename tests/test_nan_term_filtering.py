@@ -27,6 +27,19 @@ def test_load_global_terms_drops_blank_string_term(tmp_path):
     assert terms == ["graphene"]
 
 
+def test_the_triage_never_reads_the_set_aside_band(tmp_path):
+    csv = tmp_path / "keywords_global.csv"
+    pd.DataFrame(
+        {
+            "term": ["support vector machine", "data", "vector machine"],
+            "score_len": [3.0, 1.0, 2.0],
+            "band": ["kept", "check", "aside"],
+        }
+    ).to_csv(csv, index=False)
+    terms, _ = _load_global_terms(csv)
+    assert terms == ["support vector machine", "data"]
+
+
 def test_load_global_terms_tolerates_blank_term_cell(tmp_path):
     # A pre-split keywords_global.csv with one empty term cell (parsed as NaN by pandas 3).
     csv = tmp_path / "keywords_global.csv"

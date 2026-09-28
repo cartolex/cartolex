@@ -107,18 +107,23 @@ interface turns into words:
 | --- | --- | --- |
 | `kept` | `multiword` | a phrase of two content words or more (prepositions and articles do not count) |
 | `check` | `single-word` | one content word |
-| `check` | `common-modifier: <word>` | the adjective at the phrase's edge (first in English, last in French and Portuguese) appears in the candidates of at least 20 % of the people (`recent approach`) |
+| `check` | `common-modifier: <word>` | the adjective at the phrase's edge (first in English, last in French and Portuguese) appears in the candidates of at least `generic_spread` of the people (`recent approach`); off by default |
 | `check` | `below-threshold` | a multi-word phrase outside the best `keep_share` of the candidates (off: every one is kept) |
 | `aside` | `part-of: <term>` | every occurrence sits inside one and the same longer candidate (`vector machine` in `support vector machine`) |
 | `aside` | `low-score` | the least specific `drop_share` of the candidates, by `score_len` (off) |
 | `aside` | `name: person\|place` | mostly inside a recognised name of a person or a place (only when names are recognised; the engine does not recognise them) |
 
 The rules are checked in the order `part-of`, `name`, `low-score`, then
-`single-word`, `common-modifier`, `below-threshold`, `multiword`. Bands
-describe candidates; they remove nothing: the triage and consolidation read
-every candidate, as before. The rules and their defaults come from the
-lexicon lab ({doc}`lexicon-lab`); the rules marked off are its switches, not
-settings.
+`single-word`, `common-modifier`, `below-threshold`, `multiword`. With the
+defaults, a candidate is kept (a phrase of two content words or more), to
+check (one content word) or set aside (a fragment of a longer candidate).
+The AI clean-up judges the kept and to-check bands and never sees the
+set-aside band; with its decisions, the consolidation keeps only accepted
+terms, so a set-aside candidate reaches the lexicon only if the same concept
+is accepted under another form. Without the AI clean-up, bands remove
+nothing: the consolidation reads every candidate. The rules and their
+defaults come from the lexicon lab ({doc}`lexicon-lab`); the rules marked
+off are its switches, not settings.
 
 ### The raw keyword tables
 

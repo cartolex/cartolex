@@ -42,6 +42,13 @@ Notes on the shipped defaults:
   rule treats non-quantitative humanities terms as out-of-scope. For
   social-science / humanities corpora, edit that rule in
   `triage_typed_system.txt` (or use the workspace override).
+- The triage template is aligned with the lexicon lab's handoff prompt
+  (`tools/lexicon_lab/handoff.py`, prompt version 3): F is only for broken
+  pieces, a process, property or measure of an object of the field is a
+  keyword, a single everyday word is G unless it is a term of art, and a term
+  of another language takes the canonical form of the reference-language term
+  that names the same thing. The triage judges the kept and to-check bands of
+  the extraction only, never the set-aside band.
 - The triage LLM response cache is keyed by *(term, domain title, model)* —
   not by prompt text — so editing the triage template does **not** invalidate
   cached verdicts. Delete the workspace LLM cache if you change semantics and
