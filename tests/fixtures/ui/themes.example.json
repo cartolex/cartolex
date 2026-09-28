@@ -1,0 +1,203 @@
+{
+ "themes": {
+  "source": "saved",
+  "version": "sha256:fixture",
+  "space_run": null,
+  "tree": {
+   "format": "cartolex-themes/1",
+   "depth": 2,
+   "levels": [
+    {
+     "names": {
+      "en": "Theme",
+      "fr": "Thème",
+      "pt": "Tema"
+     }
+    },
+    {
+     "names": {
+      "en": "Topic",
+      "fr": "Sujet",
+      "pt": "Tópico"
+     }
+    }
+   ],
+   "nodes": [
+    {
+     "id": "s1",
+     "parent": null,
+     "names": {
+      "en": "Coastal hazards",
+      "fr": "Aléas côtiers"
+     },
+     "order": 1
+    },
+    {
+     "id": "c1",
+     "parent": "s1",
+     "names": {
+      "en": "Storm surge"
+     },
+     "order": 1
+    },
+    {
+     "id": "c2",
+     "parent": "s1",
+     "names": {
+      "en": "Shoreline erosion"
+     },
+     "order": 2
+    },
+    {
+     "id": "s2",
+     "parent": null,
+     "names": {
+      "en": "Marine ecology",
+      "fr": "Écologie marine"
+     },
+     "order": 2
+    },
+    {
+     "id": "c3",
+     "parent": "s2",
+     "names": {
+      "en": "Seagrass meadows"
+     },
+     "order": 1
+    },
+    {
+     "id": "c4",
+     "parent": "s2",
+     "names": {
+      "en": "Plankton blooms"
+     },
+     "order": 2
+    },
+    {
+     "id": "s3",
+     "parent": null,
+     "names": {
+      "en": "Ocean observation"
+     },
+     "order": 3
+    },
+    {
+     "id": "c5",
+     "parent": "s3",
+     "names": {
+      "en": "Tide gauges"
+     },
+     "order": 1
+    }
+   ],
+   "keywords": {
+    "beach profile": "c2",
+    "cliff retreat": "c2",
+    "coastal flooding": "c1",
+    "extreme events": "s1",
+    "harmful algal bloom": "c4",
+    "phytoplankton growth": "c4",
+    "sea level record": "c5",
+    "seagrass cover": "c3",
+    "storm surge model": "c1",
+    "tide gauge": "c5",
+    "wave setup": "c1",
+    "érosion des plages": "c2",
+    "herbier de posidonie": "c3"
+   },
+   "attribution": {
+    "wave setup": 1
+   },
+   "set_aside": {
+    "further work": {
+     "from": "s1",
+     "reason": "too general for this field"
+    }
+   },
+   "review": {
+    "wave setup": "to_check"
+   },
+   "based_on": {
+    "run": "themes.group/20260101T000000Z-0000",
+    "vocabulary": null
+   },
+   "saved": {
+    "at": "2026-01-01T00:00:00Z",
+    "action": "save"
+   }
+  },
+  "vocabulary": 14,
+  "based_on_current": true,
+  "missing": [],
+  "missing_count": 0,
+  "extra": [],
+  "extra_count": 0,
+  "proposal": {
+   "run": null,
+   "pending": false,
+   "same_vocabulary": false
+  }
+ },
+ "usage": {
+  "run": null,
+  "people": 12,
+  "terms": {
+   "beach profile": [
+    3,
+    0.2
+   ],
+   "cliff retreat": [
+    10,
+    1.5
+   ],
+   "coastal flooding": [
+    6,
+    1.1
+   ],
+   "extreme events": [
+    13,
+    0.7
+   ],
+   "further work": [
+    9,
+    0.3
+   ],
+   "harmful algal bloom": [
+    5,
+    1.6
+   ],
+   "herbier de posidonie": [
+    12,
+    1.2
+   ],
+   "phytoplankton growth": [
+    8,
+    0.8
+   ],
+   "sea level record": [
+    4,
+    0.4
+   ],
+   "seagrass cover": [
+    11,
+    1.7
+   ],
+   "storm surge model": [
+    7,
+    1.3
+   ],
+   "tide gauge": [
+    3,
+    0.9
+   ],
+   "wave setup": [
+    10,
+    0.5
+   ],
+   "érosion des plages": [
+    6,
+    1.8
+   ]
+  }
+ }
+}

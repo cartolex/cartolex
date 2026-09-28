@@ -757,6 +757,8 @@ UI_PAIRS = [
     for fg in ("border", "border-strong", "focus")
     for bg in ("bg", "surface", "surface-alt", "surface-raised", "selected")
 ] + [("focus", "danger-surface"), ("danger", "danger-surface"), ("danger", "bg")]
+#: The hue families of the themes (treemap and map marks): graphics, 3:1 on the page.
+UI_PAIRS += [(f"hue-{k}", bg) for k in range(1, 13) for bg in ("bg", "surface")]
 
 
 def css_blocks(css: str) -> list[tuple[str, str, dict[str, str]]]:
