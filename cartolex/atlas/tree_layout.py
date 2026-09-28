@@ -187,16 +187,58 @@ def _spread(Zn: np.ndarray) -> np.ndarray:
     return xy
 
 
+def _pull(Zn: np.ndarray, groups: list[np.ndarray], centres: np.ndarray, own: int) -> np.ndarray:
+    """Per member of ``groups[own]``: a vector toward the sibling discs it resembles.
+
+    The direction is the mean of the unit vectors toward the other discs,
+    weighted by the softmax of the member's cosine to each disc's mean vector;
+    the length (0 to 1) grows as the member resembles another disc as much as
+    its own.
+    """
+    members = groups[own]
+    C = normalize(np.vstack([Zn[g].mean(axis=0) for g in groups]))
+    sims = Zn[members] @ C.T
+    others = [j for j in range(len(groups)) if j != own]
+    delta = centres[others] - centres[own]
+    dist = np.hypot(delta[:, 0], delta[:, 1])
+    units = delta / np.maximum(dist, 1e-12)[:, None]
+    logits = _SHARP * sims[:, others]
+    logits -= logits.max(axis=1, keepdims=True)
+    w = np.exp(logits)
+    w /= w.sum(axis=1, keepdims=True)
+    strength = 1.0 / (1.0 + np.exp(-_SHARP * (sims[:, others].max(axis=1) - sims[:, own])))
+    return (w @ units) * strength[:, None]
+
+
+#: How sharply a person's cosines to the discs decide where they lean.
+_SHARP = 8.0
+#: The share of a person's place in their disc given by where they lean (the rest by their spread).
+_LEAN = 0.4
+
+
 def tree_layout(tree: Any, paths: np.ndarray, Z: np.ndarray) -> np.ndarray:
-    """The map positions (``n × 2``) of the people with *paths* (from :func:`people_paths`)."""
+    """The map positions (``n × 2``) of the people with *paths* (from :func:`people_paths`).
+
+    Inside their finest disc, people are spread by their own principal axes and
+    lean toward the sibling discs (at every level) whose people they resemble,
+    so that a person between two themes sits on the side facing the other.
+    """
     Zn = normalize(np.asarray(Z, dtype=np.float64))
     n = len(Zn)
     xy = np.zeros((n, 2))
+    lean = np.zeros((n, 2))
+    splits = np.zeros(n)
     depth = paths.shape[1]
 
     def place(members: np.ndarray, level: int, centre: np.ndarray, radius: float) -> None:
         if level > depth or not len(members):
-            local = _spread(Zn[members]) if len(members) else np.zeros((0, 2))
+            if not len(members):
+                return
+            local = (1.0 - _LEAN) * _spread(Zn[members])
+            local += _LEAN * lean[members] / np.maximum(splits[members], 1.0)[:, None]
+            rho = np.hypot(local[:, 0], local[:, 1])
+            far = rho > 1.0
+            local[far] = local[far] / rho[far][:, None]
             xy[members] = centre + local * radius
             return
         nodes = paths[members, level - 1]
@@ -209,6 +251,9 @@ def tree_layout(tree: Any, paths: np.ndarray, Z: np.ndarray) -> np.ndarray:
         radii = radius * np.sqrt(FILL * mass / mass.sum())
         guess = _mds(np.vstack([Zn[g].mean(axis=0) for g in groups]))
         centres = _pack(guess, radii, radius)
+        for j, g in enumerate(groups):
+            lean[g] += _pull(Zn, groups, centres, j)
+            splits[g] += 1.0
         for g, c, r in zip(groups, centres, radii, strict=True):
             place(g, level + 1, centre + c, float(r))
 
