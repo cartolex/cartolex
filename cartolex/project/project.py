@@ -232,6 +232,32 @@ class Project:
         )
         self.config = config
 
+    def has_curation(self) -> bool:
+        """Whether people (or an imported AI proposal) have made curation decisions."""
+        layout = self.layout
+        if layout.themes_json.exists():
+            return True
+        try:
+            lines = layout.keywords_csv.read_text(encoding="utf-8").splitlines()
+        except FileNotFoundError:
+            return False
+        return len([line for line in lines if line.strip()]) > 1
+
+    def freeze_identity(self, reason: str) -> bool:
+        """Freeze the identity (``docs/format/project-json.md``); returns whether it changed.
+
+        Called when the first AI answers arrive and when the first curation decision
+        is saved: from then on cached answers and decisions depend on the identity.
+        """
+        config = self.config
+        if config.identity.frozen:
+            return False
+        frozen = config.model_copy(
+            update={"identity": config.identity.model_copy(update={"frozen": True})}
+        )
+        self.save_config(frozen, action=f"identity frozen: {reason}")
+        return True
+
     def read_params(self) -> tuple[ParamsFile, str | None]:
         """``decisions/params.json`` and its fingerprint (defaults when the file is missing)."""
         path = self.layout.params_json

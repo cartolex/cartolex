@@ -59,7 +59,10 @@ marker a tool looks for: a folder is a cartolex project when it holds a
 - `language_models` names each language's spaCy model and version; parsed texts
   are cached under that name.
 
-When a build first gathers texts, `frozen` becomes `true`. Changing a frozen
+`frozen` becomes `true` when the first AI answers arrive (the AI clean-up, by
+API or through an imported proposal) or the first curation decision is saved
+(`keywords.csv`, `themes.json`): from then on cached answers and decisions
+depend on the identity. Changing a frozen
 value afterwards is possible, as an explicit action that says what it costs: a
 new domain title or AI model means cached AI answers are no longer reused, and a
 new language model means texts are parsed again. A first choice costs nothing
