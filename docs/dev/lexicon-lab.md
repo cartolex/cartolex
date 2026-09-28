@@ -848,7 +848,7 @@ has to implement `handoff.Judge`.
 ### The browser-handoff test
 
 ```bash
-python tools/lexicon_lab/handoff_bundles.py --out ~/cartolex-work/handoff-test --suffix -v2
+python tools/lexicon_lab/handoff_bundles.py --out ~/cartolex-work/handoff-test --suffix=-v2
 python tools/lexicon_lab/score_handoff.py ~/cartolex-work/handoff-test [--only tocheck-v2]
 ```
 

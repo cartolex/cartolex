@@ -4,7 +4,7 @@
 Usage::
 
     python tools/lexicon_lab/handoff_bundles.py --out ~/cartolex-work/handoff-test
-    python tools/lexicon_lab/handoff_bundles.py --out ~/cartolex-work/handoff-test --suffix -v2
+    python tools/lexicon_lab/handoff_bundles.py --out ~/cartolex-work/handoff-test --suffix=-v2
     python tools/lexicon_lab/score_handoff.py ~/cartolex-work/handoff-test   # once answered
 
 A demo world is written as a project and its keywords are extracted by a
