@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "GLOBAL_PARAMS",
+    "PARTS_BY_SLOT_KIND",
     "RULES",
     "SIZE_NAMES",
     "CrossCheck",
@@ -140,6 +141,15 @@ class Rule:
     compute: Callable[[ProjectSizes], Any]
 
 
+#: The parts of a text read by default, by the kind of its slot: collected texts by their
+#: title and abstract (a full text collected on request counts only when asked for),
+#: documents a person gave (a folder, a corpus) whole.
+PARTS_BY_SLOT_KIND: dict[str, list[str]] = {
+    "collection": ["title", "abstract"],
+    "folder": ["title", "abstract", "full"],
+    "corpus": ["title", "abstract", "full"],
+}
+
 RULES: dict[str, Rule] = {
     rule.name: rule
     for rule in (
@@ -148,6 +158,13 @@ RULES: dict[str, Rule] = {
             "min(⌊log₁₀ kept keywords⌋ − 1, ⌊log₁₀ mapped units⌋), clamped to 1–4",
             ("kept_keywords", "mapped_units"),
             lambda s: theme_depth(s.kept_keywords or 1, s.mapped_units or 1),
+        ),
+        Rule(
+            "parts_by_slot_kind",
+            "title and abstract for a collection slot; title, abstract and the whole document "
+            "for a folder or a corpus slot",
+            (),
+            lambda s: {kind: list(parts) for kind, parts in PARTS_BY_SLOT_KIND.items()},
         ),
     )
 }
@@ -245,9 +262,12 @@ class ParamSpec:
         return None
 
     def coerce(self, value: Any) -> Any:
-        """The value as stored in a record (a float parameter set to 1 is 1.0)."""
+        """The value as stored in a record (a float parameter set to 1 is 1.0); a rule's value
+        by slot kind stays a mapping."""
         if self.type == "float":
             return float(value)
+        if isinstance(value, Mapping):
+            return {k: self.coerce(v) for k, v in value.items()}
         if self.type in ("list", "ints") and value is not None:
             return list(value)
         return value

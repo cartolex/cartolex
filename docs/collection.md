@@ -81,9 +81,11 @@ in whole: one person per name and unit, the unit as an organisation of the
 project's first level, other columns as person attributes, and a text file
 listed for several people as one text with several authors.
 
-Folders and corpora bring whole documents: the build reads them when its
-`corpus.assemble.parts` include `full`, which the import sets when you have
-not set the parts yourself.
+Folders and corpora bring whole documents: the build reads the texts of a
+folder or a corpus slot whole by default, and a collection slot's by their
+title and abstract (the rule `parts_by_slot_kind`, recorded as such in the
+stage's `run.json`). Parts you set in `params.json` (`corpus.assemble.parts`)
+apply to every slot, and the import says so when they leave the documents out.
 
 ## Who is who: resolution
 

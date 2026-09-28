@@ -1000,24 +1000,15 @@ def _doc_type(builder: SourceBuilder, slot: str, default: str) -> str:
 
 
 def _full_parts(project: Project, report: ImportReport) -> None:
-    """Whole documents are read by the build only when its parts include ``full``."""
-    params, fp = project.read_params()
+    """Whole documents are read by the build when its parts include ``full``: by default for
+    the texts of folder and corpus slots; a project that set its parts says whether."""
+    params, _fp = project.read_params()
     stage = dict(params.stages.get("corpus.assemble", {}))
-    if "parts" in stage:
-        if "full" not in stage["parts"]:
-            report.notes.append(
-                "the build reads only " + ", ".join(stage["parts"]) + " of each text: add 'full' "
-                "to corpus.assemble.parts to read these documents"
-            )
-        return
-    stage["parts"] = ["title", "abstract", "full"]
-    stages = {**params.stages, "corpus.assemble": stage}
-    project.save_params(
-        params.model_copy(update={"stages": stages}), expected=fp, action="read whole documents"
-    )
-    report.notes.append(
-        "corpus.assemble.parts set to title, abstract, full: the build reads whole documents"
-    )
+    if "parts" in stage and "full" not in stage["parts"]:
+        report.notes.append(
+            "the build reads only " + ", ".join(stage["parts"]) + " of each text: add 'full' "
+            "to corpus.assemble.parts to read these documents"
+        )
 
 
 # ── a corpus in the engine's contract ────────────────────────────────────────

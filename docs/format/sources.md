@@ -47,7 +47,7 @@ written by five people is one text with five authorships.
 
 A text has parts, each from a provider: a title, an abstract per language, a
 full text. Keeping them apart lets a project choose what feeds the lexicon
-(titles and abstracts by default), weigh the parts, and fill a missing abstract
+(titles and abstracts by default, the whole document for a folder or a corpus slot), weigh the parts, and fill a missing abstract
 from another provider.
 
 | column | type | meaning |

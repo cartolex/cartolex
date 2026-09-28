@@ -153,3 +153,57 @@ def test_an_attribute_named_like_a_contract_column_is_renamed():
     assert attribute_column("career_stage") == "career_stage"
     assert attribute_column("unit") == "person_unit"
     assert attribute_column("source") == "person_source"
+
+
+def test_parts_by_slot_kind_read_documents_whole_and_collected_texts_by_their_abstracts(tmp_path):
+    """A folder's documents are read whole; a collected text with a full text collected on
+    request is still read by its title and abstract, unless the parts say otherwise."""
+    from datetime import datetime, timezone
+
+    import pyarrow as pa
+
+    from cartolex.build.params import PARTS_BY_SLOT_KIND
+    from cartolex.project import Project
+    from cartolex.project.models import Slot
+    from cartolex.project.tables import SOURCE_SCHEMAS, write_source_table
+
+    at = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    project = Project.init(
+        tmp_path / "p",
+        name="Parts",
+        domain_title="Coasts",
+        slots=(Slot(id="collected", kind="collection"), Slot(id="documents", kind="folder")),
+    )
+
+    def table(name, rows):
+        schema = SOURCE_SCHEMAS[name]
+        write_source_table(
+            project.layout.table(name),
+            name,
+            pa.table({f.name: [r.get(f.name) for r in rows] for f in schema}, schema=schema),
+        )
+
+    table("people", [{"person_id": "p1", "last_name": "Tavelin", "first_name": "Ada", "ids": [],
+                      "source": "import", "columns": [], "aliases": [], "retrieved_at": at}])  # fmt: skip
+    base = {"year": 2024, "ids": [], "n_authors": 1, "retrieved_at": at, "doc_type": "article"}
+    table("texts", [
+        {**base, "text_id": "t1", "slot": "collected", "position": 0, "title": "A", "source": "openalex"},
+        {**base, "text_id": "t2", "slot": "documents", "position": 0, "title": "B", "source": "folder"},
+    ])  # fmt: skip
+    part = {"language": "en", "format": "plain", "retrieved_at": at}
+    table("text_parts", [
+        {**part, "text_id": "t1", "part": "abstract", "provider": "openalex", "content": "Tidal flats."},
+        {**part, "text_id": "t1", "part": "full", "provider": "hal", "content": "A whole paper."},
+        {**part, "text_id": "t1", "part": "title", "provider": "openalex", "content": "Flats"},
+        {**part, "text_id": "t2", "part": "full", "provider": "folder", "content": "A whole report."},
+    ])  # fmt: skip
+    table("authorships", [{"text_id": t, "person_id": "p1", "position": 1, "orgs": []}
+                          for t in ("t1", "t2")])  # fmt: skip
+    out = tmp_path / "out"
+    assemble_corpus(project.layout, project.config, out, parts=PARTS_BY_SLOT_KIND)
+    assert (out / "collected" / "texts" / "t1.txt").read_text() == "Flats\n\nTidal flats.\n"
+    assert (out / "documents" / "texts" / "t2.txt").read_text() == "A whole report.\n"
+    everywhere = tmp_path / "all"
+    assemble_corpus(project.layout, project.config, everywhere, parts=["title", "abstract", "full"])
+    assert (everywhere / "collected" / "texts" / "t1.txt").read_text() == "A whole paper.\n"
+    project.close()

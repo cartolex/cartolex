@@ -115,7 +115,7 @@ leaves the check to the run.
 
 | stage | parameter | default | allowed |
 | --- | --- | --- | --- |
-| `corpus.assemble` | `parts` | title, abstract | title, abstract, body, full |
+| `corpus.assemble` | `parts` | rule `parts_by_slot_kind`: title, abstract for a collection slot; title, abstract, full for a folder or a corpus slot | title, abstract, body, full (a list set here applies to every slot) |
 | `corpus.assemble` | `provider_priority` | folder, openalex, hal, scielo, europepmc, arxiv, biorxiv | provider names; the others follow alphabetically |
 | `corpus.assemble` | `recency_years` | 5 | 0–200; 0 keeps every year |
 | `keywords.extract` | `counting_unit` | person | person, text, organisation |
@@ -339,7 +339,7 @@ made with.
 
 | parameter | engine setting |
 | --- | --- |
-| `corpus.assemble.parts`, `.provider_priority` | `assemble_corpus(parts=…, provider_priority=…)` |
+| `corpus.assemble.parts`, `.provider_priority` | `assemble_corpus(parts=…, provider_priority=…)`; `parts` is a list, or the rule's parts by slot kind |
 | `corpus.assemble.recency_years` | `KeywordsConfig.kw_recency_years` |
 | the `year` | `RunContext.now_year` |
 | `keywords.extract.min_people`, `.max_share`, `.counting_unit` | `KeywordsConfig.min_df`, `.max_df`, `.counting_unit` |

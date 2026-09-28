@@ -29,7 +29,7 @@ from __future__ import annotations
 import csv
 import io
 from collections import defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -113,7 +113,7 @@ def assemble_corpus(
     config: ProjectFile,
     out_dir: Path,
     *,
-    parts: Sequence[str] = ("title", "abstract"),
+    parts: Sequence[str] | Mapping[str, Sequence[str]] = ("title", "abstract"),
     provider_priority: Sequence[str] = (),
     unit_level: str | None = None,
 ) -> CorpusSummary:
@@ -126,8 +126,11 @@ def assemble_corpus(
     its ``projected`` people from the project's own tables, or every person of
     its own ``root``'s tables (``<root>/tables/``, laid out like
     ``sources/tables/``; a relative root is relative to the project).
-    *provider_priority* picks one provider per (text, part, language), earlier
-    first, unknown providers last in name order. *unit_level* names the level
+    *parts* are the parts read of every text, or, by the kind of the text's slot
+    (``collection``, ``folder``, ``corpus``), the parts read of that slot's texts
+    (a slot the project does not declare, as in an overlay's own folder, reads as
+    a collection). *provider_priority* picks one provider per (text, part,
+    language), earlier first, unknown providers last in name order. *unit_level* names the level
     whose organisation fills the ``unit`` column (default: the project's first
     level, else any affiliation).
     """
@@ -138,6 +141,12 @@ def assemble_corpus(
     slot_rank = {s.id: i for i, s in enumerate(config.slots)}
     fit_slots = [s.id for s in config.slots if s.fit]
     written: dict[Path, set[str]] = defaultdict(set)
+    kinds = {s.id: s.kind for s in config.slots}
+
+    def parts_of(slot: str) -> Sequence[str]:
+        if isinstance(parts, Mapping):
+            return parts.get(kinds.get(slot, "collection"), ("title", "abstract"))
+        return parts
 
     def emit(
         target: Path, members: list[str], slots: set[str] | None, src: _Loaded
@@ -161,7 +170,9 @@ def assemble_corpus(
                 )
             )
             for tid in texts_of:
-                body = render_text(chosen_parts.get(tid, ()), chosen=parts)
+                body = render_text(
+                    chosen_parts.get(tid, ()), chosen=parts_of(text_meta[tid]["slot"])
+                )
                 if not body:
                     summary.texts_without_parts += 1
                     continue
