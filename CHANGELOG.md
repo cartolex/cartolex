@@ -208,3 +208,20 @@ nothing in the engine names a particular deployment, source or procedure.
   two places, and the trajectories stage is 3.3 times faster. `map.layout`,
   `map.trajectories` and `overlays.position` are at version 2; the baseline is
   updated (`tests/baseline/LOG.md`). See `docs/dev/placement.md`.
+- **The web interface's foundations.** `cartolex/app/static/` holds the new
+  interface as native ES modules on vendored Preact, hooks, htm and signals
+  (`tools/vendor_ui.py`, hashes in `vendor/VENDOR.md`), with no build step:
+  the shell (manifest, catalogues, extensions, then the route), a history
+  router with a page lifecycle (navigation token, `AbortSignal`, teardown,
+  late answers dropped, a guard for unsaved edits), registries for pages,
+  slots, facets and layers, an extension API (`register(api)`), stores for
+  the project state (cached status dots), jobs (one poller) and preferences,
+  an API client (CSRF header, `ETag`/`If-Match` with a typed stale result,
+  errors turned into ErrorCards), catalogues in English, French and
+  Portuguese (Brazil), design tokens for a black-and-white look in light and
+  dark themes with state coded by shape, and the component library with a
+  gallery at `/gallery` (`docs/dev/ui.md`). Two new checks: `js`
+  (`tools/ui_check.py`: parse, imports, literal text, bans, vendored hashes,
+  catalogues, contrast) and `browser` (`tests/browser/` in headless Chromium,
+  offline: axe, keyboard scripts, budgets, teardown and leaks). A fixture
+  server (`tools/ui_fixture_server.py`) stands in for the app's routes.

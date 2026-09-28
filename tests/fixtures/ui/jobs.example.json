@@ -1,0 +1,14 @@
+{
+  "format": "cartolex-jobs/1",
+  "jobs": [
+    {"id": "job-0002", "kind": "build", "title": null, "state": "running", "cancellable": true,
+     "created_at": "2026-09-28T09:58:00Z", "started_at": "2026-09-28T09:58:02Z", "finished_at": null,
+     "progress": {"phase": 4, "phases": 7, "stage": "keywords.build", "name": "build the vocabulary",
+                  "stage_fraction": 0.45, "fraction": 0.52, "message": "", "elapsed_s": 81.0, "eta_s": 95.0},
+     "result": null, "error": null},
+    {"id": "job-0001", "kind": "collect", "title": null, "state": "succeeded", "cancellable": false,
+     "created_at": "2026-09-28T09:00:00Z", "started_at": "2026-09-28T09:00:01Z",
+     "finished_at": "2026-09-28T09:12:00Z", "progress": null,
+     "result": {"summary": "", "link": "/corpus", "ran": ["corpus.assemble"]}, "error": null}
+  ]
+}

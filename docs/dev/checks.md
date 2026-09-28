@@ -4,7 +4,8 @@ One command runs every check that must pass before a merge:
 
 ```bash
 python tools/check.py            # everything
-python tools/check.py --quick    # lint, vocabulary, tests on one Python, small reference
+python tools/check.py --quick    # lint, vocabulary, tests on one Python, small reference,
+                                 # the browser checks without the slow ones
 python tools/check.py --full     # also the large reference comparison
 python tools/check.py --only tests --pythons 3.10,3.14
 ```
@@ -20,7 +21,9 @@ settings are in `tools/check.toml`.
 | --- | --- | --- |
 | `lint` | `ruff check` and `ruff format --check`, with the ruff pinned in the `dev` extra | any finding |
 | `vocab` | `tools/vocab_scan.py` over the tree and the commit messages listed in `tools/check.toml` | a banned term appears outside a stated exception |
-| `tests` | `pytest` on every Python in `tools/check.toml`, in parallel | any test fails on any version |
+| `js` | `tools/ui_check.py`: the web interface's modules parsed by Node, imports, literal text, bans (eval, HTML from strings, inline handlers), vendored hashes, catalogues, token contrast (see {doc}`ui`) | any problem |
+| `tests` | `pytest` on every Python in `tools/check.toml`, in parallel, without the browser tests | any test fails on any version |
+| `browser` | `pytest tests/browser` in headless Chromium on the quick Python: axe, keyboard scripts, budgets, teardown and leaks, the shell (see {doc}`ui`); `--quick` leaves out the tests marked `slow` | any test fails; skipped, with the reason, without Playwright or a Chromium build |
 | `reference` | `tools/reference/check_reference.py`: the demo world run through the engine and compared with the stored baseline and the stored reference; then the same world written as a project and built with `cartolex.build`, compared the same way | a stage is *different* from the baseline, or differs from the reference without an explanation, or the project build is not identical to the baseline in every artifact |
 | `docs` | a strict Sphinx build of `docs/` | any warning |
 

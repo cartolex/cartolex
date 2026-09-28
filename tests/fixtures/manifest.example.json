@@ -1,0 +1,14 @@
+{
+  "format": "cartolex-manifest/1",
+  "app": {"id": "cartolex", "name": "cartolex", "version": "1.0.0.dev0"},
+  "branding": {"name": "cartolex", "logo": "/static/brand/logo.svg"},
+  "locales": {"available": ["en", "fr", "pt-BR"], "default": "en",
+              "catalogues": {"en": ["/static/i18n/en.json"], "fr": ["/static/i18n/fr.json"],
+                             "pt-BR": ["/static/i18n/pt-BR.json"]}},
+  "nav": [{"id": "overview", "label": "nav.overview", "route": "/overview",
+           "module": "/static/pages/overview.js", "order": 10}],
+  "modules": ["/static/ext/<id>/index.js"],
+  "capabilities": {"collection": true, "ai_api": false, "ai_handoff": true, "hosted": false},
+  "project": {"open": true, "id": "…", "name": "…"},
+  "security": {"csrf_header": "X-Cartolex-CSRF", "csrf_cookie": "cartolex_csrf_<instance>"}
+}

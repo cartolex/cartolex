@@ -9,9 +9,11 @@ Usage::
     python tools/check.py --only tests --pythons 3.12
 
 Checks, in order: ``lint`` (ruff), ``vocab`` (banned terms in files and commit
-messages), ``tests`` (pytest on each Python, in parallel), ``reference`` (the
-numeric comparison with the stored reference run), ``docs`` (strict Sphinx
-build). Settings live in ``tools/check.toml``. Virtual environments are kept in
+messages), ``js`` (static checks of the web interface: parse, imports, literal
+text, bans, vendored hashes, catalogues, contrast), ``tests`` (pytest on each
+Python, in parallel), ``browser`` (the web interface in headless Chromium:
+axe, keyboard, budgets, leaks), ``reference`` (the numeric comparison with the
+stored reference run), ``docs`` (strict Sphinx build). Settings live in ``tools/check.toml``. Virtual environments are kept in
 ``.venvs/`` and rebuilt when ``pyproject.toml`` changes. Needs ``uv`` and
 Python 3.11 or later to run this script itself.
 """
@@ -20,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -36,7 +39,9 @@ CONFIG = ROOT / "tools" / "check.toml"
 MODELS = ROOT / "tools" / "requirements-models.txt"
 VENVS = ROOT / ".venvs"
 LOGS = ROOT / ".cache" / "check"
-ALL_CHECKS = ("lint", "vocab", "tests", "reference", "docs")
+#: The browser checks' tools, installed into the quick Python's environment only.
+BROWSER_TOOLS = ROOT / "tools" / "requirements-browser.txt"
+ALL_CHECKS = ("lint", "vocab", "js", "tests", "browser", "reference", "docs")
 
 
 @dataclass
@@ -164,6 +169,104 @@ def check_vocab(cfg: dict, dev: Path) -> Result:
     return Result("vocab", "pass" if ok else "fail", detail, time.monotonic() - t0)
 
 
+def ensure_browser_tools(venv: Path) -> str | None:
+    """Install Playwright into *venv* when it is missing; returns why it could not, or None."""
+    probe = [bin_of(venv, "python"), "-c", "import playwright"]
+    if subprocess.run(probe, capture_output=True).returncode == 0:
+        return None
+    proc = subprocess.run(
+        ["uv", "pip", "install", "--quiet", "-p", str(venv), "-r", str(BROWSER_TOOLS)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        return "Playwright could not be installed (" + (proc.stderr.strip()[-200:] or "uv") + ")"
+    return None
+
+
+def check_js(dev: Path) -> Result:
+    """The web interface's static checks (tools/ui_check.py)."""
+    t0 = time.monotonic()
+    ensure_browser_tools(dev)  # its Node parses the modules; without it, parse is skipped
+    rc, tail = run([bin_of(dev, "python"), "tools/ui_check.py"], LOGS / "js.log")
+    lines = (LOGS / "js.log").read_text(encoding="utf-8").splitlines()
+    counts = [line for line in lines if line[:4] in ("PASS", "FAIL", "SKIP")]
+    detail = f"{sum(line.startswith('PASS') for line in counts)}/{len(counts)} clean"
+    skipped = [line.split()[1] for line in counts if line.startswith("SKIP")]
+    if skipped:
+        detail += f", skipped: {', '.join(skipped)} (no Node)"
+    if rc != 0:
+        detail = (
+            tail
+            if not counts
+            else f"failed: {', '.join(c.split()[1] for c in counts if c.startswith('FAIL'))}"
+        )
+    return Result("js", "pass" if rc == 0 else "fail", detail, time.monotonic() - t0)
+
+
+def check_browser(dev: Path, quick: bool) -> Result:
+    """The web interface in headless Chromium (tests/browser); --quick leaves out slow tests."""
+    t0 = time.monotonic()
+    why = ensure_browser_tools(dev)
+    if why:
+        return Result("browser", "skip", why, time.monotonic() - t0)
+    measures = LOGS / "ui-measures.json"
+    measures.unlink(missing_ok=True)
+    cmd = [
+        bin_of(dev, "python"),
+        "-m",
+        "pytest",
+        "-q",
+        "-rs",
+        "-p",
+        "no:cacheprovider",
+        "tests/browser",
+        "-m",
+        "browser and not slow" if quick else "browser",
+    ]
+    env = {
+        **os.environ,
+        "CARTOLEX_UI_MEASURES": str(measures),
+        "PYTHONPYCACHEPREFIX": str(ROOT / ".cache" / "pycache" / "browser"),
+        "PYTHONPATH": os.pathsep.join(
+            p for p in (str(ROOT), os.environ.get("PYTHONPATH", "")) if p
+        ),
+    }
+    rc, tail = run(cmd, LOGS / "browser.log", env=env)
+    summary = tail.strip("= ")
+    if rc == 0 and " passed" not in summary and "skipped" in summary:
+        reasons = [
+            line.split(": ", 1)[-1]
+            for line in (LOGS / "browser.log").read_text(encoding="utf-8").splitlines()
+            if line.startswith("SKIPPED")
+        ]
+        return Result("browser", "skip", reasons[0] if reasons else summary, time.monotonic() - t0)
+    detail = summary
+    if measures.is_file():
+        detail += " · " + _measures_summary(json.loads(measures.read_text(encoding="utf-8")))
+    return Result("browser", "pass" if rc == 0 else "fail", detail, time.monotonic() - t0)
+
+
+def _measures_summary(data: dict) -> str:
+    parts = []
+    rows = data.get("budgets", {}).get("navigations", [])
+    if rows:
+        slowest = max(rows, key=lambda r: r["ready_ms"])
+        parts.append(
+            f"slowest route {slowest['ready_ms']:.0f} ms ({slowest['page']}), "
+            f"at most {max(r['requests'] for r in rows)} requests"
+        )
+    leaks = data.get("leaks")
+    if leaks:
+        g, p = leaks["growth"], leaks["growth_percent"]
+        parts.append(
+            f"after {leaks['rounds']} round trips: nodes {g['nodes']:+.0f}, "
+            f"listeners {g['listeners']:+.0f}, heap {p['heap']:+.1f} %"
+        )
+    return " · ".join(parts)
+
+
 def check_tests(pythons: list[str], jobs: int) -> Result:
     """pytest on every Python, at most *jobs* at a time; one summary per version."""
     t0 = time.monotonic()
@@ -186,10 +289,21 @@ def check_tests(pythons: list[str], jobs: int) -> Result:
                 # The models are installed with the environment: a test that
                 # needs one must run, never be skipped.
                 "--require-models",
+                # The browser tests run once, in the `browser` check.
+                "-m",
+                "not browser",
             ]
             # Each Python keeps its bytecode out of the source tree, so suites running
-            # side by side never see each other's cache files.
-            env = {**os.environ, "PYTHONPYCACHEPREFIX": str(ROOT / ".cache" / "pycache" / py)}
+            # side by side never see each other's cache files. The tree under test comes
+            # first on the path, in the processes the tests start too: an environment
+            # shared by several checkouts may have its editable install in another one.
+            env = {
+                **os.environ,
+                "PYTHONPYCACHEPREFIX": str(ROOT / ".cache" / "pycache" / py),
+                "PYTHONPATH": os.pathsep.join(
+                    p for p in (str(ROOT), os.environ.get("PYTHONPATH", "")) if p
+                ),
+            }
             with log.open("w", encoding="utf-8") as handle:
                 proc = subprocess.Popen(
                     cmd, cwd=ROOT, stdout=handle, stderr=subprocess.STDOUT, env=env
@@ -243,7 +357,9 @@ def check_docs() -> Result:
 def main(argv: list[str] | None = None) -> int:
     """Command-line entry point."""
     parser = argparse.ArgumentParser(description="Run the pre-merge checks.")
-    parser.add_argument("--quick", action="store_true", help="one Python, small reference")
+    parser.add_argument(
+        "--quick", action="store_true", help="one Python, small reference, no slow browser test"
+    )
     parser.add_argument("--full", action="store_true", help="also the large reference")
     parser.add_argument("--pythons", help="comma-separated versions, e.g. 3.10,3.12")
     parser.add_argument("--only", nargs="+", choices=ALL_CHECKS, help="run only these checks")
@@ -267,6 +383,10 @@ def main(argv: list[str] | None = None) -> int:
             results.append(check_lint(dev))
         elif name == "vocab":
             results.append(check_vocab(cfg, dev))
+        elif name == "js":
+            results.append(check_js(dev))
+        elif name == "browser":
+            results.append(check_browser(dev, args.quick))
         elif name == "tests":
             results.append(check_tests(pythons, int(cfg.get("tests", {}).get("jobs", 2))))
         elif name == "reference":
