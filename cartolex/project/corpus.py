@@ -17,6 +17,11 @@ Who goes where comes from ``decisions/people.csv``: ``mapped`` people fill the
 fit slots, each projected set's people fill ``overlays/<set>/``; when the file
 does not exist, every person is mapped. ``context`` people are left out until
 the engine weighs them.
+
+A person's attributes (``columns`` in ``people.parquet``: the filter columns of
+an imported list) follow the index's columns, one column each, so the map can
+colour and filter people by them; an attribute named like a column of the
+contract is written ``person_<name>``.
 """
 
 from __future__ import annotations
@@ -32,7 +37,14 @@ from .layout import ProjectLayout
 from .models import ProjectFile
 from .tables import read_decision_csv, read_source_table
 
-__all__ = ["INDEX_COLUMNS", "PEOPLE_COLUMNS", "CorpusSummary", "assemble_corpus", "render_text"]
+__all__ = [
+    "INDEX_COLUMNS",
+    "PEOPLE_COLUMNS",
+    "CorpusSummary",
+    "assemble_corpus",
+    "attribute_column",
+    "render_text",
+]
 
 #: The columns of an engine index, in order.
 INDEX_COLUMNS = ("last_name", "first_name", "unit", "txt_path", "doc_year", "doc_type")
@@ -40,6 +52,14 @@ INDEX_COLUMNS = ("last_name", "first_name", "unit", "txt_path", "doc_year", "doc
 PEOPLE_COLUMNS = ("person_id", "last_name", "first_name", "unit")
 #: The order parts are read in; ``full`` stands alone.
 PART_ORDER = ("title", "abstract", "body")
+#: Column names an attribute cannot take (the engine reads them as the document's).
+RESERVED = frozenset({*INDEX_COLUMNS, "source", "person_id"})
+
+
+def attribute_column(name: str) -> str:
+    """The index column of a person attribute: its name, or ``person_<name>`` when the
+    contract already uses that name."""
+    return f"person_{name}" if name in RESERVED else name
 
 
 @dataclass
@@ -126,6 +146,7 @@ def assemble_corpus(
         keys: list[tuple[str, str, str, str]] = []
         people, units, by_person = src.people, src.units, src.by_person
         text_meta, chosen_parts = src.text_meta, src.chosen_parts
+        attributes = sorted({k for pid in members for k in people[pid]["columns"]})
         for pid in members:
             person = people[pid]
             n_before = len(rows)
@@ -157,13 +178,15 @@ def assemble_corpus(
                         rel,
                         "" if meta["year"] is None else meta["year"],
                         meta["doc_type"],
+                        *(person["columns"].get(a, "") for a in attributes),
                     )
                 )
             if len(rows) > n_before:
                 keys.append(
                     (pid, person["last_name"], person["first_name"] or "", units.get(pid, ""))
                 )
-        _write(target / "index.csv", _csv_bytes(rows))
+        columns = (*INDEX_COLUMNS, *(attribute_column(a) for a in attributes))
+        _write(target / "index.csv", _csv_bytes(rows, columns))
         _write(target / "people.csv", _csv_bytes(keys, PEOPLE_COLUMNS))
         return {
             "rows": len(rows),
@@ -226,9 +249,9 @@ def _load(
     for tid in [t for t, row in text_meta.items() if row["version_of"] in text_meta]:
         del text_meta[tid]
     people = {
-        row["person_id"]: row
+        row["person_id"]: {**row, "columns": dict(row["columns"] or [])}
         for row in read_source_table(_table(tables, "people"), "people")
-        .select(["person_id", "last_name", "first_name"])
+        .select(["person_id", "last_name", "first_name", "columns"])
         .to_pylist()
     }
     return _Loaded(

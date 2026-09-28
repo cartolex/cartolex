@@ -117,3 +117,39 @@ def test_an_overlay_with_its_own_root_is_read_from_there(world_and_project, tmp_
     old = _rows_with_texts(base / "workspace" / "overlay" / name / "index.csv")
     new = _rows_with_texts(tmp_path / "out" / "overlays" / name / "index.csv")
     assert new == old and new
+
+
+def test_person_attributes_reach_the_engine_index(world_and_project, tmp_path):
+    """The filter columns of an imported list follow the index's columns, so the roster
+    (and the map) can colour and filter people by them."""
+    from cartolex.lexicon.io_helpers import write_roster
+    from cartolex.project import Project
+
+    world, base = world_and_project
+    project = Project.open(base / "project")
+    assemble_corpus(project.layout, project.config, tmp_path / "out")
+    index = tmp_path / "out" / SLOT / "index.csv"
+    with open(index, encoding="utf-8", newline="") as fh:
+        reader = csv.DictReader(fh)
+        rows = list(reader)
+    assert reader.fieldnames[:6] == [
+        "last_name", "first_name", "unit", "txt_path", "doc_year", "doc_type"
+    ] and reader.fieldnames[6:] == ["career_stage", "site"]  # fmt: skip
+    by_name = {(p.last_name, p.first_name): p for p in world.people}
+    for r in rows:
+        person = by_name[(r["last_name"], r["first_name"])]
+        assert (r["career_stage"], r["site"]) == (person.career_stage, person.site)
+    roster = tmp_path / "roster.csv"
+    write_roster(index_csvs=[index], out_csv=roster)
+    with open(roster, encoding="utf-8", newline="") as fh:
+        assert csv.DictReader(fh).fieldnames == [
+            "last_name", "first_name", "unit", "career_stage", "site"
+        ]  # fmt: skip
+
+
+def test_an_attribute_named_like_a_contract_column_is_renamed():
+    from cartolex.project.corpus import attribute_column
+
+    assert attribute_column("career_stage") == "career_stage"
+    assert attribute_column("unit") == "person_unit"
+    assert attribute_column("source") == "person_source"

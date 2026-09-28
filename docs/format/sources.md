@@ -87,7 +87,7 @@ published version is, so that a work counts once.
 | `orcid` | string, nullable | |
 | `ids` | map<string, list<string>> | other identifiers by scheme; a person may have several OpenAlex records |
 | `source` | string | how the person entered: `import`, `collaborators`, `institution`, `folder` |
-| `columns` | map<string, string> | the extra columns of an imported list, kept as text; each becomes a filter |
+| `columns` | map<string, string> | the extra columns of an imported list, kept as text; each becomes a filter, and a person attribute of the engine's index |
 | `aliases` | list<struct<last_name, first_name, source>> | every other name form a source gives for this person (marital name, name added by an institution, one half of a double surname, a transliteration); matching tries all of them |
 | `retrieved_at` | timestamp (UTC) | |
 
