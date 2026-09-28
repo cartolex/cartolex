@@ -191,9 +191,6 @@ def create_project(request: Request, body: CreateBody) -> dict[str, Any]:
             corpus_languages=tuple(body.languages),
             reference_language=body.reference,
             slots=tuple(slots),
-            app=combined.branding.name.lower().replace(" ", "-")
-            if combined.branding and combined.branding.name
-            else "cartolex",
         )
     except FileExistsError as exc:
         raise ApiError(409, "exists", str(exc), next_action="fix-input") from exc

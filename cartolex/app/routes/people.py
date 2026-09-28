@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Annotated, Any, Literal
 
 from fastapi import Query, Request, Response
@@ -240,11 +241,7 @@ class ConfirmImport(BaseModel):
     set: Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$|^$")] = ""
 
 
-ImportId = Annotated[str, Field(pattern=r"^imp-[0-9a-f]{12}$")]
-
-
 def _import_folder(request: Request, ctx: Any, import_id: str) -> Any:
-    import re
     from pathlib import PurePosixPath
 
     if not re.match(r"^imp-[0-9a-f]{12}$", import_id) or PurePosixPath(import_id).name != import_id:

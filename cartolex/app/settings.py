@@ -69,7 +69,7 @@ class AppSettings:
     max_upload_mb: float = 50.0
     max_archive_members: int = 20_000
     max_archive_mb: float = 2_000.0
-    max_request_kb: float = 4_096.0
+    max_request_kb: float = 16_384.0
     authenticate: Callable[[Request], Principal | None] | None = None
     authorizer: Authorizer | None = None
     job_runner: JobRunner | None = None

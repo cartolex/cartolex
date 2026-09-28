@@ -290,7 +290,7 @@ def test_a_request_too_large_is_refused_before_it_is_read(app):
     client = Client(app)
     r = client.put(
         "/api/params",
-        content=b"{" + b" " * (5 * 1024 * 1024) + b"}",
+        content=b"{" + b" " * (17 * 1024 * 1024) + b"}",
         headers={"If-Match": '"none"', "Content-Type": "application/json"},
     )
     assert r.status_code == 413
