@@ -64,10 +64,20 @@ def test_the_fixture_is_a_valid_manifest_and_the_app_serves_its_shape(tmp_path):
         app.state.cartolex.shutdown()
 
 
-def test_the_stored_schema_is_the_models():
+def test_the_stored_schema_is_the_models(tmp_path):
     from cartolex.app.schemas import main
 
     assert main(["--check"]) == 0
+    app, _ = fake_app(fake_project(tmp_path / "p"), tmp_path / "c.log")
+    try:
+        client = Client(app)
+        assert client.get("/api/app/manifest/schema").json()["title"] == "Manifest"
+        paths = client.get("/api/openapi.json").json()["paths"]
+        for path in ("/api/keywords", "/api/themes/ops", "/api/build", "/api/atlas", "/api/params"):
+            assert path in paths, path
+        assert not any(p.startswith(("/static", "/launch")) for p in paths)
+    finally:
+        app.state.cartolex.shutdown()
 
 
 # ── extensions ───────────────────────────────────────────────────────────────
