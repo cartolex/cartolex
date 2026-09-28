@@ -43,13 +43,21 @@ class Guard:
 
     *resource* is the kind of thing the route acts on: ``app``, ``static``,
     ``project``, ``job`` or ``extension``; *id_param* names the path parameter
-    holding the resource's id.
+    holding the resource's id, or *fixed_id* gives it (an extension's routes: its id). A
+    project and an extension's routes carry the id of the project the request works on.
     """
 
-    def __init__(self, action: str, resource: str = "project", id_param: str | None = None):
+    def __init__(
+        self,
+        action: str,
+        resource: str = "project",
+        id_param: str | None = None,
+        fixed_id: str | None = None,
+    ) -> None:
         self.action = action
         self.resource = resource
         self.id_param = id_param
+        self.fixed_id = fixed_id
 
     def __repr__(self) -> str:
         return f"Guard({self.action!r}, {self.resource!r})"
@@ -80,9 +88,9 @@ class Guard:
                     next_action="reload",
                 )
         project_id = None
-        if self.resource == "project":
+        if self.resource in ("project", "extension"):
             project_id = runtime.projects.project_id(request, principal)
-        resource_id = request.path_params.get(self.id_param) if self.id_param else None
+        resource_id = request.path_params.get(self.id_param) if self.id_param else self.fixed_id
         resource = Resource(self.resource, resource_id, project_id)
         decision = authorize(runtime.authorizer, principal, self.action, resource)
         if not decision.allowed:

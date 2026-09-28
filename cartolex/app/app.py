@@ -112,7 +112,7 @@ def create_app(
     for router in ROUTERS:
         app.router.routes.extend(router.routes)
     for ext in combined.extensions:
-        guard = Depends(Guard(f"ext.{ext.id}", "extension"))
+        guard = Depends(Guard(f"ext.{ext.id}", "extension", fixed_id=ext.id))
         for router in ext.routers:
             for route in router.routes:
                 _add_extension_route(app, route, f"/api/ext/{ext.id}", guard, ext.id)
