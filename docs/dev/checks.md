@@ -35,8 +35,9 @@ change; the three language models of the extraction are installed into each
 from their pinned wheels. Tests that parse texts are marked `models`: without
 the models they are skipped, but the check runs pytest with
 `--require-models`, which makes them fail instead. Supported versions span two generations of the
-scientific libraries (for example, older numpy and pandas releases on the
-oldest Python), so the tests run on all of them.
+scientific libraries (older numpy and pandas releases on the oldest Python), so
+the tests run on the oldest and the newest version, which cover both; the
+versions between are tested by CI before a release, or with `--pythons`.
 
 ## The vocabulary scan
 
