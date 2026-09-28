@@ -10,6 +10,8 @@
     cartolex versions FOLDER [--pin ID | --try-another --seed N]
     cartolex project validate FOLDER
     cartolex project unlock FOLDER
+    cartolex models list
+    cartolex models add LANG… [--yes]
     cartolex demo create --size S --seed 0 --out DIR [--corpus]
 
 Each verb prints what it did and exits with 0 on success, 1 when the project
@@ -251,6 +253,69 @@ def _demo(argv: list[str]) -> int:
     return demo_main(argv)
 
 
+def _install_command(requirement: str) -> list[str] | None:
+    """The command that installs *requirement* into this interpreter's environment, or None."""
+    import importlib.util
+    import shutil
+
+    if importlib.util.find_spec("pip") is not None:
+        return [sys.executable, "-m", "pip", "install", "--no-deps", requirement]
+    uv = shutil.which("uv")
+    if uv:
+        return [uv, "pip", "install", "--python", sys.executable, "--no-deps", requirement]
+    return None
+
+
+def _models(args: argparse.Namespace) -> int:
+    import subprocess
+
+    from cartolex.lexicon import language_models as lm
+
+    if args.action == "list":
+        for lang in lm.supported_languages():
+            model = lm.spec(lang)
+            found = lm.installed_version(lang)
+            state = (
+                "installed"
+                if found == model.version
+                else (
+                    f"version {found} installed, {model.version} needed"
+                    if found
+                    else "not installed"
+                )
+            )
+            print(f"{lang}  {model.identity:<28} {model.licence:<14} {state}")
+        return 0
+    status = 0
+    for lang in args.languages:
+        model = lm.spec(lang)
+        if lm.installed_version(lang) == model.version:
+            print(f"{lang}: {model.identity} is already installed")
+            continue
+        print(
+            f"{lang}: {model.identity}, licence {model.licence}, downloads {model.wheel} "
+            f"from the spaCy models' releases on GitHub"
+        )
+        if not args.yes:
+            if not sys.stdin.isatty():
+                print("error: no terminal to ask on; pass --yes to accept", file=sys.stderr)
+                return 1
+            if input("install it? [y/N] ").strip().lower() not in ("y", "yes"):
+                print(f"{lang}: not installed")
+                status = 1
+                continue
+        command = _install_command(model.requirement)
+        if command is None:
+            print(f"error: no installer found; run: {model.pip_command}", file=sys.stderr)
+            return 1
+        if subprocess.run(command, check=False).returncode != 0:
+            print(f"error: installing {model.identity} failed", file=sys.stderr)
+            status = 1
+            continue
+        print(f"{lang}: {model.identity} installed")
+    return status
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cartolex", description="Map a research field from the texts of its people."
@@ -313,6 +378,17 @@ def _parser() -> argparse.ArgumentParser:
     unlock = psub.add_parser("unlock", help="remove a lock whose process is gone")
     unlock.add_argument("folder", type=Path)
     unlock.set_defaults(run=_unlock)
+
+    models = sub.add_parser("models", help="the language models extraction needs")
+    msub = models.add_subparsers(dest="action", required=True)
+    mlist = msub.add_parser(
+        "list", help="each language's model, its licence, whether it is installed"
+    )
+    mlist.set_defaults(run=_models)
+    madd = msub.add_parser("add", help="install the pinned model of one or more languages")
+    madd.add_argument("languages", nargs="+", choices=("en", "fr", "pt"))
+    madd.add_argument("--yes", action="store_true", help="install without asking")
+    madd.set_defaults(run=_models)
 
     sub.add_parser("demo", help="generate the synthetic demo world", add_help=False)
     return parser
