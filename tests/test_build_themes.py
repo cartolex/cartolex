@@ -314,3 +314,20 @@ def test_the_legacy_bundle_version_is_kept_without_a_tree(two_levels):
 
     plain = build_bundle(bundle.to_cohort_input())
     assert plain.meta["schema"] == BUNDLE_SCHEMA and plain.themes is None
+
+
+@pytest.mark.models("en", "fr")
+def test_trajectories_taken_by_chunks_of_people_equal_one_pass(built, tmp_path, monkeypatch):
+    from cartolex.atlas import driver
+
+    root = _copy(built, tmp_path)
+    folder = root / "derived" / "map.trajectories"
+    before = {
+        n: (folder / n).read_bytes() for n in ("umap_trajectories.csv", "trajectory_windows.json")
+    }
+    themes = pd.read_parquet(folder / "trajectory_themes.parquet")
+    monkeypatch.setattr(driver, "TRAJECTORY_CHUNK", 4)  # ten chunks of people on the S world
+    assert cli(["build", str(root), "--force", "map.trajectories"]) == 0
+    for name, data in before.items():
+        assert (folder / name).read_bytes() == data, name
+    pd.testing.assert_frame_equal(pd.read_parquet(folder / "trajectory_themes.parquet"), themes)
