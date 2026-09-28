@@ -25,6 +25,7 @@ from typing import Any
 from ..vocabulary import THEME_BY_ID, THEMES
 from .biblio import AuthorRecord, Bibliography, IndexWork, Institution
 from .http import Reply, Request, json_reply
+from .sources import sources_layer
 
 __all__ = ["OpenAlexService"]
 
@@ -71,6 +72,8 @@ class OpenAlexService:
 
     def __init__(self, bib: Bibliography) -> None:
         self.bib = bib
+        #: Open-access copies (world work → link), from the sources layer.
+        self._oa = sources_layer(bib).oa_links
         self._works = {w.id: self._work_json(w) for w in bib.works.values()}
         self._record_affiliations = {a.id: self._affiliations(a) for a in bib.authors.values()}
         self._authors = {a.id: self._author_json(a) for a in bib.authors.values()}
@@ -166,6 +169,19 @@ class OpenAlexService:
         for pos, word in enumerate(w.abstract.split()):
             index.setdefault(word, []).append(pos)
         doi = f"https://doi.org/{w.doi}" if w.doi else None
+        oa_link = self._oa.get(w.world_work) if w.world_work else None
+        oa_location = (
+            {
+                "is_oa": True,
+                "landing_page_url": oa_link,
+                "pdf_url": oa_link,
+                "source": None,
+                "license": None,
+                "version": "acceptedVersion",
+            }
+            if oa_link
+            else None
+        )
         source = {
             "id": ROOT + f"S999{int(hashlib.sha256(w.venue.encode()).hexdigest(), 16) % 10**7:07d}",
             "display_name": w.venue,
@@ -191,6 +207,14 @@ class OpenAlexService:
                 "license": None,
                 "version": None,
             },
+            "open_access": {
+                "is_oa": oa_link is not None,
+                "oa_status": "green" if oa_link else "closed",
+                "oa_url": oa_link,
+                "any_repository_has_fulltext": oa_link is not None,
+            },
+            "best_oa_location": oa_location,
+            "locations_count": 2 if oa_location else 1,
             "type": w.type,
             "authorships": authorships,
             "is_authors_truncated": False,

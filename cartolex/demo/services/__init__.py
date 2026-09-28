@@ -19,9 +19,10 @@ or from the command line (serves until Ctrl-C)::
 
     python -m cartolex.demo services --size S --seed 0 [--port 8765] [--people-list FILE]
 
-OpenAlex and ORCID are served; HAL, SciELO, arXiv, bioRxiv/medRxiv and Europe
-PMC are stubs (``501``) until their finders are written: :func:`register_service`
-adds a service factory ``(bibliography) -> service``.
+Every service is served: OpenAlex, ORCID, HAL, SciELO, arXiv, bioRxiv/medRxiv,
+Europe PMC and a host of open-access files (the last five from the sources
+layer, :mod:`cartolex.demo.services.sources`). :func:`register_service`
+replaces a service factory ``(bibliography) -> service``.
 """
 
 from __future__ import annotations
@@ -31,9 +32,13 @@ from typing import Any
 
 from ..model import DemoWorld
 from .biblio import Bibliography, build_bibliography
+from .fulltext import ArxivService, BiorxivService, EuropePmcService, FilesService
+from .hal import HalService
 from .http import DemoServer, Fault, FaultPlan, Reply, Request, SeenRequest, Service, json_reply
 from .openalex import OpenAlexService
 from .orcid import OrcidService
+from .scielo import ScieloService
+from .sources import SourcesLayer, sources_layer
 
 __all__ = [
     "SERVICE_FACTORIES",
@@ -45,14 +50,16 @@ __all__ = [
     "Request",
     "SeenRequest",
     "Service",
+    "SourcesLayer",
     "StubService",
     "build_bibliography",
     "json_reply",
     "register_service",
+    "sources_layer",
 ]
 
 #: The path of each service's API under its prefix (the part a real base URL ends with).
-API_ROOTS = {"orcid": "v3.0"}
+API_ROOTS = {"orcid": "v3.0", "arxiv": "api"}
 
 
 class StubService:
@@ -76,11 +83,12 @@ def _stub(name: str) -> Callable[[Bibliography], Service]:
 SERVICE_FACTORIES: dict[str, Callable[[Bibliography], Service]] = {
     "openalex": OpenAlexService,
     "orcid": OrcidService,
-    "hal": _stub("hal"),
-    "scielo": _stub("scielo"),
-    "arxiv": _stub("arxiv"),
-    "biorxiv": _stub("biorxiv"),
-    "europepmc": _stub("europepmc"),
+    "hal": HalService,
+    "scielo": ScieloService,
+    "arxiv": ArxivService,
+    "biorxiv": BiorxivService,
+    "europepmc": EuropePmcService,
+    "files": FilesService,
 }
 
 

@@ -53,6 +53,7 @@ __all__ = [
     "CursorPaging",
     "EgressRecord",
     "Fetched",
+    "FetchedBytes",
     "HttpCache",
     "HttpClient",
     "IncompleteResults",
@@ -67,6 +68,9 @@ __all__ = [
 CacheMode = Literal["normal", "refresh", "cache_only"]
 CACHE_MODES: tuple[str, ...] = ("normal", "refresh", "cache_only")
 CACHE_FORMAT = "cartolex-http-cache/1"
+#: Cache entries of answers that are not JSON (XML, PDF, archives): a JSON header line, then
+#: the body's bytes, gzip-compressed together.
+BYTES_CACHE_FORMAT = "cartolex-http-cache-bytes/1"
 
 #: Query parameters that never enter a cache key or a log: they identify the caller,
 #: they do not change the answer.
@@ -204,12 +208,25 @@ class Fetched:
 
 
 @dataclass(frozen=True)
+class FetchedBytes:
+    """An answer read as bytes (XML, a PDF, an archive): its content type, when, and from where."""
+
+    content: bytes
+    content_type: str
+    retrieved_at: datetime
+    from_cache: bool
+    url: str
+
+
+@dataclass(frozen=True)
 class CursorPaging:
     """How a service pages a list with a cursor.
 
     *items*, *next_cursor* and *total* read one page; *total* may return ``None``
     when the service announces no count. The first request sends
-    ``{cursor_param: first}``.
+    ``{cursor_param: first}``. With *confirm_empty*, an empty page is asked for
+    once more before the list is taken as complete: a service that announces no
+    count cannot otherwise tell a cut answer from the end of the list.
     """
 
     items: Callable[[Any], Sequence[Any]]
@@ -218,6 +235,7 @@ class CursorPaging:
     cursor_param: str = "cursor"
     first: str = "*"
     max_pages: int = 10_000
+    confirm_empty: bool = False
 
 
 def _canonical_url(url: str) -> str:
@@ -321,6 +339,60 @@ class HttpCache:
         except (OSError, EOFError, ValueError, KeyError, TypeError, UnicodeDecodeError):
             path.unlink(missing_ok=True)
             return None
+
+    def bytes_path(self, service: str, key: str) -> Path:
+        return self.root / service / key[:2] / f"{key}.bin.gz"
+
+    def read_bytes(self, service: str, key: str) -> tuple[dict[str, Any], bytes] | None:
+        """A stored bytes answer: its header (status, headers, retrieval time) and body."""
+        path = self.bytes_path(service, key)
+        try:
+            raw = path.read_bytes()
+        except FileNotFoundError:
+            return None
+        try:
+            data = gzip.decompress(raw)
+            head, sep, body = data.partition(b"\n")
+            header = json.loads(head.decode("utf-8"))
+            if not sep or header.get("format") != BYTES_CACHE_FORMAT:
+                raise ValueError("unknown format")
+            when = datetime.fromisoformat(header["retrieved_at"])
+            if when.tzinfo is None:
+                raise ValueError("retrieval time without a time zone")
+            header["retrieved_at"] = when
+            return header, body
+        except (OSError, EOFError, ValueError, KeyError, TypeError, UnicodeDecodeError):
+            path.unlink(missing_ok=True)
+            return None
+
+    def write_bytes(
+        self,
+        service: str,
+        key: str,
+        *,
+        kind: str,
+        url: str,
+        params: Mapping[str, Any] | None,
+        status: int,
+        headers: Mapping[str, str],
+        body: bytes,
+        retrieved_at: datetime,
+    ) -> None:
+        header = {
+            "format": BYTES_CACHE_FORMAT,
+            "service": service,
+            "kind": kind,
+            "method": "GET",
+            "url": _canonical_url(url),
+            "params": _clean_params(params),
+            "status": status,
+            "headers": dict(headers),
+            "retrieved_at": retrieved_at.isoformat(),
+        }
+        head = json.dumps(header, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        atomic_write_bytes(
+            self.bytes_path(service, key), gzip.compress(head + b"\n" + body, mtime=0)
+        )
 
     def write(
         self,
@@ -573,6 +645,12 @@ class HttpClient:
             data = json.loads(body)
             first_retrieved = first_retrieved or retrieved
             page_items = list(paging.items(data))
+            if not page_items and paging.confirm_empty:
+                status, body, _kept, retrieved = self._send(
+                    svc, url, page_params, sends, None, check
+                )
+                data = json.loads(body)
+                page_items = list(paging.items(data))
             total = paging.total(data)
             if announced is None:
                 announced = total
@@ -612,6 +690,73 @@ class HttpClient:
             )
         return Fetched(items, retrieved_at, False)
 
+    def get_bytes(
+        self,
+        service: str,
+        path: str,
+        params: Mapping[str, Any] | None = None,
+        *,
+        kind: str,
+        sends: Iterable[str] = (),
+        validate: Callable[[bytes], None] | None = None,
+        headers: Mapping[str, str] | None = None,
+        cache: bool = True,
+    ) -> FetchedBytes:
+        """GET an answer that is not JSON (XML, a PDF, an archive) and return its bytes.
+
+        *path* is relative to the service's base URL, or a whole ``http(s)`` URL
+        (a file a service links to: pacing still applies per host). *validate*
+        receives the bytes and raises ``ValueError`` when they are not what was
+        asked for (a cut file): such an answer is retried and never cached. The
+        cache, the modes, *kind* and *sends* work as for :meth:`get_json`.
+        """
+        svc = self.service(service)
+        if path.startswith(("http://", "https://")):
+            url = path
+        else:
+            url = svc.base_url + "/" + path.lstrip("/")
+        key = HttpCache.key("GET", url, params, variant="bytes")
+        if cache and self.cache is not None and self.mode != "refresh":
+            hit = self.cache.read_bytes(svc.name, key)
+            if hit is not None:
+                header, body = hit
+                age = (self._now() - header["retrieved_at"]).total_seconds()
+                if age <= svc.lifetime(kind) or self.mode == "cache_only":
+                    try:
+                        if validate is not None:
+                            validate(body)
+                    except ValueError:
+                        self.cache.bytes_path(svc.name, key).unlink(missing_ok=True)
+                    else:
+                        self.counts["cached"] += 1
+                        kept = header.get("headers") or {}
+                        return FetchedBytes(
+                            body,
+                            str(kept.get("content-type", "")),
+                            header["retrieved_at"],
+                            True,
+                            url,
+                        )
+        if self.mode == "cache_only":
+            raise CacheMiss(svc.name, kind, _canonical_url(url))
+        status, body, kept, retrieved = self._send(
+            svc, url, params, sends, headers, validate, raw=True
+        )
+        assert isinstance(body, bytes)
+        if cache and self.cache is not None:
+            self.cache.write_bytes(
+                svc.name,
+                key,
+                kind=kind,
+                url=url,
+                params=params,
+                status=status,
+                headers=kept,
+                body=body,
+                retrieved_at=retrieved,
+            )
+        return FetchedBytes(body, kept.get("content-type", ""), retrieved, False, url)
+
     def _send(
         self,
         svc: Service,
@@ -620,8 +765,12 @@ class HttpClient:
         sends: Iterable[str],
         headers: Mapping[str, str] | None,
         validate: Callable[[Any], None] | None,
-    ) -> tuple[int, str, dict[str, str], datetime]:
-        """One request with pacing and retries; returns status, body, kept headers, time."""
+        *,
+        raw: bool = False,
+    ) -> tuple[int, Any, dict[str, str], datetime]:
+        """One request with pacing and retries; returns status, body, kept headers, time.
+
+        The body is the text of a JSON answer, or its bytes when *raw* is true."""
         host = urlsplit(url).netloc
         policy = self.settings.retry
         kinds = self._sends(svc, sends)
@@ -689,9 +838,9 @@ class HttpClient:
                         "this looks like a bug in cartolex or a change in the service; report it",
                     )
                 else:
-                    body = response.text
+                    body = response.content if raw else response.text
                     try:
-                        data = json.loads(body)
+                        data = body if raw else json.loads(body)
                         if validate is not None:
                             validate(data)
                     except (ValueError, TypeError, KeyError, AttributeError) as exc:
