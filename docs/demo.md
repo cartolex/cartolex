@@ -304,3 +304,21 @@ draw whatever the language set, so a trilingual world keeps the bibliography
 of the default one. The `generator` field of the manifest names
 the generator version (`GENERATOR_VERSION` in `cartolex.demo`): raise it with
 any change that alters the output.
+
+## Demo services
+
+`cartolex.demo.services` serves, on your own computer, the part of OpenAlex
+and of the ORCID registry that cartolex uses, answering for a demo world. Its
+bibliographic layer is derived from the world with random streams of its own
+(the world never changes) and holds what a real index holds: homonyms, a
+person split over two records, a record that merges two people, people
+without records, works declared in the registry, affiliations that change
+over time and co-authors from outside the community. It lets the collection
+run offline, in tests and in demonstrations:
+
+```bash
+python -m cartolex.demo services --size S --seed 0 --people-list people.csv
+```
+
+See {doc}`collection` for a whole collection against it, and
+{doc}`dev/collection` for what it serves and how to inject failures.

@@ -8,6 +8,8 @@ keywords, themes and a two-dimensional atlas, with an offline site to share it.
 :maxdepth: 1
 
 demo
+collection
+privacy
 build
 keywords
 ```
@@ -32,4 +34,5 @@ dev/checks
 dev/reference
 dev/placement
 dev/ui
+dev/collection
 ```

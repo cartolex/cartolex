@@ -19,6 +19,10 @@ in the corpus index. It consumes only the *corpus contract* below, whatever prod
 - `cartolex.atlas` — SVD reduction, Ward clustering (cosine, SVD space), a UMAP 2-D
   map of the entities with the terms placed on it by their nearest entities,
   trajectories, plots, and the `driver` that orchestrates the whole atlas stage.
+- `cartolex.collect` — collection: a list of people, a folder of documents or a
+  corpus; who is who in OpenAlex and the ORCID registry; the harvest of their
+  works into the project's source tables; what leaves the computer, said before
+  it does (`docs/collection.md`, `docs/privacy.md`).
 
 ## The corpus contract
 

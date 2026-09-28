@@ -180,6 +180,37 @@ nothing in the engine names a particular deployment, source or procedure.
   results, discussion, captions) in its language, from a random stream of its
   own; the rest of the world, and every default world, is unchanged. The
   truth's lexicon lists the body templates' pieces as filler.
+- **Collection foundations.** `cartolex.collect` holds the HTTP layer every
+  finder uses (`HttpClient`: per-host pacing, finite timeouts, retries with
+  backoff and `Retry-After`, typed errors naming host, status and what to do,
+  cursor pages checked against the announced count, the `cache/http/` cache
+  with a lifetime per kind of request and `refresh` / `cache_only` modes,
+  cancel, progress and a record of the hosts contacted and the kinds of data
+  sent), text hygiene at the boundary, and the source writers: raw records per
+  slot and run, stable ids from a registry that never gives a number twice,
+  and the six source tables rebuilt from the raw records, byte for byte.
+  `cartolex.demo.services` serves the subset of OpenAlex and the ORCID public
+  API that cartolex uses, on the loopback interface, from a bibliographic
+  layer derived from a demo world (homonyms, split and mixed records, people
+  without records, registry works, affiliation histories, outside
+  co-authors), with fault injection; `python -m cartolex.demo services`
+  starts it. See `docs/dev/collection.md`.
+- **Collection.** `cartolex collect` brings people and texts into a project
+  (`docs/collection.md`): a list of people (CSV or pasted, with a column
+  mapping proposed from the header; e-mail addresses refused and never
+  stored; other columns kept as filters; duplicates proposed, never merged),
+  a folder of documents matched file by file, or a corpus in the engine's
+  contract. Resolution finds each person's OpenAlex records from every
+  variant of their name, with the stated institution ranking candidates and
+  never filtering them, explains each score, accepts a single clear match
+  automatically (to review), and compares records with the ORCID registry
+  to separate people an index merged. The harvest unites the works of every
+  confirmed record and registry, removes duplicates, and fills the source
+  tables with texts, parts, authorships and dated affiliations. Before every
+  collection, cartolex says what will leave the computer, where and why
+  (`--dry-run`, `cartolex.collect.privacy`); `docs/privacy.md` describes
+  what is sent, what never is, what is kept and how to delete it.
+  `--services demo` runs everything against the demo services, offline.
 - **The engine on a project.** Each stage runs the engine
   (`cartolex.build.engine`): an ownership table gives every engine file a
   place in the project, the layout's amendments of earlier files are copied
