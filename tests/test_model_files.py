@@ -2,8 +2,8 @@
 """Model files: no pickle anywhere the engine stores or reads a model.
 
 Every stored model is a JSON descriptor and an ``.npz`` array file read with
-``allow_pickle=False``; loading rebuilds the object, and a UMAP model is
-re-fitted and checked against its stored layout. Synthetic data only.
+``allow_pickle=False``; loading rebuilds the object. No layout model is stored:
+the map is in the embeddings, and new points are placed on it. Synthetic data only.
 """
 
 from __future__ import annotations
@@ -272,36 +272,29 @@ def _umap_kw() -> dict:
 
 
 @pytest.mark.parametrize("layout", ["researcher", "researcher_concepts", "joint"])
-def test_umap_model_is_refitted_to_the_same_map(tmp_path: Path, layout: str) -> None:
+def test_a_layout_fits_the_people_and_places_the_terms(layout: str) -> None:
     pytest.importorskip("umap")
+    from cartolex.atlas.placement import place
+
     rng = np.random.default_rng(6)
     Z_ind, Z_terms = rng.normal(size=(24, 6)), rng.normal(size=(40, 6))
     kw = {**_umap_kw(), "random_state": 3}
     if layout == "researcher":
-        ind, terms, model = reducers.fit_researcher_umap(Z_ind, Z_terms, **kw)
+        ind, terms = reducers.fit_researcher_umap(Z_ind, Z_terms, **kw)
+        again, _ = reducers.fit_researcher_umap(Z_ind, Z_terms, **kw)
+        assert np.array_equal(ind, again)  # the same seed, the same map
     elif layout == "researcher_concepts":
         anchors = rng.normal(size=(4, 6))
-        ind, terms, model = reducers.fit_anchored_umap(Z_ind, Z_terms, anchors, **kw)
+        ind, terms = reducers.fit_anchored_umap(Z_ind, Z_terms, anchors, **kw)
     else:
         labels = rng.integers(-1, 3, size=40)
-        ind, terms, model = reducers.fit_joint_umap(
-            Z_ind, Z_terms, term_cluster_labels=labels, **kw
-        )
-    path = tmp_path / "umap.json"
-    model_files.save_layout_model(model, path)
-    back = model_files.load_layout_model(path)
-
-    assert isinstance(back, reducers.UmapModel) and back is not model
-    assert back.params == model.params
-    assert back.embedding.dtype == model.embedding.dtype
-    assert np.array_equal(back.embedding[: len(Z_ind)], ind)
-    if layout != "joint":
-        assert np.array_equal(back.replay_output, terms)
-    new = rng.normal(size=(5, 6))
-    assert np.array_equal(back.transform(new), model.transform(new))
+        ind, terms = reducers.fit_joint_umap(Z_ind, Z_terms, term_cluster_labels=labels, **kw)
+    assert ind.shape == (24, 2) and terms.shape == (40, 2)
+    if layout != "joint":  # the joint layout fits the terms with the people
+        assert np.array_equal(terms, place(Z_terms, Z_ind, ind).xy)
 
 
-def test_layout_stage_stores_a_model_that_reloads(tmp_path: Path) -> None:
+def test_the_layout_stage_keeps_the_map_in_the_embeddings(tmp_path: Path) -> None:
     pytest.importorskip("umap")
     rng = np.random.default_rng(10)
     emb = Embeddings(
@@ -310,62 +303,25 @@ def test_layout_stage_stores_a_model_that_reloads(tmp_path: Path) -> None:
         umap_ind=None,
         umap_terms=None,
     )
-    path = tmp_path / "umap.json"
-    out = reducers.compute_umap(emb, **_umap_kw(), random_state=4, model_path=path)
-    back = model_files.load_layout_model(path)
-    assert np.array_equal(back.embedding, out.umap_ind)
-    assert np.array_equal(back.transform(emb.Z_terms), out.umap_terms)
+    out = reducers.compute_umap(emb, **_umap_kw(), random_state=4)
+    path = tmp_path / "embeddings.json"
+    model_files.save_embeddings(out, path)
+    back = model_files.load_embeddings(path)
+    assert np.array_equal(back.umap_ind, out.umap_ind)
+    assert np.array_equal(back.umap_terms, out.umap_terms)
+    assert not hasattr(model_files, "load_layout_model")
 
 
-def test_umap_model_that_is_not_reproduced_exactly_is_kept_with_a_warning(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    pytest.importorskip("umap")
-    rng = np.random.default_rng(7)
-    params = {**_umap_kw(), "random_state": 3}
-    model = reducers.UmapModel.fit(
-        params, rng.normal(size=(20, 5)), replay_input=rng.normal(size=(6, 5))
-    )
-    model.embedding = model.embedding.copy()
-    model.embedding[0, 0] += 1.0  # a stored map the fit here does not give exactly
-    stored = model.embedding.copy()
-    path = tmp_path / "umap.json"
-    model_files.save_layout_model(model, path)
-    with caplog.at_level("WARNING", logger="cartolex.atlas.model_files"):
-        back = model_files.load_layout_model(path)
-    assert "does not reproduce the stored map exactly" in caplog.text
-    np.testing.assert_array_equal(back.embedding, stored)  # the stored map stays the map
-    assert back.refit_deviation["relative_max_displacement"] > 0
-    assert back.transform(rng.normal(size=(2, 5))).shape == (2, 2)
+def test_the_anchored_tsne_places_the_terms() -> None:
+    from cartolex.atlas.placement import place
 
-
-def test_umap_model_reproduced_exactly_has_no_deviation(tmp_path: Path) -> None:
-    pytest.importorskip("umap")
-    rng = np.random.default_rng(7)
-    params = {**_umap_kw(), "random_state": 3}
-    model = reducers.UmapModel.fit(params, rng.normal(size=(20, 5)))
-    path = tmp_path / "umap.json"
-    model_files.save_layout_model(model, path)
-    assert model_files.load_layout_model(path).refit_deviation is None
-
-
-def test_anchored_tsne_round_trip(tmp_path: Path) -> None:
     rng = np.random.default_rng(9)
     Z_ind, Z_terms = rng.normal(size=(25, 8)), rng.normal(size=(60, 8))
-    ind, terms, model = reducers.fit_anchored_tsne(
+    ind, terms = reducers.fit_anchored_tsne(
         Z_ind, Z_terms, rng.normal(size=(5, 8)), n_neighbors=5, metric="cosine", random_state=7
     )
-    path = tmp_path / "umap.json"
-    model_files.save_layout_model(model, path)
-    back = model_files.load_layout_model(path)
-
-    assert isinstance(back, reducers.AnchoredTSNE) and back.get_params() == model.get_params()
-    assert np.array_equal(back.embedding_, model.embedding_)
-    assert np.array_equal(back.reference_, model.reference_)
-    assert np.array_equal(back.embedding_[: len(Z_ind)], ind)
-    assert np.array_equal(back.transform(Z_terms, jitter=True), terms)
-    new = rng.normal(size=(4, 8))
-    assert np.array_equal(back.transform(new), model.transform(new))
+    assert ind.shape == (25, 2)
+    assert np.array_equal(terms, place(Z_terms, Z_ind, ind).xy)
 
 
 # ── Old files, damaged files, crafted files ─────────────────────────────────

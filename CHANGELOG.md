@@ -178,3 +178,17 @@ nothing in the engine names a particular deployment, source or procedure.
   (`check_reference.py --via-project`), identical to the stored baseline. New
   commands: `cartolex build`, `status`, `params` and `versions`
   (`docs/build.md`).
+- **Placement by nearest people (gate G2).** Everything placed on a finished
+  map — the keywords of the layout, the trajectories' time bins and windows,
+  the projected people — goes to the weighted mean of the heaviest linked group
+  of its eight nearest people in the SVD space (two neighbours are linked when
+  their map positions are within a quarter of the map's radius;
+  `cartolex.atlas.placement`). UMAP's `transform` and the re-fit of a stored
+  layout model are retired: no layout model is stored (`layout_model_json` is
+  gone from `EnginePaths`), the map is the stored embeddings, and
+  `positioning.load_positioning_models` returns the map's anchors instead of a
+  model. On the large demo world the keywords keep their neighbourhoods better
+  than with UMAP's transform (0.824 against 0.794), nothing is stranded between
+  two places, and the trajectories stage is 3.3 times faster. `map.layout`,
+  `map.trajectories` and `overlays.position` are at version 2; the baseline is
+  updated (`tests/baseline/LOG.md`). See `docs/dev/placement.md`.

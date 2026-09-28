@@ -92,16 +92,9 @@ def test_compute_umap_falls_back_to_tsne_only_when_asked(
     e = _emb()
     kw = dict(n_neighbors=5, min_dist=0.1, n_components=2, metric="cosine", random_state=3)
     with pytest.raises(ImportError):
-        reducers.compute_umap(_emb(), model_path=tmp_path / "m.json", layout="joint", **kw)
-    out = reducers.compute_umap(
-        e, model_path=tmp_path / "m.json", layout="joint", fallback="tsne", **kw
-    )
+        reducers.compute_umap(_emb(), layout="joint", **kw)
+    out = reducers.compute_umap(e, layout="joint", fallback="tsne", **kw)
     assert out.umap_ind.shape == (12, 2) and out.umap_terms.shape == (30, 2)
-    from cartolex.atlas.model_files import load_layout_model
-
-    model = load_layout_model(tmp_path / "m.json")
-    assert isinstance(model, reducers.AnchoredTSNE)
-    assert model.transform(np.zeros((3, 8)) + 1.0).shape == (3, 2)  # new points embed too
 
 
 def test_plots_adjust_text_fallback_is_a_noop(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -116,10 +109,9 @@ def test_plots_adjust_text_fallback_is_a_noop(monkeypatch: pytest.MonkeyPatch) -
         importlib.reload(plots)
 
 
-def test_tsne_anchored_is_a_first_class_layout_with_transform(tmp_path: Path) -> None:
-    """layout="tsne_anchored" works with or without umap-learn and persists a reducer
-    whose transform places new SVD-space points (projected documents, time bins)."""
-    from cartolex.atlas.model_files import load_layout_model
+def test_tsne_anchored_is_a_first_class_layout(tmp_path: Path) -> None:
+    """layout="tsne_anchored" works with or without umap-learn; the terms are placed on it."""
+    from cartolex.atlas.placement import place
 
     e = _emb(n_ind=25, n_terms=60)
     anchors = np.random.default_rng(2).normal(size=(6, 8))
@@ -130,15 +122,12 @@ def test_tsne_anchored_is_a_first_class_layout_with_transform(tmp_path: Path) ->
         n_components=2,
         metric="cosine",
         random_state=7,
-        model_path=tmp_path / "m.json",
         layout="tsne_anchored",
         anchor_vectors=anchors,
     )
     assert out.umap_ind.shape == (25, 2) and out.umap_terms.shape == (60, 2)
-    model = load_layout_model(tmp_path / "m.json")
-    assert isinstance(model, reducers.AnchoredTSNE) and model.layout_engine == "tsne_anchored"
-    # transform is deterministic and lands a copy of researcher 3 next to researcher 3
-    xy = model.transform(e.Z_ind[[3]])
-    np.testing.assert_allclose(xy, model.transform(e.Z_ind[[3]]))
+    assert np.array_equal(out.umap_terms, place(e.Z_terms, e.Z_ind, out.umap_ind).xy)
+    # a copy of researcher 3 lands next to researcher 3
+    xy = place(e.Z_ind[[3]], e.Z_ind, out.umap_ind).xy
     d = np.linalg.norm(out.umap_ind - xy[0], axis=1)
-    assert d[3] < 0.1 * np.ptp(out.umap_ind, axis=0).max()
+    assert d[3] < 0.2 * np.ptp(out.umap_ind, axis=0).max()

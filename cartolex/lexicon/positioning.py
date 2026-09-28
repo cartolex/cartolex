@@ -20,33 +20,32 @@ if TYPE_CHECKING:
 
 
 def load_positioning_models(ctx: RunContext) -> tuple:
-    """Positioning stage: load ``(tfidf, restricted_terms, svd, umap_model)`` of a run.
+    """Positioning stage: load ``(tfidf, restricted_terms, svd, anchors)`` of a run.
 
     Reads the restricted vectorizer (``ctx.paths.vectorizer_json``), the
-    atlas vocabulary (``ctx.paths.atlas_terms_csv``) and the fitted SVD and
-    layout models (``ctx.paths.svd_model_json``, ``ctx.paths.layout_model_json``;
-    see :mod:`cartolex.atlas.model_files`: a UMAP model is re-fitted here, which
-    takes seconds, so a caller that projects often keeps the loaded models).
-    ``umap_model`` is ``None`` when the layout model is absent. Raises
-    ``FileNotFoundError`` if the TF-IDF, restricted-terms, or SVD artifacts are
-    missing (the layout model is optional), and
+    atlas vocabulary (``ctx.paths.atlas_terms_csv``), the fitted SVD
+    (``ctx.paths.svd_model_json``) and the map (``ctx.paths.embeddings_json``):
+    ``anchors`` is a :class:`~cartolex.atlas.placement.MapAnchors` of the mapped
+    people, whose ``place`` gives the map position of projected vectors, or
+    ``None`` before the layout has run. Raises ``FileNotFoundError`` if the
+    TF-IDF, restricted-terms, or SVD artifacts are missing, and
     :class:`~cartolex.atlas.model_files.ModelFileError` for a model file that
-    cannot be used (for example one of an earlier release). Pass them to
-    :func:`project_text`.
+    cannot be used (for example one of an earlier release). Pass the first three
+    to :func:`project_text`.
     """
     import pandas as pd
 
     from cartolex.atlas.model_files import (
-        load_layout_model,
+        load_embeddings,
         load_svd,
         load_vectorizer,
         reject_legacy,
     )
+    from cartolex.atlas.placement import MapAnchors
 
     paths = ctx.paths
     reject_legacy(paths.vectorizer_json, stage="consolidation")
     reject_legacy(paths.svd_model_json, stage="SVD")
-    reject_legacy(paths.layout_model_json, stage="UMAP layout")
     for p in (paths.vectorizer_json, paths.atlas_terms_csv, paths.svd_model_json):
         if not p.exists():
             raise FileNotFoundError(str(p))
@@ -55,9 +54,12 @@ def load_positioning_models(ctx: RunContext) -> tuple:
     terms_df = pd.read_csv(paths.atlas_terms_csv)
     restricted_terms: list[str] = terms_df["term"].tolist()
     svd = load_svd(paths.svd_model_json)
-    layout = paths.layout_model_json
-    umap_model = load_layout_model(layout) if layout.exists() else None
-    return tfidf, restricted_terms, svd, umap_model
+    anchors = None
+    if paths.embeddings_json.exists():
+        emb = load_embeddings(paths.embeddings_json)
+        if emb.umap_ind is not None:
+            anchors = MapAnchors(emb.Z_ind, emb.umap_ind)
+    return tfidf, restricted_terms, svd, anchors
 
 
 def project_text(

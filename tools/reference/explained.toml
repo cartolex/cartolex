@@ -76,7 +76,7 @@ reference = "S"
 stage = "layout"
 upstream = "space"
 step = "2a1"
-reason = "The layout places another SVD space (see space). The group aggregate table has one group column instead of equal code and label columns, and the hash-only person table lost the two always-empty roster attribute columns (step 1d)."
+reason = "The layout places another SVD space (see space). The group aggregate table has one group column instead of equal code and label columns, and the hash-only person table lost the two always-empty roster attribute columns (step 1d). The keywords are no longer placed by UMAP's transform: each goes to the weighted mean of the heaviest linked group of its 8 nearest people in the SVD space (link radius a quarter of the map's radius), so their positions, the diagnostics computed from them and the clustered table's coordinates change; the people's positions do not (gate G2)."
 
 [[difference]]
 reference = "S"
@@ -97,14 +97,14 @@ reference = "S"
 stage = "trajectories"
 upstream = "build"
 step = "2a1"
-reason = "Documents are folded onto another vocabulary and placed on another map (see build and layout). The two zero per-type document counts are also gone (step 1c)."
+reason = "Documents are folded onto another vocabulary and placed on another map (see build and layout). The two zero per-type document counts are also gone (step 1c). Each point and time window is placed on the map by its nearest people (the heaviest linked group of 8) instead of UMAP's transform (gate G2)."
 
 [[difference]]
 reference = "S"
 stage = "projection"
 upstream = "build"
 step = "2a1"
-reason = "New documents are placed with another vectorizer, SVD space and layout (see build, space and layout)."
+reason = "New documents are placed with another vectorizer, SVD space and layout (see build, space and layout). The projected people are placed by their nearest mapped people (the heaviest linked group of 8) instead of UMAP's transform (gate G2)."
 
 [[difference]]
 reference = "S"
@@ -170,7 +170,7 @@ reference = "L"
 stage = "layout"
 upstream = "space"
 step = "2a1"
-reason = "The layout places another SVD space (see space). The group aggregate table has one group column instead of equal code and label columns, and the hash-only person table lost the two always-empty roster attribute columns (step 1d)."
+reason = "The layout places another SVD space (see space). The group aggregate table has one group column instead of equal code and label columns, and the hash-only person table lost the two always-empty roster attribute columns (step 1d). The keywords are no longer placed by UMAP's transform: each goes to the weighted mean of the heaviest linked group of its 8 nearest people in the SVD space (link radius a quarter of the map's radius), so their positions, the diagnostics computed from them and the clustered table's coordinates change; the people's positions do not (gate G2)."
 
 [[difference]]
 reference = "L"
@@ -191,14 +191,14 @@ reference = "L"
 stage = "trajectories"
 upstream = "build"
 step = "2a1"
-reason = "Documents are folded onto another vocabulary and placed on another map (see build and layout). The two zero per-type document counts are also gone (step 1c)."
+reason = "Documents are folded onto another vocabulary and placed on another map (see build and layout). The two zero per-type document counts are also gone (step 1c). Each point and time window is placed on the map by its nearest people (the heaviest linked group of 8) instead of UMAP's transform (gate G2)."
 
 [[difference]]
 reference = "L"
 stage = "projection"
 upstream = "build"
 step = "2a1"
-reason = "New documents are placed with another vectorizer, SVD space and layout (see build, space and layout)."
+reason = "New documents are placed with another vectorizer, SVD space and layout (see build, space and layout). The projected people are placed by their nearest mapped people (the heaviest linked group of 8) instead of UMAP's transform (gate G2)."
 
 [[difference]]
 reference = "L"

@@ -1077,7 +1077,7 @@ class Engine:
         subfield_weights_for_vector = positioning.subfield_weights_for_vector
         project_text = positioning.project_text
 
-        tfidf, restricted_terms, svd, umap_model = self._positioning_models()
+        tfidf, restricted_terms, svd, anchors = self._positioning_models()
         aliases = _read_csv(self.files.term_aliases_csv, dtype=str, keep_default_na=False)
         alias_map = dict(zip(aliases["alias"], aliases["canonical"], strict=True))
         _, emb = self._lexical()
@@ -1118,7 +1118,7 @@ class Engine:
                     }
                 )
             Z = np.vstack(zs)
-            xy = np.asarray(umap_model.transform(Z)) if umap_model is not None else np.zeros((0, 2))
+            xy = anchors.place(Z) if anchors is not None else np.zeros((0, 2))
             out[f"{name}_items"] = Strings([r["item"] for r in rows])
             out[f"{name}_coords"] = Array(Z, role="values")
             out[f"{name}_xy"] = Array(xy, role="values")

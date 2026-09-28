@@ -2,20 +2,26 @@
 """Place points on a finished map by their nearest neighbours in the SVD space.
 
 A map is fitted once on its *anchors* (the mapped people): each has a vector in
-the SVD space and a position on the map. A new vector (a keyword, a projected
-person, a person's texts of one period) is placed at the weighted mean of the
-positions of its ``k`` nearest anchors, by cosine distance in the SVD space.
+the SVD space and a position on the map. Everything else — a keyword, a
+projected person, a person's texts of one period — is placed from its ``k``
+nearest anchors (cosine distance in the SVD space), in two steps:
 
-The weights follow UMAP's fuzzy neighbourhood (``smooth_knn_dist``): the
-nearest anchor weighs 1, and the others decay as ``exp(-(d - d₁) / σ)`` with
-``σ`` set so the weights sum to ``log₂ k``. This is how UMAP's own ``transform``
-starts a new point, before it refines it by stochastic optimisation; placing
-without that refinement needs no fitted model, involves no randomness, and
-gives the same positions whatever the machine or the number of threads.
+1. **weights.** The anchors weigh as in UMAP's fuzzy neighbourhood
+   (``smooth_knn_dist``): the nearest weighs 1, the others
+   ``exp(-(d - d₁) / σ)``, with ``σ`` set so the weights sum to ``log₂ k``;
+2. **the heaviest group.** Two neighbours are linked when their positions on
+   the map are within the *link radius* of each other; the linked neighbours
+   form groups (the connected parts of those links), and the point goes to the
+   weighted mean of the group with the largest total weight (on a tie, the group
+   of the nearest neighbour). The link radius is a share of the map's radius,
+   the root mean square distance of the anchors from their centre.
 
-The distance computation avoids BLAS (``np.einsum`` without optimisation), so
-the sums run in a fixed order; neighbours are ranked by distance, then by
-anchor index, so ties break the same way everywhere.
+A point whose neighbours all sit together lands at their weighted mean. A point
+whose neighbours are split between two distant places lands in the place that
+weighs most, never in the empty space between them. No fitted model is needed,
+nothing is random, and the arithmetic runs in a fixed order (``np.einsum``
+without optimisation, neighbours ranked by distance then by anchor index), so
+the positions are the same on any machine, whatever the chunk size.
 """
 
 from __future__ import annotations
@@ -24,19 +30,37 @@ from dataclasses import dataclass
 
 import numpy as np
 
-__all__ = ["Placement", "neighbour_weights", "place"]
+__all__ = [
+    "K",
+    "LINK_RADIUS",
+    "MapAnchors",
+    "Placement",
+    "map_radius",
+    "neighbour_weights",
+    "place",
+]
 
-#: Default number of neighbours, UMAP's default ``n_neighbors``.
-DEFAULT_K = 15
+#: The number of neighbours a point is placed from.
+K = 8
+#: The link radius, as a share of the map's radius.
+LINK_RADIUS = 0.25
 
 
 @dataclass(frozen=True)
 class Placement:
-    """Positions of placed vectors, with the anchors and weights that produced them."""
+    """Positions of placed vectors, with the neighbours and weights that produced them.
+
+    ``neighbour_weights`` are the UMAP-style weights of the ``k`` neighbours
+    (each row sums to 1); ``in_group`` marks the neighbours of the heaviest
+    group, and ``weights`` are the weights the position was taken with (those of
+    the group, renormalised to sum to 1; zero elsewhere).
+    """
 
     xy: np.ndarray  # (n, 2)
     neighbours: np.ndarray  # (n, k) anchor indices, nearest first
     distances: np.ndarray  # (n, k) cosine distances
+    neighbour_weights: np.ndarray  # (n, k), each row sums to 1
+    in_group: np.ndarray  # (n, k) bool
     weights: np.ndarray  # (n, k), each row sums to 1
 
 
@@ -69,6 +93,15 @@ def neighbour_weights(distances: np.ndarray, *, iterations: int = 64) -> np.ndar
     return w / w.sum(axis=1, keepdims=True)
 
 
+def map_radius(xy: np.ndarray) -> float:
+    """The root mean square distance of *xy* from its centre (the map's scale)."""
+    xy = np.asarray(xy, dtype=np.float64)
+    if not len(xy):
+        return 0.0
+    centred = xy - xy.mean(axis=0)
+    return float(np.sqrt(np.einsum("ij,ij->", centred, centred, optimize=False) / len(xy)))
+
+
 def _unit_rows(m: np.ndarray) -> np.ndarray:
     m = np.asarray(m, dtype=np.float64)
     norms = np.sqrt(np.einsum("ij,ij->i", m, m, optimize=False))
@@ -76,22 +109,47 @@ def _unit_rows(m: np.ndarray) -> np.ndarray:
     return m / norms[:, None]
 
 
+def _heaviest_group(positions: np.ndarray, weights: np.ndarray, radius: float) -> np.ndarray:
+    """For each row, the neighbours of its heaviest linked group (a boolean mask).
+
+    *positions* are the ``(n, k, 2)`` map positions of the neighbours, *weights*
+    ``(n, k)``. Groups are the connected parts of the links (positions within
+    *radius* of each other); each group is labelled by its lowest neighbour
+    index, so on equal weights the group of the nearest neighbour wins.
+    """
+    n, k, _ = positions.shape
+    diff = positions[:, :, None, :] - positions[:, None, :, :]
+    linked = np.einsum("nijc,nijc->nij", diff, diff, optimize=False) <= radius * radius
+    labels = np.broadcast_to(np.arange(k), (n, k)).copy()
+    for _ in range(k):  # the lowest label spreads through the links
+        spread = np.where(linked, labels[:, None, :], k).min(axis=2)
+        if np.array_equal(spread, labels):
+            break
+        labels = spread
+    members = (labels[:, :, None] == np.arange(k)[None, None, :]).astype(np.float64)
+    group_weight = np.einsum("nm,nmg->ng", weights, members, optimize=False)
+    best = np.argmax(group_weight, axis=1)  # the first maximum: the lowest label
+    return labels == best[:, None]
+
+
 def place(
     vectors: np.ndarray,
     anchor_vectors: np.ndarray,
     anchor_xy: np.ndarray,
     *,
-    k: int = DEFAULT_K,
+    k: int = K,
+    link_radius: float = LINK_RADIUS,
     chunk: int = 2048,
     exclude_self: bool = False,
 ) -> Placement:
-    """Place each row of *vectors* at the weighted mean of its *k* nearest anchors.
+    """Place each row of *vectors* on the map of the anchors (see the module's notes).
 
     *vectors* and *anchor_vectors* live in the same SVD space; *anchor_xy* are the
     anchors' map positions. *k* is capped at the number of anchors (minus one when
     *exclude_self*, which leaves out anchor ``i`` for vector ``i``, for
-    leave-one-out checks). Work proceeds in chunks of *chunk* rows, so memory
-    stays proportional to ``chunk × anchors``.
+    leave-one-out checks). *link_radius* is a share of the map's radius. Work
+    proceeds in chunks of *chunk* rows, so memory stays proportional to
+    ``chunk × anchors``.
     """
     V = _unit_rows(np.atleast_2d(vectors))
     A = _unit_rows(np.atleast_2d(anchor_vectors))
@@ -102,12 +160,16 @@ def place(
     if V.shape[1] != A.shape[1]:
         raise ValueError(f"vectors have {V.shape[1]} dimensions, anchors {A.shape[1]}")
     k = max(1, min(k, n_anchors - (1 if exclude_self else 0)))
+    radius = link_radius * map_radius(XY)
     order_idx = np.arange(n_anchors)
-    xy = np.empty((V.shape[0], 2))
-    nbrs = np.empty((V.shape[0], k), dtype=np.int64)
-    dist = np.empty((V.shape[0], k))
-    wts = np.empty((V.shape[0], k))
-    for start in range(0, V.shape[0], chunk):
+    n = V.shape[0]
+    xy = np.empty((n, 2))
+    nbrs = np.empty((n, k), dtype=np.int64)
+    dist = np.empty((n, k))
+    plain = np.empty((n, k))
+    group = np.empty((n, k), dtype=bool)
+    wts = np.empty((n, k))
+    for start in range(0, n, chunk):
         block = V[start : start + chunk]
         d = 1.0 - np.einsum("ij,kj->ik", block, A, optimize=False)
         np.clip(d, 0.0, 2.0, out=d)
@@ -118,7 +180,34 @@ def place(
         idx = np.lexsort((np.broadcast_to(order_idx, d.shape), d), axis=1)[:, :k]
         dk = np.take_along_axis(d, idx, axis=1)
         w = neighbour_weights(dk)
+        positions = XY[idx]
+        mask = _heaviest_group(positions, w, radius)
+        kept = np.where(mask, w, 0.0)
+        kept = kept / kept.sum(axis=1, keepdims=True)
         stop = start + block.shape[0]
-        nbrs[start:stop], dist[start:stop], wts[start:stop] = idx, dk, w
-        xy[start:stop] = np.einsum("ik,ikj->ij", w, XY[idx], optimize=False)
-    return Placement(xy=xy, neighbours=nbrs, distances=dist, weights=wts)
+        nbrs[start:stop], dist[start:stop], plain[start:stop] = idx, dk, w
+        group[start:stop], wts[start:stop] = mask, kept
+        xy[start:stop] = np.einsum("ik,ikj->ij", kept, positions, optimize=False)
+    return Placement(
+        xy=xy,
+        neighbours=nbrs,
+        distances=dist,
+        neighbour_weights=plain,
+        in_group=group,
+        weights=wts,
+    )
+
+
+@dataclass(frozen=True)
+class MapAnchors:
+    """A finished map's anchors: their vectors in the SVD space and their positions."""
+
+    vectors: np.ndarray  # (n, dims)
+    xy: np.ndarray  # (n, 2)
+
+    def place(self, vectors: np.ndarray) -> np.ndarray:
+        """The map positions of *vectors* (``(n, 2)``; no rows give ``(0, 2)``)."""
+        vectors = np.asarray(vectors, dtype=np.float64)
+        if vectors.size == 0:
+            return np.zeros((0, 2))
+        return place(vectors, self.vectors, self.xy).xy

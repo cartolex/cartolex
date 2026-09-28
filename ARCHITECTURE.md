@@ -51,7 +51,7 @@ See `docs/dev/engine.md`.
 | `prompt_store` | Loads prompt templates from a prompt directory (default: `cartolex/_data/prompts/`), checked when used |
 | `consolidation`, `canonicalization` | **Stage 3**: canonical dedup, scoring, per-entity/unit/global outputs |
 | `subfields`, `subfields_edit`, `labels`, `lexicon_store` | Concept → subfield hierarchy (deterministic draft), curation apply/edit, optional LLM translation of display labels |
-| `positioning` | Project new documents (a projected set) into a fitted SVD/UMAP space; nearest terms and concept/subfield weights of a projected vector |
+| `positioning` | Project new documents (a projected set) into a fitted SVD space and place them on the map; nearest terms and concept/subfield weights of a projected vector |
 | `pdf_text`, `pdf_corpus` | Generic PDF→text extraction with a per-document hook |
 | `whitelist` | The axis and person whitelists, read from the explicit files given |
 | `occurrences` | Occurrence/concordance scanner mirroring the vectorizer (spans and context snippets of a concept's surface forms in one document) |
@@ -63,13 +63,14 @@ See `docs/dev/engine.md`.
 |---|---|
 | `driver` | **Orchestrator**: `run_svd` / `run_clustering` / `run_umap` / `run_lexical_plots` / `run_trajectories`, each taking a `RunContext`; defaults in the immutable `DEFAULTS` (`AtlasDefaults`), with a project's frozen values read per run |
 | `io` | TF-IDF matrix assembly from the corpus contract |
-| `reducers` | SVD embeddings, UMAP computation |
+| `reducers` | SVD embeddings, the UMAP (or anchored t-SNE) layout of the people |
+| `placement` | Place keywords, projected documents and time bins on a finished map by their nearest people (the heaviest linked group of eight) |
 | `clustering` | Ward clustering of terms (cosine, SVD space) → concepts + proto-subfields |
 | `hierarchy` | Concept/subfield hierarchy documents |
 | `plots` | Static maps (entities+labs, term clusters, superposed, panels); matplotlib is imported on first use |
-| `trajectories` | Per-(entity, time-bin) fingerprints projected into the reference UMAP |
+| `trajectories` | Per-(entity, time-bin) fingerprints projected through the SVD and placed on the map |
 | `map_bundle` | The portable `map_bundle/2` format (build, write, read, validate) — in-memory inputs, explicit destinations |
-| `model_files` | The fitted objects a project stores (vectorizer, lexical data, embeddings, SVD, layout model) as a JSON descriptor and an `.npz` array file, never a pickle; loading rebuilds them (a UMAP model is re-fitted and checked against its stored map) |
+| `model_files` | The fitted objects a project stores (vectorizer, lexical data, embeddings, SVD) as a JSON descriptor and an `.npz` array file, never a pickle; loading rebuilds them. No layout model: the embeddings hold the map |
 | `map_merge`, `reconcile`, `map_metrics` | Merging several fitted maps into one (multi-cohort reconciliation + quality metrics) |
 | `diagnostics`, `types` | Diagnostics and shared dataclasses |
 

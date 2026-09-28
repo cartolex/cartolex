@@ -226,8 +226,9 @@ Outputs under `<workspace>/lexical_analysis/`: `umap_individuals.csv` (the
 atlas coordinates your frontend renders), `umap_terms.csv`,
 `clusters_terms.csv`, `proto_subfields.json`, `umap_labs.csv` (per-`unit`
 aggregates, labelled by the `unit` value), diagnostic JSON, and the fitted models under `models/`
-(`svd`, `umap`, `embeddings`, …: each a JSON descriptor with an `.npz` array
-file, see below) — these are what later projection uses. UMAP parameters
+(`svd`, `embeddings`, …: each a JSON descriptor with an `.npz` array
+file, see below) — these are what later projection uses; the embeddings hold
+the map (people's and keywords' positions). UMAP parameters
 (`n_neighbors` is auto-clamped for small cohorts) are keyword arguments on
 `run_umap`; their defaults are `driver.DEFAULTS`.
 
@@ -235,12 +236,10 @@ file, see below) — these are what later projection uses. UMAP parameters
 uploaded, so `cartolex.atlas.model_files` stores every fitted object as a JSON
 descriptor (parameters, vocabularies, library versions, the sha256 of its
 arrays) and an `.npz` file read with `allow_pickle=False`, and rebuilds the
-object on load. A UMAP model is re-fitted from its stored inputs, parameters and
-seed, then checked against the stored map: the same libraries give the same
-model bit for bit (a few seconds for a few hundred people; keep the loaded
-models when you project often). If the installed libraries do not reproduce the
-map, loading raises `ModelFileError` rather than placing points on another map;
-re-running the layout stage rebuilds it. `.joblib` files of earlier releases
+object on load. No layout model is stored: the keywords, and later any new
+point, are placed on the map by their nearest people
+(`cartolex.atlas.placement`), so placing needs only the stored embeddings.
+`.joblib` files of earlier releases
 are never read: loading raises `ModelFileError`, naming the file and the stage
 to re-run.
 
@@ -278,14 +277,15 @@ else the draft) onto the atlas and computes the three-status lexicon weights.
 
 ### 3.7 Projecting new documents into a fitted field
 
-The stored SVD and layout models (`models/svd.json`, `models/umap.json`)
-transform any new document into the existing map: vectorize the new text
-against the fitted vocabulary, `svd.transform(...)`, then `umap.transform(...)`. The primitives
+The stored SVD model and embeddings (`models/svd.json`, `models/embeddings.json`)
+place any new document on the existing map: vectorize the new text against the
+fitted vocabulary, `svd.transform(...)`, then place the vector by its nearest
+people (`anchors.place(...)`, `cartolex.atlas.placement`). The primitives
 live in `cartolex.lexicon.positioning` (`load_positioning_models(ctx)`,
 `project_text(...)`, and the helpers that describe a projected vector:
 `scored_top_terms_for_vector`, `subfield_svd_centroids`,
 `concept_svd_centroids`, `subfield_weights_for_vector`) and
-`cartolex.atlas.reducers`. This places a *projected set* — people or
+`cartolex.atlas.placement`. This places a *projected set* — people or
 documents outside the fitted cohort — on the map without refitting. (A
 packaged one-call helper is on the roadmap — until then, follow
 `positioning.py`.)

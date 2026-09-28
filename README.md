@@ -16,9 +16,9 @@ in the corpus index. It consumes only the *corpus contract* below, whatever prod
   triage (Mistral, term strings only), canonical consolidation and scoring, the
   subfield hierarchy (deterministic draft, curated by hand), positioning of new
   documents, corpus/index helpers.
-- `cartolex.atlas` — SVD reduction, Ward clustering (cosine, SVD space), UMAP 2-D
-  projection (entities + terms co-projected), trajectories, plots, and the `driver`
-  that orchestrates the whole atlas stage.
+- `cartolex.atlas` — SVD reduction, Ward clustering (cosine, SVD space), a UMAP 2-D
+  map of the entities with the terms placed on it by their nearest entities,
+  trajectories, plots, and the `driver` that orchestrates the whole atlas stage.
 
 ## The corpus contract
 

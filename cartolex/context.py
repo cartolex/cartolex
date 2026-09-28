@@ -117,7 +117,6 @@ class EnginePaths:
     lexical_data_json: Path  # model descriptors, each with its .npz array file
     embeddings_json: Path
     svd_model_json: Path
-    layout_model_json: Path
     atlas_params_json: Path  # optional frozen atlas parameters
     pca_persons_csv: Path
     pca_terms_csv: Path
@@ -193,7 +192,6 @@ class EnginePaths:
             lexical_data_json=models / "lexical_data.json",
             embeddings_json=models / "embeddings.json",
             svd_model_json=models / "svd.json",
-            layout_model_json=models / "umap.json",
             atlas_params_json=models / "umap_params.json",
             pca_persons_csv=atlas / "pca_individuals.csv",
             pca_terms_csv=atlas / "pca_terms.csv",

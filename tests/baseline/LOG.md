@@ -40,3 +40,16 @@ Each entry says when the stored baseline (`tests/baseline/`) was rewritten, why,
 - Reason: The lexicon lab's defaults: English noun phrases take no of complement, nothing is set aside for a low score, and a candidate is a fragment of a longer one only when it is never seen outside it. The English candidates change, and with them every later stage; the French candidates change only in their band and reason.
 - Engine: 1.0.0.dev0, source fingerprint `b9a57a10e58fae0a`
 - L: against the previous baseline, 12 stages: 1 identical, 11 different (extract, triage, build, space, group, layout, draft, apply, trajectories, projection, bundle)
+
+## 2026-09-28 — S, merge
+
+- Reason: Points are placed on the finished map by their nearest mapped people instead of UMAP's transform (gate G2): each keyword, trajectory point and window, and projected person goes to the weighted mean of the heaviest linked group of its 8 nearest people in the SVD space (link radius a quarter of the map's radius). The people's own positions are unchanged; the layout's keyword positions and diagnostics, the trajectories and the projection move.
+- Engine: 1.0.0.dev0, source fingerprint `0461d2e57d55b3aa`
+- S: against the previous baseline, 12 stages: 9 identical, 3 different (layout, trajectories, projection)
+- merge: against the previous baseline, 1 stage: 1 identical
+
+## 2026-09-28 — L
+
+- Reason: Points are placed on the finished map by their nearest mapped people instead of UMAP's transform (gate G2): each keyword, trajectory point and window, and projected person goes to the weighted mean of the heaviest linked group of its 8 nearest people in the SVD space (link radius a quarter of the map's radius). The people's own positions are unchanged; the layout's keyword positions and diagnostics, the trajectories and the projection move.
+- Engine: 1.0.0.dev0, source fingerprint `0461d2e57d55b3aa`
+- L: against the previous baseline, 12 stages: 9 identical, 3 different (layout, trajectories, projection)

@@ -14,15 +14,9 @@ by side:
 
 Loading rebuilds the object: a ``TfidfVectorizer`` from its parameters,
 vocabulary and IDF; a ``TruncatedSVD`` with its fitted attributes set; the
-lexical data and the embeddings; the 2-D layout model. A UMAP model is
-**re-fitted** from its stored inputs, parameters and random seed (see
-:class:`~cartolex.atlas.reducers.UmapModel`) and checked against the stored
-layout: the same libraries on the same machine give the same model, bit for
-bit. When the re-fit differs (other library versions, another processor), the
-model is still returned: the stored coordinates stay those of the map, only new
-points are placed with the re-fitted model, and a warning gives the measured
-deviation and what differs (``model.refit_deviation``). An anchored t-SNE model is rebuilt from its reference set and
-2-D coordinates, without running t-SNE again.
+lexical data and the embeddings. The embeddings hold the map: the people's
+positions and the keywords' (see :mod:`cartolex.atlas.placement`); no layout
+model is stored, since nothing is placed with one.
 
 Model files of earlier releases (``<name>.joblib``, pickles) are never read:
 asking for a model whose descriptor is absent while such a file is present
@@ -47,7 +41,6 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 
-from .reducers import AnchoredTSNE, UmapModel
 from .types import Embeddings, LexicalData
 
 logger = logging.getLogger(__name__)
@@ -58,13 +51,11 @@ __all__ = [
     "arrays_file",
     "legacy_file",
     "load_embeddings",
-    "load_layout_model",
     "load_lexical_data",
     "load_svd",
     "load_vectorizer",
     "reject_legacy",
     "save_embeddings",
-    "save_layout_model",
     "save_lexical_data",
     "save_svd",
     "save_vectorizer",
@@ -75,7 +66,6 @@ FORMAT = "cartolex-model/1"
 
 #: Libraries whose versions a descriptor records (those that shape a model).
 _LIBRARIES = ("cartolex", "numpy", "scipy", "scikit-learn", "pandas")
-_LAYOUT_LIBRARIES = ("umap-learn", "pynndescent", "numba")
 
 #: A fixed time stamp for the members of an array file, so equal models give equal bytes.
 _ZIP_DATE = (1980, 1, 1, 0, 0, 0)
@@ -490,108 +480,3 @@ def load_embeddings(path: Path) -> Embeddings:
     if "Z_ind" not in arrays or "Z_terms" not in arrays:
         raise _rebuild_error(path, "SVD", KeyError("Z_ind, Z_terms"))
     return Embeddings(**{name: arrays.get(name) for name in _EMBEDDING_ARRAYS})
-
-
-# ── The layout model ─────────────────────────────────────────────────────────
-
-
-def save_layout_model(model: UmapModel | AnchoredTSNE, path: Path) -> None:
-    """Store a layout model: a UMAP's fit record, or an anchored t-SNE's fitted arrays."""
-    if isinstance(model, UmapModel):
-        arrays = {"fit_input": model.fit_input, "embedding": model.embedding}
-        if model.fit_target is not None:
-            arrays["fit_target"] = model.fit_target
-        if model.replay_input is not None:
-            arrays["replay_input"] = model.replay_input
-            arrays["replay_output"] = model.replay_output
-        meta = {"params": _json_ready(dict(model.params), "the UMAP parameters")}
-        _write(path, "umap", meta, arrays, libraries=_LIBRARIES + _LAYOUT_LIBRARIES)
-    elif isinstance(model, AnchoredTSNE):
-        if model.reference_ is None or model.embedding_ is None:
-            raise ValueError("an anchored t-SNE model must be fitted before it is stored")
-        meta = {"params": _json_ready(model.get_params(), "the t-SNE parameters")}
-        arrays = {"reference": model.reference_, "embedding": model.embedding_}
-        _write(path, "anchored_tsne", meta, arrays)
-    else:
-        raise TypeError(f"not a layout model: {type(model).__name__}")
-
-
-def load_layout_model(path: Path) -> UmapModel | AnchoredTSNE:
-    """The layout model stored at *path*, ready to ``transform`` new points.
-
-    A UMAP model is re-fitted from its stored inputs, parameters and seed. When it
-    reproduces the stored layout exactly (the fit's coordinates and the points
-    transformed after it), ``model.refit_deviation`` is ``None``. Otherwise the
-    stored coordinates are kept on the model, a warning names what differs from
-    the environment that wrote it, and ``model.refit_deviation`` records the
-    largest displacement, relative to the extent of the stored map.
-    """
-    stage = "UMAP layout"
-    doc, arrays = _read(path, kinds=("umap", "anchored_tsne"), stage=stage)
-    try:
-        if doc["kind"] == "anchored_tsne":
-            return AnchoredTSNE.from_fitted(
-                arrays["reference"], arrays["embedding"], **doc["params"]
-            )
-        model = UmapModel.fit(
-            dict(doc["params"]),
-            arrays["fit_input"],
-            fit_target=arrays.get("fit_target"),
-            replay_input=arrays.get("replay_input"),
-        )
-        stored = arrays["embedding"]
-    except _REBUILD_ERRORS as exc:
-        raise _rebuild_error(path, stage, exc) from exc
-    same = _identical(model.embedding, stored)
-    if same and "replay_output" in arrays:
-        same = _identical(model.replay_output, arrays["replay_output"])
-    model.refit_deviation = None
-    if not same:
-        recorded = doc.get("libraries", {})
-        installed = _versions(tuple(recorded) or _LIBRARIES + _LAYOUT_LIBRARIES)
-        changed = [
-            f"{name} {recorded[name]} → {installed.get(name)}"
-            for name in sorted(recorded)
-            if recorded[name] != installed.get(name)
-        ]
-        detail = (
-            "library versions differ: " + ", ".join(changed)
-            if changed
-            else "same library versions: the machine or its settings differ"
-        )
-        deviation = _relative_displacement(model.embedding, stored)
-        if "replay_output" in arrays and model.replay_output is not None:
-            deviation = max(
-                deviation, _relative_displacement(model.replay_output, arrays["replay_output"])
-            )
-        # The stored map stays the map: only points placed from now on use the re-fit.
-        model.embedding = stored
-        if "replay_output" in arrays:
-            model.replay_output = arrays["replay_output"]
-        model.refit_deviation = {"relative_max_displacement": deviation, "detail": detail}
-        logger.warning(
-            "%s: re-fitting the layout here does not reproduce the stored map exactly (%s); "
-            "largest displacement %.3g of the map's extent. The stored map is kept; new points "
-            "are placed with the re-fitted model.",
-            path,
-            detail,
-            deviation,
-        )
-    return model
-
-
-def _relative_displacement(a: np.ndarray, b: np.ndarray) -> float:
-    """Largest point displacement between *a* and *b*, relative to the extent of *b*."""
-    a, b = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
-    if a.shape != b.shape:
-        return math.inf
-    extent = float(np.ptp(b, axis=0).max()) if b.size else 0.0
-    shift = float(np.sqrt(((a - b) ** 2).sum(axis=1)).max()) if b.size else 0.0
-    return shift / extent if extent > 0 else shift
-
-
-def _identical(a: np.ndarray | None, b: np.ndarray | None) -> bool:
-    if a is None or b is None:
-        return a is None and b is None
-    a, b = np.asarray(a), np.asarray(b)
-    return a.dtype == b.dtype and a.shape == b.shape and bool(np.array_equal(a, b))

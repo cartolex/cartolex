@@ -470,12 +470,12 @@
    "clustered_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "59f7c1117db135f021d72154f02e41ea088fdea00ca14d89b1199702a287de6c"
+    "sha256": "dda85d3d479fe2c5ba66e1410ebd632b1a5af3ff6495ad7e65e871414514d67f"
    },
    "diagnostics": {
     "file": "layout/diagnostics.json",
     "kind": "json",
-    "sha256": "0dd14f4ebf7b8932c27a487c12b8004a775861a0f14b15b315c9ff52966f10fc"
+    "sha256": "de0660841cbccf667c1c505647d15e4abcb277319cd3fb2c6a6b968305724736"
    },
    "groups": {
     "columns": [
@@ -528,13 +528,13 @@
    "term_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "733f22ca879b13111d9a027df6ba98fa6581bb3bf6fa237145da76a2d337afb6"
+    "sha256": "d82cece3ffe53f6477a0a1d2e56c78334e1fd0171a7875d216fafad7dce52de2"
    },
    "term_xy": {
     "file": "layout/term_xy.npy",
     "kind": "array",
     "role": "layout",
-    "sha256": "792794c0960aa63761ccf36d69275b9b72c50ee000cd1b05f86aee2ef6a1be95",
+    "sha256": "07cd8e7541c92f1ecd96d13fe5c9ebeee1f383151652f46b962b71137933fc2d",
     "shape": [
      490,
      2
@@ -569,7 +569,7 @@
     "file": "projection/applicants_xy.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "8f15554bf8ef340c5011e3ff60653312dcc7e569cb6e45717ba7bbb17609cfb2",
+    "sha256": "90c9b2dd48a056c0ed419db16c3b8c86f7f163552af72550247bfe1d0511659b",
     "shape": [
      4,
      2
@@ -719,12 +719,12 @@
     "kind": "table",
     "ordered": false,
     "rows": 140,
-    "sha256": "31f3adad752437ed7b9f775f1bf48b81b08543357681cdbaa094ae3ddf573894"
+    "sha256": "9edc0180567e452bdfda728eddf676a0ab412f93b5680d08d072237e83fbf5d0"
    },
    "windows": {
     "file": "trajectories/windows.json.gz",
     "kind": "json",
-    "sha256": "f119dbfd93a9ccdb447188d54b9ecef5a916b0763bd636784ac4cec9ee9559e2"
+    "sha256": "f2090c0c88893d28fb01e30b35e9078344578caef1e0e9a337ef9f018e579030"
    }
   },
   "triage": {
@@ -757,10 +757,10 @@
  },
  "baseline": {
   "date": "2026-09-28",
-  "reason": "The lexicon lab's defaults: English noun phrases take no of complement, nothing is set aside for a low score, and a candidate is a fragment of a longer one only when it is never seen outside it. The English candidates change, and with them every later stage; the French candidates change only in their band and reason."
+  "reason": "Points are placed on the finished map by their nearest mapped people instead of UMAP's transform (gate G2): each keyword, trajectory point and window, and projected person goes to the weighted mean of the heaviest linked group of its 8 nearest people in the SVD space (link radius a quarter of the map's radius). The people's own positions are unchanged; the layout's keyword positions and diagnostics, the trajectories and the projection move."
  },
  "environment": {
-  "engine_fingerprint": "b9a57a10e58fae0ab88afed356797fbe16b6ac5d7f75d884af5d2f0c7bb1b99a",
+  "engine_fingerprint": "0461d2e57d55b3aad87c7a0a99cc8521f5025733f76621d4ec5fcc4b953588a0",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {

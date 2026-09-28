@@ -257,8 +257,8 @@ stand-in size while the driver is unknown, the vocabulary from the people). The
 cost models of `STAGES` are fitted on fresh builds of the S and L demo worlds
 (one process, whole-process peak memory; the layout's fixed time is mostly the
 compilation of the layout library in a new process): on those builds every
-stage's estimate is within a factor of 1.7 of its measure, and the totals
-within 5 %. The AI clean-up's model is a guess, its cost being the provider's.
+stage's estimate is within a factor of 2 of its measure (1.9 at most, for a
+stage of under a second), and the totals within 15 %. The AI clean-up's model is a guess, its cost being the provider's.
 A stage whose estimated peak memory exceeds the budget cannot run, nor can
 anything downstream of it, unless `build(allow_over_budget=True)` or a list of
 stage ids allows it. The budget is `budget_mb`, or by default the memory
@@ -307,9 +307,9 @@ project exists (it imports neither `cartolex.build` nor `cartolex.project`).
 | `themes.space` | the SVD space (`run_svd`) |
 | `themes.group` | the term clustering (`run_clustering`) and the subfield draft (`draft_subfields`) |
 | `themes.apply` | `apply_subfields` on the curated tree (below), or on the draft |
-| `map.layout` | the layout of the pinned map version (`run_umap`), then the themes applied again on the map |
-| `map.trajectories` | `run_trajectories` |
-| `overlays.position` | each projected set placed with `cartolex.lexicon.positioning`: `<set>/positions.json` |
+| `map.layout` | the layout of the pinned map version (`run_umap`: the people fitted, the keywords placed by their nearest people), then the themes applied again on the map |
+| `map.trajectories` | `run_trajectories`: time bins and windows placed by their nearest people |
+| `overlays.position` | each projected set projected with `cartolex.lexicon.positioning` and placed by its nearest people: `<set>/positions.json` |
 
 The figures and the portable bundle are outputs, not build stages.
 
