@@ -203,3 +203,141 @@ def test_the_lab_runs_end_to_end(tmp_path: Path) -> None:
     ):
         assert heading in text
     assert "| demo XS | API | every candidate |" in text
+
+
+# ── the browser handoff: files and answers ──────────────────────────────────
+
+
+def _items(n: int = 5):
+    words = ["tide gauge", "trait de côte", "data", "sea level", "recent decades", "wave"]
+    return [
+        handoff.BundleItem(
+            term=words[i % len(words)] + ("" if i < len(words) else f" {i}"),
+            lang="fr" if i % len(words) == 1 else "en",
+            band="check",
+            reason="single-word",
+            people=3 + i,
+            texts=1,
+            specificity=0.5,
+            forms=[],
+            inside=["longer phrase"] if i == 0 else [],
+        )
+        for i in range(n)
+    ]
+
+
+def test_answers_are_read_in_every_form() -> None:
+    items = _items(6)
+    text = "\n".join(
+        [
+            "Here are my answers:",
+            "```",
+            "1 | C | tide gauge",
+            "2 | O | Trait de cote | shoreline",  # case and accents may differ
+            "| 3 | G | data |",  # a Markdown table row
+            "99 | C | sea level | sea level",  # a wrong number, the term decides
+            "5\tK\trecent decades",  # tab-separated
+            "5 | G | recent decades",  # a second answer: the first counts
+            "7 | C | nothing like it",  # fits no item
+            "```",
+            "M en wave=ocean wave",  # the triage's line format
+        ]
+    )
+    parsed = handoff.parse_answer(text, items)
+    v = parsed.verdicts
+    assert v[0] == handoff.Verdict("C", "tide gauge")  # the English form defaults to the term
+    assert v[1] == handoff.Verdict("O", "shoreline")
+    assert v[2].code == "G" and not v[2].accept
+    assert v[3] == handoff.Verdict("C", "sea level")
+    assert v[4].code == "K"
+    assert v[5] == handoff.Verdict("M", "ocean wave")
+    assert (parsed.renumbered, parsed.duplicates, parsed.unmatched, parsed.ignored) == (1, 1, 1, 1)
+    assert parsed.missing(len(items)) == 0
+    # A number whose term is not in the list: the number decides, and the line is flagged.
+    odd = handoff.parse_answer("2 | C | côte | coast", items)
+    assert odd.verdicts == {1: handoff.Verdict("C", "coast")} and odd.term_mismatch == 1
+
+
+def test_answer_lines_round_trip() -> None:
+    items = _items(3)
+    lines = [
+        handoff.answer_line(1, items[0], "C", "tide gauge"),
+        handoff.answer_line(2, items[1], "O", "shoreline"),
+        handoff.answer_line(3, items[2], "G"),
+    ]
+    assert lines == ["1 | C | tide gauge", "2 | O | trait de côte | shoreline", "3 | G | data"]
+    parsed = handoff.parse_answer("\n".join(lines), items)
+    assert [parsed.verdicts[i].code for i in range(3)] == ["C", "O", "G"]
+
+
+def test_parts_fit_and_carry_everything(tmp_path: Path) -> None:
+    import json
+    import zipfile
+
+    items = _items(200)
+    kw = {"domain": "Coastal systems", "description": "A test.", "n_people": 50, "n_texts": 80}
+    parts = handoff.split_items(items, max_tokens=2_000, **kw)
+    assert len(parts) > 1 and [it for p in parts for it in p] == items
+    sizes = [
+        handoff.write_part(
+            tmp_path / f"p{k}", chunk, name=f"part-{k}", part=k, parts=len(parts), **kw
+        )
+        for k, chunk in enumerate(parts, 1)
+    ]
+    assert all(s["cautious_tokens"] <= 2_000 for s in sizes)
+    assert max(s["items"] for s in sizes) - min(s["items"] for s in sizes) < 30  # balanced
+    folder = tmp_path / "p1"
+    prompt = (folder / "prompt.txt").read_text(encoding="utf-8")
+    terms = (folder / "terms.txt").read_text(encoding="utf-8")
+    assert "Coastal systems" in prompt and f"numbered 1 to {len(parts[0])}" in prompt
+    assert f"(part 1 of {len(parts)})" in terms
+    assert "1. tide gauge [en] — 3 people, 1 text — in: longer phrase" in terms
+    assert "single-word" not in terms and "check" not in terms  # no band in the judge's list
+    with zipfile.ZipFile(folder / "part-1.zip") as zf:
+        assert sorted(zf.namelist()) == [
+            "part-1/expected-answer.txt",
+            "part-1/prompt.txt",
+            "part-1/terms.txt",
+        ]
+    record, back = handoff.load_part(folder)
+    assert back == parts[0] and record["format"] == handoff.HANDOFF_FORMAT
+    assert json.loads((folder / "bundle.json").read_text())["items"][0]["number"] == 1
+
+
+@pytest.mark.models("en", "fr")
+def test_the_handoff_test_is_written_and_scored(tmp_path: Path, monkeypatch) -> None:
+    analyses = importlib.import_module("analyses")
+    handoff_bundles = importlib.import_module("handoff_bundles")
+    score_handoff = importlib.import_module("score_handoff")
+    monkeypatch.setattr(analyses, "CACHE", tmp_path / "lab-cache")
+    out = tmp_path / "handoff-test"
+    manifest = handoff_bundles.write_handoff_test(
+        out, size="XS", seed=0, project=tmp_path / "project", max_tokens=6_000
+    )
+    kept = manifest["bundles"]["kept-tocheck"]
+    assert len(kept["parts"]) > 1 and all(p["cautious_tokens"] <= 6_000 for p in kept["parts"])
+    assert len(manifest["bundles"]["tocheck"]["parts"]) == 1
+    readme = (out / "README.md").read_text(encoding="utf-8")
+    assert "claude.ai" in readme and "score_handoff.py" in readme
+
+    first = score_handoff.score_test(out)
+    assert first["bundles"]["tocheck"]["judges"]["answers"] is None
+    oracle = first["bundles"]["tocheck"]["judges"]["oracle"]
+    assert oracle["precision"] == 1.0 and oracle["recall"] == 1.0
+
+    # The oracle's answer, saved where a person would save it, scores as the oracle.
+    manifest_, bundles = score_handoff.load_test(out)
+    truth = score_handoff.load_truth(manifest_)
+    part = bundles["kept-tocheck"][0]
+    (part.folder / "answer.txt").write_text(
+        "```\n" + score_handoff.oracle_answer(part.items, truth) + "\n```\n", encoding="utf-8"
+    )
+    scores = score_handoff.score_test(out, truth=truth)["bundles"]["kept-tocheck"]
+    answers, oracle = scores["judges"]["answers"], scores["judges"]["oracle"]
+    assert scores["answered_parts"] == 1 and answers["judged"] == len(part.items)
+    for key in ("precision", "recall", "final_precision", "final_recall"):
+        assert answers[key] == pytest.approx(oracle[key])
+    assert all(c["same_form"] == 1.0 for c in answers["canonical"].values() if c["accepted_gold"])
+    assert "Handoff test: scores" in score_handoff.report(
+        score_handoff.score_test(out, truth=truth)
+    )

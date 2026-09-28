@@ -156,6 +156,12 @@ nothing in the engine names a particular deployment, source or procedure.
   gold the rule lost), and a candidate is a fragment of a longer one only
   when it is never seen outside it. The other choices are lab switches, not
   settings.
+- **The browser-handoff test.** `tools/lexicon_lab/handoff_bundles.py` writes, from
+  a project build of a demo world, the bundles a person hands to a chat
+  assistant (a prompt, the numbered terms with their evidence, the answer
+  format, zipped; parts sized to fit one conversation), and
+  `tools/lexicon_lab/score_handoff.py` scores the answers against the
+  world's truth, beside the lab's oracle.
 - **Demo bodies.** `generate(..., bodies=True)` (`--bodies`) gives every work
   a long, repetitive body with generic filler (introduction, methods,
   results, discussion, captions) in its language, from a random stream of its

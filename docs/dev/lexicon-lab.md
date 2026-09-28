@@ -845,6 +845,41 @@ but needs a person to paste the bundle in parts and bring the answers back
 (`handoff.ReplayJudge` reads them). The harness is ready: a real judge only
 has to implement `handoff.Judge`.
 
+### The browser-handoff test
+
+```bash
+python tools/lexicon_lab/handoff_bundles.py --out ~/cartolex-work/handoff-test
+python tools/lexicon_lab/score_handoff.py ~/cartolex-work/handoff-test
+```
+
+The first command writes a demo world (L, seed 0 by default) as a project,
+builds its `keywords.extract` stage with the default settings on every year
+of texts, and writes, in a folder outside the repository, the bundles a
+person would hand to a chat assistant: `tocheck/` (the to-check band, one
+bundle) and `kept-tocheck/` (the kept and to-check bands, cut into parts of
+at most `--max-tokens`, 45,000 by default, counted at three characters a
+token). Each part holds `prompt.txt` (the message to paste: the field, the
+triage codes, the answer format), `terms.txt` (the numbered terms with their
+evidence: people and texts, other spellings, the longer phrases they sit in;
+no band), `expected-answer.txt`, their zip, and `bundle.json` (the same items,
+to read the answer back). The candidates are those of the build: the
+engine's loader and scoring are run again on the built project and must
+equal its raw tables. The writer checks that no name or identifier of the
+world's people appears in the bundles, and the folder holds nothing of the
+world's truth; its `README.md` tells a person how to run one bundle in a
+chat assistant and where to save the answer (`answer.txt` next to the
+bundle).
+
+The second command reads every `answer*.txt` (`handoff.parse_answer`: the
+`<number> | <code> | <term> | <English form>` lines, checked against the
+repeated term; Markdown tables, tabs and the triage's line format also
+work), computes the truth in memory from the demo world, and reports, per
+bundle, for the answers, the oracle and a noisy oracle: how the answers were
+read, precision and recall of the accepted terms against the field terms,
+the final lexicon as the lab measures it, and the agreement of the English
+forms with the truth's. The report goes to
+`.cache/lexicon_lab/handoff-score.md`, never into the test folder.
+
 ## Time and memory
 
 | corpus | words | parsing, first run (s) | name recognition (s) | scoring, one variant (s) | whole corpus in the lab (s) |
