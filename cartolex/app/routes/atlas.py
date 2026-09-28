@@ -13,6 +13,7 @@ from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 
 from ..deps import ProjectDep
+from ..messages import empty
 from ..routing import Routes, runtime_of
 
 routes = Routes(tags=["atlas"])
@@ -206,10 +207,7 @@ def atlas(request: Request, ctx: ProjectDep) -> Response:
             {
                 "format": FORMAT,
                 "available": False,
-                "empty": {
-                    "message": "no map yet: build the map",
-                    "next": {"label": "Build the map", "action": "build"},
-                },
+                "empty": empty("empty_no_map"),
             }
         )
     etag = _etag(runs)

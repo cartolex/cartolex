@@ -129,12 +129,7 @@ class ProjectHost:
 
 
 def _no_project() -> ApiError:
-    return ApiError(
-        409,
-        "no_project",
-        "no project is open: open one, or create one",
-        next_action="open-project",
-    )
+    return ApiError.of("no_project")
 
 
 class LocalProjects(ProjectHost):
@@ -268,18 +263,13 @@ class HostedProjects(ProjectHost):
 
     def folder(self, project_id: str) -> Path:
         if not _SLUG.match(project_id):
-            raise ApiError(400, "invalid", f"{project_id!r} is not a project id")
+            raise ApiError.of("invalid_project_id", id=project_id)
         return self.root / project_id
 
     def resolve(self, request: Request, principal: Principal) -> ProjectHandle:
         pid = self.project_id(request, principal)
         if pid is None:
-            raise ApiError(
-                400,
-                "no_project",
-                "name the project: /api/projects/<id>/…",
-                next_action="open-project",
-            )
+            raise ApiError.of("project_not_named")
         return self.open(pid)
 
     def open(self, project_id: str) -> ProjectHandle:
@@ -288,7 +278,7 @@ class HostedProjects(ProjectHost):
                 return self._open[project_id]
             folder = self.folder(project_id)
             if not ProjectLayout(folder).project_json.exists():
-                raise ApiError(404, "not_found", f"no project {project_id!r}")
+                raise ApiError.of("project_not_found", id=project_id)
             project = Project.open(folder, write=True)
             try:
                 self._opened(project)

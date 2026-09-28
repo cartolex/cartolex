@@ -17,7 +17,6 @@ __all__ = [
     "ListDep",
     "ListParams",
     "ProjectDep",
-    "empty_hint",
     "list_params",
     "page",
     "project_context",
@@ -58,11 +57,6 @@ def list_params(
 ListDep = Annotated[ListParams, Depends(list_params)]
 
 
-def empty_hint(message: str, label: str, action: str) -> dict[str, Any]:
-    """What an empty list says to do next (V2-013)."""
-    return {"message": message, "next": {"label": label, "action": action}}
-
-
 def page(
     items: Sequence[dict[str, Any]],
     params: ListParams,
@@ -81,12 +75,7 @@ def page(
     sort = params.sort or default_sort
     name = sort.lstrip("-")
     if name not in sorts:
-        raise ApiError(
-            422,
-            "invalid",
-            f"cannot sort by {name!r}; sort by one of {sorted(sorts)}",
-            next_action="fix-input",
-        )
+        raise ApiError.of("invalid_sort", sort=name, sorts=sorted(sorts))
     key = sorts[name]
 
     def safe(item: dict[str, Any]) -> tuple[int, Any]:

@@ -54,9 +54,4 @@ class StubSiteBuilder:
     def build(
         self, project: Project, options: Mapping[str, Any], control: JobControl
     ) -> Mapping[str, Any]:
-        raise ApiError(
-            501,
-            "not_available",
-            "building the offline site is not available in this version",
-            next_action="none",
-        )
+        raise ApiError.of("not_available")

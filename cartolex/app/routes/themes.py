@@ -16,6 +16,7 @@ from cartolex.project.models import ThemesFile
 from ..deps import ProjectDep
 from ..errors import ApiError
 from ..etags import check_version, etag_of, expected_version, version_of
+from ..messages import empty
 from ..routing import Routes, runtime_of
 
 routes = Routes(tags=["themes"])
@@ -258,10 +259,7 @@ def get_themes(request: Request, response: Response, ctx: ProjectDep) -> dict[st
         "source": "none",
         "version": version_of(fp),
         "tree": None,
-        "empty": {
-            "message": "no themes yet: build the themes to get a first draft",
-            "next": {"label": "Build the themes", "action": "build"},
-        },
+        "empty": empty("empty_no_themes"),
     }
 
 
@@ -276,9 +274,7 @@ def _parse_tree(raw: dict[str, Any]) -> ThemesFile:
     try:
         return ThemesFile.model_validate(raw)
     except ValueError as exc:
-        raise ApiError(
-            422, "invalid_tree", f"the tree is not valid: {exc}", next_action="reload"
-        ) from exc
+        raise ApiError.of("invalid_tree", detail=str(exc)) from exc
 
 
 @routes.post("/api/themes/ops", action="themes.read")
@@ -296,12 +292,8 @@ def apply_ops(body: OpsBody, ctx: ProjectDep) -> dict[str, Any]:
         try:
             edit = apply_op(tree, op)
         except ThemeEditError as exc:
-            raise ApiError(
-                422,
-                "refused",
-                f"step {i + 1} ({op.op}) was refused: {exc}",
-                next_action="fix-input",
-                step=i,
+            raise ApiError.of(
+                "theme_step_refused", step=i + 1, op=op.op, detail=str(exc), extra={"step": i}
             ) from exc
         tree = edit.tree
         steps.append({"op": op.op, "description": edit.description})
@@ -360,9 +352,7 @@ def versions(ctx: ProjectDep) -> dict[str, Any]:
     return {
         "items": items,
         "total": len(items),
-        "empty": None
-        if items
-        else {"message": "the tree was never saved", "next": {"label": "Close", "action": "none"}},
+        "empty": None if items else empty("empty_tree_never_saved"),
     }
 
 
@@ -374,7 +364,7 @@ def read_version(version_id: VersionId, ctx: ProjectDep) -> dict[str, Any]:
     try:
         tree = read(ctx.project, version_id)
     except KeyError as exc:
-        raise ApiError(404, "not_found", f"no version {version_id} of the tree") from exc
+        raise ApiError.of("version_not_found", version=version_id, file="themes.json") from exc
     return {"id": version_id, "tree": tree.model_dump(mode="json", by_alias=True)}
 
 
@@ -391,9 +381,9 @@ def restore(
         try:
             saved = restore_version(ctx.project, version_id, expected=expected)
         except KeyError as exc:
-            raise ApiError(404, "not_found", f"no version {version_id} of the tree") from exc
+            raise ApiError.of("version_not_found", version=version_id, file="themes.json") from exc
         except ValueError as exc:
-            raise ApiError(409, "refused", str(exc)) from exc
+            raise ApiError.of("already_current") from exc
     response.headers["ETag"] = etag_of(saved.fingerprint)
     return {
         "restored": version_id,

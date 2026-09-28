@@ -192,6 +192,10 @@ def test_a_denied_authorize_is_a_403_with_a_plain_message(tmp_path):
         assert r.status_code == 403
         assert r.json()["error"] == {
             "code": "forbidden",
+            "params": {
+                "reason": "only the project's editors change keywords",
+                "action": "keywords.write",
+            },
             "message": "only the project's editors change keywords",
             "next": {"label": "Close", "action": "none"},
         }
@@ -224,6 +228,7 @@ def test_a_stale_write_is_refused_with_412_and_the_current_version(app):
 
 
 def test_uploads_stay_in_their_folder(tmp_path):
+    from cartolex.app.uploads import MEMBER_PROBLEMS
     from cartolex.project import Project
     from cartolex.project.models import Slot
 
@@ -244,7 +249,9 @@ def test_uploads_stay_in_their_folder(tmp_path):
             r = client.post(
                 "/api/sources/docs/files", files={"file": ("docs.zip", zipped("ok.txt", bad))}
             )
-            assert r.status_code == 422 and r.json()["error"]["code"] == "unsafe_path", bad
+            error = r.json()["error"]
+            assert r.status_code == 422 and error["code"] == "unsafe_archive_member", bad
+            assert error["params"]["problem"] in MEMBER_PROBLEMS
         assert not (tmp_path / "escape.txt").exists()
         assert not (root / "sources" / "docs").exists() or not any(
             (root / "sources" / "docs").rglob("*")
@@ -256,9 +263,12 @@ def test_uploads_stay_in_their_folder(tmp_path):
         assert (root / "sources" / "docs" / "name.txt").read_bytes() == b"plain text"
         r = client.post("/api/sources/docs/files", files={"file": ("in.zip", zipped("a/b.txt"))})
         assert r.status_code == 201 and r.json()["files"] == ["a/b.txt"]
-        for name, data in (("name.txt", b"other"), ("again.zip", zipped("a/b.txt"))):
+        for name, data, code in (
+            ("name.txt", b"other", "file_exists"),
+            ("again.zip", zipped("a/b.txt"), "archive_replaces"),
+        ):
             r = client.post("/api/sources/docs/files", files={"file": (name, data)})
-            assert r.status_code == 409 and r.json()["error"]["code"] == "exists", name
+            assert r.status_code == 409 and r.json()["error"]["code"] == code, name
         assert (root / "sources" / "docs" / "name.txt").read_bytes() == b"plain text"
         big = client.post(
             "/api/sources/docs/files", files={"file": ("big.txt", b"x" * (2 * 1024 * 1024))}
@@ -309,5 +319,5 @@ def test_errors_say_what_to_do_next(app):
         client.post("/api/build", json={"scope": ["nowhere"]}),
     ):
         error = r.json()["error"]
-        assert set(error) >= {"code", "message", "next"}, r.text
+        assert set(error) >= {"code", "params", "message", "next"}, r.text
         assert set(error["next"]) == {"label", "action"}

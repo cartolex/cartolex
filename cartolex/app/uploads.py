@@ -47,14 +47,9 @@ async def save_upload(
     target.mkdir(parents=True, exist_ok=True)
     path = target / clean_name(name)
     if not _inside(target, path):
-        raise ApiError(422, "unsafe_path", f"the name {name!r} leaves its folder")
+        raise ApiError.of("unsafe_name", name=name)
     if path.exists():
-        raise ApiError(
-            409,
-            "exists",
-            f"{path.name} is already there; nothing is replaced (rename the file to add it)",
-            next_action="fix-input",
-        )
+        raise ApiError.of("file_exists", name=path.name)
     size = 0
     tmp = path.with_name(path.name + ".part")
     try:
@@ -62,12 +57,7 @@ async def save_upload(
             async for chunk in chunks:
                 size += len(chunk)
                 if size > max_bytes:
-                    raise ApiError(
-                        413,
-                        "too_large",
-                        f"the file is larger than the limit ({max_bytes // (1024 * 1024)} MB)",
-                        next_action="fix-input",
-                    )
+                    raise ApiError.of("file_too_large", limit_mb=max_bytes // (1024 * 1024))
                 fh.write(chunk)
         tmp.replace(path)
     finally:
@@ -75,20 +65,24 @@ async def save_upload(
     return path
 
 
+#: Why an archive member is refused (the ``problem`` param of ``unsafe_archive_member``).
+MEMBER_PROBLEMS = ("backslash", "absolute_path", "parent_path", "hidden_name", "link", "outside")
+
+
 def _member_problem(info: zipfile.ZipInfo) -> str | None:
     name = info.filename
     if "\x00" in name or "\\" in name:
-        return "a name with a backslash or a null character"
+        return "backslash"
     pure = PurePosixPath(name)
     if pure.is_absolute() or re.match(r"^[A-Za-z]:", name):
-        return "an absolute path"
+        return "absolute_path"
     if ".." in pure.parts:
-        return "a path that climbs out of the folder (..)"
+        return "parent_path"
     if any(p.startswith(".") for p in pure.parts):
-        return "a hidden name"
+        return "hidden_name"
     kind = stat.S_IFMT(info.external_attr >> 16)
     if kind and kind not in (stat.S_IFREG, stat.S_IFDIR):
-        return "a link or a special file"
+        return "link"
     return None
 
 
@@ -97,38 +91,23 @@ def extract_archive(archive: Path, target: Path, *, max_members: int, max_bytes:
     try:
         zf = zipfile.ZipFile(archive)
     except zipfile.BadZipFile as exc:
-        raise ApiError(422, "bad_archive", "the file is not a zip archive") from exc
+        raise ApiError.of("not_an_archive") from exc
     with zf:
         members = zf.infolist()
         if len(members) > max_members:
-            raise ApiError(413, "too_large", f"the archive holds more than {max_members} files")
+            raise ApiError.of("archive_too_many_files", max_members=max_members)
         total = 0
         for info in members:
             problem = _member_problem(info)
             if problem is not None:
-                raise ApiError(
-                    422,
-                    "unsafe_path",
-                    f"the archive was refused: a member has {problem}; nothing was written",
-                    next_action="fix-input",
-                )
+                raise ApiError.of("unsafe_archive_member", problem=problem)
             if not _inside(target, target / info.filename):
-                raise ApiError(422, "unsafe_path", "a member leaves the folder; nothing written")
+                raise ApiError.of("unsafe_archive_member", problem="outside")
             if not info.is_dir() and (target / info.filename).exists():
-                raise ApiError(
-                    409,
-                    "exists",
-                    f"the archive would replace {info.filename}; nothing was written",
-                    next_action="fix-input",
-                )
+                raise ApiError.of("archive_replaces", name=info.filename)
             total += info.file_size
         if total > max_bytes:
-            raise ApiError(
-                413,
-                "too_large",
-                f"the archive unpacks to more than {max_bytes // (1024 * 1024)} MB",
-                next_action="fix-input",
-            )
+            raise ApiError.of("archive_too_large", limit_mb=max_bytes // (1024 * 1024))
         written: list[Path] = []
         for info in members:
             if info.is_dir():
@@ -142,7 +121,7 @@ def extract_archive(archive: Path, target: Path, *, max_members: int, max_bytes:
                     if size > info.file_size:  # a member that lies about its size
                         out.close()
                         dest.unlink(missing_ok=True)
-                        raise ApiError(422, "bad_archive", "a member is larger than it says")
+                        raise ApiError.of("archive_corrupt")
                     out.write(block)
             written.append(dest)
     return written

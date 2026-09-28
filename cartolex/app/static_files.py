@@ -77,7 +77,7 @@ def _file(path: Path) -> FileResponse:
 
 
 def _missing() -> ApiError:
-    return ApiError(404, "not_found", "no such file in the interface", next_action="reload")
+    return ApiError.of("static_missing")
 
 
 FALLBACK_SHELL = """<!doctype html>
@@ -194,5 +194,5 @@ def shell(request: Request, path: str) -> Response:
     """Any page address: the shell (the interface routes in the browser)."""
     first = path.split("/", 1)[0]
     if first in ("api", "static", "launch") or "." in PurePosixPath(path).name:
-        raise ApiError(404, "not_found", "no such address in this app")
+        raise ApiError.of("no_route")
     return _shell(request)

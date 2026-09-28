@@ -34,7 +34,7 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from .errors import error_body
+from .errors import body_of
 
 if TYPE_CHECKING:
     from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -203,12 +203,7 @@ class SecurityMiddleware:
     def _refusal(self, scope: Scope, headers: dict[str, str]) -> tuple[int, dict[str, Any]] | None:
         host = headers.get("host", "")
         if not host or not self.settings.host_allowed(_hostname(host)):
-            return 400, error_body(
-                "host_refused",
-                "this address is not one cartolex answers to; open it from the address the "
-                "cartolex command gives",
-                next_action="sign-in",
-            )
+            return 400, body_of("host_refused")
         method = scope.get("method", "GET")
         if method not in SAFE_METHODS:
             origin = headers.get("origin")
@@ -218,24 +213,16 @@ class SecurityMiddleware:
                 if self.settings.hosted:  # behind a proxy that ends TLS
                     allowed |= {f"https://{host}", f"http://{host}"}
                 if origin == "null" or origin not in allowed:
-                    return 403, error_body(
-                        "cross_origin",
-                        "a change was asked from another site; cartolex takes changes from its "
-                        "own pages only",
-                    )
+                    return 403, body_of("cross_origin")
             length = headers.get("content-length")
             if length is not None:
                 try:
                     size = int(length)
                 except ValueError:
-                    return 400, error_body("invalid", "the request's length is not a number")
+                    return 400, body_of("invalid_length")
                 limit = self._limit(scope.get("path", ""))
                 if size > limit:
-                    return 413, error_body(
-                        "too_large",
-                        f"the request is larger than the limit ({limit // 1024} KB)",
-                        next_action="fix-input",
-                    )
+                    return 413, body_of("request_too_large", limit_kb=limit // 1024)
         return None
 
     def _limit(self, path: str) -> int:

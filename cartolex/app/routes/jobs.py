@@ -10,6 +10,7 @@ from fastapi import Query, Request
 from ..deps import ProjectDep
 from ..errors import ApiError
 from ..jobs import read_job_logs
+from ..messages import empty
 from ..routing import Routes, runtime_of
 from .build import JOB_ID, job_events
 
@@ -34,22 +35,20 @@ def list_jobs(request: Request, ctx: ProjectDep) -> dict[str, Any]:
     return {
         "jobs": jobs,
         "total": len(jobs),
-        "empty": None
-        if jobs
-        else {"message": "no job has run yet", "next": {"label": "Build", "action": "build"}},
+        "empty": None if jobs else empty("empty_no_jobs"),
     }
 
 
 def _find(request: Request, ctx: Any, job_id: str) -> dict[str, Any]:
     if not JOB_ID.match(job_id):
-        raise ApiError(404, "not_found", "no such job")
+        raise ApiError.of("job_not_found", job=job_id)
     for job in _jobs(request, ctx):
         if job["id"] == job_id:
             return job
     past = [j for j in read_job_logs(ctx.layout.jobs, ctx.id, limit=500) if j.id == job_id]
     if past:
         return past[0].as_dict()
-    raise ApiError(404, "not_found", "no such job", next_action="reload")
+    raise ApiError.of("job_not_found", job=job_id)
 
 
 @routes.get("/api/jobs/{job_id}", action="jobs.read", id_param="job_id")
@@ -78,13 +77,8 @@ def cancel_job(request: Request, job_id: str, ctx: ProjectDep) -> dict[str, Any]
     runtime = runtime_of(request)
     job = _find(request, ctx, job_id)
     if job["state"] not in ("queued", "running", "cancelling"):
-        raise ApiError(409, "not_running", f"the job has already ended ({job['state']})")
+        raise ApiError.of("job_ended", state=job["state"])
     info = runtime.jobs.cancel(job_id)
     if info is None:
-        raise ApiError(
-            409,
-            "not_here",
-            "this job runs in another process; stop it there",
-            next_action="none",
-        )
+        raise ApiError.of("job_elsewhere")
     return info.as_dict()

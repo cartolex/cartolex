@@ -145,16 +145,13 @@ def put_settings(
                 x for x in [*body.languages.corpus, *body.languages.display] if x not in LANGUAGES
             ]
             if bad:
-                raise ApiError(
-                    422,
-                    "invalid",
-                    f"no language pack for {sorted(set(bad))}",
-                    next_action="fix-input",
+                raise ApiError.of(
+                    "no_language_pack", languages=sorted(set(bad)), available=list(LANGUAGES)
                 )
             new = new.model_copy(update={"languages": Languages(**body.languages.model_dump())})
             changed.append("languages")
         if not changed:
-            raise ApiError(422, "invalid", "nothing to change", next_action="fix-input")
+            raise ApiError.of("nothing_to_change")
         project.save_config(
             new,
             action="change " + ", ".join(changed),

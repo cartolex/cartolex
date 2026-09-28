@@ -11,8 +11,10 @@ from pydantic import BaseModel, Field
 
 from ..errors import ApiError
 from ..extensions import NewProject
+from ..messages import empty
 from ..projects import HostedProjects, LocalProjects
 from ..routing import Routes, principal_of, runtime_of
+from .build import busy_error
 
 routes = Routes(tags=["projects"])
 
@@ -38,9 +40,7 @@ class CreateBody(BaseModel):
 def _local(request: Request) -> LocalProjects:
     host = runtime_of(request).projects
     if not isinstance(host, LocalProjects):
-        raise ApiError(
-            404, "not_found", "a hosted app names its project in the route", next_action="none"
-        )
+        raise ApiError.of("hosted_projects")
     return host
 
 
@@ -60,14 +60,7 @@ def _busy(request: Request) -> None:
     if current is not None:
         running = runtime.jobs.running(current.id)
         if running is not None:
-            raise ApiError(
-                409,
-                "busy",
-                f"a {running.kind} job ({running.id}) runs on the open project; wait for it or "
-                "cancel it first",
-                next_action="wait",
-                job=running.id,
-            )
+            raise busy_error(running)
 
 
 @routes.get("/api/projects/current", action="projects.read", resource="app")
@@ -106,12 +99,7 @@ def recent(request: Request) -> dict[str, Any]:
     return {
         "items": items,
         "total": len(items),
-        "empty": None
-        if items
-        else {
-            "message": "no project opened yet",
-            "next": {"label": "Create a project", "action": "open-project"},
-        },
+        "empty": None if items else empty("empty_no_recent"),
     }
 
 
@@ -134,14 +122,9 @@ def create_project(request: Request, body: CreateBody) -> dict[str, Any]:
     runtime = runtime_of(request)
     principal = principal_of(request)
     combined = runtime.extensions
-    for lang in [*body.languages, body.reference]:
-        if lang not in LANGUAGES:
-            raise ApiError(
-                422,
-                "invalid",
-                f"cartolex has no language pack for {lang!r}; choose among {list(LANGUAGES)}",
-                next_action="fix-input",
-            )
+    missing = sorted({x for x in [*body.languages, body.reference] if x not in LANGUAGES})
+    if missing:
+        raise ApiError.of("no_language_pack", languages=missing, available=list(LANGUAGES))
     identity: dict[str, Any] = {
         "domain_title": body.domain_title,
         "domain_description": body.domain_description,
@@ -157,30 +140,21 @@ def create_project(request: Request, body: CreateBody) -> dict[str, Any]:
         if ext.identity_provider is not None:
             identity.update({k: v for k, v in ext.identity_provider(new).items() if v is not None})
     if not str(identity.get("domain_title") or "").strip():
-        raise ApiError(
-            422,
-            "invalid",
-            "name the field the map covers (its title): the AI receives it with the terms",
-            next_action="fix-input",
-        )
+        raise ApiError.of("field_title_missing")
     slots = [s for e in combined.extensions for s in e.corpus_slots] or [
         Slot(id="collected", kind="collection", fit=True, trajectory=True)
     ]
     host = runtime.projects
     if isinstance(host, HostedProjects):
         if not body.id:
-            raise ApiError(422, "invalid", "a hosted project needs an id", next_action="fix-input")
+            raise ApiError.of("project_id_missing")
         folder = host.folder(body.id)
     else:
         if not body.folder:
-            raise ApiError(
-                422, "invalid", "choose the folder of the new project", next_action="fix-input"
-            )
+            raise ApiError.of("project_folder_missing")
         folder = Path(body.folder).expanduser()
         if not folder.is_absolute():
-            raise ApiError(
-                422, "invalid", "the project's folder is a full path", next_action="fix-input"
-            )
+            raise ApiError.of("project_folder_relative", path=str(folder))
         _busy(request)
     try:
         project = Project.init(
@@ -193,7 +167,7 @@ def create_project(request: Request, body: CreateBody) -> dict[str, Any]:
             slots=tuple(slots),
         )
     except FileExistsError as exc:
-        raise ApiError(409, "exists", str(exc), next_action="fix-input") from exc
+        raise ApiError.of("project_exists", path=str(folder)) from exc
     try:
         overlays = [o for e in combined.extensions for o in e.overlay_sets]
         ai = identity.get("ai")

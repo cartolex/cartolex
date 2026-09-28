@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from ..deps import ProjectDep
 from ..errors import ApiError
 from ..etags import check_version, etag_of, expected_version, version_of
+from ..messages import empty
 from ..people_io import decided_now
 from ..routing import Routes, runtime_of
 from .keywords import _decisions, _effective, _write, extracted
@@ -61,7 +62,7 @@ def _export(request: Request, body: ExportBody, ctx: Any) -> dict[str, Any]:
     runtime = runtime_of(request)
     rows, run_id = extracted(runtime, ctx)
     if run_id is None:
-        raise ApiError(409, "no_keywords", "build the keywords first", next_action="build")
+        raise ApiError.of("no_keywords")
     decisions, _ = _decisions(ctx)
     wanted = {(t.term, t.language) for t in body.terms} if body.terms else None
     corpus = read_record(ctx.layout, "corpus.assemble")
@@ -129,12 +130,7 @@ def _export(request: Request, body: ExportBody, ctx: Any) -> dict[str, Any]:
         "terms": len(items),
         "contains": list(CONTAINS),
         "never": list(NEVER),
-        "empty": None
-        if items
-        else {
-            "message": "no term to send in this band",
-            "next": {"label": "Close", "action": "none"},
-        },
+        "empty": None if items else empty("empty_handoff"),
     }
 
 
@@ -152,7 +148,7 @@ def export_zip(request: Request, body: ExportBody, ctx: ProjectDep) -> Response:
 
     out = _export(request, body, ctx)
     if not out["parts"]:
-        raise ApiError(404, "empty", "no term to send in this band", next_action="none")
+        raise ApiError.of("handoff_empty")
     data = part_zip({p["name"]: p["files"] for p in out["parts"]})
     return Response(
         data,
@@ -179,7 +175,7 @@ def _proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
     answer = folder / f"{proposal_id}.txt"
     sent = folder / f"{proposal_id}.bundle.json"
     if not answer.is_file() or not sent.is_file():
-        raise ApiError(404, "not_found", f"no proposal {proposal_id}", next_action="reload")
+        raise ApiError.of("proposal_not_found", proposal=proposal_id)
     bundle = items_of(json.loads(sent.read_text(encoding="utf-8")))
     parsed = parse_answer(answer.read_text(encoding="utf-8"), bundle)
     decisions, fp = _decisions(ctx)
@@ -229,9 +225,7 @@ def import_answers(request: Request, body: ImportBody, ctx: ProjectDep) -> dict[
     try:
         items_of(body.bundle)
     except (KeyError, TypeError, ValueError) as exc:
-        raise ApiError(
-            422, "invalid", f"the bundle is not valid: {exc}", next_action="fix-input"
-        ) from exc
+        raise ApiError.of("invalid_bundle", detail=str(exc)) from exc
     folder = _ai_folder(ctx)
     with ctx.handle.mutex:
         base = f"{utc_stamp()}-handoff"
@@ -258,12 +252,7 @@ def proposals(ctx: ProjectDep) -> dict[str, Any]:
     return {
         "items": [{"id": i, "at": i[:16]} for i in ids],
         "total": len(ids),
-        "empty": None
-        if ids
-        else {
-            "message": "no AI answers imported yet",
-            "next": {"label": "Export terms", "action": "none"},
-        },
+        "empty": None if ids else empty("empty_no_proposals"),
     }
 
 
@@ -296,7 +285,7 @@ def accept(
         chosen = {(t.term, t.language) for t in body.terms}
         items = [i for i in prop["items"] if body.all or (i["term"], i["language"]) in chosen]
         if not items:
-            raise ApiError(422, "invalid", "choose the terms to accept", next_action="fix-input")
+            raise ApiError.of("nothing_chosen")
         rows, _ = _decisions(ctx)
         now = decided_now()
         for i in items:

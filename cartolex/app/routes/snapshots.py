@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from ..deps import ProjectDep
 from ..errors import ApiError
 from ..etags import check_version, etag_of, expected_version, version_of
+from ..messages import empty
 from ..routing import Routes
 
 routes = Routes(tags=["snapshots"])
@@ -42,9 +43,7 @@ MAX_CONTENT = 2 * 1024 * 1024
 
 def _path(ctx: Any, name: str) -> Path:
     if name not in FILES:
-        raise ApiError(
-            404, "not_found", f"{name} has no versions; files with versions: {sorted(FILES)}"
-        )
+        raise ApiError.of("no_versions", file=name, files=sorted(FILES))
     return getattr(ctx.layout, FILES[name])
 
 
@@ -113,12 +112,7 @@ def list_snapshots(
             "file": file,
             "items": items,
             "total": len(items),
-            "empty": None
-            if items
-            else {
-                "message": f"{file} was never written",
-                "next": {"label": "Close", "action": "none"},
-            },
+            "empty": None if items else empty("empty_file_never_written", file=file),
         }
     files = []
     for name in FILES:
@@ -140,11 +134,11 @@ def _version_file(ctx: Any, name: str, version: str) -> Path:
     path = _path(ctx, name)
     if version == "current":
         if not path.exists():
-            raise ApiError(404, "not_found", f"{name} does not exist yet")
+            raise ApiError.of("file_not_written", file=name)
         return path
     found = ctx.layout.history_of(path) / f"{version}{path.suffix}"
     if not _VERSION.match(version) or not found.is_file():
-        raise ApiError(404, "not_found", f"no version {version} of {name}", next_action="reload")
+        raise ApiError.of("version_not_found", version=version, file=name)
     return found
 
 
@@ -186,7 +180,7 @@ def restore_snapshot(
 
     expected = expected_version(request)
     if version == "current":
-        raise ApiError(409, "refused", "this version is already the current one")
+        raise ApiError.of("already_current")
     source = _version_file(ctx, file, version)
     project = ctx.project
     action = f"restore {version}"

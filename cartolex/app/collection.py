@@ -26,7 +26,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 from .errors import ApiError
-from .people_io import import_people, parse_list, people_rows, propose_mapping, read_people
+from .messages import message
+from .people_io import (
+    MappingError,
+    import_people,
+    parse_list,
+    people_rows,
+    propose_mapping,
+    read_people,
+)
 from .uploads import clean_name
 
 if TYPE_CHECKING:
@@ -109,7 +117,7 @@ class BaseCollection:
     ) -> dict[str, Any]:
         parsed = parse_list(data)
         if not parsed.rows:
-            raise ApiError(422, "empty_list", "the list holds nobody", next_action="fix-input")
+            raise ApiError.of("empty_list")
         folder.mkdir(parents=True, exist_ok=True)
         name = clean_name(filename, default="list.txt")
         (folder / "raw").mkdir(exist_ok=True)
@@ -151,9 +159,7 @@ class BaseCollection:
         raw = folder / "raw"
         files = sorted(raw.iterdir()) if raw.is_dir() else []
         if not files:
-            raise ApiError(
-                404, "not_found", "this import is not waiting any more", next_action="reload"
-            )
+            raise ApiError.of("import_not_found")
         parsed = parse_list(files[0].read_bytes())
         try:
             return import_people(
@@ -164,14 +170,13 @@ class BaseCollection:
                 set_id=set_id,
                 expected_people=expected_people,
             )
-        except ValueError as exc:
-            raise ApiError(422, "invalid_mapping", str(exc), next_action="fix-input") from exc
+        except MappingError as exc:
+            raise ApiError.of(exc.code, **exc.params) from exc
 
     def plan(self, project: Project) -> dict[str, Any]:
         return {
             "available": False,
-            "message": "collecting texts from bibliographic services is not available in this "
-            "version; import texts into a folder or corpus slot instead",
+            **message("collection_unavailable"),
             "services": self.describe(),
             "people": 0,
             "leaves_the_computer": [],
@@ -179,12 +184,7 @@ class BaseCollection:
         }
 
     def collect(self, project: Project, control: JobControl) -> Mapping[str, Any]:
-        raise ApiError(
-            409,
-            "collection_unavailable",
-            "collecting texts is not available in this version",
-            next_action="none",
-        )
+        raise ApiError.of("collection_unavailable")
 
     def candidates(
         self, project: Project, person_ids: Sequence[str]
@@ -241,6 +241,8 @@ class DemoCollection(BaseCollection):
         wanted = [p for p in people if p["role"] in ("mapped", "context", "projected")]
         return {
             "available": True,
+            "code": None,
+            "params": {},
             "message": "",
             "services": self.describe(),
             "people": len(wanted),
@@ -267,12 +269,7 @@ class DemoCollection(BaseCollection):
         slot = next((s for s in project.config.slots if s.kind == "collection"), None)
         slot = slot or (project.config.slots[0] if project.config.slots else None)
         if slot is None:
-            raise ApiError(
-                409,
-                "no_slot",
-                "the project has no slot to collect into: add one in the settings",
-                next_action="settings",
-            )
+            raise ApiError.of("no_slot")
         matches = self._matches(project)
         world_to_project = {p.person_id: pid for pid, p in matches.items()}
         works = [w for w in self.world.works if any(a in world_to_project for a in w.authors)]

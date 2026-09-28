@@ -10,9 +10,10 @@ from fastapi import Query, Request, Response
 from pydantic import BaseModel, Field
 
 from ..collection import new_import_id
-from ..deps import ListDep, ProjectDep, empty_hint, page
+from ..deps import ListDep, ProjectDep, page
 from ..errors import ApiError
 from ..etags import check_version, etag_of, expected_version, version_of
+from ..messages import empty
 from ..people_io import read_people, write_people_csv
 from ..routing import Routes, runtime_of
 
@@ -59,11 +60,7 @@ def list_people(
         and (not params.q or params.q in _name(p) or params.q in p["unit"].casefold())
     ]
     response.headers["ETag"] = etag_of(fp)
-    empty = (
-        empty_hint("no people yet: import a list of names", "Import people", "import-people")
-        if not people
-        else empty_hint("nobody matches these filters", "Clear the filters", "none")
-    )
+    nothing = empty("empty_no_people") if not people else empty("empty_no_match")
     return page(
         rows,
         params,
@@ -82,7 +79,7 @@ def list_people(
             "coverage": coverage,
             "q": params.q,
         },
-        empty=empty,
+        empty=nothing,
         extra={"counts": counts, "version": version_of(fp)},
     )
 
@@ -101,9 +98,7 @@ def _known(request: Request, ctx: Any, ids: list[str]) -> dict[str, dict[str, An
     by_id = {p["person_id"]: p for p in people}
     unknown = sorted(set(ids) - set(by_id))
     if unknown:
-        raise ApiError(
-            404, "not_found", f"unknown person id(s): {unknown[:5]}", next_action="reload"
-        )
+        raise ApiError.of("unknown_people", ids=unknown[:5])
     return by_id
 
 
@@ -115,19 +110,9 @@ def edit_people(
     expected = expected_version(request)
     sets = {o.id for o in ctx.project.config.overlays}
     if body.set and body.set not in sets:
-        raise ApiError(
-            422,
-            "invalid",
-            f"no projected set {body.set!r}; sets: {sorted(sets)}",
-            next_action="fix-input",
-        )
+        raise ApiError.of("unknown_set", set=body.set, sets=sorted(sets))
     if body.role == "projected" and not (body.set or sets):
-        raise ApiError(
-            422,
-            "invalid",
-            "a projected person belongs to a projected set: add one in the settings first",
-            next_action="settings",
-        )
+        raise ApiError.of("set_needed")
     changes: dict[str, str] = {}
     if body.role is not None:
         changes["role"] = body.role
@@ -138,7 +123,7 @@ def edit_people(
     if body.note is not None:
         changes["note"] = body.note
     if not changes:
-        raise ApiError(422, "invalid", "nothing to change", next_action="fix-input")
+        raise ApiError.of("nothing_to_change")
     with ctx.handle.mutex:
         check_version(ctx.layout.people_csv, expected)
         _known(request, ctx, body.person_ids)
@@ -167,17 +152,13 @@ def merge_people(
     """Merge rows that are one person (``merged_into``); send ``If-Match``."""
     expected = expected_version(request)
     if body.target in body.sources:
-        raise ApiError(422, "invalid", "a person cannot be merged into themselves")
+        raise ApiError.of("self_merge")
     with ctx.handle.mutex:
         check_version(ctx.layout.people_csv, expected)
         by_id = _known(request, ctx, [body.target, *body.sources])
         if by_id[body.target]["merged_into"]:
-            raise ApiError(
-                409,
-                "refused",
-                f"{body.target} is itself merged into {by_id[body.target]['merged_into']}: "
-                "merge into that person",
-                next_action="fix-input",
+            raise ApiError.of(
+                "merged_target", target=body.target, into=by_id[body.target]["merged_into"]
             )
         changes = {pid: {"merged_into": body.target} for pid in body.sources}
         for pid, p in by_id.items():  # rows merged into a source follow it to the target
@@ -213,7 +194,7 @@ async def import_list(request: Request, ctx: ProjectDep) -> dict[str, Any]:
         form = await request.form(max_files=1, max_fields=4)
         upload = form.get("file")
         if upload is None or isinstance(upload, str):
-            raise ApiError(422, "invalid", "send the list as the form's 'file'")
+            raise ApiError.of("file_missing")
         data = await upload.read(limit + 1)
         name = upload.filename or "list.csv"
         await form.close()
@@ -221,14 +202,10 @@ async def import_list(request: Request, ctx: ProjectDep) -> dict[str, Any]:
         try:
             body = PastedList.model_validate_json(await request.body())
         except ValueError as exc:
-            raise ApiError(
-                422, "invalid", 'send a form with a file, or {"text": …}', next_action="fix-input"
-            ) from exc
+            raise ApiError.of("list_body") from exc
         data, name = body.text.encode("utf-8"), body.name
     if len(data) > limit:
-        raise ApiError(
-            413, "too_large", "the list is larger than the limit", next_action="fix-input"
-        )
+        raise ApiError.of("file_too_large", limit_mb=runtime.settings.max_upload_mb)
     import_id = new_import_id()
     folder = runtime.uploads_of(ctx.id) / import_id
     return runtime.collection.propose_import(ctx.project, folder, name, data)
@@ -246,12 +223,10 @@ def _import_folder(request: Request, ctx: Any, import_id: str) -> Any:
     from pathlib import PurePosixPath
 
     if not re.match(r"^imp-[0-9a-f]{12}$", import_id) or PurePosixPath(import_id).name != import_id:
-        raise ApiError(404, "not_found", "no such import")
+        raise ApiError.of("import_not_found")
     folder = runtime_of(request).uploads_of(ctx.id) / import_id
     if not folder.is_dir():
-        raise ApiError(
-            404, "not_found", "this import is not waiting any more", next_action="reload"
-        )
+        raise ApiError.of("import_not_found")
     return folder
 
 

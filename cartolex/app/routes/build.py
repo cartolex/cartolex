@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from ..deps import ProjectDep
 from ..errors import ApiError
 from ..jobs import JobConflict, JobControl
+from ..messages import attempt_message, empty
 from ..routing import Routes, runtime_of
 from .state import AREAS
 
@@ -44,6 +45,11 @@ class BuildBody(BaseModel):
     consent: Annotated[list[StageOrArea], Field(max_length=32)] = []
 
 
+def busy_error(running: Any) -> ApiError:
+    """409: a job runs on the project (it is named)."""
+    return ApiError.of("busy", kind=running.kind, job=running.id, extra={"job": running.id})
+
+
 def targets_of(runtime: Any, scope: list[str] | None) -> list[str] | None:
     """Stage ids of a scope: stage ids as they are, an area as its stages."""
     if not scope or scope == ["all"]:
@@ -56,12 +62,7 @@ def targets_of(runtime: Any, scope: list[str] | None) -> list[str] | None:
         elif item in areas and areas[item]:
             out.extend(s for s in areas[item] if s in runtime.registry)
         else:
-            raise ApiError(
-                422,
-                "invalid",
-                f"{item!r} is neither a stage nor an area; stages: {list(runtime.registry.ids)}",
-                next_action="fix-input",
-            )
+            raise ApiError.of("unknown_scope", item=item, stages=list(runtime.registry.ids))
     return out
 
 
@@ -177,7 +178,11 @@ def start_build_job(
             "changed": result.changed,
         }
         if result.failed:
-            out["failed"] = {"stage": result.failed[0], "error": result.failed[1]}
+            out["failed"] = {
+                "stage": result.failed[0],
+                "error": result.failed[1],
+                **attempt_message("failed", result.failed[1]),
+            }
             out["error"] = f"{result.failed[0]}: {result.failed[1]}"
         return out
 
@@ -186,7 +191,7 @@ def start_build_job(
             project=ctx.id, jobs_dir=ctx.layout.jobs, kind="build", work=work, title=title
         )
     except JobConflict as exc:
-        raise ApiError(409, "busy", str(exc), next_action="wait", job=exc.running.id) from exc
+        raise busy_error(exc.running) from exc
     return {"job": info.as_dict()}
 
 
@@ -213,10 +218,7 @@ def post_build(request: Request, body: BuildBody, ctx: ProjectDep) -> Any:
         out = plan_json(the_plan, runtime.registry)
         out["running"] = running.as_dict() if running else None
         if not out["to_run"]:
-            out["empty"] = {
-                "message": "everything is up to date",
-                "next": {"label": "Close", "action": "none"},
-            }
+            out["empty"] = empty("empty_up_to_date")
         return out
     started = start_build_job(
         runtime,
@@ -293,10 +295,7 @@ def get_build(request: Request, ctx: ProjectDep) -> dict[str, Any]:
     if not jobs:
         return {
             "job": None,
-            "empty": {
-                "message": "nothing was built yet",
-                "next": {"label": "Build", "action": "build"},
-            },
+            "empty": empty("empty_nothing_built"),
         }
     job = jobs[0].as_dict()
     return {"job": job, **tracker(ctx, job)}

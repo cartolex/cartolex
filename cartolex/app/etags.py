@@ -42,14 +42,9 @@ def expected_version(request: Request, *, header: str = "If-Match") -> str | Non
     """
     raw = (request.headers.get(header) or "").strip()
     if not raw or raw == "*":
-        raise ApiError(
-            428,
-            "version_required",
-            "this change needs the version you read: send it in If-Match (the ETag of the read)",
-            next_action="reload",
-        )
+        raise ApiError.of("version_required")
     if "," in raw:
-        raise ApiError(400, "invalid", "If-Match names one version", next_action="reload")
+        raise ApiError.of("version_ambiguous")
     value = raw.removeprefix("W/").strip()
     if len(value) >= 2 and value[0] == value[-1] == '"':
         value = value[1:-1]

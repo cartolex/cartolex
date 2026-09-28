@@ -34,6 +34,7 @@ from cartolex.project.tables import (
 
 __all__ = [
     "FIELDS",
+    "MappingError",
     "ParsedList",
     "coverage_of",
     "decided_now",
@@ -331,6 +332,15 @@ class ParsedList:
     warnings: list[str] = field(default_factory=list)
 
 
+class MappingError(ValueError):
+    """A column mapping or a role that cannot be used; ``code`` and ``params`` say why."""
+
+    def __init__(self, code: str, message: str, **params: object) -> None:
+        super().__init__(message)
+        self.code = code
+        self.params = params
+
+
 def _decode(data: bytes) -> str:
     for encoding in ("utf-8-sig", "cp1252", "latin-1"):
         try:
@@ -409,13 +419,20 @@ def _split_name(value: str) -> tuple[str, str]:
 def _people_of(parsed: ParsedList, mapping: Mapping[str, str]) -> tuple[list[dict], list[str]]:
     bad = sorted({v for v in mapping.values() if v not in FIELDS})
     if bad:
-        raise ValueError(f"unknown field(s) {bad}; known: {list(FIELDS)}")
+        raise MappingError(
+            "mapping_unknown_fields",
+            f"unknown field(s) {bad}; known: {list(FIELDS)}",
+            fields=bad,
+            known=list(FIELDS),
+        )
     unknown = sorted(set(mapping) - set(parsed.columns))
     if unknown:
-        raise ValueError(f"the list has no column(s) {unknown}")
+        raise MappingError(
+            "mapping_unknown_columns", f"the list has no column(s) {unknown}", columns=unknown
+        )
     fields = set(mapping.values())
     if not ({"last_name", "name"} & fields):
-        raise ValueError("map a column to last_name, or to name (a full name)")
+        raise MappingError("mapping_no_name", "map a column to last_name, or to name (a full name)")
     people, skipped = [], []
     index = {c: i for i, c in enumerate(parsed.columns)}
     for n, row in enumerate(parsed.rows, start=1):
@@ -460,7 +477,7 @@ def import_people(
     ``people.csv`` (identity ``pending``), guarded by *expected_people*.
     """
     if role not in ("mapped", "context", "projected", "excluded", "undecided"):
-        raise ValueError(f"unknown role {role!r}")
+        raise MappingError("unknown_role", f"unknown role {role!r}", role=role)
     people, skipped = _people_of(parsed, mapping)
     layout = project.layout
     existing = people_rows(project)

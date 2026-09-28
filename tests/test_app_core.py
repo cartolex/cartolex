@@ -190,7 +190,7 @@ def test_a_created_project_gets_the_extensions_slots_overlays_and_identity(tmp_p
             "/api/projects",
             json={"folder": str(tmp_path / "new"), "name": "x", "domain_title": "y"},
         )
-        assert again.status_code == 409 and again.json()["error"]["code"] == "exists"
+        assert again.status_code == 409 and again.json()["error"]["code"] == "project_exists"
         missing = client.post("/api/projects/open", json={"path": str(tmp_path / "nowhere")})
         assert missing.status_code == 404
     finally:
@@ -300,8 +300,10 @@ def test_hosted_projects_are_chosen_by_the_route(tmp_path):
             denied.status_code == 403
             and "not one you may open" in denied.json()["error"]["message"]
         )
-        assert client.get("/api/project/state").json()["error"]["code"] == "no_project"
-        assert client.get("/api/projects/gamma/project/state").status_code == 404
+        unnamed = client.get("/api/project/state").json()["error"]
+        assert unnamed["code"] == "project_not_named" and unnamed["params"] == {}
+        gamma = client.get("/api/projects/gamma/project/state")
+        assert gamma.status_code == 404 and gamma.json()["error"]["params"] == {"id": "gamma"}
     finally:
         app.state.cartolex.shutdown()
 
@@ -334,6 +336,12 @@ def test_a_build_job_runs_is_tracked_and_logged(tmp_path):
         assert "Survey" not in log and "p000" not in log
         states = client.get("/api/project/state").json()
         assert next(a for a in states["areas"] if a["id"] == "keywords")["state"] == "up_to_date"
+        triage = next(s for s in states["stages"] if s["id"] == "keywords.triage")
+        assert triage["state"] == "skipped" and triage["skip_reason"].startswith("switched off")
+        assert (triage["skip"]["code"], triage["skip"]["params"]) == (
+            "stage_switched_off",
+            {"stage": "keywords.triage"},
+        )
         again = client.post("/api/build", json={"dry_run": True}).json()
         assert again["to_run"] == [] and again["empty"]["message"] == "everything is up to date"
     finally:
@@ -383,6 +391,7 @@ def test_a_second_build_is_refused_with_409_naming_the_running_one(tmp_path):
         assert second.status_code == 409
         error = second.json()["error"]
         assert error["code"] == "busy" and error["job"] == first and first in error["message"]
+        assert error["params"] == {"kind": "build", "job": first}
         assert client.post("/api/themes/apply").status_code == 409
         state = client.get("/api/project/state").json()
         assert state["job"]["id"] == first
@@ -411,6 +420,9 @@ def test_a_cancelled_build_changes_nothing_or_finishes_before_the_cancel(tmp_pat
         assert job["state"] == "cancelled"
         assert job["result"]["summary"].startswith("cancelled: finished before the cancel")
         assert job["result"]["ran"] == ["corpus.assemble"]
+        stages = client.get("/api/project/state").json()["stages"]
+        extract = next(s for s in stages if s["id"] == "keywords.extract")
+        assert extract["state"] == "failed" and extract["attempt"]["code"] == "stage_cancelled"
         assert client.post(f"/api/jobs/{job_id}/cancel").status_code == 409
         # a cancel before anything ran: nothing changed
         controls.hold.clear()

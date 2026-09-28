@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from ..deps import ProjectDep
 from ..errors import ApiError
 from ..etags import check_version, etag_of, expected_version, version_of
+from ..messages import empty
 from ..routing import Routes, runtime_of
 
 routes = Routes(tags=["map"])
@@ -37,12 +38,7 @@ def _view(ctx: Any) -> dict[str, Any]:
         "pinned": maps.pinned,
         "versions": versions[::-1],
         "version": version_of(fp),
-        "empty": None
-        if versions
-        else {
-            "message": "no map yet: the first build draws one and pins it",
-            "next": {"label": "Build the map", "action": "build"},
-        },
+        "empty": None if versions else empty("empty_no_map_versions"),
     }
 
 
@@ -66,24 +62,24 @@ def change_versions(
         check_version(ctx.layout.maps_json, expected)
         maps, _ = read_maps(ctx.layout)
         try:
+            if body.action in ("pin", "discard") and not body.version:
+                raise ApiError.of("map_version_missing", action=body.action)
             if body.action == "pin":
-                if not body.version:
-                    raise ValueError("name the version to pin")
                 maps, action = pin(maps, body.version), f"pin {body.version}"
             elif body.action == "discard":
-                if not body.version:
-                    raise ValueError("name the version to discard")
+                if body.version == maps.pinned:
+                    raise ApiError.of("map_version_pinned", version=body.version)
                 maps, action = discard(maps, body.version), f"discard {body.version}"
             else:
                 seed = body.seed
                 if seed is None:
                     seed = max((v.layout.seed for v in maps.versions), default=0) + 1
+                if maps.pinned is None:
+                    raise ApiError.of("no_pinned_version")
                 maps, added = try_another(maps, seed=seed, method=body.method, note=body.note)
                 action = f"try {added}"
         except KeyError as exc:
-            raise ApiError(404, "not_found", str(exc).strip("'\""), next_action="reload") from exc
-        except ValueError as exc:
-            raise ApiError(409, "refused", str(exc), next_action="fix-input") from exc
+            raise ApiError.of("map_version_not_found", version=body.version) from exc
         save_maps(ctx.layout, maps, expected=expected, action=action)
     view = _view(ctx)
     view["done"] = action

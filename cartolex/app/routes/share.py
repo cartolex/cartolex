@@ -11,7 +11,9 @@ from fastapi.responses import JSONResponse
 from ..deps import ProjectDep
 from ..errors import ApiError
 from ..jobs import JobConflict, JobControl
+from ..messages import empty
 from ..routing import Routes, runtime_of
+from .build import busy_error
 
 routes = Routes(tags=["share"])
 
@@ -27,11 +29,7 @@ def builds(request: Request, ctx: ProjectDep) -> dict[str, Any]:
         "total": len(items),
         "empty": None
         if items
-        else {
-            "message": "no site built yet"
-            + ("" if builder.available else "; building a site comes in a later version"),
-            "next": {"label": "Close", "action": "none"},
-        },
+        else empty("empty_no_site" if builder.available else "empty_no_site_unavailable"),
     }
 
 
@@ -41,12 +39,7 @@ def start(request: Request, ctx: ProjectDep) -> JSONResponse:
     runtime = runtime_of(request)
     builder = runtime.site_builder
     if not builder.available:
-        raise ApiError(
-            501,
-            "not_available",
-            "building the offline site is not available in this version",
-            next_action="none",
-        )
+        raise ApiError.of("not_available")
     project = ctx.project
 
     def work(control: JobControl) -> dict[str, Any]:
@@ -57,5 +50,5 @@ def start(request: Request, ctx: ProjectDep) -> JSONResponse:
             project=ctx.id, jobs_dir=ctx.layout.jobs, kind="site", work=work, title="build the site"
         )
     except JobConflict as exc:
-        raise ApiError(409, "busy", str(exc), next_action="wait", job=exc.running.id) from exc
+        raise busy_error(exc.running) from exc
     return JSONResponse({"job": info.as_dict()}, status_code=202)

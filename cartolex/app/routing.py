@@ -72,21 +72,9 @@ class Guard:
         if request.method not in SAFE_METHODS and not public:
             given = request.headers.get(CSRF_HEADER)
             if session is None:
-                raise ApiError(
-                    401,
-                    "sign_in",
-                    "this browser has no session with cartolex: open the app from the cartolex "
-                    "command (its launch link)",
-                    next_action="sign-in",
-                )
+                raise ApiError.of("sign_in")
             if not same_secret(given, session.csrf):
-                raise ApiError(
-                    403,
-                    "csrf",
-                    f"the change was refused: the {CSRF_HEADER} header is missing or wrong "
-                    "(reload the page)",
-                    next_action="reload",
-                )
+                raise ApiError.of("csrf", header=CSRF_HEADER)
         project_id = None
         if self.resource in ("project", "extension"):
             project_id = runtime.projects.project_id(request, principal)
@@ -95,13 +83,8 @@ class Guard:
         decision = authorize(runtime.authorizer, principal, self.action, resource)
         if not decision.allowed:
             if principal.anonymous:
-                raise ApiError(
-                    401,
-                    "sign_in",
-                    "sign in first: open the app from the cartolex command (its launch link)",
-                    next_action="sign-in",
-                )
-            raise ApiError(403, "forbidden", decision.reason, next_action="none")
+                raise ApiError.of("sign_in")
+            raise ApiError.of("forbidden", reason=decision.reason, action=self.action)
         request.state.principal = principal
         return principal
 

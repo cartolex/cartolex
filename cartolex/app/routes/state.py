@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import Request
 
 from ..deps import ProjectDep
+from ..messages import attempt_message, reason_message, skip_message
 from ..routing import Routes, runtime_of
 
 routes = Routes(tags=["state"])
@@ -77,14 +78,26 @@ def stage_states(runtime: Any, project: Any) -> list[dict[str, Any]]:
                 "state": state_key(st.state.value),
                 "label": st.state.value,
                 "reasons": [
-                    {"kind": r.kind, "subject": r.subject, "detail": r.detail} for r in st.reasons
+                    {
+                        "kind": r.kind,
+                        "subject": r.subject,
+                        "detail": r.detail,
+                        **reason_message(r.kind, r.subject, r.detail),
+                    }
+                    for r in st.reasons
                 ],
                 "skip_reason": st.skip_reason,
+                "skip": skip_message(st.skip_reason) if st.skip_reason else None,
                 "has_results": st.has_results,
                 "run": _run(st.record),
                 "attempt": None
                 if attempt is None
-                else {"outcome": attempt.outcome, "error": attempt.error, "run_id": attempt.run_id},
+                else {
+                    "outcome": attempt.outcome,
+                    "error": attempt.error,
+                    "run_id": attempt.run_id,
+                    **attempt_message(attempt.outcome, attempt.error),
+                },
                 "interrupted": st.interrupted is not None and st.running is None,
                 "code_changed": st.code_changed,
                 "describe": st.describe(),

@@ -85,20 +85,31 @@ route answers 409 `no_project` with the next action `open-project`.
 
 ## Errors and empty results
 
-Every error has the same shape (V2-016): a stable `code`, a `message` in
-plain words, and `next`, what to do: a `label` and an `action` key the
-interface maps to a route or a command (`reload`, `retry`, `confirm`,
+Every error has the same shape (V2-016): a stable `code`, its `params`, a
+`message` in plain English, and `next`, what to do: a `label` and an `action`
+key the interface maps to a route or a command (`reload`, `retry`, `confirm`,
 `fix-input`, `open-project`, `sign-in`, `wait`, `build`, `unlock`,
-`settings`, `report`, `none`). Some errors add fields (`current` for a stale
-write, `problems` for refused values, `job` for a busy project).
+`settings`, `report`, `none`). The server does not translate: the interface
+shows the text of the code from its catalogues (English, French, Portuguese),
+filled with the params, and falls back on `message`. Every code is declared
+once, with its English text, in `cartolex.app.errors.ERRORS` (listed below);
+a test fails when a route raises a code that is not there or leaves out a
+param its text names. Some errors add fields (`current` for a stale write,
+`job` for a busy project).
 
 ```json
-{"error": {"code": "stale", "message": "themes.json changed since it was read; reload it and apply the change again",
+{"error": {"code": "stale", "params": {"file": "themes.json"},
+           "message": "themes.json changed since it was read; reload it and apply the change again",
            "next": {"label": "Reload", "action": "reload"}, "current": "sha256:…"}}
 ```
 
-A list or a result with nothing in it says what to do next (V2-013):
-`"empty": {"message": "no keywords yet: build the keywords first", "next": {"label": "Build the keywords", "action": "build"}}`.
+A list or a result with nothing in it says what to do next (V2-013), the same
+way: `"empty": {"code": "empty_no_keywords", "params": {}, "message": "no
+keywords yet: build the keywords first", "next": {"label": "Build the
+keywords", "action": "build"}}`. The state of a stage carries its skip reason
+(`skip`), its last failed attempt (`attempt`) and the reasons of an update
+(`reasons[]`) with codes too (`cartolex.app.messages.MESSAGES`); the English
+`skip_reason` and `attempt.error` stay beside them.
 
 ## Versions: `ETag` and `If-Match`
 
@@ -245,3 +256,146 @@ imports lists but collects nothing, and `DemoCollection(world)` answers from a
 demo world without leaving the computer — the tests and demonstrations use it.
 The site builder is a `SiteBuilder` protocol (`cartolex.app.share`) with a
 stand-in that lists earlier builds.
+
+## Error codes
+
+Every code the API answers with, its status, the English text (the fallback of
+`message`, with `{param}` for each param) and its next action. The interface's
+catalogues give each code its text in every interface language.
+
+| code | status | English text | params | next |
+| --- | --- | --- | --- | --- |
+| `host_refused` | 400 | this address is not one cartolex answers to; open it from the address the cartolex command gives | — | `sign-in` |
+| `cross_origin` | 403 | a change was asked from another site; cartolex takes changes from its own pages only | — | `none` |
+| `request_too_large` | 413 | the request is larger than the limit ({limit_kb} KB) | `limit_kb` | `fix-input` |
+| `invalid_length` | 400 | the request's length is not a number | — | `none` |
+| `sign_in` | 401 | sign in first: open the app from the cartolex command (its launch link) | — | `sign-in` |
+| `csrf` | 403 | the change was refused: the {header} header is missing or wrong (reload the page) | `header` | `reload` |
+| `forbidden` | 403 | {reason} | `reason` | `none` |
+| `version_required` | 428 | this change needs the version you read: send it in If-Match (the ETag of the read) | — | `reload` |
+| `version_ambiguous` | 400 | If-Match names one version | — | `reload` |
+| `stale` | 412 | {file} changed since it was read; reload it and apply the change again | `file` | `reload` |
+| `invalid` | 422 | the request is not valid: {problems} | `problems` | `fix-input` |
+| `no_route` | 404 | no such address in this app | — | `none` |
+| `method_not_allowed` | 405 | this address does not take this method | — | `none` |
+| `http_error` | 400 | the request was refused ({status}) | `status` | `none` |
+| `internal` | 500 | something went wrong inside cartolex ({error_type}) | `error_type` | `report` |
+| `static_missing` | 404 | no such file in the interface | — | `reload` |
+| `invalid_sort` | 422 | cannot sort by {sort}; sort by one of {sorts} | `sort`, `sorts` | `fix-input` |
+| `no_project` | 409 | no project is open: open one, or create one | — | `open-project` |
+| `project_not_named` | 400 | name the project in the address: /api/projects/<id>/… | — | `open-project` |
+| `invalid_project_id` | 400 | {id} is not a project id | `id` | `fix-input` |
+| `project_not_found` | 404 | there is no project {id} | `id` | `open-project` |
+| `hosted_projects` | 404 | a hosted app names its project in the address | — | `none` |
+| `not_a_project` | 404 | {path} holds no cartolex project | `path` | `open-project` |
+| `unsupported_format` | 409 | the project is in format {found}; this cartolex reads {expected} | `found`, `expected` | `open-project` |
+| `locked` | 409 | the project is open in {app} (process {pid} on {host}, since {since}) | `app`, `pid`, `host`, `since` | `open-project` |
+| `stale_lock` | 409 | the project's lock is stale: {app} (process {pid}, since {since}) no longer runs on this computer; remove it if no other window has the project open | `app`, `pid`, `since` | `unlock` |
+| `project_exists` | 409 | the folder already holds a project, or is not empty: {path} | `path` | `fix-input` |
+| `project_folder_missing` | 422 | choose the folder of the new project | — | `fix-input` |
+| `project_folder_relative` | 422 | the project's folder is a full path: {path} | `path` | `fix-input` |
+| `project_id_missing` | 422 | a hosted project needs an id | — | `fix-input` |
+| `field_title_missing` | 422 | name the field the map covers (its title): the AI receives it with the terms | — | `fix-input` |
+| `no_language_pack` | 422 | cartolex has no language pack for {languages}; choose among {available} | `languages`, `available` | `fix-input` |
+| `identity_frozen` | 409 | the project's identity is frozen: changing its {changed} means cached AI answers are not reused (they are paid for again) or texts are parsed again; confirm the change to make it anyway | `changed` | `confirm` |
+| `invalid_file` | 422 | a file of the project is not valid: {detail} | `detail` | `report` |
+| `nothing_to_change` | 422 | nothing to change | — | `fix-input` |
+| `busy` | 409 | a {kind} job ({job}) is already running on this project; wait for it or cancel it | `kind`, `job` | `wait` |
+| `stages_running` | 409 | a job is running {stages}; wait for it or cancel it | `stages` | `wait` |
+| `unknown_scope` | 422 | {item} is neither a stage nor an area; stages: {stages} | `item`, `stages` | `fix-input` |
+| `invalid_parameters` | 422 | the parameters were refused: {problems} | `problems` | `fix-input` |
+| `job_not_found` | 404 | there is no job {job} | `job` | `reload` |
+| `job_ended` | 409 | the job has already ended ({state}) | `state` | `none` |
+| `job_elsewhere` | 409 | this job runs in another process; stop it there | — | `none` |
+| `map_version_not_found` | 404 | there is no map version {version} | `version` | `reload` |
+| `map_version_missing` | 422 | name the version to {action} | `action` | `fix-input` |
+| `map_version_pinned` | 409 | {version} is pinned: pin another version before discarding it | `version` | `fix-input` |
+| `no_pinned_version` | 409 | there is no pinned map version to start from: build the map first | — | `build` |
+| `no_versions` | 404 | {file} has no versions; files with versions: {files} | `file`, `files` | `none` |
+| `file_not_written` | 404 | {file} does not exist yet | `file` | `none` |
+| `version_not_found` | 404 | there is no version {version} of {file} | `version`, `file` | `reload` |
+| `already_current` | 409 | this version is already the current one | — | `none` |
+| `unknown_people` | 404 | unknown person id(s): {ids} | `ids` | `reload` |
+| `unknown_set` | 422 | there is no projected set {set}; sets: {sets} | `set`, `sets` | `fix-input` |
+| `set_needed` | 422 | a projected person belongs to a projected set: add one in the settings first | — | `settings` |
+| `self_merge` | 422 | a person cannot be merged into themselves | — | `fix-input` |
+| `merged_target` | 409 | {target} is itself merged into {into}: merge into that person | `target`, `into` | `fix-input` |
+| `file_missing` | 422 | send the file in a form, as 'file' | — | `fix-input` |
+| `list_body` | 422 | send the list in a form (as 'file'), or as {"text": …} | — | `fix-input` |
+| `empty_list` | 422 | the list holds nobody | — | `fix-input` |
+| `import_not_found` | 404 | this import is not waiting any more | — | `reload` |
+| `mapping_unknown_fields` | 422 | unknown field(s) {fields}; the fields are {known} | `fields`, `known` | `fix-input` |
+| `mapping_unknown_columns` | 422 | the list has no column(s) {columns} | `columns` | `fix-input` |
+| `mapping_no_name` | 422 | map a column to last_name, or to name (a full name) | — | `fix-input` |
+| `unknown_role` | 422 | {role} is not a role | `role` | `fix-input` |
+| `collection_unavailable` | 409 | collecting texts is not available in this version | — | `none` |
+| `no_slot` | 409 | the project has no slot to collect into: add one in the settings | — | `settings` |
+| `collection_not_running` | 409 | no collection is running | — | `none` |
+| `person_not_found` | 404 | there is no person {person} | `person` | `reload` |
+| `invalid_record` | 422 | a record is scheme:id (orcid:0000-0002-1825-0097, openalex:A123…) or an ORCID iD | — | `fix-input` |
+| `not_a_candidate` | 409 | this record is not a candidate of this person; paste an id instead | — | `fix-input` |
+| `no_candidates` | 409 | none of these people has a candidate record | — | `none` |
+| `slot_not_found` | 404 | the project has no slot {slot} | `slot` | `none` |
+| `slot_collected` | 409 | slot {slot} is filled by collection, not by uploads | `slot` | `none` |
+| `file_too_large` | 413 | the file is larger than the limit ({limit_mb} MB) | `limit_mb` | `fix-input` |
+| `unsafe_name` | 422 | the name {name} leaves its folder | `name` | `fix-input` |
+| `file_exists` | 409 | {name} is already there; nothing is replaced (rename the file to add it) | `name` | `fix-input` |
+| `not_an_archive` | 422 | the file is not a zip archive | — | `fix-input` |
+| `archive_too_many_files` | 413 | the archive holds more than {max_members} files | `max_members` | `fix-input` |
+| `archive_too_large` | 413 | the archive unpacks to more than {limit_mb} MB | `limit_mb` | `fix-input` |
+| `unsafe_archive_member` | 422 | the archive was refused: a member is not allowed ({problem}); nothing was written | `problem` | `fix-input` |
+| `archive_replaces` | 409 | the archive would replace {name}; nothing was written | `name` | `fix-input` |
+| `archive_corrupt` | 422 | a member of the archive is larger than it says | — | `fix-input` |
+| `not_a_corpus_language` | 422 | {language} is not a corpus language | `language` | `fix-input` |
+| `merge_target_missing` | 422 | merge {term} into another keyword | `term` | `fix-input` |
+| `no_decision` | 404 | none of these keywords has a decision | — | `reload` |
+| `invalid_tree` | 422 | the tree is not valid: {detail} | `detail` | `reload` |
+| `theme_refused` | 422 | the change was refused: {detail} | `detail` | `fix-input` |
+| `theme_step_refused` | 422 | step {step} ({op}) was refused: {detail} | `step`, `op`, `detail` | `fix-input` |
+| `no_keywords` | 409 | build the keywords first | — | `build` |
+| `handoff_empty` | 404 | no term to send in this band | — | `none` |
+| `invalid_bundle` | 422 | the bundle is not valid: {detail} | `detail` | `fix-input` |
+| `proposal_not_found` | 404 | there is no proposal {proposal} | `proposal` | `reload` |
+| `nothing_chosen` | 422 | choose the terms to accept | — | `fix-input` |
+| `not_available` | 501 | building the offline site is not available in this version | — | `none` |
+
+## Message codes
+
+Empty results (`empty`), skipped stages (`skip`), failed attempts (`attempt`), the
+reasons of an update (`reasons[]`) and the collection plan carry `code`, `params` and
+the English `message` the same way; an empty result also names its next action.
+
+| code | English text | params | next |
+| --- | --- | --- | --- |
+| `empty_no_people` | no people yet: import a list of names | — | `import-people` |
+| `empty_no_match` | nothing matches these filters | — | `none` |
+| `empty_no_keywords` | no keywords yet: build the keywords first | — | `build` |
+| `empty_no_themes` | no themes yet: build the themes to get a first draft | — | `build` |
+| `empty_tree_never_saved` | the tree was never saved | — | `none` |
+| `empty_no_map` | no map yet: build the map | — | `build` |
+| `empty_no_map_versions` | no map yet: the first build draws one and pins it | — | `build` |
+| `empty_up_to_date` | everything is up to date | — | `none` |
+| `empty_nothing_built` | nothing was built yet | — | `build` |
+| `empty_no_jobs` | no job has run yet | — | `build` |
+| `empty_no_recent` | no project opened yet | — | `open-project` |
+| `empty_file_never_written` | {file} was never written | `file` | `none` |
+| `empty_no_site` | no site built yet | — | `none` |
+| `empty_no_site_unavailable` | no site built yet; building a site comes in a later version | — | `none` |
+| `empty_no_collection` | no collection has run | — | `collect` |
+| `empty_no_identity_to_check` | nobody waits for a check | — | `none` |
+| `empty_no_identity_in_state` | nobody is in this state | — | `none` |
+| `empty_handoff` | no term to send in this band | — | `none` |
+| `empty_no_proposals` | no AI answers imported yet | — | `none` |
+| `collection_unavailable` | collecting texts from bibliographic services is not available in this version; import texts into a folder or corpus slot instead | — | — |
+| `stage_switched_off` | switched off (set {stage}.enabled in decisions/params.json to run it) | `stage` | — |
+| `stage_no_overlay` | the project has no overlay | — | — |
+| `stage_not_applicable` | {reason} | `reason` | — |
+| `stage_cancelled` | the stage was cancelled; its previous results are kept | — | — |
+| `stage_refused` | the stage could not run: {detail} | `detail` | — |
+| `language_model_missing` | a language model is missing: {detail} | `detail` | — |
+| `stage_failed` | the stage failed ({error_type}): {detail} | `error_type`, `detail` | — |
+| `reason_code` | {detail} | `detail` | — |
+| `reason_input` | {detail} | `detail` | — |
+| `reason_parameter` | {detail} | `detail` | — |
+| `reason_project` | {detail} | `detail` | — |
+| `reason_upstream` | {detail} | `detail` | — |

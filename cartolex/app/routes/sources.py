@@ -23,7 +23,7 @@ MAX_LISTED = 1000
 def _slot(ctx: Any, slot_id: str) -> Any:
     slot = next((s for s in ctx.project.config.slots if s.id == slot_id), None)
     if slot is None:
-        raise ApiError(404, "not_found", f"the project has no slot {slot_id!r}")
+        raise ApiError.of("slot_not_found", slot=slot_id)
     return slot
 
 
@@ -64,16 +64,16 @@ async def upload(request: Request, slot_id: SlotId, ctx: ProjectDep) -> dict[str
     settings = runtime_of(request).settings
     slot = _slot(ctx, slot_id)
     if slot.kind not in ("folder", "corpus"):
-        raise ApiError(409, "refused", f"slot {slot_id!r} is filled by collection, not by uploads")
+        raise ApiError.of("slot_collected", slot=slot_id)
     if not request.headers.get("content-type", "").startswith("multipart/form-data"):
-        raise ApiError(422, "invalid", "send the file in a form, as 'file'")
+        raise ApiError.of("file_missing")
     target = ctx.layout.slot(slot_id)
     limit = int(settings.max_upload_mb * 1024 * 1024)
     form = await request.form(max_files=1, max_fields=4)
     try:
         item = form.get("file")
         if item is None or isinstance(item, str):
-            raise ApiError(422, "invalid", "send the file in a form, as 'file'")
+            raise ApiError.of("file_missing")
         name = clean_name(item.filename or "upload")
 
         async def chunks() -> Any:
