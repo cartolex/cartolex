@@ -385,8 +385,9 @@ def _current(runs: list[RawRun]) -> tuple[dict[str, dict], dict[str, list[tuple[
             latest[pid] = run.run_id
             meta[pid] = entry
     lines: dict[str, list[tuple[RawRun, dict]]] = defaultdict(list)
+    current = set(latest.values())
     for run in runs:
-        if run.run_id not in set(latest.values()):
+        if run.run_id not in current:
             continue
         for rec in run.records():
             if latest.get(rec.get("person_id")) == run.run_id:
@@ -449,7 +450,11 @@ def read_openalex_runs(runs: list[RawRun], builder: SourceBuilder) -> None:
         for record in entry.get("records") or []:
             if record.startswith("openalex:"):
                 owners[record.split(":", 1)[1]].add(pid)
-    dois_of = {pid: set(entry.get("dois") or []) for pid, entry in meta.items()}
+    # Who declared each DOI, in person order: a work's DOI finds them at once.
+    doi_owners: dict[str, list[str]] = defaultdict(list)
+    for pid in sorted(meta):
+        for doi in sorted(set(meta[pid].get("dois") or [])):
+            doi_owners[doi].append(pid)
     orcid_of = {pid: entry.get("orcid") for pid, entry in meta.items()}
     names_of = {pid: [tuple(n) for n in entry.get("names") or []] for pid, entry in meta.items()}
     for pid in sorted(meta):
@@ -477,7 +482,7 @@ def read_openalex_runs(runs: list[RawRun], builder: SourceBuilder) -> None:
         for run, rec in works:
             tid = _text(builder, run.slot, pid, rec)
             if tid is not None:
-                _link(builder, run.slot, tid, rec, owners, dois_of, orcid_of, names_of)
+                _link(builder, run.slot, tid, rec, owners, doi_owners, orcid_of, names_of)
                 builder.count("works read")
 
 
@@ -566,7 +571,7 @@ def _link(
     tid: str,
     rec: dict[str, Any],
     owners: dict[str, set[str]],
-    dois_of: dict[str, set[str]],
+    doi_owners: dict[str, list[str]],
     orcid_of: dict[str, str | None],
     names_of: dict[str, list[tuple[str, str]]],
 ) -> None:
@@ -586,8 +591,8 @@ def _link(
         for pid in sorted(owners.get(aid or "", ())):
             at_rank.setdefault(pid, k)
     if doi:
-        for pid, dois in sorted(dois_of.items()):
-            if pid in at_rank or doi not in dois:
+        for pid in doi_owners.get(doi, ()):
+            if pid in at_rank:
                 continue
             for k, a in enumerate(auths, start=1):
                 shown = a.get("author") or {}

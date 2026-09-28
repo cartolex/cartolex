@@ -28,6 +28,7 @@ import json
 import os
 import secrets
 import tempfile
+from collections import defaultdict
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -385,6 +386,12 @@ class SourceBuilder:
         #: finders (:mod:`cartolex.collect.merge`), and the links finders stated between texts.
         self.text_records: dict[str, list[dict[str, Any]]] = {}
         self.text_links: list[tuple[str, str, str]] = []
+        # Indexes kept as rows come in, so that a lookup never scans every row.
+        self._affiliated: dict[str, set[str]] = defaultdict(set)
+        self._orgs_version = 0
+        self._words_version = -1
+        self._words_index: dict[tuple[str, ...], set[str]] = {}
+        self._existing_idx: dict[str, Any] | None = None
 
     def count(self, what: str, n: int = 1) -> None:
         self.counts[what] = self.counts.get(what, 0) + n
@@ -462,6 +469,7 @@ class SourceBuilder:
             "retrieved_at": retrieved_at,
         }
         org = self.orgs.get(oid)
+        self._orgs_version += 1
         if org is None:
             self.orgs[oid] = _Org(fields, list(parent_keys))
         else:
@@ -471,43 +479,65 @@ class SourceBuilder:
             org.parent_keys += [k for k in parent_keys if k not in org.parent_keys]
         return oid
 
+    def _existing_index(self) -> dict[str, Any]:
+        """The old tables' organisations and affiliations, indexed once (they never change)."""
+        if self._existing_idx is None:
+            from .names import words
+
+            names: dict[str, tuple[str, str]] = {}
+            by_words: dict[tuple[str, ...], set[str]] = defaultdict(set)
+            if "organisations" in self.existing:
+                given = self.registry.given("organisations")
+                table = self.existing["organisations"].select(
+                    ["org_id", "name", "acronym", "source"]
+                )
+                for row in table.to_pylist():
+                    names.setdefault(row["org_id"], (row["name"], row["source"]))
+                    if row["org_id"] in given:
+                        continue
+                    for text in (row["name"], row["acronym"] or ""):
+                        key = tuple(words(text))
+                        if key:
+                            by_words[key].add(row["org_id"])
+            affs: dict[str, set[str]] = defaultdict(set)
+            if "affiliations" in self.existing:
+                table = self.existing["affiliations"].select(["person_id", "org_id"])
+                for row in table.to_pylist():
+                    affs[row["person_id"]].add(row["org_id"])
+            self._existing_idx = {"names": names, "words": by_words, "affiliations": affs}
+        return self._existing_idx
+
     def affiliated_orgs(self, person_id: str) -> list[tuple[str, str, str]]:
         """``(org_id, name, source)`` of every organisation *person_id* is affiliated with so far."""
-        names = {oid: (o.fields["name"], o.fields["source"]) for oid, o in self.orgs.items()}
-        if "organisations" in self.existing:
-            for row in (
-                self.existing["organisations"].select(["org_id", "name", "source"]).to_pylist()
-            ):
-                names.setdefault(row["org_id"], (row["name"], row["source"]))
-        oids = {oid for (pid, oid, _src) in self.affiliations if pid == person_id}
-        if "affiliations" in self.existing:
-            for row in self.existing["affiliations"].select(["person_id", "org_id"]).to_pylist():
-                if row["person_id"] == person_id:
-                    oids.add(row["org_id"])
-        return sorted((oid, *names[oid]) for oid in oids if oid in names)
+        old = self._existing_index()
+        oids = set(self._affiliated.get(person_id, ())) | old["affiliations"].get(person_id, set())
+        out = []
+        for oid in oids:
+            org = self.orgs.get(oid)
+            if org is not None:
+                out.append((oid, org.fields["name"], org.fields["source"]))
+            elif oid in old["names"]:
+                out.append((oid, *old["names"][oid]))
+        return sorted(out)
 
     def org_by_name(self, name: str) -> str | None:
         """The one organisation named *name* (case, accents and punctuation aside), if any."""
         from .names import words
 
-        wanted = words(name)
+        wanted = tuple(words(name))
         if not wanted:
             return None
-        hits = {
-            oid
-            for oid, org in self.orgs.items()
-            if words(org.fields["name"]) == wanted
-            or words(org.fields.get("acronym") or "") == wanted
-        }
-        if "organisations" in self.existing:
-            given = self.registry.given("organisations")
-            for row in (
-                self.existing["organisations"].select(["org_id", "name", "acronym"]).to_pylist()
-            ):
-                if row["org_id"] in given:
-                    continue
-                if words(row["name"]) == wanted or words(row["acronym"] or "") == wanted:
-                    hits.add(row["org_id"])
+        if self._words_version != self._orgs_version:
+            by_words: dict[tuple[str, ...], set[str]] = defaultdict(set)
+            for oid, org in self.orgs.items():
+                for text in (org.fields["name"], org.fields.get("acronym") or ""):
+                    key = tuple(words(text))
+                    if key:
+                        by_words[key].add(oid)
+            self._words_index, self._words_version = by_words, self._orgs_version
+        hits = set(self._words_index.get(wanted, ())) | self._existing_index()["words"].get(
+            wanted, set()
+        )
         return hits.pop() if len(hits) == 1 else None
 
     def organisation_parents(self, oid: str, parents: Sequence[str]) -> None:
@@ -526,6 +556,7 @@ class SourceBuilder:
         span = self.affiliations.get(key)
         if span is None:
             self.affiliations[key] = [start, end]
+            self._affiliated[person_id].add(org_id)
             return
         if start is not None:
             span[0] = start if span[0] is None else min(span[0], start)
