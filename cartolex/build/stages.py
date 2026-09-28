@@ -426,6 +426,10 @@ def _overlay_tables(project: Project) -> list[tuple[str, Path]]:
 
 #: cartolex's stages, each running the engine (``cartolex.build.engine``). The AI
 #: clean-up needs a key or a client: see :func:`cartolex.build.engine.engine_registry`.
+#: Cost models: fitted on fresh builds of the S and L demo worlds (one process, the
+#: numeric libraries on one thread), time in seconds and whole-process peak memory in
+#: MB; the layout's fixed time is mostly the layout library's compilation in a new
+#: process. The AI clean-up's is a guess: it depends on the provider.
 STAGES = Registry(
     [
         Stage(
@@ -473,7 +477,7 @@ STAGES = Registry(
             ),
             uses=("year",),
             provides=("people", "texts", "characters", "mapped_units"),
-            cost=CostModel("characters", 2.0, 1e-8, 150.0, 3e-6),
+            cost=CostModel("characters", 0.03, 9e-8, 160.0, 2.7e-5),
             run=_engine("run_corpus"),
         ),
         Stage(
@@ -515,7 +519,7 @@ STAGES = Registry(
                     _min_people_fit,
                 ),
             ),
-            cost=CostModel("characters", 5.0, 2e-6, 500.0, 1e-5),
+            cost=CostModel("characters", 7.5, 2.24e-5, 850.0, 2.9e-5),
             run=_engine("run_extract"),
         ),
         Stage(
@@ -538,7 +542,7 @@ STAGES = Registry(
                 "description, to the AI provider set in project.json; it is billed by that "
                 "provider, and answers already paid for are reused from cache/ai/"
             ),
-            cost=CostModel("people", 10.0, 0.5, 200.0, 0.0),
+            cost=CostModel("people", 10.0, 0.5, 550.0, 0.0),
             run=_no_ai_key,
         ),
         Stage(
@@ -557,7 +561,7 @@ STAGES = Registry(
                 ),
             ),
             provides=("kept_keywords",),
-            cost=CostModel("characters", 5.0, 5e-7, 300.0, 5e-6),
+            cost=CostModel("characters", 3.1, 8.5e-6, 515.0, 4.6e-5),
             run=_engine("run_build"),
         ),
         Stage(
@@ -574,7 +578,7 @@ STAGES = Registry(
                     maximum=1000,
                 ),
             ),
-            cost=CostModel("people", 2.0, 0.01, 200.0, 0.5),
+            cost=CostModel("people", 0.09, 6.3e-4, 510.0, 0.35),
             run=_engine("run_space"),
         ),
         Stage(
@@ -625,7 +629,15 @@ STAGES = Registry(
                     _levels_grow,
                 ),
             ),
-            cost=CostModel("kept_keywords", 1.0, 1e-3, 100.0, 8e-6, memory_exponent=2.0),
+            cost=CostModel(
+                "kept_keywords",
+                0.03,
+                2.5e-4,
+                518.0,
+                1.8e-5,
+                memory_exponent=2.0,
+                fallback=("people", 12.0),
+            ),
             run=_engine("run_group"),
         ),
         Stage(
@@ -633,7 +645,7 @@ STAGES = Registry(
             "apply your themes",
             upstream=("themes.group",),
             decisions=("decisions/themes.json",),
-            cost=CostModel("kept_keywords", 1.0, 1e-4, 200.0, 0.01),
+            cost=CostModel("kept_keywords", 0.01, 2.2e-5, 502.0, 0.037, fallback=("people", 12.0)),
             prepare=_prepare_themes,
             run=_engine("run_apply"),
         ),
@@ -643,7 +655,7 @@ STAGES = Registry(
             upstream=("themes.apply",),
             decisions=("decisions/maps.json",),
             project=("levels",),
-            cost=CostModel("mapped_units", 5.0, 0.01, 300.0, 0.05),
+            cost=CostModel("mapped_units", 17.4, 0.011, 665.0, 1.0),
             prepare=_prepare_maps,
             run=_engine("run_layout"),
         ),
@@ -663,7 +675,7 @@ STAGES = Registry(
                 ),
             ),
             uses=("year",),
-            cost=CostModel("mapped_units", 2.0, 0.005, 200.0, 0.02),
+            cost=CostModel("mapped_units", 0.1, 0.053, 686.0, 0.91),
             run=_engine("run_trajectories"),
         ),
         Stage(
@@ -673,7 +685,7 @@ STAGES = Registry(
             project=("overlays",),
             applies=_has_overlays,
             extra_inputs=_overlay_tables,
-            cost=CostModel("mapped_units", 2.0, 0.001, 200.0, 0.01),
+            cost=CostModel("mapped_units", 0.0, 0.02, 705.0, 0.42),
             run=_engine("run_overlays"),
         ),
     ]

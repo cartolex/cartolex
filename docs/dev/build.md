@@ -252,8 +252,13 @@ needs an update, failed, is forced, or an upstream stage runs.
 
 An estimate scales the stage's last measures by the ratio of its cost driver
 now to what it was then, or, without a previous run, uses the stage's
-`CostModel` (a fixed part plus a part per unit of the driver, to a power). The
-cost models of `STAGES` are first guesses, to be calibrated on measured runs.
+`CostModel` (a fixed part plus a part per unit of the driver, to a power; a
+stand-in size while the driver is unknown, the vocabulary from the people). The
+cost models of `STAGES` are fitted on fresh builds of the S and L demo worlds
+(one process, whole-process peak memory; the layout's fixed time is mostly the
+compilation of the layout library in a new process): on those builds every
+stage's estimate is within a factor of 1.7 of its measure, and the totals
+within 5 %. The AI clean-up's model is a guess, its cost being the provider's.
 A stage whose estimated peak memory exceeds the budget cannot run, nor can
 anything downstream of it, unless `build(allow_over_budget=True)` or a list of
 stage ids allows it. The budget is `budget_mb`, or by default the memory
