@@ -11,6 +11,7 @@ demo
 collection
 privacy
 build
+sizes
 keywords
 hosting
 ```
@@ -38,6 +39,7 @@ dev/themes-engine
 dev/checks
 dev/reference
 dev/placement
+dev/layouts
 dev/ui
 dev/collection
 ```

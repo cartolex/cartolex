@@ -256,15 +256,19 @@ run, and why it cannot run, if it cannot. A stage runs when it was never built,
 needs an update, failed, is forced, or an upstream stage runs.
 `BuildPlan.describe()` says all this in words.
 
-An estimate scales the stage's last measures by the ratio of its cost driver
-now to what it was then, or, without a previous run, uses the stage's
-`CostModel` (a fixed part plus a part per unit of the driver, to a power; a
-stand-in size while the driver is unknown, the vocabulary from the people). The
-cost models of `STAGES` are fitted on fresh builds of the S and L demo worlds
-(one process, whole-process peak memory; the layout's fixed time is mostly the
-compilation of the layout library in a new process): on those builds every
-stage's estimate is within a factor of 2 of its measure (1.9 at most, for a
-stage of under a second), and the totals within 15 %. The AI clean-up's model is a guess, its cost being the provider's.
+An estimate scales the part of the stage's last measures above its fixed part
+by what the stage's `CostModel` gives now over what it gave then (from the
+sizes the run recorded in its counts), or, without a previous run, uses the
+model itself: a fixed part plus a part per unit of the driver, to a power,
+plus optionally a linear part of a second size (the extraction costs per text
+as well as per character); a stand-in size while the driver is unknown (the
+vocabulary from the people, twelve per person, at most 10 000). The cost
+models of `STAGES` are fitted with `tools/cost_fit.py` on each stage run in a
+fresh process (`tools/scale_study.py`) on the demo worlds and on streamed
+worlds of 10³, 10⁴ and 10⁵ people ([Sizes and machines](../sizes.md)): from
+10³ to 10⁵ people every stage's estimate is within a factor of 2 of its
+measure, in time and in peak memory (`tests/test_build_costs.py` holds the
+measures). The AI clean-up's model is a guess, its cost being the provider's.
 A stage whose estimated peak memory exceeds the budget cannot run, nor can
 anything downstream of it, unless `build(allow_over_budget=True)` or a list of
 stage ids allows it. The budget is `budget_mb`, or by default the memory

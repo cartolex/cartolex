@@ -220,6 +220,18 @@ possibly several. `base` names a base from `project.json` when the version is
 placed on another project's map. A rebuild keeps the pinned version's layout;
 another layout is tried as a new version beside it.
 
+`layout.method` is one of:
+
+| method | the people's map | `params` |
+| --- | --- | --- |
+| `umap` | UMAP of the people in the space | `n_neighbors`, `min_dist`, `metric`, `n_epochs`, `spread`, `set_op_mix_ratio`, `local_connectivity`, `repulsion_strength`, `negative_sample_rate`, `layout` |
+| `tsne` | t-SNE of the people (the optional `openTSNE` package: `pip install 'cartolex[tsne]'`) | `perplexity` (30), `metric` |
+| `tree` | the applied theme tree: themes as discs, people inside their heaviest theme | none |
+
+In every method the keywords are placed on the people's map by their nearest
+people, and `seed` makes the map the same on every run. {doc}`../dev/layouts`
+compares them.
+
 ## `snowball.csv`
 
 One row per collaborator proposed: `round`, `person_id`, `seeds` (the seeds they

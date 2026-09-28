@@ -89,7 +89,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
     print(
         f"machine: {ram:.0f} GB of memory or more, {1.5 * disk:.0f} GB of free disk on a file "
         f"system with {size['texts'] * 1.2 / 1e6:.0f} million free inodes (one file per text), "
-        "4 cores or more (the stages run on one core; the world is written in parallel)"
+        "8 cores or more (the numeric steps use every core; the world is written in parallel)"
     )
     return 0
 

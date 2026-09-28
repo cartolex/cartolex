@@ -64,7 +64,9 @@ See `docs/dev/engine.md`.
 |---|---|
 | `driver` | **Orchestrator**: `run_svd` / `run_clustering` / `run_umap` / `run_lexical_plots` / `run_trajectories`, each taking a `RunContext`; defaults in the immutable `DEFAULTS` (`AtlasDefaults`), with a project's frozen values read per run |
 | `io` | TF-IDF matrix assembly from the corpus contract |
-| `reducers` | SVD embeddings, the UMAP (or anchored t-SNE) layout of the people |
+| `reducers` | SVD embeddings, the layout of the people: UMAP, t-SNE (optional openTSNE), anchored t-SNE, or the theme tree's |
+| `tree_layout` | The theme tree's map: themes as discs placed by their mean vectors, people inside their heaviest theme |
+| `blocks` | Dense arithmetic on a sparse matrix a block of rows at a time (exactly the dense results on one block) |
 | `placement` | Place keywords, projected documents and time bins on a finished map by their nearest people (the heaviest linked group of eight) |
 | `clustering` | Ward clustering of terms (cosine, SVD space) → concepts + proto-subfields; exact below a size threshold, micro-clusters then a size-weighted Ward above it |
 | `hierarchy` | Concept/subfield hierarchy documents; the groups of every level of a theme tree |
