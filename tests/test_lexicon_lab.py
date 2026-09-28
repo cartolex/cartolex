@@ -202,4 +202,4 @@ def test_the_lab_runs_end_to_end(tmp_path: Path) -> None:
         "## AI triage",
     ):
         assert heading in text
-    assert "demo XS" in text and "API, every candidate (today)" in text
+    assert "| demo XS | API | every candidate |" in text

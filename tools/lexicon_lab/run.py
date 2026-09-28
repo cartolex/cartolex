@@ -257,21 +257,19 @@ def reasons(parsed, matchers, golds, corpus_name: str) -> list[dict]:
     return rows
 
 
-def triage_costs(parsed, scored, matchers, golds, corpus_name: str) -> list[dict]:
-    """API triage (today: every candidate, bare strings) against a handoff of the to-check band."""
-    from cartolex.lexicon.triage_typed import build_typed_prompt
+#: What the judge sees: the bands sent to it (the others keep their band).
+SCOPES = (
+    ("every candidate", ("kept", "check", "aside")),
+    ("kept and to-check bands", ("kept", "check")),
+    ("to-check band", ("check",)),
+)
 
-    system, _ = build_typed_prompt(["x"], "Research field", domain_description="")
-    all_terms = [t for sc in scored.values() for t in sc.table["term"].tolist()]
-    check_terms = [
-        t
-        for sc in scored.values()
-        for t, b in zip(sc.table["term"], sc.table["band"], strict=True)
-        if b == "check"
-    ]
-    b = handoff.bundle(scored, bands=("check",), domain="Research field")
-    # Usage lines (two short lines per term) measured on a sample, extrapolated.
-    sample = b.items[:: max(1, len(b.items) // 200)][:200]
+
+def _usage_tokens_per_item(parsed, items) -> float:
+    """Tokens of two short usage lines per term, measured on a sample of *items*."""
+    sample = items[:: max(1, len(items) // 200)][:200]
+    if not sample:
+        return 0.0
     lowered = [(p, p.lower()) for p in parsed.paragraphs.values()]
     extra = 0
     for it in sample:
@@ -279,48 +277,84 @@ def triage_costs(parsed, scored, matchers, golds, corpus_name: str) -> list[dict
         hits = [p for p, pl in lowered if low in pl][:50]
         lines = handoff.usage_lines(hits, [it.term]).get(it.term, [])
         extra += sum(handoff.tokens("   « " + u + " »\n") for u in lines)
-    per_item = extra / len(sample) if sample else 0.0
+    return extra / len(sample)
+
+
+def _judged(scored, verdicts, scope: tuple[str, ...], matchers, golds) -> dict:
+    """Precision and recall when the judge decides the bands in *scope* (kept stays kept)."""
+    counts = []
+    for lang, sc in scored.items():
+        table = sc.table.copy()
+        table["band"] = [
+            (
+                ("kept" if verdicts.get(term, handoff.Verdict("F")).accept else "aside")
+                if band in scope
+                else ("kept" if band == "kept" else "aside")
+            )
+            for term, band in zip(table["term"], table["band"], strict=True)
+        ]
+        counts.append(measures.evaluate(table, matchers[lang], golds[lang]))
+    return measures.ratios(measures.summed(counts))
+
+
+def triage_costs(parsed, scored, matchers, golds, corpus_name: str) -> list[dict]:
+    """What the AI triage would cost by route and scope, and what fake judges make of it.
+
+    API routes send bare strings in batches, as the engine's triage does
+    (today: every candidate); a handoff sends one bundle with each term's
+    evidence, optionally with two usage lines per term.
+    """
+    from cartolex.lexicon.triage_typed import build_typed_prompt
+
+    system, _ = build_typed_prompt(["x"], "Research field", domain_description="")
     rows = []
-    for label, cost in (
-        ("API, every candidate (today)", handoff.api_cost(all_terms, system)),
-        ("API, to-check band only", handoff.api_cost(check_terms, system)),
-        ("handoff bundle, to-check band", handoff.handoff_cost(b)),
-        (
-            "handoff bundle, to-check band, with usage lines",
-            handoff.handoff_cost(b, extra_input_tokens=int(per_item * len(b.items))),
-        ),
-    ):
-        row = {"corpus": corpus_name, "route": label, **cost}
+
+    def add(route: str, scope: str, cost: dict) -> None:
+        row = {"corpus": corpus_name, "route": route, "scope": scope, **cost}
         for price in PRICES:
             row[price.name] = handoff.priced(cost, price)
         rows.append(row)
 
+    bundles = {}
+    for scope, bands in SCOPES:
+        terms = [
+            t
+            for sc in scored.values()
+            for t, b in zip(sc.table["term"], sc.table["band"], strict=True)
+            if b in bands
+        ]
+        add("API", scope, handoff.api_cost(terms, system))
+        if scope == "every candidate":
+            continue
+        b = handoff.bundle(scored, bands=bands, domain="Research field")
+        bundles[scope] = (b, bands)
+        add("handoff", scope, handoff.handoff_cost(b))
+        per_item = _usage_tokens_per_item(parsed, b.items)
+        add(
+            "handoff, with usage lines",
+            scope,
+            handoff.handoff_cost(b, extra_input_tokens=int(per_item * len(b.items))),
+        )
+
     def is_gold(item) -> bool:
         return matchers[item.lang].key(item.term) in golds[item.lang].all
 
+    every = handoff.bundle(scored, bands=("kept", "check", "aside"), domain="Research field")
     for judge in (handoff.OracleJudge(is_gold), handoff.NoisyJudge(is_gold, 0.1, seed=7)):
-        verdicts = judge.judge(b)
-        counts = []
-        for lang, sc in scored.items():
-            table = sc.table.copy()
-            table["band"] = [
-                "kept"
-                if band == "kept"
-                or (band == "check" and verdicts.get(term, handoff.Verdict("F")).accept)
-                else "aside"
-                for term, band in zip(table["term"], table["band"], strict=True)
-            ]
-            counts.append(measures.evaluate(table, matchers[lang], golds[lang]))
-        r = measures.ratios(measures.summed(counts))
-        rows.append(
-            {
-                "corpus": corpus_name,
-                "route": f"judge: {judge.name}",
-                "terms": len(b.items),
-                "precision": r["precision"],
-                "recall": r["recall"],
-            }
-        )
+        verdicts = judge.judge(every)  # one verdict per term, whatever the scope
+        for scope, bands in SCOPES:
+            r = _judged(scored, verdicts, bands, matchers, golds)
+            rows.append(
+                {
+                    "corpus": corpus_name,
+                    "route": f"judge: {judge.name}",
+                    "scope": scope,
+                    "terms": sum(1 for it in every.items if it.band in bands),
+                    "precision": r["precision"],
+                    "recall": r["recall"],
+                    "f1": r["f1"],
+                }
+            )
     return rows
 
 
@@ -557,6 +591,7 @@ def report(results, suite: str, seconds: float, peak: float | None = None) -> st
     cols = [
         ("corpus", "corpus", ""),
         ("route", "route", ""),
+        ("what the judge sees", "scope", ""),
         ("terms", "terms", "int"),
         ("calls", "calls", "int"),
         ("input tokens", "input_tokens", "int"),
@@ -565,7 +600,9 @@ def report(results, suite: str, seconds: float, peak: float | None = None) -> st
     lines += table(rows, cols)
     lines += [
         "",
-        "Fake judges on the handoff bundle (final lexicon: kept band + accepted terms):",
+        "Fake judges (the final lexicon: the terms the judge accepts, and the kept band when "
+        "the judge does not see it). The oracle accepts exactly the gold; the noisy judge "
+        "gives 10 % of its answers wrong.",
         "",
     ]
     rows = [t for r in results for t in r.triage if "precision" in t]
@@ -574,9 +611,11 @@ def report(results, suite: str, seconds: float, peak: float | None = None) -> st
         [
             ("corpus", "corpus", ""),
             ("judge", "route", ""),
+            ("what the judge sees", "scope", ""),
             ("terms judged", "terms", "int"),
             ("precision", "precision", "pct"),
             ("recall", "recall", "pct"),
+            ("F1", "f1", "pct"),
         ],
     )
     return "\n".join(lines) + "\n"
