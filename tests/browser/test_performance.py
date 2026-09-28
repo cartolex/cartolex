@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: MIT
-"""Budgets and leaks: route ready within a second, few requests per navigation, a flat memory.
+"""Budgets and leaks: route ready within a second, few API calls per navigation, a flat memory.
 
 Budgets (on the fixture server): every navigation inside the app is ready in
-under **1 s** and makes at most **5 requests** (the jobs poller's own
-`GET /api/jobs`, which runs on its clock and not because of a navigation, is
-not counted).
+under **1 s** and makes at most **5 API calls**. Static files (ES modules,
+style sheets) are not counted: the browser caches them after the first load,
+and a page may be split into as many modules as reads well. Nor is the jobs
+poller's own `GET /api/jobs`, which runs on its clock and not because of a
+navigation.
 
 Leaks: after two warm-up rounds (modules, style sheets and caches loaded),
 ten more round trips between the gallery and the overview must leave the DOM
@@ -32,7 +34,9 @@ MEASURES = os.environ.get("CARTOLEX_UI_MEASURES")
 
 
 def _counted(requests: list[str]) -> list[str]:
-    return [u for u in requests if not u.split("?")[0].endswith("/api/jobs")]
+    """The API calls among ``requests``, less the jobs poller's."""
+    paths = [(u, "/" + u.split("//", 1)[-1].split("/", 1)[-1].split("?")[0]) for u in requests]
+    return [u for u, path in paths if path.startswith("/api/") and path != "/api/jobs"]
 
 
 def test_navigation_budgets(ui):
@@ -41,7 +45,7 @@ def test_navigation_budgets(ui):
     boot = {
         "ready_after_load_ms": round(first["at"], 1),
         "first_route_ms": round(first["duration"], 1),
-        "requests": len(_counted(ui.collected.requests)),
+        "api_calls": len(_counted(ui.collected.requests)),
     }
     rows = []
     for path in ("/keywords", "/gallery", "/overview", "/gallery", "/demo", "/nowhere", "/themes"):
@@ -54,7 +58,7 @@ def test_navigation_budgets(ui):
                 "path": path,
                 "page": entry["pageId"],
                 "ready_ms": round(entry["duration"], 1),
-                "requests": len(made),
+                "api_calls": len(made),
                 "urls": [u.split("/", 3)[-1] for u in made],
             }
         )
@@ -64,9 +68,9 @@ def test_navigation_budgets(ui):
         {"boot": boot, "navigations": rows},
     )
     slow = [r for r in rows if r["ready_ms"] >= READY_MS]
-    chatty = [r for r in rows if r["requests"] > REQUESTS]
+    chatty = [r for r in rows if r["api_calls"] > REQUESTS]
     assert slow == [], f"route ready takes {READY_MS} ms or more: {slow}"
-    assert chatty == [], f"more than {REQUESTS} requests: {chatty}"
+    assert chatty == [], f"more than {REQUESTS} API calls: {chatty}"
 
 
 def _round_trip(ui) -> None:

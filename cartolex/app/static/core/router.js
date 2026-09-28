@@ -21,7 +21,13 @@
  */
 import { signal } from './preact.js';
 
-const NEVER = new Promise(() => {});
+/**
+ * A promise that never settles. A fresh one each time: whatever waits on it
+ * (a page's `await` of a late answer) is reachable from it only, so it is
+ * collected with it once the page is gone. One shared promise would keep
+ * every such continuation, and the page it holds, for the life of the app.
+ */
+const never = () => new Promise(() => {});
 
 /** The page currently shown: `{path, pageId, params, token}` (null before the first route). */
 export const currentRoute = signal(null);
@@ -210,8 +216,8 @@ export class Router {
 
     const isCurrent = () => this.active === active;
     const keep = (promise) => Promise.resolve(promise).then(
-      (value) => (isCurrent() ? value : NEVER),
-      (error) => (isCurrent() ? Promise.reject(error) : NEVER),
+      (value) => (isCurrent() ? value : never()),
+      (error) => (isCurrent() ? Promise.reject(error) : never()),
     );
     const api = this.api.withSignal(controller.signal);
     const pageApi = Object.create(api);

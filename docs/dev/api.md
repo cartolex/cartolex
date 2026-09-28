@@ -229,7 +229,7 @@ version, so it can be undone too).
 | `PUT /api/themes {tree, action}` | save a new version (`If-Match`); empty nodes are removed and named in the action |
 | `GET /api/themes/versions`, `GET /api/themes/versions/{id}`, `POST /api/themes/versions/{id}/restore` | versions |
 | `POST /api/themes/apply` | a build job of the themes and the map |
-| `GET /api/atlas` | what the map draws (people, keywords, themes, topics, units, trajectories, projected people, bounds), `cartolex-atlas/1`, cached by its lineage (the runs it is made from), with an `ETag` |
+| `GET /api/atlas` | what the map draws at any depth of the theme tree (levels, nodes, people, keywords, units, trajectories, projected people, bounds), `cartolex-atlas/2` (described below, with the theme editor's routes), cached by its lineage (the runs it is made from), with an `ETag` |
 
 **Sharing, settings, the AI handoff**
 
@@ -410,3 +410,117 @@ the English `message` the same way; an empty result also names its next action.
 | `reason_parameter` | {detail} | `detail` | — |
 | `reason_project` | {detail} | `detail` | — |
 | `reason_upstream` | {detail} | `detail` | — |
+
+## The atlas and the theme editor
+
+### `GET /api/atlas`: `cartolex-atlas/2`
+
+The atlas reads only the theme files of any depth (`themes_applied.json`,
+`theme_keywords.csv`, `theme_people.parquet`, `theme_organisations.parquet`,
+`trajectory_themes.parquet`, the `levels` of `positions.json`; see
+{doc}`../format/derived`), never the two-level files that exist at depth 2
+only, so a project of depth 1, 3 or 4 gets its map like one of depth 2.
+
+```json
+{
+  "format": "cartolex-atlas/2", "available": true, "lineage": {"map.layout": "…"},
+  "map_version": "v1", "depth": 2, "source": "decisions", "weights_basis": "tf",
+  "people_counted": 38,
+  "levels": [{"level": 1, "names": {"en": "Theme"}}, {"level": 2, "names": {"en": "Topic"}}],
+  "nodes": [{"id": "s1", "parent": null, "level": 1, "order": 1, "names": {"en": "…"},
+             "color": "#d22d3c", "weight": 3.6, "share": 0.097, "keywords": 2,
+             "keywords_counted": 42, "top_keywords": ["…"], "x": -2.3, "y": 3.6}],
+  "people": [{"person_id": "p0001", "name": "…", "unit": "…", "x": -3.4, "y": 4.0,
+              "shares": [{"s1": 0.25, "s8": 0.75}, {"c3": 0.25, "c9": 0.75}]}],
+  "keywords": [{"term": "tide gauge", "x": -4.3, "y": 3.3, "node": "c3", "level": 2,
+                "counts_to": 2, "weight": 0.07, "share": 0.002}],
+  "units": [{"unit": "…", "x": 0, "y": 0, "size": 7, "ellipse": {"sx": 0.5, "sy": 1.0, "rho": -0.1},
+             "shares": [{"s1": 0.5}, {"c3": 0.5}]}],
+  "trajectories": [{"person_id": "p0001", "start": 2021, "end": 2023, "texts": 2, "x": 0, "y": 0,
+                    "shares": [{"s1": 1.0}, {"c3": 1.0}]}],
+  "overlays": [{"set": "applicants", "person_id": "p0041", "x": 0, "y": 0, "shares": [{}, {}]}],
+  "bounds": {"xmin": -6, "xmax": 6, "ymin": -5, "ymax": 7}
+}
+```
+
+- `levels` and `nodes` come from `themes_applied.json` of the map (nodes in
+  tree order, with their map position, the mean of their people's).
+- `shares` is one `{node id: share}` per level, from the top: the **usage
+  share** of the person (the organisation, the time window, the projected
+  person) that counts toward each node of that level; each level sums to 1
+  where there is usage. A keyword's `node` is `null` when it is set aside.
+- The `ETag` depends on the format and the lineage; `If-None-Match` gives 304.
+
+### The theme tree
+
+| route | what it does |
+| --- | --- |
+| `GET /api/themes` | the saved tree (`source: saved`), else the grouping's proposal read from `themes.group/themes_draft.json` (`source: draft`), else none; beside it `based_on_current`, the vocabulary's gaps, `space_run`, and `proposal`: `{run, pending, same_vocabulary}` |
+| `GET /api/themes/draft` | the grouping's latest proposal, whatever tree is saved: `{run, tree}` (`no_proposal` before the first grouping) |
+| `GET /api/themes/usage` | each keyword of the current vocabulary: `{term: [people, weight]}` (how many people use it; the sum of its share of each person's usage), `people` counted; `ETag` by the space's run |
+| `POST /api/themes/ops` | `{tree, ops, lenient}`: the operations applied in order; each step is `{op, description}`, or with `lenient` a refused step is skipped and reported as `{op, refused}` |
+| `POST /api/themes/compare` | `{before, after, limit}`: every difference (`cartolex.project.themes.compare`), with `total` and `counts` by kind |
+| `POST /api/themes/rebase` | rebases the saved tree onto the current vocabulary now, as an apply does first (send `If-Match`): `{written, notes, version, to_check, tree}` |
+| `POST /api/themes/proposal` | `{decision: adopt \| keep, run}` (send `If-Match`): agree once on a new grouping of the same vocabulary; `adopt` saves the proposal, `keep` records that the tree was kept over it (`based_on.run`); `proposal_changed` when a newer proposal replaced `run` |
+
+A **clustering-only change** (the grouping ran again with other parameters, on
+the same vocabulary) leaves the saved tree as it is. `proposal.pending` is true
+until someone adopts the new proposal or keeps the tree over it: the tree
+names the grouping it agreed with in `based_on.run` (a tree saved from a
+proposal, adopted or kept), else the grouping the last apply read (after a
+rebase).
+
+### The theme handoff
+
+The theme curation by handoff follows the keyword handoff
+(`cartolex.project.themes_handoff`, format `cartolex-themes-handoff/1`): each
+part is `prompt.txt` (to paste), `tree.txt` (to attach), `expected-answer.txt`
+and `bundle.json` (the tree as it was sent). `tree.txt` holds the tree (node
+ids, names, levels), each node's most used keywords with how many people use
+each, the set-aside tray, and the project's description labelled as the
+assistant's context; never texts, people or their names, or keys. A tree too
+large for `max_tokens` is cut by top-level nodes: every part holds the whole
+outline and the keywords of some top-level nodes. The answer is one operation
+per line:
+
+```text
+1 | RENAME | s3 | Coastal hazards | its keywords are floods, surges and erosion
+2 | MOVE | tide gauge | s5 | an instrument of sea-level observation
+3 | MERGE | s7 | s2 | both hold harbour management keywords
+4 | SPLIT | s4 | Salt marshes | salt marsh; marsh accretion | a distinct group
+5 | SET ASIDE | further work | not a keyword of the field
+6 | ATTRIBUTION | ocean | 0 | too broad to count toward one theme
+```
+
+| route | what it does |
+| --- | --- |
+| `POST /api/themes/handoff/export` | `{tree, top, max_tokens}` (default: the saved tree, else the proposal): the parts, what they contain and never contain |
+| `POST /api/themes/handoff/export.zip` | the same parts as a zip, one folder per part with its `bundle.json` |
+| `POST /api/themes/handoff/import` | `{bundle, answer}`: keeps the answer in `decisions/history/ai/<time>-themes.txt` (and the bundle beside it), reads it into proposed operations (`items`: `number`, `verb`, `op` in the form of `POST /api/themes/ops`, `reason`, `refused` when it cannot apply to the tree sent) and the lines it could not read (`unreadable`: `line`, `text`, `problem`); nothing changes in the tree. The first AI answers freeze the identity |
+| `GET /api/themes/handoff/proposals` | the imported answers, newest first |
+| `GET /api/themes/handoff/proposals/{id}` | one of them, read again |
+
+The editor shows a proposal as a list to accept or reject, previews the
+accepted operations on the tree, and applies them through
+`POST /api/themes/ops`, so they are undone like any other edit. An answer's
+unreadable lines have a `problem`: `unknown_action`, `missing_fields`,
+`unknown_node`, `unknown_keyword`, `bad_levels`, `empty_name` or `same_node`.
+
+### Errors of the theme editor
+
+| code | status | message | next |
+| --- | --- | --- | --- |
+| `no_proposal` | 404 | the grouping has proposed no tree yet: build the themes first | `build` |
+| `proposal_changed` | 409 | a newer proposal ({run}) replaced the one you saw: look at it first | `reload` |
+| `theme_handoff_empty` | 404 | the tree holds no keyword to send | — |
+| `invalid_theme_bundle` | 422 | this is not a theme bundle of cartolex: {detail} | `fix-input` |
+
+**Keeping over an unanswered proposal, and the versions' names.** When a
+new grouping of the same vocabulary waits for an answer
+(`GET /api/themes` → `proposal.pending`), `POST /api/themes/apply` first keeps
+the saved tree over it, as a new version whose action is « keep the curated
+tree over the proposal `<run id>` at an apply », and its answer adds
+`kept: {run, action, version}`. `GET /api/themes/versions` gives each version
+`names` and `names_after`: the names of the nodes its action names, in the
+version before it and in the one it made (a node merged away is named by the
+version that still had it).

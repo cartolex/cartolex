@@ -295,6 +295,16 @@ ERRORS: dict[str, ErrorKind] = {
     "invalid_bundle": ErrorKind(422, "the bundle is not valid: {detail}", "fix-input"),
     "proposal_not_found": ErrorKind(404, "there is no proposal {proposal}", "reload"),
     "nothing_chosen": ErrorKind(422, "choose the terms to accept", "fix-input"),
+    "no_proposal": ErrorKind(
+        404, "the grouping has proposed no tree yet: build the themes first", "build"
+    ),
+    "proposal_changed": ErrorKind(
+        409, "a newer proposal ({run}) replaced the one you saw: look at it first", "reload"
+    ),
+    "theme_handoff_empty": ErrorKind(404, "the tree holds no keyword to send", "none"),
+    "invalid_theme_bundle": ErrorKind(
+        422, "this is not a theme bundle of cartolex: {detail}", "fix-input"
+    ),
     # sharing
     "not_available": ErrorKind(501, "building the offline site is not available in this version"),
 }

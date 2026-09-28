@@ -345,3 +345,28 @@ nothing in the engine names a particular deployment, source or procedure.
   models are fitted on builds of 10³ to 10⁵ people (within a factor of two).
   `cartolex.demo.scale` writes streamed worlds of any size into a project.
   See `docs/sizes.md` and `docs/dev/layouts.md`.
+- **The theme editor.** The themes screen edits the theme tree at any depth:
+  an outline with a search over every keyword, a treemap and a map of people
+  and keywords kept in sync, and a side panel with each node's keywords, the
+  people who weigh most on it and its names. Every action (rename per
+  language, move, merge, split, create, delete, set aside and put back,
+  attribution, levels) has a menu item and a key; drag and drop is a shortcut.
+  Undo and redo are unlimited and named by the operations; a draft is kept in
+  the browser per project and restored after a reload or a crash; leaving asks
+  in the page; a save refused because the tree changed reloads and merges;
+  versions can be read, compared and restored. The « To check » queue, the
+  banner for another vocabulary (with a rebase on demand), agreeing once on a
+  clustering-only change (an apply made without an answer keeps the tree
+  over it, as a version that says so), and « Save and apply » in the
+  background are part of it; people's shares and the map refresh after an
+  apply. The page is a set of modules under `pages/themes/`, and the
+  navigation budget counts API calls only. AI curation goes through a theme handoff
+  (`cartolex.project.themes_handoff`, `cartolex-themes-handoff/1`): the tree
+  and each node's most used keywords out, a list of operations back, each
+  reviewed before it applies. New components: `TreeView`, `Treemap`,
+  `MapFrame`; twelve hue tokens for the themes. `GET /api/atlas` is
+  `cartolex-atlas/2` (levels, nodes, usage shares per level), read from the
+  theme files of any depth, and the editor's draft comes from
+  `themes_draft.json`, so projects of depth 1, 3 or 4 get their map and their
+  tree. See `docs/dev/themes-editor.md`; `docs/dev/usability-g3.md` holds the
+  materials of the usability test.

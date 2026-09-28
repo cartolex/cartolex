@@ -213,6 +213,11 @@ A host application may set its own accent, per theme, in the manifest's
 passes it to the style sheet as `--cx-brand-accent-light` and
 `--cx-brand-accent-dark`, which replace the accent and the focus ring.
 
+Data, not state, has hues of its own: the twelve families `--cx-hue-1` to
+`--cx-hue-12` colour the top-level themes in the treemap and on the map (3:1
+on the page, checked with the other tokens); the accent marks the selection
+only.
+
 Every colour, size and duration is a token (`--cx-*`) of `css/tokens.css`.
 The contrast check computes the WCAG ratio of every text token on every
 background token in both themes (at least 4.5:1, muted text included) and of
@@ -243,6 +248,9 @@ empty, long text); the gallery shows them all.
 | Tooltip, Help | hover and focus, dismissible with Escape; Help opens an explanation |
 | AiHandoffDialog | export a bundle of terms with its instructions (what it contains, what it never contains), paste the answer, review, import |
 | ActivityIndicator, ActivityDrawer | « Building · keywords 45 % »; jobs with progress, Stop, results, errors |
+| TreeView | a virtualised tree (thousands of rows): the tree pattern's keyboard, ranges, type-ahead, context menu, drag and drop, a caller's own keys |
+| Treemap | squarified nested rectangles by weight, one hue family per top-level node, labels that fit or are cut, zoom, drop targets |
+| MapFrame | points on a canvas behind a renderer interface: pan, zoom, fit, hit testing, highlight, resize, theme changes; 10⁴ points pan at 60 frames a second |
 
 ## Rules
 
@@ -283,9 +291,21 @@ extension), `GET /api/project/state`, `GET /api/jobs` and
 `POST /api/jobs/<id>/cancel` (`tests/fixtures/ui/`), the shell for every other
 path, and the app's Content-Security-Policy on every answer.
 
-The core pages' modules (`pages/people.js`, `keywords.js`, `themes.js`,
-`map.js`, `share.js`, `settings.js`) are placeholders until their screens are
-built; pages placed in `settings` are listed in the header's settings menu.
+The core pages' modules (`pages/people.js`, `keywords.js`, `map.js`,
+`share.js`, `settings.js`) are placeholders until their screens are built;
+pages placed in `settings` are listed in the header's settings menu. The
+themes screen (`pages/themes.js`, {doc}`themes-editor`) is built. A screen
+is split into modules of a few hundred lines each, under a folder named after
+it, with a small entry module: `pages/themes.js` loads `pages/themes/editor.js`,
+which puts together the outline (`outline.js`, `rows.js`, `review.js`), the
+treemap and map panels (`treemap.js`, `map.js`, `centre.js`), the side panel
+(`panel.js`), the actions and operations (`actions.js`, `operations.js`,
+`dialogs.js`), the draft store (`store.js`), the versions (`versions.js`) and
+the AI handoff (`handoff.js`), over the tree's model (`model.js`,
+`labels.js`). Static modules cost nothing after the first load (they are
+cached), so the budget of a navigation counts API calls only. The fixture
+server answers the themes screen with a small tree
+(`tests/fixtures/ui/themes.example.json`).
 
 ## Checks
 
@@ -311,14 +331,22 @@ console error, an uncaught exception or a CSP violation fails a test:
   drawer and menus: no serious or critical violation;
 - **keyboard scripts**: Tab reaches every interactive section in order, and
   each component is operated with the keyboard alone;
-- **budgets**: every navigation ready in under 1 s with at most 5 requests
-  (the jobs poller's own reads are not counted);
+- **budgets**: every navigation ready in under 1 s with at most 5 API calls
+  (static modules and style sheets, cached after the first load, and the jobs
+  poller's own reads are not counted);
 - **teardown and leaks**: ten round trips between the gallery and the
   overview; DOM nodes and event listeners within 2 %, the JS heap within 10 %,
   after a forced garbage collection;
 - the shell's behaviour: start order, cached status dots, routing and focus,
   guards, late answers dropped, the extension API, the API client, the
-  Activity drawer.
+  Activity drawer;
+- the theme editor on the real app (`tests/browser/test_theme_editor.py`, with
+  `app_harness.py`): the S demo world built as a project once per session,
+  then each scenario on a fresh copy served by the app on a free loopback port
+  (see {doc}`themes-editor`): the main flows, a keyboard script of the menu
+  actions, axe, and one budget on the L world (marked `slow`). A test waits
+  with a predicate that returns a boolean, never an element: an element handle
+  would keep a page alive and read as a leak.
 
 The browser tests need `tools/requirements-browser.txt` (Playwright, which
 `tools/check.py` installs into the quick Python's environment) and a Chromium

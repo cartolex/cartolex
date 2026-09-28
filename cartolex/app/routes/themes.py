@@ -4,6 +4,10 @@
 from __future__ import annotations
 
 import json
+import re
+from datetime import timezone
+from functools import lru_cache
+from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import Path as PathParam
@@ -31,6 +35,11 @@ Keywords = Annotated[
 ]
 #: The most operations one request applies.
 MAX_OPS = 500
+#: The action of a « keep » (``<KEEP_ACTION> <grouping run id>``), with ``ON_APPLY`` when an apply made it.
+KEEP_ACTION = "keep the curated tree over the proposal"
+ON_APPLY = " at an apply"
+#: The start of the action of a rebase onto a new vocabulary.
+REBASE_ACTION = "rebase onto"
 
 
 class RenameNode(BaseModel):
@@ -194,6 +203,11 @@ def _vocabulary(runtime: Any, ctx: Any) -> tuple[list[str], str | None]:
         return [], None
 
     def load() -> list[str]:
+        # The terms are in the JSON document itself: no need to load the matrices (and the
+        # scientific libraries) to know the vocabulary.
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(doc, dict) and isinstance(doc.get("terms"), list):
+            return [str(t) for t in doc["terms"]]
         from cartolex.atlas.model_files import load_lexical_data
 
         return [str(t) for t in load_lexical_data(path).terms]
@@ -201,28 +215,122 @@ def _vocabulary(runtime: Any, ctx: Any) -> tuple[list[str], str | None]:
     return runtime.table_cache.get(("vocabulary", ctx.id, record.run_id), load), record.run_id
 
 
-def _draft(runtime: Any, ctx: Any, terms: list[str], space_run: str | None) -> ThemesFile | None:
+def _group_run(ctx: Any) -> str | None:
+    """The run id of the grouping whose proposal is on disk (``themes.group``)."""
     from cartolex.build.records import read_record
-    from cartolex.project.themes import vocabulary_fingerprint
-    from cartolex.project.themes_curated import from_curated
 
     record = read_record(ctx.layout, "themes.group")
-    path = ctx.layout.stage("themes.group") / "subfields_draft.json"
-    if record is None or not path.exists() or not terms:
+    return record.run_id if record else None
+
+
+def _draft(runtime: Any, ctx: Any) -> ThemesFile | None:
+    """The grouping's proposal (``themes.group/themes_draft.json``, any depth), or ``None``."""
+    run = _group_run(ctx)
+    path = ctx.layout.stage("themes.group") / "themes_draft.json"
+    if run is None or not path.exists():
         return None
 
     def load() -> ThemesFile:
-        doc = json.loads(path.read_text(encoding="utf-8"))
-        tree = from_curated(
-            doc, terms, reference_language=ctx.project.config.languages.reference
-        ).tree
-        basis = {
-            "run": f"themes.space/{space_run}" if space_run else None,
-            "vocabulary": vocabulary_fingerprint(terms),
-        }
-        return tree.model_copy(update={"based_on": tree.based_on.model_validate(basis)})
+        return ThemesFile.model_validate(json.loads(path.read_text(encoding="utf-8")))
 
-    return runtime.table_cache.get(("draft", ctx.id, record.run_id, space_run), load)
+    return runtime.table_cache.get(("draft", ctx.id, run), load)
+
+
+def _usage(runtime: Any, ctx: Any) -> tuple[dict[str, list[float]], int, str | None]:
+    """Each keyword's usage in the current vocabulary: ``[people, weight]``; people counted.
+
+    *people* is how many people use the keyword; *weight* is the sum, over
+    people, of the keyword's share of their usage (TF counts when the space
+    has them): the keywords' weights add up to the number of people with usage.
+    """
+    from cartolex.build.records import read_record
+
+    record = read_record(ctx.layout, "themes.space")
+    path = ctx.layout.stage("themes.space") / "models" / "lexical_data.json"
+    if record is None or not path.exists():
+        return {}, 0, None
+
+    def load() -> tuple[dict[str, list[float]], int]:
+        import numpy as np
+
+        from cartolex.atlas.model_files import load_lexical_data
+
+        data = load_lexical_data(path)
+        X = data.X_tf if getattr(data, "X_tf", None) is not None else data.X
+        X = X.tocsr() if hasattr(X, "tocsr") else X
+        totals = np.asarray(X.sum(axis=1)).ravel()
+        scale = np.divide(1.0, totals, out=np.zeros_like(totals, dtype=float), where=totals > 0)
+        weights = np.asarray(X.multiply(scale[:, None]).sum(axis=0)).ravel()
+        people = np.asarray((X > 0).sum(axis=0)).ravel()
+        terms = [str(t) for t in data.terms]
+        usage = {
+            t: [int(n), round(float(w), 4)] for t, n, w in zip(terms, people, weights, strict=True)
+        }
+        return usage, int((totals > 0).sum())
+
+    usage, counted = runtime.table_cache.get(("usage", ctx.id, record.run_id), load)
+    return usage, counted, record.run_id
+
+
+#: What :func:`_agreed_group_run` answers when the tree agreed with a grouping older than the current one.
+_EARLIER = "an earlier grouping"
+
+
+def _utc(moment: Any) -> Any:
+    return moment.replace(tzinfo=timezone.utc) if moment.tzinfo is None else moment
+
+
+def _rebased_at(ctx: Any, tree: ThemesFile) -> Any:
+    """When the tree was last rebased onto a new vocabulary (to the second), or ``None``."""
+    from cartolex.project.themes_versions import made_at
+
+    saved = tree.saved
+    if saved is not None and saved.action.startswith(REBASE_ACTION):
+        return _utc(saved.at).replace(microsecond=0)
+    return made_at(ctx.project, REBASE_ACTION)
+
+
+def _agreed_group_run(ctx: Any, tree: ThemesFile) -> str | None:
+    """The grouping run a curated tree has agreed with (``None``: unknown).
+
+    A tree saved from a proposal, or kept over a new one (by « Keep my tree »,
+    or by an apply made without an answer), names the grouping in
+    ``based_on.run``. A rebase names the space instead: it placed the new
+    keywords after the proposal on disk at the time, so the tree agreed with
+    the current grouping if it had finished by then, and with an earlier one
+    if it ran again since. A tree with neither agreed with the grouping the
+    last ``themes.apply`` run read.
+    """
+    from cartolex.build.records import read_record
+
+    run = tree.based_on.run or ""
+    if run.startswith("themes.group/"):
+        return run.split("/", 1)[1]
+    if run.startswith("themes.space/"):
+        group = read_record(ctx.layout, "themes.group")
+        rebased = _rebased_at(ctx, tree)
+        if group is not None and rebased is not None:
+            finished = _utc(group.finished_at or group.started_at).replace(microsecond=0)
+            return group.run_id if finished <= rebased else _EARLIER
+    record = read_record(ctx.layout, "themes.apply")
+    for entry in record.inputs if record else ():
+        if getattr(entry, "stage", None) == "themes.group":
+            return entry.run_id
+    return None
+
+
+def _proposal_state(ctx: Any, tree: ThemesFile, draft: ThemesFile | None) -> dict[str, Any]:
+    """Whether a new grouping of the same vocabulary waits to be agreed on (adopted or not)."""
+    run = _group_run(ctx)
+    if draft is None or run is None:
+        return {"run": None, "pending": False, "same_vocabulary": False}
+    same = bool(tree.based_on.vocabulary) and draft.based_on.vocabulary == tree.based_on.vocabulary
+    agreed = _agreed_group_run(ctx, tree)
+    return {
+        "run": f"themes.group/{run}",
+        "pending": same and agreed is not None and agreed != run,
+        "same_vocabulary": same,
+    }
 
 
 def _tree_view(tree: ThemesFile, terms: list[str]) -> dict[str, Any]:
@@ -243,31 +351,75 @@ def _tree_view(tree: ThemesFile, terms: list[str]) -> dict[str, Any]:
 
 @routes.get("/api/themes", action="themes.read")
 def get_themes(request: Request, response: Response, ctx: ProjectDep) -> dict[str, Any]:
-    """The theme tree: the saved one, else the draft of the last grouping, else none."""
+    """The theme tree: the saved one, else the grouping's proposal, else none.
+
+    Beside the tree: how it stands against the current vocabulary, how many
+    keywords wait in the « to check » queue, and whether a new proposal of the
+    same vocabulary waits to be agreed on (``proposal``).
+    """
     from cartolex.project.themes_versions import read_themes
 
     runtime = runtime_of(request)
     terms, space_run = _vocabulary(runtime, ctx)
     tree, fp = read_themes(ctx.project)
     response.headers["ETag"] = etag_of(fp)
+    draft = _draft(runtime, ctx)
+    common = {"version": version_of(fp), "space_run": space_run}
     if tree is not None:
-        return {"source": "saved", "version": version_of(fp), **_tree_view(tree, terms)}
-    draft = _draft(runtime, ctx, terms, space_run)
+        return {
+            "source": "saved",
+            **common,
+            **_tree_view(tree, terms),
+            "proposal": _proposal_state(ctx, tree, draft),
+        }
     if draft is not None:
-        return {"source": "draft", "version": version_of(fp), **_tree_view(draft, terms)}
+        return {
+            "source": "draft",
+            **common,
+            **_tree_view(draft, terms),
+            "proposal": {"run": draft.based_on.run, "pending": False, "same_vocabulary": True},
+        }
     return {
         "source": "none",
-        "version": version_of(fp),
+        **common,
         "tree": None,
         "empty": empty("empty_no_themes"),
     }
 
 
+@routes.get("/api/themes/draft", action="themes.read")
+def get_draft(request: Request, ctx: ProjectDep) -> dict[str, Any]:
+    """The grouping's latest proposal, whatever tree is saved (to compare or adopt it)."""
+    draft = _draft(runtime_of(request), ctx)
+    if draft is None:
+        raise ApiError.of("no_proposal")
+    return {"run": draft.based_on.run, "tree": draft.model_dump(mode="json", by_alias=True)}
+
+
+@routes.get("/api/themes/usage", action="themes.read")
+def usage(request: Request, response: Response, ctx: ProjectDep) -> Response:
+    """Each keyword's usage in the current vocabulary: ``{term: [people, weight]}``.
+
+    Cached by the space's run, with an ``ETag``; ``If-None-Match`` gives 304.
+    """
+    usage_map, counted, run = _usage(runtime_of(request), ctx)
+    etag = f'"usage-{run}"' if run else '"usage-none"'
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers={"ETag": etag})
+    return JSONResponse({"run": run, "people": counted, "terms": usage_map}, headers={"ETag": etag})
+
+
 class OpsBody(BaseModel):
-    """A tree and the operations to apply to it, in order."""
+    """A tree and the operations to apply to it, in order.
+
+    With ``lenient``, a refused operation is skipped and reported instead of
+    refusing the whole request (to re-apply a draft on a newer tree, or to try
+    proposals one by one).
+    """
 
     tree: dict[str, Any]
     ops: Annotated[list[Operation], Field(min_length=1, max_length=MAX_OPS)]
+    lenient: bool = False
 
 
 def _parse_tree(raw: dict[str, Any]) -> ThemesFile:
@@ -282,22 +434,51 @@ def apply_ops(body: OpsBody, ctx: ProjectDep) -> dict[str, Any]:
     """Apply operations to a tree and return the new tree with each step's description.
 
     Nothing is saved: the interface keeps the tree being edited and its undo
-    list (the descriptions name the steps); ``PUT /api/themes`` saves.
+    list (the descriptions name the steps); ``PUT /api/themes`` saves. A
+    refused step refuses the request (422, ``theme_step_refused``), unless
+    ``lenient``: then it is skipped, and its step says why (``refused``).
     """
     from cartolex.project.themes import ThemeEditError
 
     tree = _parse_tree(body.tree)
-    steps = []
+    steps: list[dict[str, Any]] = []
     for i, op in enumerate(body.ops):
         try:
             edit = apply_op(tree, op)
         except ThemeEditError as exc:
+            if body.lenient:
+                steps.append({"op": op.op, "refused": str(exc)})
+                continue
             raise ApiError.of(
                 "theme_step_refused", step=i + 1, op=op.op, detail=str(exc), extra={"step": i}
             ) from exc
         tree = edit.tree
         steps.append({"op": op.op, "description": edit.description})
     return {"tree": tree.model_dump(mode="json", by_alias=True), "steps": steps}
+
+
+class CompareBody(BaseModel):
+    """Two trees to compare: what changed from ``before`` to ``after``."""
+
+    before: dict[str, Any]
+    after: dict[str, Any]
+    limit: Annotated[int, Field(ge=1, le=100_000)] = 5_000
+
+
+@routes.post("/api/themes/compare", action="themes.read")
+def compare_trees(body: CompareBody, ctx: ProjectDep) -> dict[str, Any]:
+    """Every difference between two trees (``cartolex.project.themes.compare``), and counts by kind."""
+    from cartolex.project.themes import compare
+
+    changes = compare(_parse_tree(body.before), _parse_tree(body.after))
+    counts: dict[str, int] = {}
+    for c in changes:
+        counts[c.kind] = counts.get(c.kind, 0) + 1
+    return {
+        "changes": [c.as_dict() for c in changes[: body.limit]],
+        "total": len(changes),
+        "counts": counts,
+    }
 
 
 class SaveBody(BaseModel):
@@ -318,6 +499,10 @@ def save(request: Request, response: Response, body: SaveBody, ctx: ProjectDep) 
         if saved.written:
             ctx.project.freeze_identity("first curation decision")
     response.headers["ETag"] = etag_of(saved.fingerprint)
+    return _saved_json(saved)
+
+
+def _saved_json(saved: Any) -> dict[str, Any]:
     return {
         "written": saved.written,
         "action": saved.action,
@@ -325,6 +510,83 @@ def save(request: Request, response: Response, body: SaveBody, ctx: ProjectDep) 
         "version": version_of(saved.fingerprint),
         "tree": saved.tree.model_dump(mode="json", by_alias=True),
     }
+
+
+@routes.post("/api/themes/rebase", action="themes.write")
+def rebase_now(request: Request, response: Response, ctx: ProjectDep) -> dict[str, Any]:
+    """Rebase the saved tree onto the current vocabulary now (send ``If-Match``).
+
+    The same rebase an « apply » runs first: kept keywords stay, each new one
+    goes to the node that holds most of its group in the proposal, marked « to
+    check » (set aside when no node has a majority), vanished ones are removed.
+    It is saved as a new version; nothing is written when the tree is already
+    based on the current vocabulary.
+    """
+    from cartolex.build.engine import prepare_themes
+    from cartolex.project.themes_versions import read_themes
+
+    expected = expected_version(request)
+    terms, _ = _vocabulary(runtime_of(request), ctx)
+    if not terms:
+        raise ApiError.of("no_keywords")
+    with ctx.handle.mutex:
+        check_version(ctx.layout.themes_json, expected)
+        if read_themes(ctx.project)[0] is None:
+            raise ApiError.of("file_not_written", file="themes.json")
+        notes = prepare_themes(ctx.project)
+        tree, fp = read_themes(ctx.project)
+    assert tree is not None
+    response.headers["ETag"] = etag_of(fp)
+    return {
+        "written": bool(notes),
+        "notes": notes,
+        "version": version_of(fp),
+        "to_check": sum(1 for v in tree.review.values() if v == "to_check"),
+        "tree": tree.model_dump(mode="json", by_alias=True),
+    }
+
+
+class ProposalBody(BaseModel):
+    """What to do with a new proposal of the same vocabulary: adopt it, or keep the tree."""
+
+    decision: Literal["adopt", "keep"]
+    run: Annotated[str, Field(min_length=1, max_length=120)]
+
+
+@routes.post("/api/themes/proposal", action="themes.write")
+def decide_proposal(
+    request: Request, response: Response, body: ProposalBody, ctx: ProjectDep
+) -> dict[str, Any]:
+    """Agree once on a new grouping of the same vocabulary (send ``If-Match``).
+
+    ``adopt`` saves the proposal as the new tree; ``keep`` keeps the saved tree
+    and records that it was kept over this proposal (``based_on.run``). Either
+    is a new version, undone like any other; ``run`` names the proposal the
+    person saw, and a newer one refuses the decision.
+    """
+    from cartolex.project.themes_versions import read_themes, save_themes
+
+    expected = expected_version(request)
+    draft = _draft(runtime_of(request), ctx)
+    if draft is None:
+        raise ApiError.of("no_proposal")
+    if draft.based_on.run != body.run:
+        raise ApiError.of("proposal_changed", run=str(draft.based_on.run))
+    with ctx.handle.mutex:
+        check_version(ctx.layout.themes_json, expected)
+        tree, _ = read_themes(ctx.project)
+        if tree is None:
+            raise ApiError.of("file_not_written", file="themes.json")
+        run_id = body.run.split("/", 1)[-1]
+        if body.decision == "adopt":
+            chosen, action = draft, f"adopt the grouping proposal {run_id}"
+        else:
+            basis = tree.based_on.model_copy(update={"run": body.run})
+            chosen = tree.model_copy(update={"based_on": basis})
+            action = f"{KEEP_ACTION} {run_id}"
+        saved = save_themes(ctx.project, chosen, expected=expected, action=action)
+    response.headers["ETag"] = etag_of(saved.fingerprint)
+    return _saved_json(saved)
 
 
 VersionId = Annotated[str, PathParam(pattern=r"^[\w-]{1,96}$")]
@@ -343,12 +605,57 @@ def _version_json(v: Any) -> dict[str, Any]:
     }
 
 
+@lru_cache(maxsize=512)
+def _node_names(path: str, _mtime_ns: int, _size: int) -> dict[str, dict[str, str]]:
+    """Each node's names in a version file (keyed by the file's state: a version never changes)."""
+    try:
+        doc = json.loads(Path(path).read_text(encoding="utf-8"))
+        return {str(n["id"]): dict(n.get("names") or {}) for n in doc.get("nodes") or []}
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return {}
+
+
+def _names_in(path: Path) -> dict[str, dict[str, str]]:
+    try:
+        stat = path.stat()
+    except OSError:
+        return {}
+    return _node_names(str(path), stat.st_mtime_ns, stat.st_size)
+
+
+def _action_names(action: str | None, before: Path | None, after: Path) -> dict[str, Any]:
+    """The names of the nodes *action* names: in the version before it, and in the one it made.
+
+    A node merged away or deleted is named by the version that still had it,
+    a renamed one by both.
+    """
+    words = set(re.split(r"[\s,;]+", action or "")) - {""}
+    made = _names_in(after)
+    was = _names_in(before) if before is not None else made
+    return {
+        "names": {k: was[k] for k in sorted(words) if k in was},
+        "names_after": {k: made[k] for k in sorted(words) if k in made},
+    }
+
+
 @routes.get("/api/themes/versions", action="themes.read")
 def versions(ctx: ProjectDep) -> dict[str, Any]:
-    """Every saved version of the tree, the current one first."""
+    """Every saved version of the tree, the current one first.
+
+    Each gives the names of the nodes its action names (``names``, before the
+    action; ``names_after``, in the version it made), from the versions
+    themselves, so that a node merged away since keeps its name.
+    """
     from cartolex.project.themes_versions import list_versions
 
-    items = [_version_json(v) for v in list_versions(ctx.project)]
+    listed = list_versions(ctx.project)
+    items = [
+        {
+            **_version_json(v),
+            **_action_names(v.made_by, listed[i + 1].path if i + 1 < len(listed) else None, v.path),
+        }
+        for i, v in enumerate(listed)
+    ]
     return {
         "items": items,
         "total": len(items),
@@ -396,13 +703,208 @@ def restore(
 APPLY_TARGETS = ["themes.apply", "map.layout", "map.trajectories", "overlays.position"]
 
 
+def _keep_on_apply(runtime: Any, ctx: Any) -> dict[str, Any] | None:
+    """Keep the saved tree over a new grouping nobody answered, as a version of its own.
+
+    An apply builds from the saved tree; without this, the next « agreed »
+    grouping would be the one the apply read, and the proposal would vanish
+    unanswered. Nothing is done when no proposal is pending or the project is
+    read-only.
+    """
+    from cartolex.project.themes_versions import read_themes, save_themes
+
+    if not getattr(ctx.project, "writable", False):
+        return None
+    with ctx.handle.mutex:
+        tree, fp = read_themes(ctx.project)
+        if tree is None:
+            return None
+        state = _proposal_state(ctx, tree, _draft(runtime, ctx))
+        if not state["pending"]:
+            return None
+        run = state["run"]
+        basis = tree.based_on.model_copy(update={"run": run})
+        saved = save_themes(
+            ctx.project,
+            tree.model_copy(update={"based_on": basis}),
+            expected=fp,
+            action=f"{KEEP_ACTION} {run.split('/', 1)[1]}{ON_APPLY}",
+        )
+    return {"run": run, "action": saved.action, "version": version_of(saved.fingerprint)}
+
+
 @routes.post("/api/themes/apply", action="build.start")
 def apply(request: Request, ctx: ProjectDep) -> JSONResponse:
-    """Apply the saved tree: a build job of the themes and the map (``GET /api/build`` tracks it)."""
+    """Apply the saved tree: a build job of the themes and the map (``GET /api/build`` tracks it).
+
+    A new grouping of the same vocabulary still waiting for an answer is not
+    dropped silently: the apply first keeps the tree over it, as a new version
+    whose action says so (``keep the curated tree over the proposal <id> at an
+    apply``), and names it in ``kept`` (``{run, action, version}``).
+    """
     from .build import start_build_job
 
     runtime = runtime_of(request)
+    kept = _keep_on_apply(runtime, ctx)
     targets = [t for t in APPLY_TARGETS if t in runtime.registry]
-    return JSONResponse(
-        start_build_job(runtime, ctx, targets, title="apply the themes"), status_code=202
+    body = start_build_job(runtime, ctx, targets, title="apply the themes")
+    if kept is not None:
+        body = {**body, "kept": kept}
+    return JSONResponse(body, status_code=202)
+
+
+# ── AI curation by handoff ───────────────────────────────────────────────────
+
+#: What a theme bundle holds, and what it never holds (shown before the export).
+HANDOFF_CONTAINS = (
+    "the tree: node ids, names and levels",
+    "each node's most used keywords, with how many people use each",
+    "the set-aside keywords and why",
+    "the field's title and description, as the assistant's context",
+)
+HANDOFF_NEVER = ("texts", "people's names or identifiers", "keys")
+ThemeProposalId = Annotated[str, PathParam(pattern=r"^\d{8}T\d{6}Z-themes(-\d+)?$")]
+
+
+class ThemeExportBody(BaseModel):
+    """The tree to send (the one being edited; default: the saved tree, else the proposal),
+    how many keywords per node, and the size of each part."""
+
+    tree: dict[str, Any] | None = None
+    top: Annotated[int, Field(ge=3, le=50)] = 20
+    max_tokens: Annotated[int, Field(ge=4_000, le=1_000_000)] = 24_000
+
+
+def _theme_export(request: Request, body: ThemeExportBody, ctx: Any) -> dict[str, Any]:
+    from cartolex.project.themes_handoff import bundle_parts
+    from cartolex.project.themes_versions import read_themes
+
+    runtime = runtime_of(request)
+    if body.tree is not None:
+        tree: ThemesFile | None = _parse_tree(body.tree)
+    else:
+        tree = read_themes(ctx.project)[0] or _draft(runtime, ctx)
+    if tree is None or not (tree.keywords or tree.set_aside):
+        raise ApiError.of("theme_handoff_empty")
+    usage_map, _, run = _usage(runtime, ctx)
+    config = ctx.project.config
+    parts = bundle_parts(
+        tree,
+        usage_map,
+        domain=config.identity.domain_title,
+        description=config.identity.domain_description,
+        language=config.languages.reference,
+        max_tokens=body.max_tokens,
+        top=body.top,
+        meta={"space_run": run},
     )
+    return {
+        "parts": parts,
+        "nodes": len(tree.nodes),
+        "keywords": len(tree.keywords),
+        "contains": list(HANDOFF_CONTAINS),
+        "never": list(HANDOFF_NEVER),
+    }
+
+
+@routes.post("/api/themes/handoff/export", action="themes.read")
+def theme_export(request: Request, body: ThemeExportBody, ctx: ProjectDep) -> dict[str, Any]:
+    """The parts of a theme handoff: the prompt to paste, the tree to attach, the answer's
+    format and ``bundle.json`` for each; what they contain and what they never contain."""
+    return _theme_export(request, body, ctx)
+
+
+@routes.post("/api/themes/handoff/export.zip", action="themes.read")
+def theme_export_zip(request: Request, body: ThemeExportBody, ctx: ProjectDep) -> Response:
+    """The same parts as a zip: one folder per part, with ``bundle.json`` beside its texts."""
+    from cartolex.project.handoff import part_zip
+    from cartolex.project.themes_handoff import part_files
+
+    out = _theme_export(request, body, ctx)
+    data = part_zip({p["name"]: part_files(p) for p in out["parts"]})
+    return Response(
+        data,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="themes-handoff.zip"'},
+    )
+
+
+class ThemeImportBody(BaseModel):
+    """The part that was sent (its ``bundle.json``), and the answer as it came back."""
+
+    bundle: dict[str, Any]
+    answer: Annotated[str, Field(min_length=1, max_length=5_000_000)]
+
+
+def _theme_proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
+    from cartolex.project.themes_handoff import parse_answer, tree_of
+
+    folder = ctx.layout.history / "ai"
+    answer = folder / f"{proposal_id}.txt"
+    sent = folder / f"{proposal_id}.bundle.json"
+    if not answer.is_file() or not sent.is_file():
+        raise ApiError.of("proposal_not_found", proposal=proposal_id)
+    record = json.loads(sent.read_text(encoding="utf-8"))
+    tree = tree_of(record)
+    parsed = parse_answer(
+        answer.read_text(encoding="utf-8"), tree, language=record.get("language") or "en"
+    )
+    return {
+        "id": proposal_id,
+        "part": record.get("part", 1),
+        "parts": record.get("parts", 1),
+        **parsed.as_dict(),
+        "applicable": sum(1 for i in parsed.items if not i.refused),
+    }
+
+
+@routes.post("/api/themes/handoff/import", action="themes.write")
+def theme_import(body: ThemeImportBody, ctx: ProjectDep) -> dict[str, Any]:
+    """Keep the answer as it came (``decisions/history/ai/``) and read it into proposed operations.
+
+    Nothing changes in the tree: the editor shows the proposal, and the
+    operations someone accepts go through ``POST /api/themes/ops`` like any
+    other edit. The first AI answers freeze the project's identity.
+    """
+    from cartolex.project.files import atomic_write_bytes, json_bytes, utc_stamp
+    from cartolex.project.themes_handoff import tree_of
+
+    try:
+        tree_of(body.bundle)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ApiError.of("invalid_theme_bundle", detail=str(exc)[:300]) from exc
+    folder = ctx.layout.history / "ai"
+    with ctx.handle.mutex:
+        base = f"{utc_stamp()}-themes"
+        proposal_id, n = base, 1
+        while (folder / f"{proposal_id}.txt").exists():
+            n += 1
+            proposal_id = f"{base}-{n}"
+        atomic_write_bytes(folder / f"{proposal_id}.bundle.json", json_bytes(body.bundle))
+        atomic_write_bytes(folder / f"{proposal_id}.txt", body.answer.encode("utf-8"))
+        proposal = _theme_proposal(ctx, proposal_id)
+        if proposal["items"]:
+            ctx.project.freeze_identity("first AI answers")
+    return proposal
+
+
+@routes.get("/api/themes/handoff/proposals", action="themes.read")
+def theme_proposals(ctx: ProjectDep) -> dict[str, Any]:
+    """The theme proposals imported so far, the newest first."""
+    folder = ctx.layout.history / "ai"
+    names = (
+        (p.name[: -len(".txt")] for p in folder.glob("*-themes*.txt")) if folder.is_dir() else ()
+    )
+    ids = sorted((i for i in names if re.match(r"^\d{8}T\d{6}Z-themes(-\d+)?$", i)), reverse=True)
+    return {
+        "items": [{"id": i, "at": i[:16]} for i in ids],
+        "total": len(ids),
+        "empty": None if ids else empty("empty_no_proposals"),
+    }
+
+
+@routes.get("/api/themes/handoff/proposals/{proposal_id}", action="themes.read")
+def theme_proposal(proposal_id: ThemeProposalId, ctx: ProjectDep) -> dict[str, Any]:
+    """One imported answer: each proposed operation (with why it is refused, if it is),
+    and the lines that could not be read."""
+    return _theme_proposal(ctx, proposal_id)

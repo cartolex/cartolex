@@ -1,3 +1,23 @@
-// SPDX-License-Identifier: MIT
-/** The themes screen: a placeholder until its screen is built (a later step). */
-export { page } from './placeholder.js';
+/**
+ * The theme editor (`/themes`). Its modules are in `pages/themes/`:
+ *
+ * - `model.js`: the tree's index, search, patches, optimistic operations;
+ * - `labels.js`: the words of the undo list, languages, shares;
+ * - `store.js`: the editor's state and its autosaved draft;
+ * - `rows.js`, `outline.js`, `review.js`: the outline and the review queue;
+ * - `treemap.js`, `map.js`, `centre.js`: the treemap and map panels;
+ * - `panel.js`: the side panel;
+ * - `dialogs.js`, `operations.js`: the dialogs, and those of the operations;
+ * - `actions.js`: selection, operations and menus, shared by every panel;
+ * - `versions.js`, `handoff.js`: the versions and the AI handoff;
+ * - `editor.js`: the page, which puts them together.
+ *
+ * Static modules are cached after the first load; the budget of a navigation
+ * counts API calls.
+ */
+
+import { html } from '../core/preact.js';
+import { definePage } from '../core/page.js';
+import { ThemesEditor } from './themes/editor.js';
+
+export const page = definePage(() => html`<${ThemesEditor} />`, { styles: ['/static/css/themes.css'] });
