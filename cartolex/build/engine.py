@@ -633,9 +633,7 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
     from ..project.files import atomic_write_bytes, json_bytes
 
     rctx = run_context(ctx, _settings(ctx))
-    tfidf, restricted_terms, svd, umap_model = _engine_call(
-        ctx, lambda: load_positioning_models(rctx)
-    )
+    tfidf, restricted_terms, svd, anchors = _engine_call(ctx, lambda: load_positioning_models(rctx))
     aliases = pd.read_csv(rctx.paths.term_aliases_csv, dtype=str, keep_default_na=False)
     alias_map = dict(zip(aliases["alias"], aliases["canonical"], strict=True))
     emb = load_embeddings(rctx.paths.embeddings_json)
@@ -688,8 +686,8 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
                     "topics": subfield_weights_for_vector(z, c_centroids),
                 }
             )
-        if items and umap_model is not None:
-            xy = np.asarray(umap_model.transform(np.vstack([np.asarray(it["z"]) for it in items])))
+        if items and anchors is not None:
+            xy = anchors.place(np.vstack([np.asarray(it["z"]) for it in items]))
             for it, (x, y) in zip(items, xy, strict=True):
                 it["x"], it["y"] = float(x), float(y)
         atomic_write_bytes(

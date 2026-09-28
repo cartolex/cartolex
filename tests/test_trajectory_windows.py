@@ -20,8 +20,14 @@ class _IdentitySVD:
         return np.asarray(X, dtype=float)
 
 
-class _FirstTwoDimsUMAP:
-    def transform(self, Z):
+class _FirstTwoDims:
+    """Stands for the map's anchors: a point's position is its first two coordinates."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def place(self, Z):
+        self.calls += 1
         return np.asarray(Z, dtype=float)[:, :2]
 
 
@@ -61,13 +67,15 @@ def test_build_trajectory_windows_contiguous_keys_and_mass() -> None:
     term_to_concept = {"t0": 12, "t1": 40}
     concept_to_subfield = {12: 3, 40: 4}
 
+    anchors = _FirstTwoDims()
     out = build_trajectory_windows(
         traj,
         svd_model=_IdentitySVD(),
-        umap_model=_FirstTwoDimsUMAP(),
+        anchors=anchors,
         term_to_concept=term_to_concept,
         concept_to_subfield=concept_to_subfield,
     )
+    assert anchors.calls == 1  # every window placed in one call
 
     assert set(out) == {"r1"}
     keys = {e["key"] for e in out["r1"]}
@@ -85,9 +93,12 @@ def test_build_trajectory_windows_contiguous_keys_and_mass() -> None:
     # Full span: t0 mass 2 vs t1 mass 1 → subfield 3 dominates 2/3 over subfield 4.
     full = {s["id"]: s["weight"] for s in by_key["2018_2023"]["subfields"]}
     assert full == {3: round(2 / 3, 4), 4: round(1 / 3, 4)}
-    # Each entry carries a 2-D position and normalised subfield weights.
+    # Each entry carries a 2-D position (here its vector's first two coordinates, normalised)
+    # and normalised subfield weights.
+    assert (by_key["2018_2020"]["x"], by_key["2018_2020"]["y"]) == (1.0, 0.0)
+    assert (by_key["2021_2023"]["x"], by_key["2021_2023"]["y"]) == (0.0, 1.0)
     for e in out["r1"]:
-        assert "x" in e and "y" in e
+        assert list(e) == ["key", "mass", "x", "y", "subfields", "concepts"]
         assert abs(sum(s["weight"] for s in e["subfields"]) - 1.0) < 1e-6
 
 
@@ -97,7 +108,7 @@ def test_build_trajectory_windows_empty() -> None:
         build_trajectory_windows(
             empty,
             svd_model=_IdentitySVD(),
-            umap_model=_FirstTwoDimsUMAP(),
+            anchors=_FirstTwoDims(),
             term_to_concept={},
             concept_to_subfield={},
         )

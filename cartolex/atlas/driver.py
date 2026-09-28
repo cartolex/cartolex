@@ -24,7 +24,6 @@ from cartolex.atlas.clustering import cluster_terms, prepare_cluster_embeddings
 from cartolex.atlas.io import build_lexical_matrix, load_run_settings
 from cartolex.atlas.model_files import (
     load_embeddings,
-    load_layout_model,
     load_lexical_data,
     load_svd,
     load_vectorizer,
@@ -32,6 +31,7 @@ from cartolex.atlas.model_files import (
     save_embeddings,
     save_lexical_data,
 )
+from cartolex.atlas.placement import MapAnchors
 from cartolex.atlas.plots import (
     aggregate_labs,
     plot_individuals_and_labs,
@@ -387,9 +387,10 @@ def run_umap(
 
     Requires the SVD stage (reads the lexical data and the embeddings) and is meant to
     run *after* the term clustering so the map can be coloured by the term clusters.
-    Writes the person, term and group layout tables and the layout model
-    (``paths.layout_model_json``), and adds the layout coordinates to the stored
-    embeddings.
+    Writes the person, term and group layout tables and adds the layout coordinates
+    to the stored embeddings, which hold the map: the terms (like every later point)
+    are placed by their nearest researchers (:mod:`cartolex.atlas.placement`), and no
+    layout model is stored.
 
     ``umap_layout`` picks the recipe: ``"researcher"`` (default) fits on the researchers and
     projects terms in, keeping researcher structure; ``"researcher_concepts"`` additionally
@@ -512,7 +513,6 @@ def _run_umap(
         local_connectivity=eff_umap_local_connectivity,
         repulsion_strength=eff_umap_repulsion_strength,
         negative_sample_rate=eff_umap_negative_sample_rate,
-        model_path=paths.layout_model_json,
         term_cluster_labels=term_cluster_labels,
         target_weight=eff_cluster_target_weight,
         layout=eff_umap_layout,
@@ -922,12 +922,14 @@ def run_trajectories(
     """Trajectories stage: project per-(researcher, time-bin) fingerprints into the reference map.
 
     Requires the consolidation artifacts (the restricted vectorizer,
-    ``term_aliases.csv``) and the stored SVD and layout models. Reads the
+    ``term_aliases.csv``), the stored SVD model and the map (the layout's
+    embeddings). Reads the
     per-document index of every trajectory slot (``ctx.settings.corpus_slots``,
     each filtered by its own document types; *doc_types*, when given, keeps
     only those types across all slots), bins each researcher's documents into
     fixed-width time windows, folds them onto the canonical concept vocabulary,
-    and projects them through the same SVD+UMAP as the static map. Bins are
+    projects them through the same SVD as the static map and places them on it by
+    their nearest mapped people (:mod:`cartolex.atlas.placement`). Bins are
     counted back from ``ctx.now_year``. Writes the trajectory points and the
     per-window reprojections. Skipped with a warning if prerequisites are absent.
 
@@ -971,12 +973,12 @@ def _run_trajectories(
     aliases_path = paths.term_aliases_csv
     reject_legacy(vectorizer_path, stage="consolidation")
     reject_legacy(paths.svd_model_json, paths.lexical_data_json, stage="SVD")
-    reject_legacy(paths.layout_model_json, stage="UMAP layout")
+    reject_legacy(paths.embeddings_json, stage="UMAP layout")
     prereqs = [
         vectorizer_path,
         aliases_path,
         paths.svd_model_json,
-        paths.layout_model_json,
+        paths.embeddings_json,
         paths.lexical_data_json,
     ]
     missing = [p.name for p in prereqs if not p.exists()]
@@ -1006,7 +1008,11 @@ def _run_trajectories(
     }
     data = load_lexical_data(paths.lexical_data_json)
     svd_model = load_svd(paths.svd_model_json)
-    umap_model = load_layout_model(paths.layout_model_json)
+    emb = load_embeddings(paths.embeddings_json)
+    if emb.umap_ind is None:
+        logger.warning("Trajectories skipped — the map is not drawn yet: run the layout first.")
+        return
+    anchors = MapAnchors(emb.Z_ind, emb.umap_ind)
 
     ctx.report(0.2, "time windows")
     traj = build_trajectory_matrix(
@@ -1022,7 +1028,7 @@ def _run_trajectories(
         min_docs_per_bin=eff_min,
     )
 
-    coords = project_trajectories(traj.B, svd_model, umap_model)
+    coords = project_trajectories(traj.B, svd_model, anchors)
     out_df = traj.meta.copy()
     out_df["umap_x"] = coords[:, 0] if len(out_df) else []
     out_df["umap_y"] = coords[:, 1] if len(out_df) else []
@@ -1031,14 +1037,14 @@ def _run_trajectories(
     out_df.to_csv(out_csv, index=False)
     logger.info("Wrote %d trajectory points to %s", len(out_df), out_csv)
 
-    # Time machine: exact per-window reprojection (SVD/UMAP) for the atlas slider;
+    # Time machine: each window projected through the SVD and placed on the map;
     # the per-window subfield/concept weights are aggregated from each window's
     # own terms through the applied lexicon (evidence-based, not SVD proximity).
     term_to_concept, concept_to_subfield = _lexicon_maps(paths.subfields_json, list(traj.terms))
     windows = build_trajectory_windows(
         traj,
         svd_model=svd_model,
-        umap_model=umap_model,
+        anchors=anchors,
         term_to_concept=term_to_concept,
         concept_to_subfield=concept_to_subfield,
         report=lambda f, m: ctx.report(0.5 + 0.45 * f, m),

@@ -656,6 +656,7 @@ STAGES = Registry(
         Stage(
             "map.layout",
             "draw the map",
+            version=2,  # 2: points are placed by their nearest people, not by UMAP
             upstream=("themes.apply",),
             decisions=("decisions/maps.json",),
             project=("levels",),
@@ -666,6 +667,7 @@ STAGES = Registry(
         Stage(
             "map.trajectories",
             "change over time",
+            version=2,  # 2: points are placed by their nearest people, not by UMAP
             upstream=("map.layout",),
             project=("slots",),
             params=(
@@ -685,6 +687,7 @@ STAGES = Registry(
         Stage(
             "overlays.position",
             "place projected people",
+            version=2,  # 2: points are placed by their nearest people, not by UMAP
             upstream=("map.layout",),
             project=("overlays",),
             applies=_has_overlays,

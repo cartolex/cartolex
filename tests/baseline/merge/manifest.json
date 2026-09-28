@@ -178,10 +178,10 @@
  },
  "baseline": {
   "date": "2026-09-28",
-  "reason": "The lexicon lab's defaults: English noun phrases take no of complement, nothing is set aside for a low score, and a candidate is a fragment of a longer one only when it is never seen outside it. The English candidates change, and with them every later stage; the French candidates change only in their band and reason."
+  "reason": "Points are placed on the finished map by their nearest mapped people instead of UMAP's transform (gate G2): each keyword, trajectory point and window, and projected person goes to the weighted mean of the heaviest linked group of its 8 nearest people in the SVD space (link radius a quarter of the map's radius). The people's own positions are unchanged; the layout's keyword positions and diagnostics, the trajectories and the projection move."
  },
  "environment": {
-  "engine_fingerprint": "b9a57a10e58fae0ab88afed356797fbe16b6ac5d7f75d884af5d2f0c7bb1b99a",
+  "engine_fingerprint": "0461d2e57d55b3aad87c7a0a99cc8521f5025733f76621d4ec5fcc4b953588a0",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {

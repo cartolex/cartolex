@@ -177,26 +177,26 @@ def build_trajectory_matrix(
     return TrajectoryData(B=B, meta=meta, terms=ref_terms)
 
 
-def project_trajectories(B: np.ndarray, svd_model, umap_model) -> np.ndarray:
-    """Project bin fingerprints into the persisted reference UMAP space.
+def project_trajectories(B: np.ndarray, svd_model, anchors) -> np.ndarray:
+    """Place bin fingerprints on the map.
 
-    Mirrors the static map exactly: L2-normalise → ``svd.transform`` →
-    ``umap.transform``. Returns an ``(n_bins, 2)`` array; an empty input yields
-    shape ``(0, 2)``.
+    L2-normalise → ``svd.transform`` → placed by the nearest mapped people
+    (*anchors*, a :class:`~cartolex.atlas.placement.MapAnchors`). Returns an
+    ``(n_bins, 2)`` array; an empty input yields shape ``(0, 2)``.
     """
     B = np.asarray(B, dtype=float)
     if B.shape[0] == 0:
         return np.zeros((0, 2))
     Xn = normalize(B, norm="l2", axis=1)
     Z = svd_model.transform(Xn)
-    return np.asarray(umap_model.transform(Z))
+    return anchors.place(Z)
 
 
 def build_trajectory_windows(
     traj: TrajectoryData,
     *,
     svd_model,
-    umap_model,
+    anchors,
     term_to_concept: dict[str, int],
     concept_to_subfield: dict[int, int],
     report: Callable[[float, str], Any] | None = None,
@@ -205,15 +205,16 @@ def build_trajectory_windows(
 
     For every contiguous run of a researcher's own time-bins, sum the
     length-bonus-weighted bin vectors, L2-normalise, and project through the
-    persisted SVD (``z``) and UMAP for the 2-D position.  Subfield/concept
+    persisted SVD (``z``), then place it on the map by its nearest mapped people
+    (*anchors*, a :class:`~cartolex.atlas.placement.MapAnchors`; every window in one
+    call).  Subfield/concept
     membership is **evidence-based**: aggregated from the window's own term
     vector through the applied lexicon (:func:`researcher_group_weights`), not
     SVD-proximity — so a window is only ever attributed themes whose terms the
     researcher actually used in that span.
 
     Windows are keyed ``"<start_year>_<end_year>"`` (the calendar span of the
-    run); the full-span key reproduces the whole-history profile to within the
-    SVD/UMAP fit-vs-transform gap. Returns ``{researcher_id: [entry, ...]}`` with
+    run); the full-span key is placed like the whole-history profile. Returns ``{researcher_id: [entry, ...]}`` with
     each entry ``{key, mass, x, y, subfields, concepts}``. Empty input -> ``{}``.
     *report*, when given, is called with the share of researchers done (it may
     raise to stop the loop).
@@ -224,6 +225,8 @@ def build_trajectory_windows(
         return {}
     meta = traj.meta.reset_index(drop=True)
     out: dict[str, list[dict]] = {}
+    pending: list[tuple[str, dict]] = []
+    vectors: list[np.ndarray] = []
     groups = meta.groupby("researcher_id", sort=False)
     n_groups = max(1, groups.ngroups)
     for done, (rid, grp) in enumerate(groups):
@@ -232,7 +235,6 @@ def build_trajectory_windows(
         rows = grp.sort_values("bin_end").index.tolist()
         starts = [int(meta.at[r, "bin_start"]) for r in rows]
         ends = [int(meta.at[r, "bin_end"]) for r in rows]
-        entries: list[dict] = []
         for i in range(len(rows)):
             acc = np.zeros(traj.B.shape[1], dtype=float)
             for j in range(i, len(rows)):
@@ -240,24 +242,28 @@ def build_trajectory_windows(
                 mass = float(acc.sum())
                 if mass <= 0:
                     continue
-                z = svd_model.transform(normalize(acc.reshape(1, -1), norm="l2"))
-                xy = np.asarray(umap_model.transform(z))[0]
+                vectors.append(svd_model.transform(normalize(acc.reshape(1, -1), norm="l2"))[0])
                 scored = [(traj.terms[c], float(acc[c])) for c in np.nonzero(acc)[0] if acc[c] > 0]
                 subfields, concepts = researcher_group_weights(
                     scored,
                     term_to_concept=term_to_concept,
                     concept_to_subfield=concept_to_subfield,
                 )
-                entries.append(
-                    {
-                        "key": f"{starts[i]}_{ends[j]}",
-                        "mass": round(mass, 6),
-                        "x": round(float(xy[0]), 4),
-                        "y": round(float(xy[1]), 4),
-                        "subfields": subfields,
-                        "concepts": concepts,
-                    }
+                pending.append(
+                    (
+                        str(rid),
+                        {
+                            "key": f"{starts[i]}_{ends[j]}",
+                            "mass": round(mass, 6),
+                            "subfields": subfields,
+                            "concepts": concepts,
+                        },
+                    )
                 )
-        if entries:
-            out[str(rid)] = entries
+    xy = anchors.place(np.vstack(vectors)) if vectors else np.zeros((0, 2))
+    for (rid, entry), (x, y) in zip(pending, xy, strict=True):
+        entry = {**entry, "x": round(float(x), 4), "y": round(float(y), 4)}
+        out.setdefault(rid, []).append(
+            {k: entry[k] for k in ("key", "mass", "x", "y", "subfields", "concepts")}
+        )
     return out

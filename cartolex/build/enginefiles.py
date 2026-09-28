@@ -150,7 +150,6 @@ ENGINE_FILES: dict[str, Place] = {
         "themes.space", "models/embeddings.json", model=True, amended_by=("map.layout",)
     ),
     "svd_model_json": Owned("themes.space", "models/svd.json", model=True),
-    "layout_model_json": Owned("map.layout", "models/umap.json", model=True),
     "atlas_params_json": NotProvided(_SETTINGS),
     "pca_persons_csv": Owned("themes.space", "pca_individuals.csv"),
     "pca_terms_csv": Owned("themes.space", "pca_terms.csv"),
