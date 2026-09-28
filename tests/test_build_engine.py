@@ -158,7 +158,7 @@ def test_an_xs_project_builds_end_to_end(built):
     assert maps["pinned"] == "v1" and maps["versions"][0]["layout"]["method"] == "umap"
     corpus = json.loads(project.layout.run_json("corpus.assemble").read_text())
     assert corpus["measures"]["counts"]["people"] == 11
-    assert project.config.identity.frozen  # texts were gathered
+    assert not project.config.identity.frozen  # no AI answer, no curation decision yet
     positions = json.loads(
         (project.layout.stage("overlays.position") / "applicants" / "positions.json").read_text()
     )
@@ -230,6 +230,7 @@ def test_a_curated_theme_tree_is_applied(built, tmp_path):
     assert "Renamed theme" in [s["label"] for s in applied["subfields"]]
     rebased, _ = read_themes(project)
     assert rebased.based_on.vocabulary is not None  # rebased before the stage ran
+    assert project.config.identity.frozen  # a curation decision froze it
     assert set(_states(project).values()) == {OK, SKIPPED}
     project.close()
 
@@ -279,6 +280,7 @@ def test_the_ai_clean_up_runs_with_an_injected_client(built, tmp_path):
     assert (project.layout.cache_ai / "triage_term_cache.json").exists()
     counts = json.loads(project.layout.run_json("keywords.triage").read_text())["measures"]
     assert counts["counts"]["accepted"] > 0
+    assert project.config.identity.frozen  # the first AI answers froze it
     _FakeModel.calls = 0
     again = build(
         project,

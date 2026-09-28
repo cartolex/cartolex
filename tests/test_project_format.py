@@ -458,3 +458,16 @@ def test_an_older_file_reads_new_optional_columns_as_empty(tmp_path):
     pq.write_table(old, path)
     table = read_source_table(path, "authorships")
     assert table["last"].to_pylist() == [None] and table["corresponding"].null_count == 1
+
+
+def test_the_identity_freezes_once(tmp_path):
+    project = _new(tmp_path)
+    assert not project.has_curation()
+    project.layout.keywords_csv.write_text("term,language,decision\n")
+    assert not project.has_curation()  # a header alone decides nothing
+    project.layout.keywords_csv.write_text("term,language,decision\nsea,en,exclude\n")
+    assert project.has_curation()
+    assert project.freeze_identity("first curation decision") is True
+    assert project.freeze_identity("again") is False
+    assert project.config.identity.frozen
+    project.close()

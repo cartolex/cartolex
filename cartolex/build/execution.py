@@ -559,26 +559,12 @@ def _allowed_over(allow: bool | Iterable[str], stage_id: str) -> bool:
     return stage_id in set(allow)
 
 
-def _freeze_identity(project: Project, record: RunRecord, log: Any) -> None:
-    """Freeze the project's identity once texts have been gathered (``docs/format/project-json.md``).
-
-    From then on AI answers and parsed texts are keyed on it; changing it is an
-    explicit action (:meth:`Project.save_config` with ``identity_change=True``).
-    """
-    if record.stage != "corpus.assemble" or not record.measures.counts.get("texts"):
-        return
-    config = project.config
-    if config.identity.frozen:
-        return
-    frozen = config.model_copy(
-        update={"identity": config.identity.model_copy(update={"frozen": True})}
-    )
+def _freeze_identity(project: Project, reason: str, log: Any) -> None:
+    """Freeze the project's identity (``docs/format/project-json.md``), logging a stale write."""
     try:
-        project.save_config(frozen, action="identity frozen: texts processed")
+        project.freeze_identity(reason)
     except StaleWrite:
-        log.write(
-            "warning", stage=record.stage, message="project.json changed: identity not frozen"
-        )
+        log.write("warning", message=f"project.json changed: identity not frozen ({reason})")
 
 
 def build(
@@ -664,6 +650,8 @@ def build(
     outcome: Literal["succeeded", "failed", "cancelled"] = "succeeded"
     failed: tuple[str, str] | None = None
     reporter.start()
+    if runnable and project.has_curation():
+        _freeze_identity(project, "curation decisions exist", log)
     try:
         for k, item in enumerate(runnable, start=1):
             stage = registry[item.stage]
@@ -699,7 +687,8 @@ def build(
                 log.write("cancelled", stage=stage.id)
                 raise
             ran.append(record)
-            _freeze_identity(project, record, log)
+            if record.stage == "keywords.triage":
+                _freeze_identity(project, "first AI answers", log)
             reporter.update(k, stage, 1.0, "done")
             log.write(
                 "stage-end",
