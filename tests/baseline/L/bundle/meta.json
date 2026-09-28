@@ -2,8 +2,8 @@
  "build_date": "2026-01-01",
  "counters": {
   "n_entities": 343,
-  "n_term_rows": 9578,
-  "n_terms": 2871
+  "n_term_rows": 9637,
+  "n_terms": 3072
  },
  "domain_id": "a",
  "producer": "reference",

@@ -23,15 +23,15 @@ reason = "The roster keeps only the attribute columns the corpus index has; the 
 reference = "S"
 stage = "extract"
 artifact = "terms_en"
-sha256 = "3567ce3fe419987f6fcd7d967287ed6610557466235fd4edccd9e695df228b51"
+sha256 = "e85878162bf905ab3398cf67ef5c98b2902e9e1a672fc8eb52e1114e829ef885"
 step = "2a2"
-reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the columns forms (every surface form of a candidate), people and texts (how many use it), band and reason (step 2a2)."
+reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form; English phrases take no of complement) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the columns forms (every surface form of a candidate), people and texts (how many use it), band and reason, with the lexicon lab's band rules (step 2a2)."
 
 [[difference]]
 reference = "S"
 stage = "extract"
 artifact = "terms_fr"
-sha256 = "109f0cc4911bcc0f302dc05beaa6faf0d8fd6f3d22c9ddfcacdf9cb62b1fac48"
+sha256 = "c7c003943b1a1c1ec49ee736bea33b1c12cde8c48773a7cbe8c68bc27b04c72c"
 step = "2a2"
 reason = "Same change as terms_en; French terms with a word of one or two letters (trait de côte, masse d'eau) are now kept whole."
 
@@ -39,7 +39,7 @@ reason = "Same change as terms_en; French terms with a word of one or two letter
 reference = "S"
 stage = "extract"
 artifact = "terms_merged"
-sha256 = "30a2266c4d33bc59358315fd50b61d5bf93b48c7f7ced038d9ae067cd8626bbe"
+sha256 = "b8ef737d7b3ece5fe4ff072cd332f9ee6a10f22cfac2b7ebad5452bd5cf00e2f"
 step = "2a2"
 reason = "The merged list of the new English and French candidates (see terms_en), with their band and reason (step 2a2)."
 
@@ -117,15 +117,15 @@ reason = "The bundle carries the new vocabulary, entity terms and taxonomy (see 
 reference = "L"
 stage = "extract"
 artifact = "terms_en"
-sha256 = "c4c041ad8136f9aa818a025932509d4d07a94215d42f5b97b0ee1304b1dac969"
+sha256 = "595d78063e2599ea1f86efc7dbf4024e164bc74b9ea8f2eab25e1db47a0c0a61"
 step = "2a2"
-reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the columns forms (every surface form of a candidate), people and texts (how many use it), band and reason (step 2a2)."
+reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form; English phrases take no of complement) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the columns forms (every surface form of a candidate), people and texts (how many use it), band and reason, with the lexicon lab's band rules (step 2a2)."
 
 [[difference]]
 reference = "L"
 stage = "extract"
 artifact = "terms_fr"
-sha256 = "5d893e12a1ab4ff9b037d4cb4c44f7962c8260916c17b82eb39a032dd7acb335"
+sha256 = "a6010b1279e0fe2a368c65e760d9854bc90bddd2d456d037d9c3b6b4c845f5e0"
 step = "2a2"
 reason = "Same change as terms_en; French terms with a word of one or two letters (trait de côte, masse d'eau) are now kept whole."
 
@@ -133,7 +133,7 @@ reason = "Same change as terms_en; French terms with a word of one or two letter
 reference = "L"
 stage = "extract"
 artifact = "terms_merged"
-sha256 = "4ed2d5b89599d16e71de9abb0f9b241e86faf323dc0b4ecb6b48c711ccc0dbd1"
+sha256 = "91f60d144c3dc20b0b1cecbb3678f1f24db0ea77263c897634644abbdf960dea"
 step = "2a2"
 reason = "The merged list of the new English and French candidates (see terms_en), with their band and reason (step 2a2)."
 

@@ -4,13 +4,13 @@
    "anchor_meta": {
     "file": "merge/anchor_meta.json.gz",
     "kind": "json",
-    "sha256": "f74e960cf7be26ef17ac51c88cb386b28228590adbe780be040d02bf9992cac3"
+    "sha256": "3ec1969c30dd2621d86019ac8a08fd5c4227dd883f579a555f34753bfc96e5eb"
    },
    "anchors": {
     "file": "merge/anchors.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "f028cc35965605585b3fd1621d867bc4e1e08182eb3eb3f42ca54242213672e0",
+    "sha256": "8195a678b3203b0fd12bd114994043821e45b7811018d43b1c90864157000e36",
     "shape": [
      300,
      20
@@ -21,7 +21,7 @@
     "file": "merge/concept_weights.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "220cf7617a80d6decabb3c9aa510f6365fd0b2644a03288aa4947cacdbcfc88f",
+    "sha256": "8a55cea09e3220036c5f98862ab1e1d288eb5bec0946597ad67816203f736b1d",
     "shape": [
      77,
      300
@@ -32,7 +32,7 @@
     "file": "merge/cross_domain_mass.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "b91a2320476e46b8a3c9d62f7ac14b192b2c1c1161db048777f480da96700537",
+    "sha256": "5e9740526ac1a2fb58149543bd3d151cd8b4965958768c18c2a6e5e9415b2ec9",
     "shape": [
      77
     ],
@@ -41,13 +41,13 @@
    "decisions": {
     "file": "merge/decisions.json",
     "kind": "json",
-    "sha256": "29eb07f0bf5bba4b7d8bfd68fc3902950e5e4fc2c82bba52fda638464e004532"
+    "sha256": "04f3032c54144478f1687824c1548c1655f4fd8be0266cb73631d250c2f5fa13"
    },
    "entropy": {
     "file": "merge/entropy.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "6226c648883a1fc8f8fb49630b5420285aa2b82a1019aa6b5683e1d82f3d4f7d",
+    "sha256": "3078a4dfaa132333c04ba9a8cca6bfa97e25f599b7a574765715584eaf421515",
     "shape": [
      77
     ],
@@ -56,18 +56,18 @@
    "metrics": {
     "file": "merge/metrics.json",
     "kind": "json",
-    "sha256": "0cfb60954c7f94d93dbf7d84b08f95a46a56d879dd105bfc44346ab778c66342"
+    "sha256": "7aa8027c905a1c5419d7cbe3e0f97b8f559395dd96cc5b1b2d6550e9d09ce244"
    },
    "naive_table": {
     "file": "merge/naive_table.json.gz",
     "kind": "json",
-    "sha256": "bb78dfadb50a7cab6de4b1ee0ec7d9d361f0a2b288a71ee4965cc745d6b15d62"
+    "sha256": "5219926b5474960e1db36898ccc71a2c3c3ebdb0075765c354a4e27c50675ba4"
    },
    "person_coords": {
     "file": "merge/person_coords.npy",
     "kind": "array",
     "role": "embedding",
-    "sha256": "e74e62a23a0e6031ea61c18185aa3d206b99ce56c31f66a6203029deb84aee88",
+    "sha256": "dc44726581e0f16519a05e06f1e04144391e38cf37412250453c9ed83dadbd72",
     "shape": [
      77,
      20
@@ -92,8 +92,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 2121,
-    "sha256": "6499e158bd082d8cc9c3c5b32a1eb266b9efbf3cdf63defcdb5821a14472771f"
+    "rows": 2153,
+    "sha256": "5e5352717717c5963fa68fd6695dd1ab31aeb26df6b746dd89222b8703bcb31e"
    },
    "rows": {
     "columns": [
@@ -119,24 +119,24 @@
     "file": "merge/sense_coords.npy.gz",
     "kind": "array",
     "role": "embedding",
-    "sha256": "229283aaa4d3331f91636b6054d5f6fd2c80d9457e7aa0f646b2c27e1452e652",
+    "sha256": "824a97d915328f7d530991e5e6d8ef56aa9310a2e19a13f91e699c276ed0ea55",
     "shape": [
-     849,
+     910,
      20
     ],
     "stored_dtype": "float64"
    },
    "senses": {
-    "count": 849,
+    "count": 910,
     "file": "merge/senses.json",
     "kind": "strings",
-    "sha256": "3878cc832fba42610ee359bb51464dee7407fde490d8023de73c5500b5fa439a"
+    "sha256": "4983be93fb760de7c6aff799f95f235de9a8d994079ce6c224a6096e624b0519"
    },
    "singular_values": {
     "file": "merge/singular_values.npy",
     "kind": "array",
     "role": "spectrum",
-    "sha256": "1005d4d25da38ad99387d8c86a24825d95bddaddb2b040cf6f9e3f0501a8445e",
+    "sha256": "cecba4b1229d1fbdfadf5a8ccca16f1ed344c586dd794fc3c276eb41c0720287",
     "shape": [
      20
     ],
@@ -145,21 +145,21 @@
    "table": {
     "file": "merge/table.json.gz",
     "kind": "json",
-    "sha256": "a2d41b2d2fd74914c6dc389a15b8fe446acb63e3258a18220240f44f5dd93c98"
+    "sha256": "b3ff1745cfae8c1d7feaa718d18eb99ab74edc391d600f599db8f5a3a332a28c"
    },
    "table_first_pass": {
     "file": "merge/table_first_pass.json.gz",
     "kind": "json",
-    "sha256": "ea9fc5ccd3034db4e64bb1e2d1ef49f29deffeff6bf7f2b5d9f2a9349a79bc46"
+    "sha256": "2356856b3961572e6801febebd8a476bab0e84ee821d4e1658da59fc7e13c3ca"
    },
    "weights_macro": {
     "file": "merge/weights_macro.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "b2a3e89ac4563ae64590707e2dc393bafe43a9db4b25eb735c91e030ead78537",
+    "sha256": "16c1308002e02e80df97789f036f66e8d721519a73ab4dc164e40c4d7ae3ad6a",
     "shape": [
      77,
-     849
+     910
     ],
     "stored_dtype": "float32"
    },
@@ -167,10 +167,10 @@
     "file": "merge/weights_pooled.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "e677eb0281c34980a99aabe1068edba038930ae03ece9acac1547ca46f218b1d",
+    "sha256": "df1b2cbe7a3e6b712109c5ccda001d0914502697a975da071bfa024aa5219302",
     "shape": [
      77,
-     849
+     910
     ],
     "stored_dtype": "float32"
    }
@@ -178,10 +178,10 @@
  },
  "baseline": {
   "date": "2026-09-28",
-  "reason": "The extraction's raw tables gain the columns people, texts, band and reason (and the merged list band and reason), and the settings snapshot records the counting unit; every score is unchanged."
+  "reason": "The lexicon lab's defaults: English noun phrases take no of complement, nothing is set aside for a low score, and a candidate is a fragment of a longer one only when it is never seen outside it. The English candidates change, and with them every later stage; the French candidates change only in their band and reason."
  },
  "environment": {
-  "engine_fingerprint": "faa3c93a5ed709243ce4da1ff626f49f551cc77af1d76547297a4076e358e82c",
+  "engine_fingerprint": "b9a57a10e58fae0ab88afed356797fbe16b6ac5d7f75d884af5d2f0c7bb1b99a",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {
@@ -228,12 +228,12 @@
    {
     "bundle": {
      "entities": "fb6b1f959773294bcefdbdb261bc24a7da661295f27e544fa340aeadd1cb6215",
-     "entity_terms": "978fc0f7a58483e8e7cc13003df108f8b98cb06e60e0cc23c578bb0fc0d5625a",
-     "meta": "77dd92767eccc681b7e8731d15f2057a2cb111dcf8b74b49678c60d4803a7f15",
+     "entity_terms": "358e591c4d2a49d66a93319ab821b213fc73601daab74ed3a85180c76cc1b88e",
+     "meta": "89431de95d40d5847755c740587dba4863e606d6fbc87c1d19dffc419b2a4c28",
      "round_trip": "dcf25b6dab889b23bbb35a08fcb976ca4d3e85ab72fb3cba9167564c800beb84",
-     "taxonomy": "c908a5e19f9ed983a3a73b6dec4e69b081f621d54b418c91f7682d4d10730ec7",
-     "vocabulary": "8254ce4836a18a8641e4e5e91209469c7f7180b3592996d69ffaf2b4b4c1861d",
-     "zip": "610d73500f5829818f8b48c233b66555d7019636f7e375598309ed22607b1223"
+     "taxonomy": "d6bc3d3e4524993a3ead4cf65685aa3c55525cac307cd36d427795b172a2ad63",
+     "vocabulary": "b748d546c882dadd6b5f151bf3191af6d1d56610d582c4474be071ef2fc78463",
+     "zip": "7b9be0101da6f58378f516cf1f5a09f2f5a037d46126cfaff6cb5109758bc4df"
     },
     "domain_id": "a",
     "truth_sha256": "db5e4195056421cfcd019c0b96b8c03877231c66502551fef476c256de7f9fbf",
@@ -242,12 +242,12 @@
    {
     "bundle": {
      "entities": "b3eb93c98c3ffcb823c0cc3c2b2d0566a6d25cad5070082169d1f942e6dd17e9",
-     "entity_terms": "b6b88c9dc50982156abdf8ec2deee889958b83bd84c2b1ef24045c8248f8118e",
-     "meta": "3d3a1abd9f33065b6963946d9d58eb6205c7832200a6de15d641c937e61a6ced",
+     "entity_terms": "5b4890e1ca35b07470109deab81717a4fbf3e81c0c0103424261045dea728a24",
+     "meta": "ff9ab9ab1c9f88379411205f78cf68f9590a1b00fc4e43227b46cbd7140f0523",
      "round_trip": "dcf25b6dab889b23bbb35a08fcb976ca4d3e85ab72fb3cba9167564c800beb84",
-     "taxonomy": "31a8ef2592efd64946c4397c4de47851e4b4465ad32259576197631285571121",
-     "vocabulary": "843dd17217f66f838fad90b0dceb93c445a654a0a76b1a2c5371fae20cb5631e",
-     "zip": "e60a0d586190c6a6352dd424691ff3c6c0d3524528152791c7d98ea0f1028063"
+     "taxonomy": "27c02ea1a214092723c167ce4be571264ba73bb5b4c24f8f4ebf30075eccdca5",
+     "vocabulary": "70e685d03fb2985e4e30f666b65e261da2d3e795de152a867f91048c4ab416ff",
+     "zip": "a7ff075f6fbf587641535a6d9ccf06a2301f161221b45e4a88c79f09290b4f78"
     },
     "domain_id": "b",
     "truth_sha256": "5779bec6c1d1e8bf368a7e5cd73186eb7418739ff157beccb771c2466d90327e",
