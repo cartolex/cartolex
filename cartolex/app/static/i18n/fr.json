@@ -42,7 +42,7 @@
   "area.map": "Carte",
   "area.share": "Partager",
 
-  "display.menu": "Réglages d’affichage",
+  "display.menu": "Réglages et affichage",
   "display.theme": "Thème",
   "display.theme.system": "Comme le système",
   "display.theme.light": "Clair",
@@ -145,6 +145,11 @@
   "error.job_failed.message": "Elle s’est arrêtée avant la fin. Les résultats construits avant sont conservés.",
   "error.job_interrupted.title": "La tâche a été interrompue",
   "error.job_interrupted.message": "L’application s’est arrêtée pendant la tâche. Rien d’inachevé n’a été gardé.",
+  "error.action.settings": "Ouvrir les réglages",
+  "error.action.open-project": "Ouvrir un projet",
+  "error.action.build": "Aller à la construction",
+  "error.action.wait": "Voir l’activité",
+  "error.action.report": "Copier un diagnostic",
 
   "activity.title": "Activité",
   "activity.description": "Constructions et collectes, avec leur avancement et leurs résultats.",

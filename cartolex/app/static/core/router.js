@@ -161,6 +161,17 @@ export class Router {
     const full = path + url.search + url.hash;
     const current = this.active && this.active.full;
     if (!initial && pop === null && current === full) return true;
+    // Only the fragment changes: the same page stays, nothing is mounted again.
+    if (!initial && current && current.split('#')[0] === path + url.search) {
+      if (pop === null) {
+        this.index += 1;
+        history.pushState({ cxIndex: this.index }, '', full);
+      }
+      this.active.full = full;
+      const target = url.hash && document.getElementById(decodeURIComponent(url.hash.slice(1)));
+      if (target) target.scrollIntoView();
+      return true;
+    }
     if (!initial && !(await this.canLeave(full))) {
       if (pop !== null && pop !== 0) {
         this.ignorePop = true;
@@ -309,7 +320,12 @@ export class Router {
       return;
     }
     const state = event.state || {};
-    const next = typeof state.cxIndex === 'number' ? state.cxIndex : this.index;
+    let next = state.cxIndex;
+    if (typeof next !== 'number') {
+      // An entry the browser added itself (a fragment link): it comes after the current one.
+      next = this.index + 1;
+      history.replaceState({ ...state, cxIndex: next }, '');
+    }
     const delta = next - this.index;
     this.index = next;
     this.go(location.pathname + location.search + location.hash, { pop: delta }).then((moved) => {

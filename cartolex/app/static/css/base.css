@@ -201,6 +201,12 @@ a:hover,
   border-bottom: 2px solid transparent;
 }
 
+/* The dot comes after the name for assistive technology (« Keywords, needs update »)
+   and before it on screen. */
+.cx-nav__dot {
+  order: -1;
+}
+
 .cx-nav__link:hover {
   color: var(--cx-text);
   text-decoration: none;

@@ -10,6 +10,7 @@
 import { Component, html, useRef, useState } from './preact.js';
 import { autonym, locale, t } from './i18n.js';
 import { currentRoute } from './router.js';
+import { runtime } from './runtime.js';
 import { areaOfPage } from './states.js';
 import { THEMES } from './stores/prefs.js';
 import {
@@ -33,8 +34,8 @@ function NavItem({ entry, areas, active }) {
   return html`<li class="cx-nav__item">
     <a href=${entry.route} class=${`cx-nav__link ${active ? 'is-active' : ''}`}
       aria-current=${active ? 'page' : undefined} data-nav=${entry.id}>
-      ${area ? html`<${StatusDot} state=${area.state} size="s" />` : null}
-      <span>${label}</span>
+      <span class="cx-nav__label">${label}</span>
+      ${area ? html`<${StatusDot} state=${area.state} size="s" class="cx-nav__dot" />` : null}
     </a>
   </li>`;
 }
@@ -46,6 +47,7 @@ function NavItem({ entry, areas, active }) {
 export function Shell({ app }) {
   const { manifest, registries, stores, toaster } = app;
   const [activityOpen, setActivityOpen] = useState(false);
+  runtime.openActivity = () => setActivityOpen(true);
   const activityButton = useRef(null);
   const route = currentRoute.value;
   const nav = registries.pages.list().filter((p) => (p.placement || 'main') === 'main' && p.label);

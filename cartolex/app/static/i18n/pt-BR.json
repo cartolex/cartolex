@@ -42,7 +42,7 @@
   "area.map": "Mapa",
   "area.share": "Compartilhar",
 
-  "display.menu": "Configurações de exibição",
+  "display.menu": "Configurações e exibição",
   "display.theme": "Tema",
   "display.theme.system": "Igual ao sistema",
   "display.theme.light": "Claro",
@@ -145,6 +145,11 @@
   "error.job_failed.message": "Ela parou antes do fim. Os resultados construídos antes são mantidos.",
   "error.job_interrupted.title": "A tarefa foi interrompida",
   "error.job_interrupted.message": "O aplicativo parou durante a tarefa. Nada feito pela metade foi mantido.",
+  "error.action.settings": "Abrir as configurações",
+  "error.action.open-project": "Abrir um projeto",
+  "error.action.build": "Ir para a construção",
+  "error.action.wait": "Ver a atividade",
+  "error.action.report": "Copiar um diagnóstico",
 
   "activity.title": "Atividade",
   "activity.description": "Construções e coletas, com seu progresso e seus resultados.",

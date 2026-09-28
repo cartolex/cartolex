@@ -77,9 +77,14 @@ def test_tab_reaches_every_interactive_section_in_order(gallery):
 def test_skip_link_and_navigation(gallery):
     ui = gallery
     page = ui.page
+    page.evaluate("() => { document.querySelector('.cx-gallery').dataset.kept = 'yes'; }")
     page.keyboard.press("Tab")
     page.keyboard.press("Enter")
     assert ui.active()["id"] == "cx-main"
+    page.go_back()  # back from the fragment: the same page, not mounted again
+    page.wait_for_function("() => location.hash === ''")
+    assert page.evaluate("() => document.querySelector('.cx-gallery').dataset.kept") == "yes"
+    page.locator("#cx-main").focus()
     page.keyboard.press("Shift+Tab")
     tab_until(ui, lambda a: a["text"] == "Keywords", key="Shift+Tab")
     before = ui.token()
@@ -244,7 +249,7 @@ def test_display_menu_changes_the_theme(gallery):
     tab_until(gallery, lambda a: a["text"] == "Dark", key="ArrowDown", limit=10)
     page.keyboard.press("Enter")
     assert page.evaluate("() => document.documentElement.dataset.theme") == "dark"
-    assert gallery.active()["label"] == "Display settings"
+    assert gallery.active()["label"] == "Settings and display"
 
 
 def test_dialog_traps_focus_closes_on_escape_and_gives_focus_back(gallery):

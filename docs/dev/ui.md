@@ -169,11 +169,21 @@ for an HTTP or network failure; it resolves to a result:
 `error` is the ErrorCard model built from the server's
 `{"error": {"code", "message", "next": {"label", "action"}}}`. An ErrorCard
 shows plain words (the catalogue's `error.<code>.*` when it knows the code,
-else the server's words), a « What to do » button (`retry`, `reload`,
-`open:<path>`), the technical details folded, and « Copy a diagnostic »: app
-and version, page, language, time, error code, HTTP status, method, the
-request path without its query and with every identifier-like segment
-replaced by « … », the request id. Never project data.
+else the server's words), a « What to do » button, the technical details
+folded, and « Copy a diagnostic »: app and version, page, language, time,
+error code, HTTP status, method, the request path without its query and with
+every identifier-like segment replaced by « … », the request id. Never
+project data.
+
+The button runs the error's next action. The interface runs `retry` (the
+page's `onRetry`, else a reload), `reload` (the page's `onReload`: read again
+and merge; else `onRetry`), `settings`, `open-project` and `build` (their
+pages), `wait` (the Activity drawer), `report` (unfolds the details and copies
+the diagnostic), and an address (`open:<path>` or a path, for extensions).
+`confirm` and `fix-input` get a button only when the page passes `onAction`;
+`unlock`, `sign-in` and `none` are told in words, without a button. In a
+language other than English the catalogue's words for the action
+(`error.action.<action>`) replace the server's label.
 
 ## Interface language
 

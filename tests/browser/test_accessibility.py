@@ -99,7 +99,7 @@ def test_open_dialogs_drawers_and_menus_have_no_serious_violation(ui, axe_source
     assert problems == [], "activity drawer:\n" + "\n".join(problems)
     page.keyboard.press("Escape")
     page.locator(".cx-header .cx-menubutton button").click()
-    page.get_by_role("menu", name="Display settings").wait_for()
+    page.get_by_role("menu", name="Settings and display").wait_for()
     problems = blocking(run_axe(ui, axe_source, ".cx-header"))
     assert problems == [], "display menu:\n" + "\n".join(problems)
     page.keyboard.press("Escape")

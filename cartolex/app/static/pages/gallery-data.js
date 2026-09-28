@@ -137,7 +137,7 @@ export const JOBS = [
     created_at: '2026-09-28T09:40:00Z', started_at: '2026-09-28T09:40:01Z',
     finished_at: '2026-09-28T09:44:30Z', progress: null, result: null,
     error: { code: 'stage_failed', message: 'The theme grouping could not run with these parameters.',
-      next: { label: 'Open the parameters', action: 'open:/settings' } } },
+      next: { label: 'Open the parameters', action: 'settings' } } },
   { id: 'job-1', kind: 'collect', state: 'succeeded', cancellable: false,
     created_at: '2026-09-28T09:00:00Z', started_at: '2026-09-28T09:00:01Z',
     finished_at: '2026-09-28T09:12:00Z', progress: null,
@@ -151,7 +151,7 @@ export const JOBS = [
 export const ERRORS = {
   server: {
     code: 'stage_failed', message: 'The theme grouping could not run with these parameters.',
-    next: { label: 'Open the parameters', action: 'open:/settings' }, status: 422, method: 'POST',
+    next: { label: 'Open the parameters', action: 'settings' }, status: 422, method: 'POST',
     path: '/api/build', requestId: 'req-7f3a', time: '2026-09-28T09:44:30Z', technical: null,
   },
   network: {

@@ -42,7 +42,7 @@
   "area.map": "Map",
   "area.share": "Share",
 
-  "display.menu": "Display settings",
+  "display.menu": "Settings and display",
   "display.theme": "Theme",
   "display.theme.system": "Same as the system",
   "display.theme.light": "Light",
@@ -145,6 +145,11 @@
   "error.job_failed.message": "It stopped before the end. The results built before are kept.",
   "error.job_interrupted.title": "The job was interrupted",
   "error.job_interrupted.message": "The app stopped while it was running. Nothing half done was kept.",
+  "error.action.settings": "Open the settings",
+  "error.action.open-project": "Open a project",
+  "error.action.build": "Go to the build",
+  "error.action.wait": "See the activity",
+  "error.action.report": "Copy a diagnostic",
 
   "activity.title": "Activity",
   "activity.description": "Builds and collections, with their progress and their results.",
