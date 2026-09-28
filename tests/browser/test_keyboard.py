@@ -8,7 +8,10 @@ script at a component (the Tab order itself is checked separately).
 
 from __future__ import annotations
 
+import re
+
 import pytest
+from playwright.sync_api import expect
 
 CONTEXT = {"permissions": ["clipboard-read", "clipboard-write"]}
 #: Sections with something to operate (tokens, status, tracker and icons only show).
@@ -90,12 +93,12 @@ def test_buttons(gallery):
     page.get_by_role("button", name="Build", exact=True).focus()
     page.keyboard.press("Enter")
     page.keyboard.press("Space")
-    assert gallery.section("button").get_by_role("status").inner_text() == "Pressed 2 times."
+    expect(gallery.section("button").get_by_role("status")).to_have_text("Pressed 2 times.")
     loading = gallery.section("button").get_by_role("button", name="Loading").first
     loading.focus()
     page.keyboard.press("Enter")  # a loading button keeps the focus and ignores presses
     assert gallery.active()["text"].startswith("Loading")
-    assert gallery.section("button").get_by_role("status").inner_text() == "Pressed 2 times."
+    expect(gallery.section("button").get_by_role("status")).to_have_text("Pressed 2 times.")
 
 
 def test_tabs_automatic_and_manual(gallery):
@@ -103,18 +106,18 @@ def test_tabs_automatic_and_manual(gallery):
     auto = page.get_by_role("tablist", name="Keyword bands", exact=True)
     auto.get_by_role("tab", name="Kept").focus()
     page.keyboard.press("ArrowRight")
-    assert auto.get_by_role("tab", selected=True).inner_text().startswith("To check")
+    expect(auto.get_by_role("tab", selected=True)).to_have_text(re.compile("^To check"))
     page.keyboard.press("End")  # the disabled tab is skipped
-    assert auto.get_by_role("tab", selected=True).inner_text().startswith("Set aside")
+    expect(auto.get_by_role("tab", selected=True)).to_have_text(re.compile("^Set aside"))
     page.keyboard.press("ArrowRight")  # wraps
-    assert auto.get_by_role("tab", selected=True).inner_text().startswith("Kept")
+    expect(auto.get_by_role("tab", selected=True)).to_have_text(re.compile("^Kept"))
     manual = page.get_by_role("tablist", name="Keyword bands, manual selection")
     manual.get_by_role("tab", name="Kept").focus()
     page.keyboard.press("ArrowRight")
     assert focused_text(gallery).startswith("To check")
-    assert manual.get_by_role("tab", selected=True).inner_text().startswith("Kept")
+    expect(manual.get_by_role("tab", selected=True)).to_have_text(re.compile("^Kept"))
     page.keyboard.press("Enter")
-    assert manual.get_by_role("tab", selected=True).inner_text().startswith("To check")
+    expect(manual.get_by_role("tab", selected=True)).to_have_text(re.compile("^To check"))
 
 
 def _active_row(page, grid):
@@ -133,12 +136,12 @@ def test_table_navigation_selection_sort_and_menu(gallery):
     page.keyboard.press("Space")
     page.keyboard.press("Shift+ArrowDown")
     page.keyboard.press("Shift+ArrowDown")
-    assert status.inner_text() == "100,000 rows · 3 selected"
+    expect(status).to_have_text("100,000 rows · 3 selected")
     assert grid.locator('[role=row][aria-selected="true"]').count() == 3
     page.keyboard.press("Control+a")
-    assert status.inner_text() == "100,000 rows · 100,000 selected"
+    expect(status).to_have_text("100,000 rows · 100,000 selected")
     page.keyboard.press("Escape")
-    assert status.inner_text() == "100,000 rows"
+    expect(status).to_have_text("100,000 rows")
     page.keyboard.press("End")
     last = _active_row(page, grid)
     assert last.get_attribute("aria-rowindex") == "100001"
@@ -148,15 +151,15 @@ def test_table_navigation_selection_sort_and_menu(gallery):
     assert int(_active_row(page, grid).get_attribute("aria-rowindex")) > 5
     page.keyboard.press("Enter")
     term = _active_row(page, grid).locator("[role=gridcell]").first.inner_text()
-    assert section.get_by_role("status").inner_text() == f"Opened: {term}"
+    expect(section.get_by_role("status")).to_have_text(f"Opened: {term}")
     # Sort from the keyboard: the header's button follows the grid in the Tab order.
     page.keyboard.press("Tab")
     assert focused_text(gallery) == "Term"
     page.keyboard.press("Enter")
     header = grid.get_by_role("columnheader", name="Term")
-    assert header.get_attribute("aria-sort") == "ascending"
+    expect(header).to_have_attribute("aria-sort", "ascending")
     page.keyboard.press("Enter")
-    assert header.get_attribute("aria-sort") == "descending"
+    expect(header).to_have_attribute("aria-sort", "descending")
     # The context menu of the selected rows.
     grid.focus()
     page.keyboard.press("ArrowDown")
@@ -167,7 +170,7 @@ def test_table_navigation_selection_sort_and_menu(gallery):
     page.keyboard.press("ArrowDown")
     page.keyboard.press("Enter")
     menu.wait_for(state="hidden")
-    assert "Exclude this term (1 row)" in page.locator(".cx-toast__title").last.inner_text()
+    expect(page.locator(".cx-toast__title").last).to_contain_text("Exclude this term (1 row)")
     assert gallery.active()["role"] == "grid"
 
 
@@ -216,12 +219,12 @@ def test_menu_button_and_context_menu(gallery):
     assert focused_text(gallery) == "Wrap long lines"
     page.keyboard.press("Enter")
     assert gallery.active()["text"].startswith("Actions")
-    assert section.get_by_role("status").inner_text() == "Chosen: Wrap long lines"
+    expect(section.get_by_role("status")).to_have_text("Chosen: Wrap long lines")
     page.keyboard.press("ArrowUp")
     assert focused_text(gallery) == "Delete"
     page.keyboard.press("Escape")
     assert gallery.active()["text"].startswith("Actions")
-    assert button.get_attribute("aria-expanded") == "false"
+    expect(button).to_have_attribute("aria-expanded", "false")
     page.keyboard.press("Space")
     page.keyboard.press("Tab")  # Tab closes the menu
     page.get_by_role("menu", name="Actions", exact=True).wait_for(state="hidden")
@@ -261,7 +264,7 @@ def test_dialog_traps_focus_closes_on_escape_and_gives_focus_back(gallery):
     page.keyboard.type("Delta")
     tab_until(gallery, lambda a: a["text"] == "Save")
     page.keyboard.press("Enter")
-    assert gallery.section("dialog").get_by_role("status").inner_text() == "Saved: Delta"
+    expect(gallery.section("dialog").get_by_role("status")).to_have_text("Saved: Delta")
     assert gallery.active()["text"] == "Open a dialog"
 
 
@@ -273,7 +276,7 @@ def test_confirm_dialog_and_drawer(gallery):
     page.keyboard.press("Tab")
     assert focused_text(gallery) == "Leave without saving"
     page.keyboard.press("Enter")
-    assert gallery.section("dialog").get_by_role("status").inner_text() == "You chose to leave."
+    expect(gallery.section("dialog").get_by_role("status")).to_have_text("You chose to leave.")
     page.get_by_role("button", name="Open a drawer").focus()
     page.keyboard.press("Enter")
     drawer = page.get_by_role("dialog", name="Details")
@@ -303,7 +306,7 @@ def test_form_fields_select_and_checkbox(gallery):
     page.keyboard.type("Gamma")
     assert name.input_value() == "Gamma"
     year = section.get_by_label("First year")
-    assert year.get_attribute("aria-invalid") == "true"
+    expect(year).to_have_attribute("aria-invalid", "true")
     assert (
         "Write a year" in section.locator(f"#{year.get_attribute('aria-describedby')}").inner_text()
     )
@@ -323,7 +326,7 @@ def test_stepper_goes_back_to_a_done_step(gallery):
     section.get_by_role("button", name="Choose the source").focus()
     page.keyboard.press("Enter")
     current = section.locator('[aria-current="step"]').first
-    assert current.inner_text().startswith("1")
+    expect(current).to_have_text(re.compile("^1"))
 
 
 def test_tooltip_and_help(gallery):
@@ -333,7 +336,8 @@ def test_tooltip_and_help(gallery):
     page.get_by_role("button", name="Go back 30 %").focus()
     tab_until(gallery, lambda a: a["text"] == "Hover or focus me")
     tip = section.locator(f"#{trigger.get_attribute('aria-describedby')}")
-    assert tip.is_visible() and tip.inner_text() == "Rebuild only what changed"
+    expect(tip).to_be_visible()
+    expect(tip).to_have_text("Rebuild only what changed")
     page.keyboard.press("Escape")
     tip.wait_for(state="hidden")
     help_button = section.get_by_role("button", name="Help: specificity")
@@ -366,10 +370,10 @@ def test_progress_bar_never_goes_back(gallery):
     bar = section.get_by_role("progressbar", name="Example progress 2")
     page.get_by_role("button", name="Add 10 %").focus()
     page.keyboard.press("Enter")
-    assert bar.get_attribute("aria-valuenow") == "55"
+    expect(bar).to_have_attribute("aria-valuenow", "55")
     page.keyboard.press("Tab")
     page.keyboard.press("Enter")  # « Go back 30 % »
-    assert bar.get_attribute("aria-valuenow") == "55"
+    expect(bar).to_have_attribute("aria-valuenow", "55")
 
 
 def test_ai_handoff_from_export_to_import(gallery):
@@ -379,7 +383,7 @@ def test_ai_handoff_from_export_to_import(gallery):
     page.keyboard.press("Enter")
     dialog = page.get_by_role("dialog", name="Ask an AI assistant")
     dialog.wait_for()
-    assert "never contains" in dialog.inner_text()
+    expect(dialog).to_contain_text("never contains")
     tab_until(gallery, lambda a: a["text"] == "I have the answer")
     page.keyboard.press("Enter")
     assert gallery.active()["tag"] == "textarea"
@@ -387,12 +391,12 @@ def test_ai_handoff_from_export_to_import(gallery):
     tab_until(gallery, lambda a: a["text"] == "Check the answer")
     page.keyboard.press("Enter")
     page.wait_for_function("() => document.activeElement.classList.contains('cx-handoff')")
-    assert "2 of the 12 terms have an answer." in dialog.inner_text()
+    expect(dialog).to_contain_text("2 of the 12 terms have an answer.")
     tab_until(gallery, lambda a: a["text"] == "Import these decisions")
     page.keyboard.press("Enter")
     dialog.wait_for(state="hidden")
     assert gallery.active()["text"] == "Export for an assistant"
-    assert "The decisions are imported" in page.locator(".cx-toast__title").last.inner_text()
+    expect(page.locator(".cx-toast__title").last).to_contain_text("The decisions are imported")
 
 
 def test_activity_indicator_and_drawer(gallery):
