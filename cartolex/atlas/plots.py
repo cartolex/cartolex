@@ -231,6 +231,35 @@ def _concept_colors_for_rows(df_terms: pd.DataFrame, hierarchy_doc: dict | None)
     }
 
 
+def theme_view(applied: dict, keywords: pd.DataFrame, *, language: str = "en") -> dict[str, Any]:
+    """What the static maps draw of an applied theme tree of any depth.
+
+    *applied* is the apply stage's ``themes_applied.json``, *keywords* its
+    ``theme_keywords.csv``. Returns ``row_color`` (keyword row → its node's
+    colour: one hue per top-level node, a shade per node below it),
+    ``row_node`` (keyword row → node id) and ``labels`` (each top-level node's
+    name in *language*, its colour and its map position, when it has one).
+    """
+    nodes = {n["id"]: n for n in applied.get("nodes", [])}
+
+    def name(node: dict) -> str:
+        names = node.get("names") or {}
+        return str(names.get(language) or next(iter(names.values()), node["id"]))
+
+    row_node = {
+        int(r): str(n) for r, n in zip(keywords["term_index"], keywords["node"], strict=True)
+    }
+    return {
+        "row_color": {r: nodes[n]["color"] for r, n in row_node.items() if n in nodes},
+        "row_node": row_node,
+        "labels": [
+            (name(n), n["color"], n.get("x"), n.get("y"))
+            for n in applied.get("nodes", [])
+            if n["level"] == 1
+        ],
+    }
+
+
 def plot_term_clusters(
     df_terms: pd.DataFrame,
     *,
@@ -240,15 +269,22 @@ def plot_term_clusters(
     ylim,
     subfields: list[dict] | None = None,
     hierarchy_doc: dict | None = None,
+    themes: dict[str, Any] | None = None,
 ) -> None:
     """UMAP map of keywords.
 
-    When *subfields* (the kept applied-subfield records) is given, keywords are
-    coloured by their CONCEPT (persisted shade from *hierarchy_doc*, subfield hue
-    fallback), subfield names are written in bold at their centroids and the
-    legend lists subfield names in their own colour. Without subfields the map
-    falls back to unlabelled cluster-coloured dots — never "cluster N" labels.
+    With *themes* (a :func:`theme_view` of the applied tree, at any depth),
+    keywords are coloured by their node (the top level's hue, shaded by the
+    node below it), the top-level names are written in bold at their places
+    and the legend lists them in their own colour. Otherwise, when *subfields*
+    (the kept applied-subfield records) is given, keywords are coloured by
+    their CONCEPT (persisted shade from *hierarchy_doc*, subfield hue fallback)
+    and labelled by subfield the same way. Without either the map falls back to
+    unlabelled cluster-coloured dots — never "cluster N" labels.
     """
+    if themes:
+        _plot_term_map_by_theme(df_terms, fig_path=fig_path, xlim=xlim, ylim=ylim, themes=themes)
+        return
     if subfields:
         _plot_term_clusters_by_subfield(
             df_terms,
@@ -395,6 +431,63 @@ def _plot_term_clusters_by_subfield(
     logger.info("Saved %s", fig_path)
 
 
+def _plot_term_map_by_theme(
+    df_terms: pd.DataFrame, *, fig_path, xlim, ylim, themes: dict[str, Any]
+) -> None:
+    """Term map coloured by the node of each keyword, labelled by the top level."""
+    from matplotlib.lines import Line2D
+
+    row_color, row_node = themes["row_color"], themes["row_node"]
+    plt.figure(figsize=(10, 8))
+    texts = []
+    by_node: dict[str, list[int]] = {}
+    for pos in range(len(df_terms)):
+        if pos in row_node:
+            by_node.setdefault(row_node[pos], []).append(pos)
+    for rows in by_node.values():
+        best = df_terms.iloc[rows].sort_values("global_score", ascending=False).head(3)
+        for pos, row in zip(best.index, best.itertuples(index=False), strict=True):
+            texts.append(
+                plt.text(
+                    row.umap_x,
+                    row.umap_y,
+                    row.term,
+                    fontsize=7,
+                    ha="center",
+                    va="center",
+                    color=row_color.get(int(pos), "lightgrey"),
+                )
+            )
+    for label, color, x, y in themes["labels"]:
+        if x is None or y is None:
+            continue
+        texts.append(
+            plt.text(
+                x, y, label, fontsize=11, fontweight="bold", ha="center", va="center", color=color
+            )
+        )
+    plt.xlim(xlim)
+    plt.ylim(ylim)
+    if texts:
+        adjust_text(texts)
+    handles = [
+        Line2D([0], [0], marker="o", color="w", markerfacecolor=color, markersize=8, label=label)
+        for label, color, _, _ in themes["labels"]
+    ]
+    if handles:
+        leg = plt.legend(handles=handles, fontsize=8, loc="best")
+        for text, (_, color, _, _) in zip(leg.get_texts(), themes["labels"], strict=False):
+            text.set_color(color)
+    plt.xlabel("UMAP-1")
+    plt.ylabel("UMAP-2")
+    plt.title("UMAP map of keywords (themes)")
+    plt.gca().set_aspect("equal", adjustable="box")  # same aspect/orientation on every UMAP
+    plt.tight_layout()
+    _save_figure(fig_path)
+    plt.close()
+    logger.info("Saved %s", fig_path)
+
+
 def plot_superposed_map(
     data: LexicalData,
     emb: Embeddings,
@@ -406,11 +499,13 @@ def plot_superposed_map(
     xlim,
     ylim,
     hierarchy_doc: dict | None = None,
+    themes: dict[str, Any] | None = None,
 ) -> None:
     """Plot researchers, laboratories and terms superposed on a single UMAP map.
 
-    Term dots take their CONCEPT's persisted shade when *hierarchy_doc* carries
-    concepts; otherwise the unlabelled cluster colours are used.
+    Term dots take their node's colour with *themes* (a :func:`theme_view`),
+    else their CONCEPT's persisted shade when *hierarchy_doc* carries concepts;
+    otherwise the unlabelled cluster colours are used.
     """
     df_ind = data.meta_ind.copy()
     df_ind["umap_x"] = emb.umap_ind[:, 0]
@@ -418,7 +513,10 @@ def plot_superposed_map(
 
     plt.figure(figsize=(11, 9))
 
-    concept_color = _concept_colors_for_rows(df_terms, hierarchy_doc)
+    if themes:
+        concept_color = themes["row_color"]
+    else:
+        concept_color = _concept_colors_for_rows(df_terms, hierarchy_doc)
     if concept_color:
         plt.scatter(
             df_terms["umap_x"],
@@ -760,6 +858,16 @@ def _draw_arrows(ax, xs, ys, color, lw: float = 1.4) -> None:
         )
 
 
+def _term_background(ax, terms_df: pd.DataFrame | None, term_colors: list[str] | None) -> None:
+    """The keywords behind a trajectory: grey, or each in its theme's colour."""
+    if terms_df is None or terms_df.empty:
+        return
+    if term_colors is not None and len(term_colors) == len(terms_df):
+        ax.scatter(terms_df["umap_x"], terms_df["umap_y"], s=4, c=term_colors, alpha=0.35, zorder=1)
+    else:
+        ax.scatter(terms_df["umap_x"], terms_df["umap_y"], s=4, c="0.85", alpha=0.5, zorder=1)
+
+
 def plot_cohort_trajectories(
     cohort_df: pd.DataFrame,
     *,
@@ -767,11 +875,16 @@ def plot_cohort_trajectories(
     terms_df: pd.DataFrame | None = None,
     title: str = "Thematic mobility of cohorts",
     legend_title: str = "Cohort",
+    term_colors: list[str] | None = None,
 ) -> None:
-    """Plot per-cohort centroid drift across time-bins in the reference UMAP space."""
+    """Plot per-cohort centroid drift across time-bins in the reference UMAP space.
+
+    *term_colors*, one per row of *terms_df*, colours the keywords behind the
+    paths (by theme: the top level's hue, shaded by the node below); grey
+    without it.
+    """
     fig, ax = plt.subplots(figsize=(11, 9))
-    if terms_df is not None and not terms_df.empty:
-        ax.scatter(terms_df["umap_x"], terms_df["umap_y"], s=4, c="0.85", alpha=0.5, zorder=1)
+    _term_background(ax, terms_df, term_colors)
 
     cmap = matplotlib.colormaps["viridis"]
     cohorts = list(dict.fromkeys(cohort_df["cohort_start"].tolist()))
@@ -805,11 +918,13 @@ def plot_researcher_trajectory(
     fig_path,
     terms_df: pd.DataFrame | None = None,
     title: str | None = None,
+    term_colors: list[str] | None = None,
 ) -> None:
     """Plot one researcher's topical mobility as a time-ordered path in UMAP space.
 
-    Markers are coloured oldest→newest; arrows show the direction of travel. A
-    no-op (no file written) when the researcher has no trajectory rows.
+    Markers are coloured oldest→newest; arrows show the direction of travel;
+    *term_colors* colours the keywords behind (as :func:`plot_cohort_trajectories`).
+    A no-op (no file written) when the researcher has no trajectory rows.
     """
     sub = traj_df[traj_df["researcher_id"] == researcher_id].sort_values("bin_end")
     if sub.empty:
@@ -817,8 +932,7 @@ def plot_researcher_trajectory(
         return
 
     fig, ax = plt.subplots(figsize=(10, 8))
-    if terms_df is not None and not terms_df.empty:
-        ax.scatter(terms_df["umap_x"], terms_df["umap_y"], s=4, c="0.85", alpha=0.5, zorder=1)
+    _term_background(ax, terms_df, term_colors)
 
     xs = sub["umap_x"].to_numpy()
     ys = sub["umap_y"].to_numpy()

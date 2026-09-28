@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from ..project.models import ProjectFile
+from ..project.models import ProjectFile, ThemesFile
 from .enginefiles import UNAVAILABLE, copy_amended, engine_paths
 from .execution import Cancelled, StageRefused
 from .params import theme_level_sizes
@@ -43,6 +43,7 @@ __all__ = [
     "AIAccess",
     "engine_registry",
     "keywords_settings",
+    "proposed_places",
     "run_context",
     "stopword_overrides",
     "theme_levels",
@@ -395,49 +396,54 @@ def theme_levels(params: Mapping[str, Any], kept_keywords: int) -> tuple[int, ..
     )
 
 
-def engine_levels(params: Mapping[str, Any], kept_keywords: int) -> tuple[int, int, list[str]]:
-    """The engine's two levels (themes, topics) for the theme levels, with any warning.
-
-    The engine builds themes over topics: the top level gives the themes, the
-    finest the topics. One level gives the themes, with about
-    ``keywords_per_group`` keywords per topic beneath; three or four levels keep
-    their top and finest levels.
-    """
-    levels = theme_levels(params, kept_keywords)
-    warnings: list[str] = []
-    themes = levels[0]
-    if len(levels) >= 2:
-        topics = levels[-1]
-        if len(levels) > 2:
-            warnings.append(
-                f"the engine builds two levels: themes ({themes}) and topics ({topics}); "
-                f"the {len(levels) - 2} level(s) between are not built yet"
-            )
-    else:
-        topics = max(themes, round(kept_keywords / params["keywords_per_group"]))
-        warnings.append(
-            f"the engine builds two levels: the {themes} themes have {topics} topics beneath"
-        )
-    return themes, topics, warnings
-
-
 def run_group(ctx: StageContext) -> dict[str, int]:
-    """``themes.group``: topics (the term clustering) and the draft theme tree."""
+    """``themes.group``: the finest groups (the term clustering), the levels above, the proposal.
+
+    Writes the proposal tree (``themes_draft.json``) at every depth and, at
+    depth 2, the engine's two-level draft (``subfields_draft.json``) too.
+    """
     from ..atlas import driver
     from ..lexicon.subfields import draft_subfields
+    from ..lexicon.theme_tree import draft_themes
 
     kept = int(ctx.sizes.kept_keywords or 0)
-    themes, topics, warnings = engine_levels(ctx.params, kept)
-    for w in warnings:
-        ctx.warn(w)
-    rctx = run_context(ctx, _settings(ctx), hi=0.7)
-    _engine_call(ctx, lambda: driver.run_clustering(rctx, n_concepts=topics))
-    rctx = rctx.replace(progress=_progress_bridge(ctx, 0.7, 1.0))
-    drafted = _engine_call(ctx, lambda: draft_subfields(rctx, n_subfields=themes))
-    return {"topics": topics, "themes": len(drafted)}
+    levels = theme_levels(ctx.params, kept)
+    rctx = run_context(ctx, _settings(ctx), hi=0.6)
+    _engine_call(ctx, lambda: driver.run_clustering(rctx, n_concepts=levels[-1]))
+    rctx = rctx.replace(progress=_progress_bridge(ctx, 0.6, 0.8))
+    doc = _engine_call(
+        ctx,
+        lambda: draft_themes(rctx, level_sizes=levels, run=f"themes.group/{ctx.run_id}"),
+    )
+    if len(levels) == 2:
+        rctx = rctx.replace(progress=_progress_bridge(ctx, 0.8, 1.0))
+        _engine_call(ctx, lambda: draft_subfields(rctx, n_subfields=levels[0]))
+    depth = int(doc["depth"])
+    per_level = [0] * depth
+    for node in _tree_levels(doc):
+        per_level[node - 1] += 1
+    return {
+        "depth": depth,
+        "themes": per_level[0],
+        "topics": per_level[-1],
+        **{f"groups_level_{i}": n for i, n in enumerate(per_level, start=1)},
+    }
+
+
+def _tree_levels(doc: Mapping[str, Any]) -> list[int]:
+    """The level of every node of a tree document."""
+    parent = {n["id"]: n.get("parent") for n in doc.get("nodes", [])}
+    out = []
+    for nid in parent:
+        level, p = 1, parent[nid]
+        while p is not None:
+            level, p = level + 1, parent[p]
+        out.append(level)
+    return out
 
 
 def _apply(ctx: StageContext, rctx: RunContext) -> dict[str, int]:
+    """The engine's two-level apply (depth 2): the applied document and the two-level weights."""
     from ..lexicon.subfields import apply_subfields
 
     returned = _engine_call(ctx, lambda: apply_subfields(rctx))
@@ -449,14 +455,60 @@ def _apply(ctx: StageContext, rctx: RunContext) -> dict[str, int]:
     }
 
 
+def _person_ids(ctx: StageContext) -> dict[str, str]:
+    """The engine's researcher id → the project's ``person_id``, from the corpus slots' people."""
+    from ..lexicon.utils import make_researcher_id
+
+    corpus = ctx.folder("corpus.assemble")
+    out: dict[str, str] = {}
+    for slot in ctx.project.config.slots:
+        people = corpus / slot.id / "people.csv"
+        if not people.exists():
+            continue
+        with open(people, encoding="utf-8", newline="") as fh:
+            for r in csv.DictReader(fh):
+                rid = make_researcher_id(r["last_name"], r["first_name"], r["unit"])
+                out.setdefault(rid, r["person_id"])
+    return out
+
+
+def _apply_tree(ctx: StageContext, rctx: RunContext, *, tables: bool = True) -> dict[str, int]:
+    """The theme tree applied at any depth: the applied tree and its tables."""
+    from ..lexicon.theme_tree import apply_themes
+
+    person_ids = _person_ids(ctx) if tables else None
+    applied = _engine_call(ctx, lambda: apply_themes(rctx, tables=tables, person_ids=person_ids))
+    levels = [n["level"] for n in applied.nodes]
+    depth = applied.tree.depth
+    return {
+        "depth": depth,
+        "themes": levels.count(1),
+        "topics": levels.count(depth),
+        "people_counted": applied.people_counted,
+    }
+
+
 def run_apply(ctx: StageContext) -> dict[str, int]:
-    """``themes.apply``: the curated theme tree when there is one, else the draft."""
+    """``themes.apply``: the curated theme tree when there is one, else the proposal, at any depth.
+
+    At depth 2 it also writes the engine's two-level documents (the curated
+    document for a curated tree, the applied document and the two-level
+    weights), as they always were.
+    """
     counts: dict[str, int] = {}
+    tree = None
     if ctx.layout.themes_json.exists():
         counts["curated"] = 1
-        _curated_from_themes(ctx)
-    rctx = run_context(ctx, _settings(ctx))
-    return {**counts, **_apply(ctx, rctx)}
+        tree = _checked_tree(ctx)
+    rctx = run_context(ctx, _settings(ctx), hi=0.6)
+    counts.update(_apply_tree(ctx, rctx))
+    two_levels = tree.depth == 2 if tree is not None else rctx.paths.subfields_draft_json.exists()
+    if two_levels:
+        if tree is not None:
+            _curated_from_themes(ctx, tree)
+        rctx = rctx.replace(progress=_progress_bridge(ctx, 0.6, 1.0))
+        counts.update(_apply(ctx, rctx))
+    return counts
 
 
 def _vocabulary(folder: Path) -> tuple[list[str], dict[str, float]]:
@@ -474,9 +526,10 @@ def _vocabulary(folder: Path) -> tuple[list[str], dict[str, float]]:
 def prepare_themes(project: Project) -> list[str]:
     """Before ``themes.apply``: rebase ``decisions/themes.json`` onto the current vocabulary.
 
-    A new keyword is proposed the node of its draft topic when the tree has it,
-    else set aside; either way it is marked « to check ». The rebase is saved as
-    a new version of the tree (its reconciliation is in the description).
+    A new keyword is proposed a node by :func:`proposed_places` (the node of
+    the curated tree that holds most of its group in the grouping's proposal),
+    else set aside; either way it is marked « to check ». The rebase is saved
+    as a new version of the tree (its reconciliation is in the description).
     """
     from ..project.themes import rebase, vocabulary_fingerprint, vocabulary_of
     from ..project.themes_versions import read_themes, save_themes
@@ -489,19 +542,10 @@ def prepare_themes(project: Project) -> list[str]:
     terms, _ = _vocabulary(space)
     if tree.based_on.vocabulary == vocabulary_fingerprint(terms):
         return []
-    draft_path = project.layout.stage("themes.group") / "subfields_draft.json"
-    topic_of: dict[str, str] = {}
-    if draft_path.exists():
-        draft = json.loads(draft_path.read_text(encoding="utf-8"))
-        for concept in draft.get("concepts", []):
-            for i in concept.get("term_indices", []):
-                if 0 <= int(i) < len(terms):
-                    topic_of[terms[int(i)]] = f"c{concept['id']}"
-    deepest = {n.id for n in tree.nodes if n.id not in {m.parent for m in tree.nodes if m.parent}}
+    draft_path = project.layout.stage("themes.group") / "themes_draft.json"
+    proposal = json.loads(draft_path.read_text(encoding="utf-8")) if draft_path.exists() else {}
     known = vocabulary_of(tree)
-    proposals = {
-        t: (topic_of[t] if topic_of.get(t) in deepest else None) for t in terms if t not in known
-    }
+    proposals = proposed_places(tree, proposal, [t for t in terms if t not in known])
     record = read_record(project.layout, "themes.space")
     rebased = rebase(
         tree, terms, proposals, run=f"themes.space/{record.run_id}" if record else None
@@ -510,26 +554,76 @@ def prepare_themes(project: Project) -> list[str]:
     return [f"theme tree rebased: {rebased.description}"] if saved.written else []
 
 
-def _curated_from_themes(ctx: StageContext) -> None:
-    """Write the engine's curated document (``curated.json``) from ``decisions/themes.json``."""
-    from ..project.files import atomic_write_bytes, json_bytes
+def proposed_places(
+    tree: ThemesFile, proposal: Mapping[str, Any], new: list[str]
+) -> dict[str, str | None]:
+    """A node of *tree* for each *new* keyword, from its group in the grouping's *proposal*.
+
+    The keyword's group is its node in *proposal* (a ``cartolex-themes/1`` tree,
+    the grouping's finest level). The other keywords of that group that *tree*
+    places vote, level by level from the deepest up: each votes for the node of
+    that level above its own node (or its node itself). The first node that
+    gets a strict majority of the votes of the whole group is proposed. When no
+    level gives one, or the group has no keyword *tree* places, the keyword gets
+    ``None`` (it is set aside, « to check »).
+    """
+    from ..project.themes import node_level
+
+    group_of = dict(proposal.get("keywords") or {})
+    members: dict[str, list[str]] = {}
+    for keyword, group in group_of.items():
+        members.setdefault(group, []).append(keyword)
+    parent = {n.id: n.parent for n in tree.nodes}
+    level = {n.id: node_level(tree, n.id) for n in tree.nodes}
+
+    def ancestor(node: str, at: int) -> str:
+        while level[node] > at:
+            node = parent[node]  # type: ignore[assignment]
+        return node
+
+    out: dict[str, str | None] = {}
+    for keyword in new:
+        group = group_of.get(keyword)
+        voters = [
+            tree.keywords[k]
+            for k in members.get(group, [])  # type: ignore[arg-type]
+            if k != keyword and k in tree.keywords
+        ]
+        out[keyword] = None
+        for at in range(tree.depth, 0, -1):
+            votes: dict[str, int] = {}
+            for node in voters:
+                if level[node] >= at:
+                    top = ancestor(node, at)
+                    votes[top] = votes.get(top, 0) + 1
+            winner = next((n for n, v in votes.items() if 2 * v > len(voters)), None)
+            if winner is not None:
+                out[keyword] = winner
+                break
+    return out
+
+
+def _checked_tree(ctx: StageContext) -> ThemesFile:
+    """``decisions/themes.json``, refused unless rebased on the current vocabulary."""
     from ..project.themes import vocabulary_fingerprint
-    from ..project.themes_curated import to_curated
     from ..project.themes_versions import read_themes
 
     tree, _ = read_themes(ctx.project)
-    if tree is None:
-        return
-    if tree.depth != 2:
-        raise StageRefused(
-            f"decisions/themes.json has {tree.depth} level(s); the engine applies trees of "
-            "two levels (themes over topics) for now"
-        )
-    terms, scores = _vocabulary(ctx.folder("themes.space"))
+    assert tree is not None
+    terms, _ = _vocabulary(ctx.folder("themes.space"))
     if tree.based_on.vocabulary != vocabulary_fingerprint(terms):
         raise StageRefused(
             "decisions/themes.json is not based on the current vocabulary (its rebase failed)"
         )
+    return tree
+
+
+def _curated_from_themes(ctx: StageContext, tree: ThemesFile) -> None:
+    """Write the engine's two-level curated document (``curated.json``) of a depth-2 tree."""
+    from ..project.files import atomic_write_bytes, json_bytes
+    from ..project.themes_curated import to_curated
+
+    terms, scores = _vocabulary(ctx.folder("themes.space"))
     config = ctx.project.config
     doc = to_curated(
         tree,
@@ -597,8 +691,11 @@ def run_layout(ctx: StageContext) -> dict[str, int]:
     _engine_call(
         ctx, lambda: driver.run_umap(rctx, umap_random_state=version.layout.seed, **kwargs)
     )
-    applied = _apply(ctx, rctx.replace(progress=_progress_bridge(ctx, 0.9, 1.0)))
-    return {"version": int(version.id[1:]) if version.id[1:].isdigit() else 0, **applied}
+    rctx = rctx.replace(progress=_progress_bridge(ctx, 0.9, 1.0))
+    counts = _apply_tree(ctx, rctx, tables=False)
+    if rctx.paths.subfields_json.exists():  # the apply stage wrote the two-level documents
+        counts.update(_apply(ctx, rctx))
+    return {"version": int(version.id[1:]) if version.id[1:].isdigit() else 0, **counts}
 
 
 def run_trajectories(ctx: StageContext) -> dict[str, int]:
@@ -616,7 +713,10 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
     """``overlays.position``: each projected set placed on the finished map.
 
     Writes ``<set>/positions.json`` per set: each person's place in the space
-    and on the map, keywords, nearest keywords and theme and topic weights.
+    and on the map, keywords, nearest keywords, and their weights on every
+    level of the theme tree (``levels``: from the terms that place them, as a
+    mapped person's). At depth 2 each person also keeps the two-level
+    ``themes`` and ``topics`` weights (by proximity to their seed keywords).
     """
     import numpy as np
     import pandas as pd
@@ -625,11 +725,12 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
     from ..lexicon.positioning import (
         concept_svd_centroids,
         load_positioning_models,
-        project_text,
+        project_text_vector,
         scored_top_terms_for_vector,
         subfield_svd_centroids,
         subfield_weights_for_vector,
     )
+    from ..lexicon.theme_tree import read_tree
     from ..project.files import atomic_write_bytes, json_bytes
 
     rctx = run_context(ctx, _settings(ctx))
@@ -637,11 +738,22 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
     aliases = pd.read_csv(rctx.paths.term_aliases_csv, dtype=str, keep_default_na=False)
     alias_map = dict(zip(aliases["alias"], aliases["canonical"], strict=True))
     emb = load_embeddings(rctx.paths.embeddings_json)
-    applied = json.loads(rctx.paths.subfields_json.read_text(encoding="utf-8"))
-    sf_centroids = subfield_svd_centroids(
-        applied.get("subfields", []), emb.Z_terms, restricted_terms
+    two_levels = rctx.paths.subfields_json.exists()
+    sf_centroids: dict = {}
+    c_centroids: dict = {}
+    if two_levels:
+        applied = json.loads(rctx.paths.subfields_json.read_text(encoding="utf-8"))
+        sf_centroids = subfield_svd_centroids(
+            applied.get("subfields", []), emb.Z_terms, restricted_terms
+        )
+        c_centroids = concept_svd_centroids(
+            applied.get("concepts", []), emb.Z_terms, restricted_terms
+        )
+    tree = (
+        read_tree(rctx.paths.themes_tree_json, restricted_terms)
+        if rctx.paths.themes_tree_json.exists()
+        else None
     )
-    c_centroids = concept_svd_centroids(applied.get("concepts", []), emb.Z_terms, restricted_terms)
     corpus = ctx.folder("corpus.assemble") / "overlays"
     placed = 0
     sets = ctx.project.config.overlays
@@ -664,7 +776,7 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
         for i, key in enumerate(sorted(texts, key=lambda k: who.get(k, ""))):
             ctx.check_cancel()
             ctx.progress((n_set + i / max(1, len(texts))) / max(1, len(sets)), overlay.id)
-            z, top = project_text(
+            z, top, x = project_text_vector(
                 "\n\n".join(texts[key]),
                 tfidf=tfidf,
                 restricted_terms=restricted_terms,
@@ -674,22 +786,34 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
                 top_k=10,
                 top_n=rctx.settings.top_n_researcher,
             )
-            items.append(
-                {
-                    "person_id": who.get(key, ""),
-                    "z": [float(v) for v in np.asarray(z).ravel()],
-                    "keywords": [{"term": t["term"], "score": float(t["score"])} for t in top],
-                    "near_terms": scored_top_terms_for_vector(
-                        z, emb.Z_terms, restricted_terms, k=10
-                    ),
-                    "themes": subfield_weights_for_vector(z, sf_centroids),
-                    "topics": subfield_weights_for_vector(z, c_centroids),
-                }
-            )
+            item: dict[str, Any] = {
+                "person_id": who.get(key, ""),
+                "z": [float(v) for v in np.asarray(z).ravel()],
+                "keywords": [{"term": t["term"], "score": float(t["score"])} for t in top],
+                "near_terms": scored_top_terms_for_vector(z, emb.Z_terms, restricted_terms, k=10),
+            }
+            if two_levels:
+                item["themes"] = subfield_weights_for_vector(z, sf_centroids)
+                item["topics"] = subfield_weights_for_vector(z, c_centroids)
+            if tree is not None:
+                cols = np.flatnonzero(np.asarray(x) > 0)
+                item["levels"] = [
+                    {
+                        "level": lw.level,
+                        "nodes": [
+                            {"id": tree.nodes[n].id, "weight": float(w), "share": float(s)}
+                            for n, w, s in zip(
+                                lw.nodes.tolist(), lw.weights, lw.shares, strict=True
+                            )
+                        ],
+                    }
+                    for lw in tree.describe(cols, np.asarray(x)[cols])
+                ]
+            items.append(item)
         if items and anchors is not None:
             xy = anchors.place(np.vstack([np.asarray(it["z"]) for it in items]))
-            for it, (x, y) in zip(items, xy, strict=True):
-                it["x"], it["y"] = float(x), float(y)
+            for it, (px, py) in zip(items, xy, strict=True):
+                it["x"], it["y"] = float(px), float(py)
         atomic_write_bytes(
             ctx.out / overlay.id / "positions.json",
             json_bytes({"format": "cartolex-positions/1", "set": overlay.id, "items": items}),

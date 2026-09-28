@@ -88,6 +88,8 @@ class EnginePaths:
     api_key_json: Path
     triage_prompt_override_txt: Path
     subfields_curated_json: Path
+    #: The curated theme tree (``cartolex-themes/1``, the project's ``decisions/themes.json``).
+    themes_json: Path
 
     # ── extraction, triage and consolidation ──
     #: Folder of the parse cache: the analysed texts of every corpus language,
@@ -134,8 +136,18 @@ class EnginePaths:
     superposed_png: Path
     cohort_trajectories_png: Path
     group_panel_png: PathPattern  # per group
+    #: Each time window's weights on every level of the theme tree.
+    trajectory_themes_parquet: Path
 
-    # ── subfields ──
+    # ── the theme tree, at any depth ──
+    themes_draft_json: Path  # the grouping's proposal tree
+    themes_tree_json: Path  # the tree the apply stage applied, as it read it
+    themes_applied_json: Path  # the applied tree: nodes, weights, colours, positions
+    theme_keywords_csv: Path
+    theme_people_parquet: Path
+    theme_organisations_parquet: Path
+
+    # ── subfields (the two-level documents, written at depth 2) ──
     subfields_draft_json: Path
     subfields_json: Path
     subfield_weights_csv: Path
@@ -169,6 +181,7 @@ class EnginePaths:
             api_key_json=manual / "llm_api.json",
             triage_prompt_override_txt=manual / "llm_prompts" / "triage_typed.txt",
             subfields_curated_json=manual / "subfields.json",
+            themes_json=manual / "themes.json",
             parse_cache_dir=auto / "parse_cache",
             raw_terms_csv=PathPattern(auto, "raw_keywords_{}.csv"),
             global_terms_csv=auto / "keywords_global.csv",
@@ -209,6 +222,13 @@ class EnginePaths:
             superposed_png=atlas / "umap_superposed_all.png",
             cohort_trajectories_png=atlas / "umap_cohort_trajectories.png",
             group_panel_png=PathPattern(atlas, "umap_lab_{}.png"),
+            trajectory_themes_parquet=atlas / "trajectory_themes.parquet",
+            themes_draft_json=auto / "themes_draft.json",
+            themes_tree_json=auto / "themes_tree.json",
+            themes_applied_json=auto / "themes_applied.json",
+            theme_keywords_csv=auto / "theme_keywords.csv",
+            theme_people_parquet=auto / "theme_people.parquet",
+            theme_organisations_parquet=auto / "theme_organisations.parquet",
             subfields_draft_json=auto / "subfields_draft.json",
             subfields_json=auto / "subfields.json",
             subfield_weights_csv=auto / "subfield_weights.csv",

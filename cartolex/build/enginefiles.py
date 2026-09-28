@@ -123,6 +123,7 @@ ENGINE_FILES: dict[str, Place] = {
         "decision", "decisions/prompts/triage_typed_system.txt"
     ),
     "subfields_curated_json": Owned("themes.apply", "curated.json"),
+    "themes_json": FromProject("decision", "decisions/themes.json"),
     # ── extraction, triage and consolidation ──
     "raw_terms_csv": Owned("keywords.extract", "raw_keywords_{}.csv"),
     "global_terms_csv": Owned("keywords.extract", "keywords_global.csv"),
@@ -164,12 +165,20 @@ ENGINE_FILES: dict[str, Place] = {
     "proto_subfields_json": Owned("themes.group", "proto_subfields.json"),
     "trajectories_csv": Owned("map.trajectories", "umap_trajectories.csv"),
     "trajectory_windows_json": Owned("map.trajectories", "trajectory_windows.json"),
+    "trajectory_themes_parquet": Owned("map.trajectories", "trajectory_themes.parquet"),
     "persons_groups_png": NotProvided(_FIGURE, "umap_individuals_labs.png"),
     "term_clusters_png": NotProvided(_FIGURE, "umap_terms_clusters.png"),
     "superposed_png": NotProvided(_FIGURE, "umap_superposed_all.png"),
     "cohort_trajectories_png": NotProvided(_FIGURE, "umap_cohort_trajectories.png"),
     "group_panel_png": NotProvided(_FIGURE, "umap_lab_{}.png"),
-    # ── subfields ──
+    # ── the theme tree ──
+    "themes_draft_json": Owned("themes.group", "themes_draft.json"),
+    "themes_tree_json": Owned("themes.apply", "themes_tree.json"),
+    "themes_applied_json": Owned("themes.apply", "themes_applied.json", amended_by=("map.layout",)),
+    "theme_keywords_csv": Owned("themes.apply", "theme_keywords.csv"),
+    "theme_people_parquet": Owned("themes.apply", "theme_people.parquet"),
+    "theme_organisations_parquet": Owned("themes.apply", "theme_organisations.parquet"),
+    # ── subfields (the two-level documents, at depth 2) ──
     "subfields_draft_json": Owned("themes.group", "subfields_draft.json"),
     "subfields_json": Owned("themes.apply", "subfields.json", amended_by=("map.layout",)),
     "subfield_weights_csv": Owned(

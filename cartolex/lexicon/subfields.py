@@ -114,11 +114,16 @@ def term_cluster_subfield_map(subfields: list[SubfieldEntry]) -> dict[int, int]:
     return mapping
 
 
-def compute_lexicon_weights(doc: SubfieldsDoc, X: np.ndarray, terms: list[str]) -> pd.DataFrame:
+def compute_lexicon_weights(
+    doc: SubfieldsDoc, X: np.ndarray, terms: list[str], *, chunk_bytes: int | None = None
+) -> pd.DataFrame:
     """Researcher-equal lexicon weights over the curated hierarchy (single-track).
 
-    Accepts a dense array or a scipy-sparse matrix (densified here — curated
-    hierarchies are small; np.asarray on sparse would yield a 0-d object array).
+    Accepts a dense array or a scipy-sparse matrix, never made dense as a
+    whole: the totals stay sparse and the term weights are summed by chunks of
+    terms (:func:`cartolex.lexicon.theme_tree.keyword_weights`), with exactly
+    the numbers of the whole matrix made dense (*chunk_bytes*: the memory of a
+    chunk, default :data:`cartolex.lexicon.theme_tree.CHUNK_BYTES`).
 
     Each researcher's row of *X* is L1-normalised over the curated term columns
     (kept concepts' ``term_indices``); term weight = the column sum of those
@@ -137,20 +142,16 @@ def compute_lexicon_weights(doc: SubfieldsDoc, X: np.ndarray, terms: list[str]) 
     The returned per-term display rows keep every term with its weight
     regardless of status. Absent lists = every term defining (legacy).
     """
-    from cartolex.atlas.types import to_dense
+    from .theme_tree import CHUNK_BYTES, held_usage, keyword_weights, row_totals
 
-    X = to_dense(X)
     kept_sf_ids = {int(s["id"]) for s in doc["subfields"]}
     concepts = [c for c in doc.get("concepts", []) if int(c.get("subfield_id", -1)) in kept_sf_ids]
     curated: list[int] = sorted({int(ti) for c in concepts for ti in c["term_indices"]})
     col_of = {ti: j for j, ti in enumerate(curated)}
-    Xc = np.asarray(X, dtype=float)[:, curated]
-    row_sums = Xc.sum(axis=1, keepdims=True)
-    contributing = row_sums[:, 0] > 0
-    with np.errstate(invalid="ignore", divide="ignore"):
-        shares = np.where(row_sums > 0, Xc / row_sums, 0.0)
-    term_w = shares.sum(axis=0)  # weight per curated column
-    total = float(contributing.sum()) or 1.0
+    H = held_usage(X, curated)
+    totals = row_totals(H)
+    term_w = keyword_weights(H, totals, chunk_bytes=chunk_bytes or CHUNK_BYTES)
+    total = float((totals > 0).sum()) or 1.0
 
     # True merge: fold variant weights into the canonical index, drop variants.
     canon_of: dict[int, int] = {}
