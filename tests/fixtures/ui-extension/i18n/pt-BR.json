@@ -1,0 +1,4 @@
+{"$format": "cartolex-i18n/1", "$locale": "pt-BR",
+ "ext.demo.title": "Extensão", "ext.demo.card": "Um cartão vindo de uma extensão",
+ "ext.demo.empty": "Uma página adicionada por uma extensão", "ext.demo.action": "Voltar à visão geral",
+ "nav.share": "Publicar"}

@@ -1,0 +1,4 @@
+{"$format": "cartolex-i18n/1", "$locale": "fr",
+ "ext.demo.title": "Extension", "ext.demo.card": "Une carte venue d’une extension",
+ "ext.demo.empty": "Une page ajoutée par une extension", "ext.demo.action": "Retour à la vue d’ensemble",
+ "nav.share": "Publier"}

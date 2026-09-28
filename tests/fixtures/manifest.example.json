@@ -1,0 +1,26 @@
+{
+  "format": "cartolex-manifest/1",
+  "app": {"id": "cartolex", "name": "cartolex", "version": "1.0.0.dev0"},
+  "branding": {"name": "cartolex", "logo": "/static/brand/logo.svg"},
+  "locales": {
+    "available": ["en", "fr", "pt-BR"],
+    "default": "en",
+    "catalogues": {
+      "en": ["/static/i18n/en.json", "/static/ext/demo/i18n/en.json"],
+      "fr": ["/static/i18n/fr.json", "/static/ext/demo/i18n/fr.json"],
+      "pt-BR": ["/static/i18n/pt-BR.json", "/static/ext/demo/i18n/pt-BR.json"]
+    }
+  },
+  "nav": [
+    {"id": "overview", "label": "nav.overview", "route": "/overview", "module": "/static/pages/overview.js", "order": 10},
+    {"id": "corpus", "label": "nav.corpus", "route": "/corpus", "module": "/static/pages/placeholder.js", "order": 20},
+    {"id": "keywords", "label": "nav.keywords", "route": "/keywords", "module": "/static/pages/placeholder.js", "order": 30},
+    {"id": "themes", "label": "nav.themes", "route": "/themes", "module": "/static/pages/placeholder.js", "order": 40},
+    {"id": "map", "label": "nav.map", "route": "/map", "module": "/static/pages/placeholder.js", "order": 50},
+    {"id": "share", "label": "nav.share", "route": "/share", "module": "/static/pages/placeholder.js", "order": 60}
+  ],
+  "modules": ["/static/ext/demo/index.js"],
+  "capabilities": {"collection": true, "ai_api": false, "ai_handoff": true, "hosted": false},
+  "project": {"open": true, "id": "demo-coast", "name": "Coastal and marine demo"},
+  "security": {"csrf_header": "X-Cartolex-CSRF"}
+}
