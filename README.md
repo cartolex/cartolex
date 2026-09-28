@@ -19,6 +19,9 @@ in the corpus index. It consumes only the *corpus contract* below, whatever prod
 - `cartolex.atlas` — SVD reduction, Ward clustering (cosine, SVD space), a UMAP 2-D
   map of the entities with the terms placed on it by their nearest entities,
   trajectories, plots, and the `driver` that orchestrates the whole atlas stage.
+- `cartolex.project`, `cartolex.build` — the project format and the build of its
+  stages; `cartolex.app` — the web app (`cartolex` opens it in the browser,
+  `cartolex api` serves it for hosting, see `docs/hosting.md`).
 
 ## The corpus contract
 

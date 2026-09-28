@@ -10,6 +10,7 @@ keywords, themes and a two-dimensional atlas, with an offline site to share it.
 demo
 build
 keywords
+hosting
 ```
 
 ```{toctree}
@@ -23,6 +24,9 @@ format/index
 :caption: Development
 :maxdepth: 1
 
+dev/api
+dev/extensions
+dev/app-manifest
 dev/engine
 dev/extraction
 dev/lexicon-lab

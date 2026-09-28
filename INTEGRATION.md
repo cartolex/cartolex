@@ -292,6 +292,12 @@ packaged one-call helper is on the roadmap — until then, follow
 
 ## 4. Wiring it into FastAPI
 
+cartolex ships its own FastAPI app, `cartolex.app`, built on projects and the
+build: a host application that wants cartolex's screens adds its pages, routes
+and settings to it through `Extension` objects (`docs/dev/extensions.md`)
+rather than rebuilding them. What follows is for an application that drives
+the engine itself.
+
 - **Run stages in worker processes, not request handlers.** Extraction and
   UMAP take seconds-to-minutes at realistic corpus sizes; run each stage as a
   job outside the request. The engine keeps no module-level state —

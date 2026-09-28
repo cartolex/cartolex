@@ -85,7 +85,7 @@ def session(request: Request) -> dict[str, Any]:
     }
 
 
-@routes.delete("/api/session", action="app.read", resource="app")
+@routes.delete("/api/session", action="app.session", resource="app")
 def sign_out(request: Request) -> dict[str, bool]:
     """End this browser's session."""
     runtime = runtime_of(request)
