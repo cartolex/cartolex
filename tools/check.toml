@@ -10,11 +10,12 @@ tags = false
 demo_worlds = ["XS:0", "S:0", "S:1", "L:0", "L:1", "S:0:en,fr,pt", "L:0:en,fr,pt"]
 
 [tests]
-# The oldest and the newest supported Python: together they cover both dependency
-# generations (numpy 2.2 and pandas 2.3 on 3.10; the newest releases on 3.14). The
-# versions between are tested by CI before a release, or here with
-# `--pythons 3.10,3.11,3.12,3.13,3.14`. Each gets its own virtual environment in .venvs/.
-pythons = ["3.10", "3.14"]
+# The oldest supported Python: its older standard library and dependency releases are
+# where code breaks first (the quick check, lint and docs use the version below, so a
+# second version is exercised too). Every other version is tested by CI before a
+# release, or here with `--pythons 3.10,3.11,3.12,3.13,3.14`. Each gets its own
+# virtual environment in .venvs/.
+pythons = ["3.10"]
 # The one used by --quick, lint and docs.
 quick = "3.12"
 # How many Python versions are tested at the same time (memory: each run can

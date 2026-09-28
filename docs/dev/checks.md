@@ -7,7 +7,7 @@ python tools/check.py            # everything
 python tools/check.py --quick    # lint, vocabulary, tests on one Python, small reference,
                                  # the browser checks without the slow ones
 python tools/check.py --full     # also the large reference comparison
-python tools/check.py --only tests --pythons 3.10,3.14
+python tools/check.py --only tests --pythons 3.10,3.14   # other versions
 ```
 
 It prints one line per check (`PASS`, `FAIL` or `SKIP`, the time taken and a
@@ -35,9 +35,10 @@ change; the three language models of the extraction are installed into each
 from their pinned wheels. Tests that parse texts are marked `models`: without
 the models they are skipped, but the check runs pytest with
 `--require-models`, which makes them fail instead. Supported versions span two generations of the
-scientific libraries (older numpy and pandas releases on the oldest Python), so
-the tests run on the oldest and the newest version, which cover both; the
-versions between are tested by CI before a release, or with `--pythons`.
+scientific libraries (older numpy and pandas releases on the oldest Python). The
+check tests the oldest version, where code breaks first, and the quick check the
+one in `quick`; every other version is tested by CI before a release, or with
+`--pythons`.
 
 ## The vocabulary scan
 
