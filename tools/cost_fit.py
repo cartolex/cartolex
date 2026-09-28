@@ -28,7 +28,13 @@ ROOT = Path(__file__).resolve().parent.parent
 
 SIZES = ("people", "texts", "characters", "kept_keywords", "mapped_units")
 #: Stages fitted with a second, linear size besides their driver.
-EXTRA = {"keywords.extract": "texts", "keywords.build": "people", "corpus.assemble": "texts"}
+EXTRA = {
+    "keywords.extract": "texts",
+    "keywords.build": "people",
+    "corpus.assemble": "texts",
+    "map.trajectories": "texts*mapped_units",
+    "themes.apply": "people",
+}
 
 
 def _rows(files: list[str]) -> list[dict]:
@@ -128,7 +134,10 @@ def main(argv: list[str] | None = None) -> int:
             s_est, m_est = _estimate(stage, size)
             rs, rm = s_est / max(r["seconds"], 1e-6), m_est / max(r["peak_mb"], 1e-6)
             worst[stage] = max(worst.get(stage, 1.0), rs, 1 / rs, rm, 1 / rm)
-            pts.append((x, size.get(EXTRA.get(stage, model.driver), x), r["seconds"], r["peak_mb"]))
+            extra = 1.0
+            for name in EXTRA.get(stage, model.driver).split("*"):
+                extra *= size.get(name, x)
+            pts.append((x, extra, r["seconds"], r["peak_mb"]))
             print(
                 f"| {r['label']} | {x:.3g} | {r['seconds']:.1f} | {s_est:.1f} | {rs:.2f} "
                 f"| {r['peak_mb']:.0f} | {m_est:.0f} | {rm:.2f} |"

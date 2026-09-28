@@ -110,21 +110,31 @@ class CostModel:
     #: When the driver is not known yet: another size, how many driver units per unit,
     #: and optionally the most the driver can be.
     fallback: tuple[str, float] | tuple[str, float, float] | None = None
-    #: Another size costing linearly: (size, seconds per unit, MB per unit).
+    #: Another size costing linearly: (size, seconds per unit, MB per unit). The size may
+    #: be a product of sizes, ``"texts*mapped_units"`` (points placed among the people).
     extra: tuple[str, float, float] | None = None
 
     def __post_init__(self) -> None:
-        for name in (
-            self.driver,
-            *(self.fallback[:1] if self.fallback else ()),
-            *(self.extra[:1] if self.extra else ()),
-        ):
+        extra = self.extra[0].split("*") if self.extra else []
+        for name in (self.driver, *(self.fallback[:1] if self.fallback else ()), *extra):
             if name not in SIZE_NAMES:
                 raise ValueError(f"unknown cost driver {name!r}; known: {list(SIZE_NAMES)}")
 
     def sizes(self) -> tuple[str, ...]:
         """The sizes the model reads (recorded in a run's counts, to scale it later)."""
-        return (self.driver, *(self.extra[:1] if self.extra else ()))
+        return (self.driver, *(self.extra[0].split("*") if self.extra else ()))
+
+    def extra_size(self, get: Callable[[str], int | None]) -> float | None:
+        """The extra size, from *get* (a size by name); ``None`` when a factor is unknown."""
+        if self.extra is None:
+            return None
+        value = 1.0
+        for name in self.extra[0].split("*"):
+            got = get(name)
+            if got is None:
+                return None
+            value *= float(got)
+        return value
 
     def _variable(self, driver: float, extra: float | None) -> tuple[float, float]:
         """The parts of the time and the memory that grow with the sizes."""
@@ -142,13 +152,13 @@ class CostModel:
             now = round(other * self.fallback[1]) if other is not None else None
             if now is not None and len(self.fallback) > 2:
                 now = min(now, round(self.fallback[2]))
-        extra_now = sizes.get(self.extra[0]) if self.extra is not None else None
+        extra_now = self.extra_size(sizes.get)
         if last is not None and last.measures.seconds is not None:
             then = last.measures.counts.get(self.driver)
             s, m = last.measures.seconds, last.measures.peak_memory_mb
             if now is None or not then:
                 return Estimate(s, m, "the last run")
-            extra_then = last.measures.counts.get(self.extra[0]) if self.extra else None
+            extra_then = self.extra_size(last.measures.counts.get)
             if self.extra is not None and extra_now is not None and extra_then:
                 vs_now, vm_now = self._variable(now, extra_now)
                 vs_then, vm_then = self._variable(then, extra_then)
@@ -461,10 +471,11 @@ def _overlay_tables(project: Project) -> list[tuple[str, Path]]:
 
 #: cartolex's stages, each running the engine (``cartolex.build.engine``). The AI
 #: clean-up needs a key or a client: see :func:`cartolex.build.engine.engine_registry`.
-#: Cost models: fitted on fresh builds of the S and L demo worlds (one process, the
-#: numeric libraries on one thread), time in seconds and whole-process peak memory in
-#: MB; the layout's fixed time is mostly the layout library's compilation in a new
-#: process. The AI clean-up's is a guess: it depends on the provider.
+#: Cost models: fitted with tools/cost_fit.py on each stage run in a fresh process on
+#: the demo worlds and on streamed worlds of 10^3 to 10^5 people (docs/sizes.md), time
+#: in seconds and the stage's peak memory in MB; the layout's fixed time is mostly the
+#: layout library's compilation in a new process. The AI clean-up's is a guess: it
+#: depends on the provider.
 STAGES = Registry(
     [
         Stage(
@@ -515,7 +526,9 @@ STAGES = Registry(
             ),
             uses=("year",),
             provides=("people", "texts", "characters", "mapped_units"),
-            cost=CostModel("characters", 0.5, 9e-8, 200.0, 2.8e-6),
+            cost=CostModel(
+                "characters", 0.23, 3.1e-9, 206.0, 0.0, extra=("texts", 1.13e-4, 4.68e-3)
+            ),
             run=_engine("run_corpus"),
         ),
         Stage(
@@ -560,7 +573,9 @@ STAGES = Registry(
                     _min_people_fit,
                 ),
             ),
-            cost=CostModel("characters", 6.6, 7.5e-6, 765.0, 1.12e-5, extra=("texts", 3.7e-3, 0.0)),
+            cost=CostModel(
+                "characters", 6.44, 7.23e-6, 766.0, 1.09e-5, extra=("texts", 4.14e-3, 4.7e-4)
+            ),
             run=_engine("run_extract"),
         ),
         Stage(
@@ -606,7 +621,7 @@ STAGES = Registry(
             ),
             provides=("kept_keywords",),
             cost=CostModel(
-                "characters", 0.5, 8.3e-3, 234.0, 5.0e-5, time_exponent=0.53, memory_exponent=0.9
+                "characters", 5.21, 2.41e-6, 228.0, 7.52e-6, extra=("people", 1.51e-3, 5.96e-3)
             ),
             run=_engine("run_build"),
         ),
@@ -624,7 +639,9 @@ STAGES = Registry(
                     maximum=1000,
                 ),
             ),
-            cost=CostModel("people", 1.25, 3.8e-4, 213.0, 0.886, memory_exponent=0.5),
+            cost=CostModel(
+                "people", 1.27, 2.48e-4, 223.0, 0.0416, time_exponent=1.03, memory_exponent=0.82
+            ),
             run=_engine("run_space"),
         ),
         Stage(
@@ -678,10 +695,10 @@ STAGES = Registry(
             ),
             cost=CostModel(
                 "kept_keywords",
-                1.26,
-                5.4e-8,
-                206.0,
-                7.8e-6,
+                1.25,
+                5.55e-8,
+                203.0,
+                8.31e-6,
                 time_exponent=2.0,
                 memory_exponent=2.0,
                 fallback=("people", 12.0, 10_000),
@@ -696,12 +713,11 @@ STAGES = Registry(
             decisions=("decisions/themes.json",),
             cost=CostModel(
                 "kept_keywords",
-                1.37,
-                3.05e-8,
-                187.0,
-                0.011,
-                time_exponent=2.0,
-                memory_exponent=1.14,
+                1.33,
+                0.0,
+                183.0,
+                0.0325,
+                extra=("people", 2.65e-4, 3.43e-3),
                 fallback=("people", 12.0, 10_000),
             ),
             prepare=_prepare_themes,
@@ -715,7 +731,7 @@ STAGES = Registry(
             decisions=("decisions/maps.json",),
             project=("levels",),
             cost=CostModel(
-                "mapped_units", 19.0, 4.05e-5, 567.0, 3.94, time_exponent=1.45, memory_exponent=0.5
+                "mapped_units", 18.1, 6.29e-3, 622.0, 2.2, time_exponent=0.9, memory_exponent=0.5
             ),
             prepare=_prepare_maps,
             run=_engine("run_layout"),
@@ -738,7 +754,7 @@ STAGES = Registry(
             ),
             uses=("year",),
             cost=CostModel(
-                "texts", 0.3, 0.076, 260.0, 6.88, time_exponent=0.75, memory_exponent=0.5
+                "texts", 1.17, 1.97e-3, 374.0, 0.011, extra=("texts*mapped_units", 1.84e-7, 0.0)
             ),
             run=_engine("run_trajectories"),
         ),
@@ -751,7 +767,7 @@ STAGES = Registry(
             applies=_has_overlays,
             extra_inputs=_overlay_tables,
             cost=CostModel(
-                "mapped_units", 1.4, 4.6e-4, 205.0, 0.058, time_exponent=1.12, memory_exponent=0.94
+                "mapped_units", 1.6, 1.18e-5, 167.0, 3.39, time_exponent=1.53, memory_exponent=0.5
             ),
             run=_engine("run_overlays"),
         ),
