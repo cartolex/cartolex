@@ -1,5 +1,11 @@
 # SPDX-License-Identifier: MIT
-"""Command line: ``python -m cartolex.demo create --size S --seed 0 --out DIR [--corpus]``."""
+"""Command line of the demo world.
+
+::
+
+    python -m cartolex.demo create --size S --seed 0 --out DIR [--corpus]
+    python -m cartolex.demo services --size S --seed 0 [--port 8765] [--people-list FILE] [--list-only]
+"""
 
 from __future__ import annotations
 
@@ -41,7 +47,25 @@ def main(argv: list[str] | None = None) -> int:
         default="en,fr",
         help="languages of the texts: en,fr (default) or en,fr,pt",
     )
+    services = sub.add_parser(
+        "services", help="serve the demo bibliographic services on this computer (until Ctrl-C)"
+    )
+    services.add_argument("--size", default="S", type=str.upper, choices=sorted(SIZES))
+    services.add_argument("--seed", default=0, type=int, help="the world's seed (default 0)")
+    services.add_argument("--languages", default="en,fr", help="en,fr (default) or en,fr,pt")
+    services.add_argument(
+        "--layer-seed", default=0, type=int, help="the bibliographic layer's seed (default 0)"
+    )
+    services.add_argument("--port", default=0, type=int, help="port (default: a free one)")
+    services.add_argument(
+        "--people-list", type=Path, help="also write the world's people as a list to import"
+    )
+    services.add_argument(
+        "--list-only", action="store_true", help="write the list and exit without serving"
+    )
     args = parser.parse_args(argv)
+    if args.command == "services":
+        return _services(args)
 
     started = time.perf_counter()
     try:
@@ -76,4 +100,45 @@ def main(argv: list[str] | None = None) -> int:
             f"{manual['people']} people -> {args.out / 'workspace'}"
         )
     print(f"done in {time.perf_counter() - started:.1f}s")
+    return 0
+
+
+def write_people_list(rows: list[dict[str, str]], path: Path) -> None:
+    """Write an import list (CSV, UTF-8) of the demo world's people."""
+    import csv
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=list(rows[0]), lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _services(args: argparse.Namespace, stop: object = None) -> int:
+    import threading
+
+    from .services import DemoServices
+
+    try:
+        world = generate(size=args.size, seed=args.seed, languages=args.languages)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    services = DemoServices(world, layer_seed=args.layer_seed, port=args.port)
+    if args.people_list:
+        write_people_list(services.bibliography.people_rows(), args.people_list)
+        print(f"people list: {len(world.people)} people -> {args.people_list}")
+    if args.list_only:
+        return 0
+    event = stop if isinstance(stop, threading.Event) else threading.Event()
+    with services:
+        print(f"demo services of world {args.size}/{args.seed} at {services.base_url}")
+        for name, url in services.endpoints().items():
+            print(f"  {name:<10} {url}")
+        print("collect with: cartolex collect … --services " + services.base_url, flush=True)
+        try:
+            while not event.wait(0.5):
+                pass
+        except KeyboardInterrupt:
+            print("stopped")
     return 0
