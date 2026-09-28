@@ -730,8 +730,34 @@ LAYOUT_METHODS: dict[str, tuple[dict[str, str], str | None]] = {
 }
 
 
+#: From this many mapped people, the first map version is a t-SNE (when openTSNE is
+#: installed): it keeps people's neighbourhoods better than UMAP on the measured worlds
+#: of 10³ to 10⁵ people (``docs/dev/layouts.md``). Both reference worlds stay below it.
+TSNE_FROM_PEOPLE = 1_000
+
+
+def default_layout_method(mapped_units: int | None, *, tsne: bool | None = None) -> str:
+    """The layout method of a project's first map version, by the rule of its size.
+
+    ``tsne`` from :data:`TSNE_FROM_PEOPLE` mapped people when the optional
+    openTSNE package is installed (*tsne*, default: whether it is), ``umap``
+    otherwise.
+    """
+    if tsne is None:
+        from ..atlas.reducers import opentsne_available
+
+        tsne = opentsne_available()
+    if tsne and mapped_units is not None and mapped_units >= TSNE_FROM_PEOPLE:
+        return "tsne"
+    return "umap"
+
+
 def prepare_maps(project: Project) -> list[str]:
-    """Before the first layout: add and pin map version ``v1`` (seed: ``params.json``'s)."""
+    """Before the first layout: add and pin map version ``v1`` (seed: ``params.json``'s).
+
+    Its method follows :func:`default_layout_method` on the mapped people the
+    corpus stage counted.
+    """
     from ..project.maps import add_version, read_maps, save_maps
 
     maps, fp = read_maps(project.layout)
@@ -743,9 +769,18 @@ def prepare_maps(project: Project) -> list[str]:
             "(cartolex versions FOLDER --pin ID)"
         )
     params, _ = project.read_params()
-    maps, version = add_version(maps, seed=params.seed, note="the first map, from the defaults")
+    record = project.layout.run_json("corpus.assemble")
+    mapped = None
+    if record.exists():
+        mapped = json.loads(record.read_text(encoding="utf-8")).get("measures", {})
+        mapped = (mapped.get("counts") or {}).get("mapped_units")
+    method = default_layout_method(mapped)
+    note = "the first map, from the defaults"
+    if method != "umap":
+        note += f" ({method}: {mapped} mapped people)"
+    maps, version = add_version(maps, method=method, seed=params.seed, note=note)
     save_maps(project.layout, maps, expected=fp, action="first map version")
-    return [f"added and pinned map version {version}"]
+    return [f"added and pinned map version {version} ({method} layout)"]
 
 
 def run_layout(ctx: StageContext) -> dict[str, int]:

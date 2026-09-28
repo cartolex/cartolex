@@ -117,3 +117,30 @@ def test_another_method_starts_from_its_own_defaults():
     assert by_id[v2].layout.method == "tree" and by_id[v2].layout.params == {}
     assert by_id[v3].layout.method == "umap" and by_id[v3].layout.params == {"n_neighbors": 15}
     assert maps.pinned == v1
+
+
+def test_the_first_map_version_follows_the_projects_size(tmp_path):
+    import json
+
+    from cartolex.build.engine import TSNE_FROM_PEOPLE, default_layout_method, prepare_maps
+    from cartolex.demo import generate
+    from cartolex.demo.project import write_project
+    from cartolex.project.maps import pinned, read_maps
+
+    assert default_layout_method(38, tsne=True) == "umap"  # the reference worlds
+    assert default_layout_method(343, tsne=True) == "umap"
+    assert default_layout_method(TSNE_FROM_PEOPLE, tsne=True) == "tsne"
+    assert default_layout_method(10**5, tsne=False) == "umap"  # without openTSNE
+    assert default_layout_method(None, tsne=True) == "umap"
+
+    project = write_project(generate("XS", 0), tmp_path / "project")
+    try:
+        record = project.layout.run_json("corpus.assemble")
+        record.parent.mkdir(parents=True, exist_ok=True)
+        record.write_text(json.dumps({"measures": {"counts": {"mapped_units": 5000}}}))
+        notes = prepare_maps(project)
+        maps, _ = read_maps(project.layout)
+    finally:
+        project.close()
+    expected = default_layout_method(5000)
+    assert pinned(maps).layout.method == expected and expected in notes[0]
