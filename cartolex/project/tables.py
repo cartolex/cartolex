@@ -30,6 +30,7 @@ from .files import atomic_write_bytes
 
 __all__ = [
     "DECISION_TABLES",
+    "PRIVATE_PARTS",
     "SOURCE_KEYS",
     "SOURCE_SCHEMAS",
     "DecisionTable",
@@ -37,6 +38,7 @@ __all__ = [
     "empty_table",
     "read_decision_csv",
     "read_source_table",
+    "shareable_parts",
     "write_decision_csv",
     "write_source_table",
 ]
@@ -156,6 +158,20 @@ _ALLOWED: dict[tuple[str, str], frozenset[str]] = {
     ("text_parts", "part"): frozenset({"title", "abstract", "body", "full"}),
     ("text_parts", "format"): frozenset({"plain", "jats", "latex"}),
 }
+
+
+#: Text parts that never leave the project: a ``body`` or a ``full`` part is a full text
+#: (collected on request, or a user's own document). A shared output — a site, a bundle, an
+#: export, a share — carries titles and abstracts at most (see ``docs/format/sources.md``).
+PRIVATE_PARTS: frozenset[str] = frozenset({"body", "full"})
+
+
+def shareable_parts(table: pa.Table) -> pa.Table:
+    """The rows of a ``text_parts`` table that a shared output may carry (no private part)."""
+    if table.num_rows == 0:
+        return table
+    keep = pc.invert(pc.is_in(table["part"], value_set=pa.array(sorted(PRIVATE_PARTS))))
+    return table.filter(keep)
 
 
 class TableError(ValueError):
