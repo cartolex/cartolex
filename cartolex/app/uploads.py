@@ -4,9 +4,10 @@
 :func:`save_upload` streams an uploaded file into a target folder under a
 clean name, and stops past a size limit. :func:`extract_archive` unpacks a
 zip archive into a target folder after checking every member: no absolute
-path, no ``..``, no link, no device, no hidden name, at most so many members
-and so many bytes once unpacked (a small archive can hold a huge file). Any
-refused member refuses the whole archive, and nothing is written.
+path, no ``..``, no link, no device, no hidden name, no file already there, at
+most so many members and so many bytes once unpacked (a small archive can hold
+a huge file). Any refused member refuses the whole archive, and nothing is
+written. Nothing uploaded ever replaces a file.
 """
 
 from __future__ import annotations
@@ -47,6 +48,13 @@ async def save_upload(
     path = target / clean_name(name)
     if not _inside(target, path):
         raise ApiError(422, "unsafe_path", f"the name {name!r} leaves its folder")
+    if path.exists():
+        raise ApiError(
+            409,
+            "exists",
+            f"{path.name} is already there; nothing is replaced (rename the file to add it)",
+            next_action="fix-input",
+        )
     size = 0
     tmp = path.with_name(path.name + ".part")
     try:
@@ -106,6 +114,13 @@ def extract_archive(archive: Path, target: Path, *, max_members: int, max_bytes:
                 )
             if not _inside(target, target / info.filename):
                 raise ApiError(422, "unsafe_path", "a member leaves the folder; nothing written")
+            if not info.is_dir() and (target / info.filename).exists():
+                raise ApiError(
+                    409,
+                    "exists",
+                    f"the archive would replace {info.filename}; nothing was written",
+                    next_action="fix-input",
+                )
             total += info.file_size
         if total > max_bytes:
             raise ApiError(

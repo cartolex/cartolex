@@ -256,6 +256,10 @@ def test_uploads_stay_in_their_folder(tmp_path):
         assert (root / "sources" / "docs" / "name.txt").read_bytes() == b"plain text"
         r = client.post("/api/sources/docs/files", files={"file": ("in.zip", zipped("a/b.txt"))})
         assert r.status_code == 201 and r.json()["files"] == ["a/b.txt"]
+        for name, data in (("name.txt", b"other"), ("again.zip", zipped("a/b.txt"))):
+            r = client.post("/api/sources/docs/files", files={"file": (name, data)})
+            assert r.status_code == 409 and r.json()["error"]["code"] == "exists", name
+        assert (root / "sources" / "docs" / "name.txt").read_bytes() == b"plain text"
         big = client.post(
             "/api/sources/docs/files", files={"file": ("big.txt", b"x" * (2 * 1024 * 1024))}
         )
