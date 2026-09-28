@@ -99,3 +99,29 @@ def test_the_summary_before_a_collection(tmp_path) -> None:
     assert harvest_plan.people == 0 and harvest_plan.hosts == []
     project.close()
     Project.open(tmp_path / "p")
+
+
+def test_the_summary_of_institutions_collaborators_a_snapshot_and_a_retry(tmp_path) -> None:
+    bib = build_bibliography(generate("XS", 0))
+    project = demo_project(tmp_path / "p", bib)
+    settings = CollectSettings(contact="me@x.test")
+    search = plan_collection(project, "institutions", settings, search="Marine")
+    (host,) = search.hosts
+    assert host.sends[0] == "institution names" and host.requests == 1
+    named = plan_collection(project, "institutions", settings, institutions=["I9990000001"])
+    assert named.hosts[0].sends[0] == "institution identifiers"
+    assert "one request per 100 works" in "\n".join(named.lines())
+    from cartolex.collect.resolve import confirm
+
+    for pid in ("p000001", "p000002"):
+        confirm(project, pid, ["openalex:A9990000001"])
+    rounds = plan_collection(project, "collaborators", settings, rounds=2)
+    assert rounds.people == 2 and rounds.hosts[0].sends[0] == "author identifiers"
+    from_snapshot = plan_collection(project, "harvest", settings, snapshot="openalex-snapshot")
+    assert {h.service for h in from_snapshot.hosts} <= {"orcid"}
+    assert any("snapshot" in n for n in from_snapshot.notes)
+    retry = plan_collection(project, "coverage", settings)
+    assert retry.hosts == [] and "nothing to retry" in "\n".join(retry.lines())
+    text = "\n".join(named.lines() + rounds.lines())
+    assert not any(t.last_name in text for t in bib.truth.values())
+    project.close()

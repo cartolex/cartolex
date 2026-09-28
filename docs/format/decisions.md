@@ -79,6 +79,23 @@ count back from (none: the current year). A parameter a stage does not know, or
 an impossible value (as many topics as keywords), is refused when the file is
 read, with the reason.
 
+`collect` (optional, added within version 1 and left out of the file when
+empty) holds the collection's parameters people set, by step, each a whole
+number:
+
+```json
+"collect": {"snowball": {"cap": 200, "max_authors": 25}, "coverage": {"good": 3}}
+```
+
+| parameter | default | meaning |
+| --- | --- | --- |
+| `snowball.cap` | 200 | collaborators' rounds are taken whole while the people proposed stay within this number; the round that would pass it is left out, and named |
+| `snowball.max_authors` | 25 | a work with more authors is left out of the co-author graph |
+| `coverage.good` | 3 | a person is well covered from this many texts with an abstract (or a full text) |
+
+An unknown step or parameter, or a value below its smallest (1, and 2 for
+`max_authors`), is refused when the file is read.
+
 ## `keywords.csv`
 
 | column | meaning |
@@ -226,7 +243,12 @@ One row per collaborator proposed: `round`, `person_id`, `seeds` (the seeds they
 wrote with, `;`-separated), `path` (how they connect to a seed), `joint_texts`,
 `last_joint_year`, `fit`, `decision` (`mapped`, `context`, `projected`, `no`,
 `later`), `decided_at`. A round is taken whole or not at all, up to the cap set
-in `params.json`.
+in `params.json` (`collect.snowball.cap`). `seeds` names the people of the round
+before (the seeds, for round 1) the collaborator wrote with, `path` the chain of
+`person_id`s from a seed to them, joined by `>`, and `fit` their topical fit to
+the seeds (0 to 1, see {doc}`../collection`). A collaborator is proposed with the
+decision `context` (their texts shape the lexicon, they are not on the map);
+`no` makes them `excluded` in `people.csv`, `later` `undecided`.
 
 ## `stopwords.json` and `prompts/`
 

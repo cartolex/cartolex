@@ -25,6 +25,7 @@ from pydantic import (
 )
 
 __all__ = [
+    "COLLECT_PARAMS",
     "LANGUAGES",
     "STAGE_IDS",
     "AIIdentity",
@@ -54,6 +55,7 @@ __all__ = [
     "ThemesBasis",
     "ThemesFile",
     "ThemesSaved",
+    "YearWindow",
 ]
 
 #: The languages cartolex ships a language pack for today (a spaCy model, function
@@ -141,14 +143,48 @@ class Level(_Model):
     names: Names
 
 
+Year = Annotated[int, Field(ge=1000, le=2200)]
+
+
+class YearWindow(_Model):
+    """A window of publication years, both ends inclusive; an end left ``null`` is open."""
+
+    first: Year | None = Field(default=None, alias="from")
+    last: Year | None = Field(default=None, alias="to")
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True, serialize_by_alias=True)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> YearWindow:
+        if self.first is not None and self.last is not None and self.first > self.last:
+            raise ValueError(f"the window starts ({self.first}) after it ends ({self.last})")
+        return self
+
+    def as_tuple(self) -> tuple[int | None, int | None]:
+        """``(first, last)``, either end ``None`` when open."""
+        return (self.first, self.last)
+
+
 class Slot(_Model):
-    """One ordered way texts enter the project."""
+    """One ordered way texts enter the project.
+
+    ``years`` (optional) is the window of publication years collections of this
+    slot use by default; a collection given another window explicitly uses that.
+    """
 
     id: Slug
     kind: Literal["collection", "folder", "corpus"]
     fit: bool = True
     trajectory: bool = True
     doc_types: list[NonEmpty] | None = None
+    years: YearWindow | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_no_window(self, handler: Any) -> Any:
+        data = handler(self)
+        if isinstance(data, dict) and data.get("years") is None:
+            data.pop("years", None)
+        return data
 
 
 class Overlay(_Model):
@@ -211,13 +247,28 @@ class ProjectFile(_Model):
 # ── params.json ──────────────────────────────────────────────────────────────
 
 
+#: The collection parameters ``params.json`` may set (its optional ``collect`` key), by
+#: step, each a whole number with its smallest value: the collaborators' rounds are taken
+#: whole up to ``cap`` people, a work with more than ``max_authors`` authors is left out of
+#: the co-author graph, and a person is well covered from ``good`` texts with an abstract.
+COLLECT_PARAMS: dict[str, dict[str, int]] = {
+    "snowball": {"cap": 1, "max_authors": 2},
+    "coverage": {"good": 1},
+}
+
+
 class ParamsFile(_Model):
-    """``decisions/params.json``: the parameters people set, and nothing else."""
+    """``decisions/params.json``: the parameters people set, and nothing else.
+
+    ``collect`` (optional) holds the collection's parameters people set, by step
+    (:data:`COLLECT_PARAMS`); it is left out of the file when empty.
+    """
 
     format: Literal["cartolex-params/1"] = "cartolex-params/1"
     seed: Annotated[int, Field(ge=0, lt=2**32)] = 0
     pinned_year: Annotated[int, Field(ge=1900, le=2200)] | None = None
     stages: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    collect: dict[str, dict[str, int]] = Field(default_factory=dict)
 
     @field_validator("stages")
     @classmethod
@@ -226,6 +277,42 @@ class ParamsFile(_Model):
         if unknown:
             raise ValueError(f"unknown stage id(s): {unknown}; known: {list(STAGE_IDS)}")
         return v
+
+    @field_validator("collect", mode="before")
+    @classmethod
+    def _known_collect(cls, v: Any) -> Any:
+        if not isinstance(v, dict):
+            return v
+        problems = []
+        for step, values in v.items():
+            known = COLLECT_PARAMS.get(step)
+            if known is None:
+                problems.append(
+                    f"unknown collection step {step!r} (known: {sorted(COLLECT_PARAMS)})"
+                )
+                continue
+            if not isinstance(values, dict):
+                problems.append(f"collect.{step}: expected an object of parameters")
+                continue
+            for name, value in values.items():
+                if name not in known:
+                    problems.append(
+                        f"collect.{step}: unknown parameter {name!r} (known: {sorted(known)})"
+                    )
+                elif isinstance(value, bool) or not isinstance(value, int) or value < known[name]:
+                    problems.append(
+                        f"collect.{step}.{name}: {value!r} is not a whole number of at least {known[name]}"
+                    )
+        if problems:
+            raise ValueError("; ".join(problems))
+        return v
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_collect(self, handler: Any) -> Any:
+        data = handler(self)
+        if isinstance(data, dict) and not data.get("collect"):
+            data.pop("collect", None)
+        return data
 
 
 # ── run.json ─────────────────────────────────────────────────────────────────

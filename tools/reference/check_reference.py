@@ -101,7 +101,9 @@ def demo_world(python: Path, size: str, seed: int, *, project: bool = False) -> 
             "import sys\n"
             "from cartolex.demo import generate\n"
             "from cartolex.demo.project import write_project\n"
-            "write_project(generate(sys.argv[1], int(sys.argv[2])), sys.argv[3]).close()\n"
+            # The workspace's index carries no person attribute: the project neither.
+            "write_project(generate(sys.argv[1], int(sys.argv[2])), sys.argv[3],"
+            " attributes=False).close()\n"
         )
         subprocess.run(
             [str(python), "-c", script, size, str(seed), str(out / "project")],

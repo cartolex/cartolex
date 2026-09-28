@@ -47,8 +47,8 @@ written by five people is one text with five authorships.
 
 A text has parts, each from a provider: a title, an abstract per language, a
 full text. Keeping them apart lets a project choose what feeds the lexicon
-(titles and abstracts by default), weigh the parts, and fill a missing abstract
-from another provider.
+(titles and abstracts by default, the whole document for a folder or a corpus
+slot), weigh the parts, and fill a missing abstract from another provider.
 
 | column | type | meaning |
 | --- | --- | --- |
@@ -85,9 +85,9 @@ published version is, so that a work counts once.
 | `person_id` | string | the key |
 | `last_name`, `first_name` | string | as the source gives them |
 | `orcid` | string, nullable | |
-| `ids` | map<string, list<string>> | other identifiers by scheme; a person may have several OpenAlex records |
+| `ids` | map<string, list<string>> | other identifiers by scheme; a person may have several OpenAlex records; an idHAL confirmed as a record in `people.csv` (`hal:<idHAL>`) joins `idhal` |
 | `source` | string | how the person entered: `import`, `collaborators`, `institution`, `folder` |
-| `columns` | map<string, string> | the extra columns of an imported list, kept as text; each becomes a filter |
+| `columns` | map<string, string> | the extra columns of an imported list, kept as text; each becomes a filter, and a person attribute of the engine's index |
 | `aliases` | list<struct<last_name, first_name, source>> | every other name form a source gives for this person (marital name, name added by an institution, one half of a double surname, a transliteration); matching tries all of them |
 | `retrieved_at` | timestamp (UTC) | |
 
@@ -148,13 +148,79 @@ For each author, the organisations are, in this order:
 
 Higher levels follow the `parents` links.
 
-## A slot's own folder
+## A slot's own folder: the raw runs
 
-| slot kind | `sources/<slot>/` holds |
+The tables are rebuilt from what each slot keeps in `sources/<slot>/raw/`, so
+the raw runs and the id registry are part of the format.
+
+```text
+sources/<slot>/raw/
+  ids.json                  the id registry (cartolex-ids/1)
+  <kind>/<run id>.jsonl     one run (cartolex-raw/1)
+sources/merges.json         every merge of texts across finders (cartolex-merges/1)
+```
+
+**A run** is one job's material, written whole or not at all and never
+changed afterwards. It is a UTF-8 JSON-lines file: the first line is the
+**header**, an object with `format` (`cartolex-raw/1`), `kind` (the folder's
+name), `run_id` and what the job was asked (its window of years, its people);
+each further line is one **record**, an object. Run ids are
+`<UTC time to the microsecond>Z-<6 hex>` (`20260928T101200123456Z-3f2a1c`); a
+slot's runs of one kind are read in the order of their ids, and a new run's id
+always sorts after the earlier ones. A file whose header is not
+`cartolex-raw/1` is refused when the tables are rebuilt.
+
+| kind | the job | records | rows built |
+| --- | --- | --- | --- |
+| `people` | a list imported | one per row (never an e-mail address): names, identifiers, filter columns, organisations with levels and parents | people (`import`), organisations, affiliations |
+| `folder` | a folder of documents | one per file read: its path in the folder, digest, person, title, year, language, text | texts (`folder`) with a `full` part, authorships; people created from sub-folders |
+| `corpus` | a corpus imported | one per index row: names, unit, attributes, file, year, type, language, text | people, units as organisations, texts with a `full` part, authorships |
+| `institution` | people taken from institutions | the units (institution records), then one per person: records, names, ORCID, units with years | people (`institution`), organisations with levels and every parent, affiliations (`stated`) |
+| `snowball` | a round of collaborators | one per collaborator: round, record, name, the people they wrote with, path, joint works (with the institutions stated), fit | people (`collaborators`), organisations, affiliations (`stated`) |
+| `openalex` | a harvest | author records and works as received, each with the person it was collected for | texts, title and abstract parts, authorships, organisations, affiliations (`stated`, `openalex`) |
+| `orcid` | a harvest | the registry's works and records, per person | affiliations (`orcid`) |
+| `hal`, `scielo` | the archive, the journal platform | deposits and articles as received, with the people found (by idHAL, by ORCID) and structures | texts, parts per language, authorships, organisations, affiliations |
+| `improve` | text providers | the parts each provider found for a text, and the links it stated | parts; a preprint's `version_of` |
+| `resolve`, `hal_candidates`, `scielo_candidates`, `institution_proposals` | proposals | candidates with their evidence | none: they wait for a decision |
+| `failures` | any finder | one per person whose collection failed: finder, service, status, cause, time | none: the coverage report reads them |
+
+A harvest names its people in its header; a person's latest harvest replaces
+their earlier ones. Other kinds add up, the first record of a text, part or
+authorship winning and later ones only filling what it lacks, except a text
+provider's part, which replaces the same service's part as a finder. A reader
+that meets a kind it does not know skips it and says so.
+
+**The id registry**, `ids.json`, is a JSON object:
+
+```json
+{"format": "cartolex-ids/1",
+ "next": {"organisations": 4, "people": 13, "texts": 57},
+ "keys": {"people": {"import:3f1c…": "p000001", "openalex:A999…": "p000001"},
+          "organisations": {"openalex:I999…": "o000002"}, "texts": {"doi:10.5555/…": "t000001"}}}
+```
+
+`keys` maps every natural key a slot has met (a DOI, a service record, an
+imported row) to the id it was given; `next` is the next number of each
+table. An id is given once and never again: text keys are looked up in their
+slot's registry, people and organisations in every slot's, and a new number
+comes after every number any registry gave.
+
+**The merge log**, `sources/merges.json` (`cartolex-merges/1`), is rebuilt with
+the tables: `merges` (each with `slot`, the text `kept`, the texts `merged`,
+the `rule` and its `evidence`), `versions` (a `preprint` and its `published`
+text), `refused` (two `texts`, the `rule` and the `reason`), `conflicts` (a
+`field` of a text whose finders disagree: the value `kept` and where it came
+from, the `other` and where it came from) and `fills` (parts one text took
+from another).
+
+Rebuilding reads a harvest from a **digest** of each run kept in
+`cache/sources/` (see {doc}`../dev/collection`): a cache, which gives the same
+tables as the runs and can be deleted.
+
+| slot kind | `sources/<slot>/` also holds |
 | --- | --- |
-| `collection` | the service records as received, one JSON-lines file per service and run |
-| `folder` | the documents, or a pointer to where they are, and the file-to-person matching |
-| `corpus` | the imported index and texts, as given |
+| `folder` | nothing else: the documents' text is in the runs, never their path on your computer |
+| `corpus` | nothing else: the index's rows and texts are in the runs |
 
 **Merged texts.** A work found by several finders is one text: the tables are
 rebuilt with texts merged by DOI, by a shared identifier, then by title and

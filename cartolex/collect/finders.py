@@ -106,30 +106,53 @@ def people_refs(
 ) -> list[PersonRef]:
     """The people of the project's tables, as finders take them, in ``person_id`` order.
 
-    The idHAL of a person is read from ``ids["idhal"]`` (or ``ids["hal"]``).
+    The idHAL of a person is read from ``ids["idhal"]`` (or ``ids["hal"]``) and
+    from the ``hal:`` records confirmed in ``decisions/people.csv``; their ORCID
+    from the tables, else from a confirmed ``orcid:`` record.
     """
     path = layout.table("people")
     if not path.exists():
         return []
     wanted = set(person_ids) if person_ids is not None else None
+    confirmed = _confirmed_records(layout)
     out = []
     for row in read_source_table(path, "people").to_pylist():
         if wanted is not None and row["person_id"] not in wanted:
             continue
         ids = dict(row["ids"] or [])
-        idhal = tuple(ids.get("idhal") or ids.get("hal") or ())
+        records = confirmed.get(row["person_id"], [])
+        idhal = tuple(
+            dict.fromkeys(
+                [*(ids.get("idhal") or ids.get("hal") or ())]
+                + [r.split(":", 1)[1] for r in records if r.startswith("hal:")]
+            )
+        )
+        orcid = row["orcid"] or next(
+            (r.split(":", 1)[1] for r in records if r.startswith("orcid:")), None
+        )
         aliases = tuple((a["last_name"], a["first_name"]) for a in row["aliases"] or [])
         out.append(
             PersonRef(
                 person_id=row["person_id"],
                 last_name=row["last_name"],
                 first_name=row["first_name"],
-                orcid=row["orcid"],
+                orcid=orcid,
                 idhal=idhal,
                 aliases=aliases,
             )
         )
     return sorted(out, key=lambda p: p.person_id)
+
+
+def _confirmed_records(layout: ProjectLayout) -> dict[str, list[str]]:
+    """person id → the records confirmed (or accepted automatically) in ``people.csv``."""
+    from cartolex.project.tables import read_decision_csv
+
+    out = {}
+    for row in read_decision_csv(layout.people_csv, "people"):
+        if row["identity"] in ("confirmed", "auto") and row["records"]:
+            out[row["person_id"]] = [r for r in row["records"].split(";") if r]
+    return out
 
 
 def _first_names_agree(a: str | None, b: str | None) -> bool:

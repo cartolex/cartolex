@@ -115,7 +115,8 @@ leaves the check to the run.
 
 | stage | parameter | default | allowed |
 | --- | --- | --- | --- |
-| `corpus.assemble` | `parts` | title, abstract | title, abstract, body, full |
+| `corpus.assemble` | `parts` | rule `parts_by_slot_kind`: title, abstract for a collection slot; title, abstract, full for a folder or a corpus slot | title, abstract, body, full (a list set here applies to every slot) |
+| `corpus.assemble` | `doc_types` | rule `doc_types_by_slot_kind`: article, book, chapter, communication, preprint, proceedings, report, review, thesis for a collection slot; every type for a folder or a corpus slot; a slot's own `doc_types` replace it | document types (a list set here applies to every slot without its own) |
 | `corpus.assemble` | `provider_priority` | folder, openalex, hal, scielo, europepmc, arxiv, biorxiv | provider names; the others follow alphabetically |
 | `corpus.assemble` | `recency_years` | 5 | 0–200; 0 keeps every year |
 | `keywords.extract` | `counting_unit` | person | person, text, organisation |
@@ -302,7 +303,7 @@ project exists (it imports neither `cartolex.build` nor `cartolex.project`).
 
 | stage | the engine's work |
 | --- | --- |
-| `corpus.assemble` | `cartolex.project.corpus.assemble_corpus`: one index and one text per document for each fit slot, and for each projected set, with `people.csv` naming the `person_id` behind each engine identity |
+| `corpus.assemble` | `cartolex.project.corpus.assemble_corpus`: one index and one text per document for each fit slot, and for each projected set, with `people.csv` naming the `person_id` behind each engine identity; each person's attributes (the filter columns of an imported list) follow the index's columns, so the roster, and the map, can colour and filter people by them (an attribute named like a column of the contract is written `person_<name>`) |
 | `keywords.extract` | extraction (`run_pipeline_stage_1`) |
 | `keywords.triage` | the AI triage (`run_pipeline_stage_2_llm`), through `AIAccess` |
 | `keywords.build` | consolidation (`run_pipeline_stage_3`), then the person roster; `decisions/keywords.csv` becomes the engine's exclusion, keep and merge files first |
@@ -341,7 +342,7 @@ made with.
 
 | parameter | engine setting |
 | --- | --- |
-| `corpus.assemble.parts`, `.provider_priority` | `assemble_corpus(parts=…, provider_priority=…)` |
+| `corpus.assemble.parts`, `.provider_priority` | `assemble_corpus(parts=…, provider_priority=…)`; `parts` is a list, or the rule's parts by slot kind |
 | `corpus.assemble.recency_years` | `KeywordsConfig.kw_recency_years` |
 | the `year` | `RunContext.now_year` |
 | `keywords.extract.min_people`, `.max_share`, `.counting_unit` | `KeywordsConfig.min_df`, `.max_df`, `.counting_unit` |

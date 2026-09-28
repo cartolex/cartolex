@@ -117,3 +117,162 @@ def test_an_overlay_with_its_own_root_is_read_from_there(world_and_project, tmp_
     old = _rows_with_texts(base / "workspace" / "overlay" / name / "index.csv")
     new = _rows_with_texts(tmp_path / "out" / "overlays" / name / "index.csv")
     assert new == old and new
+
+
+def test_person_attributes_reach_the_engine_index(world_and_project, tmp_path):
+    """The filter columns of an imported list follow the index's columns, so the roster
+    (and the map) can colour and filter people by them."""
+    from cartolex.lexicon.io_helpers import write_roster
+    from cartolex.project import Project
+
+    world, base = world_and_project
+    project = Project.open(base / "project")
+    assemble_corpus(project.layout, project.config, tmp_path / "out")
+    index = tmp_path / "out" / SLOT / "index.csv"
+    with open(index, encoding="utf-8", newline="") as fh:
+        reader = csv.DictReader(fh)
+        rows = list(reader)
+    assert reader.fieldnames[:6] == [
+        "last_name", "first_name", "unit", "txt_path", "doc_year", "doc_type"
+    ] and reader.fieldnames[6:] == ["career_stage", "site"]  # fmt: skip
+    by_name = {(p.last_name, p.first_name): p for p in world.people}
+    for r in rows:
+        person = by_name[(r["last_name"], r["first_name"])]
+        assert (r["career_stage"], r["site"]) == (person.career_stage, person.site)
+    roster = tmp_path / "roster.csv"
+    write_roster(index_csvs=[index], out_csv=roster)
+    with open(roster, encoding="utf-8", newline="") as fh:
+        assert csv.DictReader(fh).fieldnames == [
+            "last_name", "first_name", "unit", "career_stage", "site"
+        ]  # fmt: skip
+
+
+def test_an_attribute_named_like_a_contract_column_is_renamed():
+    from cartolex.project.corpus import attribute_column
+
+    assert attribute_column("career_stage") == "career_stage"
+    assert attribute_column("unit") == "person_unit"
+    assert attribute_column("source") == "person_source"
+
+
+def test_parts_by_slot_kind_read_documents_whole_and_collected_texts_by_their_abstracts(tmp_path):
+    """A folder's documents are read whole; a collected text with a full text collected on
+    request is still read by its title and abstract, unless the parts say otherwise."""
+    from datetime import datetime, timezone
+
+    import pyarrow as pa
+
+    from cartolex.build.params import PARTS_BY_SLOT_KIND
+    from cartolex.project import Project
+    from cartolex.project.models import Slot
+    from cartolex.project.tables import SOURCE_SCHEMAS, write_source_table
+
+    at = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    project = Project.init(
+        tmp_path / "p",
+        name="Parts",
+        domain_title="Coasts",
+        slots=(Slot(id="collected", kind="collection"), Slot(id="documents", kind="folder")),
+    )
+
+    def table(name, rows):
+        schema = SOURCE_SCHEMAS[name]
+        write_source_table(
+            project.layout.table(name),
+            name,
+            pa.table({f.name: [r.get(f.name) for r in rows] for f in schema}, schema=schema),
+        )
+
+    table("people", [{"person_id": "p1", "last_name": "Tavelin", "first_name": "Ada", "ids": [],
+                      "source": "import", "columns": [], "aliases": [], "retrieved_at": at}])  # fmt: skip
+    base = {"year": 2024, "ids": [], "n_authors": 1, "retrieved_at": at, "doc_type": "article"}
+    table("texts", [
+        {**base, "text_id": "t1", "slot": "collected", "position": 0, "title": "A", "source": "openalex"},
+        {**base, "text_id": "t2", "slot": "documents", "position": 0, "title": "B", "source": "folder"},
+    ])  # fmt: skip
+    part = {"language": "en", "format": "plain", "retrieved_at": at}
+    table("text_parts", [
+        {**part, "text_id": "t1", "part": "abstract", "provider": "openalex", "content": "Tidal flats."},
+        {**part, "text_id": "t1", "part": "full", "provider": "hal", "content": "A whole paper."},
+        {**part, "text_id": "t1", "part": "title", "provider": "openalex", "content": "Flats"},
+        {**part, "text_id": "t2", "part": "full", "provider": "folder", "content": "A whole report."},
+    ])  # fmt: skip
+    table("authorships", [{"text_id": t, "person_id": "p1", "position": 1, "orgs": []}
+                          for t in ("t1", "t2")])  # fmt: skip
+    out = tmp_path / "out"
+    assemble_corpus(project.layout, project.config, out, parts=PARTS_BY_SLOT_KIND)
+    assert (out / "collected" / "texts" / "t1.txt").read_text() == "Flats\n\nTidal flats.\n"
+    assert (out / "documents" / "texts" / "t2.txt").read_text() == "A whole report.\n"
+    everywhere = tmp_path / "all"
+    assemble_corpus(project.layout, project.config, everywhere, parts=["title", "abstract", "full"])
+    assert (everywhere / "collected" / "texts" / "t1.txt").read_text() == "A whole paper.\n"
+    project.close()
+
+
+def test_a_collection_reads_texts_not_datasets_unless_its_slot_says_so(tmp_path):
+    """By default a collection slot reads articles, preprints, books, theses, reports…, not
+    the datasets, software or peer reviews an index lists; they stay in the tables, and a
+    slot's own doc_types replace the default. A folder reads every document it was given."""
+    from datetime import datetime, timezone
+
+    import pyarrow as pa
+
+    from cartolex.build.params import DOC_TYPES_BY_SLOT_KIND
+    from cartolex.project import Project
+    from cartolex.project.models import Slot
+    from cartolex.project.tables import SOURCE_SCHEMAS, write_source_table
+
+    at = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    project = Project.init(
+        tmp_path / "p",
+        name="Types",
+        domain_title="Coasts",
+        slots=(Slot(id="collected", kind="collection"), Slot(id="documents", kind="folder")),
+    )
+
+    def table(name, rows):
+        schema = SOURCE_SCHEMAS[name]
+        write_source_table(
+            project.layout.table(name),
+            name,
+            pa.table({f.name: [r.get(f.name) for r in rows] for f in schema}, schema=schema),
+        )
+
+    table("people", [{"person_id": "p1", "last_name": "Tavelin", "first_name": "Ada", "ids": [],
+                      "source": "import", "columns": [], "aliases": [], "retrieved_at": at}])  # fmt: skip
+    kinds = ["article", "dataset", "software", "peer-review", "thesis", "communication"]
+    texts = [
+        {"text_id": f"t{i}", "slot": "collected", "position": i, "year": 2024, "ids": [],
+         "n_authors": 1, "retrieved_at": at, "doc_type": k, "title": k, "source": "openalex"}
+        for i, k in enumerate(kinds)
+    ] + [
+        {"text_id": "d1", "slot": "documents", "position": 0, "year": 2024, "ids": [],
+         "n_authors": 1, "retrieved_at": at, "doc_type": "other", "title": "d", "source": "folder"}
+    ]  # fmt: skip
+    table("texts", texts)
+    table("text_parts", [
+        {"text_id": t["text_id"], "part": "title", "language": "en", "provider": "openalex",
+         "format": "plain", "content": f"A {t['doc_type']} about tidal flats", "retrieved_at": at}
+        for t in texts
+    ])  # fmt: skip
+    table("authorships", [{"text_id": t["text_id"], "person_id": "p1", "position": 1, "orgs": []}
+                          for t in texts])  # fmt: skip
+
+    def read(out):
+        with open(out / "collected" / "index.csv", encoding="utf-8", newline="") as fh:
+            collected = {r["doc_type"] for r in csv.DictReader(fh)}
+        with open(out / "documents" / "index.csv", encoding="utf-8", newline="") as fh:
+            documents = {r["doc_type"] for r in csv.DictReader(fh)}
+        return collected, documents
+
+    summary = assemble_corpus(project.layout, project.config, tmp_path / "a",
+                              parts=["title"], doc_types=DOC_TYPES_BY_SLOT_KIND)  # fmt: skip
+    assert read(tmp_path / "a") == ({"article", "thesis", "communication"}, {"other"})
+    assert summary.texts_left_out_by_type == 3
+    own = [s.model_copy(update={"doc_types": ["article", "dataset"]}) if s.id == "collected" else s
+           for s in project.config.slots]  # fmt: skip
+    project.save_config(project.config.model_copy(update={"slots": own}), action="types")
+    assemble_corpus(project.layout, project.config, tmp_path / "b",
+                    parts=["title"], doc_types=DOC_TYPES_BY_SLOT_KIND)  # fmt: skip
+    assert read(tmp_path / "b")[0] == {"article", "dataset"}
+    project.close()

@@ -236,6 +236,36 @@ nothing in the engine names a particular deployment, source or procedure.
   links), each provider declaring what it sends. `body` and `full` parts are
   private (`PRIVATE_PARTS`). The HTTP client reads bytes answers
   (`get_bytes`), and the demo services serve all of these services offline.
+- **Institutions, collaborators, the snapshot and coverage.** People come in
+  from institutions (`cartolex collect institutions`, `propose_people` and
+  `take_people`: by OpenAlex or ROR id, or found by name; every unit below
+  the institutions; authors with enough works in the window, with their
+  evidence; affiliations dated by work; organisations with the project's
+  levels, mapped from the index's types, and every parent; split records
+  suggested, never merged) and from collaborators (`collect collaborators`,
+  `snowball`: co-authors of confirmed seeds round by round, with the joint
+  works, the path back to a seed and a topical fit; works of more than 25
+  authors left out; whole rounds up to a cap; `context` by default;
+  decisions in `snowball.csv`). The OpenAlex snapshot stands in for the API
+  (`collect snapshot`, `--snapshot`; `cartolex.collect.snapshot` streams its
+  partitions, in worker processes on request, and gives the same tables).
+  The coverage report (`collect coverage`, `cartolex.collect.coverage`) says
+  who is good, thin, failed or without data, why (the first blocking
+  cause), by organisation, year and language, and offers a retry of what
+  failed, documents for one person, or an exclusion; a person's failed
+  collection is recorded and the job goes on. HAL and SciELO proposals are
+  confirmed like OpenAlex records (`hal:<idHAL>`, `orcid:…`) and listed with
+  them (`identity_queue`). A slot may set its window of years
+  (`project.json`, `collect window`), `params.json` the collection's
+  parameters (`collect`); the raw runs, the id registry and the merge log
+  are documented as part of the format. Rebuilding the tables reads the
+  harvests from digests in `cache/sources/`, so only new runs are read
+  whole; PDFs are read in a worker process with a timeout. The build reads a
+  folder's or a corpus's documents whole and a collection's texts (not its
+  datasets or software) by rules on the slot's kind, and people's attributes
+  reach the engine's index. The demo layer gains RORs, a joint unit, outside
+  co-authors' own works, a 30-author collaboration and a mini snapshot, and
+  the vocabulary scan reads the names it invents.
 - **The engine on a project.** Each stage runs the engine
   (`cartolex.build.engine`): an ownership table gives every engine file a
   place in the project, the layout's amendments of earlier files are copied

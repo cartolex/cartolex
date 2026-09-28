@@ -12,11 +12,41 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import datetime, timezone
 
+from cartolex.project import Project
 from cartolex.project.files import StaleWrite, fingerprint, write_decision
 from cartolex.project.layout import ProjectLayout
+from cartolex.project.models import ProjectFile
 from cartolex.project.tables import DECISION_TABLES, decision_csv_bytes, read_decision_csv
 
-__all__ = ["decided_now", "read_people", "update_people"]
+__all__ = [
+    "COLLECT_DEFAULTS",
+    "collect_params",
+    "decided_now",
+    "read_people",
+    "slot_window",
+    "update_people",
+]
+
+#: The collection's parameters when ``params.json`` sets none (``collect`` in it).
+COLLECT_DEFAULTS: dict[str, dict[str, int]] = {
+    "snowball": {"cap": 200, "max_authors": 25},
+    "coverage": {"good": 3},
+}
+
+
+def collect_params(project: Project, step: str) -> dict[str, int]:
+    """The effective parameters of collection *step*: ``params.json``'s, else the defaults."""
+    params, _ = project.read_params()
+    return {**COLLECT_DEFAULTS[step], **(params.collect.get(step) or {})}
+
+
+def slot_window(config: ProjectFile, slot: str) -> tuple[int | None, int | None] | None:
+    """The year window of *slot* in ``project.json`` (``None``: every year)."""
+    found = next((s for s in config.slots if s.id == slot), None)
+    if found is None or found.years is None:
+        return None
+    first, last = found.years.as_tuple()
+    return None if first is None and last is None else (first, last)
 
 
 def decided_now(now: datetime | None = None) -> str:

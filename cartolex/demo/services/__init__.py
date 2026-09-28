@@ -38,6 +38,7 @@ from .http import DemoServer, Fault, FaultPlan, Reply, Request, SeenRequest, Ser
 from .openalex import OpenAlexService
 from .orcid import OrcidService
 from .scielo import ScieloService
+from .snapshot import write_snapshot
 from .sources import SourcesLayer, sources_layer
 
 __all__ = [
@@ -55,8 +56,10 @@ __all__ = [
     "build_bibliography",
     "endpoints_at",
     "json_reply",
+    "layer_strings",
     "register_service",
     "sources_layer",
+    "write_snapshot",
 ]
 
 #: The path of each service's API under its prefix (the part a real base URL ends with).
@@ -100,6 +103,38 @@ def endpoints_at(base_url: str) -> dict[str, str]:
         name: f"{base}/{name}" + (f"/{API_ROOTS[name]}" if name in API_ROOTS else "")
         for name in SERVICE_FACTORIES
     }
+
+
+def layer_strings(bib: Bibliography) -> list[str]:
+    """Every name and text the services invent beyond the world's own files, one per line:
+    author records and the names works print, institutions, the registry's names, the
+    archive's and the journal platform's authors and structures, the index's own works.
+
+    The vocabulary scan reads them (``python -m cartolex.demo create --layer``): an
+    invented name can match a real one by chance."""
+    out: list[str] = []
+    for a in bib.authors.values():
+        out += [a.display_name, *a.alternatives]
+    for w in bib.works.values():
+        out += [a.name for a in w.authorships]
+        if w.world_work is None:
+            out += [w.title, w.abstract, w.venue]
+    for i in bib.institutions.values():
+        out += [i.name] + ([i.acronym] if i.acronym else [])
+    for r in bib.registry.values():
+        out += [f"{r.given} {r.family}", *r.other_names]
+        out += [e.organisation for e in r.employments]
+    layer = sources_layer(bib)
+    for s in layer.structures.values():
+        out.append(s.name)
+    for d in layer.deposits.values():
+        out += [a.full_name for a in d.authors]
+        if d.world_work is None:
+            out += list(d.titles.values()) + list(d.abstracts.values())
+    for art in layer.scielo.values():
+        out += [f"{given} {surname}" for given, surname, _orcid, _aff in art.authors]
+        out += [art.journal, *art.affiliations]
+    return sorted(set(x for x in out if x))
 
 
 def register_service(name: str, factory: Callable[[Bibliography], Service]) -> None:

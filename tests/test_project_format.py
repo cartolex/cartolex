@@ -472,3 +472,30 @@ def test_the_identity_freezes_once(tmp_path):
     assert project.freeze_identity("again") is False
     assert project.config.identity.frozen
     project.close()
+
+
+def test_a_slot_window_and_the_collection_parameters_are_optional_keys():
+    from cartolex.project.models import Slot
+
+    plain = Slot(id="collected", kind="collection")
+    assert "years" not in plain.model_dump(mode="json", by_alias=True)
+    windowed = Slot.model_validate(
+        {"id": "c", "kind": "collection", "years": {"from": 2015, "to": None}}
+    )
+    assert windowed.years.as_tuple() == (2015, None)
+    assert windowed.model_dump(mode="json", by_alias=True)["years"] == {"from": 2015, "to": None}
+    with pytest.raises(ValueError, match="starts"):
+        Slot.model_validate({"id": "c", "kind": "collection", "years": {"from": 2020, "to": 2010}})
+    # A file without the collection key keeps its bytes; with it, it reads back.
+    assert "collect" not in json.loads(json_bytes(ParamsFile()))
+    params = ParamsFile.model_validate({"collect": {"snowball": {"cap": 50, "max_authors": 25}}})
+    assert json.loads(json_bytes(params))["collect"] == {"snowball": {"cap": 50, "max_authors": 25}}
+    for bad in (
+        {"nowhere": {"cap": 1}},
+        {"snowball": {"size": 3}},
+        {"snowball": {"cap": 0}},
+        {"snowball": {"max_authors": True}},
+        {"coverage": {"good": "3"}},
+    ):
+        with pytest.raises(ValueError):
+            ParamsFile.model_validate({"collect": bad})

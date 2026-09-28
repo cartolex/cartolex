@@ -17,6 +17,11 @@ Who goes where comes from ``decisions/people.csv``: ``mapped`` people fill the
 fit slots, each projected set's people fill ``overlays/<set>/``; when the file
 does not exist, every person is mapped. ``context`` people are left out until
 the engine weighs them.
+
+A person's attributes (``columns`` in ``people.parquet``: the filter columns of
+an imported list) follow the index's columns, one column each, so the map can
+colour and filter people by them; an attribute named like a column of the
+contract is written ``person_<name>``.
 """
 
 from __future__ import annotations
@@ -24,7 +29,7 @@ from __future__ import annotations
 import csv
 import io
 from collections import defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -32,7 +37,14 @@ from .layout import ProjectLayout
 from .models import ProjectFile
 from .tables import read_decision_csv, read_source_table
 
-__all__ = ["INDEX_COLUMNS", "PEOPLE_COLUMNS", "CorpusSummary", "assemble_corpus", "render_text"]
+__all__ = [
+    "INDEX_COLUMNS",
+    "PEOPLE_COLUMNS",
+    "CorpusSummary",
+    "assemble_corpus",
+    "attribute_column",
+    "render_text",
+]
 
 #: The columns of an engine index, in order.
 INDEX_COLUMNS = ("last_name", "first_name", "unit", "txt_path", "doc_year", "doc_type")
@@ -40,6 +52,14 @@ INDEX_COLUMNS = ("last_name", "first_name", "unit", "txt_path", "doc_year", "doc
 PEOPLE_COLUMNS = ("person_id", "last_name", "first_name", "unit")
 #: The order parts are read in; ``full`` stands alone.
 PART_ORDER = ("title", "abstract", "body")
+#: Column names an attribute cannot take (the engine reads them as the document's).
+RESERVED = frozenset({*INDEX_COLUMNS, "source", "person_id"})
+
+
+def attribute_column(name: str) -> str:
+    """The index column of a person attribute: its name, or ``person_<name>`` when the
+    contract already uses that name."""
+    return f"person_{name}" if name in RESERVED else name
 
 
 @dataclass
@@ -49,6 +69,8 @@ class CorpusSummary:
     slots: dict[str, dict[str, int]] = field(default_factory=dict)
     skipped_people: int = 0
     texts_without_parts: int = 0
+    #: Texts of a document type their slot does not read (a dataset in a collection slot).
+    texts_left_out_by_type: int = 0
 
 
 def render_text(parts: Sequence[tuple[str, str, str]], *, chosen: Sequence[str]) -> str:
@@ -93,9 +115,10 @@ def assemble_corpus(
     config: ProjectFile,
     out_dir: Path,
     *,
-    parts: Sequence[str] = ("title", "abstract"),
+    parts: Sequence[str] | Mapping[str, Sequence[str]] = ("title", "abstract"),
     provider_priority: Sequence[str] = (),
     unit_level: str | None = None,
+    doc_types: Sequence[str] | Mapping[str, Sequence[str] | None] | None = None,
 ) -> CorpusSummary:
     """Write the engine's corpus for *config*'s fit slots and projected sets into *out_dir*.
 
@@ -106,8 +129,14 @@ def assemble_corpus(
     its ``projected`` people from the project's own tables, or every person of
     its own ``root``'s tables (``<root>/tables/``, laid out like
     ``sources/tables/``; a relative root is relative to the project).
-    *provider_priority* picks one provider per (text, part, language), earlier
-    first, unknown providers last in name order. *unit_level* names the level
+    *parts* are the parts read of every text, or, by the kind of the text's slot
+    (``collection``, ``folder``, ``corpus``), the parts read of that slot's texts
+    (a slot the project does not declare, as in an overlay's own folder, reads as
+    a collection). *provider_priority* picks one provider per (text, part,
+    language), earlier first, unknown providers last in name order. *doc_types*
+    are the document types read of every slot, or by the kind of the slot
+    (``None``: every type); a slot's own ``doc_types`` in ``project.json``
+    replace them. A text of another type is left out, and counted. *unit_level* names the level
     whose organisation fills the ``unit`` column (default: the project's first
     level, else any affiliation).
     """
@@ -118,6 +147,23 @@ def assemble_corpus(
     slot_rank = {s.id: i for i, s in enumerate(config.slots)}
     fit_slots = [s.id for s in config.slots if s.fit]
     written: dict[Path, set[str]] = defaultdict(set)
+    kinds = {s.id: s.kind for s in config.slots}
+    own_types = {s.id: set(s.doc_types) for s in config.slots if s.doc_types}
+
+    def types_of(slot: str) -> set[str] | None:
+        if slot in own_types:
+            return own_types[slot]
+        if doc_types is None:
+            return None
+        if isinstance(doc_types, Mapping):
+            chosen = doc_types.get(kinds.get(slot, "collection"))
+            return set(chosen) if chosen is not None else None
+        return set(doc_types)
+
+    def parts_of(slot: str) -> Sequence[str]:
+        if isinstance(parts, Mapping):
+            return parts.get(kinds.get(slot, "collection"), ("title", "abstract"))
+        return parts
 
     def emit(
         target: Path, members: list[str], slots: set[str] | None, src: _Loaded
@@ -126,6 +172,7 @@ def assemble_corpus(
         keys: list[tuple[str, str, str, str]] = []
         people, units, by_person = src.people, src.units, src.by_person
         text_meta, chosen_parts = src.text_meta, src.chosen_parts
+        attributes = sorted({k for pid in members for k in people[pid]["columns"]})
         for pid in members:
             person = people[pid]
             n_before = len(rows)
@@ -140,7 +187,13 @@ def assemble_corpus(
                 )
             )
             for tid in texts_of:
-                body = render_text(chosen_parts.get(tid, ()), chosen=parts)
+                allowed = types_of(text_meta[tid]["slot"])
+                if allowed is not None and text_meta[tid]["doc_type"] not in allowed:
+                    summary.texts_left_out_by_type += 1
+                    continue
+                body = render_text(
+                    chosen_parts.get(tid, ()), chosen=parts_of(text_meta[tid]["slot"])
+                )
                 if not body:
                     summary.texts_without_parts += 1
                     continue
@@ -157,13 +210,15 @@ def assemble_corpus(
                         rel,
                         "" if meta["year"] is None else meta["year"],
                         meta["doc_type"],
+                        *(person["columns"].get(a, "") for a in attributes),
                     )
                 )
             if len(rows) > n_before:
                 keys.append(
                     (pid, person["last_name"], person["first_name"] or "", units.get(pid, ""))
                 )
-        _write(target / "index.csv", _csv_bytes(rows))
+        columns = (*INDEX_COLUMNS, *(attribute_column(a) for a in attributes))
+        _write(target / "index.csv", _csv_bytes(rows, columns))
         _write(target / "people.csv", _csv_bytes(keys, PEOPLE_COLUMNS))
         return {
             "rows": len(rows),
@@ -226,9 +281,9 @@ def _load(
     for tid in [t for t, row in text_meta.items() if row["version_of"] in text_meta]:
         del text_meta[tid]
     people = {
-        row["person_id"]: row
+        row["person_id"]: {**row, "columns": dict(row["columns"] or [])}
         for row in read_source_table(_table(tables, "people"), "people")
-        .select(["person_id", "last_name", "first_name"])
+        .select(["person_id", "last_name", "first_name", "columns"])
         .to_pylist()
     }
     return _Loaded(
