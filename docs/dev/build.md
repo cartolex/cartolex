@@ -373,6 +373,14 @@ and the result is saved as a new version. The stage converts the tree with
 another depth than two is refused with the reason, until the engine applies
 other depths.
 
+**A host's options.** `engine_registry(ai, EngineOptions(prompt_dir=…,
+stopword_overlay=…))` gives every stage a host application's prompt folder
+(replacing the packaged templates) and its function words (`{"add": {"en":
+[…]}, "remove": {…}}`), applied under each project's own
+`decisions/stopwords.json`, which wins where both name a word. Like the
+packaged lists, they are the host's code: changing them does not by itself
+make a result out of date; force the stages that read them.
+
 **The AI clean-up** needs an `AIAccess`: the provider's key, or a client of
 one's own (`client_factory`, called like the provider SDK's client; the tests
 and the reference run answer with a fake model), and optionally the calls in
