@@ -49,9 +49,9 @@ choose the unit:
 | Literature | a text | each text weighs the same: prolific people weigh more, and a text two people wrote counts once |
 | Organisations | an organisation | each lab or team weighs the same, however many people it has |
 
-In the lab the three presets give almost the same keywords; they differ a
-little in the order of the candidates, which is what you see first. Whatever
-the preset, the map still places people.
+In the lab the three presets give the same keywords; they differ a little
+in the order of the candidates, which is what you see first. Whatever the
+preset, the map still places people.
 
 ## 3. The score: specific and used
 
