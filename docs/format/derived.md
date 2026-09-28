@@ -108,6 +108,19 @@ The AI cache keys are part of the format and never change within a major
 version, so a project, or an application migrating its own caches into one,
 re-bills nothing.
 
+The files of `cache/ai/`, which an application migrating its own caches writes
+as they are:
+
+| file | holds | key |
+| --- | --- | --- |
+| `triage_term_cache.json` | one AI verdict per term | `typed_v3:<model>:<domain title>:<term>` |
+| `triage_batch_cache.json` | the answer to each batch of terms | a hash of the batch's terms, the domain title and the model |
+| `usage.json` | tokens used, per call kind and model | — |
+
+`cache/parse/` holds parsed texts in immutable JSON-lines parts named by their
+content's digest; its layout is described with the extraction
+(`docs/dev/extraction.md`), and a missing or foreign part is parsed again.
+
 ## Outputs
 
 `outputs/` is the default root for what a project hands out: `sites/`,

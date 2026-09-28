@@ -648,9 +648,6 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
     placed = 0
     sets = ctx.project.config.overlays
     for n_set, overlay in enumerate(sets):
-        if overlay.root is not None:
-            ctx.warn(f"projected set {overlay.id!r} has its own folder: not placed yet")
-            continue
         folder = corpus / overlay.id
         index = folder / "index.csv"
         if not index.exists():

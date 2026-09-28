@@ -99,38 +99,30 @@ def assemble_corpus(
     ``out_dir/<slot>/index.csv`` and ``out_dir/<slot>/texts/<text_id>.txt`` for each
     fit slot, in the project's slot order, with ``out_dir/<slot>/people.csv``
     naming the ``person_id`` behind each engine identity (last name, first
-    name, unit); ``out_dir/overlays/<set>/`` likewise
-    for each projected set whose people are in the project's own tables.
+    name, unit); ``out_dir/overlays/<set>/`` likewise for each projected set:
+    its ``projected`` people from the project's own tables, or every person of
+    its own ``root``'s tables (``<root>/tables/``, laid out like
+    ``sources/tables/``; a relative root is relative to the project).
     *provider_priority* picks one provider per (text, part, language), earlier
     first, unknown providers last in name order. *unit_level* names the level
     whose organisation fills the ``unit`` column (default: the project's first
     level, else any affiliation).
     """
     out_dir = Path(out_dir)
-    texts = read_source_table(layout.table("texts"), "texts")
-    text_meta = {
-        row["text_id"]: row
-        for row in texts.select(["text_id", "slot", "position", "year", "doc_type"]).to_pylist()
-    }
-    people = {
-        row["person_id"]: row
-        for row in read_source_table(layout.table("people"), "people")
-        .select(["person_id", "last_name", "first_name"])
-        .to_pylist()
-    }
-    roles = _roles(layout, people)
-    units = _units(layout, config, unit_level)
-    by_person = _texts_by_person(layout, text_meta)
-    chosen_parts = _chosen_parts(layout, set(text_meta), provider_priority)
-
+    main = _load(layout.tables, config, unit_level, provider_priority)
+    roles = _roles(layout, main.people)
     summary = CorpusSummary()
     slot_rank = {s.id: i for i, s in enumerate(config.slots)}
     fit_slots = [s.id for s in config.slots if s.fit]
     written: dict[Path, set[str]] = defaultdict(set)
 
-    def emit(target: Path, members: list[str], slots: set[str] | None) -> dict[str, int]:
+    def emit(
+        target: Path, members: list[str], slots: set[str] | None, src: _Loaded
+    ) -> dict[str, int]:
         rows = []
         keys: list[tuple[str, str, str, str]] = []
+        people, units, by_person = src.people, src.units, src.by_person
+        text_meta, chosen_parts = src.text_meta, src.chosen_parts
         for pid in members:
             person = people[pid]
             n_before = len(rows)
@@ -140,6 +132,7 @@ def assemble_corpus(
             texts_of.sort(
                 key=lambda t: (
                     slot_rank.get(text_meta[t]["slot"], 1 << 30),
+                    text_meta[t]["slot"],
                     text_meta[t]["position"],
                 )
             )
@@ -177,20 +170,69 @@ def assemble_corpus(
 
     mapped = sorted(pid for pid, (role, _) in roles.items() if role == "mapped")
     for slot_id in fit_slots:
-        summary.slots[slot_id] = emit(out_dir / slot_id, mapped, {slot_id})
+        summary.slots[slot_id] = emit(out_dir / slot_id, mapped, {slot_id}, main)
     for overlay in config.overlays:
-        if overlay.root is not None:
-            continue  # a set with its own folder is read from there
-        members = sorted(
-            pid for pid, (role, s) in roles.items() if role == "projected" and s == overlay.id
-        )
-        summary.slots[f"overlay:{overlay.id}"] = emit(
-            out_dir / "overlays" / overlay.id, members, None
-        )
+        target = out_dir / "overlays" / overlay.id
+        if overlay.root is None:
+            members = sorted(
+                pid for pid, (role, s) in roles.items() if role == "projected" and s == overlay.id
+            )
+            summary.slots[f"overlay:{overlay.id}"] = emit(target, members, None, main)
+            continue
+        root = Path(overlay.root)
+        if not root.is_absolute():
+            root = layout.root / root
+        own = _load(root / "tables", config, unit_level, provider_priority)
+        summary.slots[f"overlay:{overlay.id}"] = emit(target, sorted(own.people), None, own)
     summary.skipped_people = sum(
         1 for role, _ in roles.values() if role not in ("mapped", "projected")
     )
     return summary
+
+
+@dataclass
+class _Loaded:
+    """What the adapter reads from one set of tables (the project's, or an overlay's own)."""
+
+    text_meta: dict[str, dict]
+    people: dict[str, dict]
+    units: dict[str, str]
+    by_person: dict[str, list[str]]
+    chosen_parts: dict[str, list[tuple[str, str, str]]]
+
+
+def _table(tables: Path, name: str) -> Path:
+    return Path(tables) / f"{name}.parquet"
+
+
+def _load(
+    tables: Path, config: ProjectFile, unit_level: str | None, provider_priority: Sequence[str]
+) -> _Loaded:
+    missing = [
+        n
+        for n in ("texts", "text_parts", "people", "authorships")
+        if not _table(tables, n).exists()
+    ]
+    if missing:
+        raise FileNotFoundError(f"{tables}: missing source table(s) {missing}")
+    texts = read_source_table(_table(tables, "texts"), "texts")
+    text_meta = {
+        row["text_id"]: row
+        for row in texts.select(["text_id", "slot", "position", "year", "doc_type"]).to_pylist()
+    }
+    people = {
+        row["person_id"]: row
+        for row in read_source_table(_table(tables, "people"), "people")
+        .select(["person_id", "last_name", "first_name"])
+        .to_pylist()
+    }
+    return _Loaded(
+        text_meta=text_meta,
+        people=people,
+        units=_units(tables, config, unit_level),
+        by_person=_texts_by_person(tables, text_meta),
+        chosen_parts=_chosen_parts(tables, set(text_meta), provider_priority),
+    )
 
 
 def _roles(layout: ProjectLayout, people: dict[str, dict]) -> dict[str, tuple[str, str]]:
@@ -204,9 +246,9 @@ def _roles(layout: ProjectLayout, people: dict[str, dict]) -> dict[str, tuple[st
     return roles
 
 
-def _units(layout: ProjectLayout, config: ProjectFile, unit_level: str | None) -> dict[str, str]:
+def _units(tables: Path, config: ProjectFile, unit_level: str | None) -> dict[str, str]:
     """person_id → the acronym (else name) of their current organisation at *unit_level*."""
-    orgs_path, aff_path = layout.table("organisations"), layout.table("affiliations")
+    orgs_path, aff_path = _table(tables, "organisations"), _table(tables, "affiliations")
     if not orgs_path.exists() or not aff_path.exists():
         return {}
     level = unit_level or (config.levels[0].id if config.levels else None)
@@ -228,8 +270,8 @@ def _units(layout: ProjectLayout, config: ProjectFile, unit_level: str | None) -
     return {pid: label for pid, (_, label) in best.items()}
 
 
-def _texts_by_person(layout: ProjectLayout, text_meta: dict[str, dict]) -> dict[str, list[str]]:
-    table = read_source_table(layout.table("authorships"), "authorships").select(
+def _texts_by_person(tables: Path, text_meta: dict[str, dict]) -> dict[str, list[str]]:
+    table = read_source_table(_table(tables, "authorships"), "authorships").select(
         ["text_id", "person_id"]
     )
     by_person: dict[str, list[str]] = defaultdict(list)
@@ -240,10 +282,10 @@ def _texts_by_person(layout: ProjectLayout, text_meta: dict[str, dict]) -> dict[
 
 
 def _chosen_parts(
-    layout: ProjectLayout, text_ids: set[str], provider_priority: Sequence[str]
+    tables: Path, text_ids: set[str], provider_priority: Sequence[str]
 ) -> dict[str, list[tuple[str, str, str]]]:
     """text_id → one (part, language, content) per part and language, by provider priority."""
-    table = read_source_table(layout.table("text_parts"), "text_parts").select(
+    table = read_source_table(_table(tables, "text_parts"), "text_parts").select(
         ["text_id", "part", "language", "provider", "content"]
     )
     rank = {p: i for i, p in enumerate(provider_priority)}

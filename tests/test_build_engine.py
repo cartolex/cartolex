@@ -402,3 +402,47 @@ def test_the_ai_key_never_shows(monkeypatch):
     assert "secret" not in repr(AIAccess(api_key="secret-key"))
     monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
     assert os.environ.get("MISTRAL_API_KEY") is None
+
+
+@pytest.mark.models("en", "fr")
+def test_a_projected_set_in_its_own_folder_is_gathered_placed_and_followed(built, tmp_path):
+    import pyarrow as pa
+    import pyarrow.compute as pc
+
+    from cartolex.project import SOURCE_TABLES
+    from cartolex.project.models import Overlay
+    from cartolex.project.tables import read_source_table, write_source_table
+
+    project = _copy(built, tmp_path)
+    layout = project.layout
+    rows = read_decision_csv(layout.people_csv, "people")
+    members = [
+        r["person_id"] for r in rows if r["role"] == "projected" and r["set"] == "applicants"
+    ]
+    assert members
+    root = tmp_path / "outside" / "applicants"  # a host application's folder, beside the project
+    for name in SOURCE_TABLES:
+        table = read_source_table(layout.table(name), name)
+        if "person_id" in table.column_names:
+            table = table.filter(pc.is_in(table["person_id"], value_set=pa.array(members)))
+        write_source_table(root / "tables" / f"{name}.parquet", name, table)
+    layout.people_csv.write_bytes(
+        decision_csv_bytes("people", [r for r in rows if r["person_id"] not in members])
+    )
+    config = project.config.model_copy(
+        update={"overlays": [Overlay(id="applicants", root=str(root))]}
+    )
+    project.save_config(config, action="the projected set moves to its own folder")
+    assert _states(project)["corpus.assemble"] is not OK
+
+    result = build(project, year=YEAR, budget_mb=1e9)
+    assert result.outcome == "succeeded", result.summary()
+    positions = json.loads(
+        (layout.stage("overlays.position") / "applicants" / "positions.json").read_text()
+    )
+    assert {it["person_id"] for it in positions["items"]} <= set(members) and positions["items"]
+
+    people = read_source_table(root / "tables" / "people.parquet", "people")
+    write_source_table(root / "tables" / "people.parquet", "people", people.slice(1))
+    assert any("overlay" in r or "applicants" in r for r in _reasons(project, "corpus.assemble"))
+    project.close()

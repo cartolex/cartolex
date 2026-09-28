@@ -411,8 +411,9 @@ def _has_overlays(config: ProjectFile, _: ParamsFile) -> str | None:
 def _overlay_tables(project: Project) -> list[tuple[str, Path]]:
     """The tables of the projected sets kept in folders of their own.
 
-    A set without a ``root`` lives in the project's own tables, which
-    ``corpus.assemble`` reads.
+    ``corpus.assemble`` gathers their texts and ``overlays.position`` places
+    them, so both read these files; a set without a ``root`` lives in the
+    project's own tables.
     """
     files: list[tuple[str, Path]] = []
     for overlay in project.config.overlays:
@@ -441,7 +442,10 @@ STAGES = Registry(
                 "decisions/affiliations.csv",
             ),
             sources=SOURCE_TABLES,
-            project=("languages", "slots", "levels"),
+            project=("languages", "slots", "levels", "overlays"),
+            # version 2: projected sets kept in folders of their own are gathered too
+            version=2,
+            extra_inputs=_overlay_tables,
             params=(
                 ParamSpec(
                     "parts",
