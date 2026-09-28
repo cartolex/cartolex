@@ -211,6 +211,21 @@ nothing in the engine names a particular deployment, source or procedure.
   (`--dry-run`, `cartolex.collect.privacy`); `docs/privacy.md` describes
   what is sent, what never is, what is kept and how to delete it.
   `--services demo` runs everything against the demo services, offline.
+- **HAL, SciELO, merging and text providers.** `collect_hal` finds people's
+  deposits by idHAL (cursor paging, the DOI link, titles and abstracts per
+  language, stated structures with their parents) and `collect_scielo` their
+  articles by ORCID, with abstracts in every language (ArticleMeta API); a
+  name only proposes candidates. When the tables are rebuilt, texts found by
+  several finders are merged (same DOI, a shared identifier, then title and
+  year for the same person), fields filled by a finder priority, and every
+  merge, refusal and conflict listed in `sources/merges.json`; a preprint
+  stays apart from its published version (`version_of`) and the build reads
+  only the published one. `improve_texts` fills missing abstracts and, on
+  request, fetches full texts (JATS from Europe PMC, bioRxiv/medRxiv and
+  SciELO, LaTeX from arXiv, then PDFs from HAL and OpenAlex's open-access
+  links), each provider declaring what it sends. `body` and `full` parts are
+  private (`PRIVATE_PARTS`). The HTTP client reads bytes answers
+  (`get_bytes`), and the demo services serve all of these services offline.
 - **The engine on a project.** Each stage runs the engine
   (`cartolex.build.engine`): an ownership table gives every engine file a
   place in the project, the layout's amendments of earlier files are copied

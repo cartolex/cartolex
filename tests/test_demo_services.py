@@ -12,7 +12,7 @@ import requests
 from cartolex.demo import generate
 from cartolex.demo.cli import main as demo_main
 from cartolex.demo.identifiers import DOI_RE, ORCID_RE
-from cartolex.demo.services import DemoServices, build_bibliography
+from cartolex.demo.services import DemoServices, Request, StubService, build_bibliography
 from cartolex.demo.services.biblio import SPECIALS
 from cartolex.demo.writers import world_files
 
@@ -277,10 +277,12 @@ def test_orcid_answers_json_only_when_asked(demo) -> None:
     assert _get(demo, "orcid", "0000-0000-0000-0001/works").status_code == 404
 
 
-def test_later_services_are_stubs(demo) -> None:
-    for name in ("hal", "scielo", "arxiv", "biorxiv", "europepmc"):
-        assert _get(demo, name, "anything").status_code == 501
+def test_every_service_is_served_and_a_stub_answers_501(demo) -> None:
+    for name in ("hal", "scielo", "arxiv", "biorxiv", "europepmc", "files"):
+        assert _get(demo, name, "anything").status_code == 404
     assert requests.get(f"{demo.base_url}/nothing/here", timeout=5).status_code == 404
+    reply = StubService("later").handle(Request("anything", {}, {}))
+    assert reply.status == 501
 
 
 @pytest.mark.parametrize("kind", ["status", "malformed", "drop", "cut_page", "early_end"])

@@ -172,19 +172,49 @@ SERVICES: Mapping[str, Service] = MappingProxyType(
             name="hal",
             label="HAL",
             base_url="https://api.archives-ouvertes.fr",
+            # The API pages state no rate limit (api.archives-ouvertes.fr/docs, checked
+            # 2026-09-28): cartolex stays gentle.
             rate=RateLimit(per_second=2.0, burst=2),
-            lifetimes=_frozen({"default": 7 * DAY}),
-            purpose="find texts deposited in the HAL open archive",
-            policy="not checked yet: declared with a conservative rate",
+            lifetimes=_frozen(
+                {
+                    "default": 7 * DAY,
+                    "hal_works": 7 * DAY,
+                    "hal_name_search": 3 * DAY,
+                    "hal_structures": 30 * DAY,
+                    "hal_record": 30 * DAY,
+                    "hal_file": 90 * DAY,
+                }
+            ),
+            purpose="find texts deposited in the HAL open archive, and their files",
+            policy=(
+                "checked 2026-09-28: the search API (Solr) states no rate limit and no key; "
+                "30 rows by default, at most 10,000; cursor paging needs a sort on a unique "
+                "field (`docid asc`) and `cursorMark=*`, and ends when `nextCursorMark` equals "
+                "the cursor sent; metadata are under CC0 (HAL reuse conditions)"
+            ),
         ),
         "scielo": Service(
             name="scielo",
             label="SciELO",
             base_url="https://articlemeta.scielo.org",
+            # No rate limit stated (ArticleMeta docs, checked 2026-09-28): one a second.
             rate=RateLimit(per_second=1.0, burst=1),
-            lifetimes=_frozen({"default": 7 * DAY}),
-            purpose="find texts published in SciELO journals",
-            policy="not checked yet: declared with a conservative rate",
+            lifetimes=_frozen(
+                {
+                    "default": 7 * DAY,
+                    "scielo_identifiers": 1 * DAY,
+                    "scielo_article": 30 * DAY,
+                    "scielo_fulltext": 90 * DAY,
+                }
+            ),
+            purpose="find texts published in SciELO journals, with their abstracts in every language",
+            policy=(
+                "checked 2026-09-28: ArticleMeta API, no key and no rate limit stated; "
+                "`article/identifiers` lists a collection or a journal (ISSN) by processing "
+                "date, at most 1,000 per request with `offset`; `article` returns one article "
+                "by its PID (`code`), as JSON or as SciELO PS XML (`format=xmlrsps`); the "
+                "documentation recommends the monthly dumps for whole-collection loads"
+            ),
         ),
         "arxiv": Service(
             name="arxiv",
@@ -193,8 +223,13 @@ SERVICES: Mapping[str, Service] = MappingProxyType(
             # Documented: no more than one request every three seconds, one connection.
             rate=RateLimit(per_second=1 / 3, burst=1),
             lifetimes=_frozen({"default": 30 * DAY}),
-            purpose="read the full text of preprints",
-            policy="checked 2026-09-28: one request every three seconds, a single connection",
+            purpose="read the abstract and the LaTeX source of preprints",
+            policy=(
+                "checked 2026-09-28: no more than one request every three seconds, a single "
+                "connection, for every machine of the user together; e-print sources "
+                "(`/e-print/<id>`: one gzipped file, or a gzipped tar) may be retrieved for "
+                "personal or research use, not served again"
+            ),
             accept="application/atom+xml",
         ),
         "biorxiv": Service(
@@ -203,17 +238,43 @@ SERVICES: Mapping[str, Service] = MappingProxyType(
             base_url="https://api.biorxiv.org",
             rate=RateLimit(per_second=1.0, burst=1),
             lifetimes=_frozen({"default": 30 * DAY}),
-            purpose="read the full text of life-science preprints",
-            policy="not checked yet: declared with a conservative rate",
+            purpose="read the abstract and the JATS full text of life-science preprints",
+            policy=(
+                "checked 2026-09-28: `details/<server>/<DOI>/na/json` gives a preprint's "
+                "versions with their abstract, the path of their JATS XML and the DOI of the "
+                "published version; no key and no rate limit stated"
+            ),
         ),
         "europepmc": Service(
             name="europepmc",
             label="Europe PMC",
             base_url="https://www.ebi.ac.uk/europepmc/webservices/rest",
-            rate=RateLimit(per_second=2.0, burst=2),
+            # Rapid requests are reported to be throttled with 503: one a second.
+            rate=RateLimit(per_second=1.0, burst=1),
             lifetimes=_frozen({"default": 30 * DAY}),
-            purpose="read the full text of open-access articles",
-            policy="not checked yet: declared with a conservative rate",
+            purpose="read the abstract and the JATS full text of open-access articles",
+            policy=(
+                "checked 2026-09-28: the REST documentation page did not answer (403); the "
+                "service's support list (2024-12-11) says the limit applies per address; no "
+                "key; `search` with `resultType=core` gives the abstract and the PMCID, "
+                "`<PMCID>/fullTextXML` the JATS of open-access articles"
+            ),
+        ),
+        "files": Service(
+            name="files",
+            label="open-access copies",
+            base_url="",
+            # Publishers and repositories each have their own rules: one request a second
+            # per host, the pacing being kept per host.
+            rate=RateLimit(per_second=1.0, burst=1),
+            lifetimes=_frozen({"default": 90 * DAY}),
+            purpose="download the open-access copy of a text that OpenAlex links to",
+            policy=(
+                "checked 2026-09-28: OpenAlex gives `best_oa_location.pdf_url` and each "
+                "location's `pdf_url` (help pages of 2026-08-11); its own cached PDFs "
+                "(content.openalex.org) need a key and are metered, and are not used"
+            ),
+            accept="application/pdf",
         ),
     }
 )

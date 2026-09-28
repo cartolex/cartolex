@@ -10,6 +10,9 @@ person's texts in slot order then ``position``, each text as its chosen parts.
 It is the ``corpus.assemble`` stage's work, and the only place that knows both
 sides.
 
+A preprint whose published version is in the same tables (``version_of``)
+is left out: only the published version is read.
+
 Who goes where comes from ``decisions/people.csv``: ``mapped`` people fill the
 fit slots, each projected set's people fill ``overlays/<set>/``; when the file
 does not exist, every person is mapped. ``context`` people are left out until
@@ -216,10 +219,12 @@ def _load(
     if missing:
         raise FileNotFoundError(f"{tables}: missing source table(s) {missing}")
     texts = read_source_table(_table(tables, "texts"), "texts")
-    text_meta = {
-        row["text_id"]: row
-        for row in texts.select(["text_id", "slot", "position", "year", "doc_type"]).to_pylist()
-    }
+    rows = texts.select(["text_id", "slot", "position", "year", "doc_type", "version_of"])
+    text_meta = {row["text_id"]: row for row in rows.to_pylist()}
+    # A preprint whose published version is in the tables is not read: the published text
+    # (the version of record, with its year and DOI) is, so a work counts once.
+    for tid in [t for t, row in text_meta.items() if row["version_of"] in text_meta]:
+        del text_meta[tid]
     people = {
         row["person_id"]: row
         for row in read_source_table(_table(tables, "people"), "people")

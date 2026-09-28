@@ -14,7 +14,14 @@
 * :mod:`~cartolex.collect.resolve` — who is who: candidates, scores,
   confirmations; :mod:`~cartolex.collect.harvest` — the works of confirmed people;
   :mod:`~cartolex.collect.openalex` and :mod:`~cartolex.collect.orcid` — the requests;
-* :mod:`~cartolex.collect.privacy` — what leaves the computer, before and after.
+* :mod:`~cartolex.collect.privacy` — what leaves the computer, before and after;
+* :mod:`~cartolex.collect.hal` and :mod:`~cartolex.collect.scielo` — the HAL
+  and SciELO finders (:func:`~cartolex.collect.hal.collect_hal`,
+  :func:`~cartolex.collect.scielo.collect_scielo`), sharing
+  :mod:`~cartolex.collect.finders`;
+* :mod:`~cartolex.collect.merge` — one text per work found by several finders;
+* :mod:`~cartolex.collect.providers` — better texts for works already found
+  (:func:`~cartolex.collect.providers.improve_texts`).
 
 The engine never imports this package; this package imports the project format
 (:mod:`cartolex.project`) and a few engine helpers (PDF text, language detection).

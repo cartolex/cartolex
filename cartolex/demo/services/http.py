@@ -16,6 +16,11 @@ A :class:`FaultPlan` makes chosen requests fail the way real services do:
 ``cut_page`` a cursor page with half of its results missing, the cursor kept
 ``early_end`` a cursor page that says it is the last one too early
 ========== ==============================================================
+
+A service whose lists are not shaped like OpenAlex's says how a page is cut
+with a ``fault_page(kind, reply)`` method. Absolute links in an answer are
+written ``demo-base://<service>/…`` (:data:`DEMO_BASE`): the server replaces
+the prefix with its own address before answering.
 """
 
 from __future__ import annotations
@@ -30,6 +35,7 @@ from typing import Any, Literal, Protocol
 from urllib.parse import parse_qsl, urlsplit
 
 __all__ = [
+    "DEMO_BASE",
     "DemoServer",
     "Fault",
     "FaultPlan",
@@ -41,6 +47,9 @@ __all__ = [
 ]
 
 FaultKind = Literal["status", "hang", "drop", "malformed", "cut_page", "early_end"]
+#: Prefix of the absolute links the demo services give (replaced by the server's address).
+DEMO_BASE = "demo-base://"
+_LINKING_TYPES = ("json", "xml")
 
 
 @dataclass(frozen=True)
@@ -250,6 +259,13 @@ class DemoServer:
             reply = service.handle(Request(rest, query, headers))
         if fault is not None and fault.kind == "malformed":
             reply = Reply(200, reply.body[: max(1, len(reply.body) // 2)], reply.content_type)
+        elif (
+            fault is not None
+            and fault.kind in ("cut_page", "early_end")
+            and reply.status == 200
+            and hasattr(service, "fault_page")
+        ):
+            reply = service.fault_page(fault.kind, reply)  # type: ignore[union-attr]
         elif fault is not None and fault.kind in ("cut_page", "early_end") and reply.status == 200:
             data = json.loads(reply.body)
             if isinstance(data, dict) and isinstance(data.get("results"), list):
@@ -258,6 +274,12 @@ class DemoServer:
                 else:
                     data.setdefault("meta", {})["next_cursor"] = None
                 reply = json_reply(200, data)
+        marker = DEMO_BASE.encode()
+        if any(t in reply.content_type for t in _LINKING_TYPES) and marker in reply.body:
+            own = f"{self.base_url}/".encode()
+            reply = Reply(
+                reply.status, reply.body.replace(marker, own), reply.content_type, reply.headers
+            )
         self._send(h, reply)
 
     @staticmethod

@@ -64,10 +64,19 @@ The key is (`text_id`, `part`, `language`, `provider`). Which provider wins when
 several give the same part is a parameter (`sources.provider_priority`), so
 the choice can change without collecting again.
 
+**Private parts.** `body` and `full` parts are full texts: collected on
+request from open-access services, or a user's own documents. They never
+leave the project: a shared output (a site, a map bundle, an export, a share)
+carries titles and abstracts at most. The rule is on the part, whatever its
+provider (`PRIVATE_PARTS` and `shareable_parts()` in
+`cartolex.project.tables`); the privacy page and the share step follow it.
+
 **Reading order.** A text is read as its chosen parts in the order title,
 abstract, body, each part in every language it has, separated by a blank line
 and ending with a newline; `full` stands alone. People are read in `person_id`
-order, and each person's texts in slot order, then `position`.
+order, and each person's texts in slot order, then `position`. A preprint
+whose published version is in the tables (its `version_of`) is not read: the
+published version is, so that a work counts once.
 
 ## `people.parquet`: one row per person record
 
@@ -146,6 +155,14 @@ Higher levels follow the `parents` links.
 | `collection` | the service records as received, one JSON-lines file per service and run |
 | `folder` | the documents, or a pointer to where they are, and the file-to-person matching |
 | `corpus` | the imported index and texts, as given |
+
+**Merged texts.** A work found by several finders is one text: the tables are
+rebuilt with texts merged by DOI, by a shared identifier, then by title and
+year for the same person, each field taken from the highest-priority finder
+that has it. `sources/merges.json` (`cartolex-merges/1`), rebuilt with the
+tables, lists every merge with its rule and evidence, the preprints linked to
+their published version, the matches refused and why, and the values finders
+gave differently (see `docs/dev/collection.md`).
 
 Overlays and bases use the same layout under their own root, and
 `sources/bases/<id>/` holds a copy of each base's map bundle.

@@ -364,6 +364,10 @@ class SourceBuilder:
         self.affiliations: dict[tuple[str, str, str], list[Any]] = {}
         self.warnings: list[str] = []
         self.counts: dict[str, int] = {}
+        #: Every record that reached each text (its fields and keys), for the merge across
+        #: finders (:mod:`cartolex.collect.merge`), and the links finders stated between texts.
+        self.text_records: dict[str, list[dict[str, Any]]] = {}
+        self.text_links: list[tuple[str, str, str]] = []
 
     def count(self, what: str, n: int = 1) -> None:
         self.counts[what] = self.counts.get(what, 0) + n
@@ -544,14 +548,20 @@ class SourceBuilder:
             "source": source,
             "retrieved_at": retrieved_at,
         }
+        self.text_records.setdefault(tid, []).append({**fields, "keys": list(keys)})
         row = self.texts.get(tid)
         if row is None:
-            self.texts[tid] = fields
+            self.texts[tid] = dict(fields)
         else:
             merged_ids = {**row["ids"], **fields["ids"]}
             row.update({k: v for k, v in fields.items() if v is not None})
             row["ids"] = merged_ids
         return tid
+
+    def link(self, text_id: str, relation: str, value: str) -> None:
+        """A link a finder or provider states: ``version_of_doi`` (this text is a preprint whose
+        published version has that DOI)."""
+        self.text_links.append((text_id, relation, value))
 
     def part(
         self,
@@ -712,8 +722,11 @@ Reader = Callable[[list[RawRun], SourceBuilder], None]
 
 def default_readers() -> dict[str, Reader]:
     """cartolex's readers, by raw folder name, in the order they run."""
+    from .hal import read_hal_runs
     from .harvest import read_openalex_runs, read_orcid_runs
     from .people_import import read_corpus_runs, read_folder_runs, read_people_runs
+    from .providers import read_improve_runs
+    from .scielo import read_scielo_runs
 
     return {
         "people": read_people_runs,
@@ -723,6 +736,13 @@ def default_readers() -> dict[str, Reader]:
         "orcid": read_orcid_runs,
         # Resolution proposals are kept for the record; no table is built from them.
         "resolve": lambda runs, builder: None,
+        "hal": read_hal_runs,
+        "scielo": read_scielo_runs,
+        # Provider runs come after every finder: they improve texts already found.
+        "improve": read_improve_runs,
+        # Candidates found by a name are proposals: no table is built from them.
+        "hal_candidates": lambda runs, builder: None,
+        "scielo_candidates": lambda runs, builder: None,
     }
 
 
@@ -735,6 +755,8 @@ class RebuildReport:
     counts: dict[str, int] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     skipped_kinds: list[str] = field(default_factory=list)
+    #: Texts merged across finders, per rule (see ``sources/merges.json``).
+    merges: dict[str, int] = field(default_factory=dict)
 
 
 def rebuild_sources(
@@ -742,14 +764,19 @@ def rebuild_sources(
     config: ProjectFile,
     *,
     readers: Mapping[str, Reader] | None = None,
+    finder_priority: Sequence[str] | None = None,
 ) -> RebuildReport:
     """Rebuild the six source tables from every slot's raw runs and write them.
 
     Rows no registry gave an id to (tables written by another tool) are kept.
     Slots are read in the project's order, each slot's kinds in the readers'
-    order, runs in time order. Rebuilding from the same raw records and the same
-    kept rows writes the same bytes.
+    order, runs in time order. Texts found by several finders are then merged
+    (:mod:`cartolex.collect.merge`, fields filled by *finder_priority*) and the
+    merges listed in ``sources/merges.json``. Rebuilding from the same raw
+    records and the same kept rows writes the same bytes.
     """
+    from .merge import FINDER_PRIORITY, merge_texts, write_merge_log
+
     readers = dict(readers or default_readers())
     slots = [s.id for s in config.slots]
     registry = IdRegistry(layout, slots)
@@ -774,11 +801,14 @@ def rebuild_sources(
                 report.skipped_kinds.append(f"{slot}/{kind}")
                 continue
             reader([r for r in runs if r.kind == kind], builder)
+    merged = merge_texts(builder, priority=finder_priority or FINDER_PRIORITY)
     tables = builder.finish()
     registry.save()
     for name, table in tables.items():
         write_source_table(layout.table(name), name, table)
         report.rows[name] = table.num_rows
+    write_merge_log(layout, merged)
     report.counts = dict(builder.counts)
     report.warnings = list(builder.warnings)
+    report.merges = merged.counts()
     return report

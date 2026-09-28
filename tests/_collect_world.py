@@ -1,22 +1,27 @@
 # SPDX-License-Identifier: MIT
-"""Helpers of the collection tests: a project fed from the demo services, and the corpus a
-perfect collector would get from them, computed from the bibliographic layer alone."""
+"""Helpers of the collection tests: a project fed from the demo services, the corpus a
+perfect collector would get from them (computed from the bibliographic layer alone), and a
+project holding a demo world's people with a quick client."""
 
 from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Sequence
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from cartolex.collect import HttpClient, local_settings
+import pyarrow as pa
+
+from cartolex.collect import HttpClient, RetryPolicy, Timeouts, local_settings
 from cartolex.collect.decisions import read_people
 from cartolex.collect.people_import import import_people
 from cartolex.collect.resolve import confirm, confirm_none
+from cartolex.demo.model import DemoWorld
 from cartolex.demo.services import Bibliography, DemoServices
 from cartolex.project import Project
-from cartolex.project.models import Level
-from cartolex.project.tables import read_source_table
+from cartolex.project.models import Level, Slot
+from cartolex.project.tables import SOURCE_SCHEMAS, read_source_table, write_source_table
 
 LEVELS = [
     Level(id="lab", names={"en": "Lab"}),
@@ -174,3 +179,47 @@ def actual_corpus(project: Project) -> dict[str, set]:
 
 def identities(project: Project) -> dict[str, dict[str, str]]:
     return read_people(project.layout)
+
+
+T0 = datetime(2026, 9, 1, tzinfo=timezone.utc)
+SLOT = "collected"
+
+
+def project_with_people(root: Path, world: DemoWorld, *, orcids: bool = True) -> Project:
+    """A project with one collection slot and the world's people in its tables (as an
+    import would give them: names, ORCID, idHAL)."""
+    project = Project.init(
+        root,
+        name="Collection test",
+        domain_title="Invented field",
+        slots=(Slot(id=SLOT, kind="collection"),),
+    )
+    rows = [
+        {
+            "person_id": p.person_id,
+            "last_name": p.last_name,
+            "first_name": p.first_name,
+            "orcid": (p.orcid or None) if orcids else None,
+            "ids": [("idhal", [p.idhal])] if p.idhal else [],
+            "source": "import",
+            "columns": [],
+            "aliases": [],
+            "retrieved_at": T0,
+        }
+        for p in world.people
+    ]
+    schema = SOURCE_SCHEMAS["people"]
+    table = pa.table({f.name: [r.get(f.name) for r in rows] for f in schema}, schema=schema)
+    write_source_table(project.layout.table("people"), "people", table)
+    return project
+
+
+def client_for(services, project: Project | None = None, **kw) -> HttpClient:
+    """A client of the demo services: no pacing, quick retries, the project's cache."""
+    settings = local_settings(
+        services.endpoints(),
+        timeouts=kw.pop("timeouts", Timeouts(connect=2.0, read=5.0)),
+        retry=kw.pop("retry", RetryPolicy(max_attempts=3, base_delay=0.01, max_delay=0.05)),
+    )
+    cache = project.layout.cache_http if project is not None else None
+    return HttpClient(settings, cache_dir=cache, **kw)
