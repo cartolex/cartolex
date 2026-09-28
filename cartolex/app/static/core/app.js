@@ -183,7 +183,7 @@ export async function boot(root) {
       ctx.onLeave(() => render(null, ctx.root));
     },
     onReady: ({ initial, pageId, duration }) => {
-      app.readyLog.push({ pageId, duration });
+      app.readyLog.push({ pageId, duration, at: performance.now() });
       if (app.readyLog.length > 50) app.readyLog.shift();
       if (!initial) {
         const heading = outletRef.current.querySelector('h1');
