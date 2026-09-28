@@ -16,6 +16,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
 from . import names as nm
+from .bodies import compose_body
 from .identifiers import make_doi, make_idhal, make_openalex_id, make_orcid
 from .model import (
     APPLICANTS,
@@ -160,10 +161,17 @@ def _zipf_weights(scores: Sequence[float]) -> tuple[float, ...]:
 class _Builder:
     """Holds the random streams and the partial world while it is generated."""
 
-    def __init__(self, spec: SizeSpec, seed: int, languages: tuple[str, ...] = LANGUAGES) -> None:
+    def __init__(
+        self,
+        spec: SizeSpec,
+        seed: int,
+        languages: tuple[str, ...] = LANGUAGES,
+        bodies: bool = False,
+    ) -> None:
         self.spec = spec
         self.seed = seed
         self.languages = languages
+        self.bodies = bodies
         self.rng_struct = _rng(spec.code, seed, "structure")
         self.rng_people = _rng(spec.code, seed, "people")
         self.rng_works = _rng(spec.code, seed, "works")
@@ -439,10 +447,19 @@ class _Builder:
         # Chronological identifiers.
         drafts.sort(key=lambda d: (d["year"], d["authors"][0], d["seq"]))
         works = []
+        writers = []
         for n, d in enumerate(drafts, start=1):
             doi = make_doi(self.spec.code, n) if d["has_doi"] else ""
+            writers.append(d.pop("_writer"))
             del d["seq"], d["has_doi"]
             works.append(Work(work_id=f"w{n:05d}", doi=doi, **d))
+        if self.bodies:
+            # A stream of its own, after every work is made: nothing else moves.
+            rng = _rng(self.spec.code, self.seed, "bodies")
+            works = [
+                replace(w, body=compose_body(rng, plan, filler))
+                for w, (plan, filler) in zip(works, writers, strict=True)
+            ]
         return works
 
     def _draft(
@@ -522,7 +539,8 @@ class _Builder:
             all_methods=METHODS,
             all_settings=SETTINGS,
         )
-        title, abstract = compose(self.rng_text, plan)
+        kept: list = []
+        title, abstract = compose(self.rng_text, plan, keep=kept)
         self._n_drafts += 1
         themes = (primary,) if secondary is None else (primary, secondary)
         return {
@@ -537,6 +555,7 @@ class _Builder:
             "authors": tuple(ids),
             "has_doi": has_doi,
             "seq": self._n_drafts,
+            "_writer": (plan, kept[0]),
         }
 
     def _weights(self, theme_id: str, authors: list[Person]) -> tuple[float, ...]:
@@ -603,7 +622,11 @@ def parse_languages(languages: str | tuple[str, ...] | list[str] | None) -> tupl
 
 
 def generate(
-    size: str = "S", seed: int = 0, languages: str | tuple[str, ...] | None = None
+    size: str = "S",
+    seed: int = 0,
+    languages: str | tuple[str, ...] | None = None,
+    *,
+    bodies: bool = False,
 ) -> DemoWorld:
     """Generate the demo world of the given *size* (``XS``, ``S`` or ``L``) and *seed*.
 
@@ -611,12 +634,16 @@ def generate(
     has the same groups, people and bibliography as the default one; some
     groups write often in Portuguese, so some English works become Portuguese
     works, and every text is written anew.
+
+    With *bodies*, every work also gets a body (``Work.body``, see
+    :mod:`cartolex.demo.bodies`): long, repetitive, with generic filler, written
+    from a stream of its own, so the rest of the world is unchanged.
     """
     key = size.upper()
     if key not in SIZES:
         raise ValueError(f"unknown size {size!r}; expected one of {', '.join(SIZES)}")
     langs = parse_languages(languages)
-    builder = _Builder(SIZES[key], int(seed), langs)
+    builder = _Builder(SIZES[key], int(seed), langs, bool(bodies))
     builder.build_structure()
     builder.assign_portuguese()
     builder.build_people()
@@ -629,4 +656,5 @@ def generate(
         works=tuple(works),
         themes=THEMES,
         languages=langs,
+        bodies=bool(bodies),
     )

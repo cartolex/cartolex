@@ -818,10 +818,19 @@ class _Filler:
         return out
 
 
-def compose(rng: random.Random, plan: TextPlan) -> tuple[str, str]:
-    """Return ``(title, abstract)`` for one work; the abstract has 120–250 words."""
+def compose(
+    rng: random.Random, plan: TextPlan, *, keep: list[_Filler] | None = None
+) -> tuple[str, str]:
+    """Return ``(title, abstract)`` for one work; the abstract has 120–250 words.
+
+    With *keep*, the slot filler that wrote them (its focal terms) is appended
+    to it, for a body written later (:mod:`cartolex.demo.bodies`); this draws
+    nothing more from *rng*.
+    """
     templates = TEMPLATES[(plan.language, plan.kind)]
     filler = _Filler(rng, plan)
+    if keep is not None:
+        keep.append(filler)
 
     leadins = {role: list(LEADINS[plan.language][role]) for role in CLAUSE_ROLES}
     for role in CLAUSE_ROLES:

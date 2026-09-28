@@ -89,6 +89,24 @@ About 10 % more people form a **projected set** (role `overlay:applicants`)
 with works of their own. They are never part of the fitted cohort: they never
 co-author with it and never reach the corpus index of the cohort.
 
+### Bodies: full texts
+
+```bash
+python -m cartolex.demo create --size S --seed 0 --bodies --out demo-S-full --corpus
+```
+
+With `--bodies` (`generate(..., bodies=True)`), every work also gets a body
+(`Work.body`), written after its title and abstract in its text file: an
+introduction, material and methods, results with two figure or table captions,
+and a discussion, each under its heading, about 700 words in all. Sentences
+are drawn with replacement from a small pool of templates filled with the
+work's focal terms, so the body is long, repetitive and full of generic
+phrasing (`the present study`, `the data set`, `a significant difference`),
+as full texts are. Bodies come from a random stream of their own: people,
+bibliography, titles and abstracts are those of the world without bodies.
+Size S with bodies holds about 243,000 words. They exist to measure choices
+that matter for full texts (lexicon lab, {doc}`dev/lexicon-lab`).
+
 ### The trilingual variant
 
 ```bash
@@ -156,10 +174,12 @@ UTF-8 with `\n` line endings.
 - `works`: the themes of each work, primary first;
 - `coverage`: `good`, `thin` or `no_data` per person.
 
-A trilingual world's truth also has `name_pt`, `pt` and `pt_article` in its
-themes and terms, its `languages`, and a `lexicon`: one record per phrase
-the texts are written with and per language — `text`, `lang`, `kind` and
-`field` (whether it is a field term):
+A world made with other options than the default ones (trilingual, or with
+bodies) also records its `languages`, `bodies` when it has them, the
+Portuguese `name_pt`, `pt` and `pt_article` of its themes and terms when it is
+trilingual, and a `lexicon`: one record per phrase the texts are written with
+and per language — `text`, `lang`, `kind` and `field` (whether it is a field
+term):
 
 | `kind` | what | `field` | more |
 | --- | --- | --- | --- |
@@ -169,10 +189,12 @@ the texts are written with and per language — `text`, `lang`, `kind` and
 | `setting` | a study-setting phrase (`on sandy beaches`) | no | `canonical` |
 | `template` | a literal piece of a sentence template or lead-in: generic filler | no | |
 
-`cartolex.demo.lexicon_truth(languages)` gives the same records for any
-language set. A default world's truth keeps the format above, byte for byte.
-The manifest of a trilingual world names its `languages`, and its counts give
-`works_pt`.
+With bodies, the pieces of the body templates and the section headings are
+`template` records too. `cartolex.demo.lexicon_truth(languages, bodies=…)`
+gives the same records for any language set. A default world's truth keeps
+the format above, byte for byte. The manifest of a trilingual world names its
+`languages`, and its counts give `works_pt`; that of a world with bodies has
+`"bodies": true`.
 
 ## The corpus contract
 

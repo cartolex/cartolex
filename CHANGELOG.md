@@ -143,4 +143,9 @@ nothing in the engine names a particular deployment, source or procedure.
   raw keyword tables gain the columns `people`, `texts`, `band` and `reason`
   (the merged list gains `band` and `reason`). Bands remove nothing yet. The
   settings snapshot records the counting unit.
+- **Demo bodies.** `generate(..., bodies=True)` (`--bodies`) gives every work
+  a long, repetitive body with generic filler (introduction, methods,
+  results, discussion, captions) in its language, from a random stream of its
+  own; the rest of the world, and every default world, is unchanged. The
+  truth's lexicon lists the body templates' pieces as filler.
 
