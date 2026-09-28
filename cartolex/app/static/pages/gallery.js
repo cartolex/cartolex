@@ -16,16 +16,17 @@ import { THEMES } from '../core/stores/prefs.js';
 import {
   ActivityDrawer, ActivityIndicator, AiHandoffDialog, Button, Card, Checkbox, ConfirmDialog,
   ContextMenuArea, Dialog, Drawer, EmptyState, ErrorCard, FormField, Help, ICON_NAMES, Icon,
-  IconButton, Input, Menu, MenuButton, ProgressBar, STATES, Select, StageTracker, StatusDot,
-  StatusPill, Stepper, Table, Tabs, Textarea, Toaster, Tooltip, createToaster,
+  IconButton, Input, MapFrame, Menu, MenuButton, ProgressBar, STATES, Select, StageTracker, StatusDot,
+  StatusPill, Stepper, Table, Tabs, Textarea, Toaster, Tooltip, TreeView, Treemap, createToaster,
 } from '../components/index.js';
 import {
-  ERRORS, HANDOFF_ANSWER, HANDOFF_BUNDLE, HANDOFF_PROMPT, JOBS, STAGES, checkAnswer, tableRows,
+  ERRORS, HANDOFF_ANSWER, HANDOFF_BUNDLE, HANDOFF_PROMPT, JOBS, STAGES, THEME_TREE, checkAnswer,
+  mapPoints, tableRows,
 } from './gallery-data.js';
 
 const SECTIONS = ['tokens', 'button', 'card', 'status', 'tracker', 'stepper', 'tabs', 'table',
   'menu', 'dialog', 'toast', 'form', 'empty', 'error', 'progress', 'tooltip', 'handoff',
-  'activity', 'icons'];
+  'tree', 'treemap', 'map', 'activity', 'icons'];
 
 function Section({ id, children }) {
   return html`<section class="cx-gallery__section" id=${`g-${id}`} aria-labelledby=${`g-${id}-title`}
@@ -524,6 +525,106 @@ function fakeJobs(list) {
   };
 }
 
+function TreeDemo() {
+  const [open, setOpen] = useState(() => new Set(['s1', 'c2']));
+  const [active, setActive] = useState('n:s1');
+  const [selection, setSelection] = useState(() => new Set(['n:s1']));
+  const rows = [];
+  THEME_TREE.forEach((theme, i) => {
+    rows.push({ key: `n:${theme.id}`, level: 1, expandable: true, expanded: open.has(theme.id), parent: null,
+      setsize: THEME_TREE.length, posinset: i + 1, text: theme.name, label: theme.name });
+    if (!open.has(theme.id)) return;
+    theme.topics.forEach((topic, j) => {
+      rows.push({ key: `n:${topic.id}`, level: 2, expandable: true, expanded: open.has(topic.id),
+        parent: `n:${theme.id}`, setsize: theme.topics.length, posinset: j + 1, text: topic.name, label: topic.name });
+      if (!open.has(topic.id)) return;
+      topic.keywords.forEach((kw, k) => rows.push({ key: `k:${kw}`, level: 3, parent: `n:${topic.id}`,
+        setsize: topic.keywords.length, posinset: k + 1, text: kw, label: kw, multi: true }));
+    });
+  });
+  const toggle = (row, expand) => {
+    const next = new Set(open);
+    if (expand) next.add(row.key.slice(2));
+    else next.delete(row.key.slice(2));
+    setOpen(next);
+  };
+  return html`<${Section} id="tree">
+    <${Example} label=${t('gallery.tree.example')} wide>
+      <div class="cx-gallery__tree">
+        <${TreeView} rows=${rows} label=${t('gallery.tree.label')} activeKey=${active}
+          onActiveChange=${setActive} selection=${selection} onSelectionChange=${setSelection}
+          onToggle=${toggle} renderRow=${(row) => html`<span class="cx-gallery__tree-row">${row.label}</span>`} />
+      </div>
+      <p class="cx-gallery__note" aria-live="polite">${t('gallery.tree.selected', { count: selection.size })}</p>
+    <//>
+  <//>`;
+}
+
+function TreemapDemo() {
+  const [selected, setSelected] = useState('c2');
+  const [root, setRoot] = useState(null);
+  const funcs = useMemo(() => {
+    const byId = new Map();
+    const children = new Map([[null, THEME_TREE.map((th) => th.id)]]);
+    THEME_TREE.forEach((th, i) => {
+      byId.set(th.id, { name: th.name, parent: null, hue: i, weight: th.topics.reduce((s, c) => s + c.keywords.length, 0) });
+      children.set(th.id, th.topics.map((c) => c.id));
+      th.topics.forEach((c) => {
+        byId.set(c.id, { name: c.name, parent: th.id, hue: i, weight: c.keywords.length });
+        children.set(c.id, []);
+      });
+    });
+    return {
+      childrenOf: (id) => children.get(id) || [],
+      weightOf: (id) => byId.get(id).weight,
+      hueOf: (id) => byId.get(id).hue,
+      nameOf: (id) => byId.get(id).name,
+      parentOf: (id) => byId.get(id).parent,
+      detailOf: (id) => formatNumber(byId.get(id).weight),
+    };
+  }, []);
+  return html`<${Section} id="treemap">
+    <${Example} label=${t('gallery.treemap.example')} wide>
+      <div class="cx-gallery__treemap">
+        <${Treemap} ...${funcs} root=${root} selected=${selected} onSelect=${setSelected} onZoom=${setRoot}
+          label=${t('gallery.treemap.label')} status=${funcs.nameOf(selected)} />
+      </div>
+    <//>
+  <//>`;
+}
+
+function MapDemo() {
+  const points = useMemo(() => mapPoints(10000), []);
+  const [picked, setPicked] = useState(null);
+  const scene = useMemo(() => {
+    const highlight = new Uint8Array(points.x.length);
+    let count = 0;
+    if (picked !== null) {
+      for (let i = 0; i < points.x.length; i += 1) {
+        if (points.color[i] === points.color[picked]) {
+          highlight[i] = 1;
+          count += 1;
+        }
+      }
+    }
+    return {
+      layers: [{ id: 'points', x: points.x, y: points.y, color: points.color, radius: 2.5, alpha: 0.8,
+        palette: Array.from({ length: 12 }, (_, k) => `--cx-hue-${k + 1}`), highlight, highlightCount: count }],
+      labels: [],
+      bounds: points.bounds,
+    };
+  }, [points, picked]);
+  return html`<${Section} id="map">
+    <${Example} label=${t('gallery.map.example', { count: points.x.length })} wide>
+      <div class="cx-gallery__map" data-points=${points.x.length}>
+        <${MapFrame} scene=${scene} label=${t('gallery.map.label')}
+          status=${picked === null ? '' : t('gallery.map.picked', { count: scene.layers[0].highlightCount })}
+          onPick=${(hit) => setPicked(hit ? hit.index : null)} />
+      </div>
+    <//>
+  <//>`;
+}
+
 function Activity() {
   const stores = useMemo(() => ({
     running: fakeJobs(JOBS), failed: fakeJobs(JOBS.slice(1)), idle: fakeJobs([]),
@@ -575,6 +676,9 @@ function Gallery({ ctx }) {
     <${Progress} />
     <${Tooltips} />
     <${Handoff} ctx=${ctx} />
+    <${TreeDemo} />
+    <${TreemapDemo} />
+    <${MapDemo} />
     <${Activity} />
     <${Icons} />
   </div>`;

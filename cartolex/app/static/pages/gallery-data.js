@@ -165,3 +165,44 @@ export const ERRORS = {
     technical: 'TypeError: cannot read properties of undefined\n    at render (gallery.js:1:1)',
   },
 };
+
+/** A small theme tree (themes, topics, keywords) for the TreeView and the Treemap. */
+export const THEME_TREE = [
+  { id: 's1', name: 'Coastal hazards', topics: [
+    { id: 'c1', name: 'Storm surge', keywords: ['storm surge modelling', 'coastal flooding', 'wave setup'] },
+    { id: 'c2', name: 'Shoreline erosion', keywords: ['dune erosion', 'érosion dunaire', 'cliff retreat', 'beach morphodynamics'] },
+  ] },
+  { id: 's2', name: 'Marine ecology', topics: [
+    { id: 'c3', name: 'Seagrass meadows', keywords: ['seagrass meadow loss', 'herbiers de phanérogames'] },
+    { id: 'c4', name: 'Plankton', keywords: ['plankton bloom phenology', 'coastal upwelling'] },
+  ] },
+  { id: 's3', name: 'Estuaries and sediments', topics: [
+    { id: 'c5', name: 'Sediment transport', keywords: ['sediment transport', 'longshore drift', 'dérive littorale', 'transport sédimentaire', 'sandbar migration'] },
+    { id: 'c6', name: 'Estuarine mixing', keywords: ['estuarine turbidity maximum', 'salt marsh accretion', 'tidal inlet dynamics'] },
+  ] },
+];
+
+/**
+ * Points for the MapFrame: *n* points in twelve clusters, deterministic (a
+ * small linear congruential generator), with a hue family each.
+ */
+export function mapPoints(n = 10_000) {
+  let seed = 7;
+  const random = () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 4294967296;
+  };
+  const x = new Float32Array(n);
+  const y = new Float32Array(n);
+  const color = new Uint16Array(n);
+  const centres = Array.from({ length: 12 }, (_, k) => [Math.cos(k * 0.52) * (3 + (k % 3)), Math.sin(k * 0.52) * (3 + (k % 3))]);
+  for (let i = 0; i < n; i += 1) {
+    const k = i % 12;
+    const r = Math.sqrt(-2 * Math.log(random() + 1e-9)) * 0.7;
+    const a = random() * Math.PI * 2;
+    x[i] = centres[k][0] + r * Math.cos(a);
+    y[i] = centres[k][1] + r * Math.sin(a);
+    color[i] = k;
+  }
+  return { x, y, color, bounds: { xmin: -7, xmax: 7, ymin: -7, ymax: 7 } };
+}

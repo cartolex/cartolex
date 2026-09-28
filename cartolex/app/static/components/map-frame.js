@@ -85,7 +85,7 @@ export function createCanvas2DRenderer(canvas) {
           }
           bucket.push(px, py);
         }
-        ctx.globalAlpha = anyHighlight ? 0.28 : (layer.alpha || 0.9);
+        ctx.globalAlpha = anyHighlight ? 0.35 : (layer.alpha || 0.9);
         for (const [c, pts] of buckets) {
           ctx.fillStyle = color(layer.palette[c] || layer.palette[0]);
           ctx.beginPath();
@@ -132,10 +132,17 @@ export function createCanvas2DRenderer(canvas) {
         ctx.lineWidth = 3;
         ctx.strokeStyle = color('--cx-surface');
         ctx.fillStyle = color('--cx-text');
+        // The labels in the scene's order (the most important first); one that would
+        // overlap a label already drawn is left out, so the map stays readable.
+        const placed = [];
         for (const label of scene.labels) {
           const px = label.x * sx + ox;
           const py = oy - label.y * sx;
           if (px < 0 || py < 0 || px > width || py > height) continue;
+          const w = ctx.measureText(label.text).width + 8;
+          const box = [px - w / 2, py - 9, px + w / 2, py + 9];
+          if (placed.some((o) => box[0] < o[2] && box[2] > o[0] && box[1] < o[3] && box[3] > o[1])) continue;
+          placed.push(box);
           ctx.strokeText(label.text, px, py);
           ctx.fillText(label.text, px, py);
         }
@@ -174,7 +181,8 @@ function buildGrid(layers, bounds) {
  * @param {(hit: {layer: string, index: number}|null) => void} [props.onPick]
  * @param {(hit: {layer: string, index: number}|null, point: {x, y}|null) => void} [props.onHover]
  * @param {{current: any}} [props.frameRef] receives the frame's methods
- * @param {(ratio: number, dpr: number) => object} [props.renderer] makes a renderer for a canvas
+ * @param {(canvas: HTMLCanvasElement) => object} [props.renderer] makes the renderer of a canvas
+ *   (`resize(width, height, ratio)`, `draw(scene, view)`, `invalidate()`, `destroy()`)
  */
 export function MapFrame({ scene, label, status = '', onPick, onHover, frameRef, renderer,
   class: cls = '' }) {

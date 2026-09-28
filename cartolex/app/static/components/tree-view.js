@@ -78,6 +78,8 @@ export function TreeView({
   }, [rows]);
   const n = rows.length;
   const activeIndex = activeKey !== null && index.has(activeKey) ? index.get(activeKey) : -1;
+  const latest = useRef(null);
+  latest.current = { n, rows, index, activeKey, onActiveChange };
 
   useLayoutEffect(() => {
     const el = scroller.current;
@@ -386,7 +388,13 @@ export function TreeView({
       aria-activedescendant=${activeIndex >= first && activeIndex <= last ? `${id}-row-${activeIndex}` : undefined}
       onScroll=${onScroll} onKeyDown=${onKeyDown}
       onFocus=${() => {
-        if (activeIndex < 0 && n) onActiveChange(rows[0].key);
+        // After the caller's own update (it may set the active row, then focus the tree).
+        setTimeout(() => {
+          const now = latest.current;
+          if (now.n && (now.activeKey === null || !now.index.has(now.activeKey))) {
+            now.onActiveChange(now.rows[0].key);
+          }
+        }, 0);
       }}>
       <div class="cx-tree__body" style=${{ '--cx-tree-height': `${n * rowHeight}px` }}>
         ${visible}

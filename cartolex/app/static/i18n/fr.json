@@ -731,7 +731,7 @@
   "themes.change.text.level": "Niveau {level} renommé",
   "themes.change.text.depth": "{before} niveaux → {after} niveaux",
   "themes.change.text.other": "« {name} » modifié",
-  "themes.op.rename": "Renommer « {name} »",
+  "themes.op.rename": "Renommer « {name} » en « {to} »",
   "themes.op.rename_level": "Renommer le niveau {level}",
   "themes.op.move_keywords": "{count, plural, one {Déplacer # mot-clé vers « {name} »} other {Déplacer # mots-clés vers « {name} »}}",
   "themes.op.reorder": "Réordonner « {name} »",
@@ -813,5 +813,21 @@
   "error.theme_handoff_empty.title": "Rien à envoyer",
   "error.theme_handoff_empty.message": "L’arbre ne contient encore aucun mot-clé.",
   "error.invalid_theme_bundle.title": "Ce n’est pas un lot de thèmes",
-  "error.invalid_theme_bundle.message": "Importez la réponse avec le bundle.json de l’envoi de thèmes auquel elle répond."
+  "error.invalid_theme_bundle.message": "Importez la réponse avec le bundle.json de l’envoi de thèmes auquel elle répond.",
+
+  "gallery.section.tree": "Arborescence",
+  "gallery.section.tree.lead": "Un arbre virtualisé : flèches, Droite et Gauche pour ouvrir et fermer, recherche au clavier, Espace et Maj pour les plages, F2, la touche de menu contextuel.",
+  "gallery.tree.example": "Thèmes, sujets et mots-clés",
+  "gallery.tree.label": "Un arbre de thèmes d’exemple",
+  "gallery.tree.selected": "{count, plural, =0 {Rien de choisi} one {# ligne choisie} other {# lignes choisies}}",
+  "gallery.section.treemap": "Carte proportionnelle",
+  "gallery.section.treemap.lead": "Des rectangles emboîtés selon leur poids, une famille de teintes par nœud du niveau supérieur ; les flèches choisissent, Entrée zoome, Échap dézoome.",
+  "gallery.treemap.example": "Deux niveaux, zoomer et dézoomer",
+  "gallery.treemap.label": "Une carte proportionnelle d’exemple",
+  "gallery.section.map": "Cadre de carte",
+  "gallery.section.map.lead": "Des points sur un canevas : glisser ou flèches pour déplacer, la molette ou + et − pour zoomer, 0 pour ajuster, un clic pour choisir.",
+  "gallery.map.example": "{count, number} points en douze familles",
+  "gallery.map.label": "Une carte d’exemple",
+  "gallery.map.picked": "{count, plural, one {# point mis en évidence} other {# points mis en évidence}}",
+  "themes.op.rename_one": "Renommer « {name} »"
 }

@@ -731,7 +731,7 @@
   "themes.change.text.level": "Nível {level} renomeado",
   "themes.change.text.depth": "{before} níveis → {after} níveis",
   "themes.change.text.other": "“{name}” alterado",
-  "themes.op.rename": "Renomear “{name}”",
+  "themes.op.rename": "Renomear “{name}” para “{to}”",
   "themes.op.rename_level": "Renomear o nível {level}",
   "themes.op.move_keywords": "{count, plural, one {Mover # palavra-chave para “{name}”} other {Mover # palavras-chave para “{name}”}}",
   "themes.op.reorder": "Reordenar “{name}”",
@@ -813,5 +813,21 @@
   "error.theme_handoff_empty.title": "Nada a enviar",
   "error.theme_handoff_empty.message": "A árvore ainda não contém nenhuma palavra-chave.",
   "error.invalid_theme_bundle.title": "Este não é um pacote de temas",
-  "error.invalid_theme_bundle.message": "Importe a resposta com o bundle.json do envio de temas a que ela responde."
+  "error.invalid_theme_bundle.message": "Importe a resposta com o bundle.json do envio de temas a que ela responde.",
+
+  "gallery.section.tree": "Árvore",
+  "gallery.section.tree.lead": "Uma árvore virtualizada: setas, Direita e Esquerda para abrir e fechar, busca por digitação, Espaço e Shift para intervalos, F2, a tecla de menu de contexto.",
+  "gallery.tree.example": "Temas, tópicos e palavras-chave",
+  "gallery.tree.label": "Uma árvore de temas de exemplo",
+  "gallery.tree.selected": "{count, plural, =0 {Nada escolhido} one {# linha escolhida} other {# linhas escolhidas}}",
+  "gallery.section.treemap": "Mapa de áreas",
+  "gallery.section.treemap.lead": "Retângulos aninhados pelo peso, uma família de matizes por nó do nível superior; as setas escolhem, Enter amplia, Esc reduz.",
+  "gallery.treemap.example": "Dois níveis, ampliar e reduzir",
+  "gallery.treemap.label": "Um mapa de áreas de exemplo",
+  "gallery.section.map": "Quadro de mapa",
+  "gallery.section.map.lead": "Pontos numa tela: arrastar ou setas para mover, a roda ou + e − para o zoom, 0 para ajustar, um clique para escolher.",
+  "gallery.map.example": "{count, number} pontos em doze famílias",
+  "gallery.map.label": "Um mapa de exemplo",
+  "gallery.map.picked": "{count, plural, one {# ponto em destaque} other {# pontos em destaque}}",
+  "themes.op.rename_one": "Renomear “{name}”"
 }

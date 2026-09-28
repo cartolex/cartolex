@@ -181,7 +181,14 @@
 
 .cx-themes-outline__tabs > .cx-tabs__list,
 .cx-themes-centre__tabs > .cx-tabs__list {
+  flex: 0 0 auto;
   padding: 0 var(--cx-space-2);
+}
+
+.cx-themes-search,
+.cx-themes-outline__tools,
+.cx-themes-check__help {
+  flex: 0 0 auto;
 }
 
 .cx-themes-outline__tabs > .cx-tabs__panel,
@@ -905,4 +912,9 @@
   .cx-themes__body {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.cx-themes__busy {
+  width: 0.75rem;
+  height: 0.75rem;
 }

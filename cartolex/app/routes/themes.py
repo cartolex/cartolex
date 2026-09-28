@@ -195,6 +195,11 @@ def _vocabulary(runtime: Any, ctx: Any) -> tuple[list[str], str | None]:
         return [], None
 
     def load() -> list[str]:
+        # The terms are in the JSON document itself: no need to load the matrices (and the
+        # scientific libraries) to know the vocabulary.
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(doc, dict) and isinstance(doc.get("terms"), list):
+            return [str(t) for t in doc["terms"]]
         from cartolex.atlas.model_files import load_lexical_data
 
         return [str(t) for t in load_lexical_data(path).terms]

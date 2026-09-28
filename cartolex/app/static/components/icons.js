@@ -20,6 +20,8 @@ const PATHS = {
   'chevron-up': ['M4 10l4-4 4 4'],
   'chevron-right': ['M6 4l4 4-4 4'],
   'chevron-left': ['M10 4l-4 4 4 4'],
+  undo: ['M5.5 3.5L2.5 6.5l3 3', 'M2.5 6.5h7a3.5 3.5 0 0 1 0 7H7'],
+  redo: ['M10.5 3.5l3 3-3 3', 'M13.5 6.5h-7a3.5 3.5 0 0 0 0 7H9'],
   'sort-none': ['M5 6l3-3 3 3', 'M5 10l3 3 3-3'],
   'sort-asc': ['M5 7l3-3 3 3', 'M8 4v9'],
   'sort-desc': ['M5 9l3 3 3-3', 'M8 3v9'],

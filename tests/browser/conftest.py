@@ -175,3 +175,114 @@ def ui(request: pytest.FixtureRequest, browser, server):
 def axe_source() -> str:
     """The vendored axe-core."""
     return AXE.read_text(encoding="utf-8")
+
+
+# ── the real app on a demo project (screens that edit a project) ────────────
+
+
+def _models_or_skip(*langs: str) -> None:
+    from cartolex.lexicon import language_models
+
+    missing = [language_models.spec(x).name for x in langs if not language_models.installed(x)]
+    if missing:
+        pytest.skip(f"language model(s) not installed: {', '.join(missing)}")
+
+
+@pytest.fixture(scope="session")
+def demo_s(tmp_path_factory) -> Path:
+    """The S demo world as a project at depth 2 (themes and topics), built once."""
+    from app_harness import build_demo
+
+    _models_or_skip("en", "fr")
+    return build_demo(tmp_path_factory.mktemp("demo-s") / "project", "S", depth=2)
+
+
+@pytest.fixture(scope="session")
+def demo_l(tmp_path_factory) -> Path:
+    """The L demo world as a project at depth 2, built once (for the performance budgets)."""
+    from app_harness import build_demo
+
+    _models_or_skip("en", "fr")
+    return build_demo(tmp_path_factory.mktemp("demo-l") / "project", "L", depth=2)
+
+
+@pytest.fixture()
+def app_for(tmp_path):
+    """A factory: the app on a fresh copy of a built project (stopped after the test)."""
+    from app_harness import AppServer, copy_project
+
+    servers = []
+
+    def make(built: Path) -> AppServer:
+        project = copy_project(built, tmp_path / f"project-{len(servers)}")
+        server = AppServer(project, tmp_path / f"app-{len(servers)}")
+        servers.append(server)
+        return server
+
+    yield make
+    for server in servers:
+        server.stop()
+
+
+@pytest.fixture()
+def open_app(request: pytest.FixtureRequest, browser):
+    """A factory: a fresh isolated browser page signed in to an app (see UI), with the checks
+    of the `ui` fixture: nothing leaves the machine, no console error, no CSP violation."""
+    contexts = []
+    collected = Collected()
+
+    def make(
+        server,
+        *,
+        theme: str = "light",
+        locale: str | None = None,
+        viewport=None,
+        bypass_csp: bool = False,
+    ) -> UI:
+        from browser_harness import prefs_script
+
+        context = browser.new_context(
+            viewport=viewport or {"width": 1440, "height": 900},
+            locale="en-US",
+            timezone_id="UTC",
+            color_scheme=theme,
+            reduced_motion="reduce",
+            bypass_csp=bypass_csp,
+            service_workers="block",
+            accept_downloads=True,
+        )
+        contexts.append(context)
+
+        def gate(route):
+            parts = urlsplit(route.request.url)
+            if parts.scheme in ("data", "blob") or parts.hostname in LOOPBACK:
+                collected.requests.append(route.request.url)
+                route.continue_()
+            else:
+                collected.blocked.append(route.request.url)
+                route.abort("blockedbyclient")
+
+        context.route("**/*", gate)
+        page = context.new_page()
+        page.on(
+            "console",
+            lambda m: collected.console_errors.append(m.text) if m.type == "error" else None,
+        )
+        page.on("pageerror", lambda e: collected.page_errors.append(str(e)))
+        page.add_init_script(
+            "document.addEventListener('securitypolicyviolation', (e) => "
+            "console.error('CSP violation: ' + e.violatedDirective + ' ' + e.blockedURI));"
+        )
+        page.add_init_script(prefs_script(theme=theme, locale=locale))
+        view = UI(page, server.url, collected)
+        page.goto(server.launch)
+        view.wait_ready(0)
+        return view
+
+    yield make
+    for context in contexts:
+        context.close()
+    assert collected.blocked == [], f"requests left the machine: {collected.blocked}"
+    if request.node.get_closest_marker("allow_console_errors") is None:
+        assert collected.page_errors == [], collected.page_errors
+        assert collected.console_errors == [], collected.console_errors

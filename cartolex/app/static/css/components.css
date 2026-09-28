@@ -1884,7 +1884,7 @@ a.cx-button:hover {
 
 .cx-treemap__detail {
   flex: 0 0 auto;
-  color: var(--cx-text-muted);
+  color: var(--cx-text);
   font-variant-numeric: tabular-nums;
 }
 

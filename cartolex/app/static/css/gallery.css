@@ -221,3 +221,31 @@
   gap: var(--cx-space-2);
   font-size: var(--cx-text-s);
 }
+
+.cx-gallery__tree {
+  display: flex;
+  height: 16rem;
+  border: var(--cx-rule-width) solid var(--cx-rule);
+  border-radius: var(--cx-radius-m);
+}
+
+.cx-gallery__tree .cx-tree {
+  flex: 1 1 auto;
+}
+
+.cx-gallery__treemap,
+.cx-gallery__map {
+  display: flex;
+  height: 20rem;
+}
+
+.cx-gallery__treemap .cx-treemap,
+.cx-gallery__map .cx-map-frame {
+  flex: 1 1 auto;
+}
+
+.cx-gallery__note {
+  margin-top: var(--cx-space-2);
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}

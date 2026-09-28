@@ -32,8 +32,18 @@ import {
  */
 
 /** Text folded for search and type-ahead: lower case, without accents. */
+const folded = new Map();
+
+/** Text folded for search and type-ahead: lower case, without accents (kept once per text). */
 export function fold(text) {
-  return String(text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const key = String(text || '');
+  let out = folded.get(key);
+  if (out === undefined) {
+    out = key.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    if (folded.size > 200_000) folded.clear();
+    folded.set(key, out);
+  }
+  return out;
 }
 
 /** The two-letter language of an interface locale (`pt-BR` → `pt`). */
@@ -95,8 +105,26 @@ export function indexTree(tree, usage = {}) {
     }
   };
   walk(null, 1, null);
+  // Hue families that do not move when the tree changes: a top-level node `s<k>` (as the
+  // grouping names them) keeps family k; any other top-level node takes the next free one.
   const hue = new Map();
-  (children.get(null) || []).forEach((id, i) => hue.set(id, i));
+  const used = new Set();
+  const tops = children.get(null) || [];
+  for (const id of tops) {
+    const m = /^s(\d+)$/.exec(id);
+    if (m) {
+      hue.set(id, Number(m[1]) % 12);
+      used.add(Number(m[1]) % 12);
+    }
+  }
+  let free = 0;
+  for (const id of tops) {
+    if (hue.has(id)) continue;
+    while (used.has(free % 12) && used.size < 12) free += 1;
+    hue.set(id, free % 12);
+    used.add(free % 12);
+    free += 1;
+  }
   for (const id of order) hue.set(id, hue.get(topOf.get(id)));
 
   const people = (term) => (usage[term] ? usage[term][0] : 0);
@@ -278,11 +306,22 @@ function sortedDict(dict) {
   return out;
 }
 
+const texts = new WeakMap();
+
+/** A tree as text, its save stamp aside (kept once per tree object: trees are never changed). */
+export function treeText(tree) {
+  let text = texts.get(tree);
+  if (text === undefined) {
+    text = JSON.stringify({ ...tree, saved: null });
+    texts.set(tree, text);
+  }
+  return text;
+}
+
 /** Whether two trees hold the same content (their save stamps aside). */
 export function sameTree(a, b) {
   if (!a || !b) return a === b;
-  const strip = (t) => ({ ...t, saved: null });
-  return JSON.stringify(strip(a)) === JSON.stringify(strip(b));
+  return a === b || treeText(a) === treeText(b);
 }
 
 // ── what an operation may do here ───────────────────────────────────────────
@@ -336,6 +375,84 @@ export function dropOperation(index, what, target) {
   return null;
 }
 
+/**
+ * *tree* with *ops* applied here, for an immediate view while the server
+ * applies them (its tree then replaces this one): only the operations that
+ * change keywords' places and nodes' names, by the same rules (the carry
+ * rule of attributions). Null when an operation is of another kind or does
+ * not fit the tree: the view then waits for the server.
+ */
+export function optimistic(tree, ops) {
+  let out = { ...tree, keywords: { ...tree.keywords }, attribution: { ...(tree.attribution || {}) },
+    set_aside: { ...(tree.set_aside || {}) }, review: { ...(tree.review || {}) } };
+  const nodeIds = new Set(tree.nodes.map((n) => n.id));
+  const parent = new Map(tree.nodes.map((n) => [n.id, n.parent]));
+  const level = (id) => {
+    let lv = 1;
+    for (let at = parent.get(id); at !== null && at !== undefined; at = parent.get(at)) lv += 1;
+    return lv;
+  };
+  for (const op of ops) {
+    const terms = op.keywords || [];
+    if (op.op === 'rename_node') {
+      if (!nodeIds.has(op.node_id)) return null;
+      out = { ...out, nodes: out.nodes.map((n) => {
+        if (n.id !== op.node_id) return n;
+        const names = { ...n.names };
+        for (const [code, value] of Object.entries(op.names)) {
+          if (value === null || !String(value).trim()) delete names[code];
+          else names[code] = String(value).trim();
+        }
+        return { ...n, names };
+      }) };
+    } else if (op.op === 'move_keywords') {
+      if (!nodeIds.has(op.node_id) || terms.some((k) => out.keywords[k] === undefined)) return null;
+      for (const k of terms) {
+        if (out.keywords[k] !== op.node_id && out.attribution[k]) delete out.attribution[k];
+        out.keywords[k] = op.node_id;
+      }
+    } else if (op.op === 'set_aside') {
+      for (const k of terms) {
+        if (out.keywords[k] !== undefined) {
+          const entry = { from: out.keywords[k], reason: String(op.reason || '').trim() };
+          if (k in out.attribution) entry.attribution = out.attribution[k];
+          delete out.keywords[k];
+          delete out.attribution[k];
+          out.set_aside[k] = entry;
+        } else if (out.set_aside[k]) {
+          out.set_aside[k] = { ...out.set_aside[k], reason: String(op.reason || '').trim() };
+        } else return null;
+      }
+    } else if (op.op === 'put_back') {
+      if (op.node_id && !nodeIds.has(op.node_id)) return null;
+      for (const k of terms) {
+        const entry = out.set_aside[k];
+        const target = op.node_id || (entry && entry.from);
+        if (!entry || !target || !nodeIds.has(target)) return null;
+        delete out.set_aside[k];
+        out.keywords[k] = target;
+        const n = entry.attribution;
+        if (n === 0 || (n && target === entry.from && n < level(target))) out.attribution[k] = n;
+      }
+    } else if (op.op === 'set_review') {
+      for (const k of terms) {
+        if (out.keywords[k] === undefined && !out.set_aside[k]) return null;
+        if (op.state) out.review[k] = op.state;
+        else delete out.review[k];
+      }
+    } else if (op.op === 'set_attribution') {
+      for (const k of terms) {
+        if (out.keywords[k] === undefined) return null;
+        if (op.levels === null || op.levels === undefined) delete out.attribution[k];
+        else out.attribution[k] = op.levels;
+      }
+    } else {
+      return null;
+    }
+  }
+  return out;
+}
+
 /** The next *count* free node ids (`n<k>`), as the server gives them (set-aside origins too). */
 export function nextIds(tree, count = 1) {
   const taken = new Set(tree.nodes.map((n) => n.id));
@@ -363,7 +480,8 @@ export function nextIds(tree, count = 1) {
 
 const PATTERNS = [
   [/^rename level (\d+)$/, (m) => ['themes.op.rename_level', { level: Number(m[1]) }]],
-  [/^rename (\S+)$/, (m, n) => ['themes.op.rename', { name: n(m[1]) }]],
+  [/^rename (\S+)$/, (m, n, after) => (n(m[1]) === after(m[1]) ? ['themes.op.rename_one', { name: n(m[1]) }]
+    : ['themes.op.rename', { name: n(m[1]), to: after(m[1]) }])],
   [/^move (\d+) keywords? to (\S+)$/, (m, n) => ['themes.op.move_keywords', { count: Number(m[1]), name: n(m[2]) }]],
   [/^reorder (\S+)$/, (m, n) => ['themes.op.reorder', { name: n(m[1]) }]],
   [/^move (\S+) under (\S+)$/, (m, n) => ['themes.op.move_node', { name: n(m[1]), parent: n(m[2]) }]],
@@ -397,17 +515,24 @@ export function namesFor(descriptions, ...trees) {
   return out;
 }
 
-/** One description of the server in the interface language, with the nodes' names. */
-export function describe(description, names = {}) {
+/**
+ * One description of the server in the interface language, with the nodes'
+ * names: *names* as they were before the operation, *after* as they became.
+ */
+export function describe(description, names = {}, after = {}) {
   const lang = lang2(locale.value);
   const named = (id) => {
-    const n = names[id];
+    const n = names[id] || after[id];
+    return n ? nodeName({ id, names: n }, lang) : id;
+  };
+  const renamed = (id) => {
+    const n = after[id] || names[id];
     return n ? nodeName({ id, names: n }, lang) : id;
   };
   for (const [pattern, make] of PATTERNS) {
     const m = pattern.exec(description);
     if (m) {
-      const [key, params] = make(m, named);
+      const [key, params] = make(m, named, renamed);
       return t(key, params);
     }
   }
@@ -418,7 +543,7 @@ export function describe(description, names = {}) {
 export function entryLabel(entry) {
   if (!entry) return '';
   if (entry.labelKey) return t(entry.labelKey.key, entry.labelKey.params || {});
-  const parts = (entry.descriptions || []).map((d) => describe(d, entry.names || {}));
+  const parts = (entry.descriptions || []).map((d) => describe(d, entry.names || {}, entry.namesAfter || {}));
   return parts.length ? formatList(parts) : entry.label || '';
 }
 
@@ -545,9 +670,16 @@ export function createEditor({ api, projectId, announce = () => {} }) {
   const shown = computed(() => (viewing.value && viewing.value.tree)
     || (preview.value && preview.value.tree) || tree.value);
   const index = computed(() => (shown.value ? indexTree(shown.value, usage.value) : null));
-  const editIndex = computed(() => (tree.value ? indexTree(tree.value, usage.value) : null));
+  const editIndex = computed(() => {
+    if (!tree.value) return null;
+    return shown.value === tree.value ? index.value : indexTree(tree.value, usage.value);
+  });
   const readOnly = computed(() => Boolean(viewing.value || preview.value));
   const dirty = computed(() => Boolean(tree.value && base.value && !sameTree(tree.value, base.value.tree)));
+  /** The length of the undo list when the tree was last saved (or loaded). */
+  const savedMark = signal(0);
+  /** How many steps separate the tree being edited from the saved one. */
+  const unsaved = computed(() => (dirty.value ? Math.max(1, Math.abs(past.value.length - savedMark.value)) : 0));
 
   let chain = Promise.resolve();
   const serial = (fn) => {
@@ -556,7 +688,17 @@ export function createEditor({ api, projectId, announce = () => {} }) {
     return next;
   };
 
+  // The draft is written right after the change is on screen (a few milliseconds later),
+  // and at once when the page is left or hidden.
+  let pending = 0;
   function persist() {
+    if (pending) return;
+    pending = setTimeout(flush, 0);
+  }
+  function flush() {
+    clearTimeout(pending);
+    pending = 0;
+    if (!tree.value || !base.value) return;
     if (!dirty.value) {
       writeDraft(projectId, null);
       return;
@@ -569,6 +711,7 @@ export function createEditor({ api, projectId, announce = () => {} }) {
       tree: tree.value,
       past: past.value,
       future: future.value,
+      saved_mark: savedMark.value,
     });
   }
 
@@ -581,7 +724,13 @@ export function createEditor({ api, projectId, announce = () => {} }) {
   async function load() {
     loading.value = true;
     error.value = null;
-    const [themes, used] = await Promise.all([api.get('/api/themes'), api.get('/api/themes/usage')]);
+    // The keywords' usage sizes the treemap; the tree shows without it (by keyword counts)
+    // and takes it when it comes, so a cold start of the app does not hold the page.
+    api.get('/api/themes/usage').then((used) => {
+      if (used.ok) usage.value = used.data.terms || {};
+      return used;
+    });
+    const themes = await api.get('/api/themes');
     if (!themes.ok) {
       batch(() => {
         error.value = themes.error;
@@ -592,7 +741,6 @@ export function createEditor({ api, projectId, announce = () => {} }) {
     const data = themes.data;
     batch(() => {
       setInfo(data);
-      usage.value = used.ok ? (used.data.terms || {}) : {};
       if (data.tree) {
         base.value = { tree: data.tree, version: themes.etag || data.version, source: data.source };
         tree.value = data.tree;
@@ -602,6 +750,7 @@ export function createEditor({ api, projectId, announce = () => {} }) {
       }
       past.value = [];
       future.value = [];
+      savedMark.value = 0;
       loading.value = false;
     });
     if (data.tree) {
@@ -613,6 +762,7 @@ export function createEditor({ api, projectId, announce = () => {} }) {
             tree.value = draft.tree;
             past.value = (draft.past || []).filter((e) => e.patch);
             future.value = (draft.future || []).filter((e) => e.patch);
+            savedMark.value = Math.min(draft.saved_mark || 0, past.value.length);
             restored.value = { at: draft.saved_at, stale: false, count };
           });
         } else {
@@ -635,9 +785,10 @@ export function createEditor({ api, projectId, announce = () => {} }) {
   function record(before, after, ops, descriptions, label, labelKey = null) {
     const patch = diffTree(before, after);
     if (!Object.keys(patch.whole).length && !Object.keys(patch.dicts).length) return false;
-    const names = namesFor(descriptions, before, after);
+    const names = namesFor(descriptions, before);
+    const namesAfter = namesFor(descriptions, after);
     batch(() => {
-      past.value = [...past.value, { label, labelKey, descriptions, names, ops, patch, at: Date.now() }];
+      past.value = [...past.value, { label, labelKey, descriptions, names, namesAfter, ops, patch, at: Date.now() }];
       future.value = [];
       tree.value = after;
       opError.value = null;
@@ -655,9 +806,13 @@ export function createEditor({ api, projectId, announce = () => {} }) {
       if (!tree.value || readOnly.value) return { ok: false };
       busy.value = true;
       const before = tree.value;
+      // The change shows at once where it can; the server's tree follows and is the one kept.
+      const guess = lenient ? null : optimistic(before, ops);
+      if (guess) tree.value = guess;
       const result = await api.post('/api/themes/ops', { tree: before, ops, lenient });
       busy.value = false;
       if (!result.ok) {
+        if (guess) tree.value = before;
         opError.value = result.error;
         return { ok: false, error: result.error };
       }
@@ -667,6 +822,7 @@ export function createEditor({ api, projectId, announce = () => {} }) {
       const kept = ops.filter((_, i) => steps[i] && steps[i].description);
       const name = label || descriptions.join('; ');
       const changed = record(before, result.data.tree, kept, descriptions, name, labelKey);
+      if (!changed && guess) tree.value = before;
       if (changed) announce(t('themes.announce.done', { what: entryLabel(past.value[past.value.length - 1]) }));
       return { ok: true, steps, changed };
     });
@@ -710,6 +866,7 @@ export function createEditor({ api, projectId, announce = () => {} }) {
       if (base.value) tree.value = base.value.tree;
       past.value = [];
       future.value = [];
+      savedMark.value = 0;
       restored.value = null;
       preview.value = null;
     });
@@ -718,7 +875,7 @@ export function createEditor({ api, projectId, announce = () => {} }) {
 
   /** The action name of a save: the undo list's descriptions since the last save. */
   function actionName() {
-    const names = past.value.map((e) => e.label).filter(Boolean);
+    const names = past.value.slice(Math.min(savedMark.value, past.value.length)).map((e) => e.label).filter(Boolean);
     if (!names.length) return base.value && base.value.source === 'draft' ? 'save the proposal' : 'save';
     const text = names.join('; ');
     return text.length <= 200 ? text : `${names.length} changes: ${text}`.slice(0, 199) + '…';
@@ -750,6 +907,7 @@ export function createEditor({ api, projectId, announce = () => {} }) {
             names: namesFor([description], before), ops: [{ op: 'prune_empty' }], patch, at: Date.now() }];
         }
         tree.value = saved.tree;
+        savedMark.value = past.value.length;
         base.value = { tree: saved.tree, version: result.etag || saved.version, source: 'saved' };
         lastSaved.value = { removed: saved.removed, action: saved.action, written: saved.written };
         restored.value = null;
@@ -764,7 +922,9 @@ export function createEditor({ api, projectId, announce = () => {} }) {
    * Apply the operations of *entries* (undo entries, in order) again to the
    * newest saved tree; the ones that no longer apply are returned.
    */
-  async function reloadAndMerge(entries = past.value) {
+  async function reloadAndMerge(given = null) {
+    // Only the steps since the last save: the saved version holds the others already.
+    const entries = given || past.value.slice(Math.min(savedMark.value, past.value.length));
     return serial(async () => {
       const themes = await api.get('/api/themes');
       if (!themes.ok) return { ok: false, error: themes.error };
@@ -798,6 +958,7 @@ export function createEditor({ api, projectId, announce = () => {} }) {
             labelKey: { key: 'themes.merge.entry', params: { count: entries.length } },
             ops: entries.flatMap((e) => e.ops || []), patch, at: Date.now() }] : [];
         future.value = [];
+        savedMark.value = 0;
         restored.value = null;
       });
       persist();
@@ -813,6 +974,7 @@ export function createEditor({ api, projectId, announce = () => {} }) {
       tree.value = data.tree;
       past.value = [];
       future.value = [];
+      savedMark.value = 0;
       restored.value = null;
       viewing.value = null;
       preview.value = null;
@@ -822,8 +984,8 @@ export function createEditor({ api, projectId, announce = () => {} }) {
 
   return {
     loading, error, info, base, tree, past, future, usage, busy, restored, viewing, preview,
-    lastSaved, opError, shown, index, editIndex, readOnly, dirty,
-    load, refreshInfo, run, undo, redo, discard, save, reloadAndMerge, adopt, persist, actionName,
+    lastSaved, opError, shown, index, editIndex, readOnly, dirty, unsaved, savedMark,
+    load, refreshInfo, run, undo, redo, discard, save, reloadAndMerge, adopt, persist, flush, actionName,
   };
 }
 
@@ -973,7 +1135,7 @@ export function PickNodeDialog({ open, title, description, submitLabel, index, c
           }
         }} />`}
     <//>
-    <ul class="cx-themes-pick" id=${listId} role="listbox" aria-label=${title}>
+    <ul class="cx-themes-pick" id=${listId} role="listbox" aria-label=${title} hidden=${!shown.length}>
       ${shown.slice(0, 400).map((id) => {
         const node = index.nodes.get(id);
         return html`<li key=${id} id=${`${listId}-${id}`} role="option"
@@ -1404,7 +1566,7 @@ export function OutlinePane({ editor, ui }) {
     parent: null, text: term, multi: true,
   }));
   const aside = html`<${TreeView} rows=${asideRows} label=${t('themes.aside.tray')}
-    class="cx-themes-outline__tree"
+    class="cx-themes-outline__tree" treeRef=${ui.outlineRef}
     activeKey=${ui.active.value} onActiveChange=${(key) => ui.setActive(key)}
     selection=${ui.treeSel.value} onSelectionChange=${(keys) => ui.select(keys)}
     onOpen=${(row) => ui.open(row)} onDelete=${() => {}}
@@ -1429,6 +1591,7 @@ export function OutlinePane({ editor, ui }) {
   const check = html`<div class="cx-themes-check">
     <p class="cx-themes-check__help" id="cx-themes-check-help">${t('themes.check.keys')}</p>
     <${TreeView} rows=${checkRows} label=${t('themes.check.label')} class="cx-themes-outline__tree"
+      treeRef=${ui.outlineRef}
       activeKey=${ui.active.value} onActiveChange=${(key) => ui.setActive(key)}
       selection=${ui.treeSel.value} onSelectionChange=${(keys) => ui.select(keys)}
       onOpen=${(row) => ui.open(row)}
@@ -1584,11 +1747,12 @@ export function mapScene(atlas, index, focus) {
         n += 1;
       }
     });
-    if (n) labels.push({ x: sx / n, y: sy / n, text: nodeName(index.nodes.get(top), lang) });
+    if (n) labels.push({ x: sx / n, y: sy / n, text: nodeName(index.nodes.get(top), lang), weight: index.weight.get(top) });
   }
+  labels.sort((a, b) => b.weight - a.weight);
   return {
     layers: [
-      { id: 'keywords', x: kx, y: ky, color: kc, palette: PALETTE, radius: 2.2, alpha: 0.75,
+      { id: 'keywords', x: kx, y: ky, color: kc, palette: PALETTE, radius: 3, alpha: 0.8,
         highlight: kh, highlightCount: khn, items: kws },
       { id: 'people', x: px, y: py, color: pc, palette: PALETTE, radius: 4, alpha: 0.95,
         highlight: ph, highlightCount: phn, items: people },
@@ -1643,11 +1807,14 @@ export function CentrePane({ editor, ui, atlas, atlasError, onRetryAtlas }) {
       detailOf: (id) => shortShare(useWeight ? weightOf(id) / index.total : weightOf(id) / Math.max(1, Object.keys(index.tree.keywords).length)),
     };
   }, [index, lang]);
-  const scene = useMemo(() => mapScene(atlas, index, focus), [atlas, index, focus]);
+  const onMap = ui.centreTab.value === 'map';
+  const scene = useMemo(() => (onMap ? mapScene(atlas, index, focus) : null), [onMap, atlas, index, focus]);
   if (!index) return null;
   const tab = ui.centreTab.value;
   const root = ui.zoom.value && index.nodes.has(ui.zoom.value) ? ui.zoom.value : null;
   const selectedNode = focus && focus.kind === 'node' ? focus.id : null;
+  const marked = focus && focus.kind === 'keywords'
+    ? new Set(focus.terms.map((k) => index.tree.keywords[k]).filter(Boolean)) : null;
   const status = selectedNode ? t('themes.treemap.selected', {
     name: funcs.nameOf(selectedNode), share: funcs.detailOf(selectedNode) }) : '';
 
@@ -1667,7 +1834,7 @@ export function CentrePane({ editor, ui, atlas, atlasError, onRetryAtlas }) {
       </div>
     </div>
     ${index.order.length ? html`<${Treemap} class="cx-themes-treemap__map" root=${root}
-      ...${funcs} selected=${selectedNode}
+      ...${funcs} selected=${selectedNode} marked=${marked}
       onSelect=${(id) => ui.openNode(id, { from: 'treemap' })}
       onZoom=${(id) => {
         ui.zoom.value = id;
@@ -1680,8 +1847,10 @@ export function CentrePane({ editor, ui, atlas, atlasError, onRetryAtlas }) {
     <p class="cx-themes-treemap__hint">${t('themes.treemap.keys')}</p>
   </div>`;
 
-  let map;
-  if (atlasError) {
+  let map = null;
+  if (!onMap) {
+    map = null; // drawn only when its tab is shown
+  } else if (atlasError) {
     map = html`<${ErrorCard} error=${atlasError} onRetry=${onRetryAtlas} compact />`;
   } else if (!atlas) {
     map = html`<p class="cx-themes-empty-line" aria-busy="true">${t('common.loading')}</p>`;
@@ -1984,8 +2153,16 @@ export function SidePanel({ editor, ui, atlas }) {
   } else {
     body = html`<${Overview} editor=${editor} />`;
   }
+  // Escape gives the focus back to the outline (Enter there brought it here).
+  const onKeyDown = (event) => {
+    if (event.key === 'Escape' && !event.defaultPrevented && ui.outlineRef.current
+      && !document.querySelector('[role=menu]')) {
+      event.preventDefault();
+      ui.outlineRef.current.focus();
+    }
+  };
   return html`<aside class="cx-themes-panel" aria-labelledby="cx-themes-panel-title" tabindex="-1"
-    ref=${ui.panelRef}>${body}</aside>`;
+    ref=${ui.panelRef} onKeyDown=${onKeyDown}>${body}</aside>`;
 }
 
 // ── versions ────────────────────────────────────────────────────────────────
@@ -2363,14 +2540,17 @@ export function ThemesEditor() {
     else setAtlasError(result.error);
   };
 
+  // Ready when the tree is on screen: deferred now, during the first render (an effect runs
+  // after the router has already marked the page ready).
+  const done = useMemo(() => ctx.deferReady(), []);
   useEffect(() => {
-    const done = ctx.deferReady();
     editor.load().then(() => {
       const index = editor.editIndex.value;
       if (index && index.depth > 1) ui.expanded.value = new Set(index.tops);
-      done();
+      done(); // the tree is rendered (signals render synchronously)
+      // The map's data comes next: after the tree, not competing with it.
+      setTimeout(loadAtlas, 0);
     });
-    loadAtlas();
     ctx.guard({
       dirty: () => editor.dirty.value,
       confirm: () => new Promise((resolve) => setLeave({ resolve })),
@@ -2381,22 +2561,32 @@ export function ThemesEditor() {
       const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
       const mod = event.ctrlKey || event.metaKey;
       if (mod && !event.altKey && (event.key === 'z' || event.key === 'Z') && !typing) {
-        event.preventDefault();
         if (event.shiftKey) editor.redo();
         else editor.undo();
       } else if (mod && (event.key === 'y' || event.key === 'Y') && !typing) {
-        event.preventDefault();
         editor.redo();
       } else if (mod && (event.key === 's' || event.key === 'S')) {
-        event.preventDefault();
         save();
       } else if (event.key === '/' && !typing && !mod) {
-        event.preventDefault();
         focusSearch();
+      } else {
+        return;
       }
+      event.preventDefault();
+      event.stopPropagation();
     };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    // In the capture phase: the page's keys come before the widgets' own (a tree's type-ahead).
+    document.addEventListener('keydown', onKey, true);
+    // The draft is written when the tab is hidden or closed, whatever is pending.
+    const onHide = () => editor.flush();
+    window.addEventListener('pagehide', onHide);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      document.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('pagehide', onHide);
+      document.removeEventListener('visibilitychange', onHide);
+      editor.flush();
+    };
   }, []);
 
   // The apply job: follow it with the jobs store; refresh the map when it ends.
@@ -2928,7 +3118,7 @@ export function ThemesEditor() {
   if (restored && restored.stale) {
     banners.push(html`<${Banner} key="stale-draft" tone="warning" actions=${html`
       <${Button} size="s" variant="primary" onClick=${async () => {
-        const entries = restored.draft.past || [];
+        const entries = (restored.draft.past || []).slice(restored.draft.saved_mark || 0);
         const outcome = await editor.reloadAndMerge(entries);
         if (outcome.ok && outcome.refused.length) setReport(outcome);
         else if (outcome.ok) toast({ kind: 'success', title: t('themes.merge.done', { count: outcome.applied }) });
@@ -3055,18 +3245,18 @@ export function ThemesEditor() {
     } else if (d.kind === 'stale') {
       modal = html`<${ConfirmDialog} open title=${t('themes.stale.title')} confirmLabel=${t('themes.stale.merge')}
         cancelLabel=${t('common.cancel')} onAnswer=${(yes) => (yes ? merge() : close())}>
-        <p>${t('themes.stale.text', { count: past.length })}</p><//>`;
+        <p>${t('themes.stale.text', { count: editor.unsaved.value })}</p><//>`;
     } else if (d.kind === 'discard') {
       modal = html`<${ConfirmDialog} open danger title=${t('themes.discard.title')} confirmLabel=${t('themes.discard.confirm')}
         onAnswer=${(yes) => {
           if (yes) editor.discard();
           close();
-        }}><p>${t('themes.discard.text', { count: past.length })}</p><//>`;
+        }}><p>${t('themes.discard.text', { count: editor.unsaved.value })}</p><//>`;
     }
   }
 
   const status = viewing ? t('themes.status.viewing') : preview ? t('themes.status.preview')
-    : dirty ? t('themes.status.unsaved', { count: past.length || 1 })
+    : dirty ? t('themes.status.unsaved', { count: editor.unsaved.value })
       : base.source === 'draft' ? t('themes.status.proposal') : t('themes.status.saved');
 
   return html`<div class=${`cx-page cx-themes ${readOnly ? 'is-read-only' : ''}`}>
@@ -3076,14 +3266,15 @@ export function ThemesEditor() {
         <p class="cx-themes__status">
           <span class=${`cx-themes-state ${dirty ? 'is-dirty' : ''}`} aria-hidden="true"></span>
           <span>${status}</span>
+          ${editor.busy.value ? html`<span class="cx-spinner cx-themes__busy" aria-hidden="true"></span>` : null}
           ${tree.saved && !dirty ? html`<span class="cx-themes__saved">${t('themes.status.saved_at', { when: formatDate(tree.saved.at, 'datetime') })}</span>` : null}
           <span class="cx-themes__levels">${tree.levels.map((_, i) => levelName(tree, i + 1, lang)).join(' › ')}</span>
         </p>
       </div>
       <div class="cx-themes__toolbar" role="toolbar" aria-label=${t('themes.toolbar')}>
-        <${IconButton} icon="chevron-left" label=${undoLabel} disabled=${!past.length || readOnly}
+        <${IconButton} icon="undo" label=${undoLabel} disabled=${!past.length || readOnly}
           onClick=${() => editor.undo()} class="cx-themes__undo" aria-keyshortcuts="Control+Z" />
-        <${IconButton} icon="chevron-right" label=${redoLabel} disabled=${!future.length || readOnly}
+        <${IconButton} icon="redo" label=${redoLabel} disabled=${!future.length || readOnly}
           onClick=${() => editor.redo()} class="cx-themes__redo" aria-keyshortcuts="Control+Shift+Z" />
         <${MenuButton} label=${t('themes.levels')} items=${levelsMenu} onSelect=${onToolbarMenu} variant="ghost" />
         <${MenuButton} label=${t('themes.more')} items=${moreMenu} onSelect=${onToolbarMenu} variant="ghost" />
@@ -3117,7 +3308,7 @@ export function ThemesEditor() {
         setLeave(null);
         if (answer) answer.resolve(yes);
       }}>
-      <p>${t('themes.leave.text', { count: past.length })}</p>
+      <p>${t('themes.leave.text', { count: editor.unsaved.value })}</p>
     <//>
   </div>`;
 }
