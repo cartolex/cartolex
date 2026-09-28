@@ -19,8 +19,9 @@ python -m cartolex.project.schemas --check   # fail when a stored schema is out 
 | `decisions/stopwords.json` | `stopwords.schema.json` | `cartolex-stopwords/1` |
 
 A schema checks a file's shape. Some rules need the whole file, and cartolex
-checks them when it reads it: a theme tree has no cycle and places keywords
-only under its deepest level, a pinned map version exists, ids are unique.
+checks them when it reads it: a theme tree has no cycle, places each keyword on
+one of its nodes and keeps each attribution below that node's level, a pinned
+map version exists, ids are unique.
 
 The tables are described in {doc}`sources` (Parquet) and {doc}`decisions` (CSV);
 their column types are fixed in `cartolex.project.tables`.
