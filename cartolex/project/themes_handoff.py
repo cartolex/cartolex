@@ -120,8 +120,7 @@ keyword under the node it belongs to. The actions:
                with a name, when the node mixes two themes
   SET ASIDE    set aside a keyword that belongs to no theme of this field: too
                generic, or a broken piece of a phrase
-  ATTRIBUTION  keep a broad keyword where it is, but count its usage toward the
-               levels above only (1 to {max_levels}), or nowhere (0)
+  ATTRIBUTION  {attribution_help}
 
 Propose only the changes you are confident improve the tree; a node that is
 fine stays as it is. Use only the node ids and the keywords as tree.txt writes
@@ -134,7 +133,7 @@ vertical bar, and nothing else:
   <number> | MERGE | <node id> | <node id it goes into> | <reason>
   <number> | SPLIT | <node id> | <name of the new node> | <keyword>; <keyword>; … | <reason>
   <number> | SET ASIDE | <keyword> | <reason>
-  <number> | ATTRIBUTION | <keyword> | <levels, 0 to {max_levels}> | <reason>
+  <number> | ATTRIBUTION | <keyword> | <{levels_field}> | <reason>
 Each <reason> is one short line saying why.
 
 For example, with a tree of another field:
@@ -350,13 +349,26 @@ def _tree_text(
 
 
 def _prompt(tree: ThemesFile, *, domain: str, description: str, language: str, note: str) -> str:
+    if tree.depth == 1:
+        attribution = (
+            "keep a broad keyword where it is, but count its usage nowhere (0):\n"
+            "               shown on its node, counted for no theme"
+        )
+        levels_field = "levels: 0"
+    else:
+        attribution = (
+            "keep a broad keyword where it is, but count its usage toward the\n"
+            f"               levels above only (1 to {tree.depth - 1}), or nowhere (0)"
+        )
+        levels_field = f"levels, 0 to {tree.depth - 1}"
     return PROMPT.format(
         levels_words=_levels_words(tree, language),
         part_note=note,
         domain=domain,
         description=description or "—",
         language=LANGUAGE_NAMES.get(language, language),
-        max_levels=max(0, tree.depth - 1),
+        attribution_help=attribution,
+        levels_field=levels_field,
     )
 
 
@@ -368,7 +380,7 @@ def bundle_parts(
     description: str,
     language: str = "en",
     max_tokens: int = 24_000,
-    top: int = 12,
+    top: int = 20,
     aside: int = 60,
     meta: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
@@ -553,7 +565,7 @@ class _Tree:
 
 
 def _levels(text: str, depth: int) -> tuple[bool, int | None]:
-    key = _norm(text)
+    key = re.sub(r"^levels?\s*[:=]?\s*", "", _norm(text))
     if key in ("none", "nowhere", "0", "zero"):
         return True, 0
     if key in ("default", "all", "node", "its node", "every level"):

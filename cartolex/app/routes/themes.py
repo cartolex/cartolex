@@ -653,7 +653,7 @@ class ThemeExportBody(BaseModel):
     how many keywords per node, and the size of each part."""
 
     tree: dict[str, Any] | None = None
-    top: Annotated[int, Field(ge=3, le=50)] = 12
+    top: Annotated[int, Field(ge=3, le=50)] = 20
     max_tokens: Annotated[int, Field(ge=4_000, le=1_000_000)] = 24_000
 
 

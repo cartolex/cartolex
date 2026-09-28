@@ -79,12 +79,22 @@ def test_a_small_tree_is_one_part_with_its_outline_keywords_and_tray():
     prompt = part["files"]["prompt.txt"]
     assert "2 levels (Theme › Topic, from the top)" in prompt
     assert "<number> | MERGE | <node id> | <node id it goes into> | <reason>" in prompt
-    assert "levels above only (1 to 1)" in prompt
+    assert "levels above only (1 to 1)" in prompt and "<levels, 0 to 1>" in prompt
     record = part["bundle"]
     assert record["format"] == HANDOFF_FORMAT and tree_of(record) == _tree()
     files = part_files(part)
     assert set(files) == {"prompt.txt", "tree.txt", "expected-answer.txt", "bundle.json"}
     assert json.loads(files["bundle.json"])["tree"] == record["tree"]
+
+
+def test_a_one_level_tree_asks_only_for_counting_nowhere():
+    tree = new_tree(depth=1)
+    tree = create_node(tree, None, {"en": "Hazards"}).tree
+    tree = rebase(tree, ["storm surge model"], {"storm surge model": "n1"}).tree
+    [part] = bundle_parts(tree, {}, domain="d", description="")
+    prompt = part["files"]["prompt.txt"]
+    assert "count its usage nowhere (0)" in prompt and "<levels: 0>" in prompt
+    assert "1 to 0" not in prompt
 
 
 def test_a_part_never_holds_people_or_texts():
@@ -168,6 +178,10 @@ I hope this helps.
     assert ops[3] == {"op": "move_keywords", "keywords": ["érosion des plages"], "node_id": "n4"}
     assert ops[4] == {"op": "merge_nodes", "source": "n5", "target": "n2"}
     assert ops[5] == {"op": "set_attribution", "keywords": ["tide gauge"], "levels": 0}
+    assert (
+        parse_answer("1 | ATTRIBUTION | tide gauge | levels: 0 | x", tree).items[0].op["levels"]
+        == 0
+    )
     # the header row, the separator and the sentences are ignored
     assert parsed.unreadable == [] and parsed.ignored == 4
     # a merge across levels is kept, with the reason it cannot be applied

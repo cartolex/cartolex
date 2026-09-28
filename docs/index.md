@@ -39,5 +39,7 @@ dev/checks
 dev/reference
 dev/placement
 dev/ui
+dev/themes-editor
+dev/usability-g3
 dev/collection
 ```

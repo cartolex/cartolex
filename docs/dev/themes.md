@@ -32,6 +32,9 @@ with Project.open(root, write=True) as project:
     edit = move_keywords(saved.tree, ["storm surge model"], "n2")
 ```
 
+The theme editor of the app ({doc}`themes-editor`) is built on these
+functions: every change it makes is one of the operations below.
+
 ## Operations
 
 Each operation returns an `Edit`: the new `tree` and a short `description` of
