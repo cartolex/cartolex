@@ -573,10 +573,13 @@ class SourceBuilder:
         content: str,
         retrieved_at: datetime,
         format: str = "plain",
+        replace: bool = False,
     ) -> None:
         """One part of a text (title, abstract, body or full); empty content is skipped, and the
-        first record of a part wins (readers give the newest first when it matters)."""
-        if not content or (text_id, part, language, provider) in self.parts:
+        first record of a part wins (readers give the newest first when it matters), unless
+        *replace* is set: a text provider's part replaces the one the same service gave as a
+        finder, and its runs are read oldest first, so the newest wins."""
+        if not content or (not replace and (text_id, part, language, provider) in self.parts):
             return
         self.parts[(text_id, part, language, provider)] = {
             "text_id": text_id,
