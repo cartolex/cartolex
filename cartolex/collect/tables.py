@@ -99,9 +99,10 @@ def parse_time(text: str | None) -> datetime | None:
 class RawWriter:
     """Writes one raw run: a header line, then records; nothing is visible until :meth:`close`.
 
-    Lines go to a temporary file in the target folder, renamed into place when
-    the run is closed, so a cancelled or failed job leaves no partial run
-    behind. Use it as a context manager: an exception discards the run.
+    Records go to a temporary file in the target folder; :meth:`close` writes
+    the header (which may still change until then, :attr:`header`) and the
+    records into place in one rename, so a cancelled or failed job leaves no
+    partial run behind. Use it as a context manager: an exception discards the run.
     """
 
     def __init__(
@@ -115,37 +116,54 @@ class RawWriter:
         now: datetime | None = None,
     ) -> None:
         self.run_id = run_id or new_run_id(now)
-        folder = raw_folder(layout, slot) / kind
-        folder.mkdir(parents=True, exist_ok=True)
-        self.path = folder / f"{self.run_id}.jsonl"
-        fd, tmp = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".tmp", dir=folder)
-        self._tmp = Path(tmp)
+        self.folder = raw_folder(layout, slot) / kind
+        self.folder.mkdir(parents=True, exist_ok=True)
+        self.path = self.folder / f"{self.run_id}.jsonl"
+        fd, tmp = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".body", dir=self.folder)
+        self._body = Path(tmp)
         self._fh = os.fdopen(fd, "w", encoding="utf-8", newline="\n")
         self.count = 0
-        head = {"format": RAW_FORMAT, "kind": kind, "run_id": self.run_id, **header}
-        self._write(head)
+        #: The header line, written when the run is closed.
+        self.header: dict[str, Any] = {
+            "format": RAW_FORMAT,
+            "kind": kind,
+            "run_id": self.run_id,
+            **header,
+        }
 
-    def _write(self, obj: Mapping[str, Any]) -> None:
-        self._fh.write(json.dumps(obj, ensure_ascii=False, separators=(",", ":"), sort_keys=True))
-        self._fh.write("\n")
+    @staticmethod
+    def _line(obj: Mapping[str, Any]) -> str:
+        return json.dumps(obj, ensure_ascii=False, separators=(",", ":"), sort_keys=True) + "\n"
 
     def add(self, record: Mapping[str, Any]) -> None:
         """Append one record."""
-        self._write(record)
+        self._fh.write(self._line(record))
         self.count += 1
 
     def close(self) -> Path:
-        """Flush and move the run into place; returns its path."""
-        self._fh.flush()
-        os.fsync(self._fh.fileno())
+        """Write the header and the records into place; returns the run's path."""
         self._fh.close()
-        os.replace(self._tmp, self.path)
+        fd, tmp = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".tmp", dir=self.folder)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as out:
+                out.write(self._line(self.header))
+                with open(self._body, encoding="utf-8") as body:
+                    for line in body:
+                        out.write(line)
+                out.flush()
+                os.fsync(out.fileno())
+            os.replace(tmp, self.path)
+        except BaseException:
+            Path(tmp).unlink(missing_ok=True)
+            raise
+        finally:
+            self._body.unlink(missing_ok=True)
         return self.path
 
     def discard(self) -> None:
         with contextlib.suppress(Exception):
             self._fh.close()
-        self._tmp.unlink(missing_ok=True)
+        self._body.unlink(missing_ok=True)
 
     def __enter__(self) -> RawWriter:
         return self
@@ -426,6 +444,45 @@ class SourceBuilder:
             org.parent_keys += [k for k in parent_keys if k not in org.parent_keys]
         return oid
 
+    def affiliated_orgs(self, person_id: str) -> list[tuple[str, str, str]]:
+        """``(org_id, name, source)`` of every organisation *person_id* is affiliated with so far."""
+        names = {oid: (o.fields["name"], o.fields["source"]) for oid, o in self.orgs.items()}
+        if "organisations" in self.existing:
+            for row in (
+                self.existing["organisations"].select(["org_id", "name", "source"]).to_pylist()
+            ):
+                names.setdefault(row["org_id"], (row["name"], row["source"]))
+        oids = {oid for (pid, oid, _src) in self.affiliations if pid == person_id}
+        if "affiliations" in self.existing:
+            for row in self.existing["affiliations"].select(["person_id", "org_id"]).to_pylist():
+                if row["person_id"] == person_id:
+                    oids.add(row["org_id"])
+        return sorted((oid, *names[oid]) for oid in oids if oid in names)
+
+    def org_by_name(self, name: str) -> str | None:
+        """The one organisation named *name* (case, accents and punctuation aside), if any."""
+        from .names import words
+
+        wanted = words(name)
+        if not wanted:
+            return None
+        hits = {
+            oid
+            for oid, org in self.orgs.items()
+            if words(org.fields["name"]) == wanted
+            or words(org.fields.get("acronym") or "") == wanted
+        }
+        if "organisations" in self.existing:
+            given = self.registry.given("organisations")
+            for row in (
+                self.existing["organisations"].select(["org_id", "name", "acronym"]).to_pylist()
+            ):
+                if row["org_id"] in given:
+                    continue
+                if words(row["name"]) == wanted or words(row["acronym"] or "") == wanted:
+                    hits.add(row["org_id"])
+        return hits.pop() if len(hits) == 1 else None
+
     def organisation_parents(self, oid: str, parents: Sequence[str]) -> None:
         """Parents given by id rather than by key."""
         org = self.orgs[oid]
@@ -501,8 +558,9 @@ class SourceBuilder:
         retrieved_at: datetime,
         format: str = "plain",
     ) -> None:
-        """One part of a text (title, abstract, body or full); empty content is skipped."""
-        if not content:
+        """One part of a text (title, abstract, body or full); empty content is skipped, and the
+        first record of a part wins (readers give the newest first when it matters)."""
+        if not content or (text_id, part, language, provider) in self.parts:
             return
         self.parts[(text_id, part, language, provider)] = {
             "text_id": text_id,
@@ -524,7 +582,9 @@ class SourceBuilder:
         last: bool | None = None,
         corresponding: bool | None = None,
     ) -> None:
-        """Person *person_id* wrote *text_id*, at rank *position*."""
+        """Person *person_id* wrote *text_id*, at rank *position* (the first statement wins)."""
+        if (text_id, person_id) in self.authorships:
+            return
         self.authorships[(text_id, person_id)] = {
             "text_id": text_id,
             "person_id": person_id,
@@ -646,12 +706,15 @@ Reader = Callable[[list[RawRun], SourceBuilder], None]
 
 def default_readers() -> dict[str, Reader]:
     """cartolex's readers, by raw folder name, in the order they run."""
+    from .harvest import read_openalex_runs, read_orcid_runs
     from .people_import import read_corpus_runs, read_folder_runs, read_people_runs
 
     return {
         "people": read_people_runs,
         "corpus": read_corpus_runs,
         "folder": read_folder_runs,
+        "openalex": read_openalex_runs,
+        "orcid": read_orcid_runs,
         # Resolution proposals are kept for the record; no table is built from them.
         "resolve": lambda runs, builder: None,
     }

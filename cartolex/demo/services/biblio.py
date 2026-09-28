@@ -602,7 +602,9 @@ def build_bibliography(world: DemoWorld, seed: int = 0) -> Bibliography:
         outside_works(pid, hid, None, inst, rng.randint(2, 4))
     if "mixed" in chosen:
         pid = chosen["mixed"]
-        outside_works(pid, record_of[pid], record_orcid[pid], outside[2], rng.randint(4, 6))
+        # The other person's half is a good share of the record, as in a real merge.
+        n_other = max(4, len(indexed_of[pid]) // 2 + 2)
+        outside_works(pid, record_of[pid], record_orcid[pid], outside[2], n_other)
 
     # ── author records ──
     for p in world.people:
