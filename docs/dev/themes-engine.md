@@ -189,12 +189,57 @@ Measures (`python tools/theme_clustering_study.py threshold|agreement|scale`,
 through the memory-capped runner; synthetic keywords are unit vectors in 20
 dimensions around `n/20` topics of unequal sizes, cut at `n/20` groups):
 
-MEASURES
+**Exact Ward: the threshold.** The peak is the whole process's (a fresh one per
+measure); 15 000 keywords is the largest size under about 2 GB, so
+`EXACT_WARD_LIMIT = 15 000`.
 
-Ward is sensitive to small moves of the points: on the same keywords moved by
-0.1 %, exact Ward itself changes the group of the share of keywords given as
-`noise_changed`. The two-stage cut is read against that, and, on synthetic
-keywords, against the topics the keywords were drawn around.
+| keywords | groups | seconds | peak |
+| --- | --- | --- | --- |
+| 5 000 | 250 | 0.7 | 368 MB |
+| 10 000 | 500 | 3.3 | 941 MB |
+| 15 000 | 750 | 8.6 | 1 896 MB |
+| 20 000 | 1 000 | 16.7 | 3 232 MB |
+
+**The engine's path by size** (exact up to the threshold, two stages above):
+
+| keywords | groups | path | seconds | peak |
+| --- | --- | --- | --- | --- |
+| 10³ | 50 | exact | 0.04 | 184 MB |
+| 10⁴ | 500 | exact | 3.3 | 941 MB |
+| 10⁵ | 5 000 | two stages, 15 000 micro-clusters | 155 | 1 544 MB |
+| 10⁵ | 5 000 | the same with a random start | 70 | 1 528 MB |
+
+At 10⁵ exact Ward would need about 80 GB. `tests/test_scale_themes.py` (marked
+`heavy`, run once by the full check) clusters 10⁵ keywords into 5 000 groups
+under a cap of 3 000 MB.
+
+**Agreement with exact Ward**, where both run. Ward is sensitive to small moves
+of the points, so the change is read against Ward's own: on the same keywords
+moved by 0.1 %, exact Ward moves the share of keywords given as « Ward's own ».
+On synthetic keywords both cuts are also compared with the topics the keywords
+were drawn around (adjusted Rand index). Above the threshold (the engine's
+rule, 15 000 micro-clusters):
+
+| keywords | ARI with exact | keywords whose group changes | Ward's own | ARI with the topics: exact · two stages | seconds: exact · two stages | peak: exact · two stages |
+| --- | --- | --- | --- | --- | --- | --- |
+| 20 000 | 0.70 | 14.8 % | 13.5 % | 0.269 · 0.273 | 18 · 49 | 3.2 · 1.5 GB |
+| 30 000 | 0.76 | 19.6 % | 12.3 % | 0.481 · 0.482 | 46 · 73 | 7.0 · 1.5 GB |
+
+Below the threshold, forcing the two stages with fewer micro-clusters:
+
+| keywords (groups) | micro-clusters | ARI with exact | changed | Ward's own |
+| --- | --- | --- | --- | --- |
+| synthetic 1 000 (50) | 500 · 200 · 100 | 0.995 · 0.989 · 0.824 | 0.3 · 0.8 · 10.7 % | 0.1 % |
+| synthetic 10 000 (500) | 5 000 · 2 000 · 1 000 | 0.613 · 0.590 · 0.579 | 19.6 · 23.0 · 25.4 % | 17.1 % |
+| demo S, 491 (25) | 245 · 98 · 49 | 1.000 · 0.945 · 0.857 | 0.0 · 4.9 · 12.6 % | 0.0 % |
+| demo L, 3 072 (154) | 1 537 · 614 · 307 | 0.864 · 0.731 · 0.663 | 11.0 · 21.6 · 28.1 % | 3.8 % |
+
+In short: where it runs, the two-stage cut moves about as many keywords
+between groups as exact Ward moves itself when the keyword vectors shift by
+0.1 %, finds the planted topics as well as exact Ward does, and holds its memory
+at 1.5 GB. The k-means++ start agrees with exact Ward better than a random start
+in every row (for example 0.70 against 0.66 at 20 000 keywords) at about twice
+its time; the engine keeps it.
 
 ## Open choices
 
