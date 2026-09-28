@@ -36,7 +36,7 @@ function Overview({ ctx }) {
     ${project.error.value && !data ? html`<${ErrorCard} error=${project.error.value}
       onRetry=${() => project.refresh()} />` : null}
     <div class="cx-grid">
-      <${Card} title=${t('overview.build')} loading=${!data} class="cx-grid__wide">
+      <${Card} title=${t('overview.build')} level=${2} loading=${!data} class="cx-grid__wide">
         ${data ? html`<${StageTracker} stages=${data.stages || []} />` : null}
       <//>
       <${Slot} slots=${app.registries.slots} name="overview.cards" class="cx-grid__slot" />

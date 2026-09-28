@@ -150,16 +150,24 @@ export function Table({
   const n = display.length;
   const first = Math.max(0, Math.floor(view.top / rowHeight) - overscan);
   const last = Math.min(n - 1, Math.ceil((view.top + bodyHeight()) / rowHeight) + overscan);
-
-  // Remember which row anchors the view: the active row if in view, else the top row.
   const activeIndex = activeKey === null ? -1 : index.has(activeKey) ? index.get(activeKey) : -1;
   if (activeIndex >= 0) lastActiveIndex.current = activeIndex;
-  const topIndex = Math.min(n - 1, Math.floor(view.top / rowHeight));
-  const activeInView = activeIndex >= 0 && activeIndex * rowHeight >= view.top
-    && (activeIndex + 1) * rowHeight <= view.top + bodyHeight();
-  const anchorIndex = activeInView ? activeIndex : topIndex;
-  lastView.current = anchorIndex >= 0 && n
-    ? { key: rowKey(display[anchorIndex]), offset: anchorIndex * rowHeight - view.top } : null;
+
+  // After each render, remember which row anchors the view (the active row when in
+  // view, else the top row) and where: the next change of rows puts it back there.
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el || !n) {
+      lastView.current = null;
+      return;
+    }
+    const top = el.scrollTop;
+    const room = Math.max(0, el.clientHeight - headHeight());
+    const inView = activeIndex >= 0 && activeIndex * rowHeight >= top
+      && (activeIndex + 1) * rowHeight <= top + room;
+    const anchor = inView ? activeIndex : Math.min(n - 1, Math.floor(top / rowHeight));
+    lastView.current = { key: rowKey(display[anchor]), offset: anchor * rowHeight - top };
+  });
 
   const onScroll = () => {
     cancelAnimationFrame(frame.current);

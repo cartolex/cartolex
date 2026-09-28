@@ -288,6 +288,7 @@
   "gallery.button.download": "Baixar",
   "gallery.button.toggle": "Mostrar os rótulos",
   "gallery.card.title": "Palavras-chave",
+  "gallery.card.title_actions": "Palavras-chave, com ações",
   "gallery.card.body": "{kept, number} palavras-chave mantidas, {check, number} a verificar. O vocabulário foi construído hoje.",
   "gallery.card.more": "Mais ações",
   "gallery.card.action": "Abrir",

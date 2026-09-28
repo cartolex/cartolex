@@ -288,6 +288,7 @@
   "gallery.button.download": "Download",
   "gallery.button.toggle": "Show the labels",
   "gallery.card.title": "Keywords",
+  "gallery.card.title_actions": "Keywords, with actions",
   "gallery.card.body": "{kept, number} keywords kept, {check, number} to check. The vocabulary was built today.",
   "gallery.card.more": "More actions",
   "gallery.card.action": "Open",

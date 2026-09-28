@@ -136,6 +136,7 @@ def ui(request: pytest.FixtureRequest, browser, server):
         reduced_motion=options.get("reduced_motion", "reduce"),
         bypass_csp=options.get("bypass_csp", False),
         service_workers="block",
+        permissions=options.get("permissions", []),
     )
     collected = Collected()
 

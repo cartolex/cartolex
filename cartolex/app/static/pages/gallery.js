@@ -128,7 +128,7 @@ function Cards() {
       <${Card} title=${t('gallery.card.title')}>
         <p>${t('gallery.card.body', { kept: 1240, check: 86 })}</p>
       <//>
-      <${Card} title=${t('gallery.card.title')}
+      <${Card} title=${t('gallery.card.title_actions')}
         actions=${html`<${IconButton} icon="more" label=${t('gallery.card.more')} />`}
         footer=${html`<${Button} size="s">${t('gallery.card.action')}<//>`}>
         <p>${t('gallery.card.body', { kept: 1240, check: 86 })}</p>

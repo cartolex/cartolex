@@ -3,7 +3,7 @@
  * Small DOM helpers the components share: ids, focusable elements, focus
  * traps, outside clicks, positioning through CSS custom properties.
  */
-import { useEffect, useRef } from './preact.js';
+import { useLayoutEffect, useRef } from './preact.js';
 
 let counter = 0;
 
@@ -62,11 +62,14 @@ export function trapTab(event, root) {
   return false;
 }
 
+// Both listeners are added in a layout effect: right after the render that opens
+// the widget, before the next key press can arrive.
+
 /** Call *handler* on a pointer press outside every element of *refs* while *active*. */
 export function useOutsidePress(refs, handler, active) {
   const saved = useRef(handler);
   saved.current = handler;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!active) return undefined;
     const onDown = (event) => {
       const inside = refs.some((r) => r.current && r.current.contains(event.target));
@@ -81,7 +84,7 @@ export function useOutsidePress(refs, handler, active) {
 export function useEscape(handler, active) {
   const saved = useRef(handler);
   saved.current = handler;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!active) return undefined;
     const onKey = (event) => {
       if (event.key === 'Escape' && !event.defaultPrevented) saved.current(event);

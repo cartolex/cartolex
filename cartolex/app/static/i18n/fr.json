@@ -288,6 +288,7 @@
   "gallery.button.download": "Télécharger",
   "gallery.button.toggle": "Afficher les étiquettes",
   "gallery.card.title": "Mots-clés",
+  "gallery.card.title_actions": "Mots-clés, avec des actions",
   "gallery.card.body": "{kept, number} mots-clés gardés, {check, number} à vérifier. Le vocabulaire a été construit aujourd’hui.",
   "gallery.card.more": "Plus d’actions",
   "gallery.card.action": "Ouvrir",

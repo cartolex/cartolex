@@ -1666,3 +1666,7 @@ a.cx-button:hover {
 .cx-slot.cx-grid__slot {
   display: contents;
 }
+
+.cx-handoff:focus-visible {
+  outline-offset: 4px;
+}

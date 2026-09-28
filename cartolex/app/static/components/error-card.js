@@ -59,8 +59,8 @@ export function ErrorCard({ error, onAction, onRetry, onDismiss, live = false, c
     }));
     setCopied(ok);
   };
-  return html`<section class=${`cx-error-card ${compact ? 'cx-error-card--compact' : ''} ${cls}`}
-    role=${live ? 'alert' : undefined} aria-labelledby=${id}>
+  return html`<div class=${`cx-error-card ${compact ? 'cx-error-card--compact' : ''} ${cls}`}
+    role=${live ? 'alert' : 'group'} aria-labelledby=${id}>
     <div class="cx-error-card__head">
       <span class="cx-error-card__icon"><${Icon} name="error" size=${20} /></span>
       <${Heading} class="cx-error-card__title" id=${id}>
@@ -93,5 +93,5 @@ export function ErrorCard({ error, onAction, onRetry, onDismiss, live = false, c
         </span>
       </div>
     </details>
-  </section>`;
+  </div>`;
 }

@@ -78,7 +78,11 @@ export function Help({ topic, children, open: initial = false }) {
     setOpen(false);
     if (refocus && button.current) button.current.focus();
   };
-  useEscape(() => close(true), open);
+  // Escape closes it when the focus is on it, not when another widget has the key.
+  useEscape(() => {
+    const active = document.activeElement;
+    if (active === button.current || (panel.current && panel.current.contains(active))) close(true);
+  }, open);
   useOutsidePress([button, panel], () => close(false), open);
   useLayoutEffect(() => {
     const el = panel.current;

@@ -9,7 +9,7 @@
  * nothing changes before « Import ». The checking and the import are the
  * caller's (`onCheck`, `onImport`: the server's handoff routes in the app).
  */
-import { html, useRef, useState } from '../core/preact.js';
+import { html, useEffect, useRef, useState } from '../core/preact.js';
 import { formatNumber, t } from '../core/i18n.js';
 import { copyText, downloadFile, useUid } from '../core/dom.js';
 import { Button } from './button.js';
@@ -41,7 +41,18 @@ export function AiHandoffDialog({ open, onClose, bundle, file, prompt, onCheck, 
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(null);
   const fileInput = useRef(null);
+  const content = useRef(null);
+  const firstStep = useRef(true);
   const uid = useUid('cx-handoff');
+  // A new step replaces the buttons that had the focus: give it to the step itself.
+  useEffect(() => {
+    if (firstStep.current) {
+      firstStep.current = false;
+      return;
+    }
+    const field = content.current && content.current.querySelector('textarea');
+    (field || content.current)?.focus();
+  }, [step]);
   const count = bundle.items.length;
 
   const stepState = (id) => {
@@ -157,6 +168,7 @@ export function AiHandoffDialog({ open, onClose, bundle, file, prompt, onCheck, 
     <${Stepper} label=${t('handoff.steps')} steps=${STEPS.map((id) => ({
       id, label: t(`handoff.step.${id}`), state: stepState(id) }))}
       onSelect=${(id) => setStep(id)} />
-    <div class="cx-handoff">${body}</div>
+    <div class="cx-handoff" ref=${content} tabindex="-1" role="group"
+      aria-label=${t(`handoff.step.${step}`)}>${body}</div>
   <//>`;
 }
