@@ -212,3 +212,21 @@ def test_a_malformed_record_is_skipped_not_fatal() -> None:
     assert work.title == "Un titre" and work.titles == [("en", "A title"), ("fr", "Un titre")]
     form = work.form_of("demo-ivo-quell")
     assert form is not None and form.rank == 2 and form.structures == ((9900001, "Tide Lab"),)
+
+
+def test_a_malformed_record_in_an_answer_is_skipped(demo, tmp_path) -> None:
+    project = project_with_people(tmp_path / "p", demo.world)
+    person = next(p for p in people_refs(project.layout) if p.idhal)
+    expected = _expected(demo, person.idhal[0])
+    service = demo.server.services["hal"]
+    broken = sorted(expected)[0]
+    saved = service._docs[broken]
+    service._docs[broken] = {k: v for k, v in saved.items() if k != "title_s"}
+    try:
+        report = collect_hal(
+            client_for(demo, project), project.layout, SLOT, [person], window=WINDOW
+        )
+    finally:
+        service._docs[broken] = saved
+    assert report.skipped == {"malformed record": 1}
+    assert _found(project, person.person_id) == expected - {broken}

@@ -200,3 +200,24 @@ def test_reading_an_article_record() -> None:
     assert work is not None and work.title == "Um título" and work.doi == "10.5555/x"
     assert work.abstracts == [("pt", "Resumo."), ("en", "Abstract.")]
     assert work.authors == (("Ada", "Varno", "0000-0000-0000-0001"),)
+
+
+def test_a_malformed_article_is_skipped(demo, tmp_path) -> None:
+    service = demo.server.services["scielo"]
+    original = service._json
+    broken = sorted(_expected(demo))[0]
+
+    def without_titles(article):
+        data = original(article)
+        if article.pid == broken:
+            data["article"].pop("v12")
+        return data
+
+    service._json = without_titles
+    try:
+        project = project_with_people(tmp_path / "p", demo.world)
+        report = _collect(demo, project)
+    finally:
+        service._json = original
+    assert report.skipped["malformed record"] == 1
+    assert _kept(project) == _expected(demo) - {broken}

@@ -9,6 +9,13 @@
 * :mod:`~cartolex.collect.text` — text hygiene at the boundary;
 * :mod:`~cartolex.collect.tables` — the source writers: raw records in each
   slot's ``raw/`` folder, stable ids, and the six source tables rebuilt from them.
+* :mod:`~cartolex.collect.hal` and :mod:`~cartolex.collect.scielo` — the HAL
+  and SciELO finders (:func:`~cartolex.collect.hal.collect_hal`,
+  :func:`~cartolex.collect.scielo.collect_scielo`), sharing
+  :mod:`~cartolex.collect.finders`;
+* :mod:`~cartolex.collect.merge` — one text per work found by several finders;
+* :mod:`~cartolex.collect.providers` — better texts for works already found
+  (:func:`~cartolex.collect.providers.improve_texts`).
 
 The engine never imports this package; this package imports the project format
 (:mod:`cartolex.project`) and a few engine helpers (PDF text, language detection).
