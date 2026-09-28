@@ -5,19 +5,14 @@
   "description": "``decisions/stopwords.json``: additions to and removals from the function-word lists.",
   "properties": {
     "add": {
-      "additionalProperties": {
-        "items": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "type": "array"
-      },
-      "propertyNames": {
-        "enum": [
-          "en",
-          "fr",
-          "pt"
-        ]
+      "patternProperties": {
+        "^[a-z]{2}$": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        }
       },
       "title": "Add",
       "type": "object"
@@ -29,19 +24,14 @@
       "type": "string"
     },
     "remove": {
-      "additionalProperties": {
-        "items": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "type": "array"
-      },
-      "propertyNames": {
-        "enum": [
-          "en",
-          "fr",
-          "pt"
-        ]
+      "patternProperties": {
+        "^[a-z]{2}$": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        }
       },
       "title": "Remove",
       "type": "object"

@@ -12,6 +12,8 @@ texts ──< text_parts
                           (person_id)                 (org_id)   <─┘ parents
 ```
 
+Columns marked nullable are optional: a file written before one existed reads it as empty.
+
 Every table is sorted by its key, and every key is a stable string: an id, once
 given, never changes and is never reused. Ids are opaque: those cartolex gives
 start with `t`, `p` or `o`, and an importer may keep its own. The ids a source
@@ -77,7 +79,16 @@ order, and each person's texts in slot order, then `position`.
 | `ids` | map<string, list<string>> | other identifiers by scheme; a person may have several OpenAlex records |
 | `source` | string | how the person entered: `import`, `collaborators`, `institution`, `folder` |
 | `columns` | map<string, string> | the extra columns of an imported list, kept as text; each becomes a filter |
+| `aliases` | list<struct<last_name, first_name, source>> | every other name form a source gives for this person (marital name, name added by an institution, one half of a double surname, a transliteration); matching tries all of them |
 | `retrieved_at` | timestamp (UTC) | |
+
+**Aliases.** Two rows are proposed as one person when they share a strong
+identifier (ORCID, an OpenAlex record, an institutional email). Without one,
+they are proposed when the first names match, one last name contains or extends
+the other, and they share an affiliation or co-authors, with publication years
+that follow on rather than overlap. A proposal is listed for review and never
+applied on its own: only `merged_into` in `people.csv` joins the rows, and the
+name forms of both then go to `aliases`.
 
 Who is mapped, who only feeds the lexicon and who is projected is a decision,
 not a source: see `people.csv` in {doc}`decisions`.
@@ -114,6 +125,8 @@ not a source: see `people.csv` in {doc}`decisions`.
 | `person_id` | string | |
 | `position` | int32 | the author's rank on the text, from 1 |
 | `orgs` | list<string> | the `org_id`s stated on this text for this author |
+| `last` | bool, nullable | true for the final author; null when the source truncates the list or the authors are in alphabetical order, where first and last carry no meaning |
+| `corresponding` | bool, nullable | as the source flags it; null when it says nothing |
 
 ## Which organisation a text counts for
 

@@ -16,7 +16,7 @@ from pathlib import Path
 
 from .files import read_model
 from .layout import SOURCE_TABLES, ProjectLayout
-from .models import MapsFile, ParamsFile, ProjectFile, StopwordsFile, ThemesFile
+from .models import LANGUAGES, MapsFile, ParamsFile, ProjectFile, StopwordsFile, ThemesFile
 from .project import NotAProject, UnsupportedFormat, _check_format
 from .tables import DECISION_TABLES, read_decision_csv, read_source_table
 
@@ -56,6 +56,14 @@ def validate_project(root: Path) -> list[Problem]:
     except (NotAProject, UnsupportedFormat, ValueError) as exc:
         return [Problem("project.json", str(exc))]
     assert isinstance(config, ProjectFile)
+    for lang in config.languages.corpus:
+        if lang not in LANGUAGES:
+            problems.append(
+                Problem(
+                    "project.json",
+                    f"no language pack for {lang!r}: cartolex extracts {', '.join(LANGUAGES)}",
+                )
+            )
 
     for path, model in (
         (layout.params_json, ParamsFile),

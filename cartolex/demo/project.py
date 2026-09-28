@@ -148,7 +148,13 @@ def write_project(world: DemoWorld, root: Path | str, *, name: str | None = None
             )
         for rank, pid in enumerate(w.authors, start=1):
             authorships.append(
-                {"text_id": w.work_id, "person_id": pid, "position": rank, "orgs": [group_of[pid]]}
+                {
+                    "text_id": w.work_id,
+                    "person_id": pid,
+                    "position": rank,
+                    "orgs": [group_of[pid]],
+                    "last": rank == len(w.authors),
+                }
             )
 
     for table_name, rows in (

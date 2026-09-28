@@ -43,17 +43,12 @@
       "additionalProperties": true,
       "properties": {
         "names": {
-          "additionalProperties": {
-            "minLength": 1,
-            "type": "string"
-          },
           "minProperties": 1,
-          "propertyNames": {
-            "enum": [
-              "en",
-              "fr",
-              "pt"
-            ]
+          "patternProperties": {
+            "^[a-z]{2}$": {
+              "minLength": 1,
+              "type": "string"
+            }
           },
           "title": "Names",
           "type": "object"
@@ -74,15 +69,10 @@
           "type": "string"
         },
         "names": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "propertyNames": {
-            "enum": [
-              "en",
-              "fr",
-              "pt"
-            ]
+          "patternProperties": {
+            "^[a-z]{2}$": {
+              "type": "string"
+            }
           },
           "title": "Names",
           "type": "object"

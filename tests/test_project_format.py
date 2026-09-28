@@ -202,7 +202,7 @@ def test_project_ids_must_be_unique_and_overlays_never_slots():
             dict(base, slots=[{"id": "a", "kind": "folder"}], overlays=[{"id": "a", "root": "x"}])
         )
     with pytest.raises(ValueError):
-        ProjectFile.model_validate(dict(base, languages={"corpus": ["de"]}))
+        ProjectFile.model_validate(dict(base, languages={"corpus": ["deu"]}))
 
 
 def test_params_refuse_unknown_stages():
@@ -419,3 +419,42 @@ def test_a_frozen_identity_changes_only_on_purpose(tmp_path):
     with pytest.raises(IdentityFrozen, match="AI identity"):
         project.save_config(project.config.model_copy(update={"identity": other_ai}), action="x")
     project.close()
+
+
+def test_languages_are_open_codes_and_packs_are_checked(tmp_path):
+    from cartolex.project.validate import validate_project
+
+    base = dict(
+        name="p",
+        identity={"domain_title": "d"},
+        created={"at": NOW, "by": "t"},
+        app={"id": "cartolex", "version": "1"},
+    )
+    ProjectFile.model_validate(dict(base, languages={"corpus": ["es", "en"]}))
+    with pytest.raises(ValueError):
+        ProjectFile.model_validate(dict(base, languages={"corpus": ["spa"]}))
+    project = _new(tmp_path)
+    config = project.config.model_copy(
+        update={"languages": project.config.languages.model_copy(update={"corpus": ["en", "es"]})}
+    )
+    project.save_config(config, action="add a language without a pack")
+    problems = [str(p) for p in validate_project(project.layout.root)]
+    assert any("no language pack for 'es'" in p for p in problems)
+    project.close()
+
+
+def test_an_older_file_reads_new_optional_columns_as_empty(tmp_path):
+    import pyarrow.parquet as pq
+
+    path = tmp_path / "authorships.parquet"
+    old = pa.table(
+        {
+            "text_id": ["t1"],
+            "person_id": ["p1"],
+            "position": pa.array([1], pa.int32()),
+            "orgs": [["o1"]],
+        }
+    )
+    pq.write_table(old, path)
+    table = read_source_table(path, "authorships")
+    assert table["last"].to_pylist() == [None] and table["corresponding"].null_count == 1
