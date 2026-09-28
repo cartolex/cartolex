@@ -256,3 +256,21 @@ def test_information_toasts_go_and_error_toasts_stay_until_dismissed(ui, server)
     assert page.locator(".cx-header .cx-activity-indicator").inner_text() == "Build failed"
     alert.get_by_role("button", name="Dismiss").click()
     assert alert.count() == 0
+
+
+def test_a_failing_slot_contribution_is_contained(ui):
+    ui.open("/keywords")
+    card = ui.page.locator('[data-slot="keywords.cards"] .cx-error-card')
+    expect_text = card.inner_text()
+    assert "A part of this page failed" in expect_text
+    assert ui.page.locator("h1").inner_text() == "Keywords"  # the page works on
+
+
+@pytest.mark.allow_console_errors  # the browser logs the module it could not load
+def test_an_extension_that_fails_to_load_is_reported(ui, server):
+    server.data["manifest"]["modules"].append("/static/ext/demo/missing.js")
+    ui.open("/overview")
+    toast = ui.page.locator(".cx-toaster [role=alert] .cx-toast--error")
+    toast.wait_for()
+    assert "An extension could not be loaded" in toast.inner_text()
+    assert ui.page.locator("h1").inner_text() == "Coastal and marine demo"

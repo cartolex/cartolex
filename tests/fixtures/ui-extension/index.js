@@ -30,6 +30,13 @@ export function register(api) {
   }
   api.pages.add({ id: 'demo', route: '/demo', label: 'ext.demo.title', order: 90,
     page: definePage(DemoPage) });
+  // A contribution that fails: the page shows an error card in its place and works on.
+  api.slots.add('keywords.cards', {
+    id: 'demo-broken',
+    component: () => {
+      throw new Error('a contribution that cannot render');
+    },
+  });
   api.slots.add('overview.cards', {
     id: 'demo-card',
     order: 10,
