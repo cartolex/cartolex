@@ -413,6 +413,7 @@ def read_improve_runs(runs: list[RawRun], builder: SourceBuilder) -> None:
                     content=p["content"],
                     retrieved_at=at,
                     format=p.get("format", "plain"),
+                    replace=True,
                 )
             for link in rec.get("links", []):
                 builder.link(tid, link["relation"], link["value"])
