@@ -21,7 +21,7 @@ settings are in `tools/check.toml`.
 | `lint` | `ruff check` and `ruff format --check`, with the ruff pinned in the `dev` extra | any finding |
 | `vocab` | `tools/vocab_scan.py` over the tree and the commit messages listed in `tools/check.toml` | a banned term appears outside a stated exception |
 | `tests` | `pytest` on every Python in `tools/check.toml`, in parallel | any test fails on any version |
-| `reference` | `tools/reference/check_reference.py`: the demo project run through the engine and compared with the stored baseline and the stored reference | a stage is *different* from the baseline, or differs from the reference without an explanation |
+| `reference` | `tools/reference/check_reference.py`: the demo world run through the engine and compared with the stored baseline and the stored reference; then the same world written as a project and built with `cartolex.build`, compared the same way | a stage is *different* from the baseline, or differs from the reference without an explanation, or the project build is not identical to the baseline in every artifact |
 | `docs` | a strict Sphinx build of `docs/` | any warning |
 
 ## Virtual environments

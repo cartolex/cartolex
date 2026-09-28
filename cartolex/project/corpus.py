@@ -25,15 +25,16 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .files import atomic_write_bytes
 from .layout import ProjectLayout
 from .models import ProjectFile
 from .tables import read_decision_csv, read_source_table
 
-__all__ = ["INDEX_COLUMNS", "CorpusSummary", "assemble_corpus", "render_text"]
+__all__ = ["INDEX_COLUMNS", "PEOPLE_COLUMNS", "CorpusSummary", "assemble_corpus", "render_text"]
 
 #: The columns of an engine index, in order.
 INDEX_COLUMNS = ("last_name", "first_name", "unit", "txt_path", "doc_year", "doc_type")
+#: The columns of ``people.csv`` beside each index: who each engine identity is.
+PEOPLE_COLUMNS = ("person_id", "last_name", "first_name", "unit")
 #: The order parts are read in; ``full`` stands alone.
 PART_ORDER = ("title", "abstract", "body")
 
@@ -69,10 +70,17 @@ def render_text(parts: Sequence[tuple[str, str, str]], *, chosen: Sequence[str])
     return "\n\n".join(blocks) + "\n" if blocks else ""
 
 
-def _csv_bytes(rows: Iterable[Sequence[object]]) -> bytes:
+def _write(path: Path, data: bytes) -> None:
+    """A plain write: the corpus goes into a stage's staging folder, flushed once when it is
+    swapped into place, so a file is never forced to disk on its own."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+
+
+def _csv_bytes(rows: Iterable[Sequence[object]], columns: Sequence[str] = INDEX_COLUMNS) -> bytes:
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n")
-    writer.writerow(INDEX_COLUMNS)
+    writer.writerow(columns)
     writer.writerows(rows)
     return buf.getvalue().encode("utf-8")
 
@@ -89,7 +97,9 @@ def assemble_corpus(
     """Write the engine's corpus for *config*'s fit slots and projected sets into *out_dir*.
 
     ``out_dir/<slot>/index.csv`` and ``out_dir/<slot>/texts/<text_id>.txt`` for each
-    fit slot, in the project's slot order; ``out_dir/overlays/<set>/`` likewise
+    fit slot, in the project's slot order, with ``out_dir/<slot>/people.csv``
+    naming the ``person_id`` behind each engine identity (last name, first
+    name, unit); ``out_dir/overlays/<set>/`` likewise
     for each projected set whose people are in the project's own tables.
     *provider_priority* picks one provider per (text, part, language), earlier
     first, unknown providers last in name order. *unit_level* names the level
@@ -120,8 +130,10 @@ def assemble_corpus(
 
     def emit(target: Path, members: list[str], slots: set[str] | None) -> dict[str, int]:
         rows = []
+        keys: list[tuple[str, str, str, str]] = []
         for pid in members:
             person = people[pid]
+            n_before = len(rows)
             texts_of = [
                 t for t in by_person.get(pid, ()) if slots is None or text_meta[t]["slot"] in slots
             ]
@@ -138,7 +150,7 @@ def assemble_corpus(
                     continue
                 rel = f"texts/{tid}.txt"
                 if tid not in written[target]:
-                    atomic_write_bytes(target / rel, body.encode("utf-8"))
+                    _write(target / rel, body.encode("utf-8"))
                     written[target].add(tid)
                 meta = text_meta[tid]
                 rows.append(
@@ -151,7 +163,12 @@ def assemble_corpus(
                         meta["doc_type"],
                     )
                 )
-        atomic_write_bytes(target / "index.csv", _csv_bytes(rows))
+            if len(rows) > n_before:
+                keys.append(
+                    (pid, person["last_name"], person["first_name"] or "", units.get(pid, ""))
+                )
+        _write(target / "index.csv", _csv_bytes(rows))
+        _write(target / "people.csv", _csv_bytes(keys, PEOPLE_COLUMNS))
         return {
             "rows": len(rows),
             "texts": len(written[target]),

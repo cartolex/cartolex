@@ -150,29 +150,6 @@ def test_the_plan_says_why_in_words(env):
     assert item.parameters == {"year": YEAR, "parts": ["title"]}
 
 
-def test_cartolex_stages_wait_for_their_runners(env):
-    result = build(env.project, year=YEAR, budget_mb=1e9)
-    assert result.outcome == "failed" and result.ran == ()
-    assert result.failed[0] == "corpus.assemble"
-    assert "StageNotConnected" in result.failed[1]
-    assert list(env.layout.staging_root.iterdir()) == []
-
-    def assemble(ctx):
-        (ctx.out / "texts.txt").write_text("ok", encoding="utf-8")
-        return {"people": 4, "texts": 5, "characters": 100, "mapped_units": 4}
-
-    connected = STAGES.with_runners({"corpus.assemble": assemble})
-    result = build(env.project, ["corpus.assemble"], registry=connected, year=YEAR, budget_mb=1e9)
-    assert result.ran_ids == ("corpus.assemble",)
-    record = json.loads(env.layout.run_json("corpus.assemble").read_text())
-    assert record["parameters"]["recency_years"] == {"value": 5, "from": "default", "rule": None}
-    assert set(record["identity"]) == {"languages", "slots", "levels"}
-    with pytest.raises(KeyError, match="no such stage"):
-        STAGES.with_runners({"keywords.guess": assemble})
-    cheaper = STAGES.replace("corpus.assemble", cost=None)
-    assert cheaper["corpus.assemble"].cost is None and STAGES["corpus.assemble"].cost
-
-
 # ── consent and budget ───────────────────────────────────────────────────────
 
 
@@ -284,6 +261,11 @@ def test_estimates_scale_the_last_run():
     assert "scaled by texts" in str(scaled)
     assert model.estimate(ProjectSizes(), None).seconds is None
     assert STAGES["themes.group"].cost.memory_exponent == 2.0
+    stand_in = CostModel("kept_keywords", 1.0, 0.01, 100.0, 1.0, fallback=("people", 10.0))
+    assert stand_in.estimate(ProjectSizes(people=20), None).seconds == pytest.approx(3.0)
+    assert stand_in.estimate(ProjectSizes(kept_keywords=100), None).seconds == pytest.approx(2.0)
+    with pytest.raises(ValueError, match="unknown cost driver"):
+        CostModel("texts", 1, 1, 1, 1, fallback=("pages", 1.0))
 
 
 # ── progress and cancel ──────────────────────────────────────────────────────

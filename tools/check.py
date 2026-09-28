@@ -213,11 +213,14 @@ def check_reference(full: bool) -> Result:
     sizes = ["S", "L"] if full else ["S"]
     parts, ok = [], True
     for size in sizes:
-        rc, tail = run(
-            [sys.executable, str(script), "--size", size], LOGS / f"reference-{size}.log"
-        )
-        parts.append(f"{size}: {tail}")
-        ok &= rc == 0
+        # The engine on the demo workspace, then the same world built as a project.
+        for via, label in (([], size), (["--via-project"], f"{size} via a project")):
+            rc, tail = run(
+                [sys.executable, str(script), "--size", size, *via],
+                LOGS / f"reference-{size}{'-project' if via else ''}.log",
+            )
+            parts.append(f"{label}: {tail}")
+            ok &= rc == 0
     return Result("reference", "pass" if ok else "fail", " · ".join(parts), time.monotonic() - t0)
 
 

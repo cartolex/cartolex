@@ -10,8 +10,9 @@ as a path in the existing semantic space.
 from __future__ import annotations
 
 import logging
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -198,6 +199,7 @@ def build_trajectory_windows(
     umap_model,
     term_to_concept: dict[str, int],
     concept_to_subfield: dict[int, int],
+    report: Callable[[float, str], Any] | None = None,
 ) -> dict[str, list[dict]]:
     """Exact per-(researcher, contiguous-bin-window) reprojection + re-weighting.
 
@@ -213,6 +215,8 @@ def build_trajectory_windows(
     run); the full-span key reproduces the whole-history profile to within the
     SVD/UMAP fit-vs-transform gap. Returns ``{researcher_id: [entry, ...]}`` with
     each entry ``{key, mass, x, y, subfields, concepts}``. Empty input -> ``{}``.
+    *report*, when given, is called with the share of researchers done (it may
+    raise to stop the loop).
     """
     from cartolex.lexicon.subfields import researcher_group_weights
 
@@ -220,7 +224,11 @@ def build_trajectory_windows(
         return {}
     meta = traj.meta.reset_index(drop=True)
     out: dict[str, list[dict]] = {}
-    for rid, grp in meta.groupby("researcher_id", sort=False):
+    groups = meta.groupby("researcher_id", sort=False)
+    n_groups = max(1, groups.ngroups)
+    for done, (rid, grp) in enumerate(groups):
+        if report is not None:
+            report(done / n_groups, "time windows")
         rows = grp.sort_values("bin_end").index.tolist()
         starts = [int(meta.at[r, "bin_start"]) for r in rows]
         ends = [int(meta.at[r, "bin_end"]) for r in rows]

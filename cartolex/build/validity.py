@@ -30,6 +30,7 @@ __all__ = [
     "StageState",
     "StageStatus",
     "current_sizes",
+    "effective_params",
     "load_params",
     "project_parts",
     "status",
@@ -54,8 +55,8 @@ class StageState(str, Enum):
 class Reason:
     """One thing that changed since a stage's results were computed."""
 
-    kind: Literal["input", "parameter", "project", "upstream"]
-    subject: str  # the path, parameter name, project.json part or upstream stage id
+    kind: Literal["code", "input", "parameter", "project", "upstream"]
+    subject: str  # the stage id, path, parameter name, project.json part or upstream stage id
     detail: str
 
     def __str__(self) -> str:
@@ -71,7 +72,8 @@ class StageStatus:
     killed run left (a new run resumes from it when nothing changed);
     ``running`` the staging folder of the job running the stage now.
     ``code_changed`` says the results were computed by other code than this
-    one; it is information, not a reason for an update.
+    one; it is information, not a reason for an update (a deliberate change of
+    what the stage produces raises its version, which is one).
     """
 
     stage: str
@@ -237,6 +239,15 @@ def _changes(
     view: _View, stage: Stage, record: RunRecord, earlier: dict[str, StageStatus]
 ) -> list[Reason]:
     reasons: list[Reason] = []
+    before = record.code.stage_version
+    if before != stage.version:
+        reasons.append(
+            Reason(
+                "code",
+                stage.id,
+                f"cartolex changed how this stage works (version {before} → {stage.version})",
+            )
+        )
     used = {i.stage: i.run_id for i in record.inputs if i.kind == "stage"}
     for up in stage.upstream:
         up_status = earlier[up]
@@ -329,6 +340,18 @@ def _status_of(view: _View, stage: Stage, earlier: dict[str, StageStatus]) -> St
     else:
         state = StageState.UP_TO_DATE
     return StageStatus(state=state, reasons=reasons, skip_reason=skip, **common)  # type: ignore[arg-type]
+
+
+def effective_params(
+    project: Project, registry: Registry | None = None, *, year: int | None = None
+) -> dict[str, Resolved]:
+    """Every stage's effective parameters now, and where each comes from.
+
+    Rule values use the sizes the stages last reported (else the sources' estimates);
+    a rule whose sizes nobody knows yet is listed in :attr:`Resolved.unknown`.
+    """
+    view = _View.read(project, registry or STAGES, year)
+    return {stage.id: view.resolve(stage) for stage in view.registry}
 
 
 def status(

@@ -229,8 +229,15 @@ class ParamsFile(_Model):
 
 
 class CodeStamp(_Model):
+    """The code that ran: cartolex's version, a fingerprint of its sources, the stage's version.
+
+    ``stage_version`` changes when cartolex deliberately changes what a stage
+    produces; a result made by another version of its stage needs an update.
+    """
+
     version: NonEmpty
     fingerprint: Fingerprint
+    stage_version: Annotated[int, Field(ge=1)] = 1
 
 
 class ParameterValue(_Model):

@@ -30,7 +30,7 @@ Every stage folder holds the record of the run that produced it:
   "outcome": "succeeded",
   "started_at": "2026-09-28T10:12:00Z",
   "finished_at": "2026-09-28T10:12:41Z",
-  "code": {"version": "1.0.0", "fingerprint": "sha256:…"},
+  "code": {"version": "1.0.0", "fingerprint": "sha256:…", "stage_version": 1},
   "parameters": {
     "min_people": {"value": 3, "from": "default"},
     "counting_unit": {"value": "person", "from": "params.json"}
@@ -51,6 +51,10 @@ Every stage folder holds the record of the run that produced it:
 - `inputs` lists what the stage read: the runs of upstream stages by id, and
   source and decision files by fingerprint. Large tables are fingerprinted by
   their Parquet metadata and row-group statistics, so a check stays fast.
+- `code` names the cartolex version and a fingerprint of its sources, for the
+  record, and the version of the stage: cartolex raises it when it deliberately
+  changes what the stage produces, and a result made by another version needs
+  an update. Other code changes leave results up to date.
 - `measures` feed the cost estimates of later dry runs.
 
 ## Is a result up to date? Six states
@@ -60,7 +64,7 @@ A stage is in exactly one state, computed from the records alone:
 | state | when |
 | --- | --- |
 | never built | no `run.json` |
-| up to date | its last run succeeded, every input fingerprint matches the current file, every upstream run it read is still the current one, and its parameters equal today's effective ones |
+| up to date | its last run succeeded, every input fingerprint matches the current file, every upstream run it read is still the current one, its parameters equal today's effective ones, and it was made by the current version of the stage (`code.stage_version`) |
 | needs update | its last run succeeded but something it read has changed; the record says what |
 | running | a job holds the stage now |
 | failed | its last attempt failed or was cancelled (recorded in `derived/.attempts/<stage id>.json`), or its process was killed; the previous results are still in place and still usable |

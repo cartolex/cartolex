@@ -99,7 +99,9 @@ nothing in the engine names a particular deployment, source or procedure.
   undoes, with consent, a memory budget, monotonic progress with a heartbeat,
   a cooperative cancel and resumption of a killed run from its last chunk. The
   last failed or cancelled attempt of a stage is recorded in
-  `derived/.attempts/<stage id>.json`.
+  `derived/.attempts/<stage id>.json`. A stage has a behaviour version,
+  recorded in `run.json` (`code.stage_version`): a deliberate change of what a
+  stage produces makes its earlier results need an update.
 - **Noun-phrase candidates.** `keywords.extract` finds its candidate terms
   with spaCy part-of-speech patterns (English, French, Portuguese) instead of
   every sequence of one to four words: nested spans count, candidates are
@@ -159,4 +161,17 @@ nothing in the engine names a particular deployment, source or procedure.
   results, discussion, captions) in its language, from a random stream of its
   own; the rest of the world, and every default world, is unchanged. The
   truth's lexicon lists the body templates' pieces as filler.
-
+- **The engine on a project.** Each stage runs the engine
+  (`cartolex.build.engine`): an ownership table gives every engine file a
+  place in the project, the layout's amendments of earlier files are copied
+  into its own folder, and the settings come from `project.json`, the
+  parameters (with explicit theme level sizes when wanted) and the earlier
+  stages' records. The first layout adds and pins map version `v1`; a curated
+  `decisions/themes.json` is rebased onto the current vocabulary and applied;
+  the AI clean-up takes a key or an injected client (`AIAccess`), with its
+  answers cached in `cache/ai/`. `RunContext` gains `progress`, `cancel` and
+  `ai_client`: the engine's long steps report progress and stop on a cancel.
+  The numeric reference also runs through a project build
+  (`check_reference.py --via-project`), identical to the stored baseline. New
+  commands: `cartolex build`, `status`, `params` and `versions`
+  (`docs/build.md`).

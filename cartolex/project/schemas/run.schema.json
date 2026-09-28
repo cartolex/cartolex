@@ -2,11 +2,18 @@
   "$defs": {
     "CodeStamp": {
       "additionalProperties": true,
+      "description": "The code that ran: cartolex's version, a fingerprint of its sources, the stage's version.\n\n``stage_version`` changes when cartolex deliberately changes what a stage\nproduces; a result made by another version of its stage needs an update.",
       "properties": {
         "fingerprint": {
           "pattern": "^sha256:[0-9a-f]{64}$",
           "title": "Fingerprint",
           "type": "string"
+        },
+        "stage_version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Stage Version",
+          "type": "integer"
         },
         "version": {
           "minLength": 1,

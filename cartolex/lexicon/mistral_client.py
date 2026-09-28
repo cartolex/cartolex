@@ -388,6 +388,9 @@ class MistralClient:
     ``usage``
         Optional :class:`~cartolex.lexicon.llm_usage.UsageRecorder` (the run's)
         that live calls report their token counts to.
+    ``client_factory``
+        Optional replacement of the SDK's client class, called with the same
+        arguments (``api_key``, ``server_url``, ``timeout_ms``).
     """
 
     def __init__(
@@ -402,8 +405,10 @@ class MistralClient:
         throttle: AdaptiveThrottle | None = None,
         should_cancel: Callable[[], bool] | None = None,
         usage: UsageRecorder | None = None,
+        client_factory: Callable[..., Any] | None = None,
     ):
         self.api_key = api_key
+        self.client_factory = client_factory
         self.model = model
         self.api_url = api_url
         self.temperature = temperature
@@ -419,7 +424,10 @@ class MistralClient:
     def _get_client(self):
         """Lazy-initialize the Mistral SDK client (with a real request timeout)."""
         if self._client is None:
-            from mistralai import Mistral
+            if self.client_factory is not None:
+                Mistral = self.client_factory  # noqa: N806 - called like the SDK's class
+            else:
+                from mistralai import Mistral
 
             self._client = Mistral(
                 api_key=self.api_key,

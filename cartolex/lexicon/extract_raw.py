@@ -307,10 +307,11 @@ def run_pipeline_stage_1(
     with a warning (its table is written empty). The model of every language
     with text must be installed: otherwise
     :class:`~cartolex.lexicon.language_models.LanguageModelMissing` is raised
-    before anything is parsed.
+    before anything is parsed. Progress also reaches the context's ``progress``,
+    and its ``cancel`` is honoured at each report.
     """
     with ctx.threads.applied():
-        _extract(ctx, progress_callback)
+        _extract(ctx, ctx.percent_reporter(progress_callback))
 
 
 def _extract(ctx: RunContext, progress_callback: ProgressCallback | None) -> None:

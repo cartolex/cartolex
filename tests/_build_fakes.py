@@ -9,7 +9,9 @@ of an interrupted build with those of an uninterrupted one.
 Run as a script, it opens a project and builds it, killing its own process
 (``os._exit``) at a named step, as a crash would::
 
-    python tests/_build_fakes.py PROJECT CALL_LOG STEP
+    python tests/_build_fakes.py PROJECT CALL_LOG STEP [--engine]
+
+With ``--engine`` the build runs cartolex's own stages instead of the fakes.
 """
 
 from __future__ import annotations
@@ -334,8 +336,13 @@ def main(argv: list[str]) -> int:
             if seen["n"] == int(nth or 1):
                 os._exit(KILLED)
 
+    registry = make_registry(controls)
+    if "--engine" in argv:  # cartolex's own stages, running the engine
+        from cartolex.build import STAGES
+
+        registry = STAGES
     project = Project.open(root, write=True)
-    build(project, registry=make_registry(controls), year=YEAR, probe=probe, budget_mb=1e9)
+    build(project, registry=registry, year=YEAR, probe=probe, budget_mb=1e9)
     project.close()
     return 0
 

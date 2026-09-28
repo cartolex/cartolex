@@ -9,9 +9,10 @@ or costs money, whether it checkpoints by chunk, its parameters, how its cost
 grows with the project, and its runner. A :class:`Registry` holds the stages of
 one build, in order, and checks that they fit together.
 
-:data:`STAGES` is cartolex's registry. Its runners are not connected yet: each
-raises :class:`StageNotConnected` until the engine is plugged in with
-:meth:`Registry.with_runners`.
+:data:`STAGES` is cartolex's registry; its runners call the engine
+(:mod:`cartolex.build.engine`), imported when a stage runs. A stage declared
+without a runner raises :class:`StageNotConnected`. :meth:`Registry.with_runners`
+replaces runners (a test's fake stages, the AI clean-up with its key).
 """
 
 from __future__ import annotations
@@ -88,7 +89,9 @@ class CostModel:
 
     Without a previous run, the estimate is ``fixed + per_unit × driver^exponent``.
     With one, the previous run's measures are scaled by the ratio of the driver
-    now to the driver then (recorded in its counts), to the same exponent.
+    now to the driver then (recorded in its counts), to the same exponent. A
+    *fallback* stands in for the driver before it is known (the vocabulary's
+    size before a first vocabulary is built, from the people).
     """
 
     driver: str
@@ -98,13 +101,19 @@ class CostModel:
     memory_mb_per_unit: float
     time_exponent: float = 1.0
     memory_exponent: float = 1.0
+    #: When the driver is not known yet: another size, and how many driver units per unit.
+    fallback: tuple[str, float] | None = None
 
     def __post_init__(self) -> None:
-        if self.driver not in SIZE_NAMES:
-            raise ValueError(f"unknown cost driver {self.driver!r}; known: {list(SIZE_NAMES)}")
+        for name in (self.driver, *(self.fallback[:1] if self.fallback else ())):
+            if name not in SIZE_NAMES:
+                raise ValueError(f"unknown cost driver {name!r}; known: {list(SIZE_NAMES)}")
 
     def estimate(self, sizes: ProjectSizes, last: RunRecord | None) -> Estimate:
         now = sizes.get(self.driver)
+        if now is None and self.fallback is not None:
+            other = sizes.get(self.fallback[0])
+            now = round(other * self.fallback[1]) if other is not None else None
         if last is not None and last.measures.seconds is not None:
             then = last.measures.counts.get(self.driver)
             s, m = last.measures.seconds, last.measures.peak_memory_mb
@@ -154,12 +163,15 @@ class Stage:
     counts report. ``applies`` returns why the stage does not apply to a project
     (it is then *skipped*), or ``None``; an opt-in stage applies only when its
     ``enabled`` parameter is true. ``extra_inputs`` lists more files it reads
-    (an overlay's tables) as ``(kind, path)`` pairs.
+    (an overlay's tables) as ``(kind, path)`` pairs. ``version`` is raised when
+    cartolex deliberately changes what the stage produces.
     """
 
     id: str
     name: str
     upstream: tuple[str, ...] = ()
+    #: Raised when cartolex deliberately changes what this stage produces.
+    version: int = 1
     decisions: tuple[str, ...] = ()
     sources: tuple[str, ...] = ()
     project: tuple[str, ...] = ()
@@ -176,12 +188,17 @@ class Stage:
     estimator: Callable[[Stage, ProjectSizes, RunRecord | None], Estimate] | None = None
     applies: Callable[[ProjectFile, ParamsFile], str | None] | None = None
     extra_inputs: Callable[[Project], list[tuple[str, Path]]] | None = None
+    #: Called by a build just before the stage runs (not by a dry run): it may write a
+    #: decision the stage needs, such as the first map version; returns what it did.
+    prepare: Callable[[Project], list[str]] | None = None
     #: For a network or paid stage: what goes out and what it costs, in words.
     consent_note: str = ""
 
     def __post_init__(self) -> None:
         if self.id not in STAGE_IDS:
             raise ValueError(f"unknown stage id {self.id!r}; known: {list(STAGE_IDS)}")
+        if isinstance(self.version, bool) or not isinstance(self.version, int) or self.version < 1:
+            raise ValueError(f"{self.id}: a stage version is a whole number from 1")
         if self.opt_in and not any(p.name == "enabled" for p in self.params):
             enabled = ParamSpec("enabled", "bool", "run this opt-in stage", default=False)
             object.__setattr__(self, "params", (enabled, *self.params))
@@ -322,6 +339,13 @@ class Registry:
 
 def _levels_grow(values: Mapping[str, Any], sizes: ProjectSizes, _: ProjectFile) -> str | None:
     k = sizes.kept_keywords or 0
+    if values.get("level_sizes"):
+        levels = tuple(values["level_sizes"])
+        if levels[-1] >= k:
+            return f"level_sizes ends with {levels[-1]} groups for {k} keyword(s)"
+        if any(b <= a for a, b in zip(levels, levels[1:], strict=False)):
+            return f"level_sizes {list(levels)} does not grow from the top"
+        return None
     top, depth = values["top_groups"], values["depth"]
     if top >= k:
         return f"top_groups is {top}, but the vocabulary holds only {k} keyword(s)"
@@ -335,14 +359,34 @@ def _levels_grow(values: Mapping[str, Any], sizes: ProjectSizes, _: ProjectFile)
     return None
 
 
-def _dimensions_fit(values: Mapping[str, Any], sizes: ProjectSizes, _: ProjectFile) -> str | None:
-    limit = min(sizes.kept_keywords or 0, sizes.people or 0)
-    if values["dimensions"] >= limit:
-        return (
-            f"dimensions is {values['dimensions']}, but the space of {sizes.kept_keywords} "
-            f"keyword(s) and {sizes.people} people allows fewer than {limit}"
-        )
-    return None
+def _engine(name: str) -> Runner:
+    """A runner of :mod:`cartolex.build.engine`, imported when the stage runs."""
+
+    def run(ctx: StageContext) -> Mapping[str, int] | None:
+        from . import engine
+
+        return getattr(engine, name)(ctx)
+
+    run.__name__ = run.__qualname__ = name
+    return run
+
+
+def _no_ai_key(ctx: StageContext) -> Mapping[str, int] | None:
+    from . import engine
+
+    return engine.triage_runner(None)(ctx)
+
+
+def _prepare_themes(project: Project) -> list[str]:
+    from . import engine
+
+    return engine.prepare_themes(project)
+
+
+def _prepare_maps(project: Project) -> list[str]:
+    from . import engine
+
+    return engine.prepare_maps(project)
 
 
 def _min_people_fit(values: Mapping[str, Any], sizes: ProjectSizes, _: ProjectFile) -> str | None:
@@ -365,14 +409,27 @@ def _has_overlays(config: ProjectFile, _: ParamsFile) -> str | None:
 
 
 def _overlay_tables(project: Project) -> list[tuple[str, Path]]:
+    """The tables of the projected sets kept in folders of their own.
+
+    A set without a ``root`` lives in the project's own tables, which
+    ``corpus.assemble`` reads.
+    """
     files: list[tuple[str, Path]] = []
     for overlay in project.config.overlays:
+        if overlay.root is None:
+            continue
         root = Path(overlay.root)
         root = root if root.is_absolute() else project.layout.root / root
         files.extend(("overlay", root / "tables" / f"{t}.parquet") for t in SOURCE_TABLES)
     return files
 
 
+#: cartolex's stages, each running the engine (``cartolex.build.engine``). The AI
+#: clean-up needs a key or a client: see :func:`cartolex.build.engine.engine_registry`.
+#: Cost models: fitted on fresh builds of the S and L demo worlds (one process, the
+#: numeric libraries on one thread), time in seconds and whole-process peak memory in
+#: MB; the layout's fixed time is mostly the layout library's compilation in a new
+#: process. The AI clean-up's is a guess: it depends on the provider.
 STAGES = Registry(
     [
         Stage(
@@ -385,7 +442,6 @@ STAGES = Registry(
             ),
             sources=SOURCE_TABLES,
             project=("languages", "slots", "levels"),
-            chunked=True,
             params=(
                 ParamSpec(
                     "parts",
@@ -421,7 +477,8 @@ STAGES = Registry(
             ),
             uses=("year",),
             provides=("people", "texts", "characters", "mapped_units"),
-            cost=CostModel("characters", 2.0, 1e-8, 150.0, 3e-6),
+            cost=CostModel("characters", 0.03, 9e-8, 160.0, 2.7e-5),
+            run=_engine("run_corpus"),
         ),
         Stage(
             "keywords.extract",
@@ -429,7 +486,6 @@ STAGES = Registry(
             upstream=("corpus.assemble",),
             decisions=("decisions/stopwords.json",),
             project=("languages", "identity.language_models"),
-            chunked=True,
             params=(
                 ParamSpec(
                     "counting_unit",
@@ -463,7 +519,8 @@ STAGES = Registry(
                     _min_people_fit,
                 ),
             ),
-            cost=CostModel("characters", 5.0, 2e-6, 500.0, 1e-5),
+            cost=CostModel("characters", 7.5, 2.24e-5, 850.0, 2.9e-5),
+            run=_engine("run_extract"),
         ),
         Stage(
             "keywords.triage",
@@ -479,14 +536,14 @@ STAGES = Registry(
             opt_in=True,
             network=True,
             paid=True,
-            chunked=True,
             checks=(CrossCheck("an AI provider is set", (), (), _ai_configured),),
             consent_note=(
                 "sends keyword strings, never texts or people, with the domain title and "
                 "description, to the AI provider set in project.json; it is billed by that "
                 "provider, and answers already paid for are reused from cache/ai/"
             ),
-            cost=CostModel("people", 10.0, 0.5, 200.0, 0.0),
+            cost=CostModel("people", 10.0, 0.5, 550.0, 0.0),
+            run=_no_ai_key,
         ),
         Stage(
             "keywords.build",
@@ -504,7 +561,8 @@ STAGES = Registry(
                 ),
             ),
             provides=("kept_keywords",),
-            cost=CostModel("characters", 5.0, 5e-7, 300.0, 5e-6),
+            cost=CostModel("characters", 3.1, 8.5e-6, 515.0, 4.6e-5),
+            run=_engine("run_build"),
         ),
         Stage(
             "themes.space",
@@ -520,16 +578,8 @@ STAGES = Registry(
                     maximum=1000,
                 ),
             ),
-            checks=(
-                CrossCheck(
-                    "fewer dimensions than keywords and people",
-                    ("dimensions",),
-                    ("kept_keywords", "people"),
-                    _dimensions_fit,
-                ),
-            ),
-            uses=("seed",),
-            cost=CostModel("people", 2.0, 0.01, 200.0, 0.5),
+            cost=CostModel("people", 0.09, 6.3e-4, 510.0, 0.35),
+            run=_engine("run_space"),
         ),
         Stage(
             "themes.group",
@@ -560,24 +610,44 @@ STAGES = Registry(
                     minimum=2,
                     maximum=10_000,
                 ),
+                ParamSpec(
+                    "level_sizes",
+                    "ints",
+                    "the number of groups at each level, from the top; when set, it replaces "
+                    "depth, top_groups and keywords_per_group",
+                    default=None,
+                    nullable=True,
+                    minimum=1,
+                    items=(1, 4),
+                ),
             ),
             checks=(
                 CrossCheck(
                     "the levels grow from the top, and there are fewer groups than keywords",
-                    ("depth", "top_groups", "keywords_per_group"),
+                    ("depth", "top_groups", "keywords_per_group", "level_sizes"),
                     ("kept_keywords",),
                     _levels_grow,
                 ),
             ),
-            uses=("seed",),
-            cost=CostModel("kept_keywords", 1.0, 1e-3, 100.0, 8e-6, memory_exponent=2.0),
+            cost=CostModel(
+                "kept_keywords",
+                0.03,
+                2.5e-4,
+                518.0,
+                1.8e-5,
+                memory_exponent=2.0,
+                fallback=("people", 12.0),
+            ),
+            run=_engine("run_group"),
         ),
         Stage(
             "themes.apply",
             "apply your themes",
             upstream=("themes.group",),
             decisions=("decisions/themes.json",),
-            cost=CostModel("kept_keywords", 1.0, 1e-4, 200.0, 0.01),
+            cost=CostModel("kept_keywords", 0.01, 2.2e-5, 502.0, 0.037, fallback=("people", 12.0)),
+            prepare=_prepare_themes,
+            run=_engine("run_apply"),
         ),
         Stage(
             "map.layout",
@@ -585,7 +655,9 @@ STAGES = Registry(
             upstream=("themes.apply",),
             decisions=("decisions/maps.json",),
             project=("levels",),
-            cost=CostModel("mapped_units", 5.0, 0.01, 300.0, 0.05),
+            cost=CostModel("mapped_units", 17.4, 0.011, 665.0, 1.0),
+            prepare=_prepare_maps,
+            run=_engine("run_layout"),
         ),
         Stage(
             "map.trajectories",
@@ -603,7 +675,8 @@ STAGES = Registry(
                 ),
             ),
             uses=("year",),
-            cost=CostModel("mapped_units", 2.0, 0.005, 200.0, 0.02),
+            cost=CostModel("mapped_units", 0.1, 0.053, 686.0, 0.91),
+            run=_engine("run_trajectories"),
         ),
         Stage(
             "overlays.position",
@@ -612,7 +685,8 @@ STAGES = Registry(
             project=("overlays",),
             applies=_has_overlays,
             extra_inputs=_overlay_tables,
-            cost=CostModel("mapped_units", 2.0, 0.001, 200.0, 0.01),
+            cost=CostModel("mapped_units", 0.0, 0.02, 705.0, 0.42),
+            run=_engine("run_overlays"),
         ),
     ]
 )

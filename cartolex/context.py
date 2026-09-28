@@ -30,7 +30,11 @@ if TYPE_CHECKING:
     #: A folder of prompt templates: a directory on disk or packaged resources.
     PromptDir = Path | Traversable
 
-__all__ = ["EnginePaths", "PathPattern", "RunContext", "ThreadLimits"]
+__all__ = ["EnginePaths", "PathPattern", "RunCancelled", "RunContext", "ThreadLimits"]
+
+
+class RunCancelled(Exception):
+    """The run was stopped through its context's ``cancel`` callable."""
 
 
 @dataclass(frozen=True)
@@ -281,6 +285,13 @@ class RunContext:
     its outputs, when the guard is set. ``now_year`` is the year every date
     window is computed from. :meth:`replace` copies share the objects they do
     not replace (the usage recorder, for example).
+
+    ``progress(fraction, message)`` receives the stages' progress (0 to 1 within
+    the running stage) and ``cancel()`` is asked between steps and inside the long
+    loops: when it returns true, the stage raises :class:`RunCancelled` (the AI
+    triage raises its own cancel error). ``ai_client``, when set, builds the AI
+    provider's client (called like the provider SDK's client class), so a test
+    or a reference run can answer with a model of its own.
     """
 
     paths: EnginePaths
@@ -292,6 +303,9 @@ class RunContext:
     now_year: int = field(default_factory=_this_year)
     threads: ThreadLimits = field(default_factory=ThreadLimits)
     usage: UsageRecorder = field(default_factory=_new_usage_recorder)
+    progress: Callable[[float, str], Any] | None = None
+    cancel: Callable[[], bool] | None = None
+    ai_client: Callable[..., Any] | None = None
 
     @classmethod
     def for_workspace(
@@ -321,6 +335,34 @@ class RunContext:
             additions = load_overrides(paths.overrides_json)
             overrides["stopwords"] = StopwordProfile.default().with_overrides(additions)
         return cls(paths=paths, settings=settings, **overrides)
+
+    def report(self, fraction: float, message: str = "") -> None:
+        """Report how far the running step is (0 to 1), then stop here if the run was cancelled."""
+        if self.progress is not None:
+            self.progress(min(1.0, max(0.0, float(fraction))), message)
+        self.check_cancel()
+
+    def check_cancel(self) -> None:
+        """Raise :class:`RunCancelled` when the run's ``cancel`` callable says so."""
+        if self.cancel is not None and self.cancel():
+            raise RunCancelled("the run was cancelled")
+
+    def percent_reporter(
+        self, callback: Callable[[int, str], Any] | None = None
+    ) -> Callable[[int, str], None]:
+        """A ``(percent, message)`` callback for a stage's own progress reports.
+
+        It calls *callback* when there is one, then :meth:`report`, so the
+        stage's progress reaches the context and a cancel stops the stage at
+        its next report.
+        """
+
+        def reporter(percent: int, message: str) -> None:
+            if callback is not None:
+                callback(percent, message)
+            self.report(percent / 100.0, message)
+
+        return reporter
 
     def replace(self, **changes: Any) -> RunContext:
         """A copy of this context with *changes* applied."""

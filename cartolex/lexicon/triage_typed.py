@@ -568,6 +568,7 @@ def run_typed_triage(
     timeout_s: float = DEFAULT_TIMEOUT_S,
     should_cancel: Callable[[], bool] | None = None,
     usage: UsageRecorder | None = None,
+    client_factory: Callable[..., Any] | None = None,
 ) -> dict[str, Any]:
     """Run the typed single-pass triage.
 
@@ -590,7 +591,9 @@ def run_typed_triage(
     ``timeout_s`` bounds every individual API call, and ``should_cancel`` — polled
     before each call and during every backoff wait — lets a GUI stop the run: an
     unattended batch of hundreds of calls must never be able to hang or to become
-    unstoppable.  A batch that fails for a non-retryable reason (a refused key, an
+    unstoppable.  *client_factory* replaces the provider SDK's client class (a
+    test or a reference run answers with a model of its own).  A batch that
+    fails for a non-retryable reason (a refused key, an
     empty wallet) aborts the whole run at once, raising
     :class:`~cartolex.lexicon.mistral_client.LLMError` with the cause named.
     """
@@ -633,6 +636,7 @@ def run_typed_triage(
         throttle=throttle,
         should_cancel=_stop,
         usage=usage,
+        client_factory=client_factory,
     )
 
     # Per-term cache lookup

@@ -21,7 +21,7 @@ from cartolex.build import (
     theme_level_sizes,
 )
 from cartolex.build.params import check_params, resolve_params
-from cartolex.project import STAGE_IDS
+from cartolex.project import SOURCE_TABLES, STAGE_IDS
 from cartolex.project.models import ParamsFile
 
 # ── the rules the build ships ────────────────────────────────────────────────
@@ -191,11 +191,14 @@ def test_effective_values_say_where_they_come_from():
     resolved = resolve_params(stage, params, sizes, year=YEAR)
     values = {k: (v.value, v.source, v.rule) for k, v in resolved.values.items()}
     assert values == {
-        "seed": (11, "params.json", None),
         "depth": (2, "rule", "theme_depth"),
         "top_groups": (12, "params.json", None),
         "keywords_per_group": (20, "default", None),
+        "level_sizes": (None, "default", None),
     }
+    fake = make_registry(Controls(log=None))["themes.group"]  # a stage that uses the seed
+    seeded = resolve_params(fake, params, sizes, year=YEAR)
+    assert (seeded.values["seed"].value, seeded.values["seed"].source) == (11, "params.json")
     pinned = resolve_params(
         STAGES["map.trajectories"], ParamsFile(pinned_year=2020), sizes, year=YEAR
     )
@@ -229,12 +232,6 @@ def test_a_rule_waits_for_its_sizes():
             ProjectSizes(kept_keywords=2_000, mapped_units=500),
             "would not grow",
         ),
-        (
-            "themes.space",
-            {"dimensions": 50},
-            ProjectSizes(kept_keywords=900, people=30),
-            "allows fewer than 30",
-        ),
         ("keywords.extract", {"min_people": 9}, ProjectSizes(people=4), "only 4 people"),
     ],
 )
@@ -266,3 +263,52 @@ def test_ai_clean_up_needs_a_provider():
     resolved = resolve_params(stage, ParamsFile(), ProjectSizes(), year=YEAR)
     problems = resolved.problems(stage, ProjectSizes(), make_config())
     assert problems and "identity.ai" in problems[0]
+
+
+def test_overlay_inputs_are_the_tables_of_sets_with_their_own_folder(tmp_path):
+    from cartolex.build.fingerprints import input_files
+    from cartolex.project.models import Overlay
+
+    project = make_project(tmp_path / "p")
+    config = project.config.model_copy(
+        update={"overlays": [Overlay(id="inside"), Overlay(id="outside", root="../elsewhere")]}
+    )
+    project.save_config(config, action="test")
+    files = input_files(project, STAGES["overlays.position"])
+    assert {f.kind for f in files} == {"overlay"}
+    assert {f.path for f in files} == {f"../elsewhere/tables/{t}.parquet" for t in SOURCE_TABLES}
+    project.close()
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        ([12, 150], None),
+        (None, None),
+        ([], "does not have 1 to 4 items"),
+        ([1, 2, 3, 4, 5], "does not have 1 to 4 items"),
+        ([0, 10], "below the minimum 1"),
+        (["12"], "not a list of whole numbers"),
+        ([True], "not a list of whole numbers"),
+    ],
+)
+def test_explicit_level_sizes(value, message):
+    problems = check_params(ParamsFile(stages={"themes.group": {"level_sizes": value}}), STAGES)
+    assert (
+        (problems[0] if problems else None) is None if message is None else message in problems[0]
+    )
+
+
+def test_explicit_level_sizes_must_grow_and_fit_the_vocabulary():
+    stage = STAGES["themes.group"]
+    sizes = ProjectSizes(kept_keywords=1_000, mapped_units=500)
+    for value, message in (
+        ([12, 150], None),
+        ([150, 12], "does not grow"),
+        ([12, 1_000], "for 1000"),
+    ):
+        params = ParamsFile(stages={"themes.group": {"level_sizes": value}})
+        problems = resolve_params(stage, params, sizes, year=YEAR).problems(
+            stage, sizes, make_config()
+        )
+        assert (not problems) if message is None else message in problems[0]

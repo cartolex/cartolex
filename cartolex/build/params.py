@@ -43,7 +43,7 @@ __all__ = [
     "theme_level_sizes",
 ]
 
-ParamType = Literal["int", "float", "bool", "str", "list"]
+ParamType = Literal["int", "float", "bool", "str", "list", "ints"]
 
 #: The sizes a rule may use, in the order they are shown.
 SIZE_NAMES = ("people", "texts", "characters", "kept_keywords", "mapped_units")
@@ -163,7 +163,9 @@ class ParamSpec:
     Its value comes from ``params.json`` when set there; otherwise from the named
     :attr:`rule` when there is one, else from :attr:`default`. ``minimum`` and
     ``maximum`` bound numbers; ``choices`` lists the allowed values of a string,
-    or of each item of a list.
+    or of each item of a list. A ``list`` holds texts, ``ints`` whole numbers
+    (``minimum`` and ``maximum`` then bound each number, ``items`` the length).
+    A *nullable* parameter also takes ``null``: « not set ».
     """
 
     name: str
@@ -174,6 +176,8 @@ class ParamSpec:
     minimum: float | None = None
     maximum: float | None = None
     choices: tuple[Any, ...] | None = None
+    nullable: bool = False
+    items: tuple[int, int] | None = None
 
     def __post_init__(self) -> None:
         if self.rule is not None and self.rule not in RULES:
@@ -186,6 +190,22 @@ class ParamSpec:
     def problem(self, value: Any) -> str | None:
         """Why *value* cannot be this parameter's value, or ``None`` when it can."""
         t = self.type
+        if value is None and self.nullable:
+            return None
+        if t == "ints":
+            if not isinstance(value, list) or not all(
+                isinstance(v, int) and not isinstance(v, bool) for v in value
+            ):
+                return f"{value!r} is not a list of whole numbers"
+            if self.items is not None and not self.items[0] <= len(value) <= self.items[1]:
+                return f"{value!r} does not have {self.items[0]} to {self.items[1]} items"
+            low = [v for v in value if self.minimum is not None and v < self.minimum]
+            if low:
+                return f"{value!r} has a number below the minimum {self.minimum:g}"
+            high = [v for v in value if self.maximum is not None and v > self.maximum]
+            if high:
+                return f"{value!r} has a number above the maximum {self.maximum:g}"
+            return None
         if t == "bool":
             if not isinstance(value, bool):
                 return f"{value!r} is not true or false"
@@ -228,7 +248,7 @@ class ParamSpec:
         """The value as stored in a record (a float parameter set to 1 is 1.0)."""
         if self.type == "float":
             return float(value)
-        if self.type == "list":
+        if self.type in ("list", "ints") and value is not None:
             return list(value)
         return value
 
