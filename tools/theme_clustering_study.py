@@ -197,9 +197,9 @@ def agreement(spec: dict, limits: list[int], inits: tuple[str, ...]) -> list[dic
 def _table(rows: list[dict]) -> str:
     if not rows:
         return ""
-    keys = list(rows[0])
+    keys = list(dict.fromkeys(k for r in rows for k in r))
     lines = ["| " + " | ".join(keys) + " |", "|" + " --- |" * len(keys)]
-    lines += ["| " + " | ".join(str(r[k]) for k in keys) + " |" for r in rows]
+    lines += ["| " + " | ".join(str(r.get(k, "")) for k in keys) + " |" for r in rows]
     return "\n".join(lines)
 
 
