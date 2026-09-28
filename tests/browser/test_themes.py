@@ -467,6 +467,90 @@ def test_ai_handoff_export_import_and_accept(editor):
     assert len(proposals) == 1
 
 
+def test_a_range_of_keywords_moves_together_and_saving_removes_empty_nodes(editor):
+    ui = editor
+    page = ui.page
+    keys = page.keyboard
+    t = tree(ui)
+    tops = [n for n in t["nodes"] if n["parent"] is None]
+    topic = next(n for n in t["nodes"] if n["parent"] == tops[0]["id"])
+    row(ui, name_of(topic)).first.click()
+    keys.press("ArrowRight")
+    keys.press("ArrowDown")
+    keys.press("Shift+ArrowDown")
+    keys.press("Shift+ArrowDown")
+    assert outline(ui).locator("[role=treeitem][aria-selected=true]").count() == 3
+    keys.press("Shift+F10")
+    menu_item(ui, "Move to…").click()
+    pick(ui, name_of(tops[1]))
+    wait_status(ui, "1 unsaved change")
+    assert undo_label(ui).startswith("Undo: Move 3 keywords to")
+    # a new node left empty is removed by the save, which says so
+    page.locator(".cx-themes-outline__tools").get_by_role("button", name="New node").click()
+    dialog(ui).get_by_label("Name in English").fill("Left empty")
+    dialog(ui).get_by_label("Name in English").press("Enter")
+    wait_status(ui, "2 unsaved changes")
+    keys.press("Control+s")
+    page.locator(".cx-toast", has_text="empty node").wait_for()
+    assert "Left empty" not in {name_of(n) for n in tree(ui)["nodes"]}
+
+
+def test_a_tree_of_another_vocabulary_shows_a_banner_and_rebases(editor):
+    ui = editor
+    page = ui.page
+    current = api(ui, "GET", "/api/themes")
+    other = {
+        **current["data"]["tree"],
+        "based_on": {"run": None, "vocabulary": "sha256:" + "0" * 64},
+    }
+    assert (
+        api(ui, "PUT", "/api/themes", {"tree": other, "action": "older"}, current["etag"])["status"]
+        == 200
+    )
+    page.reload()
+    ui.wait_ready(0)
+    banner = page.locator(".cx-themes-banner", has_text="earlier vocabulary")
+    banner.wait_for()
+    banner.get_by_role("button", name="Rebase onto the current vocabulary").click()
+    page.locator(".cx-toast", has_text="Rebased").wait_for()
+    banner.wait_for(state="detached")
+    assert api(ui, "GET", "/api/themes")["data"]["based_on_current"] is True
+
+
+def test_a_clustering_only_change_is_agreed_once_in_the_editor(editor):
+    ui = editor
+    page = ui.page
+    page.locator(".cx-themes__toolbar").get_by_role("button", name="Save the proposal").click()
+    wait_status(ui, "Saved")
+    params = api(ui, "GET", "/api/params")
+    changed = api(
+        ui, "PUT", "/api/params", {"stages": {"themes.group": {"top_groups": 12}}}, params["etag"]
+    )
+    assert changed["status"] == 200
+    job = api(ui, "POST", "/api/build", {"scope": ["themes.group"], "dry_run": False})["data"][
+        "job"
+    ]
+    page.wait_for_function(
+        """async (id) => { const r = await fetch('/api/jobs/' + id); const j = await r.json();
+          return j.state === 'succeeded'; }""",
+        arg=job["id"],
+        timeout=120_000,
+        polling=500,
+    )
+    page.reload()
+    ui.wait_ready(0)
+    banner = page.locator(".cx-themes-banner", has_text="grouping ran again")
+    banner.wait_for()
+    banner.get_by_role("button", name="Compare…").click()
+    compare = page.get_by_role("dialog", name="A new proposal of the grouping")
+    compare.locator(".cx-themes-changes").wait_for()
+    compare.get_by_role("button", name="Adopt the proposal").click()
+    page.locator(".cx-toast", has_text="The proposal is now your tree").wait_for()
+    banner.wait_for(state="detached")
+    tops = [n for n in tree(ui)["nodes"] if n["parent"] is None]
+    assert len(tops) == 12
+
+
 def test_every_action_by_the_keyboard_alone(editor):
     """Rename, merge, move, set aside, attribution, split, create, delete, put back, a level,
     undo, redo and save, with keys only (a focus() only starts the script)."""
