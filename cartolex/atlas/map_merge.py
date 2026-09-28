@@ -9,6 +9,7 @@ joint researcher×sense matrix and its embedding:
 - :func:`assemble_joint_matrix` — pool the **plain-TF** tracks onto the merged
   sense vocabulary V*. Only ``X_tf`` may be pooled: the boosted ``X`` carries
   per-cohort IDF, which would give identical terms cohort-dependent weights.
+  The pooled matrix is sparse (CSR).
 - :func:`weight_matrix` — sublinear TF · joint IDF (pooled or macro-averaged) ·
   length bonus (the single-cohort pipeline's ``score * (1 + α(L−1))``) · row L2.
 - :func:`balanced_svd` — fit ``TruncatedSVD`` on a **cohort-balanced,
@@ -26,6 +27,11 @@ joint researcher×sense matrix and its embedding:
 
 Researcher identity: rows are namespaced ``{cohort_id}:{local_id}`` — local
 opaque ids never collide across cohorts and provenance stays a public facet.
+
+Size: no step holds a dense researcher × sense matrix. The matrices stay sparse,
+and the steps that need dense arithmetic take them a block of rows at a time
+(:mod:`cartolex.atlas.blocks`), which gives exactly the dense results on a matrix
+of one block (every demo world).
 """
 
 from __future__ import annotations
@@ -35,12 +41,13 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from scipy import sparse
 from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import normalize
 from threadpoolctl import threadpool_limits
 
+from .blocks import as_csr, dense_rows, one_block, row_blocks
 from .reconcile import ReconciliationTable
-from .types import to_dense
 
 logger = logging.getLogger(__name__)
 
@@ -58,17 +65,23 @@ __all__ = [
 
 @dataclass
 class CohortInput:
-    """One cohort's anonymized inputs for the merge (plain-TF track only)."""
+    """One cohort's anonymized inputs for the merge (plain-TF track only).
+
+    ``X_tf`` may be given dense or sparse; it is kept as a float64 CSR matrix.
+    """
 
     cohort_id: str
     terms: list[str]
-    X_tf: np.ndarray
+    X_tf: sparse.csr_matrix
     researcher_ids: list[str]
     units: list[str] | None = None
 
     def __post_init__(self) -> None:
-        X = to_dense(self.X_tf)
-        if X.ndim != 2 or X.shape != (len(self.researcher_ids), len(self.terms)):
+        try:
+            X = as_csr(self.X_tf)
+        except ValueError as exc:
+            raise ValueError(f"Cohort {self.cohort_id!r}: X_tf {exc}") from None
+        if X.shape != (len(self.researcher_ids), len(self.terms)):
             raise ValueError(
                 f"Cohort {self.cohort_id!r}: X_tf shape {X.shape} does not match "
                 f"({len(self.researcher_ids)} researchers, {len(self.terms)} terms)"
@@ -80,15 +93,21 @@ class CohortInput:
 
 @dataclass
 class JointData:
-    """The pooled researcher×sense matrix and its row/column identities."""
+    """The pooled researcher×sense matrix and its row/column identities.
 
-    T: np.ndarray  # (n_researchers_total, n_senses) raw pooled plain-TF
+    ``T`` may be given dense or sparse; it is kept as a float64 CSR matrix.
+    """
+
+    T: sparse.csr_matrix  # (n_researchers_total, n_senses) raw pooled plain-TF
     sense_ids: list[str]
     researcher_ids: list[str]  # namespaced "{cohort_id}:{local_id}"
     cohorts: list[str]  # per-row cohort id
     units: list[str]  # per-row unit ("" when unknown)
     sense_cohorts: dict[str, list[str]]  # sense id → contributing cohorts
     unmapped_terms: dict[str, int]  # cohort id → raw terms without a sense
+
+    def __post_init__(self) -> None:
+        self.T = as_csr(self.T)
 
     @property
     def cohort_of_row(self) -> np.ndarray:
@@ -103,14 +122,15 @@ def namespaced_id(cohort_id: str, local_id: str) -> str:
 def assemble_joint_matrix(cohorts: list[CohortInput], table: ReconciliationTable) -> JointData:
     """Pool per-cohort plain-TF matrices onto the merged sense vocabulary.
 
-    Raw terms that fold to the same sense (within or across cohorts) sum; raw
-    terms absent from *table* are skipped and counted in ``unmapped_terms``
-    (they should be none when the table was built from the same vocabularies).
+    Raw terms that fold to the same sense (within or across cohorts) sum, in the
+    order of the cohort's terms; raw terms absent from *table* are skipped and
+    counted in ``unmapped_terms`` (they should be none when the table was built
+    from the same vocabularies). The pooled matrix ``T`` is sparse.
     """
     sense_ids = table.sense_ids
     col_of_sense = {sid: j for j, sid in enumerate(sense_ids)}
 
-    blocks: list[np.ndarray] = []
+    blocks: list[sparse.csr_matrix] = []
     researcher_ids: list[str] = []
     row_cohorts: list[str] = []
     units: list[str] = []
@@ -134,10 +154,15 @@ def assemble_joint_matrix(cohorts: list[CohortInput], table: ReconciliationTable
                 n_unmapped,
                 len(cohort.terms),
             )
-        M = np.zeros((cohort.X_tf.shape[0], len(sense_ids)))
-        for j, target in enumerate(target_cols):
-            if target >= 0:
-                M[:, target] += cohort.X_tf[:, j]
+        # A 0/1 folding matrix: each row's cells are added into their sense's cell
+        # in the order of the cohort's terms (sorted column indices), from zero.
+        kept = np.flatnonzero(target_cols >= 0)
+        fold = sparse.csr_matrix(
+            (np.ones(kept.size), (kept, target_cols[kept])),
+            shape=(len(cohort.terms), len(sense_ids)),
+        )
+        M = (cohort.X_tf @ fold).tocsr()
+        M.sort_indices()
         blocks.append(M)
         researcher_ids.extend(namespaced_id(cohort.cohort_id, rid) for rid in cohort.researcher_ids)
         row_cohorts.extend([cohort.cohort_id] * len(cohort.researcher_ids))
@@ -149,7 +174,7 @@ def assemble_joint_matrix(cohorts: list[CohortInput], table: ReconciliationTable
         raise ValueError("Duplicate namespaced researcher ids across cohorts.")
 
     return JointData(
-        T=np.vstack(blocks) if blocks else np.zeros((0, len(sense_ids))),
+        T=sparse.vstack(blocks, format="csr") if blocks else sparse.csr_matrix((0, len(sense_ids))),
         sense_ids=list(sense_ids),
         researcher_ids=researcher_ids,
         cohorts=row_cohorts,
@@ -163,20 +188,25 @@ def _sense_token_count(sense_id: str) -> int:
     return max(1, len(sense_id.split("#", 1)[0].split(" ")))
 
 
+def _present_counts(present: sparse.csr_matrix) -> np.ndarray:
+    """Per-column counts of a boolean sparse matrix, as int64."""
+    return np.asarray(present.sum(axis=0), dtype=np.int64).ravel()
+
+
 def joint_idf(
-    T: np.ndarray, cohorts: list[str] | np.ndarray, *, mode: str = "pooled"
+    T: np.ndarray | sparse.spmatrix, cohorts: list[str] | np.ndarray, *, mode: str = "pooled"
 ) -> np.ndarray:
-    """Column IDF for the pooled matrix.
+    """Column IDF for the pooled matrix (dense or sparse).
 
     ``"pooled"`` — smooth researcher-level IDF over all rows,
     ``log((1+N)/(1+df)) + 1`` (the sklearn convention the single-cohort pipeline uses).
     ``"macro"`` — ``log(1/(ε + mean_s df_s/N_s))``: cohort-size-free, but boosts
     cohort-marker terms (opposite bias — compute both to compare).
     """
-    T = np.asarray(T, dtype=float)
+    T = as_csr(T)
     present = T > 0
     if mode == "pooled":
-        df = present.sum(axis=0)
+        df = _present_counts(present)
         return np.log((1.0 + T.shape[0]) / (1.0 + df)) + 1.0
     if mode == "macro":
         cohort_of = np.asarray(cohorts, dtype=object)
@@ -185,7 +215,7 @@ def joint_idf(
             rows = cohort_of == s
             n_s = int(rows.sum())
             if n_s:
-                fracs.append(present[rows].sum(axis=0) / n_s)
+                fracs.append(_present_counts(present[np.flatnonzero(rows)]) / n_s)
         mean_frac = np.mean(np.vstack(fracs), axis=0) if fracs else np.zeros(T.shape[1])
         return np.log(1.0 / (1e-6 + mean_frac))
     raise ValueError(f"Unknown idf mode {mode!r} (expected 'pooled' or 'macro')")
@@ -197,22 +227,31 @@ def weight_matrix(
     idf_mode: str = "pooled",
     sublinear: bool = True,
     length_alpha: float = 2.0,
-) -> np.ndarray:
+) -> sparse.csr_matrix:
     """Weight the pooled TF matrix: sublinear TF · joint IDF · length bonus · L2.
 
     Mirrors the single-cohort pipeline's scoring shape (TF-IDF with the
     ``score * (1 + α(L−1))`` length bonus on the sense's token count) so joint
     rows live in the same kind of space single-cohort rows do; the IDF is the
-    *joint* one.
+    *joint* one. Returns a sparse matrix with the cells of ``joint.T``; every
+    step works row by row, a block of rows at a time.
     """
-    W = np.asarray(joint.T, dtype=float).copy()
-    if sublinear:
-        nz = W > 0
-        W[nz] = 1.0 + np.log(W[nz])
-    W *= joint_idf(joint.T, joint.cohorts, mode=idf_mode)[None, :]
+    T = joint.T
+    idf = joint_idf(T, joint.cohorts, mode=idf_mode)
     lengths = np.array([_sense_token_count(s) for s in joint.sense_ids], dtype=float)
-    W *= (1.0 + length_alpha * (lengths - 1.0))[None, :]
-    return normalize(W, norm="l2", axis=1)
+    bonus = 1.0 + length_alpha * (lengths - 1.0)
+    out: list[sparse.csr_matrix] = []
+    for rows in row_blocks(T.shape[0], T.shape[1]):
+        W = dense_rows(T, rows)
+        if sublinear:
+            nz = W > 0
+            W[nz] = 1.0 + np.log(W[nz])
+        W *= idf[None, :]
+        W *= bonus[None, :]
+        out.append(sparse.csr_matrix(normalize(W, norm="l2", axis=1)))
+    if not out:
+        return sparse.csr_matrix(T.shape)
+    return sparse.vstack(out, format="csr")
 
 
 @dataclass
@@ -227,7 +266,7 @@ class JointEmbedding:
 
 
 def balanced_svd(
-    X_w: np.ndarray,
+    X_w: np.ndarray | sparse.spmatrix,
     cohorts: list[str] | np.ndarray,
     researcher_ids: list[str],
     *,
@@ -242,8 +281,13 @@ def balanced_svd(
     variance axes without reweighting rows (which would break the unit row norms
     the cosine geometry relies on). ``Z_senses = Vt.T · S`` places senses in the
     same latent space, exactly like the per-cohort pipeline.
+
+    *X_w* may be dense or sparse. The fit rows are fitted dense when they make
+    one block (:data:`~cartolex.atlas.blocks.BLOCK_CELLS` cells), sparse
+    otherwise; every row is then transformed a block of rows at a time.
     """
-    X_w = np.asarray(X_w, dtype=float)
+    if not sparse.issparse(X_w):
+        X_w = np.asarray(X_w, dtype=float)
     cohort_of = np.asarray(cohorts, dtype=object)
     fit_mask = np.zeros(X_w.shape[0], dtype=bool)
     for s in sorted(set(cohort_of.tolist())):
@@ -257,10 +301,16 @@ def balanced_svd(
         logger.warning("Clamping joint SVD n_components %d → %d.", n_components, eff)
 
     svd = TruncatedSVD(n_components=eff, random_state=random_state)
+    fit_rows = X_w[np.flatnonzero(fit_mask)]
+    if sparse.issparse(fit_rows) and one_block(n_fit, X_w.shape[1]):
+        fit_rows = fit_rows.toarray()
     # Same BLAS pinning as cartolex.atlas.reducers (server-thread deadlock guard).
     with threadpool_limits(limits=1, user_api="blas"):
-        svd.fit(X_w[fit_mask])
-    Z_ind = svd.transform(X_w)
+        svd.fit(fit_rows)
+    parts = [
+        svd.transform(dense_rows(X_w, rows)) for rows in row_blocks(X_w.shape[0], X_w.shape[1])
+    ]
+    Z_ind = np.vstack(parts) if parts else np.zeros((0, eff))
     Z_senses = svd.components_.T * svd.singular_values_
     return JointEmbedding(
         Z_ind=Z_ind,
@@ -329,13 +379,17 @@ def researcher_concept_weights(
 
     A researcher weighs on a concept only through the pooled TF mass they carry
     on that concept's senses (never proximity). Rows with no evidence stay zero.
+    The result is dense, researchers × concepts; the pooled matrix is read a
+    block of rows at a time.
     """
-    n_res = joint.T.shape[0]
+    n_res, n_senses = joint.T.shape
     W = np.zeros((n_res, len(concept_meta)))
-    for k, c in enumerate(concept_meta):
-        cols = c["sense_cols"]
-        if cols:
-            W[:, k] = joint.T[:, cols].sum(axis=1)
+    for rows in row_blocks(n_res, n_senses):
+        T = dense_rows(joint.T, rows)
+        for k, c in enumerate(concept_meta):
+            cols = c["sense_cols"]
+            if cols:
+                W[rows, k] = T[:, cols].sum(axis=1)
     row_sums = W.sum(axis=1, keepdims=True)
     return np.divide(W, row_sums, out=np.zeros_like(W), where=row_sums > 0)
 

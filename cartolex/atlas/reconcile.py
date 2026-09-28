@@ -43,6 +43,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from scipy import sparse
 
 from cartolex.lexicon.canonicalization import canonical_singular
 
@@ -211,24 +212,31 @@ class CohortSense:
 def build_cohort_senses(
     cohort_id: str,
     terms: Sequence[str],
-    X_tf: np.ndarray,
+    X_tf: np.ndarray | sparse.spmatrix,
     *,
     concept_of_term: Mapping[str, str] | None = None,
     top_co: int = 15,
 ) -> list[CohortSense]:
     """R1: fold a cohort's vocabulary to senses and attach PPMI contexts.
 
-    *X_tf* is the cohort's plain-TF researcher×term matrix (a bundle's ``X_tf``);
-    only its non-zero pattern matters here. Raw terms folding to the same R0
-    surface are summed into one sense. PPMI is computed over researchers:
-    ``ppmi(t, u) = max(0, log(co · N / (df_t · df_u)))``.
+    *X_tf* is the cohort's plain-TF researcher×term matrix (a bundle's ``X_tf``),
+    dense or sparse; only its non-zero pattern matters here. Raw terms folding to
+    the same R0 surface are summed into one sense. PPMI is computed over
+    researchers: ``ppmi(t, u) = max(0, log(co · N / (df_t · df_u)))``, for the
+    pairs of surfaces used together (the co-usage matrix is sparse).
     """
-    X = np.asarray(X_tf, dtype=float)
+    if sparse.issparse(X_tf):
+        X = sparse.csc_matrix(X_tf, dtype=np.float64)
+    else:
+        X = np.asarray(X_tf, dtype=float)
     if X.ndim != 2 or X.shape[1] != len(terms):
         raise ValueError(
             f"X_tf shape {X.shape} does not match vocabulary size {len(terms)} "
             f"for cohort {cohort_id!r}"
         )
+    if not sparse.issparse(X):
+        X = sparse.csc_matrix(X)
+    X.sum_duplicates()
 
     surface_terms: dict[str, list[str]] = {}
     for t in terms:
@@ -238,34 +246,48 @@ def build_cohort_senses(
     surfaces = sorted(surface_terms)
     col_of_term = {str(t): j for j, t in enumerate(terms)}
 
-    # Fold columns: binary usage + total TF per surface.
+    # Fold columns: binary usage + total TF per surface. The total sums the dense
+    # researcher × column block of the surface, as numpy sums it.
     n_res = X.shape[0]
-    B = np.zeros((n_res, len(surfaces)))
+    used_rows: list[np.ndarray] = []
     tf_tot = np.zeros(len(surfaces))
     for j, surf in enumerate(surfaces):
         cols = [col_of_term[t] for t in surface_terms[surf]]
         block = X[:, cols]
-        B[:, j] = (block > 0).any(axis=1)
-        tf_tot[j] = float(block.sum())
-    df = B.sum(axis=0)
+        used_rows.append(np.unique(block.indices[block.data > 0]))
+        tf_tot[j] = float(block.toarray().sum())
+    counts = np.array([len(r) for r in used_rows], dtype=np.int64)
+    B = sparse.csc_matrix(
+        (
+            np.ones(int(counts.sum())),
+            np.concatenate(used_rows) if used_rows else np.zeros(0, dtype=np.int64),
+            np.concatenate([[0], np.cumsum(counts)]),
+        ),
+        shape=(n_res, len(surfaces)),
+    )
+    df = counts.astype(float)
 
-    # PPMI over researchers (co-usage counts).
-    co = B.T @ B
+    # PPMI over researchers, on the pairs used together (co-usage counts).
+    co = (B.T @ B).tocsr()
+    co.sum_duplicates()
+    rows_of = np.repeat(np.arange(co.shape[0]), np.diff(co.indptr))
     with np.errstate(divide="ignore", invalid="ignore"):
-        pmi = np.log(co * max(n_res, 1) / np.outer(df, df))
+        pmi = np.log(co.data * max(n_res, 1) / (df[rows_of] * df[co.indices]))
     ppmi = np.where(np.isfinite(pmi), np.maximum(pmi, 0.0), 0.0)
-    np.fill_diagonal(ppmi, 0.0)
-    ppmi[co < 1] = 0.0
+    ppmi[rows_of == co.indices] = 0.0
+    ppmi[co.data < 1] = 0.0
 
     concept_of_term = dict(concept_of_term or {})
     senses: list[CohortSense] = []
     for j, surf in enumerate(surfaces):
-        weights = ppmi[j]
-        order = sorted(
-            (k for k in np.nonzero(weights > 0)[0]),
-            key=lambda k: (-weights[k], surfaces[k]),
-        )[:top_co]
-        context = [(surfaces[k], round(float(weights[k]), 6)) for k in order]
+        start, stop = co.indptr[j], co.indptr[j + 1]
+        weight_of = {
+            int(k): float(w)
+            for k, w in zip(co.indices[start:stop], ppmi[start:stop], strict=True)
+            if w > 0
+        }
+        order = sorted(weight_of, key=lambda k: (-weight_of[k], surfaces[k]))[:top_co]
+        context = [(surfaces[k], round(weight_of[k], 6)) for k in order]
         labels = sorted({concept_of_term.get(t, "") for t in surface_terms[surf]} - {""})
         senses.append(
             CohortSense(

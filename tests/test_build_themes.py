@@ -108,7 +108,7 @@ def _check_bundle(root: Path, tmp_path: Path, depth: int) -> None:
             check_dtype=False,
         )
         a, b = back.to_cohort_input(), bundle.to_cohort_input()
-        assert a.terms == b.terms and np.array_equal(np.asarray(a.X_tf), np.asarray(b.X_tf))
+        assert a.terms == b.terms and np.array_equal(a.X_tf.toarray(), b.X_tf.toarray())
 
 
 @pytest.mark.models("en", "fr")

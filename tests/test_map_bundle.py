@@ -125,7 +125,7 @@ def test_round_trip_matrices_terms_ids_units(tmp_path: Path, suffix: str) -> Non
     # Reorder original columns to match the reconstructed (sorted) term order.
     col_of = {t: j for j, t in enumerate(cohort.terms)}
     expected = cohort.X_tf[:, [col_of[t] for t in reconstructed.terms]]
-    np.testing.assert_allclose(reconstructed.X_tf, expected)
+    np.testing.assert_allclose(reconstructed.X_tf.toarray(), expected.toarray())
     assert reconstructed.researcher_ids == sorted(cohort.researcher_ids)
     row_of = {r: i for i, r in enumerate(cohort.researcher_ids)}
     expected_units = [cohort.units[row_of[r]] for r in reconstructed.researcher_ids]
@@ -170,7 +170,7 @@ def test_round_trip_preserves_zero_usage_terms(tmp_path: Path) -> None:
     write_bundle(bundle, tmp_path / "bundle")
     reconstructed = read_bundle(tmp_path / "bundle").to_cohort_input()
     assert reconstructed.terms == ["spectral gap", "unused term"]
-    np.testing.assert_allclose(reconstructed.X_tf, cohort.X_tf)
+    np.testing.assert_allclose(reconstructed.X_tf.toarray(), cohort.X_tf.toarray())
     assert reconstructed.units == ["", ""]  # units=None round-trips as ""
 
 
@@ -383,7 +383,7 @@ def test_end_to_end_matches_in_memory_pipeline(tmp_path: Path) -> None:
     assert joint_from_bundles.sense_ids == joint_original.sense_ids
     # Row order may differ only if researcher ids differ, which they don't here.
     assert joint_from_bundles.researcher_ids == joint_original.researcher_ids
-    np.testing.assert_allclose(joint_from_bundles.T, joint_original.T)
+    np.testing.assert_allclose(joint_from_bundles.T.toarray(), joint_original.T.toarray())
 
 
 # ── validate_taxonomy ───────────────────────────────────────────────────────
