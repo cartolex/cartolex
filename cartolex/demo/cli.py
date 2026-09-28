@@ -32,6 +32,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     create.add_argument("--force", action="store_true", help="replace a demo world already in OUT")
     create.add_argument(
+        "--bodies",
+        action="store_true",
+        help="also write a long body for every work (full texts)",
+    )
+    create.add_argument(
         "--languages",
         default="en,fr",
         help="languages of the texts: en,fr (default) or en,fr,pt",
@@ -40,7 +45,9 @@ def main(argv: list[str] | None = None) -> int:
 
     started = time.perf_counter()
     try:
-        world = generate(size=args.size, seed=args.seed, languages=args.languages)
+        world = generate(
+            size=args.size, seed=args.seed, languages=args.languages, bodies=args.bodies
+        )
     except ValueError as exc:
         parser.error(str(exc))
     try:

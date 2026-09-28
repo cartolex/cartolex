@@ -37,9 +37,14 @@ stages (AI triage, consolidation, the atlas) read the same tables as before.
 
    | language | pattern | examples |
    | --- | --- | --- |
-   | English | `(ADJ\|NOUN\|PROPN)* (NOUN\|PROPN\|gerund)`, with at most one `of` complement | `sea surface temperature`, `distributed systems`, `decision making`, `degrees of freedom` |
+   | English | `(ADJ\|NOUN\|PROPN)* (NOUN\|PROPN\|gerund)` | `sea surface temperature`, `distributed systems`, `decision making` |
    | French | `NOUN ADJ* ((de\|du\|des\|d'\|à\|au\|aux) DET? (NOUN\|PROPN) ADJ*)?` | `trait de côte`, `masse d'eau`, `zone à risque`, `variabilité interannuelle du niveau marin` |
    | Portuguese | the French shape, with `de`, `em`, `por`, `para`, `com`, `a` and their contractions (`do`, `da`, `dos`, `das`, `no`, `na`, `nos`, `nas`, `pelo`, `pela`, `pelos`, `pelas`, `ao`, `aos`, `à`, `às`) | `linha de costa`, `nível do mar`, `transporte pela corrente` |
+
+   An English `of` complement (`degrees of freedom`) is a switch of the
+   lexicon lab, off: most English `X of Y` spans are phrasing (`role of
+   silicic acid uptake`, `context of storm events`), and they made the terms
+   inside them look like fragments of a longer phrase ({doc}`lexicon-lab`).
 
    The Portuguese tokenizer keeps a contraction as one token tagged as a
    preposition (`do` is `de` + `o`), so `nível do mar` is `N P N`; an
@@ -68,19 +73,61 @@ already outside the patterns. The lists hold no content word.
 
 ## Scores
 
-Scoring is unchanged. Each person's candidate counts form their document; a
-TF-IDF (scikit-learn's `TfidfVectorizer`, the keys as features) keeps the
-candidates found in at least `min_df` people (default 3) and at most `max_df`
-of them (default 60 %), and a candidate's `score` is its L2-normalised TF-IDF
-summed over people. `score_len` multiplies it by the length bonus
-`1 + length_bonus_alpha × (L − 1)`, `L` being the number of words of the term
-(prepositions and articles included).
+The scoring (`cartolex/lexicon/scoring.py`) works on the analysed texts, each
+with its person, its organisation (the index's `unit`) and its parts:
+
+1. **Window.** A candidate is kept when at least `min_df` people use it
+   (default 3) and at most `max_df` of them (default 60 %); the window always
+   counts people.
+2. **Counting unit** (`KeywordsConfig.counting_unit`, the build's
+   `keywords.extract.counting_unit`). What one TF-IDF document is:
+   `person` (default: a person's texts together, so each person weighs the
+   same), `text` (each text weighs the same; a text two people wrote counts
+   once) or `organisation` (each organisation weighs the same; a text counts
+   once for an organisation, however many of its members wrote it). Each
+   document's TF-IDF vector is L2-normalised, and a candidate's `score` is the
+   sum over documents.
+3. **Vote.** Inside a document, each text contributes its number of
+   occurrences of the candidate. (Presence votes, a logarithmic vote and
+   weights per text part exist as switches of the lexicon lab, see
+   {doc}`lexicon-lab`; they are not settings.)
+4. **Length bonus.** `score_len = score × (1 + length_bonus_alpha × (L − 1))`,
+   `L` being the number of words of the term (prepositions and articles
+   included).
+
+With the defaults this is exactly the historical scoring (one document per
+person, raw counts).
+
+### Bands
+
+Each kept candidate falls in one of three bands, with a reason code the
+interface turns into words:
+
+| band | reason | rule |
+| --- | --- | --- |
+| `kept` | `multiword` | a phrase of two content words or more (prepositions and articles do not count) |
+| `check` | `single-word` | one content word |
+| `check` | `common-modifier: <word>` | the adjective at the phrase's edge (first in English, last in French and Portuguese) appears in the candidates of at least 20 % of the people (`recent approach`) |
+| `check` | `below-threshold` | a multi-word phrase outside the best `keep_share` of the candidates (off: every one is kept) |
+| `aside` | `part-of: <term>` | every occurrence sits inside one and the same longer candidate (`vector machine` in `support vector machine`) |
+| `aside` | `low-score` | the least specific `drop_share` of the candidates, by `score_len` (off) |
+| `aside` | `name: person\|place` | mostly inside a recognised name of a person or a place (only when names are recognised; the engine does not recognise them) |
+
+The rules are checked in the order `part-of`, `name`, `low-score`, then
+`single-word`, `common-modifier`, `below-threshold`, `multiword`. Bands
+describe candidates; they remove nothing: the triage and consolidation read
+every candidate, as before. The rules and their defaults come from the
+lexicon lab ({doc}`lexicon-lab`); the rules marked off are its switches, not
+settings.
+
+### The raw keyword tables
 
 `raw_keywords_<lang>.csv` (`EnginePaths.raw_terms_csv`) has the columns
-`term`, `score`, `len`, `score_len` and `forms` (every surface form of the
-candidate, most frequent first, separated by `|`), sorted by `score_len`
-(ties by term). The merged list keeps, for a term found in two languages, its
-best-scored row.
+`term`, `score`, `len`, `score_len`, `forms` (every surface form of the
+candidate, most frequent first, separated by `|`), `people` (how many people
+use it), `texts` (how many distinct texts), `band` and `reason`, sorted by
+`score_len` (ties by term). The merged list keeps, for a term found in two
+languages, its best-scored row, with its band and reason.
 
 Besides the patterns, two filters apply: a candidate whose shown form, or one
 of its words, is among the project's own rejections (`manual_blacklist.csv`,

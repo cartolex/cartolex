@@ -8,6 +8,7 @@ keywords, themes and a two-dimensional atlas, with an offline site to share it.
 :maxdepth: 1
 
 demo
+keywords
 ```
 
 ```{toctree}
@@ -23,6 +24,7 @@ format/index
 
 dev/engine
 dev/extraction
+dev/lexicon-lab
 dev/build
 dev/themes
 dev/checks

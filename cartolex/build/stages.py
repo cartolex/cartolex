@@ -434,9 +434,10 @@ STAGES = Registry(
                 ParamSpec(
                     "counting_unit",
                     "str",
-                    "what one occurrence counts for: a person's texts together, or each text",
+                    "what weighs the same when keywords are scored: each person, each text, "
+                    "or each organisation of the chosen level",
                     default="person",
-                    choices=("person", "text"),
+                    choices=("person", "text", "organisation"),
                 ),
                 ParamSpec(
                     "min_people",

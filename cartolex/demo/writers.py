@@ -112,8 +112,9 @@ def _theme_entry(theme: Theme, portuguese: bool) -> dict:
 def truth(world: DemoWorld) -> dict:
     """The ground truth: themes and their terms, and who and what is about which theme.
 
-    A world in another language set than the default one also records its
-    languages, the Portuguese forms of the terms and themes, and the
+    A world made with other options than the default ones (another language
+    set, bodies) also records its languages, the Portuguese forms of the terms
+    and themes when it has them, whether works have bodies, and the
     ``lexicon``: every phrase the texts are written with, by language, with
     whether it is a field term (see :func:`lexicon_truth`). A default world
     keeps the historical format, byte for byte.
@@ -124,9 +125,11 @@ def truth(world: DemoWorld) -> dict:
     doc["people"] = {p.person_id: p.themes for p in world.people}
     doc["works"] = {w.work_id: list(w.themes) for w in world.works}
     doc["coverage"] = {p.person_id: p.coverage for p in world.people}
-    if world.trilingual:
+    if not world.is_default:
         doc["languages"] = list(world.languages)
-        doc["lexicon"] = lexicon_truth(world.languages)
+        if world.bodies:
+            doc["bodies"] = True
+        doc["lexicon"] = lexicon_truth(world.languages, bodies=world.bodies)
     return doc
 
 
@@ -136,7 +139,7 @@ def _forms(term: Term, languages: Sequence[str]) -> list[tuple[str, str]]:
     return [(lang, forms[lang]) for lang in languages if forms.get(lang)]
 
 
-def lexicon_truth(languages: Sequence[str]) -> list[dict]:
+def lexicon_truth(languages: Sequence[str], *, bodies: bool = False) -> list[dict]:
     """Every phrase the demo texts are written with, per language, and what it is.
 
     One record per phrase and language: ``text`` (a term without its article,
@@ -155,7 +158,8 @@ def lexicon_truth(languages: Sequence[str]) -> list[dict]:
     - ``template``: a literal piece of a sentence template or lead-in (the
       text between two slots) — generic filler.
 
-    Records are sorted by kind, language and text.
+    With *bodies*, the pieces of the body templates and the section headings
+    are template filler too. Records are sorted by kind, language and text.
     """
     from .texts import LEADINS, TEMPLATES, slot_free_pieces
     from .vocabulary import DRIVERS, METHODS, SETTINGS, THEMES
@@ -224,6 +228,13 @@ def lexicon_truth(languages: Sequence[str]) -> list[dict]:
     for lang, roles in LEADINS.items():
         if lang in langs:
             pieces |= {(lang, p) for leads in roles.values() for p in leads}
+    if bodies:
+        from .bodies import BODY_TEMPLATES, HEADINGS
+
+        for lang in langs:
+            for templates in BODY_TEMPLATES[lang].values():
+                pieces |= {(lang, p) for t in templates for p in slot_free_pieces(t)}
+            pieces |= {(lang, h) for h in HEADINGS[lang].values()}
     for lang, text in pieces:
         records.append({"text": text, "lang": lang, "kind": "template", "field": False})
     order = {"theme": 0, "method": 1, "driver": 2, "setting": 3, "template": 4}
@@ -297,6 +308,8 @@ def write_world(world: DemoWorld, out_dir: Path, *, overwrite: bool = False) -> 
     manifest: dict = {"format": FORMAT, "size": world.size, "seed": world.seed}
     if world.trilingual:
         manifest["languages"] = list(world.languages)
+    if world.bodies:
+        manifest["bodies"] = True
     manifest["generator"] = f"cartolex.demo {GENERATOR_VERSION}"
     manifest["counts"] = world.counts()
     manifest["files"] = {rel: hashlib.sha256(files[rel]).hexdigest() for rel in sorted(files)}

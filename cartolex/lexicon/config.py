@@ -145,10 +145,17 @@ class KeywordsConfig:
     # there to the longest candidate; the candidates themselves are noun
     # phrases of at most cartolex.lexicon.noun_phrases.MAX_UNITS word units.
     ngram_range: tuple[int, int] = (1, 4)
-    # TF-IDF window of the candidates, with each person as one document.
+    # Window of the candidates: used by at least min_df people and at most
+    # max_df of them (a share); max_features keeps the most frequent.
     min_df: int = 3  # absolute count — must be int, NOT float
-    max_df: float = 0.6  # fraction of documents
+    max_df: float = 0.6  # share of people
     max_features: int = 1_000_000
+    # What a TF-IDF document is when candidates are scored: "person" (a
+    # person's texts together, each person weighs the same), "text" (each
+    # text weighs the same; a text two people wrote counts once) or
+    # "organisation" (each organisation weighs the same; a text counts once
+    # for an organisation). See cartolex.lexicon.scoring.
+    counting_unit: str = "person"
 
     # Scoring
     length_bonus_alpha: float = 2.0
@@ -216,6 +223,13 @@ class KeywordsConfig:
     def __post_init__(self):
         self._normalise_slots()
         self._normalise_languages()
+        from .scoring import COUNTING_UNITS
+
+        if self.counting_unit not in COUNTING_UNITS:
+            raise SettingsError(
+                f"KeywordsConfig.counting_unit {self.counting_unit!r} is not one of "
+                f"{', '.join(COUNTING_UNITS)}."
+            )
 
     @property
     def fit_slots(self) -> tuple[CorpusSlot, ...]:

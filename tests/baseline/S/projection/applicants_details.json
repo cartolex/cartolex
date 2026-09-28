@@ -2,996 +2,1052 @@
  {
   "concept_weights": [
    {
-    "id": 6,
-    "weight": 0.0872
-   },
-   {
-    "id": 2,
-    "weight": 0.0871
+    "id": 3,
+    "weight": 0.0859
    },
    {
     "id": 5,
-    "weight": 0.0864
-   },
-   {
-    "id": 3,
-    "weight": 0.0863
-   },
-   {
-    "id": 7,
-    "weight": 0.0831
+    "weight": 0.0859
    },
    {
     "id": 4,
-    "weight": 0.0783
+    "weight": 0.0851
+   },
+   {
+    "id": 6,
+    "weight": 0.0849
+   },
+   {
+    "id": 2,
+    "weight": 0.0847
+   },
+   {
+    "id": 7,
+    "weight": 0.0801
    },
    {
     "id": 0,
-    "weight": 0.0774
+    "weight": 0.0786
    },
    {
     "id": 8,
-    "weight": 0.0665
-   },
-   {
-    "id": 1,
-    "weight": 0.0494
-   },
-   {
-    "id": 43,
-    "weight": 0.049
-   },
-   {
-    "id": 135,
-    "weight": 0.0351
-   },
-   {
-    "id": 137,
-    "weight": 0.0197
-   },
-   {
-    "id": 133,
-    "weight": 0.0176
-   },
-   {
-    "id": 134,
-    "weight": 0.0159
-   },
-   {
-    "id": 140,
-    "weight": 0.0138
-   },
-   {
-    "id": 18,
-    "weight": 0.0128
-   },
-   {
-    "id": 131,
-    "weight": 0.0125
-   },
-   {
-    "id": 130,
-    "weight": 0.0075
-   },
-   {
-    "id": 146,
-    "weight": 0.0065
-   },
-   {
-    "id": 147,
-    "weight": 0.0062
-   },
-   {
-    "id": 73,
-    "weight": 0.0033
-   },
-   {
-    "id": 74,
-    "weight": 0.0032
-   },
-   {
-    "id": 85,
-    "weight": 0.0032
-   },
-   {
-    "id": 68,
-    "weight": 0.003
-   },
-   {
-    "id": 107,
-    "weight": 0.0029
-   },
-   {
-    "id": 71,
-    "weight": 0.0028
-   },
-   {
-    "id": 70,
-    "weight": 0.0026
-   },
-   {
-    "id": 72,
-    "weight": 0.0026
-   },
-   {
-    "id": 83,
-    "weight": 0.0026
-   },
-   {
-    "id": 119,
-    "weight": 0.0026
-   },
-   {
-    "id": 69,
-    "weight": 0.0025
-   },
-   {
-    "id": 84,
-    "weight": 0.0025
-   },
-   {
-    "id": 34,
-    "weight": 0.0024
-   },
-   {
-    "id": 79,
-    "weight": 0.0023
-   },
-   {
-    "id": 67,
-    "weight": 0.0021
+    "weight": 0.0713
    },
    {
     "id": 120,
-    "weight": 0.0021
+    "weight": 0.0496
    },
    {
-    "id": 13,
-    "weight": 0.002
+    "id": 1,
+    "weight": 0.0495
    },
    {
-    "id": 46,
-    "weight": 0.002
-   },
-   {
-    "id": 75,
-    "weight": 0.002
-   },
-   {
-    "id": 80,
-    "weight": 0.002
-   },
-   {
-    "id": 81,
-    "weight": 0.002
-   },
-   {
-    "id": 86,
-    "weight": 0.002
-   },
-   {
-    "id": 106,
-    "weight": 0.002
-   },
-   {
-    "id": 33,
-    "weight": 0.0017
-   },
-   {
-    "id": 76,
-    "weight": 0.0017
-   },
-   {
-    "id": 42,
-    "weight": 0.0016
-   },
-   {
-    "id": 82,
-    "weight": 0.0016
-   },
-   {
-    "id": 105,
-    "weight": 0.0016
-   },
-   {
-    "id": 124,
-    "weight": 0.0016
-   },
-   {
-    "id": 45,
-    "weight": 0.0014
-   },
-   {
-    "id": 9,
-    "weight": 0.0013
-   },
-   {
-    "id": 10,
-    "weight": 0.0012
-   },
-   {
-    "id": 22,
-    "weight": 0.0012
-   },
-   {
-    "id": 26,
-    "weight": 0.0012
-   },
-   {
-    "id": 50,
-    "weight": 0.0012
-   },
-   {
-    "id": 104,
-    "weight": 0.0012
-   },
-   {
-    "id": 117,
-    "weight": 0.0012
-   },
-   {
-    "id": 145,
-    "weight": 0.0011
-   },
-   {
-    "id": 11,
-    "weight": 0.001
-   },
-   {
-    "id": 27,
-    "weight": 0.001
-   },
-   {
-    "id": 52,
-    "weight": 0.001
-   },
-   {
-    "id": 121,
-    "weight": 0.001
-   },
-   {
-    "id": 12,
-    "weight": 0.0009
-   },
-   {
-    "id": 15,
-    "weight": 0.0009
-   },
-   {
-    "id": 30,
-    "weight": 0.0009
-   },
-   {
-    "id": 32,
-    "weight": 0.0009
-   },
-   {
-    "id": 51,
-    "weight": 0.0009
+    "id": 79,
+    "weight": 0.0285
    },
    {
     "id": 78,
-    "weight": 0.0009
+    "weight": 0.0174
+   },
+   {
+    "id": 85,
+    "weight": 0.0163
+   },
+   {
+    "id": 76,
+    "weight": 0.0161
+   },
+   {
+    "id": 80,
+    "weight": 0.0151
+   },
+   {
+    "id": 17,
+    "weight": 0.0135
+   },
+   {
+    "id": 77,
+    "weight": 0.01
+   },
+   {
+    "id": 81,
+    "weight": 0.0072
+   },
+   {
+    "id": 82,
+    "weight": 0.0069
+   },
+   {
+    "id": 83,
+    "weight": 0.0066
+   },
+   {
+    "id": 58,
+    "weight": 0.0038
+   },
+   {
+    "id": 139,
+    "weight": 0.0037
    },
    {
     "id": 87,
-    "weight": 0.0009
+    "weight": 0.0036
    },
    {
-    "id": 144,
-    "weight": 0.0009
+    "id": 136,
+    "weight": 0.0034
    },
    {
-    "id": 16,
-    "weight": 0.0008
+    "id": 57,
+    "weight": 0.0032
    },
    {
-    "id": 44,
-    "weight": 0.0008
+    "id": 138,
+    "weight": 0.0032
    },
    {
-    "id": 24,
-    "weight": 0.0007
+    "id": 146,
+    "weight": 0.0029
    },
    {
-    "id": 31,
-    "weight": 0.0007
+    "id": 137,
+    "weight": 0.0028
    },
    {
-    "id": 102,
-    "weight": 0.0007
-   },
-   {
-    "id": 114,
-    "weight": 0.0007
+    "id": 134,
+    "weight": 0.0026
    },
    {
     "id": 141,
-    "weight": 0.0007
+    "weight": 0.0025
+   },
+   {
+    "id": 109,
+    "weight": 0.0024
+   },
+   {
+    "id": 60,
+    "weight": 0.0023
+   },
+   {
+    "id": 69,
+    "weight": 0.0023
+   },
+   {
+    "id": 135,
+    "weight": 0.0023
+   },
+   {
+    "id": 145,
+    "weight": 0.0022
+   },
+   {
+    "id": 24,
+    "weight": 0.002
+   },
+   {
+    "id": 142,
+    "weight": 0.002
+   },
+   {
+    "id": 140,
+    "weight": 0.0019
+   },
+   {
+    "id": 15,
+    "weight": 0.0018
+   },
+   {
+    "id": 147,
+    "weight": 0.0018
+   },
+   {
+    "id": 41,
+    "weight": 0.0017
+   },
+   {
+    "id": 61,
+    "weight": 0.0017
+   },
+   {
+    "id": 124,
+    "weight": 0.0017
+   },
+   {
+    "id": 23,
+    "weight": 0.0016
+   },
+   {
+    "id": 148,
+    "weight": 0.0016
+   },
+   {
+    "id": 26,
+    "weight": 0.0015
+   },
+   {
+    "id": 37,
+    "weight": 0.0015
+   },
+   {
+    "id": 149,
+    "weight": 0.0015
+   },
+   {
+    "id": 25,
+    "weight": 0.0014
+   },
+   {
+    "id": 40,
+    "weight": 0.0014
+   },
+   {
+    "id": 43,
+    "weight": 0.0013
+   },
+   {
+    "id": 44,
+    "weight": 0.0012
+   },
+   {
+    "id": 29,
+    "weight": 0.0011
+   },
+   {
+    "id": 42,
+    "weight": 0.0011
+   },
+   {
+    "id": 59,
+    "weight": 0.0011
+   },
+   {
+    "id": 67,
+    "weight": 0.0011
+   },
+   {
+    "id": 68,
+    "weight": 0.0011
+   },
+   {
+    "id": 101,
+    "weight": 0.0011
+   },
+   {
+    "id": 118,
+    "weight": 0.0011
+   },
+   {
+    "id": 121,
+    "weight": 0.0011
+   },
+   {
+    "id": 38,
+    "weight": 0.001
+   },
+   {
+    "id": 100,
+    "weight": 0.001
+   },
+   {
+    "id": 114,
+    "weight": 0.001
+   },
+   {
+    "id": 122,
+    "weight": 0.001
+   },
+   {
+    "id": 36,
+    "weight": 0.0009
+   },
+   {
+    "id": 39,
+    "weight": 0.0009
+   },
+   {
+    "id": 48,
+    "weight": 0.0009
+   },
+   {
+    "id": 119,
+    "weight": 0.0009
+   },
+   {
+    "id": 11,
+    "weight": 0.0008
    },
    {
     "id": 14,
+    "weight": 0.0008
+   },
+   {
+    "id": 27,
+    "weight": 0.0008
+   },
+   {
+    "id": 90,
+    "weight": 0.0008
+   },
+   {
+    "id": 116,
+    "weight": 0.0008
+   },
+   {
+    "id": 117,
+    "weight": 0.0008
+   },
+   {
+    "id": 34,
+    "weight": 0.0007
+   },
+   {
+    "id": 51,
+    "weight": 0.0007
+   },
+   {
+    "id": 52,
+    "weight": 0.0007
+   },
+   {
+    "id": 56,
+    "weight": 0.0007
+   },
+   {
+    "id": 113,
+    "weight": 0.0007
+   },
+   {
+    "id": 123,
+    "weight": 0.0007
+   },
+   {
+    "id": 47,
+    "weight": 0.0006
+   },
+   {
+    "id": 105,
+    "weight": 0.0006
+   },
+   {
+    "id": 110,
+    "weight": 0.0006
+   },
+   {
+    "id": 144,
     "weight": 0.0006
    },
    {
     "id": 21,
-    "weight": 0.0006
-   },
-   {
-    "id": 37,
-    "weight": 0.0006
-   },
-   {
-    "id": 19,
     "weight": 0.0005
    },
    {
-    "id": 49,
+    "id": 33,
     "weight": 0.0005
    },
    {
-    "id": 54,
+    "id": 45,
     "weight": 0.0005
    },
    {
-    "id": 99,
+    "id": 66,
     "weight": 0.0005
-   },
-   {
-    "id": 25,
-    "weight": 0.0004
-   },
-   {
-    "id": 28,
-    "weight": 0.0004
-   },
-   {
-    "id": 40,
-    "weight": 0.0003
-   },
-   {
-    "id": 111,
-    "weight": 0.0003
-   },
-   {
-    "id": 116,
-    "weight": 0.0003
-   },
-   {
-    "id": 29,
-    "weight": 0.0002
-   },
-   {
-    "id": 39,
-    "weight": 0.0002
-   },
-   {
-    "id": 53,
-    "weight": 0.0002
-   },
-   {
-    "id": 77,
-    "weight": 0.0002
-   },
-   {
-    "id": 97,
-    "weight": 0.0002
-   },
-   {
-    "id": 101,
-    "weight": 0.0002
-   },
-   {
-    "id": 103,
-    "weight": 0.0002
-   },
-   {
-    "id": 108,
-    "weight": 0.0002
-   },
-   {
-    "id": 109,
-    "weight": 0.0002
-   },
-   {
-    "id": 57,
-    "weight": 0.0001
-   },
-   {
-    "id": 61,
-    "weight": 0.0001
    },
    {
     "id": 93,
+    "weight": 0.0005
+   },
+   {
+    "id": 111,
+    "weight": 0.0005
+   },
+   {
+    "id": 133,
+    "weight": 0.0005
+   },
+   {
+    "id": 10,
+    "weight": 0.0004
+   },
+   {
+    "id": 22,
+    "weight": 0.0004
+   },
+   {
+    "id": 31,
+    "weight": 0.0004
+   },
+   {
+    "id": 92,
+    "weight": 0.0004
+   },
+   {
+    "id": 32,
+    "weight": 0.0003
+   },
+   {
+    "id": 99,
+    "weight": 0.0003
+   },
+   {
+    "id": 103,
+    "weight": 0.0003
+   },
+   {
+    "id": 104,
+    "weight": 0.0003
+   },
+   {
+    "id": 115,
+    "weight": 0.0003
+   },
+   {
+    "id": 28,
+    "weight": 0.0002
+   },
+   {
+    "id": 46,
+    "weight": 0.0002
+   },
+   {
+    "id": 70,
+    "weight": 0.0002
+   },
+   {
+    "id": 88,
+    "weight": 0.0002
+   },
+   {
+    "id": 96,
+    "weight": 0.0002
+   },
+   {
+    "id": 107,
+    "weight": 0.0002
+   },
+   {
+    "id": 112,
+    "weight": 0.0002
+   },
+   {
+    "id": 49,
     "weight": 0.0001
    },
    {
-    "id": 98,
-    "weight": 0.0001
-   },
-   {
-    "id": 110,
-    "weight": 0.0001
-   },
-   {
-    "id": 142,
+    "id": 127,
     "weight": 0.0001
    }
   ],
   "item": "p58434ef2e3",
   "keyword_scores": [
-   3.02972420938087,
-   1.8935776308630436,
-   1.8178345256285218,
-   1.1361465785178262,
-   0.8634369703347451,
-   0.7770932733012706,
-   0.43171848516737255,
-   0.4302776836554847,
-   0.4093311939489428,
-   0.3257125671778449
+   2.9964011940494655,
+   1.8727507462809159,
+   1.7978407164296795,
+   1.1236504477685496,
+   0.8539402896431235,
+   0.7685462606788112,
+   0.42697014482156176,
+   0.4255451902473988,
+   0.32213015369080455,
+   0.25618208689293703
   ],
-  "keywords": "inherent optical properties;sea surface temperature;radar backscatter;sea surface salinity;shelf sea dynamics;delta progradation;coastal railway resilience;appendicularian respiration;cyanobacteria respiration;sinking particle flux",
+  "keywords": "inherent optical properties;sea surface temperature;radar backscatter;sea surface salinity;shelf sea dynamics;delta progradation;coastal railway resilience;appendicularian respiration;sinking particle flux;urea budget",
   "near_terms": [
    {
-    "score": 0.994,
-    "term": "thermocline seasonal cycle"
-   },
-   {
-    "score": 0.9937,
+    "score": 0.9941,
     "term": "inherent optical properties"
    },
    {
-    "score": 0.9926,
-    "term": "sea surface salinity"
-   },
-   {
-    "score": 0.9923,
-    "term": "radar backscatter"
-   },
-   {
-    "score": 0.9919,
-    "term": "cross-shelf flow dissipation"
-   },
-   {
-    "score": 0.9915,
-    "term": "sea surface temperature"
-   },
-   {
-    "score": 0.9914,
+    "score": 0.9934,
     "term": "extreme rainfall impacts"
    },
    {
-    "score": 0.9914,
+    "score": 0.9934,
     "term": "radar current map gap filling"
    },
    {
-    "score": 0.9914,
+    "score": 0.9934,
+    "term": "tsunami trends"
+   },
+   {
+    "score": 0.9934,
+    "term": "beach erosion"
+   },
+   {
+    "score": 0.9929,
     "term": "high tide flood trends"
    },
    {
-    "score": 0.9914,
-    "term": "beach erosion"
+    "score": 0.9928,
+    "term": "sea surface salinity"
+   },
+   {
+    "score": 0.9922,
+    "term": "ekman layer variability"
+   },
+   {
+    "score": 0.9922,
+    "term": "tidal energy dissipation"
+   },
+   {
+    "score": 0.9921,
+    "term": "radar backscatter"
    }
   ],
   "subfield_weights": [
    {
-    "id": 10,
-    "weight": 0.7858
-   },
-   {
-    "id": 11,
-    "weight": 0.1234
-   },
-   {
-    "id": 6,
-    "weight": 0.0262
-   },
-   {
-    "id": 3,
-    "weight": 0.0236
-   },
-   {
     "id": 8,
-    "weight": 0.0109
-   },
-   {
-    "id": 0,
-    "weight": 0.0095
+    "weight": 0.7702
    },
    {
     "id": 9,
-    "weight": 0.0071
+    "weight": 0.095
+   },
+   {
+    "id": 10,
+    "weight": 0.0419
+   },
+   {
+    "id": 11,
+    "weight": 0.0346
+   },
+   {
+    "id": 2,
+    "weight": 0.0243
+   },
+   {
+    "id": 0,
+    "weight": 0.0088
+   },
+   {
+    "id": 6,
+    "weight": 0.0073
    },
    {
     "id": 7,
+    "weight": 0.0058
+   },
+   {
+    "id": 5,
     "weight": 0.0057
    },
    {
     "id": 4,
-    "weight": 0.0047
+    "weight": 0.0031
    },
    {
-    "id": 2,
-    "weight": 0.003
+    "id": 1,
+    "weight": 0.0022
+   },
+   {
+    "id": 3,
+    "weight": 0.0012
    }
   ]
  },
  {
   "concept_weights": [
    {
-    "id": 6,
-    "weight": 0.0878
-   },
-   {
-    "id": 2,
-    "weight": 0.0877
+    "id": 3,
+    "weight": 0.0861
    },
    {
     "id": 5,
-    "weight": 0.0871
-   },
-   {
-    "id": 3,
-    "weight": 0.087
-   },
-   {
-    "id": 7,
-    "weight": 0.0834
+    "weight": 0.086
    },
    {
     "id": 4,
-    "weight": 0.0791
+    "weight": 0.0853
+   },
+   {
+    "id": 2,
+    "weight": 0.0851
+   },
+   {
+    "id": 6,
+    "weight": 0.0847
+   },
+   {
+    "id": 7,
+    "weight": 0.0795
    },
    {
     "id": 0,
-    "weight": 0.0784
+    "weight": 0.0792
    },
    {
     "id": 8,
-    "weight": 0.0665
+    "weight": 0.0706
    },
    {
     "id": 1,
-    "weight": 0.0503
-   },
-   {
-    "id": 43,
-    "weight": 0.0471
-   },
-   {
-    "id": 135,
-    "weight": 0.0339
-   },
-   {
-    "id": 137,
-    "weight": 0.0197
-   },
-   {
-    "id": 133,
-    "weight": 0.0168
-   },
-   {
-    "id": 134,
-    "weight": 0.0154
-   },
-   {
-    "id": 140,
-    "weight": 0.0144
-   },
-   {
-    "id": 18,
-    "weight": 0.0125
-   },
-   {
-    "id": 131,
-    "weight": 0.0112
-   },
-   {
-    "id": 146,
-    "weight": 0.0076
-   },
-   {
-    "id": 147,
-    "weight": 0.0073
-   },
-   {
-    "id": 130,
-    "weight": 0.0064
-   },
-   {
-    "id": 73,
-    "weight": 0.0044
-   },
-   {
-    "id": 74,
-    "weight": 0.0043
-   },
-   {
-    "id": 85,
-    "weight": 0.0036
-   },
-   {
-    "id": 68,
-    "weight": 0.0035
-   },
-   {
-    "id": 72,
-    "weight": 0.0034
-   },
-   {
-    "id": 71,
-    "weight": 0.0032
-   },
-   {
-    "id": 75,
-    "weight": 0.0032
-   },
-   {
-    "id": 83,
-    "weight": 0.0032
-   },
-   {
-    "id": 107,
-    "weight": 0.0031
-   },
-   {
-    "id": 69,
-    "weight": 0.0029
-   },
-   {
-    "id": 84,
-    "weight": 0.0028
-   },
-   {
-    "id": 76,
-    "weight": 0.0026
-   },
-   {
-    "id": 79,
-    "weight": 0.0026
-   },
-   {
-    "id": 70,
-    "weight": 0.0025
-   },
-   {
-    "id": 81,
-    "weight": 0.0025
-   },
-   {
-    "id": 67,
-    "weight": 0.0024
-   },
-   {
-    "id": 105,
-    "weight": 0.0023
-   },
-   {
-    "id": 86,
-    "weight": 0.0022
-   },
-   {
-    "id": 119,
-    "weight": 0.0022
-   },
-   {
-    "id": 82,
-    "weight": 0.0021
-   },
-   {
-    "id": 13,
-    "weight": 0.002
-   },
-   {
-    "id": 80,
-    "weight": 0.002
-   },
-   {
-    "id": 106,
-    "weight": 0.002
-   },
-   {
-    "id": 9,
-    "weight": 0.0017
-   },
-   {
-    "id": 104,
-    "weight": 0.0017
+    "weight": 0.0502
    },
    {
     "id": 120,
-    "weight": 0.0017
+    "weight": 0.0475
    },
    {
-    "id": 10,
-    "weight": 0.0016
+    "id": 79,
+    "weight": 0.0266
    },
    {
-    "id": 22,
-    "weight": 0.0016
-   },
-   {
-    "id": 37,
-    "weight": 0.0015
-   },
-   {
-    "id": 26,
-    "weight": 0.0014
-   },
-   {
-    "id": 11,
-    "weight": 0.0013
-   },
-   {
-    "id": 12,
-    "weight": 0.0013
-   },
-   {
-    "id": 34,
-    "weight": 0.0013
-   },
-   {
-    "id": 15,
-    "weight": 0.0012
-   },
-   {
-    "id": 145,
-    "weight": 0.0012
-   },
-   {
-    "id": 27,
-    "weight": 0.0011
-   },
-   {
-    "id": 114,
-    "weight": 0.0011
-   },
-   {
-    "id": 16,
-    "weight": 0.001
-   },
-   {
-    "id": 124,
-    "weight": 0.001
-   },
-   {
-    "id": 144,
-    "weight": 0.001
-   },
-   {
-    "id": 87,
-    "weight": 0.0009
-   },
-   {
-    "id": 14,
-    "weight": 0.0008
-   },
-   {
-    "id": 21,
-    "weight": 0.0008
-   },
-   {
-    "id": 50,
-    "weight": 0.0008
-   },
-   {
-    "id": 19,
-    "weight": 0.0007
-   },
-   {
-    "id": 24,
-    "weight": 0.0007
+    "id": 85,
+    "weight": 0.0161
    },
    {
     "id": 78,
-    "weight": 0.0006
+    "weight": 0.0159
+   },
+   {
+    "id": 76,
+    "weight": 0.0151
+   },
+   {
+    "id": 80,
+    "weight": 0.0141
+   },
+   {
+    "id": 17,
+    "weight": 0.0122
+   },
+   {
+    "id": 77,
+    "weight": 0.0085
+   },
+   {
+    "id": 81,
+    "weight": 0.0083
+   },
+   {
+    "id": 82,
+    "weight": 0.0081
+   },
+   {
+    "id": 83,
+    "weight": 0.0077
+   },
+   {
+    "id": 139,
+    "weight": 0.0048
+   },
+   {
+    "id": 58,
+    "weight": 0.0044
+   },
+   {
+    "id": 87,
+    "weight": 0.0044
+   },
+   {
+    "id": 136,
+    "weight": 0.0039
+   },
+   {
+    "id": 57,
+    "weight": 0.0037
    },
    {
     "id": 141,
-    "weight": 0.0006
+    "weight": 0.0037
    },
    {
-    "id": 28,
-    "weight": 0.0005
+    "id": 137,
+    "weight": 0.0036
    },
    {
-    "id": 102,
-    "weight": 0.0005
+    "id": 138,
+    "weight": 0.0036
    },
    {
-    "id": 111,
-    "weight": 0.0005
+    "id": 140,
+    "weight": 0.0033
    },
    {
-    "id": 117,
-    "weight": 0.0005
+    "id": 146,
+    "weight": 0.0032
    },
    {
-    "id": 35,
-    "weight": 0.0004
+    "id": 134,
+    "weight": 0.003
    },
    {
-    "id": 40,
-    "weight": 0.0004
+    "id": 142,
+    "weight": 0.0029
+   },
+   {
+    "id": 60,
+    "weight": 0.0027
+   },
+   {
+    "id": 135,
+    "weight": 0.0026
+   },
+   {
+    "id": 69,
+    "weight": 0.0025
+   },
+   {
+    "id": 145,
+    "weight": 0.0025
+   },
+   {
+    "id": 24,
+    "weight": 0.0024
+   },
+   {
+    "id": 41,
+    "weight": 0.0023
+   },
+   {
+    "id": 15,
+    "weight": 0.0021
+   },
+   {
+    "id": 148,
+    "weight": 0.0021
+   },
+   {
+    "id": 23,
+    "weight": 0.002
    },
    {
     "id": 61,
-    "weight": 0.0004
-   },
-   {
-    "id": 97,
-    "weight": 0.0004
-   },
-   {
-    "id": 99,
-    "weight": 0.0004
-   },
-   {
-    "id": 25,
-    "weight": 0.0003
-   },
-   {
-    "id": 46,
-    "weight": 0.0003
-   },
-   {
-    "id": 63,
-    "weight": 0.0003
-   },
-   {
-    "id": 29,
-    "weight": 0.0002
-   },
-   {
-    "id": 33,
-    "weight": 0.0002
-   },
-   {
-    "id": 36,
-    "weight": 0.0002
-   },
-   {
-    "id": 38,
-    "weight": 0.0002
-   },
-   {
-    "id": 39,
-    "weight": 0.0002
-   },
-   {
-    "id": 51,
-    "weight": 0.0002
-   },
-   {
-    "id": 108,
-    "weight": 0.0002
-   },
-   {
-    "id": 109,
-    "weight": 0.0002
-   },
-   {
-    "id": 110,
-    "weight": 0.0002
-   },
-   {
-    "id": 121,
-    "weight": 0.0002
-   },
-   {
-    "id": 112,
-    "weight": 0.0001
-   },
-   {
-    "id": 49,
-    "weight": 0.0
-   },
-   {
-    "id": 65,
-    "weight": 0.0
-   },
-   {
-    "id": 113,
-    "weight": 0.0
+    "weight": 0.002
    },
    {
     "id": 149,
+    "weight": 0.002
+   },
+   {
+    "id": 40,
+    "weight": 0.0019
+   },
+   {
+    "id": 37,
+    "weight": 0.0018
+   },
+   {
+    "id": 67,
+    "weight": 0.0018
+   },
+   {
+    "id": 147,
+    "weight": 0.0018
+   },
+   {
+    "id": 26,
+    "weight": 0.0017
+   },
+   {
+    "id": 43,
+    "weight": 0.0017
+   },
+   {
+    "id": 25,
+    "weight": 0.0016
+   },
+   {
+    "id": 44,
+    "weight": 0.0015
+   },
+   {
+    "id": 109,
+    "weight": 0.0015
+   },
+   {
+    "id": 29,
+    "weight": 0.0014
+   },
+   {
+    "id": 42,
+    "weight": 0.0014
+   },
+   {
+    "id": 93,
+    "weight": 0.0013
+   },
+   {
+    "id": 39,
+    "weight": 0.0012
+   },
+   {
+    "id": 48,
+    "weight": 0.0012
+   },
+   {
+    "id": 59,
+    "weight": 0.0012
+   },
+   {
+    "id": 36,
+    "weight": 0.0011
+   },
+   {
+    "id": 38,
+    "weight": 0.0011
+   },
+   {
+    "id": 66,
+    "weight": 0.0011
+   },
+   {
+    "id": 68,
+    "weight": 0.0011
+   },
+   {
+    "id": 133,
+    "weight": 0.001
+   },
+   {
+    "id": 27,
+    "weight": 0.0009
+   },
+   {
+    "id": 51,
+    "weight": 0.0009
+   },
+   {
+    "id": 11,
+    "weight": 0.0008
+   },
+   {
+    "id": 90,
+    "weight": 0.0008
+   },
+   {
+    "id": 100,
+    "weight": 0.0008
+   },
+   {
+    "id": 34,
+    "weight": 0.0007
+   },
+   {
+    "id": 47,
+    "weight": 0.0007
+   },
+   {
+    "id": 52,
+    "weight": 0.0007
+   },
+   {
+    "id": 96,
+    "weight": 0.0007
+   },
+   {
+    "id": 14,
+    "weight": 0.0006
+   },
+   {
+    "id": 33,
+    "weight": 0.0006
+   },
+   {
+    "id": 45,
+    "weight": 0.0006
+   },
+   {
+    "id": 101,
+    "weight": 0.0006
+   },
+   {
+    "id": 110,
+    "weight": 0.0006
+   },
+   {
+    "id": 31,
+    "weight": 0.0005
+   },
+   {
+    "id": 95,
+    "weight": 0.0005
+   },
+   {
+    "id": 21,
+    "weight": 0.0004
+   },
+   {
+    "id": 127,
+    "weight": 0.0004
+   },
+   {
+    "id": 22,
+    "weight": 0.0003
+   },
+   {
+    "id": 32,
+    "weight": 0.0003
+   },
+   {
+    "id": 56,
+    "weight": 0.0003
+   },
+   {
+    "id": 88,
+    "weight": 0.0003
+   },
+   {
+    "id": 144,
+    "weight": 0.0003
+   },
+   {
+    "id": 10,
+    "weight": 0.0002
+   },
+   {
+    "id": 28,
+    "weight": 0.0002
+   },
+   {
+    "id": 46,
+    "weight": 0.0002
+   },
+   {
+    "id": 49,
+    "weight": 0.0002
+   },
+   {
+    "id": 130,
+    "weight": 0.0002
+   },
+   {
+    "id": 70,
+    "weight": 0.0001
+   },
+   {
+    "id": 92,
+    "weight": 0.0001
+   },
+   {
+    "id": 94,
+    "weight": 0.0001
+   },
+   {
+    "id": 107,
+    "weight": 0.0001
+   },
+   {
+    "id": 111,
+    "weight": 0.0001
+   },
+   {
+    "id": 114,
+    "weight": 0.0001
+   },
+   {
+    "id": 124,
+    "weight": 0.0001
+   },
+   {
+    "id": 112,
+    "weight": 0.0
+   },
+   {
+    "id": 132,
     "weight": 0.0
    }
   ],
   "item": "p815ae890f7",
   "keyword_scores": [
-   3.433868790062877,
-   2.1461679937892977,
-   1.2877007962735787,
-   1.030160637018863,
-   0.8807522248707695,
-   0.489306791594872,
-   0.48767379697145763,
-   0.4639331881589591,
-   0.27374767672628925,
-   0.23196659407947956
+   3.3876379102880785,
+   2.117273693930049,
+   1.2703642163580295,
+   1.0162913730864234,
+   0.8688944770333393,
+   0.4827191539074108,
+   0.4811081446255233,
+   0.2896314923444465,
+   0.27006215561145025,
+   0.22884358024922152
   ],
-  "keywords": "inherent optical properties;sea surface temperature;sea surface salinity;radar backscatter;delta progradation;coastal railway resilience;appendicularian respiration;cyanobacteria respiration;coastal eutrophication;tidal resonance",
+  "keywords": "inherent optical properties;sea surface temperature;sea surface salinity;radar backscatter;delta progradation;coastal railway resilience;appendicularian respiration;embayed beaches;coastal eutrophication;tidal resonance",
   "near_terms": [
    {
     "score": 0.9926,
     "term": "inherent optical properties"
    },
    {
-    "score": 0.9906,
-    "term": "sea surface salinity"
-   },
-   {
-    "score": 0.9906,
-    "term": "thermocline seasonal cycle"
-   },
-   {
-    "score": 0.9901,
-    "term": "radar backscatter"
-   },
-   {
-    "score": 0.9894,
+    "score": 0.9915,
     "term": "extreme rainfall impacts"
    },
    {
-    "score": 0.9894,
+    "score": 0.9915,
     "term": "radar current map gap filling"
    },
    {
-    "score": 0.9894,
-    "term": "high tide flood trends"
+    "score": 0.9915,
+    "term": "tsunami trends"
    },
    {
-    "score": 0.9894,
+    "score": 0.9915,
     "term": "beach erosion"
    },
    {
-    "score": 0.989,
-    "term": "sea surface temperature"
+    "score": 0.9909,
+    "term": "high tide flood trends"
    },
    {
-    "score": 0.9881,
-    "term": "cross-shelf flow dissipation"
+    "score": 0.9901,
+    "term": "ekman layer variability"
+   },
+   {
+    "score": 0.9901,
+    "term": "tidal energy dissipation"
+   },
+   {
+    "score": 0.9899,
+    "term": "eddy transport"
+   },
+   {
+    "score": 0.9899,
+    "term": "wind-driven circulation"
    }
   ],
   "subfield_weights": [
    {
-    "id": 10,
-    "weight": 0.7952
-   },
-   {
-    "id": 11,
-    "weight": 0.1201
-   },
-   {
-    "id": 6,
-    "weight": 0.0292
-   },
-   {
-    "id": 3,
-    "weight": 0.0288
-   },
-   {
     "id": 8,
-    "weight": 0.013
+    "weight": 0.778
    },
    {
     "id": 9,
-    "weight": 0.0083
+    "weight": 0.0833
    },
    {
-    "id": 4,
-    "weight": 0.0034
+    "id": 10,
+    "weight": 0.0456
+   },
+   {
+    "id": 11,
+    "weight": 0.0378
+   },
+   {
+    "id": 2,
+    "weight": 0.0294
+   },
+   {
+    "id": 6,
+    "weight": 0.0093
+   },
+   {
+    "id": 7,
+    "weight": 0.0053
    },
    {
     "id": 5,
-    "weight": 0.0018
+    "weight": 0.005
    },
    {
-    "id": 0,
-    "weight": 0.0001
+    "id": 4,
+    "weight": 0.0044
+   },
+   {
+    "id": 3,
+    "weight": 0.0016
+   },
+   {
+    "id": 1,
+    "weight": 0.0004
    }
   ]
  },
@@ -999,816 +1055,836 @@
   "concept_weights": [
    {
     "id": 7,
-    "weight": 0.0674
+    "weight": 0.0661
    },
    {
     "id": 6,
-    "weight": 0.0654
+    "weight": 0.0653
    },
    {
     "id": 5,
-    "weight": 0.0642
-   },
-   {
-    "id": 2,
-    "weight": 0.0638
-   },
-   {
-    "id": 3,
-    "weight": 0.0606
+    "weight": 0.0637
    },
    {
     "id": 4,
-    "weight": 0.0578
-   },
-   {
-    "id": 0,
-    "weight": 0.0555
+    "weight": 0.0634
    },
    {
     "id": 8,
-    "weight": 0.0487
+    "weight": 0.0629
    },
    {
-    "id": 135,
-    "weight": 0.0451
+    "id": 3,
+    "weight": 0.0622
    },
    {
-    "id": 43,
-    "weight": 0.0433
+    "id": 2,
+    "weight": 0.0587
+   },
+   {
+    "id": 0,
+    "weight": 0.0563
+   },
+   {
+    "id": 120,
+    "weight": 0.0444
+   },
+   {
+    "id": 79,
+    "weight": 0.0404
    },
    {
     "id": 1,
-    "weight": 0.035
+    "weight": 0.0344
    },
    {
-    "id": 133,
-    "weight": 0.0335
+    "id": 78,
+    "weight": 0.0324
    },
    {
-    "id": 134,
-    "weight": 0.0295
+    "id": 76,
+    "weight": 0.0286
    },
    {
-    "id": 131,
-    "weight": 0.0262
+    "id": 80,
+    "weight": 0.0272
    },
    {
-    "id": 130,
-    "weight": 0.0261
-   },
-   {
-    "id": 18,
-    "weight": 0.0238
-   },
-   {
-    "id": 137,
-    "weight": 0.0225
-   },
-   {
-    "id": 132,
-    "weight": 0.0165
-   },
-   {
-    "id": 126,
-    "weight": 0.0114
-   },
-   {
-    "id": 128,
-    "weight": 0.0099
+    "id": 77,
+    "weight": 0.0271
    },
    {
     "id": 17,
-    "weight": 0.0091
+    "weight": 0.0262
    },
    {
-    "id": 146,
-    "weight": 0.0091
+    "id": 85,
+    "weight": 0.0195
    },
    {
-    "id": 129,
-    "weight": 0.0086
+    "id": 75,
+    "weight": 0.0156
    },
    {
-    "id": 147,
-    "weight": 0.0084
+    "id": 18,
+    "weight": 0.0109
    },
    {
-    "id": 125,
+    "id": 12,
+    "weight": 0.0098
+   },
+   {
+    "id": 81,
+    "weight": 0.0087
+   },
+   {
+    "id": 16,
     "weight": 0.0083
    },
    {
-    "id": 140,
+    "id": 82,
     "weight": 0.0079
    },
    {
-    "id": 42,
-    "weight": 0.0073
+    "id": 83,
+    "weight": 0.0075
    },
    {
-    "id": 46,
-    "weight": 0.0065
+    "id": 119,
+    "weight": 0.0063
    },
    {
-    "id": 34,
-    "weight": 0.006
+    "id": 124,
+    "weight": 0.0058
    },
    {
-    "id": 45,
-    "weight": 0.0057
+    "id": 109,
+    "weight": 0.0054
    },
    {
-    "id": 127,
-    "weight": 0.0048
+    "id": 20,
+    "weight": 0.0053
    },
    {
-    "id": 30,
-    "weight": 0.0047
+    "id": 121,
+    "weight": 0.0052
    },
    {
-    "id": 33,
-    "weight": 0.0047
+    "id": 19,
+    "weight": 0.0043
    },
    {
-    "id": 31,
+    "id": 116,
     "weight": 0.0042
    },
    {
-    "id": 52,
-    "weight": 0.0042
+    "id": 118,
+    "weight": 0.0041
    },
    {
-    "id": 70,
+    "id": 13,
     "weight": 0.004
    },
    {
-    "id": 143,
+    "id": 91,
+    "weight": 0.004
+   },
+   {
+    "id": 9,
+    "weight": 0.0038
+   },
+   {
+    "id": 105,
     "weight": 0.0038
    },
    {
     "id": 122,
-    "weight": 0.0036
-   },
-   {
-    "id": 115,
-    "weight": 0.0035
-   },
-   {
-    "id": 142,
-    "weight": 0.0035
-   },
-   {
-    "id": 32,
-    "weight": 0.0034
-   },
-   {
-    "id": 68,
-    "weight": 0.0034
-   },
-   {
-    "id": 44,
-    "weight": 0.0032
-   },
-   {
-    "id": 71,
-    "weight": 0.0029
-   },
-   {
-    "id": 69,
-    "weight": 0.0027
-   },
-   {
-    "id": 83,
-    "weight": 0.0027
-   },
-   {
-    "id": 85,
-    "weight": 0.0026
-   },
-   {
-    "id": 80,
-    "weight": 0.0025
-   },
-   {
-    "id": 53,
-    "weight": 0.0024
-   },
-   {
-    "id": 67,
-    "weight": 0.0024
-   },
-   {
-    "id": 73,
-    "weight": 0.0024
-   },
-   {
-    "id": 54,
-    "weight": 0.0023
-   },
-   {
-    "id": 79,
-    "weight": 0.0023
-   },
-   {
-    "id": 74,
-    "weight": 0.0022
-   },
-   {
-    "id": 107,
-    "weight": 0.0021
-   },
-   {
-    "id": 136,
-    "weight": 0.002
-   },
-   {
-    "id": 51,
-    "weight": 0.0019
-   },
-   {
-    "id": 82,
-    "weight": 0.0018
-   },
-   {
-    "id": 72,
-    "weight": 0.0017
-   },
-   {
-    "id": 84,
-    "weight": 0.0017
-   },
-   {
-    "id": 50,
-    "weight": 0.0016
-   },
-   {
-    "id": 109,
-    "weight": 0.0016
-   },
-   {
-    "id": 86,
-    "weight": 0.0015
-   },
-   {
-    "id": 49,
-    "weight": 0.0014
-   },
-   {
-    "id": 141,
-    "weight": 0.0014
-   },
-   {
-    "id": 78,
-    "weight": 0.0012
-   },
-   {
-    "id": 81,
-    "weight": 0.0012
-   },
-   {
-    "id": 89,
-    "weight": 0.0012
-   },
-   {
-    "id": 21,
-    "weight": 0.0011
-   },
-   {
-    "id": 93,
-    "weight": 0.0011
-   },
-   {
-    "id": 116,
-    "weight": 0.0011
-   },
-   {
-    "id": 16,
-    "weight": 0.001
-   },
-   {
-    "id": 19,
-    "weight": 0.001
-   },
-   {
-    "id": 41,
-    "weight": 0.001
-   },
-   {
-    "id": 108,
-    "weight": 0.0009
-   },
-   {
-    "id": 14,
-    "weight": 0.0008
-   },
-   {
-    "id": 57,
-    "weight": 0.0008
-   },
-   {
-    "id": 112,
-    "weight": 0.0008
-   },
-   {
-    "id": 28,
-    "weight": 0.0007
-   },
-   {
-    "id": 110,
-    "weight": 0.0007
-   },
-   {
-    "id": 76,
-    "weight": 0.0006
-   },
-   {
-    "id": 77,
-    "weight": 0.0006
-   },
-   {
-    "id": 106,
-    "weight": 0.0006
-   },
-   {
-    "id": 15,
-    "weight": 0.0005
-   },
-   {
-    "id": 29,
-    "weight": 0.0005
-   },
-   {
-    "id": 145,
-    "weight": 0.0005
-   },
-   {
-    "id": 75,
-    "weight": 0.0003
-   },
-   {
-    "id": 87,
-    "weight": 0.0003
-   },
-   {
-    "id": 99,
-    "weight": 0.0003
-   },
-   {
-    "id": 149,
-    "weight": 0.0003
-   },
-   {
-    "id": 22,
-    "weight": 0.0002
-   },
-   {
-    "id": 40,
-    "weight": 0.0002
-   },
-   {
-    "id": 55,
-    "weight": 0.0002
+    "weight": 0.0037
    },
    {
     "id": 113,
-    "weight": 0.0002
+    "weight": 0.0035
+   },
+   {
+    "id": 58,
+    "weight": 0.0034
+   },
+   {
+    "id": 136,
+    "weight": 0.0034
+   },
+   {
+    "id": 138,
+    "weight": 0.0034
+   },
+   {
+    "id": 123,
+    "weight": 0.0033
+   },
+   {
+    "id": 146,
+    "weight": 0.003
+   },
+   {
+    "id": 117,
+    "weight": 0.0029
+   },
+   {
+    "id": 57,
+    "weight": 0.0027
+   },
+   {
+    "id": 134,
+    "weight": 0.0027
+   },
+   {
+    "id": 147,
+    "weight": 0.0025
+   },
+   {
+    "id": 104,
+    "weight": 0.0024
+   },
+   {
+    "id": 135,
+    "weight": 0.0024
+   },
+   {
+    "id": 145,
+    "weight": 0.0024
+   },
+   {
+    "id": 84,
+    "weight": 0.0023
+   },
+   {
+    "id": 114,
+    "weight": 0.0023
+   },
+   {
+    "id": 69,
+    "weight": 0.0022
+   },
+   {
+    "id": 139,
+    "weight": 0.0022
+   },
+   {
+    "id": 32,
+    "weight": 0.0021
+   },
+   {
+    "id": 92,
+    "weight": 0.0021
+   },
+   {
+    "id": 101,
+    "weight": 0.0021
+   },
+   {
+    "id": 106,
+    "weight": 0.002
+   },
+   {
+    "id": 60,
+    "weight": 0.0018
+   },
+   {
+    "id": 149,
+    "weight": 0.0018
+   },
+   {
+    "id": 21,
+    "weight": 0.0016
+   },
+   {
+    "id": 100,
+    "weight": 0.0016
+   },
+   {
+    "id": 111,
+    "weight": 0.0016
+   },
+   {
+    "id": 137,
+    "weight": 0.0016
+   },
+   {
+    "id": 103,
+    "weight": 0.0015
    },
    {
     "id": 144,
-    "weight": 0.0002
+    "weight": 0.0015
    },
    {
-    "id": 12,
-    "weight": 0.0001
+    "id": 34,
+    "weight": 0.0014
+   },
+   {
+    "id": 61,
+    "weight": 0.0014
+   },
+   {
+    "id": 108,
+    "weight": 0.0014
+   },
+   {
+    "id": 99,
+    "weight": 0.0013
+   },
+   {
+    "id": 10,
+    "weight": 0.0012
    },
    {
     "id": 56,
+    "weight": 0.0012
+   },
+   {
+    "id": 115,
+    "weight": 0.0012
+   },
+   {
+    "id": 33,
+    "weight": 0.0011
+   },
+   {
+    "id": 38,
+    "weight": 0.0011
+   },
+   {
+    "id": 102,
+    "weight": 0.001
+   },
+   {
+    "id": 112,
+    "weight": 0.001
+   },
+   {
+    "id": 148,
+    "weight": 0.001
+   },
+   {
+    "id": 68,
+    "weight": 0.0009
+   },
+   {
+    "id": 143,
+    "weight": 0.0009
+   },
+   {
+    "id": 36,
+    "weight": 0.0008
+   },
+   {
+    "id": 141,
+    "weight": 0.0008
+   },
+   {
+    "id": 47,
+    "weight": 0.0007
+   },
+   {
+    "id": 35,
+    "weight": 0.0005
+   },
+   {
+    "id": 46,
+    "weight": 0.0005
+   },
+   {
+    "id": 55,
+    "weight": 0.0005
+   },
+   {
+    "id": 59,
+    "weight": 0.0005
+   },
+   {
+    "id": 90,
+    "weight": 0.0005
+   },
+   {
+    "id": 110,
+    "weight": 0.0005
+   },
+   {
+    "id": 142,
+    "weight": 0.0005
+   },
+   {
+    "id": 45,
+    "weight": 0.0004
+   },
+   {
+    "id": 48,
+    "weight": 0.0004
+   },
+   {
+    "id": 107,
+    "weight": 0.0004
+   },
+   {
+    "id": 64,
+    "weight": 0.0002
+   },
+   {
+    "id": 88,
+    "weight": 0.0002
+   },
+   {
+    "id": 63,
+    "weight": 0.0001
+   },
+   {
+    "id": 22,
+    "weight": 0.0
+   },
+   {
+    "id": 28,
     "weight": 0.0
    }
   ],
   "item": "p90a4fb1370",
   "keyword_scores": [
-   2.506259517980149,
-   1.696032713549599,
-   1.5704006606940732,
-   1.2563205285552583,
-   1.0025038071920596,
-   0.6281602642776292,
-   0.3580370739971641,
-   0.33384582322111034,
-   0.33384582322111034,
-   0.3140801321388146
+   2.446538421648916,
+   1.6556183301466987,
+   1.5329799353210174,
+   1.2263839482568137,
+   0.9786153686595664,
+   0.6131919741284069,
+   0.34950548880698806,
+   0.34950548880698806,
+   0.32589068592374226,
+   0.32589068592374226
   ],
-  "keywords": "shelf sea dynamics;radar backscatter;sea surface temperature;inherent optical properties;surface current forcing mechanisms;front vertical structure;coastal railway resilience;mixed layer intensity;nonlinear tidal constituents;tidal eddy dissipation",
+  "keywords": "shelf sea dynamics;radar backscatter;sea surface temperature;inherent optical properties;surface current forcing mechanisms;front vertical structure;coastal railway resilience;eddy seasonal cycle;nonlinear tidal constituents;mixed layer intensity",
   "near_terms": [
    {
-    "score": 0.9805,
+    "score": 0.9856,
+    "term": "eddy variability"
+   },
+   {
+    "score": 0.9856,
+    "term": "topographic steering"
+   },
+   {
+    "score": 0.9821,
     "term": "tidal resonance"
    },
    {
-    "score": 0.9793,
+    "score": 0.9792,
     "term": "coastal village insurance"
    },
    {
-    "score": 0.9727,
-    "term": "bottom current forcing mechanisms"
-   },
-   {
-    "score": 0.9727,
-    "term": "recirculation gyre modelling"
-   },
-   {
-    "score": 0.9714,
-    "term": "marina flood risk"
-   },
-   {
-    "score": 0.9714,
-    "term": "swash zone roughness"
-   },
-   {
-    "score": 0.9714,
-    "term": "coastal railway exposure"
-   },
-   {
-    "score": 0.9714,
+    "score": 0.9792,
     "term": "coastal road damage"
    },
    {
-    "score": 0.9714,
-    "term": "radiolarian diversity"
+    "score": 0.9769,
+    "term": "marina flood risk"
    },
    {
-    "score": 0.9714,
-    "term": "nitrite uptake"
+    "score": 0.9769,
+    "term": "dissolved inorganic carbon distribution"
+   },
+   {
+    "score": 0.9769,
+    "term": "swash zone roughness"
+   },
+   {
+    "score": 0.9769,
+    "term": "coastal railway exposure"
+   },
+   {
+    "score": 0.9769,
+    "term": "radiolarian diversity"
    }
   ],
   "subfield_weights": [
    {
-    "id": 10,
-    "weight": 0.6131
+    "id": 8,
+    "weight": 0.583
+   },
+   {
+    "id": 9,
+    "weight": 0.2452
    },
    {
     "id": 11,
-    "weight": 0.2185
-   },
-   {
-    "id": 7,
-    "weight": 0.0438
-   },
-   {
-    "id": 6,
-    "weight": 0.0349
+    "weight": 0.0595
    },
    {
     "id": 0,
-    "weight": 0.0319
+    "weight": 0.0369
    },
    {
-    "id": 3,
-    "weight": 0.0223
-   },
-   {
-    "id": 8,
-    "weight": 0.0199
+    "id": 10,
+    "weight": 0.0332
    },
    {
     "id": 2,
-    "weight": 0.0111
+    "weight": 0.0216
+   },
+   {
+    "id": 7,
+    "weight": 0.0102
+   },
+   {
+    "id": 1,
+    "weight": 0.0057
+   },
+   {
+    "id": 4,
+    "weight": 0.0029
    },
    {
     "id": 5,
-    "weight": 0.0044
+    "weight": 0.0017
    }
   ]
  },
  {
   "concept_weights": [
    {
-    "id": 84,
-    "weight": 0.0465
-   },
-   {
-    "id": 86,
-    "weight": 0.0449
-   },
-   {
-    "id": 85,
-    "weight": 0.0443
-   },
-   {
-    "id": 87,
-    "weight": 0.0425
-   },
-   {
-    "id": 95,
-    "weight": 0.0392
-   },
-   {
-    "id": 83,
-    "weight": 0.0363
-   },
-   {
-    "id": 94,
-    "weight": 0.0327
-   },
-   {
-    "id": 101,
-    "weight": 0.0325
-   },
-   {
-    "id": 97,
-    "weight": 0.032
-   },
-   {
-    "id": 102,
-    "weight": 0.0316
-   },
-   {
-    "id": 98,
-    "weight": 0.0314
-   },
-   {
-    "id": 105,
-    "weight": 0.0313
-   },
-   {
-    "id": 106,
-    "weight": 0.0313
-   },
-   {
-    "id": 73,
-    "weight": 0.0296
-   },
-   {
-    "id": 104,
-    "weight": 0.0296
-   },
-   {
-    "id": 103,
-    "weight": 0.0277
-   },
-   {
-    "id": 100,
-    "weight": 0.0261
-   },
-   {
-    "id": 96,
-    "weight": 0.0234
-   },
-   {
-    "id": 147,
-    "weight": 0.0218
-   },
-   {
-    "id": 107,
-    "weight": 0.0217
-   },
-   {
-    "id": 92,
-    "weight": 0.0203
-   },
-   {
-    "id": 99,
-    "weight": 0.0199
-   },
-   {
-    "id": 93,
-    "weight": 0.0172
-   },
-   {
-    "id": 4,
-    "weight": 0.017
-   },
-   {
-    "id": 74,
-    "weight": 0.0168
-   },
-   {
-    "id": 88,
-    "weight": 0.0161
-   },
-   {
-    "id": 148,
-    "weight": 0.016
-   },
-   {
-    "id": 118,
-    "weight": 0.014
-   },
-   {
-    "id": 89,
-    "weight": 0.0138
-   },
-   {
-    "id": 123,
-    "weight": 0.0117
-   },
-   {
-    "id": 127,
-    "weight": 0.0116
-   },
-   {
-    "id": 68,
-    "weight": 0.0108
-   },
-   {
-    "id": 146,
-    "weight": 0.0105
-   },
-   {
-    "id": 38,
-    "weight": 0.0099
-   },
-   {
-    "id": 81,
-    "weight": 0.0099
-   },
-   {
-    "id": 111,
-    "weight": 0.0097
-   },
-   {
-    "id": 122,
-    "weight": 0.0094
-   },
-   {
-    "id": 131,
-    "weight": 0.0083
-   },
-   {
-    "id": 91,
-    "weight": 0.0076
-   },
-   {
-    "id": 108,
-    "weight": 0.0065
-   },
-   {
-    "id": 117,
-    "weight": 0.005
-   },
-   {
-    "id": 125,
-    "weight": 0.005
-   },
-   {
-    "id": 128,
-    "weight": 0.0049
-   },
-   {
-    "id": 116,
-    "weight": 0.0046
-   },
-   {
-    "id": 121,
-    "weight": 0.0045
-   },
-   {
-    "id": 75,
-    "weight": 0.0043
-   },
-   {
-    "id": 82,
-    "weight": 0.0039
-   },
-   {
-    "id": 124,
-    "weight": 0.0039
-   },
-   {
-    "id": 77,
-    "weight": 0.0032
-   },
-   {
-    "id": 115,
-    "weight": 0.0026
-   },
-   {
-    "id": 130,
-    "weight": 0.0025
-   },
-   {
-    "id": 142,
-    "weight": 0.0024
+    "id": 60,
+    "weight": 0.0438
    },
    {
     "id": 59,
-    "weight": 0.0022
+    "weight": 0.041
    },
    {
-    "id": 26,
-    "weight": 0.002
+    "id": 61,
+    "weight": 0.04
    },
    {
-    "id": 27,
-    "weight": 0.002
+    "id": 57,
+    "weight": 0.0377
    },
    {
-    "id": 78,
-    "weight": 0.002
+    "id": 58,
+    "weight": 0.0352
    },
    {
-    "id": 143,
-    "weight": 0.0019
-   },
-   {
-    "id": 24,
-    "weight": 0.0017
-   },
-   {
-    "id": 110,
-    "weight": 0.0017
-   },
-   {
-    "id": 141,
-    "weight": 0.0017
-   },
-   {
-    "id": 149,
-    "weight": 0.0017
-   },
-   {
-    "id": 25,
-    "weight": 0.0015
-   },
-   {
-    "id": 72,
-    "weight": 0.0014
-   },
-   {
-    "id": 10,
-    "weight": 0.0013
-   },
-   {
-    "id": 23,
-    "weight": 0.0013
-   },
-   {
-    "id": 53,
-    "weight": 0.0012
-   },
-   {
-    "id": 60,
-    "weight": 0.0012
-   },
-   {
-    "id": 9,
-    "weight": 0.0011
-   },
-   {
-    "id": 47,
-    "weight": 0.0011
-   },
-   {
-    "id": 48,
-    "weight": 0.0011
-   },
-   {
-    "id": 29,
-    "weight": 0.001
-   },
-   {
-    "id": 129,
-    "weight": 0.0009
-   },
-   {
-    "id": 132,
-    "weight": 0.0009
-   },
-   {
-    "id": 28,
-    "weight": 0.0008
-   },
-   {
-    "id": 11,
-    "weight": 0.0007
-   },
-   {
-    "id": 67,
-    "weight": 0.0007
-   },
-   {
-    "id": 133,
-    "weight": 0.0007
-   },
-   {
-    "id": 76,
-    "weight": 0.0006
+    "id": 62,
+    "weight": 0.0328
    },
    {
     "id": 51,
-    "weight": 0.0005
+    "weight": 0.0325
    },
    {
-    "id": 144,
-    "weight": 0.0005
+    "id": 70,
+    "weight": 0.0309
    },
    {
-    "id": 39,
-    "weight": 0.0004
+    "id": 83,
+    "weight": 0.029
+   },
+   {
+    "id": 72,
+    "weight": 0.0287
+   },
+   {
+    "id": 74,
+    "weight": 0.0257
+   },
+   {
+    "id": 68,
+    "weight": 0.0254
+   },
+   {
+    "id": 71,
+    "weight": 0.0245
+   },
+   {
+    "id": 67,
+    "weight": 0.0244
+   },
+   {
+    "id": 50,
+    "weight": 0.0243
+   },
+   {
+    "id": 82,
+    "weight": 0.0233
+   },
+   {
+    "id": 73,
+    "weight": 0.0232
+   },
+   {
+    "id": 52,
+    "weight": 0.0227
+   },
+   {
+    "id": 65,
+    "weight": 0.0213
+   },
+   {
+    "id": 66,
+    "weight": 0.0212
+   },
+   {
+    "id": 22,
+    "weight": 0.0203
+   },
+   {
+    "id": 56,
+    "weight": 0.0191
+   },
+   {
+    "id": 69,
+    "weight": 0.0185
+   },
+   {
+    "id": 14,
+    "weight": 0.0178
+   },
+   {
+    "id": 139,
+    "weight": 0.0172
+   },
+   {
+    "id": 20,
+    "weight": 0.0169
+   },
+   {
+    "id": 25,
+    "weight": 0.0155
+   },
+   {
+    "id": 21,
+    "weight": 0.0149
+   },
+   {
+    "id": 26,
+    "weight": 0.0144
+   },
+   {
+    "id": 13,
+    "weight": 0.0141
+   },
+   {
+    "id": 53,
+    "weight": 0.0139
+   },
+   {
+    "id": 81,
+    "weight": 0.0139
+   },
+   {
+    "id": 16,
+    "weight": 0.0134
+   },
+   {
+    "id": 23,
+    "weight": 0.0127
    },
    {
     "id": 63,
+    "weight": 0.0123
+   },
+   {
+    "id": 55,
+    "weight": 0.0119
+   },
+   {
+    "id": 19,
+    "weight": 0.0116
+   },
+   {
+    "id": 136,
+    "weight": 0.0114
+   },
+   {
+    "id": 24,
+    "weight": 0.0111
+   },
+   {
+    "id": 17,
+    "weight": 0.011
+   },
+   {
+    "id": 96,
+    "weight": 0.0107
+   },
+   {
+    "id": 54,
+    "weight": 0.0099
+   },
+   {
+    "id": 15,
+    "weight": 0.009
+   },
+   {
+    "id": 41,
+    "weight": 0.0081
+   },
+   {
+    "id": 18,
+    "weight": 0.0077
+   },
+   {
+    "id": 12,
+    "weight": 0.0067
+   },
+   {
+    "id": 89,
+    "weight": 0.0062
+   },
+   {
+    "id": 140,
+    "weight": 0.0045
+   },
+   {
+    "id": 148,
+    "weight": 0.0039
+   },
+   {
+    "id": 43,
+    "weight": 0.0033
+   },
+   {
+    "id": 149,
+    "weight": 0.0032
+   },
+   {
+    "id": 9,
+    "weight": 0.0029
+   },
+   {
+    "id": 91,
+    "weight": 0.0025
+   },
+   {
+    "id": 143,
+    "weight": 0.0024
+   },
+   {
+    "id": 29,
+    "weight": 0.0022
+   },
+   {
+    "id": 141,
+    "weight": 0.0022
+   },
+   {
+    "id": 30,
+    "weight": 0.0021
+   },
+   {
+    "id": 64,
+    "weight": 0.0021
+   },
+   {
+    "id": 77,
+    "weight": 0.002
+   },
+   {
+    "id": 144,
+    "weight": 0.0018
+   },
+   {
+    "id": 31,
+    "weight": 0.0017
+   },
+   {
+    "id": 40,
+    "weight": 0.0017
+   },
+   {
+    "id": 137,
+    "weight": 0.0016
+   },
+   {
+    "id": 28,
+    "weight": 0.0015
+   },
+   {
+    "id": 44,
+    "weight": 0.0015
+   },
+   {
+    "id": 125,
+    "weight": 0.0015
+   },
+   {
+    "id": 10,
+    "weight": 0.0012
+   },
+   {
+    "id": 88,
+    "weight": 0.0012
+   },
+   {
+    "id": 39,
+    "weight": 0.0011
+   },
+   {
+    "id": 42,
+    "weight": 0.0011
+   },
+   {
+    "id": 27,
+    "weight": 0.001
+   },
+   {
+    "id": 92,
+    "weight": 0.001
+   },
+   {
+    "id": 114,
+    "weight": 0.001
+   },
+   {
+    "id": 98,
+    "weight": 0.0008
+   },
+   {
+    "id": 108,
+    "weight": 0.0008
+   },
+   {
+    "id": 128,
+    "weight": 0.0008
+   },
+   {
+    "id": 126,
+    "weight": 0.0007
+   },
+   {
+    "id": 142,
+    "weight": 0.0007
+   },
+   {
+    "id": 45,
+    "weight": 0.0006
+   },
+   {
+    "id": 87,
+    "weight": 0.0005
+   },
+   {
+    "id": 97,
+    "weight": 0.0005
+   },
+   {
+    "id": 106,
+    "weight": 0.0005
+   },
+   {
+    "id": 1,
+    "weight": 0.0004
+   },
+   {
+    "id": 11,
+    "weight": 0.0004
+   },
+   {
+    "id": 129,
     "weight": 0.0004
    },
    {
@@ -1816,148 +1892,153 @@
     "weight": 0.0004
    },
    {
-    "id": 136,
+    "id": 135,
     "weight": 0.0004
    },
    {
-    "id": 1,
-    "weight": 0.0003
-   },
-   {
-    "id": 3,
-    "weight": 0.0003
-   },
-   {
-    "id": 42,
-    "weight": 0.0003
-   },
-   {
-    "id": 139,
-    "weight": 0.0003
-   },
-   {
-    "id": 140,
-    "weight": 0.0003
+    "id": 147,
+    "weight": 0.0004
    },
    {
     "id": 2,
-    "weight": 0.0002
+    "weight": 0.0003
    },
    {
-    "id": 54,
-    "weight": 0.0002
-   },
-   {
-    "id": 137,
-    "weight": 0.0002
+    "id": 107,
+    "weight": 0.0003
    },
    {
     "id": 0,
+    "weight": 0.0002
+   },
+   {
+    "id": 3,
+    "weight": 0.0002
+   },
+   {
+    "id": 84,
     "weight": 0.0001
    },
    {
-    "id": 30,
+    "id": 119,
     "weight": 0.0001
    },
    {
-    "id": 64,
+    "id": 130,
     "weight": 0.0001
    },
    {
-    "id": 69,
+    "id": 131,
     "weight": 0.0001
    },
    {
-    "id": 7,
+    "id": 4,
+    "weight": 0.0
+   },
+   {
+    "id": 5,
+    "weight": 0.0
+   },
+   {
+    "id": 86,
+    "weight": 0.0
+   },
+   {
+    "id": 104,
     "weight": 0.0
    }
   ],
   "item": "pf2052b7aef",
   "keyword_scores": [
-   2.584653432561658,
-   2.4100178880962755,
-   1.2061716018621071,
-   0.9640071552385101,
-   0.8033392960320918,
-   0.7557767529203192,
-   0.5169306865123316,
-   0.48200357761925505
+   2.200928645384281,
+   2.0522199761778257,
+   0.8803714581537125,
+   0.8208879904711304,
+   0.7722864585535884,
+   0.7336428817947604,
+   0.6840733253926086,
+   0.44018572907685627,
+   0.4104439952355652
   ],
-  "keywords": "sea cucumber welfare;otter trawl selectivity;common cuttlefish abundance indices;microplastic ingestion;european eel biomass;sardine exploitation status;cuttlefish abundance;sardine growth",
+  "keywords": "sea cucumber welfare;otter trawl selectivity;glyphosate toxicity;microplastic ingestion;sediment contamination;hake size structure;european eel biomass;cuttlefish abundance;sardine growth",
   "near_terms": [
    {
-    "score": 0.9765,
+    "score": 0.9319,
     "term": "otter trawl selectivity"
    },
    {
-    "score": 0.9765,
+    "score": 0.9319,
     "term": "tuna growth"
    },
    {
-    "score": 0.9569,
-    "term": "sardine growth"
-   },
-   {
-    "score": 0.9317,
+    "score": 0.9319,
     "term": "coastal housing insurance"
    },
    {
-    "score": 0.9117,
-    "term": "blue mussel mortality"
+    "score": 0.8872,
+    "term": "sardine growth"
    },
    {
-    "score": 0.9117,
-    "term": "sea cucumber welfare"
-   },
-   {
-    "score": 0.8935,
+    "score": 0.8547,
     "term": "skate maturity"
    },
    {
-    "score": 0.8805,
-    "term": "cephalopod feeding ecology"
+    "score": 0.8515,
+    "term": "longline catchability"
    },
    {
-    "score": 0.799,
-    "term": "harbour seal recruitment"
-   },
-   {
-    "score": 0.763,
+    "score": 0.8012,
     "term": "coastal village exposure"
+   },
+   {
+    "score": 0.8012,
+    "term": "hake size structure"
+   },
+   {
+    "score": 0.8012,
+    "term": "coastal housing protection"
+   },
+   {
+    "score": 0.8012,
+    "term": "blue mussel mortality"
    }
   ],
   "subfield_weights": [
    {
-    "id": 6,
-    "weight": 0.4812
-   },
-   {
-    "id": 4,
-    "weight": 0.3868
-   },
-   {
-    "id": 7,
-    "weight": 0.0577
+    "id": 5,
+    "weight": 0.3735
    },
    {
     "id": 3,
-    "weight": 0.0324
+    "weight": 0.261
    },
    {
-    "id": 9,
-    "weight": 0.0174
+    "id": 7,
+    "weight": 0.156
    },
    {
     "id": 11,
-    "weight": 0.0111
+    "weight": 0.1437
    },
    {
-    "id": 1,
-    "weight": 0.0108
+    "id": 9,
+    "weight": 0.0359
    },
    {
     "id": 2,
-    "weight": 0.0026
+    "weight": 0.0221
+   },
+   {
+    "id": 1,
+    "weight": 0.0037
+   },
+   {
+    "id": 10,
+    "weight": 0.003
+   },
+   {
+    "id": 6,
+    "weight": 0.0012
    }
   ]
  }

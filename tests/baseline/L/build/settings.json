@@ -7,6 +7,7 @@
    "trajectory": true
   }
  ],
+ "counting_unit": "person",
  "global_top_n": 10000,
  "length_bonus_alpha": 2.0,
  "llm_min_score": 0.0,
