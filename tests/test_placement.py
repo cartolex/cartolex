@@ -52,3 +52,52 @@ def test_leave_one_out_and_limits():
         place(z, z, xy[:5], k=3)
     with pytest.raises(ValueError, match="dimensions"):
         place(np.ones((1, 4)), z, xy, k=3)
+
+
+def test_neighbours_together_give_their_weighted_mean():
+    z, xy = _anchors()
+    placed = place(np.array([[5.0, 0.2, 0.1]]), z, xy, k=5)
+    assert placed.in_group.all()
+    plain = np.einsum("ik,ikj->ij", placed.neighbour_weights, xy[placed.neighbours])
+    assert np.allclose(placed.xy, plain)
+
+
+def test_a_point_between_two_places_goes_to_the_heavier_one():
+    # Anchors in two tight places on the map; the vector sits between them in the space,
+    # a little nearer to the three anchors of place A than to the five of place B.
+    a = np.array([[1.0, 0.0], [0.98, 0.02], [0.99, -0.01]])
+    b = np.array([[0.0, 1.0], [0.02, 0.98], [-0.01, 0.99], [0.01, 1.01], [0.0, 0.97]])
+    vectors_a = np.hstack([a, np.zeros((3, 1))])
+    vectors_b = np.hstack([b, np.zeros((5, 1))])
+    anchors = np.vstack([vectors_a, vectors_b])
+    xy = np.vstack([np.full((3, 2), (0.0, 0.0)), np.full((5, 2), (10.0, 0.0))])
+    xy = xy + np.random.default_rng(0).normal(scale=0.05, size=xy.shape)
+    placed = place(np.array([[0.6, 0.55, 0.0]]), anchors, xy, k=8)
+    x = placed.xy[0, 0]
+    assert x < 1 or x > 9  # in one place, never in the empty space between
+    group = placed.neighbours[0][placed.in_group[0]]
+    other = placed.neighbours[0][~placed.in_group[0]]
+    heavier = placed.neighbour_weights[0][placed.in_group[0]].sum()
+    assert heavier >= placed.neighbour_weights[0][~placed.in_group[0]].sum()
+    assert len(set(group) & set(other)) == 0 and len(group) + len(other) == 8
+    assert np.allclose(placed.weights.sum(axis=1), 1.0)
+    assert np.all(placed.weights[0][~placed.in_group[0]] == 0)
+
+
+def test_on_equal_weights_the_group_of_the_nearest_neighbour_wins():
+    anchors = np.array([[1.0, 0.0], [0.0, 1.0]])
+    xy = np.array([[0.0, 0.0], [10.0, 0.0]])
+    placed = place(np.array([[1.0, 1.0]]), anchors, xy, k=2)
+    assert placed.neighbours[0].tolist() == [0, 1]  # equal distances: by index
+    assert placed.xy.tolist() == [[0.0, 0.0]]
+
+
+def test_the_map_radius_and_anchors():
+    from cartolex.atlas.placement import LINK_RADIUS, K, MapAnchors, map_radius
+
+    assert (K, LINK_RADIUS) == (8, 0.25)
+    assert map_radius(np.array([[1.0, 0.0], [-1.0, 0.0]])) == 1.0
+    z, xy = _anchors()
+    anchors = MapAnchors(z, xy)
+    assert anchors.place(np.zeros((0, 3))).shape == (0, 2)
+    assert np.array_equal(anchors.place(z[:3]), place(z[:3], z, xy).xy)
