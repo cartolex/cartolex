@@ -142,6 +142,8 @@ class RawWriter:
 
     def close(self) -> Path:
         """Write the header and the records into place; returns the run's path."""
+        if self._fh.closed and not self._body.exists():
+            return self.path  # discarded: nothing to write
         self._fh.close()
         fd, tmp = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".tmp", dir=self.folder)
         try:
@@ -169,7 +171,7 @@ class RawWriter:
         return self
 
     def __exit__(self, exc_type: object, *rest: object) -> None:
-        if exc_type is None:
+        if exc_type is None and self._body.exists():
             self.close()
         else:
             self.discard()

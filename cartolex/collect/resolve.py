@@ -493,6 +493,8 @@ def resolve(
         except Cancelled:
             report.cancelled = True
         out.header["people"] = len(report.resolutions)
+        if not report.resolutions:
+            out.discard()
     if changes:
         update_people(layout, changes, action="resolve", now=now)
     client.progress(1.0, "resolution done")

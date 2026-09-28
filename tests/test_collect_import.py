@@ -322,3 +322,15 @@ def test_an_existing_corpus_comes_in_whole(tmp_path) -> None:
 
     assert rows(rebuilt, out / report.slot) == rows(original, tmp_path / "ws")
     project.close()
+
+
+def test_raw_records_hold_no_absolute_path(tmp_path) -> None:
+    project = _project(tmp_path / "p")
+    import_people(project, "last_name,first_name\nTavelin,Ada\n")
+    docs = tmp_path / "docs"
+    (docs / "Ada Tavelin").mkdir(parents=True)
+    (docs / "Ada Tavelin" / "notes.txt").write_text("Tidal flats and salt marshes.", "utf-8")
+    import_folder(project, docs)
+    for path in (tmp_path / "p" / "sources").rglob("*.jsonl"):
+        assert str(tmp_path) not in path.read_text(encoding="utf-8")
+    project.close()

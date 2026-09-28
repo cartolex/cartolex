@@ -135,7 +135,7 @@ The kinds of raw runs cartolex writes, and what their readers build:
 | kind | written by | header | records | rows built |
 | --- | --- | --- | --- | --- |
 | `people` | `import_people` | the source's name, the mapping, rows read | one per list row (no e-mail): names, identifiers, filters, organisations with levels and parents | people (`import`), organisations, affiliations (`import`, no years) |
-| `folder` | `import_folder` | the folder given, files seen | one per file read: its path, digest, person, title, year, language, text | texts (`folder`), one `full` part, one authorship; people created from sub-folders (`folder`) |
+| `folder` | `import_folder` | the folder's name (no path), files seen | one per file read: its path, digest, person, title, year, language, text | texts (`folder`), one `full` part, one authorship; people created from sub-folders (`folder`) |
 | `corpus` | `import_corpus` | the index's name, the unit level | one per index row: names, unit, attributes, file, year, type, language, text | people (`import`), units as organisations, texts with a `full` part, authorships in row order |
 | `openalex` | `harvest` | the year window; per person: records, names, ORCID, declared DOIs | author records and works as received, with the person and how each work was reached | texts, title and abstract parts, authorships, organisations, affiliations (`stated` per work, `openalex` from the records' years) |
 | `orcid` | `harvest` | per person: ORCID iDs | the registry's works and records as received | affiliations (`orcid`) to organisations of the same name the person is already affiliated with |

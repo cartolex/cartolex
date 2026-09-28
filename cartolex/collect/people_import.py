@@ -918,7 +918,8 @@ def import_folder(
                 "retrieved_at": iso(now),
             }
         )
-    header = {"folder": str(folder), "files": report.rows_read}
+    # The folder's name only: no absolute path is stored in a project file.
+    header = {"folder": folder.resolve().name, "files": report.rows_read}
     with RawWriter(project.layout, slot, "folder", header, now=now) as writer:
         for rec in records:
             writer.add(rec)
