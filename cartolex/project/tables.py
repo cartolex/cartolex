@@ -5,7 +5,8 @@
 :data:`SOURCE_KEYS` its key (see ``docs/format/sources.md``). A table is
 written sorted by its key, atomically, and checked when read: a missing column,
 a wrong type, a duplicate key or an unsorted table is refused with the reason.
-Extra columns are allowed (a newer minor version may add optional ones).
+Extra columns are allowed (a newer minor version may add optional ones), and an
+optional column missing from an older file reads as empty.
 
 :data:`DECISION_TABLES` lists the columns and allowed values of each CSV
 decision file (see ``docs/format/decisions.md``).
@@ -81,6 +82,18 @@ SOURCE_SCHEMAS: dict[str, pa.Schema] = {
             ("ids", pa.map_(pa.string(), pa.list_(pa.string()))),
             ("source", pa.string()),
             ("columns", _IDS),
+            (
+                "aliases",
+                pa.list_(
+                    pa.struct(
+                        [
+                            ("last_name", pa.string()),
+                            ("first_name", pa.string()),
+                            ("source", pa.string()),
+                        ]
+                    )
+                ),
+            ),
             ("retrieved_at", _UTC),
         ]
     ),
@@ -113,6 +126,8 @@ SOURCE_SCHEMAS: dict[str, pa.Schema] = {
             ("person_id", pa.string()),
             ("position", pa.int32()),
             ("orgs", pa.list_(pa.string())),
+            ("last", pa.bool_()),
+            ("corresponding", pa.bool_()),
         ]
     ),
 }
@@ -156,7 +171,10 @@ def _check(name: str, table: pa.Table, where: str) -> pa.Table:
     schema = SOURCE_SCHEMAS[name]
     for fld in schema:
         if fld.name not in table.column_names:
-            raise TableError(f"{where}: column {fld.name!r} is missing")
+            if fld.name in _REQUIRED[name]:
+                raise TableError(f"{where}: column {fld.name!r} is missing")
+            # An optional column a newer minor version added: an older file reads it as empty.
+            table = table.append_column(fld, pa.nulls(table.num_rows, type=fld.type))
         got = table.schema.field(fld.name).type
         if got != fld.type:
             try:

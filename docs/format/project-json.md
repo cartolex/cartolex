@@ -40,7 +40,7 @@ marker a tool looks for: a folder is a cartolex project when it holds a
 | `format` | `cartolex-project/1` |
 | `name` | the project's name, shown everywhere |
 | `identity` | what AI answers and parse caches are keyed on (below) |
-| `languages.corpus` | the languages extracted from texts, any of `en`, `fr`, `pt`; a text in another language is left out, and counted |
+| `languages.corpus` | the languages extracted from texts: any ISO 639-1 code cartolex ships a language pack for (`en`, `fr`, `pt` today, `es` next). A pack is code, not format, so a new one changes no file here; a project takes it up by adding the code to this list. A text in a language not listed is left out, and counted |
 | `languages.reference` | the language that merges the forms of one keyword across languages (English by default) |
 | `languages.display` | the languages keywords and themes are shown in |
 | `levels` | the organisation levels, from the smallest to the largest, each with a name per interface language |

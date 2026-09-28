@@ -56,9 +56,12 @@ __all__ = [
     "ThemesSaved",
 ]
 
-#: The languages cartolex extracts keywords from and shows its interface in.
+#: The languages cartolex ships a language pack for today (a spaCy model, function
+#: words, prompts, interface names). A pack is code, not format: the files accept
+#: any ISO 639-1 code, and a project takes a new pack up by adding its code.
 LANGUAGES = ("en", "fr", "pt")
-Language = Literal["en", "fr", "pt"]
+#: An ISO 639-1 language code.
+Language = Annotated[str, Field(pattern=r"^[a-z]{2}$")]
 
 #: The build's stages, in order (see ``docs/format/derived.md``).
 STAGE_IDS = (
