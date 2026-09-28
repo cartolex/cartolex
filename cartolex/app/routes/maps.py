@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from ..deps import ProjectDep
 from ..errors import ApiError
-from ..etags import etag_of, expected_version, version_of
+from ..etags import check_version, etag_of, expected_version, version_of
 from ..routing import Routes, runtime_of
 
 routes = Routes(tags=["map"])
@@ -63,6 +63,7 @@ def change_versions(
 
     expected = expected_version(request)
     with ctx.handle.mutex:
+        check_version(ctx.layout.maps_json, expected)
         maps, _ = read_maps(ctx.layout)
         try:
             if body.action == "pin":

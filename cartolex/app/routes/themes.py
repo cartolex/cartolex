@@ -15,7 +15,7 @@ from cartolex.project.models import ThemesFile
 
 from ..deps import ProjectDep
 from ..errors import ApiError
-from ..etags import etag_of, expected_version, version_of
+from ..etags import check_version, etag_of, expected_version, version_of
 from ..routing import Routes, runtime_of
 
 routes = Routes(tags=["themes"])
@@ -321,6 +321,7 @@ def save(request: Request, response: Response, body: SaveBody, ctx: ProjectDep) 
     expected = expected_version(request)
     tree = _parse_tree(body.tree)
     with ctx.handle.mutex:
+        check_version(ctx.layout.themes_json, expected)
         saved = save_themes(ctx.project, tree, expected=expected, action=body.action)
         if saved.written:
             ctx.project.freeze_identity("first curation decision")
@@ -386,6 +387,7 @@ def restore(
 
     expected = expected_version(request)
     with ctx.handle.mutex:
+        check_version(ctx.layout.themes_json, expected)
         try:
             saved = restore_version(ctx.project, version_id, expected=expected)
         except KeyError as exc:

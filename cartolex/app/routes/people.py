@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from ..collection import new_import_id
 from ..deps import ListDep, ProjectDep, empty_hint, page
 from ..errors import ApiError
-from ..etags import etag_of, expected_version, version_of
+from ..etags import check_version, etag_of, expected_version, version_of
 from ..people_io import read_people, write_people_csv
 from ..routing import Routes, runtime_of
 
@@ -138,6 +138,7 @@ def edit_people(
     if not changes:
         raise ApiError(422, "invalid", "nothing to change", next_action="fix-input")
     with ctx.handle.mutex:
+        check_version(ctx.layout.people_csv, expected)
         _known(ctx, body.person_ids)
         what = ", ".join(f"{k} {v}" for k, v in changes.items() if k != "note") or "note"
         fp = write_people_csv(
@@ -166,6 +167,7 @@ def merge_people(
     if body.target in body.sources:
         raise ApiError(422, "invalid", "a person cannot be merged into themselves")
     with ctx.handle.mutex:
+        check_version(ctx.layout.people_csv, expected)
         by_id = _known(ctx, [body.target, *body.sources])
         if by_id[body.target]["merged_into"]:
             raise ApiError(
@@ -264,6 +266,7 @@ def confirm_import(
     expected = expected_version(request)
     folder = _import_folder(request, ctx, import_id)
     with ctx.handle.mutex:
+        check_version(ctx.layout.people_csv, expected)
         result = runtime.collection.confirm_import(
             ctx.project,
             folder,

@@ -9,7 +9,7 @@ from fastapi import Request, Response
 from pydantic import BaseModel, Field
 
 from ..deps import ProjectDep
-from ..etags import etag_of, expected_version, version_of
+from ..etags import check_version, etag_of, expected_version, version_of
 from ..routing import Routes, runtime_of
 
 routes = Routes(tags=["params"])
@@ -142,6 +142,7 @@ def put_params(
     expected = expected_version(request)
     project = ctx.project
     with ctx.handle.mutex:
+        check_version(ctx.layout.params_json, expected)
         before, _ = project.read_params()
         updated = before.model_validate(
             {

@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from ..deps import ProjectDep
 from ..errors import ApiError
-from ..etags import etag_of, expected_version, version_of
+from ..etags import check_version, etag_of, expected_version, version_of
 from ..routing import Routes
 
 routes = Routes(tags=["snapshots"])
@@ -191,16 +191,11 @@ def restore_snapshot(
     project = ctx.project
     action = f"restore {version}"
     with ctx.handle.mutex:
+        check_version(_path(ctx, file), expected)
         if file == "themes.json":
             restore_version(project, version, expected=expected)
         elif file == "project.json":
             config = ProjectFile.model_validate_json(source.read_bytes())
-            if fingerprint(ctx.layout.project_json) != expected:
-                from cartolex.project import StaleWrite
-
-                raise StaleWrite(
-                    ctx.layout.project_json, expected, fingerprint(ctx.layout.project_json)
-                )
             project.save_config(
                 config,
                 action=action,

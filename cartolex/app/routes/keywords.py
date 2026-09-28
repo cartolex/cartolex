@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from ..deps import ListDep, ProjectDep, empty_hint, page
 from ..errors import ApiError
-from ..etags import etag_of, expected_version, version_of
+from ..etags import check_version, etag_of, expected_version, version_of
 from ..people_io import decided_now
 from ..routing import Routes, runtime_of
 
@@ -209,6 +209,7 @@ def decide(
             )
     now = decided_now()
     with ctx.handle.mutex:
+        check_version(ctx.layout.keywords_csv, expected)
         rows, _ = _decisions(ctx)
         for d in body.decisions:
             rows[(d.term, d.language)] = {
@@ -234,6 +235,7 @@ def restore(
     """Undo decisions (restore an excluded keyword to its band); send ``If-Match``."""
     expected = expected_version(request)
     with ctx.handle.mutex:
+        check_version(ctx.layout.keywords_csv, expected)
         rows, _ = _decisions(ctx)
         gone = [(k.term, k.language) for k in body.keywords if (k.term, k.language) in rows]
         if not gone:

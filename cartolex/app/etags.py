@@ -12,11 +12,13 @@ version, so the interface can offer « reload and merge ». A write without
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import Request
 
 from .errors import ApiError
 
-__all__ = ["ABSENT", "etag_of", "expected_version", "version_of"]
+__all__ = ["ABSENT", "check_version", "etag_of", "expected_version", "version_of"]
 
 #: The version of a decision file that does not exist yet.
 ABSENT = "none"
@@ -52,3 +54,18 @@ def expected_version(request: Request, *, header: str = "If-Match") -> str | Non
     if len(value) >= 2 and value[0] == value[-1] == '"':
         value = value[1:-1]
     return None if value == ABSENT else value
+
+
+def check_version(path: Path, expected: str | None) -> None:
+    """Refuse (412) at once when *path* is no longer the version the client read.
+
+    The guarded writer checks again when it writes; checking first means a
+    change computed on a newer file is never judged (« pinned ») before the
+    client sees that file.
+    """
+    from cartolex.project import StaleWrite
+    from cartolex.project.files import fingerprint
+
+    found = fingerprint(path)
+    if found != expected:
+        raise StaleWrite(path, expected, found)

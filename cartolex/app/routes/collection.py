@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from ..deps import ListDep, ProjectDep, empty_hint, page
 from ..errors import ApiError
-from ..etags import etag_of, expected_version, version_of
+from ..etags import check_version, etag_of, expected_version, version_of
 from ..jobs import JobConflict, JobControl
 from ..people_io import read_people, write_people_csv
 from ..routing import Routes, runtime_of
@@ -161,6 +161,36 @@ def _record(value: str | None) -> str:
     return f"orcid:{text}" if re.match(r"^\d{4}-", text) else text
 
 
+class BulkAccept(BaseModel):
+    person_ids: Annotated[list[PersonId], Field(min_length=1, max_length=5000)]
+
+
+@routes.post("/api/collection/identities/accept", action="collection.identities")
+def accept_many(
+    request: Request, response: Response, body: BulkAccept, ctx: ProjectDep
+) -> dict[str, Any]:
+    """Accept the best candidate of each person listed (those without one are left as they are)."""
+    expected = expected_version(request)
+    found = runtime_of(request).collection.candidates(ctx.project, body.person_ids)
+    changes = {
+        pid: {"identity": "confirmed", "records": options[0]["record"]}
+        for pid, options in found.items()
+        if options
+    }
+    left = sorted(set(body.person_ids) - set(changes))
+    if not changes:
+        raise ApiError(
+            409, "no_candidate", "none of these people has a candidate record", next_action="none"
+        )
+    with ctx.handle.mutex:
+        check_version(ctx.layout.people_csv, expected)
+        fp = write_people_csv(
+            ctx.project, changes, expected=expected, action=f"accept {len(changes)} identities"
+        )
+    response.headers["ETag"] = etag_of(fp)
+    return {"accepted": sorted(changes), "left": left, "version": version_of(fp)}
+
+
 @routes.post("/api/collection/identities/{person_id}", action="collection.identities")
 def decide(
     request: Request,
@@ -172,6 +202,7 @@ def decide(
     """Decide one person's identity (send ``If-Match`` of the people's version)."""
     expected = expected_version(request)
     with ctx.handle.mutex:
+        check_version(ctx.layout.people_csv, expected)
         people, _ = read_people(ctx.project)
         if person_id not in {p["person_id"] for p in people}:
             raise ApiError(404, "not_found", f"no person {person_id!r}", next_action="reload")
@@ -199,35 +230,6 @@ def decide(
         )
     response.headers["ETag"] = etag_of(fp)
     return {"person_id": person_id, **change, "version": version_of(fp)}
-
-
-class BulkAccept(BaseModel):
-    person_ids: Annotated[list[PersonId], Field(min_length=1, max_length=5000)]
-
-
-@routes.post("/api/collection/identities/accept", action="collection.identities")
-def accept_many(
-    request: Request, response: Response, body: BulkAccept, ctx: ProjectDep
-) -> dict[str, Any]:
-    """Accept the best candidate of each person listed (those without one are left as they are)."""
-    expected = expected_version(request)
-    found = runtime_of(request).collection.candidates(ctx.project, body.person_ids)
-    changes = {
-        pid: {"identity": "confirmed", "records": options[0]["record"]}
-        for pid, options in found.items()
-        if options
-    }
-    left = sorted(set(body.person_ids) - set(changes))
-    if not changes:
-        raise ApiError(
-            409, "no_candidate", "none of these people has a candidate record", next_action="none"
-        )
-    with ctx.handle.mutex:
-        fp = write_people_csv(
-            ctx.project, changes, expected=expected, action=f"accept {len(changes)} identities"
-        )
-    response.headers["ETag"] = etag_of(fp)
-    return {"accepted": sorted(changes), "left": left, "version": version_of(fp)}
 
 
 @routes.get("/api/collection/coverage", action="collection.read")

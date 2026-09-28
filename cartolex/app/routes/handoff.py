@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from ..deps import ProjectDep
 from ..errors import ApiError
-from ..etags import etag_of, expected_version, version_of
+from ..etags import check_version, etag_of, expected_version, version_of
 from ..people_io import decided_now
 from ..routing import Routes, runtime_of
 from .keywords import _decisions, _effective, _write, extracted
@@ -232,6 +232,7 @@ def accept(
     """Write the accepted decisions into ``keywords.csv`` (source ``ai-handoff``); ``If-Match``."""
     expected = expected_version(request)
     with ctx.handle.mutex:
+        check_version(ctx.layout.keywords_csv, expected)
         prop = _proposal(ctx, proposal_id)
         chosen = {(t.term, t.language) for t in body.terms}
         items = [i for i in prop["items"] if body.all or (i["term"], i["language"]) in chosen]
