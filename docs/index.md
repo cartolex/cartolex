@@ -28,6 +28,7 @@ dev/extraction
 dev/lexicon-lab
 dev/build
 dev/themes
+dev/themes-engine
 dev/checks
 dev/reference
 dev/placement
