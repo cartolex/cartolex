@@ -207,8 +207,12 @@ nothing in the engine names a particular deployment, source or procedure.
   CSRF header bound to it, no CORS, a strict Content-Security-Policy on every
   response, bounded inputs and checked uploads. Every route calls
   `authorize(principal, action, resource)`; decision files are read with their
-  version as `ETag` and written with `If-Match` (412 when stale). Every error
-  says its cause and the next action. The manifest the interface starts from
+  version as `ETag` and written with `If-Match` (412 when stale). Every error,
+  empty result, skipped stage and failed attempt carries a stable code and its
+  params, for the interface to show in its own language (English text as a
+  fallback), and the next action. Per-person preferences
+  (`/api/me/preferences`) are kept in the app's own folder for a hosted
+  service. The manifest the interface starts from
   is `cartolex-manifest/1`, with a generated JSON Schema
   (`docs/dev/app-manifest.md`). Host applications add pages, routes, slots,
   stage declarations and patches, branding and more through `Extension`
