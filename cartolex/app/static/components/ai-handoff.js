@@ -9,7 +9,7 @@
  * nothing changes before « Import ». The checking and the import are the
  * caller's (`onCheck`, `onImport`: the server's handoff routes in the app).
  */
-import { html, useEffect, useRef, useState } from '../core/preact.js';
+import { html, useLayoutEffect, useRef, useState } from '../core/preact.js';
 import { formatNumber, t } from '../core/i18n.js';
 import { copyText, downloadFile, useUid } from '../core/dom.js';
 import { Button } from './button.js';
@@ -45,7 +45,7 @@ export function AiHandoffDialog({ open, onClose, bundle, file, prompt, onCheck, 
   const firstStep = useRef(true);
   const uid = useUid('cx-handoff');
   // A new step replaces the buttons that had the focus: give it to the step itself.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (firstStep.current) {
       firstStep.current = false;
       return;

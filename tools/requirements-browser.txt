@@ -1,0 +1,8 @@
+# The browser checks' tools (tools/check.py `js` and `browser`), installed into
+# the quick Python's environment only: Playwright's Python package, which also
+# brings the Node that parses the interface's modules. The browser itself is not
+# installed here: `python -m playwright install chromium` (about 170 MB, once per
+# machine); without it the browser check is skipped with that instruction.
+playwright==1.62.0
+greenlet==3.5.6
+pyee==13.0.1

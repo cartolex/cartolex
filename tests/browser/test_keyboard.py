@@ -11,7 +11,8 @@ from __future__ import annotations
 import re
 
 import pytest
-from playwright.sync_api import expect
+
+expect = pytest.importorskip("playwright.sync_api", reason="Playwright is not installed").expect
 
 CONTEXT = {"permissions": ["clipboard-read", "clipboard-write"]}
 #: Sections with something to operate (tokens, status, tracker and icons only show).
