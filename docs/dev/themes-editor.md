@@ -144,12 +144,22 @@ The screen uses the component library and adds three components to it:
 
 ## Measures
 
-On the L demo world (depth 2: 2 955 keywords, 163 nodes; the app on the same
-computer, measured in the page): the page is ready in about 0.2 s; a search
-over every keyword updates the outline in 3 to 25 ms; a rename, a move or a
-set aside shows in 20 to 50 ms (the tree shows the change at once, then the
-server's tree, the one kept, replaces it); an undo in 15 to 20 ms. The map
-pans 10⁴ points at 60 frames a second (`tests/browser/test_themes.py`). The
-first read after the app starts loads the scientific libraries for the
-keywords' use (about 0.5 s): the tree shows first, sized by its keyword
-counts, then by use.
+The browser check measures them on the L demo world (depth 2: 2 955 keywords,
+163 nodes; the app on the same computer; `tests/browser/test_theme_editor.py`,
+in `.cache/check/ui-measures.json`):
+
+| measure | budget | measured |
+| --- | --- | --- |
+| page ready | < 1 s | 0.24 s |
+| search over every keyword, until the outline shows the matches | < 100 ms | 4 to 18 ms |
+| an operation's feedback (a rename, from Enter to the outline) | < 100 ms | 21 to 43 ms |
+| undo | < 100 ms | 20 to 23 ms |
+| map pan, 10⁴ points | 60 frames a second | a frame every 16.7 ms (median and 95th percentile) |
+| ten visits of the editor and back | no leak | DOM nodes +0, listeners +0 |
+
+A rename, a move, a set aside or a review shows at once in the tree (the
+browser applies it by the same rules), then the server's tree, the one kept,
+replaces it; merges, splits and levels wait for the server (about 0.1 s on L,
+with a spinner beside the status meanwhile). The first read after the app
+starts loads the scientific libraries for the keywords' use (about half a
+second): the tree shows first, sized by its keyword counts, then by use.

@@ -330,7 +330,7 @@ console error, an uncaught exception or a CSP violation fails a test:
 - the shell's behaviour: start order, cached status dots, routing and focus,
   guards, late answers dropped, the extension API, the API client, the
   Activity drawer;
-- the theme editor on the real app (`tests/browser/test_themes.py`, with
+- the theme editor on the real app (`tests/browser/test_theme_editor.py`, with
   `app_harness.py`): the S demo world built as a project once per session,
   then each scenario on a fresh copy served by the app on a free loopback
   port (see {doc}`themes-editor`); the budgets on the L world are marked
