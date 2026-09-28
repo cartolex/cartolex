@@ -117,13 +117,21 @@ The rules are checked in the order `part-of`, `name`, `low-score`, then
 `single-word`, `common-modifier`, `below-threshold`, `multiword`. With the
 defaults, a candidate is kept (a phrase of two content words or more), to
 check (one content word) or set aside (a fragment of a longer candidate).
-The AI clean-up judges the kept and to-check bands and never sees the
-set-aside band; with its decisions, the consolidation keeps only accepted
-terms, so a set-aside candidate reaches the lexicon only if the same concept
-is accepted under another form. Without the AI clean-up, bands remove
-nothing: the consolidation reads every candidate. The rules and their
-defaults come from the lexicon lab ({doc}`lexicon-lab`); the rules marked
-off are its switches, not settings.
+Only the kept and to-check bands can reach the lexicon
+(`scoring.LEXICON_BANDS`, the one constant the triage and the consolidation
+share); the set-aside band stays in the raw tables with its reason. The AI
+clean-up judges those two bands and never sees the set-aside band; with its
+decisions, the consolidation keeps only accepted terms (its acceptance
+gate), so a set-aside candidate reaches the lexicon only if the same concept
+is accepted under another form. Without the AI clean-up, the consolidation's
+band gate (`consolidation.band_allowed_concepts`) keeps a concept only when
+one of its raw terms is in the kept or to-check band, so the set-aside band
+does not reach the lexicon either. Either way an explicit keep wins: the
+manual keep list (`manual_keep.csv`; in a project, the `keep` rows of
+`decisions/keywords.csv`). A raw table without a `band` column, from an
+older run, is read whole. Both gates report what they remove in the run's
+progress. The rules and their defaults come from the lexicon lab
+({doc}`lexicon-lab`); the rules marked off are its switches, not settings.
 
 ### The raw keyword tables
 

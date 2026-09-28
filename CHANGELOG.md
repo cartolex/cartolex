@@ -169,6 +169,16 @@ nothing in the engine names a particular deployment, source or procedure.
   word as too generic unless it is a term of art, and gives a term of
   another language the canonical form of the reference-language term that
   names the same thing. The AI caches' keys are unchanged.
+- **Set-aside candidates stay out of the lexicon without AI too.** Without AI
+  decisions, the consolidation's band gate keeps only the concepts with a
+  candidate in the kept or to-check band
+  (`cartolex.lexicon.scoring.LEXICON_BANDS`, the constant the triage now
+  shares in place of `JUDGED_BANDS`) and reports what it removed in the run's
+  progress. Set-aside candidates stay in the raw tables with their band and
+  reason; an explicit keep (the manual keep list, a `keep` in
+  `decisions/keywords.csv`) still wins, and a raw table without a `band`
+  column is read whole. With AI decisions nothing changes (`keywords.build`,
+  stage version 2).
 - **The browser-handoff test.** `tools/lexicon_lab/handoff_bundles.py` writes, from
   a project build of a demo world, the bundles a person hands to a chat
   assistant (a prompt, the numbered terms with their evidence, the answer

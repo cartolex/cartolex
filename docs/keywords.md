@@ -85,6 +85,14 @@ several words is not always a keyword (`study area`, `recent decades`).
   (`vector machine` is only ever part of `support vector machine`), so the
   longer phrase stands for it.
 
+**What reaches the lexicon.** Without the AI clean-up, the kept and to-check
+candidates reach the lexicon, and those set aside do not. With it, only the
+candidates the AI accepts do (see below): it never sees those set aside, so
+they do not reach the lexicon either. In both cases a candidate someone keeps
+by hand (a *keep* in `decisions/keywords.csv`) reaches the lexicon whatever
+its band, and one someone excludes does not; every candidate, set aside or
+not, stays in the candidate tables with its band and its reason.
+
 ## 5. What the AI sees
 
 The AI clean-up is optional. It judges the **kept** and **to-check**
