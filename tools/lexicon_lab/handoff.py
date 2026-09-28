@@ -286,6 +286,9 @@ def priced(cost: Mapping[str, int], price: Price) -> float:
 
 #: Format of ``bundle.json``, the machine-readable half of a handoff part.
 HANDOFF_FORMAT = "cartolex-handoff/1"
+#: Version of :data:`PROMPT`, recorded in each part. 2: a process, property or
+#: measure of an object is a keyword; F is only for broken pieces.
+PROMPT_VERSION = 2
 #: The codes of the answer (the engine's triage codes).
 ACCEPT_CODES = ("C", "M", "O")
 REJECT_CODES = ("N", "K", "G", "F")
@@ -301,8 +304,8 @@ The field: {domain}
 In its owner's words: {description}
 
 For each term, decide whether it is a good keyword of this field: a term a
-researcher of the field would recognise as naming one precise thing. Accept it
-with one of these codes:
+researcher of the field would use to name a subject, a method or an object of
+their work. Accept it with one of these codes:
   C  a concept, phenomenon, process, property or theory
   M  a method, technique, instrument, model or kind of data
   O  an object of study: a material, an organism, a system, an environment
@@ -310,8 +313,15 @@ or reject it with one of these:
   N  a name: a person, a particular place, an institution, a project, a journal
   K  administrative, career or project-management wording
   G  too generic to be a keyword on its own: it could be said of any field or study
-  F  not a well-formed term: a fragment, a piece of a longer phrase, or words
-     that do not belong together
+  F  a broken piece, not a term: a phrase cut out of a longer one, words split
+     across a phrase boundary, or debris of a sentence
+
+A phrase that joins a process, a property or a measure to an object of the
+field (the growth of a cell, the stiffness of a material, the rate of a
+reaction) is a good keyword, usually C, when both parts belong to the field.
+French often writes it « X des Y », English as a compound: judge the whole
+phrase, and do not reject it in favour of its object alone. F is only for
+broken pieces.
 
 The evidence after each term (how many people and texts use it, its other
 spellings, the longer phrases it appears in) is there to help; judge the term
@@ -333,6 +343,10 @@ For example, with terms from another field:
   3 | M | microscopie à force atomique | atomic force microscopy
   4 | G | further work
   5 | N | Lyon
+  6 | C | repliement des protéines | protein folding
+  7 | C | enzyme turnover rate
+  8 | F | matter physics
+  9 | F | égard des mesures
 
 Read and judge every term yourself; do not write or run a program to decide.
 Give the whole answer as plain text in one code block, or as a downloadable
@@ -350,7 +364,7 @@ the list, fields separated by a vertical bar.
 
 The English form is left out when it is the term itself. Codes: C concept,
 M method, O object of study (accepted); N name, K administrative wording,
-G too generic, F fragment or ill-formed (rejected).
+G too generic, F broken piece of a phrase (rejected).
 
 Example:
   1 | C | phase transition
@@ -499,6 +513,7 @@ def write_part(
             zf.writestr(info, text)
     record = {
         "format": HANDOFF_FORMAT,
+        "prompt_version": PROMPT_VERSION,
         "name": name,
         "part": part,
         "parts": parts,

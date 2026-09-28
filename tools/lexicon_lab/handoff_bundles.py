@@ -4,6 +4,7 @@
 Usage::
 
     python tools/lexicon_lab/handoff_bundles.py --out ~/cartolex-work/handoff-test
+    python tools/lexicon_lab/handoff_bundles.py --out ~/cartolex-work/handoff-test --suffix -v2
     python tools/lexicon_lab/score_handoff.py ~/cartolex-work/handoff-test   # once answered
 
 A demo world is written as a project and its keywords are extracted by a
@@ -190,11 +191,18 @@ def write_handoff_test(
     max_tokens: int,
     rebuild: bool = False,
     split_tocheck: bool = False,
+    suffix: str = "",
 ) -> dict:
-    """Build, check, and write both scopes' bundles, the manifest and the README in *out*."""
-    answered = sorted(out.rglob("answer*.txt")) if out.exists() else []
+    """Build, check, and write both scopes' bundles, the manifest and the README in *out*.
+
+    The bundles go to ``tocheck<suffix>/`` and ``kept-tocheck<suffix>/``; other
+    bundles already in *out* (another suffix) and their answers are left as
+    they are, and stay in the manifest.
+    """
+    targets = {scope: out / f"{scope}{suffix}" for scope in SCOPES}
+    answered = [a for t in targets.values() if t.exists() for a in sorted(t.rglob("answer*.txt"))]
     if answered:
-        raise SystemExit(f"handoff: {out} holds answers ({answered[0]} …); move them first")
+        raise SystemExit(f"handoff: {answered[0]} is an answer; move it, or choose another suffix")
     from cartolex.demo import generate
 
     build_project(size, seed, project, rebuild=rebuild)
@@ -202,10 +210,23 @@ def write_handoff_test(
     scored, n_texts = build_candidates(project, project.parent / f"{project.name}-scratch")
     n_people = max(sc.n_people for sc in scored.values())
     world = generate(size, seed)
-    for scope in SCOPES:
-        if (out / scope).exists():
-            shutil.rmtree(out / scope)
+    for target in targets.values():
+        if target.exists():
+            shutil.rmtree(target)
     out.mkdir(parents=True, exist_ok=True)
+    previous = out / "manifest.json"
+    kept_bundles = {}
+    if previous.exists():
+        old = json.loads(previous.read_text(encoding="utf-8"))
+        kept_bundles = {
+            k: v
+            for k, v in old.get("bundles", {}).items()
+            if k not in {t.name for t in targets.values()} and (out / k).exists()
+        }
+        for k, v in kept_bundles.items():  # bundles written before these fields existed
+            v.setdefault("scope", k)
+            v.setdefault("prompt_version", 1)
+            v.setdefault("commit", old.get("build", {}).get("engine_commit", ""))
 
     manifest = {
         "format": "cartolex-handoff-test/1",
@@ -224,7 +245,7 @@ def write_handoff_test(
         "texts": n_texts,
         "max_tokens": max_tokens,
         "tokens": "estimated: characters / 4; cautious: characters / 3 (used to cut the parts)",
-        "bundles": {},
+        "bundles": dict(kept_bundles),
     }
     leaks: list[str] = []
     for scope, bands in SCOPES.items():
@@ -241,9 +262,10 @@ def write_handoff_test(
                 n_texts=n_texts,
             )
         parts = []
+        target = targets[scope]
         for k, chunk in enumerate(chunks, 1):
-            folder = out / scope if len(chunks) == 1 else out / scope / f"part-{k:02d}"
-            name = f"handoff-{scope}" + (f"-part-{k:02d}" if len(chunks) > 1 else "")
+            folder = target if len(chunks) == 1 else target / f"part-{k:02d}"
+            name = f"handoff-{target.name}" + (f"-part-{k:02d}" if len(chunks) > 1 else "")
             sizes = handoff.write_part(
                 folder,
                 chunk,
@@ -262,7 +284,10 @@ def write_handoff_test(
                 [(folder / f).read_text(encoding="utf-8") for f in ("prompt.txt", "terms.txt")],
                 world,
             )
-        manifest["bundles"][scope] = {
+        manifest["bundles"][target.name] = {
+            "scope": scope,
+            "prompt_version": handoff.PROMPT_VERSION,
+            "commit": _git_commit(),
             "bands": list(bands),
             "items": len(b.items),
             "by_language": {
@@ -294,30 +319,49 @@ def _size_rows(manifest: dict) -> list[str]:
     return rows
 
 
+PROMPT_NOTES = {
+    1: "the first prompt",
+    2: "the revised prompt: a process, property or measure of an object of the field "
+    "is a keyword, and F is only for broken pieces",
+}
+SCOPE_WORDS = {
+    "tocheck": "the candidates *to check* (single words, and phrases starting or ending "
+    "with a very common adjective)",
+    "kept-tocheck": "the candidates *kept* or *to check*",
+}
+
+
 def readme(manifest: dict) -> str:
     """The owner's guide to the test folder, in plain words."""
-    kt = manifest["bundles"]["kept-tocheck"]
-    tc = manifest["bundles"]["tocheck"]
     world = manifest["world"]
     limit = manifest["max_tokens"]
+    listing = []
+    for name, info in manifest["bundles"].items():
+        scope = info.get("scope", name)
+        n = len(info["parts"])
+        how = (
+            "in one bundle: one conversation"
+            if n == 1
+            else f"in {n} parts (`part-01` to `part-{n:02d}`): one conversation each"
+        )
+        version = info.get("prompt_version", 1)
+        listing.append(
+            f"- `{name}/`: {SCOPE_WORDS.get(scope, scope)}, {info['items']:,} terms, English "
+            f"and French, {how}; {PROMPT_NOTES.get(version, f'prompt {version}')}."
+        )
     big = [
-        p
+        f"`{p['folder']}/` ({p['tokens']:,} tokens, {p['cautious_tokens']:,} cautious)"
         for info in manifest["bundles"].values()
         for p in info["parts"]
         if p["cautious_tokens"] > limit
     ]
-    tc_parts = (
-        "in one bundle: one conversation"
-        if len(tc["parts"]) == 1
-        else f"in {len(tc['parts'])} parts: one conversation each"
-    )
-    size_note = f"Every part of `kept-tocheck/` stays under {limit:,} cautious tokens. " + (
-        f"The `tocheck/` bundle is one piece, as a person would upload it: "
-        f"{tc['parts'][0]['tokens']:,} tokens ({tc['parts'][0]['cautious_tokens']:,} "
-        "cautious), well within what a conversation holds (about 200,000 tokens in "
-        "claude.ai), but above that target."
+    size_note = f"Every bundle and part stays under {limit:,} cautious tokens" + (
+        ", except "
+        + ", ".join(big)
+        + ": one piece, as a person would upload it, well within what a conversation "
+        "holds (about 200,000 tokens in claude.ai), but above that target."
         if big
-        else "So does the `tocheck/` bundle."
+        else "."
     )
     return f"""# Handoff test: judging keywords in a chat assistant
 
@@ -335,14 +379,9 @@ names of people, no identifiers, and nothing of the world's answer key.
 
 ## What is here
 
-- `tocheck/`: the {tc["items"]:,} candidates *to check* (single words, and
-  phrases starting or ending with a very common adjective), English and French,
-  {tc_parts}.
-- `kept-tocheck/`: the {kt["items"]:,} candidates *kept* or *to check*, in
-  {len(kt["parts"])} parts (`part-01` to `part-{len(kt["parts"]):02d}`): one
-  conversation each.
+{chr(10).join(listing)}
 
-Each bundle (the `tocheck` folder, or one `part-NN` folder) holds:
+Each bundle (a `tocheck…` folder, or one `part-NN` folder) holds:
 
 - a zip with the three files below, the way cartolex would hand them to you;
 - `prompt.txt`: the message to paste;
@@ -361,7 +400,8 @@ an assistant stops after a few thousand tokens and waits for `continue`.
 
 ## Try one bundle by hand in claude.ai
 
-1. Choose a bundle: `tocheck/`, or one `kept-tocheck/part-NN/`.
+1. Choose a bundle: a `tocheck…/` folder, or one `part-NN/` of a
+   `kept-tocheck…/` folder. Prefer the latest prompt (the highest `-vN`).
 2. Open its zip (a double-click unpacks it), or use the three files next to
    it.
 3. In claude.ai, start a **new conversation** (not in a project, with no other
@@ -373,8 +413,8 @@ an assistant stops after a few thousand tokens and waits for `continue`.
    last number, type `continue` and send; repeat until the last number is
    there.
 6. Copy the answer (the copy button of each code block) into a plain-text file
-   named `answer.txt` **in the bundle's folder**: `tocheck/answer.txt`, or
-   `kept-tocheck/part-03/answer.txt`. When the answer came in several pieces,
+   named `answer.txt` **in the bundle's folder**: `tocheck-v2/answer.txt`, or
+   `kept-tocheck-v2/part-03/answer.txt`. When the answer came in several pieces,
    paste them one after the other in `answer.txt`, or save them as
    `answer-1.txt`, `answer-2.txt` … If the assistant offered a file
    `answer.txt` to download, put that file there instead.
@@ -387,11 +427,13 @@ merged):
 
 ```bash
 python tools/lexicon_lab/score_handoff.py ~/cartolex-work/handoff-test
+python tools/lexicon_lab/score_handoff.py ~/cartolex-work/handoff-test --only tocheck-v2
 ```
 
-It prints, for each bundle answered: how many terms were answered, the
-precision and recall of the accepted terms, the agreement on English forms,
-and the same measures for a perfect judge and for one wrong one time in ten.
+It prints, for each bundle (or only those named with `--only`): how many
+terms were answered, the precision and recall of the accepted terms, the
+agreement on English forms, and the same measures for a perfect judge and for
+one wrong one time in ten.
 The full report goes to `.cache/lexicon_lab/handoff-score.md` in the
 repository, never into this folder, so that the folder stays blind.
 
@@ -425,6 +467,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--split-tocheck", action="store_true", help="cut the to-check bundle into parts too"
     )
+    parser.add_argument(
+        "--suffix",
+        default="",
+        help="appended to the bundle folders (tocheck-v2/ …); other bundles are kept",
+    )
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
     for noisy in ("cartolex", "numba"):
@@ -441,6 +488,7 @@ def main(argv: list[str] | None = None) -> int:
         max_tokens=args.max_tokens,
         rebuild=args.rebuild,
         split_tocheck=args.split_tocheck,
+        suffix=args.suffix,
     )
     print("\n".join(_size_rows(manifest)))
     print(f"handoff test: {out}")

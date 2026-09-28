@@ -290,6 +290,9 @@ def test_parts_fit_and_carry_everything(tmp_path: Path) -> None:
     prompt = (folder / "prompt.txt").read_text(encoding="utf-8")
     terms = (folder / "terms.txt").read_text(encoding="utf-8")
     assert "Coastal systems" in prompt and f"numbered 1 to {len(parts[0])}" in prompt
+    # A process or property of an object is a keyword; F is only for broken pieces.
+    assert "6 | C | repliement des protéines | protein folding" in prompt
+    assert "8 | F | matter physics" in prompt and "F is only for" in prompt
     assert f"(part 1 of {len(parts)})" in terms
     assert "1. tide gauge [en] — 3 people, 1 text — in: longer phrase" in terms
     assert "single-word" not in terms and "check" not in terms  # no band in the judge's list
@@ -341,3 +344,21 @@ def test_the_handoff_test_is_written_and_scored(tmp_path: Path, monkeypatch) -> 
     assert "Handoff test: scores" in score_handoff.report(
         score_handoff.score_test(out, truth=truth)
     )
+
+    # A second set under a suffix leaves the first one, and its answer, as they are.
+    before = (part.folder / "answer.txt").read_bytes()
+    again = handoff_bundles.write_handoff_test(
+        out, size="XS", seed=0, project=tmp_path / "project", max_tokens=6_000, suffix="-v2"
+    )
+    assert set(again["bundles"]) == {"tocheck", "kept-tocheck", "tocheck-v2", "kept-tocheck-v2"}
+    assert (part.folder / "answer.txt").read_bytes() == before
+    assert again["bundles"]["tocheck-v2"]["prompt_version"] == handoff.PROMPT_VERSION
+    both = score_handoff.score_test(out, truth=truth)
+    assert set(both["bundles"]) == set(again["bundles"])
+    only = score_handoff.score_test(out, truth=truth, only=["kept-tocheck-v2"])
+    assert list(only["bundles"]) == ["kept-tocheck-v2"]
+    assert only["bundles"]["kept-tocheck-v2"]["judges"]["answers"] is None
+    with pytest.raises(SystemExit):  # the answered set is never overwritten
+        handoff_bundles.write_handoff_test(
+            out, size="XS", seed=0, project=tmp_path / "project", max_tokens=6_000
+        )

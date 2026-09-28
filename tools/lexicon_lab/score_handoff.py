@@ -5,6 +5,7 @@ Usage::
 
     python tools/lexicon_lab/score_handoff.py ~/cartolex-work/handoff-test
     python tools/lexicon_lab/score_handoff.py ~/cartolex-work/handoff-test --answers "blind*.txt"
+    python tools/lexicon_lab/score_handoff.py ~/cartolex-work/handoff-test --only tocheck-v2
 
 The test folder is written by :mod:`handoff_bundles`; an answer is saved next
 to each bundle part as ``answer.txt`` (or ``answer-1.txt``, ``answer-2.txt`` …:
@@ -38,6 +39,7 @@ import logging
 import random
 import sys
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -72,11 +74,17 @@ class Part:
         return bool(self.answer_files)
 
 
-def load_test(folder: Path, pattern: str = "answer*.txt") -> tuple[dict, dict[str, list[Part]]]:
-    """The manifest and the parts of each bundle, with their answers read."""
+def load_test(
+    folder: Path, pattern: str = "answer*.txt", only: Sequence[str] | None = None
+) -> tuple[dict, dict[str, list[Part]]]:
+    """The manifest and the parts of each bundle present (or of *only*), with their answers."""
     manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+    names = list(only) if only else [b for b in manifest["bundles"] if (folder / b).is_dir()]
+    unknown = [b for b in names if b not in manifest["bundles"] or not (folder / b).is_dir()]
+    if unknown:
+        raise SystemExit(f"score: no bundle {unknown} in {folder}")
     bundles: dict[str, list[Part]] = {}
-    for scope in manifest["bundles"]:
+    for scope in names:
         parts = []
         for bundle_json in sorted((folder / scope).rglob("bundle.json")):
             record, items = handoff.load_part(bundle_json.parent)
@@ -240,9 +248,14 @@ def score(parts: list[Part], judged: list[dict | None], truth: Truth) -> dict:
     }
 
 
-def score_test(folder: Path, pattern: str = "answer*.txt", truth: Truth | None = None) -> dict:
-    """Every bundle of the test folder, scored for the answers, the oracle and a noisy oracle."""
-    manifest, bundles = load_test(folder, pattern)
+def score_test(
+    folder: Path,
+    pattern: str = "answer*.txt",
+    truth: Truth | None = None,
+    only: Sequence[str] | None = None,
+) -> dict:
+    """Every bundle of the test folder (or *only*), scored for the answers and the oracles."""
+    manifest, bundles = load_test(folder, pattern, only)
     truth = truth or load_truth(manifest)
     out: dict = {"folder": str(folder), "answers": pattern, "bundles": {}}
     for scope, parts in bundles.items():
@@ -284,6 +297,7 @@ def score_test(folder: Path, pattern: str = "answer*.txt", truth: Truth | None =
             for p in parts
         ]
         out["bundles"][scope] = {
+            "prompt_version": manifest["bundles"][scope].get("prompt_version", 1),
             "parts": len(parts),
             "answered_parts": len(answered),
             "items": sum(len(p.items) for p in parts),
@@ -314,7 +328,8 @@ def report(scores: dict) -> str:
         lines += [
             f"## {scope}",
             "",
-            f"{b['items']:,} terms in {b['parts']} part(s); {b['answered_parts']} answered.",
+            f"{b['items']:,} terms in {b['parts']} part(s); {b['answered_parts']} answered; "
+            f"prompt version {b['prompt_version']}.",
             "",
             "| judge | judged | answered | accepted | field terms | precision | recall | F1 | "
             "agreement | final precision | final recall | final F1 | English form, fr | "
@@ -373,11 +388,11 @@ def summary(scores: dict) -> str:
     for scope, b in scores["bundles"].items():
         for name, r in b["judges"].items():
             if r is None:
-                rows.append(f"{scope:13s} {name:18s} no answer yet")
+                rows.append(f"{scope:16s} {name:18s} no answer yet")
                 continue
             fr = r["canonical"].get("fr", {}).get("same_form", float("nan"))
             rows.append(
-                f"{scope:13s} {name:18s} answered {r['answered']:>6,}/{r['judged']:<6,} "
+                f"{scope:16s} {name:18s} answered {r['answered']:>6,}/{r['judged']:<6,} "
                 f"P {_pct(r['precision']):>8s}  R {_pct(r['recall']):>8s}  "
                 f"final P {_pct(r['final_precision']):>8s} R {_pct(r['final_recall']):>8s}  "
                 f"English form (fr) {_pct(fr)}"
@@ -389,6 +404,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Score the answers of a handoff test.")
     parser.add_argument("folder", type=Path, help="the test folder (with manifest.json)")
     parser.add_argument("--answers", default="answer*.txt", help="answer files, in each part")
+    parser.add_argument(
+        "--only", help="comma-separated bundle folders (default: every one present)"
+    )
     parser.add_argument("--out", type=Path, default=DEFAULT_REPORT, help="the Markdown report")
     parser.add_argument("--json", type=Path, help="also write the numbers here")
     args = parser.parse_args(argv)
@@ -397,7 +415,8 @@ def main(argv: list[str] | None = None) -> int:
     out = args.out.expanduser().resolve()
     if folder in out.parents:
         raise SystemExit("score: write the report outside the test folder, which stays blind")
-    scores = score_test(folder, args.answers)
+    only = [x.strip() for x in args.only.split(",")] if args.only else None
+    scores = score_test(folder, args.answers, only=only)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(report(scores), encoding="utf-8")
     if args.json:

@@ -848,8 +848,8 @@ has to implement `handoff.Judge`.
 ### The browser-handoff test
 
 ```bash
-python tools/lexicon_lab/handoff_bundles.py --out ~/cartolex-work/handoff-test
-python tools/lexicon_lab/score_handoff.py ~/cartolex-work/handoff-test
+python tools/lexicon_lab/handoff_bundles.py --out ~/cartolex-work/handoff-test --suffix -v2
+python tools/lexicon_lab/score_handoff.py ~/cartolex-work/handoff-test [--only tocheck-v2]
 ```
 
 The first command writes a demo world (L, seed 0 by default) as a project,
@@ -868,9 +868,17 @@ equal its raw tables. The writer checks that no name or identifier of the
 world's people appears in the bundles, and the folder holds nothing of the
 world's truth; its `README.md` tells a person how to run one bundle in a
 chat assistant and where to save the answer (`answer.txt` next to the
-bundle).
+bundle). `--suffix` writes a new set of bundles (`tocheck-v2/`,
+`kept-tocheck-v2/`) beside the existing ones, which keep their answers; the
+writer never overwrites a folder that holds an answer. Each part records the
+version of the prompt (`handoff.PROMPT_VERSION`). Version 2 says that a
+phrase joining a process, a property or a measure to an object of the field
+(« X des Y » in French, a compound in English) is a keyword, and keeps F for
+broken pieces: with the first prompt, a blind judge rejected most French
+« X des Y » terms as fragments.
 
-The second command reads every `answer*.txt` (`handoff.parse_answer`: the
+The second command scores every bundle present (or those named with
+`--only`). It reads every `answer*.txt` (`handoff.parse_answer`: the
 `<number> | <code> | <term> | <English form>` lines, checked against the
 repeated term; Markdown tables, tabs and the triage's line format also
 work), computes the truth in memory from the demo world, and reports, per
