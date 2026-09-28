@@ -25,6 +25,7 @@ from .models import (
 __all__ = [
     "FORMAT",
     "FORMAT_MAJOR",
+    "IdentityFrozen",
     "NotAProject",
     "Project",
     "UnsupportedFormat",
@@ -37,6 +38,20 @@ FORMAT_MAJOR = 1
 
 class NotAProject(FileNotFoundError):
     """The folder holds no ``project.json``."""
+
+
+class IdentityFrozen(PermissionError):
+    """A change to a frozen identity was asked without saying it is meant."""
+
+    def __init__(self, changed: list[str]) -> None:
+        self.changed = changed
+        super().__init__(
+            "the project's identity is frozen: changing its "
+            + ", ".join(changed)
+            + " means cached AI answers are not reused (a new domain title or AI model: they"
+            " are paid for again) and texts are parsed again (a new language model);"
+            " pass identity_change=True to do it anyway"
+        )
 
 
 class UnsupportedFormat(ValueError):
@@ -172,9 +187,39 @@ class Project:
         return self._lock.info if self._lock is not None else None
 
     # ── project.json and params.json ──
-    def save_config(self, config: ProjectFile, *, action: str) -> None:
-        """Replace ``project.json`` (guarded: refused if it changed since it was read)."""
+    def save_config(
+        self, config: ProjectFile, *, action: str, identity_change: bool = False
+    ) -> None:
+        """Replace ``project.json`` (guarded: refused if it changed since it was read).
+
+        Once the identity is frozen, changing the domain title, replacing the AI
+        identity or a language's model, or unfreezing it, needs *identity_change*
+        (cached AI answers and parsed texts are keyed on them); otherwise
+        :class:`IdentityFrozen` is raised with what the change would cost. A first
+        choice (the AI identity, a newly added language's model) is free.
+        """
         self._require_write()
+        old, new = self.config.identity, config.identity
+        if old.frozen and not identity_change:
+            # A first choice costs nothing (nothing is cached under it yet): setting the AI
+            # identity or a new language's model is free; replacing one is not.
+            changed = [
+                name
+                for name, differs in (
+                    ("domain title", old.domain_title != new.domain_title),
+                    ("AI identity", old.ai is not None and old.ai != new.ai),
+                    (
+                        "language models",
+                        any(
+                            new.language_models.get(k) != v for k, v in old.language_models.items()
+                        ),
+                    ),
+                    ("frozen flag", old.frozen != new.frozen),
+                )
+                if differs
+            ]
+            if changed:
+                raise IdentityFrozen(changed)
         config = config.model_copy(
             update={"app": AppStamp(id=self.config.app.id, version=cartolex_version())}
         )

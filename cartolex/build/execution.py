@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from ..project.files import atomic_write_bytes, json_bytes
+from ..project.files import StaleWrite, atomic_write_bytes, json_bytes
 from ..project.generations import CHUNKS, STAGING_MARKER, recover, remove_tree, swap_in
 from ..project.models import Measures, RunRecord
 from .machine import PeakMemory, boot_id
@@ -559,6 +559,28 @@ def _allowed_over(allow: bool | Iterable[str], stage_id: str) -> bool:
     return stage_id in set(allow)
 
 
+def _freeze_identity(project: Project, record: RunRecord, log: Any) -> None:
+    """Freeze the project's identity once texts have been gathered (``docs/format/project-json.md``).
+
+    From then on AI answers and parsed texts are keyed on it; changing it is an
+    explicit action (:meth:`Project.save_config` with ``identity_change=True``).
+    """
+    if record.stage != "corpus.assemble" or not record.measures.counts.get("texts"):
+        return
+    config = project.config
+    if config.identity.frozen:
+        return
+    frozen = config.model_copy(
+        update={"identity": config.identity.model_copy(update={"frozen": True})}
+    )
+    try:
+        project.save_config(frozen, action="identity frozen: texts processed")
+    except StaleWrite:
+        log.write(
+            "warning", stage=record.stage, message="project.json changed: identity not frozen"
+        )
+
+
 def build(
     project: Project,
     targets: Iterable[str] | None = None,
@@ -677,6 +699,7 @@ def build(
                 log.write("cancelled", stage=stage.id)
                 raise
             ran.append(record)
+            _freeze_identity(project, record, log)
             reporter.update(k, stage, 1.0, "done")
             log.write(
                 "stage-end",

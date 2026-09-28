@@ -17,10 +17,11 @@ from .files import (
 from .layout import SOURCE_TABLES, ProjectLayout
 from .lock import LockHeld, ProjectLock, StaleLock, remove_stale_lock
 from .models import LANGUAGES, STAGE_IDS
-from .project import FORMAT, NotAProject, Project, UnsupportedFormat
+from .project import FORMAT, IdentityFrozen, NotAProject, Project, UnsupportedFormat
 
 __all__ = [
     "FORMAT",
+    "IdentityFrozen",
     "LANGUAGES",
     "SOURCE_TABLES",
     "STAGE_IDS",

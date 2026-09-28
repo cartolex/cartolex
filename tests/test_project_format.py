@@ -388,3 +388,34 @@ def test_layout_names_known_stages_only(tmp_path):
     assert os.fspath(layout.table("texts")).endswith(
         "sources/tables/texts.parquet".replace("/", os.sep)
     )
+
+
+def test_a_frozen_identity_changes_only_on_purpose(tmp_path):
+    from cartolex.project import IdentityFrozen
+
+    project = _new(tmp_path)
+    identity = project.config.identity
+    frozen = project.config.model_copy(
+        update={"identity": identity.model_copy(update={"frozen": True})}
+    )
+    project.save_config(frozen, action="freeze")
+    renamed = frozen.model_copy(
+        update={"identity": frozen.identity.model_copy(update={"domain_title": "Another field"})}
+    )
+    with pytest.raises(IdentityFrozen, match="domain title"):
+        project.save_config(renamed, action="rename the field")
+    project.save_config(frozen.model_copy(update={"name": "A new name"}), action="rename")
+    project.save_config(renamed, action="rename the field", identity_change=True)
+    assert project.config.identity.domain_title == "Another field"
+    from cartolex.project.models import AIIdentity
+
+    first_ai = project.config.identity.model_copy(
+        update={"ai": AIIdentity(provider="p", model="m")}
+    )
+    project.save_config(
+        project.config.model_copy(update={"identity": first_ai}), action="choose AI"
+    )
+    other_ai = first_ai.model_copy(update={"ai": AIIdentity(provider="p", model="m2")})
+    with pytest.raises(IdentityFrozen, match="AI identity"):
+        project.save_config(project.config.model_copy(update={"identity": other_ai}), action="x")
+    project.close()
