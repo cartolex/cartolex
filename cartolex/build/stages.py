@@ -738,7 +738,7 @@ STAGES = Registry(
             ),
             uses=("year",),
             cost=CostModel(
-                "mapped_units", 0.3, 0.076, 260.0, 6.88, time_exponent=0.75, memory_exponent=0.5
+                "texts", 0.3, 0.076, 260.0, 6.88, time_exponent=0.75, memory_exponent=0.5
             ),
             run=_engine("run_trajectories"),
         ),

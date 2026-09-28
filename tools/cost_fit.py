@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 SIZES = ("people", "texts", "characters", "kept_keywords", "mapped_units")
 #: Stages fitted with a second, linear size besides their driver.
-EXTRA = {"keywords.extract": "texts"}
+EXTRA = {"keywords.extract": "texts", "keywords.build": "people", "corpus.assemble": "texts"}
 
 
 def _rows(files: list[str]) -> list[dict]:
