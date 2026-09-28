@@ -849,6 +849,7 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
         else None
     )
     corpus = ctx.folder("corpus.assemble") / "overlays"
+    feature_names = tfidf.get_feature_names_out()
     placed = 0
     sets = ctx.project.config.overlays
     for n_set, overlay in enumerate(sets):
@@ -879,6 +880,7 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
                 length_bonus_alpha=rctx.settings.length_bonus_alpha,
                 top_k=10,
                 top_n=rctx.settings.top_n_researcher,
+                feature_names=feature_names,
             )
             item: dict[str, Any] = {
                 "person_id": who.get(key, ""),
