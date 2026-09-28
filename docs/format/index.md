@@ -95,6 +95,10 @@ never read silently: opening such a project fails with the version found and
 the version expected, and `cartolex project upgrade` converts a project after
 copying the files it changes into `decisions/history/upgrade-<date>/`.
 
+Version 1 of the format was fixed on 28 September 2026. Since then it changes
+only as described above: optional keys and columns within version 1, anything
+else in a new major version with its upgrade.
+
 ## Sizes
 
 The format is built for projects of 10⁵ people and more. Bulk tables (texts,
