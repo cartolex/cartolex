@@ -20,6 +20,14 @@ states for them, which also date their affiliations.
 Everything received is kept in ``sources/<slot>/raw/openalex/`` and
 ``raw/orcid/``, one run per harvest; the tables are rebuilt from these runs, a
 person's latest run replacing their earlier ones.
+
+The years default to the slot's window (``years`` in ``project.json``). The
+OpenAlex part comes from the API, or from a downloaded snapshot
+(:mod:`cartolex.collect.snapshot`), read in one pass for the whole job: the
+runs written are the same. A person whose collection fails is recorded with
+the cause (:mod:`cartolex.collect.outcomes`) and the others go on; after three
+failures in a row the harvest stops, keeps what it collected, and raises the
+last error.
 """
 
 from __future__ import annotations
@@ -33,11 +41,12 @@ from typing import Any
 from cartolex.project import Project
 from cartolex.project.tables import read_source_table
 
-from .decisions import read_people
-from .http import Cancelled, HttpClient
+from .decisions import read_people, slot_window
+from .http import CacheMiss, Cancelled, CollectError, HttpClient, ServiceError
 from .names import name_similarity, words
-from .openalex import author, bare_doi, doc_type, short_id, works_by_authors, works_by_dois
+from .openalex import OpenAlexApi, OpenAlexSource, bare_doi, doc_type, short_id
 from .orcid import declared_works, employments, registry_record
+from .outcomes import MAX_FAILURES_IN_A_ROW, failure_record, stops_the_job, write_failures
 from .people_import import _collection_slot
 from .tables import (
     RawRun,
@@ -66,9 +75,18 @@ class HarvestReport:
     rebuild: RebuildReport | None = None
     cancelled: bool = False
     run_id: str = ""
+    #: People whose harvest failed, with the cause (see :mod:`cartolex.collect.outcomes`).
+    failures: list[dict[str, Any]] = field(default_factory=list)
+    #: Why the harvest stopped before the end, if it did.
+    stopped: str | None = None
+    #: Where OpenAlex's records came from: ``api`` or ``snapshot``.
+    source: str = "api"
 
     def lines(self) -> list[str]:
         out = [f"{self.people} person(s) harvested, {sum(self.works.values())} work(s) received"]
+        out += [f"failed: {f['person_id']}: {f['cause']}" for f in self.failures]
+        if self.stopped:
+            out.append(self.stopped)
         if self.declared_dois:
             out.append(
                 f"{self.declared_dois} DOI(s) declared in the registry, "
@@ -107,7 +125,11 @@ def _targets(project: Project, people: Sequence[str] | None) -> list[tuple[dict,
             continue
         if dec.get("identity") not in ("confirmed", "auto"):
             continue
-        records = [r for r in (dec.get("records") or "").split(";") if r]
+        records = [
+            r
+            for r in (dec.get("records") or "").split(";")
+            if r.startswith(("openalex:", "orcid:"))
+        ]
         if records:
             out.append((row, records))
     return out
@@ -121,32 +143,63 @@ def harvest(
     years: tuple[int | None, int | None] | None = None,
     slot: str | None = None,
     now: datetime | None = None,
+    source: OpenAlexSource | None = None,
 ) -> HarvestReport:
     """Collect the works of every confirmed person (or of *people*) and rebuild the tables.
 
     *years* is the window ``(first, last)``, inclusive, either end open when
-    ``None``. A cancel keeps the people harvested before it; the person being
-    harvested when it came is left out whole.
+    ``None``; by default the slot's ``years``. *source* answers the OpenAlex
+    requests (default: the API through *client*; a
+    :class:`~cartolex.collect.snapshot.SnapshotSource` reads a snapshot); the
+    registry is always asked through *client*. A cancel keeps the people
+    harvested before it; the person being harvested when it came is left out
+    whole. A person whose collection fails is recorded and the others go on.
     """
     now = now or datetime.now(timezone.utc)
     layout = project.layout
     if not layout.table("people").exists():
         raise FileNotFoundError("the project has no people yet: import a list first")
     slot = _collection_slot(project, slot, "collection")
+    if years is None:
+        years = slot_window(project.config, slot)
     targets = _targets(project, people)
     report = HarvestReport()
+    source = source or OpenAlexApi(client)
+    report.source = source.label
+    registry: dict[str, Any] = {}
+    if hasattr(source, "prefetch") and targets:
+        _prefetch(client, source, targets, registry)
     window = list(years) if years else None
-    oa_out = RawWriter(layout, slot, "openalex", {"years": window, "people": {}}, now=now)
+    oa_out = RawWriter(
+        layout, slot, "openalex", {"years": window, "people": {}, "source": source.label}, now=now
+    )
     orcid_out = RawWriter(
         layout, slot, "orcid", {"years": window, "people": {}}, run_id=oa_out.run_id
     )
     report.run_id = oa_out.run_id
+    in_a_row = 0
+    last_error: CollectError | None = None
     try:
         for k, (person, records) in enumerate(targets):
             client.check_cancel()
             pid = person["person_id"]
             client.progress(k / max(1, len(targets)), f"person {k + 1} of {len(targets)}")
-            oa_lines, orcid_lines, meta = _harvest_person(client, person, records, years, report)
+            try:
+                oa_lines, orcid_lines, meta = _harvest_person(
+                    client, source, person, records, years, report, registry
+                )
+            except (ServiceError, CacheMiss) as exc:
+                report.failures.append(failure_record(pid, "harvest", exc, now=now))
+                in_a_row += 1
+                last_error = exc
+                if stops_the_job(client, exc) or in_a_row >= MAX_FAILURES_IN_A_ROW:
+                    report.stopped = (
+                        f"the harvest stopped after {in_a_row} failure(s) in a row; "
+                        f"{len(targets) - k - 1} person(s) were not asked for"
+                    )
+                    break
+                continue
+            in_a_row = 0
             for line in oa_lines:
                 oa_out.add(line)
             for line in orcid_lines:
@@ -167,6 +220,7 @@ def harvest(
             writer.close()
         else:
             writer.discard()
+    write_failures(layout, slot, "harvest", report.failures, now=now)
     if report.people:
         report.rebuild = rebuild_sources(layout, project.config)
     client.progress(1.0, "harvest done")
@@ -174,15 +228,45 @@ def harvest(
         raise Cancelled(
             f"harvest cancelled after {report.people} of {len(targets)} people; their works are kept"
         )
+    if report.stopped and last_error is not None:
+        raise last_error
     return report
+
+
+def _prefetch(
+    client: HttpClient,
+    source: Any,
+    targets: list[tuple[dict, list[str]]],
+    registry: dict[str, Any],
+) -> None:
+    """For a source read in passes (the snapshot): the registry first, for the DOIs people
+    declared, then one pass for every record and work of the job."""
+    author_ids: list[str] = []
+    dois: set[str] = set()
+    for _person, records in targets:
+        for record in records:
+            scheme, value = record.split(":", 1)
+            if scheme == "openalex":
+                author_ids.append(value)
+            elif scheme == "orcid" and value not in registry:
+                client.check_cancel()
+                try:
+                    registry[value] = declared_works(client, value)
+                except (ServiceError, CacheMiss):
+                    continue  # asked again with the person, where a failure is recorded
+                if registry[value] is not None:
+                    dois |= {w.doi for w in registry[value][0] if w.doi}
+    source.prefetch(author_ids=author_ids, dois=dois)
 
 
 def _harvest_person(
     client: HttpClient,
+    source: OpenAlexSource,
     person: dict[str, Any],
     records: list[str],
     years: tuple[int | None, int | None] | None,
     report: HarvestReport,
+    registry: dict[str, Any],
 ) -> tuple[list[dict], list[dict], dict[str, Any]]:
     pid = person["person_id"]
     oa_ids = [r.split(":", 1)[1] for r in records if r.startswith("openalex:")]
@@ -200,7 +284,7 @@ def _harvest_person(
     oa_lines: list[dict] = []
     orcid_lines: list[dict] = []
     for aid in oa_ids:
-        fetched = author(client, aid)
+        fetched = source.author(aid)
         if fetched is None:
             report.notes.append(f"{pid}: the record {aid} no longer exists")
             continue
@@ -213,8 +297,7 @@ def _harvest_person(
             }
         )
     if oa_ids:
-        window = None if years is None else (years[0] or 0, years[1] or 0)
-        fetched = works_by_authors(client, oa_ids, years=window)
+        fetched = source.works_by_authors(oa_ids, years)
         for work in fetched.data:
             oa_lines.append(
                 {
@@ -226,7 +309,7 @@ def _harvest_person(
                 }
             )
     for orcid in orcids:
-        got = declared_works(client, orcid)
+        got = registry[orcid] if orcid in registry else declared_works(client, orcid)
         if got is None:
             report.notes.append(f"{pid}: the registry has no record for {orcid}")
             continue
@@ -255,7 +338,7 @@ def _harvest_person(
         meta["dois"] += [d for d in dois if d not in meta["dois"]]
         report.declared_dois += len(dois)
         found = set()
-        for work, answer in works_by_dois(client, dois):
+        for work, answer in source.works_by_dois(dois):
             doi = bare_doi(work.get("doi"))
             found.add(doi)
             if not _in_window(work, years):

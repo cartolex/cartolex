@@ -745,6 +745,8 @@ def default_readers() -> dict[str, Reader]:
         # Candidates found by a name are proposals: no table is built from them.
         "hal_candidates": lambda runs, builder: None,
         "scielo_candidates": lambda runs, builder: None,
+        # Failures are kept for the coverage report: no table is built from them.
+        "failures": lambda runs, builder: None,
     }
 
 

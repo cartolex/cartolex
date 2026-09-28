@@ -38,7 +38,7 @@ from cartolex.project import Project
 from cartolex.project.tables import read_source_table
 
 from .decisions import read_people, update_people
-from .http import Cancelled, HttpClient
+from .http import CacheMiss, Cancelled, CollectError, HttpClient, ServiceError
 from .names import name_similarity, variants, words
 from .openalex import (
     author,
@@ -50,6 +50,7 @@ from .openalex import (
     short_id,
 )
 from .orcid import declared_works
+from .outcomes import MAX_FAILURES_IN_A_ROW, failure_record, stops_the_job, write_failures
 from .people_import import _collection_slot, normalise_openalex_author, normalise_orcid
 from .tables import RawWriter
 
@@ -141,6 +142,9 @@ class ResolveReport:
     resolutions: list[Resolution] = field(default_factory=list)
     skipped: int = 0
     cancelled: bool = False
+    #: People whose resolution failed, with the cause (see :mod:`cartolex.collect.outcomes`).
+    failures: list[dict[str, Any]] = field(default_factory=list)
+    stopped: str | None = None
 
     @property
     def counts(self) -> dict[str, int]:
@@ -471,14 +475,31 @@ def resolve(
     stated = _stated(project)
     slot = _collection_slot(project, slot, "collection")
     changes: dict[str, dict[str, str]] = {}
+    in_a_row = 0
+    last_error: CollectError | None = None
     with RawWriter(layout, slot, "resolve", {"threshold": threshold, "auto": auto}, now=now) as out:
         try:
             for k, person in enumerate(targets):
                 client.check_cancel()
                 client.progress(k / max(1, len(targets)), f"person {k + 1} of {len(targets)}")
-                res = resolve_person(
-                    client, person, stated.get(person["person_id"], []), threshold=threshold
-                )
+                try:
+                    res = resolve_person(
+                        client, person, stated.get(person["person_id"], []), threshold=threshold
+                    )
+                except (ServiceError, CacheMiss) as exc:
+                    report.failures.append(
+                        failure_record(person["person_id"], "resolve", exc, now=now)
+                    )
+                    in_a_row += 1
+                    last_error = exc
+                    if stops_the_job(client, exc) or in_a_row >= MAX_FAILURES_IN_A_ROW:
+                        report.stopped = (
+                            f"the resolution stopped after {in_a_row} failure(s) in a row; "
+                            f"{len(targets) - k - 1} person(s) were not asked for"
+                        )
+                        break
+                    continue
+                in_a_row = 0
                 report.resolutions.append(res)
                 out.add(res.to_json())
                 current = decisions.get(res.person_id, {}).get("identity", "")
@@ -495,6 +516,7 @@ def resolve(
         out.header["people"] = len(report.resolutions)
         if not report.resolutions:
             out.discard()
+    write_failures(layout, slot, "resolve", report.failures, now=now)
     if changes:
         update_people(layout, changes, action="resolve", now=now)
     client.progress(1.0, "resolution done")
@@ -503,4 +525,6 @@ def resolve(
             f"resolution cancelled after {len(report.resolutions)} of {len(targets)} people; "
             "their results are kept"
         )
+    if report.stopped and last_error is not None:
+        raise last_error
     return report
