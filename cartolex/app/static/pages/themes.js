@@ -1989,8 +1989,8 @@ function NodePanel({ editor, ui, atlas, id }) {
     <dl class="cx-themes-facts">
       <${Fact} label=${t('themes.panel.keywords')}>
         ${t('themes.panel.keywords.value', { count: under, own: own.length })}<//>
-      <${Fact} label=${t('themes.panel.children', { level: levelName(index.tree, level + 1, lang) || '—' })}>
-        ${formatNumber(kids.length)}<//>
+      ${level < index.depth ? html`<${Fact} label=${t('themes.panel.children', { level: levelName(index.tree, level + 1, lang) })}>
+        ${formatNumber(kids.length)}<//>` : null}
       <${Fact} label=${t('themes.panel.share')}>${shortShare(share)}<//>
     </dl>
     <section class="cx-themes-panel__section" aria-labelledby="cx-themes-panel-kw">
