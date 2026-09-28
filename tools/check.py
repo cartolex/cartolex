@@ -229,6 +229,9 @@ def check_browser(dev: Path, quick: bool) -> Result:
         **os.environ,
         "CARTOLEX_UI_MEASURES": str(measures),
         "PYTHONPYCACHEPREFIX": str(ROOT / ".cache" / "pycache" / "browser"),
+        "PYTHONPATH": os.pathsep.join(
+            p for p in (str(ROOT), os.environ.get("PYTHONPATH", "")) if p
+        ),
     }
     rc, tail = run(cmd, LOGS / "browser.log", env=env)
     summary = tail.strip("= ")
@@ -291,8 +294,16 @@ def check_tests(pythons: list[str], jobs: int) -> Result:
                 "not browser",
             ]
             # Each Python keeps its bytecode out of the source tree, so suites running
-            # side by side never see each other's cache files.
-            env = {**os.environ, "PYTHONPYCACHEPREFIX": str(ROOT / ".cache" / "pycache" / py)}
+            # side by side never see each other's cache files. The tree under test comes
+            # first on the path, in the processes the tests start too: an environment
+            # shared by several checkouts may have its editable install in another one.
+            env = {
+                **os.environ,
+                "PYTHONPYCACHEPREFIX": str(ROOT / ".cache" / "pycache" / py),
+                "PYTHONPATH": os.pathsep.join(
+                    p for p in (str(ROOT), os.environ.get("PYTHONPATH", "")) if p
+                ),
+            }
             with log.open("w", encoding="utf-8") as handle:
                 proc = subprocess.Popen(
                     cmd, cwd=ROOT, stdout=handle, stderr=subprocess.STDOUT, env=env
