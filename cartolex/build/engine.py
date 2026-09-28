@@ -457,12 +457,16 @@ def _apply(ctx: StageContext, rctx: RunContext) -> dict[str, int]:
 
 def _person_ids(ctx: StageContext) -> dict[str, str]:
     """The engine's researcher id → the project's ``person_id``, from the corpus slots' people."""
+    return person_ids(ctx.folder("corpus.assemble"), [slot.id for slot in ctx.project.config.slots])
+
+
+def person_ids(corpus: Path, slots: list[str]) -> dict[str, str]:
+    """The engine's researcher id → the project's ``person_id``, from *corpus*'s slots' people."""
     from ..lexicon.utils import make_researcher_id
 
-    corpus = ctx.folder("corpus.assemble")
     out: dict[str, str] = {}
-    for slot in ctx.project.config.slots:
-        people = corpus / slot.id / "people.csv"
+    for slot in slots:
+        people = corpus / slot / "people.csv"
         if not people.exists():
             continue
         with open(people, encoding="utf-8", newline="") as fh:
