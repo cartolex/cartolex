@@ -12,7 +12,7 @@
 import { cloneElement, html, isValidElement, useEffect, useLayoutEffect, useRef, useState }
   from '../core/preact.js';
 import { t } from '../core/i18n.js';
-import { placeFloating, useEscape, useOutsidePress, useUid } from '../core/dom.js';
+import { useEscape, useOutsidePress, useUid } from '../core/dom.js';
 import { Icon } from './icons.js';
 
 const SHOW_DELAY = 400;
@@ -36,11 +36,16 @@ export function Tooltip({ text, decorative = false, open: forced, children }) {
   };
   useEffect(() => () => clearTimeout(timer.current), []);
   useEscape(() => setOpen(false), open);
+  // Keep the bubble in the viewport: below when there is no room above, pinned
+  // to one side near the viewport's edges.
   useLayoutEffect(() => {
-    if (shown && bubble.current && anchor.current) {
-      const target = anchor.current.firstElementChild || anchor.current;
-      placeFloating(bubble.current, target, { prefer: 'above', gap: 6 });
-    }
+    const el = bubble.current;
+    if (!shown || !el) return;
+    el.classList.remove('is-below', 'is-start', 'is-end');
+    const box = el.getBoundingClientRect();
+    if (box.top < 8) el.classList.add('is-below');
+    if (box.left < 8) el.classList.add('is-start');
+    else if (box.right > document.documentElement.clientWidth - 8) el.classList.add('is-end');
   }, [shown, text]);
 
   const child = isValidElement(children) && !decorative
@@ -76,7 +81,12 @@ export function Help({ topic, children, open: initial = false }) {
   useEscape(() => close(true), open);
   useOutsidePress([button, panel], () => close(false), open);
   useLayoutEffect(() => {
-    if (open && panel.current && button.current) placeFloating(panel.current, button.current);
+    const el = panel.current;
+    if (!open || !el) return;
+    el.classList.remove('is-end');
+    if (el.getBoundingClientRect().right > document.documentElement.clientWidth - 8) {
+      el.classList.add('is-end');
+    }
   }, [open]);
   return html`<span class="cx-help">
     <button ref=${button} type="button" class="cx-icon-button cx-button--ghost cx-icon-button--s"
@@ -84,7 +94,7 @@ export function Help({ topic, children, open: initial = false }) {
       aria-label=${t('help.button', { topic })} onClick=${() => setOpen(!open)}>
       <${Icon} name="help" />
     </button>
-    <div ref=${panel} id=${id} class=${`cx-help__panel ${open ? 'is-open' : ''}`}
+    <div ref=${panel} id=${id} class="cx-help__panel"
       role="region" aria-label=${t('help.button', { topic })} hidden=${!open}>
       ${children}
     </div>

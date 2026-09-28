@@ -170,15 +170,17 @@ a.cx-button:hover {
 
 /* ── Tooltip and Help ──────────────────────────────────────────────────── */
 .cx-tooltip-anchor {
+  position: relative;
   display: inline-flex;
 }
 
 .cx-tooltip {
-  position: fixed;
-  left: var(--cx-float-x, 0);
-  top: var(--cx-float-y, 0);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
   z-index: var(--cx-z-popover);
   display: none;
+  width: max-content;
   max-width: 18rem;
   padding: var(--cx-space-1) var(--cx-space-2);
   border-radius: var(--cx-radius-s);
@@ -187,6 +189,8 @@ a.cx-button:hover {
   font-size: var(--cx-text-s);
   font-weight: var(--cx-weight-regular);
   line-height: var(--cx-leading-tight);
+  text-align: center;
+  translate: -50% 0;
   pointer-events: none;
 }
 
@@ -194,23 +198,46 @@ a.cx-button:hover {
   display: block;
 }
 
+.cx-tooltip.is-below {
+  top: calc(100% + 6px);
+  bottom: auto;
+}
+
+.cx-tooltip.is-start {
+  left: 0;
+  translate: none;
+}
+
+.cx-tooltip.is-end {
+  left: auto;
+  right: 0;
+  translate: none;
+}
+
 .cx-help {
+  position: relative;
   display: inline-flex;
   vertical-align: middle;
 }
 
 .cx-help__panel {
-  position: fixed;
-  left: var(--cx-float-x, 0);
-  top: var(--cx-float-y, 0);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
   z-index: var(--cx-z-popover);
-  max-width: 22rem;
+  width: max-content;
+  max-width: min(22rem, calc(100vw - 2 * var(--cx-space-4)));
   padding: var(--cx-space-3) var(--cx-space-4);
   background: var(--cx-surface-raised);
   border: var(--cx-rule-width) solid var(--cx-rule);
   border-radius: var(--cx-radius-m);
   box-shadow: var(--cx-shadow-1);
   font-size: var(--cx-text-s);
+}
+
+.cx-help__panel.is-end {
+  left: auto;
+  right: 0;
 }
 
 /* ── Card ──────────────────────────────────────────────────────────────── */
@@ -529,7 +556,7 @@ a.cx-button:hover {
 }
 
 .cx-progress__value {
-  min-width: 3.5em;
+  min-width: 6em;
   color: var(--cx-text-muted);
   font-size: var(--cx-text-s);
   font-variant-numeric: tabular-nums;
@@ -1319,6 +1346,10 @@ a.cx-button:hover {
 
 .cx-table--l .cx-table__scroller {
   height: 28rem;
+}
+
+.cx-table.is-empty .cx-table__scroller {
+  height: auto;
 }
 
 .cx-table__head {

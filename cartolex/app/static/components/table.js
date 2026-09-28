@@ -355,7 +355,7 @@ export function Table({
     }
   }
 
-  return html`<div class=${`cx-table cx-table--${size} ${cls}`}
+  return html`<div class=${`cx-table cx-table--${size} ${!loading && !n ? 'is-empty' : ''} ${cls}`}
     style=${{ '--cx-table-columns': template, '--cx-table-row': `${rowHeight}px` }}>
     <div ref=${scroller} class="cx-table__scroller" role="grid" id=${id} tabindex="0"
       aria-label=${label} aria-rowcount=${loading ? -1 : n + 1} aria-colcount=${columns.length}

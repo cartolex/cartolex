@@ -12,7 +12,7 @@
  * Items: `{id, label, icon?, disabled?, danger?, kind?: 'item'|'radio'|
  * 'checkbox'|'separator'|'group', checked?, items? (a group's items)}`.
  */
-import { html, useLayoutEffect, useRef, useState } from '../core/preact.js';
+import { html, useEffect, useLayoutEffect, useRef, useState } from '../core/preact.js';
 import { placeFloating, useOutsidePress, useUid } from '../core/dom.js';
 import { Icon } from './icons.js';
 
@@ -54,6 +54,20 @@ export function Menu({ items, onSelect, onClose, anchor, labelledBy, label, focu
     }
   }, []);
   useOutsidePress([ref], () => onClose && onClose('outside'), !inline);
+  // A floating menu is placed in the viewport: it closes when what it points at moves.
+  useEffect(() => {
+    if (inline) return undefined;
+    const onMove = (event) => {
+      if (event.type === 'scroll' && ref.current && ref.current.contains(event.target)) return;
+      if (onClose) onClose('outside');
+    };
+    document.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    return () => {
+      document.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+    };
+  }, []);
 
   const move = (delta, to) => {
     const all = [...ref.current.querySelectorAll('[role^="menuitem"]:not([aria-disabled="true"])')];
