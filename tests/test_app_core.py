@@ -130,9 +130,13 @@ def test_the_app_runs_with_the_test_extension(tmp_path):
         extensions=[make_extension(tmp_path / "ext2", stage_runner=runner(Controls_for(tmp_path)))],
     )
     try:
-        stages = Client(app).get("/api/project/state").json()["stages"]
+        client = Client(app)
+        stages = client.get("/api/project/state").json()["stages"]
         placed = next(s for s in stages if s["id"] == "overlays.position")
         assert placed["name"] == "place projected people (the host's way)"
+        job = client.post("/api/build", json={"dry_run": False}).json()["job"]["id"]
+        assert "overlays.position" in client.wait_job(job)["result"]["ran"]
+        assert (tmp_path / "q" / "derived" / "overlays.position" / "host.txt").exists()
     finally:
         app.state.cartolex.shutdown()
 
@@ -322,6 +326,37 @@ def test_a_build_job_runs_is_tracked_and_logged(tmp_path):
         assert next(a for a in states["areas"] if a["id"] == "keywords")["state"] == "up_to_date"
         again = client.post("/api/build", json={"dry_run": True}).json()
         assert again["to_run"] == [] and again["empty"]["message"] == "everything is up to date"
+    finally:
+        app.state.cartolex.shutdown()
+
+
+def test_a_stage_that_asks_consent_runs_only_with_it(tmp_path):
+    app, controls = fake_app(fake_project(tmp_path / "p"), tmp_path / "c.log")
+    try:
+        client = Client(app)
+        params = client.get("/api/params")
+        body = {"seed": 7, "stages": {"keywords.triage": {"enabled": True}}}
+        assert (
+            client.put("/api/params", json=body, headers={"If-Match": etag(params)}).status_code
+            == 200
+        )
+        dry = client.post("/api/build", json={"dry_run": True, "scope": ["keywords"]}).json()
+        assert [c["stage"] for c in dry["consent"]] == ["keywords.triage"]
+        assert dry["consent"][0]["paid"] and dry["consent"][0]["note"]
+        job = client.post("/api/build", json={"dry_run": False, "scope": ["keywords"]}).json()[
+            "job"
+        ]
+        refused = client.wait_job(job["id"])
+        assert refused["result"]["refused"] == {
+            "keywords.triage": "no consent",
+            "keywords.build": "depends on keywords.triage, which does not run",
+        }
+        job = client.post(
+            "/api/build",
+            json={"dry_run": False, "scope": ["keywords"], "consent": ["keywords.triage"]},
+        ).json()["job"]
+        ran = client.wait_job(job["id"])
+        assert ran["result"]["ran"] == ["keywords.triage", "keywords.build"]
     finally:
         app.state.cartolex.shutdown()
 
