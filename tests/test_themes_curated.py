@@ -35,6 +35,7 @@ from cartolex.project.themes import (
 from cartolex.project.themes_curated import (
     CURATED_SCHEMA_VERSION,
     NOT_GROUPED,
+    THEME_KEYWORDS_OF,
     from_curated,
     to_curated,
 )
@@ -140,7 +141,14 @@ def test_what_a_tree_cannot_hold_is_set_aside_and_noted():
                 "term_indices": [3],
                 "subfield_only_terms": ["term 3"],
             },
-            {"id": 2, "label": "a1", "subfield_id": 0, "term_indices": [10, 11]},
+            {
+                "id": 2,
+                "label": "a1",
+                "subfield_id": 0,
+                "term_indices": [10, 11, 12],
+                "subfield_only_terms": ["term 11"],
+                "ride_along_terms": ["term 12"],
+            },
         ],
         "stash": {
             "concepts": [
@@ -167,8 +175,15 @@ def test_what_a_tree_cannot_hold_is_set_aside_and_noted():
     imported = from_curated(doc, terms)
     tree = imported.tree
     assert vocabulary_of(tree) == set(terms)  # every keyword is placed or set aside
-    assert tree.keywords == {"term 0": "c0", "term 1": "c0", "term 10": "c2", "term 11": "c2"}
-    assert tree.attribution == {"term 1": 0}  # the status of another concept does not apply
+    assert tree.keywords == {
+        "term 0": "c0",
+        "term 1": "c0",
+        "term 10": "c2",
+        "term 11": "s0",  # subfield-only: the subfield's own keyword
+        "term 12": "c2",
+    }
+    # "term 10" is subfield-only in another concept: that status does not apply
+    assert tree.attribution == {"term 1": 0, "term 12": 0}
     assert {k: e.attribution for k, e in tree.set_aside.items() if e.attribution is not None} == {
         "term 3": 1,
         "term 4": 0,
@@ -198,12 +213,14 @@ def test_what_a_tree_cannot_hold_is_set_aside_and_noted():
     assert aside["term 8"] == (None, "trashed in the curated document")
     assert aside["term 9"] == (None, NOT_GROUPED)
     assert aside["term 13"] == (None, NOT_GROUPED)
+    assert "term 12" not in aside
     assert imported.notes == (
         "1 group not kept ([1]): 1 keyword set aside",
         "1 merge variant set aside (merges belong in keywords.csv)",
         "3 keywords stashed in the document: set aside",
         "2 keywords trashed in the document: set aside",
-        "3 keywords in no group: set aside",
+        "2 keywords in no group: set aside",
+        "1 subfield-only term placed on its subfield's node",
         "2 term statuses naming no keyword of their concept dropped",
         "pinned colours of 1 subfield dropped",
     )
@@ -269,6 +286,37 @@ def test_attributions_are_the_engines_term_statuses():
         to_curated(clash, vocab)
 
 
+def test_keywords_on_a_theme_go_to_a_concept_of_their_own():
+    tree = create_node(new_tree(), None, {"en": "Hazards", "fr": "Aléas"}, node_id="s3").tree
+    tree = create_node(tree, "s3", {"en": "Surge"}, node_id="c5").tree
+    tree = create_node(tree, None, {"en": "Coasts"}).tree  # n1: keywords, no topic
+    vocab = ["storm surge", "sea level", "extreme events", "shoreline", "coastal zone"]
+    places = {
+        "storm surge": "c5",
+        "sea level": "s3",
+        "extreme events": "s3",
+        "shoreline": "n1",
+        "coastal zone": "n1",
+    }
+    tree = rebase(tree, vocab, places).tree
+    tree = set_attribution(tree, ["extreme events", "coastal zone"], 0).tree
+    doc = to_curated(tree, vocab)
+    assert [(c["id"], c["subfield_id"], c["label"]) for c in doc["concepts"]] == [
+        (5, 3, "Surge"),
+        (6, 3, "Hazards"),  # the theme's own keywords, numbered after every concept
+        (7, 4, "Coasts"),
+    ]
+    own = doc["concepts"][1]
+    assert own[THEME_KEYWORDS_OF] == "s3" and own["label_fr"] == "Aléas"
+    assert own["subfield_only_terms"] == ["sea level"]
+    assert own["ride_along_terms"] == ["extreme events"]
+    assert "theme_node" not in own
+    assert doc["concepts"][2]["subfield_only_terms"] == ["shoreline"]
+    assert validate_doc(doc, n_terms=len(vocab), terms_by_idx=vocab) == []
+    assert term_to_subfield_direct(doc, vocab) == {"sea level": 3, "shoreline": 4}
+    assert from_curated(doc, vocab).tree == tree
+
+
 def test_labels_follow_the_reference_language_and_scores_order_top_terms():
     tree = create_node(new_tree(), None, {"fr": "Aléas", "pt": "Riscos"}).tree
     tree = create_node(tree, "n1", {"en": "Surge"}).tree
@@ -300,19 +348,31 @@ def test_the_round_trip_is_exact(seed):
     # the engine reads the same placements
     assert validate_doc(doc, n_terms=len(terms), terms_by_idx=terms) == []
     term_to_concept, concept_to_subfield, _, _ = term_to_group_maps(doc, terms)
-    node_of_concept = {c["id"]: c["theme_node"]["id"] for c in doc["concepts"]}
+    node_of_concept = {
+        c["id"]: c["theme_node"]["id"] if "theme_node" in c else c[THEME_KEYWORDS_OF]
+        for c in doc["concepts"]
+    }
     node_of_subfield = {s["id"]: s["theme_node"]["id"] for s in doc["subfields"]}
     parent = {n.id: n.parent for n in tree.nodes}
-    # a keyword counting at every level is its concept's; one counting toward level 1
-    # only is its subfield's; one counting nowhere is neither
+    # a keyword on a topic counting at its level is its concept's; one on a topic
+    # counting toward level 1, or on a theme, is its subfield's; one counting
+    # nowhere is neither
     assert {k: node_of_concept[c] for k, c in term_to_concept.items()} == {
-        k.lower(): n for k, n in tree.keywords.items() if k not in tree.attribution
+        k.lower(): n
+        for k, n in tree.keywords.items()
+        if parent[n] is not None and k not in tree.attribution
     }
-    assert {k: node_of_subfield[s] for k, s in term_to_subfield_direct(doc, terms).items()} == {
-        k.lower(): parent[n] for k, n in tree.keywords.items() if tree.attribution.get(k) == 1
+    theme_of = {
+        k.lower(): parent[n] or n
+        for k, n in tree.keywords.items()
+        if tree.attribution.get(k) != 0 and (parent[n] is None or tree.attribution.get(k) == 1)
     }
+    assert {
+        k: node_of_subfield[s] for k, s in term_to_subfield_direct(doc, terms).items()
+    } == theme_of
     for cid, sid in concept_to_subfield.items():
-        assert parent[node_of_concept[cid]] == node_of_subfield[sid]
+        node = node_of_concept[cid]
+        assert (parent[node] or node) == node_of_subfield[sid]
 
 
 def _tiny_workspace(tmp_path):
@@ -386,3 +446,55 @@ def test_the_engines_apply_stage_runs_on_a_converted_tree(tmp_path):
     assert weight["A"] == pytest.approx(a1)  # a2 counts toward level 1 only
     assert weight["Block A"] == pytest.approx(a1 + a2)
     assert weight["B"] == weight["Block B"] == pytest.approx(b1)  # b2 counts nowhere
+
+
+def _apply(tmp_path, name: str, doc: dict) -> tuple[dict, pd.DataFrame]:
+    from cartolex.lexicon.subfields import apply_subfield_files
+
+    curated = tmp_path / f"{name}.json"
+    curated.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    applied = apply_subfield_files(
+        curated_json=curated,
+        lexical_data_json=tmp_path / "lexical_data.json",
+        embeddings_json=tmp_path / "embeddings.json",
+        final_json_out=tmp_path / f"{name}-applied.json",
+        lexicon_weights_csv_out=tmp_path / f"{name}-lexicon.csv",
+    )
+    return applied, pd.read_csv(tmp_path / f"{name}-lexicon.csv")
+
+
+def test_a_keyword_on_a_theme_weighs_as_a_subfield_only_term(tmp_path):
+    """The engine gives a theme's own keyword the weights of the old subfield-only status."""
+    terms = _tiny_workspace(tmp_path)
+    old = {
+        "schema_version": "1.0",
+        "subfields": [
+            {"id": 0, "label": "Block A", "keep": True},
+            {"id": 1, "label": "Block B", "keep": True},
+        ],
+        "concepts": [
+            {
+                "id": 0,
+                "label": "A",
+                "subfield_id": 0,
+                "term_indices": [0, 1, 4],
+                "top_terms": ["a1", "a2"],
+                "subfield_only_terms": ["noise"],
+            },
+            {"id": 1, "label": "B", "subfield_id": 1, "term_indices": [2, 3], "top_terms": ["b1"]},
+        ],
+    }
+    imported = from_curated(old, terms)
+    assert imported.tree.keywords["noise"] == "s0"  # the subfield's own keyword
+    was, was_lexicon = _apply(tmp_path, "old", old)
+    now, now_lexicon = _apply(tmp_path, "tree", to_curated(imported.tree, terms))
+    for key in ("subfields", "concepts"):
+        before = {c["label"]: (c["weight"], c["share"]) for c in was[key]}
+        after = {
+            c["label"]: (c["weight"], c["share"]) for c in now[key] if not c.get(THEME_KEYWORDS_OF)
+        }
+        assert after == before, key
+    own = next(c for c in now["concepts"] if c.get(THEME_KEYWORDS_OF))
+    assert own["weight"] == 0.0 and own["label"] == "Block A"
+    weights = dict(zip(was_lexicon["term"], was_lexicon["weight"], strict=True))
+    assert dict(zip(now_lexicon["term"], now_lexicon["weight"], strict=True)) == weights

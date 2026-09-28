@@ -169,7 +169,7 @@
   "$id": "https://cartolex.github.io/schemas/1/themes.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
-  "description": "``decisions/themes.json``: the theme tree, 1 to 4 levels above the keywords.",
+  "description": "``decisions/themes.json``: the theme tree, 1 to 4 levels of nodes holding keywords.\n\nA keyword is under one node, at any level (a keyword on a higher node is\nbroader than every node below it), or set aside. Its usage counts toward its\nnode and every node above it; ``attribution`` lowers that to levels 1 to\n``n`` (``0``: nowhere), with ``n`` below its node's level.",
   "properties": {
     "attribution": {
       "additionalProperties": {

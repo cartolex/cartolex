@@ -352,7 +352,13 @@ class ThemesSaved(_Model):
 
 
 class ThemesFile(_Model):
-    """``decisions/themes.json``: the theme tree, 1 to 4 levels above the keywords."""
+    """``decisions/themes.json``: the theme tree, 1 to 4 levels of nodes holding keywords.
+
+    A keyword is under one node, at any level (a keyword on a higher node is
+    broader than every node below it), or set aside. Its usage counts toward its
+    node and every node above it; ``attribution`` lowers that to levels 1 to
+    ``n`` (``0``: nowhere), with ``n`` below its node's level.
+    """
 
     format: Literal["cartolex-themes/1"] = "cartolex-themes/1"
     depth: Annotated[int, Field(ge=1, le=4)]
@@ -396,10 +402,6 @@ class ThemesFile(_Model):
         for term, node_id in self.keywords.items():
             if node_id not in by_id:
                 raise ValueError(f"keyword {term!r} points to an unknown node {node_id!r}")
-            if level[node_id] != self.depth:
-                raise ValueError(
-                    f"keyword {term!r} is under {node_id!r}, which is not a node of the deepest level"
-                )
         both = set(self.keywords) & set(self.set_aside)
         if both:
             raise ValueError(f"keyword(s) both placed and set aside: {sorted(both)[:5]}")
@@ -411,12 +413,17 @@ class ThemesFile(_Model):
             raise ValueError(
                 f"attribution names keyword(s) that are not placed: {sorted(unplaced)[:5]}"
             )
-        deep = [k for k, n in self.attribution.items() if n >= self.depth]
-        deep += [k for k, e in self.set_aside.items() if (e.attribution or 0) >= self.depth]
+        high = [k for k, n in self.attribution.items() if n >= level[self.keywords[k]]]
+        if high:
+            raise ValueError(
+                "an attribution counts toward fewer levels than the keyword's node is on "
+                f"(0 to its level - 1): {sorted(high)[:5]}"
+            )
+        deep = [k for k, e in self.set_aside.items() if (e.attribution or 0) >= self.depth]
         if deep:
             raise ValueError(
-                f"an attribution counts toward 0 to {self.depth - 1} level(s) in a tree of "
-                f"depth {self.depth}: {sorted(deep)[:5]}"
+                f"a set-aside attribution counts toward 0 to {self.depth - 1} level(s) in a tree "
+                f"of depth {self.depth}: {sorted(deep)[:5]}"
             )
         return self
 

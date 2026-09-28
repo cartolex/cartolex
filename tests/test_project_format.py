@@ -229,8 +229,9 @@ def test_theme_trees_are_checked():
     ThemesFile.model_validate(_themes())
     with pytest.raises(ValueError, match="level"):
         ThemesFile.model_validate(_themes(depth=3))
-    with pytest.raises(ValueError, match="deepest level"):
-        ThemesFile.model_validate(_themes(keywords={"storm surge model": "n1"}))
+    ThemesFile.model_validate(_themes(keywords={"storm surge model": "n1"}))  # any level
+    with pytest.raises(ValueError, match="unknown node"):
+        ThemesFile.model_validate(_themes(keywords={"storm surge model": "n9"}))
     with pytest.raises(ValueError, match="own ancestor"):
         ThemesFile.model_validate(
             _themes(nodes=[{"id": "a", "parent": "b"}, {"id": "b", "parent": "a"}], keywords={})
