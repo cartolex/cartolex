@@ -59,3 +59,27 @@ def test_demo_is_delegated(tmp_path):
         main(["demo", "create", "--size", "XS", "--seed", "0", "--out", str(tmp_path / "w")]) == 0
     )
     assert (tmp_path / "w" / "manifest.json").exists()
+
+
+def test_models_list_and_add(monkeypatch, capsys):
+    import subprocess
+
+    from cartolex.lexicon import language_models as lm
+
+    assert main(["models", "list"]) == 0
+    out = capsys.readouterr().out
+    assert all(f"{lang}  " in out for lang in ("en", "fr", "pt")) and "CC BY-SA 4.0" in out
+
+    calls = []
+    monkeypatch.setattr(lm, "installed_version", lambda lang: None)
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda cmd, check: calls.append(cmd) or subprocess.CompletedProcess(cmd, 0),
+    )
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    assert main(["models", "add", "pt"]) == 1  # no terminal to ask on, no --yes
+    assert calls == []
+    assert main(["models", "add", "pt", "--yes"]) == 0
+    assert calls and any(lm.spec("pt").requirement in part for part in calls[0])
+    assert "--no-deps" in calls[0]

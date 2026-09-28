@@ -158,6 +158,7 @@ def test_an_xs_project_builds_end_to_end(built):
     assert maps["pinned"] == "v1" and maps["versions"][0]["layout"]["method"] == "umap"
     corpus = json.loads(project.layout.run_json("corpus.assemble").read_text())
     assert corpus["measures"]["counts"]["people"] == 11
+    assert project.config.identity.frozen  # texts were gathered
     positions = json.loads(
         (project.layout.stage("overlays.position") / "applicants" / "positions.json").read_text()
     )
