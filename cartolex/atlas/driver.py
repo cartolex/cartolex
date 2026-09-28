@@ -88,6 +88,7 @@ class AtlasDefaults:
     umap_local_connectivity: int = 1
     umap_repulsion_strength: float = 1.0
     umap_negative_sample_rate: int = 5
+    tsne_perplexity: float = 30.0
     clustering_n_concepts: int = 150
     clustering_n_components: int = 50
     clustering_target_subfields: int = 30
@@ -405,6 +406,7 @@ def run_umap(
     umap_layout: str | None = None,
     force: bool = False,
     umap_fallback: str | None = None,
+    tsne_perplexity: float | None = None,
 ) -> None:
     """UMAP layout stage: project the SVD space to 2D (the final lexical step).
 
@@ -424,7 +426,10 @@ def run_umap(
     anchors the fit on the concept centroids (hierarchy concepts, or the raw term clusters
     before the hierarchy is applied) so the projected keywords land next to their concept
     instead of forming coronas; ``"joint"`` co-embeds both; ``"tsne_anchored"`` is the
-    umap-learn-free anchored t-SNE (see :class:`cartolex.atlas.reducers.AnchoredTSNE`).
+    umap-learn-free anchored t-SNE (see :class:`cartolex.atlas.reducers.AnchoredTSNE`);
+    ``"tsne"`` a t-SNE of the researchers with the optional openTSNE package
+    (``tsne_perplexity``); ``"tree"`` the applied theme tree's map, themes first and
+    researchers inside their heaviest theme (:mod:`cartolex.atlas.tree_layout`).
     The map is coloured by the high-dimensional term clusters. Every default comes from
     :func:`atlas_defaults`; pin ``umap_n_neighbors`` / ``umap_min_dist`` to override.
     """
@@ -446,6 +451,7 @@ def run_umap(
             umap_layout=umap_layout,
             force=force,
             umap_fallback=umap_fallback,
+            tsne_perplexity=tsne_perplexity,
         )
 
 
@@ -467,6 +473,7 @@ def _run_umap(
     umap_layout: str | None,
     force: bool,
     umap_fallback: str | None,
+    tsne_perplexity: float | None = None,
 ) -> None:
     paths = ctx.paths
     d = atlas_defaults(ctx)
@@ -526,6 +533,15 @@ def _run_umap(
         # Anchored layouts (UMAP or t-SNE) and the t-SNE preview all need the anchors.
         anchor_vectors = _concept_anchor_vectors(data.terms, emb.Z_terms, ctx=ctx)
 
+    tree = usage = None
+    if eff_umap_layout == "tree":
+        tree = _applied_tree(paths, [str(t) for t in data.terms])
+        if tree is None:
+            raise FileNotFoundError(
+                "the tree layout needs the applied theme tree: run the apply stage first"
+            )
+        usage = data.X_tf if getattr(data, "X_tf", None) is not None else data.X
+
     ctx.report(0.1, "fitting the layout")
     emb = compute_umap(
         emb,
@@ -545,10 +561,13 @@ def _run_umap(
         layout=eff_umap_layout,
         anchor_vectors=anchor_vectors,
         fallback=umap_fallback,
+        tsne_perplexity=tsne_perplexity if tsne_perplexity is not None else d.tsne_perplexity,
+        tree=tree,
+        usage=usage,
     )
     layout_engine = (
-        "tsne_anchored"
-        if eff_umap_layout == "tsne_anchored"
+        eff_umap_layout
+        if eff_umap_layout in ("tsne_anchored", "tsne", "tree")
         else ("tsne-preview" if preview else "umap")
     )
 

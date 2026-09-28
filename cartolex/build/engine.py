@@ -707,7 +707,7 @@ def _curated_from_themes(ctx: StageContext, tree: ThemesFile) -> None:
     atomic_write_bytes(ctx.out / "curated.json", json_bytes(doc))
 
 
-#: Keys of a map version's layout parameters → the layout stage's arguments.
+#: Keys of a UMAP map version's layout parameters → the layout stage's arguments.
 LAYOUT_PARAMS = {
     "n_neighbors": "umap_n_neighbors",
     "min_dist": "umap_min_dist",
@@ -719,6 +719,14 @@ LAYOUT_PARAMS = {
     "repulsion_strength": "umap_repulsion_strength",
     "negative_sample_rate": "umap_negative_sample_rate",
     "layout": "umap_layout",
+}
+
+#: The layout methods a map version may name, each with its parameters (key →
+#: the layout stage's argument) and the engine's layout it runs.
+LAYOUT_METHODS: dict[str, tuple[dict[str, str], str | None]] = {
+    "umap": (LAYOUT_PARAMS, None),
+    "tsne": ({"perplexity": "tsne_perplexity", "metric": "umap_metric"}, "tsne"),
+    "tree": ({}, "tree"),
 }
 
 
@@ -749,15 +757,29 @@ def run_layout(ctx: StageContext) -> dict[str, int]:
     version = pinned(maps)
     if version is None:
         raise StageRefused("no pinned map version in decisions/maps.json")
-    if version.layout.method != "umap":
-        raise StageRefused(f"the layout method {version.layout.method!r} is not available")
-    unknown = sorted(set(version.layout.params) - set(LAYOUT_PARAMS))
+    method = LAYOUT_METHODS.get(version.layout.method)
+    if method is None:
+        raise StageRefused(
+            f"the layout method {version.layout.method!r} is not available; "
+            f"known: {sorted(LAYOUT_METHODS)}"
+        )
+    known, engine_layout = method
+    unknown = sorted(set(version.layout.params) - set(known))
     if unknown:
         raise StageRefused(
-            f"map version {version.id}: unknown layout parameter(s) {unknown}; "
-            f"known: {sorted(LAYOUT_PARAMS)}"
+            f"map version {version.id}: unknown {version.layout.method} layout parameter(s) "
+            f"{unknown}; known: {sorted(known)}"
         )
-    kwargs = {LAYOUT_PARAMS[k]: v for k, v in version.layout.params.items()}
+    kwargs = {known[k]: v for k, v in version.layout.params.items()}
+    if engine_layout is not None:
+        kwargs["umap_layout"] = engine_layout
+    if engine_layout == "tsne":
+        from ..atlas.reducers import opentsne_available
+
+        if not opentsne_available():
+            raise StageRefused(
+                "the tsne layout needs the optional openTSNE package: pip install 'cartolex[tsne]'"
+            )
     copy_amended(ctx.stage.id, _folders(ctx))
     rctx = run_context(ctx, _settings(ctx), hi=0.9)
     _engine_call(

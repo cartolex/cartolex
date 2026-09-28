@@ -144,6 +144,70 @@ def fit_tsne_preview(
     )
 
 
+def opentsne_available() -> bool:
+    """True when the optional ``openTSNE`` package can be imported (the ``tsne`` layout)."""
+    try:
+        return importlib.util.find_spec("openTSNE") is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def fit_tsne_layout(
+    Z_ind: np.ndarray,
+    Z_terms: np.ndarray,
+    *,
+    perplexity: float = 30.0,
+    metric: str = "cosine",
+    random_state: int = 0,
+) -> tuple[np.ndarray, np.ndarray]:
+    """A t-SNE of the people (openTSNE, FFT-accelerated), the terms placed on it.
+
+    Needs the optional ``openTSNE`` package (``pip install cartolex[tsne]``).
+    Runs on one thread with the seed given, so the map is the same on every run;
+    the perplexity is capped for small maps. Returns ``(umap_ind, umap_terms)``.
+    """
+    try:
+        from openTSNE import TSNE
+    except ImportError as exc:
+        raise ImportError(
+            "the tsne layout needs the optional openTSNE package: pip install 'cartolex[tsne]'"
+        ) from exc
+
+    Zi = np.asarray(Z_ind, dtype=float)
+    n = Zi.shape[0]
+    eff = float(max(2.0, min(float(perplexity), (n - 1) / 3.0)))
+    if eff != perplexity:
+        logger.warning("Clamping t-SNE perplexity %.1f → %.1f (%d people).", perplexity, eff, n)
+    fit_input = normalize(Zi) if metric == "cosine" else Zi
+    with threadpool_limits(limits=1), warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=FutureWarning)
+        embedding = TSNE(
+            n_components=2,
+            perplexity=eff,
+            metric="euclidean" if metric == "cosine" else metric,
+            initialization="pca",
+            # exact neighbours on a small map, the bundled Annoy index above: never
+            # the optional pynndescent, whose import compiles for seconds
+            neighbors="exact" if n < 1000 else "annoy",
+            random_state=int(random_state),
+            n_jobs=1,
+            verbose=False,
+        ).fit(fit_input)
+    umap_ind = np.asarray(embedding, dtype=float)
+    return umap_ind, place_terms(Z_terms, Zi, umap_ind)
+
+
+def fit_tree_layout(
+    Z_ind: np.ndarray, Z_terms: np.ndarray, *, tree: Any, usage: Any
+) -> tuple[np.ndarray, np.ndarray]:
+    """The theme tree's map of the people (:mod:`cartolex.atlas.tree_layout`), the terms placed on it."""
+    from .tree_layout import people_paths, tree_layout
+
+    Zi = np.asarray(Z_ind, dtype=float)
+    umap_ind = tree_layout(tree, people_paths(tree, usage, Zi), Zi)
+    return umap_ind, place_terms(Z_terms, Zi, umap_ind)
+
+
 def compute_svd_embeddings(
     data: LexicalData,
     *,
@@ -211,8 +275,11 @@ def compute_umap(
     layout: str = "researcher",
     anchor_vectors: np.ndarray | None = None,
     fallback: str | None = None,
+    tsne_perplexity: float = 30.0,
+    tree: Any = None,
+    usage: Any = None,
 ) -> Embeddings:
-    """Project the SVD embeddings down to 2D with UMAP.
+    """Project the SVD embeddings down to 2D with UMAP (or another layout).
 
     ``fallback="tsne"`` opts in to the anchored t-SNE layout as a *preview* when a
     UMAP layout was requested but umap-learn is not importable. Without the
@@ -230,12 +297,34 @@ def compute_umap(
       (:func:`fit_joint_umap`), optionally semi-supervised by ``term_cluster_labels``.
     - ``"tsne_anchored"`` — no umap-learn needed: :class:`AnchoredTSNE` on the
       researchers + concept anchors. ``min_dist`` does not apply.
+    - ``"tsne"`` — a t-SNE of the researchers with openTSNE (:func:`fit_tsne_layout`,
+      ``tsne_perplexity``), the layout that scales to the largest maps.
+    - ``"tree"`` — the theme tree's map (:func:`fit_tree_layout`): needs the applied
+      *tree* and the people × keywords *usage*.
 
     Except in the joint layout, the terms are then *placed* on the researchers'
     map by their nearest researchers (:mod:`cartolex.atlas.placement`), as every
     later point is (projected documents, the trajectories' time bins): no
     fitted model is kept.
     """
+    if layout == "tsne":
+        logger.info("Computing a t-SNE layout of the researchers (openTSNE, terms placed)...")
+        emb.umap_ind, emb.umap_terms = fit_tsne_layout(
+            emb.Z_ind,
+            emb.Z_terms,
+            perplexity=tsne_perplexity,
+            metric=metric,
+            random_state=random_state,
+        )
+        return emb
+    if layout == "tree":
+        if tree is None or usage is None:
+            raise ValueError("the tree layout needs the applied theme tree and the usage matrix")
+        logger.info("Computing the theme tree's layout (themes first, researchers inside)...")
+        emb.umap_ind, emb.umap_terms = fit_tree_layout(
+            emb.Z_ind, emb.Z_terms, tree=tree, usage=usage
+        )
+        return emb
     if layout == "tsne_anchored" or (fallback == "tsne" and not umap_available()):
         if layout != "tsne_anchored":
             logger.warning(

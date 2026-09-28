@@ -6,7 +6,8 @@ contract in → lexicon / subfields / atlas out). This is an **allowlist**: ever
 module they import must be one of
 
 * the standard library;
-* a third-party distribution declared in ``[project] dependencies``;
+* a third-party distribution declared in ``[project] dependencies``, or in an
+  optional extra of the engine (:data:`ENGINE_EXTRAS`), imported where it is used;
 * ``cartolex._data`` (the packaged data), or the other engine package;
 * ``cartolex.context`` (the run context), for type annotations or inside a
   function — never at module level, so importing an engine module never
@@ -56,6 +57,8 @@ IMPORT_NAMES = {
     "scikit-learn": "sklearn",
     "umap-learn": "umap",
 }
+#: Optional extras whose distributions the engine may import (inside the function using them).
+ENGINE_EXTRAS = ("tsne",)
 
 
 def _declared_imports() -> set[str]:
@@ -64,10 +67,15 @@ def _declared_imports() -> set[str]:
     if sys.version_info >= (3, 11):
         import tomllib
 
-        deps = tomllib.loads(text)["project"]["dependencies"]
-    else:  # pragma: no cover - Python 3.10: read the list without a TOML parser
-        block = text.split("\ndependencies = [", 1)[1].split("\n]", 1)[0]
-        deps = re.findall(r'^\s*"([^"]+)"', block, flags=re.MULTILINE)
+        project = tomllib.loads(text)["project"]
+        deps = list(project["dependencies"])
+        for extra in ENGINE_EXTRAS:
+            deps += project["optional-dependencies"][extra]
+    else:  # pragma: no cover - Python 3.10: read the lists without a TOML parser
+        deps = []
+        for head in ("\ndependencies = [", *(f"\n{extra} = [" for extra in ENGINE_EXTRAS)):
+            block = text.split(head, 1)[1].split("\n]", 1)[0]
+            deps += re.findall(r'^\s*"([^"]+)"', block, flags=re.MULTILINE)
     names = set()
     for dep in deps:
         dist = re.split(r"[<>=!~;\[ ]", dep, maxsplit=1)[0].strip()

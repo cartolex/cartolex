@@ -79,16 +79,21 @@ def try_another(
     note: str = "",
     now: datetime | None = None,
 ) -> tuple[MapsFile, str]:
-    """A new version drawn like the pinned one, with another seed (or method); the pin stays."""
+    """A new version drawn like the pinned one, with another seed (or method); the pin stays.
+
+    Another method starts from its own defaults: the pinned version's layout
+    parameters belong to its method.
+    """
     current = pinned(maps)
     if current is None:
         raise ValueError("no pinned map version to start from; add a version first")
+    same = method is None or method == current.layout.method
     return add_version(
         maps,
         shows=current.shows,
         method=method or current.layout.method,
         seed=seed,
-        params=current.layout.params,
+        params=current.layout.params if same else {},
         base=current.base,
         note=note,
         pin_it=False,
