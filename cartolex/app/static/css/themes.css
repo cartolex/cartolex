@@ -11,11 +11,17 @@
   padding: var(--cx-space-4) var(--cx-space-5) var(--cx-space-4);
 }
 
+/* A column: the head, the banners when there are some, and the body taking the rest. */
 .cx-themes {
+  display: flex;
+  flex-direction: column;
   gap: var(--cx-space-3);
-  grid-template-rows: auto auto minmax(0, 1fr);
   height: calc(100vh - var(--cx-header-height) - 2 * var(--cx-space-4));
   min-height: 34rem;
+}
+
+.cx-themes > .cx-themes__body {
+  flex: 1 1 auto;
 }
 
 .cx-themes__head {

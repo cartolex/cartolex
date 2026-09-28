@@ -734,88 +734,131 @@ def test_screenshots_of_every_state(demo_s, app_for, open_app, pytestconfig):
 
 
 def _states(ui, out, suffix: str) -> None:
+    """Every state of the editor, in the interface's language (menus found by their item ids)."""
     page = ui.page
-    shot = lambda name: page.screenshot(path=str(out / f"{name}-{suffix}.png"))  # noqa: E731
+
+    def shot(name: str) -> None:
+        page.wait_for_timeout(250)
+        page.screenshot(path=str(out / f"{name}-{suffix}.png"))
+
+    def closed() -> None:
+        page.wait_for_function("() => !document.querySelector('dialog[open]')")
+
+    def act(target, item: str) -> None:
+        target.click(button="right")
+        page.locator(f'[role=menu] [data-item="{item}"]').click()
+
     open_editor(ui)
-    page.wait_for_timeout(300)
+    # a few keywords wait in the « To check » queue, as after a rebase
+    current = api(ui, "GET", "/api/themes")
+    t = current["data"]["tree"]
+    marked = api(
+        ui,
+        "POST",
+        "/api/themes/ops",
+        {
+            "tree": t,
+            "ops": [
+                {"op": "set_review", "keywords": sorted(t["keywords"])[:3], "state": "to_check"}
+            ],
+        },
+    )["data"]["tree"]
+    api(ui, "PUT", "/api/themes", {"tree": marked, "action": "mark"}, current["etag"])
+    page.reload()
+    ui.wait_ready(0)
+    page.locator(".cx-themes__body").wait_for()
     shot("open")
     t = tree(ui)
     tops = [n for n in t["nodes"] if n["parent"] is None]
-    page.locator("#cx-themes-search").fill(sorted(t["keywords"])[3].split()[0])
-    page.wait_for_timeout(200)
+    page.locator("#cx-themes-search").fill(sorted(t["keywords"])[5].split()[0])
     shot("search")
     page.locator("#cx-themes-search").fill("")
-    outline(ui).focus()
-    page.keyboard.press("Home")
-    page.keyboard.press("Shift+F10")
+    first_top = outline(ui).locator("[role=treeitem][aria-level='1']").first
+    first_top.click(button="right")
     page.locator("[role=menu]").wait_for()
     shot("menu")
     page.keyboard.press("Escape")
-    page.keyboard.press("F2")
+    act(first_top, "rename")
     dialog(ui).wait_for()
     shot("rename")
     dialog(ui).locator("input").first.fill("Coastal climate records")
     dialog(ui).locator("input").first.press("Enter")
-    page.keyboard.press("ArrowDown")
+    closed()
+    topic = outline(ui).locator("[role=treeitem][aria-level='2']").first
+    topic.click()
     page.keyboard.press("ArrowRight")
-    page.keyboard.press("ArrowDown")
-    page.keyboard.press("Shift+F10")
-    page.locator("[role=menu] [role=menuitem]").first.click()
+    keyword = outline(ui).locator("[role=treeitem]:not([aria-expanded])").first
+    act(keyword, "move-keywords")
     dialog(ui).wait_for()
     shot("move")
     page.keyboard.press("Escape")
-    row(ui, name_of(next(n for n in t["nodes"] if n["parent"] == tops[1]["id"]))).first.click()
-    page.keyboard.press("Shift+F10")
-    page.locator("[role=menu] [role=menuitem]").nth(4).click()
+    closed()
+    act(topic, "split")
     dialog(ui).wait_for()
+    boxes = dialog(ui).locator("input[type=checkbox]")
+    boxes.nth(0).check()
+    boxes.nth(1).check()
+    dialog(ui).locator("input:not([type=checkbox]):not([type=search])").first.fill("A finer topic")
     shot("split")
     page.keyboard.press("Escape")
-    page.keyboard.press("ArrowRight")
-    page.keyboard.press("ArrowDown")
-    page.keyboard.press("Delete")
+    closed()
+    act(outline(ui).locator("[role=treeitem]:not([aria-expanded])").first, "aside")
+    dialog(ui).wait_for()
     dialog(ui).locator("button[type=submit]").click()
-    page.locator(".cx-tabs__tab").nth(1).click()
-    page.wait_for_timeout(200)
+    closed()
+    page.locator(".cx-themes-outline .cx-tabs__tab").nth(1).click()
+    page.locator(".cx-themes-outline [role=tree] [role=treeitem]").first.click()
     shot("aside")
-    page.locator(".cx-tabs__tab").nth(2).click()
-    page.wait_for_timeout(200)
+    page.locator(".cx-themes-outline .cx-tabs__tab").nth(2).click()
+    page.locator(".cx-themes-outline [role=tree] [role=treeitem]").first.click()
     shot("check")
-    page.locator(".cx-tabs__tab").nth(0).click()
+    page.locator(".cx-themes-outline .cx-tabs__tab").nth(0).click()
     page.locator(".cx-themes-centre .cx-tabs__tab").nth(1).click()
     page.locator(".cx-map-frame canvas").wait_for()
-    page.wait_for_timeout(300)
     shot("map")
     page.locator(".cx-themes-centre .cx-tabs__tab").nth(0).click()
     page.keyboard.press("Control+s")
-    page.wait_for_timeout(600)
+    page.wait_for_function(
+        "() => !document.querySelector('.cx-themes__status .cx-themes-state.is-dirty')"
+    )
     toolbar = page.locator(".cx-themes__toolbar")
     toolbar.locator(".cx-menubutton button").nth(1).click()
-    page.locator("[role=menu] [role=menuitem]").nth(0).click()
-    dialog(ui).locator(".cx-themes-versions__item").first.wait_for()
+    page.locator('[role=menu] [data-item="versions"]').click()
+    dialog(ui).locator(".cx-themes-versions__item").nth(1).wait_for()
     shot("versions")
+    dialog(ui).locator(".cx-themes-versions__item").nth(1).locator("button").nth(1).click()
+    page.locator("dialog[open] .cx-themes-changes").wait_for()
+    shot("compare")
+    page.keyboard.press("Escape")  # the comparison, then the versions
+    page.wait_for_function("() => document.querySelectorAll('dialog[open]').length === 1")
     page.keyboard.press("Escape")
+    closed()
     toolbar.locator(".cx-menubutton button").nth(1).click()
-    page.locator("[role=menu] [role=menuitem]").nth(1).click()
+    page.locator('[role=menu] [data-item="ai"]').click()
     dialog(ui).locator(".cx-themes-ai__part").wait_for()
     shot("handoff")
     dialog(ui).locator(".cx-dialog__footer button").nth(1).click()
-    answer = f"1 | RENAME | {tops[2]['id']} | Coastal observation | clearer\n2 | MERGE | {tops[3]['id']} | {tops[4]['id']} | one theme\n3 | MOVE | nope | {tops[0]['id']} | x"
+    answer = "\n".join(
+        [
+            f"1 | RENAME | {tops[2]['id']} | Coastal observation | clearer",
+            f"2 | MERGE | {tops[3]['id']} | {tops[4]['id']} | one theme",
+            f"3 | MOVE | nope | {tops[0]['id']} | x",
+        ]
+    )
     dialog(ui).locator("textarea").fill(answer)
     dialog(ui).locator(".cx-dialog__footer button").nth(1).click()
     dialog(ui).locator(".cx-themes-ai__item").first.wait_for()
     shot("review")
     dialog(ui).locator(".cx-dialog__footer button").nth(1).click()
+    closed()
     page.locator(".cx-themes-banner").first.wait_for()
-    page.wait_for_timeout(200)
     shot("preview")
     page.locator(".cx-themes-banner button").nth(2).click()
-    outline(ui).focus()
-    page.keyboard.press("Home")
-    page.keyboard.press("F2")
+    act(outline(ui).locator("[role=treeitem][aria-level='1']").first, "rename")
     dialog(ui).locator("input").first.fill("Unsaved name")
     dialog(ui).locator("input").first.press("Enter")
+    closed()
     page.reload()
     ui.wait_ready(0)
     page.locator(".cx-themes-banner").first.wait_for()
-    page.wait_for_timeout(300)
     shot("restored")
