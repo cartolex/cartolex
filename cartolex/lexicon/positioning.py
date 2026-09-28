@@ -10,9 +10,11 @@ corpus text or person data is involved in the helpers.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from scipy import sparse
 from sklearn.preprocessing import normalize
 
 if TYPE_CHECKING:
@@ -100,8 +102,12 @@ def project_text_vector(
     top_k: int,
     top_n: int = 30,
     whitelist_terms: set[str] | None = None,
+    feature_names: Sequence[str] | None = None,
 ) -> tuple[np.ndarray, list[dict], np.ndarray]:
     """Transform raw text → SVD embedding + top keywords + the keyword vector that places it.
+
+    *feature_names* are ``tfidf.get_feature_names_out()``, which a caller placing
+    many texts passes once (they are computed on each call otherwise).
 
     Returns ``(z_vec, top_keywords_list, x_vec)`` where ``z_vec`` is the
     SVD-space coordinate vector, ``top_keywords_list`` are the highest-weighted
@@ -125,21 +131,22 @@ def project_text_vector(
     vector and projects points far outside the fitted cloud.
     """
     # Step 1: TF-IDF transform
-    X_raw = tfidf.transform([text])  # (1, vocab_size)
-
-    vocab: list[str] = tfidf.get_feature_names_out().tolist()
-    term_to_vocab_idx: dict[str, int] = {t: i for i, t in enumerate(vocab)}
+    X_raw = sparse.csr_matrix(tfidf.transform([text]))  # (1, vocab_size)
+    vocab = tfidf.get_feature_names_out() if feature_names is None else feature_names
 
     # Step 2: Fold raw features onto canonical restricted terms (raw scores,
-    # no length bonus yet — top_n selection is on the raw aggregated score).
+    # no length bonus yet — top_n selection is on the raw aggregated score),
+    # the text's features taken in vocabulary order.
     n_terms = len(restricted_terms)
     raw_agg = np.zeros(n_terms)
     term_to_col = {t: i for i, t in enumerate(restricted_terms)}
 
-    for vocab_term, v_idx in term_to_vocab_idx.items():
-        raw_score = float(X_raw[0, v_idx])
+    order = np.argsort(X_raw.indices, kind="stable")
+    for v_idx, raw_score in zip(X_raw.indices[order], X_raw.data[order], strict=True):
+        raw_score = float(raw_score)
         if raw_score == 0.0:
             continue
+        vocab_term = str(vocab[v_idx])
         canonical = alias_map.get(vocab_term, vocab_term)
         col_idx = term_to_col.get(canonical)
         if col_idx is None:

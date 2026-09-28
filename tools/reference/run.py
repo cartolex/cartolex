@@ -1189,7 +1189,7 @@ class Engine:
                 a.terms == b.terms
                 and a.researcher_ids == b.researcher_ids
                 and list(a.units or []) == list(b.units or [])
-                and bool(np.array_equal(a.X_tf, b.X_tf))
+                and bool(np.array_equal(to_dense(a.X_tf), to_dense(b.X_tf)))
             )
 
         order = np.argsort(np.array(ids), kind="stable")
@@ -1432,6 +1432,7 @@ def merge_stage(bundle_dirs: list[Path]) -> dict[str, Artifact]:
     import pandas as pd
 
     mm = _mod("atlas.map_metrics")
+    to_dense = _mod("atlas.types").to_dense
     read_bundle = _mod("atlas.map_bundle").read_bundle
     map_merge = _mod("atlas.map_merge")
     anchor_concepts = map_merge.anchor_concepts
@@ -1545,10 +1546,11 @@ def merge_stage(bundle_dirs: list[Path]) -> dict[str, Artifact]:
         "n_fit_rows": int(emb.fit_rows.sum()),
         "unmapped_terms": joint.unmapped_terms,
     }
+    pooled_rows, pooled_cols = joint.T.nonzero()
     T = pd.DataFrame(
         [
             {"row": int(i), "col": int(j), "tf": float(joint.T[i, j])}
-            for i, j in zip(*np.nonzero(joint.T), strict=True)
+            for i, j in zip(pooled_rows, pooled_cols, strict=True)
         ]
     )
     rows = pd.DataFrame(
@@ -1567,8 +1569,8 @@ def merge_stage(bundle_dirs: list[Path]) -> dict[str, Artifact]:
         "senses": Strings(joint.sense_ids),
         "rows": Table(rows, keys=["person"], ordered=True),
         "pooled": Table(T, keys=["row", "col"]),
-        "weights_pooled": Array(W),
-        "weights_macro": Array(W_macro),
+        "weights_pooled": Array(to_dense(W)),
+        "weights_macro": Array(to_dense(W_macro)),
         "singular_values": Array(emb.svd.singular_values_, role="spectrum"),
         "person_coords": Array(emb.Z_ind, role="embedding"),
         "sense_coords": Array(emb.Z_senses, role="embedding"),

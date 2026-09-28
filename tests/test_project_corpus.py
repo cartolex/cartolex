@@ -117,3 +117,40 @@ def test_an_overlay_with_its_own_root_is_read_from_there(world_and_project, tmp_
     old = _rows_with_texts(base / "workspace" / "overlay" / name / "index.csv")
     new = _rows_with_texts(tmp_path / "out" / "overlays" / name / "index.csv")
     assert new == old and new
+
+
+def _tree(folder: Path) -> dict[str, bytes]:
+    return {str(p.relative_to(folder)): p.read_bytes() for p in folder.rglob("*") if p.is_file()}
+
+
+def test_the_parts_are_read_a_batch_at_a_time(world_and_project, tmp_path, monkeypatch):
+    import pyarrow.parquet as pq
+
+    from cartolex.project import Project, corpus
+    from cartolex.project.tables import TableError
+
+    _, base = world_and_project
+    project = Project.open(base / "project")
+    try:
+        whole = assemble_corpus(project.layout, project.config, tmp_path / "whole")
+        monkeypatch.setattr(corpus, "PARTS_BATCH", 7)  # a text's parts straddle batches
+        small = assemble_corpus(project.layout, project.config, tmp_path / "small")
+    finally:
+        project.close()
+    assert _tree(tmp_path / "small") == _tree(tmp_path / "whole")
+    assert small.slots == whole.slots and small.texts_without_parts == whole.texts_without_parts
+
+    # Rows out of order across two batches are refused.
+    copy = tmp_path / "tables"
+    copy.mkdir()
+    for name in ("texts", "people", "authorships", "organisations", "affiliations"):
+        (copy / f"{name}.parquet").write_bytes(project.layout.table(name).read_bytes())
+    parts = pq.read_table(project.layout.table("text_parts"))
+    swapped = parts.slice(7, 7).to_batches() + parts.slice(0, 7).to_batches()
+    pq.write_table(parts.from_batches(swapped), copy / "text_parts.parquet", row_group_size=7)
+    texts = pq.read_table(copy / "texts.parquet")
+    wanted = set(texts["text_id"].to_pylist())
+    with pytest.raises(TableError, match="not sorted"):
+        corpus._write_texts(
+            copy, {t: {} for t in wanted}, [(tmp_path / "x", wanted)], ["title"], []
+        )

@@ -331,3 +331,17 @@ nothing in the engine names a particular deployment, source or procedure.
   its memory no longer grows with the square of the vocabulary. `themes.group`
   and `themes.apply` are at version 2; `map.layout`, `map.trajectories` and
   `overlays.position` at version 3. See `docs/dev/themes-engine.md`.
+- **Sizes: 10⁵ people on a workstation.** No step holds a dense people ×
+  keywords or people × people matrix any more: the map merge, the
+  reconciliation, the trajectories and the pair metrics keep their matrices
+  sparse and take dense blocks of rows (exactly the former results on every
+  demo world), placement holds a bounded chunk of distances, the corpus is
+  assembled with its text parts read in batches, the trajectories read the
+  texts by chunks of people, and the extraction holds each distinct word
+  once. The space's dimensions follow the rule `space_dimensions` (20 up to
+  2 000 people, then 20 × √(people / 2 000), at most 200). A map version may
+  use the `umap`, `tsne` (optional `openTSNE`, the `tsne` extra) or `tree`
+  layout; a project's first map is a t-SNE from 1 000 mapped people. The cost
+  models are fitted on builds of 10³ to 10⁵ people (within a factor of two).
+  `cartolex.demo.scale` writes streamed worlds of any size into a project.
+  See `docs/sizes.md` and `docs/dev/layouts.md`.

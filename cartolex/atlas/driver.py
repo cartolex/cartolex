@@ -88,6 +88,7 @@ class AtlasDefaults:
     umap_local_connectivity: int = 1
     umap_repulsion_strength: float = 1.0
     umap_negative_sample_rate: int = 5
+    tsne_perplexity: float = 30.0
     clustering_n_concepts: int = 150
     clustering_n_components: int = 50
     clustering_target_subfields: int = 30
@@ -405,6 +406,7 @@ def run_umap(
     umap_layout: str | None = None,
     force: bool = False,
     umap_fallback: str | None = None,
+    tsne_perplexity: float | None = None,
 ) -> None:
     """UMAP layout stage: project the SVD space to 2D (the final lexical step).
 
@@ -424,7 +426,10 @@ def run_umap(
     anchors the fit on the concept centroids (hierarchy concepts, or the raw term clusters
     before the hierarchy is applied) so the projected keywords land next to their concept
     instead of forming coronas; ``"joint"`` co-embeds both; ``"tsne_anchored"`` is the
-    umap-learn-free anchored t-SNE (see :class:`cartolex.atlas.reducers.AnchoredTSNE`).
+    umap-learn-free anchored t-SNE (see :class:`cartolex.atlas.reducers.AnchoredTSNE`);
+    ``"tsne"`` a t-SNE of the researchers with the optional openTSNE package
+    (``tsne_perplexity``); ``"tree"`` the applied theme tree's map, themes first and
+    researchers inside their heaviest theme (:mod:`cartolex.atlas.tree_layout`).
     The map is coloured by the high-dimensional term clusters. Every default comes from
     :func:`atlas_defaults`; pin ``umap_n_neighbors`` / ``umap_min_dist`` to override.
     """
@@ -446,6 +451,7 @@ def run_umap(
             umap_layout=umap_layout,
             force=force,
             umap_fallback=umap_fallback,
+            tsne_perplexity=tsne_perplexity,
         )
 
 
@@ -467,6 +473,7 @@ def _run_umap(
     umap_layout: str | None,
     force: bool,
     umap_fallback: str | None,
+    tsne_perplexity: float | None = None,
 ) -> None:
     paths = ctx.paths
     d = atlas_defaults(ctx)
@@ -526,6 +533,15 @@ def _run_umap(
         # Anchored layouts (UMAP or t-SNE) and the t-SNE preview all need the anchors.
         anchor_vectors = _concept_anchor_vectors(data.terms, emb.Z_terms, ctx=ctx)
 
+    tree = usage = None
+    if eff_umap_layout == "tree":
+        tree = _applied_tree(paths, [str(t) for t in data.terms])
+        if tree is None:
+            raise FileNotFoundError(
+                "the tree layout needs the applied theme tree: run the apply stage first"
+            )
+        usage = data.X_tf if getattr(data, "X_tf", None) is not None else data.X
+
     ctx.report(0.1, "fitting the layout")
     emb = compute_umap(
         emb,
@@ -545,10 +561,13 @@ def _run_umap(
         layout=eff_umap_layout,
         anchor_vectors=anchor_vectors,
         fallback=umap_fallback,
+        tsne_perplexity=tsne_perplexity if tsne_perplexity is not None else d.tsne_perplexity,
+        tree=tree,
+        usage=usage,
     )
     layout_engine = (
-        "tsne_anchored"
-        if eff_umap_layout == "tsne_anchored"
+        eff_umap_layout
+        if eff_umap_layout in ("tsne_anchored", "tsne", "tree")
         else ("tsne-preview" if preview else "umap")
     )
 
@@ -866,14 +885,21 @@ def _run_lexical_plots(
     logger.info("Static plots written to %s", paths.atlas_dir)
 
 
-def _load_per_document_corpus(indexes: Sequence[SlotIndex]) -> pd.DataFrame:
-    """Load per-document corpus rows (year/type + text) for trajectory binning.
+#: The people whose texts one step of the trajectories reads at a time: the
+#: texts of a large project never sit in memory together.
+TRAJECTORY_CHUNK = 1000
 
-    Reads the per-document index of each trajectory slot, in order, and the
-    referenced text files, keeping only the columns the trajectory stage
-    needs. A slot's document types filter its rows (a row without a type
-    always passes). Indexes lacking the per-document schema (a year per
-    document) are skipped with a warning.
+_DOC_COLUMNS = ["last_name", "first_name", "unit", "doc_year", "doc_type"]
+
+
+def _per_document_index(indexes: Sequence[SlotIndex]) -> pd.DataFrame:
+    """The per-document rows of the trajectory slots, in order, with each text's path.
+
+    Reads the per-document index of each trajectory slot, in order, keeping only
+    the columns the trajectory stage needs and the absolute ``path`` of each
+    text. A slot's document types filter its rows (a row without a type always
+    passes). Indexes lacking the per-document schema (a year per document) are
+    skipped with a warning.
     """
     frames: list[pd.DataFrame] = []
     needed = {"last_name", "first_name", "unit", "doc_year", "txt_path"}
@@ -894,28 +920,61 @@ def _load_per_document_corpus(indexes: Sequence[SlotIndex]) -> pd.DataFrame:
         if doc_types is not None:
             types = df["doc_type"].fillna("").astype(str).str.strip().str.lower()
             df = df[(types == "") | types.isin(set(doc_types))]
-        texts: list[str] = []
-        for _, row in df.iterrows():
-            p = Path(str(row["txt_path"]))
-            if not p.is_absolute():
-                p = idx.parent / p
-            try:
-                texts.append(p.read_text(encoding="utf-8", errors="ignore"))
-            except OSError:
-                texts.append("")
-        out = df[["last_name", "first_name", "unit", "doc_year", "doc_type"]].copy()
+        paths = []
+        for value in df["txt_path"]:
+            p = Path(str(value))
+            paths.append(p if p.is_absolute() else idx.parent / p)
+        out = df[_DOC_COLUMNS].copy()
         # An empty unit (a person without a group) reads back as NaN; keep it a
         # blank string so researcher_id is "<last>||<first>||" and not "...||nan",
         # matching make_researcher_id(last, first, "") on the bundle side.
         out["unit"] = out["unit"].fillna("").astype(str)
-        out["text"] = texts
+        out["path"] = paths
         frames.append(out)
-
     if not frames:
-        return pd.DataFrame(
-            columns=["last_name", "first_name", "unit", "doc_year", "doc_type", "text"]
-        )
+        return pd.DataFrame(columns=[*_DOC_COLUMNS, "path"])
     return pd.concat(frames, ignore_index=True)
+
+
+def _with_texts(rows: pd.DataFrame) -> pd.DataFrame:
+    """*rows* of :func:`_per_document_index` with their texts in place of their paths."""
+    texts: list[str] = []
+    for p in rows["path"]:
+        try:
+            texts.append(Path(p).read_text(encoding="utf-8", errors="ignore"))
+        except OSError:
+            texts.append("")
+    out = rows[_DOC_COLUMNS].copy()
+    out["text"] = texts
+    return out.reset_index(drop=True)
+
+
+def _load_per_document_corpus(indexes: Sequence[SlotIndex]) -> pd.DataFrame:
+    """Load per-document corpus rows (year/type + text) for trajectory binning.
+
+    The rows of :func:`_per_document_index`, each with its text.
+    """
+    return _with_texts(_per_document_index(indexes))
+
+
+def _researcher_chunks(index: pd.DataFrame, size: int) -> list[np.ndarray]:
+    """Row positions of *index* by chunks of *size* people, the people in sorted id order."""
+    from cartolex.lexicon.utils import make_researcher_id
+
+    rids = np.array(
+        [
+            make_researcher_id(ln, fn, u)
+            for ln, fn, u in zip(
+                index["last_name"], index["first_name"], index["unit"], strict=True
+            )
+        ],
+        dtype=object,
+    )
+    people = sorted(set(rids.tolist()))
+    chunk_of = {rid: i // max(1, size) for i, rid in enumerate(people)}
+    which = np.array([chunk_of[r] for r in rids.tolist()], dtype=np.int64)
+    n_chunks = (len(people) + max(1, size) - 1) // max(1, size)
+    return [np.flatnonzero(which == c) for c in range(n_chunks)]
 
 
 def _lexicon_maps(
@@ -948,8 +1007,8 @@ def _applied_tree(paths: Any, terms: list[str]) -> Any:
     return read_tree(paths.themes_tree_json, terms)
 
 
-def _write_window_levels(tree: Any, windows: dict[str, list[dict]], out: Path) -> None:
-    """Move each window's ``levels`` into a table: one row per (person, window, node) with a weight."""
+def _window_level_rows(tree: Any, windows: dict[str, list[dict]]) -> list[tuple]:
+    """Move each window's ``levels`` into rows: one per (person, window, node) with a weight."""
     rows: list[tuple[str, str, int, str, float, float]] = []
     for rid, entries in windows.items():
         for entry in entries:
@@ -958,9 +1017,67 @@ def _write_window_levels(tree: Any, windows: dict[str, list[dict]], out: Path) -
                     rows.append(
                         (rid, entry["key"], lw.level, tree.nodes[node].id, float(w), float(s))
                     )
-    columns = ["researcher_id", "window", "level", "node", "weight", "share"]
+    return rows
+
+
+_WINDOW_LEVEL_COLUMNS = ["researcher_id", "window", "level", "node", "weight", "share"]
+
+
+class _LevelsWriter:
+    """The window theme weights, written a chunk of people at a time.
+
+    With a *single* chunk the table is written in one piece, as a whole run
+    writes it; otherwise each chunk becomes a row group of one Parquet file.
+    """
+
+    def __init__(self, out: Path, *, single: bool) -> None:
+        self.out, self.single = out, single
+        self.rows: list[tuple] = []
+        self.writer: Any = None
+        self.count = 0
+
+    def add(self, rows: list[tuple]) -> None:
+        self.count += len(rows)
+        if self.single:
+            self.rows.extend(rows)
+            return
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        schema = pa.schema(
+            [
+                ("researcher_id", pa.string()),
+                ("window", pa.string()),
+                ("level", pa.int64()),
+                ("node", pa.string()),
+                ("weight", pa.float64()),
+                ("share", pa.float64()),
+            ]
+        )
+        if self.writer is None:
+            self.out.parent.mkdir(parents=True, exist_ok=True)
+            self.writer = pq.ParquetWriter(self.out, schema)
+        columns = list(zip(*rows, strict=True)) if rows else [[] for _ in schema]
+        self.writer.write_table(
+            pa.table(
+                {f.name: list(col) for f, col in zip(schema, columns, strict=True)}, schema=schema
+            )
+        )
+
+    def close(self) -> None:
+        if self.writer is not None:
+            self.writer.close()
+        else:
+            self.out.parent.mkdir(parents=True, exist_ok=True)
+            pd.DataFrame(self.rows, columns=_WINDOW_LEVEL_COLUMNS).to_parquet(self.out, index=False)
+        logger.info("Wrote %d window theme weights to %s", self.count, self.out)
+
+
+def _write_window_levels(tree: Any, windows: dict[str, list[dict]], out: Path) -> None:
+    """Move each window's ``levels`` into a table: one row per (person, window, node) with a weight."""
+    rows = _window_level_rows(tree, windows)
     out.parent.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(rows, columns=columns).to_parquet(out, index=False)
+    pd.DataFrame(rows, columns=_WINDOW_LEVEL_COLUMNS).to_parquet(out, index=False)
     logger.info("Wrote %d window theme weights to %s", len(rows), out)
 
 
@@ -1064,8 +1181,8 @@ def _run_trajectories(
     eff_types = tuple(doc_types) if doc_types else None
     eff_min = min_docs_per_bin if min_docs_per_bin is not None else d.traj_min_docs_per_bin
 
-    docs = _load_per_document_corpus(slot_indexes(ctx, trajectory=True))
-    if docs.empty:
+    index = _per_document_index(slot_indexes(ctx, trajectory=True))
+    if index.empty:
         logger.warning("Trajectories: no per-document corpus rows found; nothing to do.")
         return
 
@@ -1082,49 +1199,75 @@ def _run_trajectories(
         logger.warning("Trajectories skipped — the map is not drawn yet: run the layout first.")
         return
     anchors = MapAnchors(emb.Z_ind, emb.umap_ind)
+    ref_terms = list(data.terms)
+    # The terms of every chunk's matrix are the reference terms (lower-cased).
+    traj_terms = [str(t).lower() for t in ref_terms]
+    term_to_concept, concept_to_subfield = _lexicon_maps(paths.subfields_json, traj_terms)
+    tree = _applied_tree(paths, traj_terms)
 
-    ctx.report(0.2, "time windows")
-    traj = build_trajectory_matrix(
-        docs,
-        vectorizer=vectorizer,
-        alias_to_canon=alias_to_canon,
-        ref_terms=list(data.terms),
-        now_year=eff_now,
-        bin_years=eff_bins,
-        doc_types=eff_types,
-        length_alpha=length_alpha,
-        top_k_terms=d.traj_top_k_terms,
-        min_docs_per_bin=eff_min,
-    )
-
-    coords = project_trajectories(traj.B, svd_model, anchors)
-    out_df = traj.meta.copy()
-    out_df["umap_x"] = coords[:, 0] if len(out_df) else []
-    out_df["umap_y"] = coords[:, 1] if len(out_df) else []
-    out_csv = paths.trajectories_csv
+    # The people are taken a chunk at a time, in sorted id order: each person's
+    # bins and windows depend only on their own texts, and the outputs are
+    # written in the order a single pass would give.
+    chunks = _researcher_chunks(index, TRAJECTORY_CHUNK)
     paths.atlas_dir.mkdir(parents=True, exist_ok=True)
-    out_df.to_csv(out_csv, index=False)
-    logger.info("Wrote %d trajectory points to %s", len(out_df), out_csv)
-
-    # Time machine: each window projected through the SVD and placed on the map;
-    # the per-window subfield/concept weights are aggregated from each window's
-    # own terms through the applied lexicon (evidence-based, not SVD proximity).
-    term_to_concept, concept_to_subfield = _lexicon_maps(paths.subfields_json, list(traj.terms))
-    tree = _applied_tree(paths, list(traj.terms))
-    windows = build_trajectory_windows(
-        traj,
-        svd_model=svd_model,
-        anchors=anchors,
-        term_to_concept=term_to_concept,
-        concept_to_subfield=concept_to_subfield,
-        report=lambda f, m: ctx.report(0.5 + 0.45 * f, m),
-        describe=None if tree is None else tree.describe,
-    )
-    if tree is not None:
-        _write_window_levels(tree, windows, paths.trajectory_themes_parquet)
+    out_csv = paths.trajectories_csv
     windows_path = paths.trajectory_windows_json
-    windows_path.write_text(json.dumps(windows, ensure_ascii=False), encoding="utf-8")
-    logger.info("Wrote trajectory windows for %d researcher(s) to %s", len(windows), windows_path)
+    levels = _LevelsWriter(paths.trajectory_themes_parquet, single=len(chunks) == 1)
+    kept_points: list[pd.DataFrame] = []
+    n_points = n_windowed = 0
+    ctx.report(0.2, "time windows")
+    with windows_path.open("w", encoding="utf-8") as windows_out:
+        windows_out.write("{")
+        for c, rows in enumerate(chunks):
+            docs = _with_texts(index.iloc[rows])
+            traj = build_trajectory_matrix(
+                docs,
+                vectorizer=vectorizer,
+                alias_to_canon=alias_to_canon,
+                ref_terms=ref_terms,
+                now_year=eff_now,
+                bin_years=eff_bins,
+                doc_types=eff_types,
+                length_alpha=length_alpha,
+                top_k_terms=d.traj_top_k_terms,
+                min_docs_per_bin=eff_min,
+            )
+            del docs
+            coords = project_trajectories(traj.B, svd_model, anchors)
+            out_df = traj.meta.copy()
+            out_df["umap_x"] = coords[:, 0] if len(out_df) else []
+            out_df["umap_y"] = coords[:, 1] if len(out_df) else []
+            out_df.to_csv(out_csv, index=False, mode="w" if c == 0 else "a", header=c == 0)
+            n_points += len(out_df)
+            if cohort_by:
+                kept_points.append(out_df)
+
+            # Time machine: each window projected through the SVD and placed on the
+            # map; the per-window subfield/concept weights are aggregated from each
+            # window's own terms through the applied lexicon (evidence-based, not SVD
+            # proximity).
+            windows = build_trajectory_windows(
+                traj,
+                svd_model=svd_model,
+                anchors=anchors,
+                term_to_concept=term_to_concept,
+                concept_to_subfield=concept_to_subfield,
+                report=lambda f, m, c=c: ctx.report(0.2 + 0.75 * (c + f) / len(chunks), m),
+                describe=None if tree is None else tree.describe,
+            )
+            if tree is not None:
+                levels.add(_window_level_rows(tree, windows))
+            for rid, entries in windows.items():
+                windows_out.write(", " if n_windowed else "")
+                windows_out.write(json.dumps(rid, ensure_ascii=False) + ": ")
+                windows_out.write(json.dumps(entries, ensure_ascii=False))
+                n_windowed += 1
+        windows_out.write("}")
+    if tree is not None:
+        levels.close()
+    logger.info("Wrote %d trajectory points to %s", n_points, out_csv)
+    logger.info("Wrote trajectory windows for %d researcher(s) to %s", n_windowed, windows_path)
+    out_df = pd.concat(kept_points, ignore_index=True) if kept_points else pd.DataFrame()
 
     # Cohort dynamics figure: mobility of the cohorts of a numeric person attribute.
     if cohort_by and len(out_df):

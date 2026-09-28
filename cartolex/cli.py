@@ -243,9 +243,12 @@ def _versions(args: argparse.Namespace) -> int:
             save_maps(project.layout, maps, expected=fp, action=f"pin {args.pin}")
             print(f"pinned {args.pin}: the next build draws the map with it")
         elif args.try_another:
-            maps, version = try_another(maps, seed=args.seed, note=args.note or "")
+            maps, version = try_another(
+                maps, seed=args.seed, method=args.method, note=args.note or ""
+            )
             save_maps(project.layout, maps, expected=fp, action=f"try {version}")
-            print(f"added {version} (seed {args.seed}); pin it to use it")
+            how = f"{args.method} layout, " if args.method else ""
+            print(f"added {version} ({how}seed {args.seed}); pin it to use it")
         if not maps.versions:
             print("no map version yet: the first build adds and pins v1")
         for v in maps.versions:
@@ -455,6 +458,11 @@ def _parser(extensions: Sequence[Extension] = ()) -> argparse.ArgumentParser:
     group.add_argument("--pin", metavar="ID", help="pin this version")
     group.add_argument("--try-another", action="store_true", help="add a version, another seed")
     ve.add_argument("--seed", type=int, default=1, help="the seed of --try-another")
+    ve.add_argument(
+        "--method",
+        choices=("umap", "tsne", "tree"),
+        help="the layout method of --try-another (default: the pinned version's)",
+    )
     ve.add_argument("--note", help="a note on the new version")
     ve.set_defaults(run=_versions)
 

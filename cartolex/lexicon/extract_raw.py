@@ -130,6 +130,7 @@ def parse_texts(
     *,
     n_jobs: int = 1,
     progress: Callable[[int, int], None] | None = None,
+    share: dict | None = None,
 ) -> list[TextAnalysis]:
     """The analyses of *texts* (in order), parsed with *lang*'s model.
 
@@ -137,8 +138,13 @@ def parse_texts(
     processes, each with its own copy of the model; the analysis of a text
     does not depend on the batch it is parsed in, so the result is the same
     whatever the number of workers. *progress* is called with the number of
-    texts done and the total.
+    texts done and the total. With *share*, each batch's analyses are kept in
+    their shared form (:meth:`TextAnalysis.shared`), through that table.
     """
+
+    def keep(batch: list[TextAnalysis]) -> list[TextAnalysis]:
+        return batch if share is None else [a.shared(share) for a in batch]
+
     total = len(texts)
     if not total:
         return []
@@ -151,12 +157,12 @@ def parse_texts(
         workers = min(n_jobs, len(batches))
         with ProcessPoolExecutor(max_workers=workers, mp_context=context) as pool:
             for batch in pool.map(_parse_batch, repeat(lang), batches):
-                out += batch
+                out += keep(batch)
                 if progress:
                     progress(len(out), total)
         return out
     for batch in batches:
-        out += _parse_batch(lang, batch)
+        out += keep(_parse_batch(lang, batch))
         if progress:
             progress(len(out), total)
     return out
@@ -175,12 +181,15 @@ def analyse_texts(
     Needs *lang*'s model to be installed, even when every text is cached (the
     cache is keyed by the installed model). New analyses are added to the
     cache under *cache_dir* when one is given (see
-    :mod:`cartolex.lexicon.parse_cache`).
+    :mod:`cartolex.lexicon.parse_cache`). The analyses are held in their shared
+    form (:meth:`TextAnalysis.shared`: one object per distinct word and unit of
+    the language), which takes about half the memory.
     """
     model = language_models.require(lang)
     by_key = {text_key(t): t for t in texts}
+    share: dict = {}
     cache = ParseCache(cache_dir, model.identity) if cache_dir is not None else None
-    found = cache.read(by_key) if cache is not None else {}
+    found = cache.read(by_key, share=share) if cache is not None else {}
     missing = sorted(k for k in by_key if k not in found)
     logger.info(
         "[%s] %d text(s) to analyse: %d from the parse cache, %d to parse with %s.",
@@ -191,7 +200,9 @@ def analyse_texts(
         model.identity,
     )
     if missing:
-        parsed = parse_texts(lang, [by_key[k] for k in missing], n_jobs=n_jobs, progress=progress)
+        parsed = parse_texts(
+            lang, [by_key[k] for k in missing], n_jobs=n_jobs, progress=progress, share=share
+        )
         new = dict(zip(missing, parsed, strict=True))
         if cache is not None:
             cache.write(new)

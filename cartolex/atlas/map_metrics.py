@@ -20,6 +20,11 @@ layouts are display only):
 
 All functions are pure and deterministic (fixed seeds on any subsampling or
 permutation null). Cosine geometry throughout, matching the pipelines.
+
+Size: no function holds a researcher × researcher matrix. Similarities are
+computed a block of rows at a time (:mod:`cartolex.atlas.blocks`): on a set of
+at most :data:`~cartolex.atlas.blocks.BLOCK_CELLS` pairs (every demo world) the
+arithmetic is that of the whole matrix; the pooled matrices may be sparse.
 """
 
 from __future__ import annotations
@@ -32,6 +37,8 @@ from scipy import sparse
 from scipy.sparse.csgraph import dijkstra
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import normalize
+
+from .blocks import dense_rows, one_block, row_blocks
 
 logger = logging.getLogger(__name__)
 
@@ -174,8 +181,10 @@ def _mutual_knn_adjacency(Z: np.ndarray, k: int) -> sparse.csr_matrix:
 def _cosine_medoid(points: np.ndarray, mask: np.ndarray) -> int:
     """Index (into *points*) of the mask's cosine medoid (max total similarity)."""
     block = points[mask]
-    sims = block @ block.T
-    return int(np.nonzero(mask)[0][np.argmax(sims.sum(axis=1))])
+    totals = np.concatenate(
+        [(block[rows] @ block.T).sum(axis=1) for rows in row_blocks(len(block), len(block))]
+    )
+    return int(np.nonzero(mask)[0][np.argmax(totals)])
 
 
 def conductance_matrix(
@@ -232,8 +241,13 @@ def gap_statistic(
             rows_o = np.nonzero(cohort_of == s2)[0]
             if not len(rows_o):
                 continue
-            sims = Zn[rows_s] @ Zn[rows_o].T
-            d_cross = 1.0 - sims.max(axis=1)
+            other = Zn[rows_o].T
+            d_cross = 1.0 - np.concatenate(
+                [
+                    (Zn[rows_s[rows]] @ other).max(axis=1)
+                    for rows in row_blocks(len(rows_s), len(rows_o))
+                ]
+            )
             ratio = d_cross / np.maximum(d_within, 1e-12)
             out[f"{s}|{s2}"] = {
                 "median_ratio": float(np.median(ratio)),
@@ -329,13 +343,20 @@ def neighbor_cohort_entropy(
 
 
 def cross_cohort_sense_mass(
-    T: np.ndarray, sense_cohorts: dict[str, list[str]], sense_ids: list[str]
+    T: np.ndarray | sparse.spmatrix, sense_cohorts: dict[str, list[str]], sense_ids: list[str]
 ) -> np.ndarray:
-    """Per-researcher fraction of TF mass on senses shared by ≥ 2 cohorts."""
-    T = np.asarray(T, dtype=float)
-    shared = np.array([len(sense_cohorts.get(s, [])) >= 2 for s in sense_ids])
-    total = T.sum(axis=1)
-    return np.divide(T[:, shared].sum(axis=1), total, out=np.zeros(T.shape[0]), where=total > 0)
+    """Per-researcher fraction of TF mass on senses shared by ≥ 2 cohorts (*T* dense or sparse)."""
+    if not sparse.issparse(T):
+        T = np.asarray(T, dtype=float)
+    shared = np.array([len(sense_cohorts.get(s, [])) >= 2 for s in sense_ids], dtype=bool)
+    out = np.zeros(T.shape[0])
+    for rows in row_blocks(T.shape[0], T.shape[1]):
+        block = dense_rows(T, rows)
+        total = block.sum(axis=1)
+        out[rows] = np.divide(
+            block[:, shared].sum(axis=1), total, out=np.zeros(block.shape[0]), where=total > 0
+        )
+    return out
 
 
 def same_unit_auc(
@@ -358,6 +379,8 @@ def same_unit_auc(
     cohort_of = np.asarray(cohorts, dtype=object)
     units_arr = np.asarray([str(u).strip() for u in units], dtype=object)
     known = np.nonzero(units_arr != "")[0]
+    if not one_block(len(known), len(known)):
+        return _same_unit_auc_by_blocks(Zn, cohort_of, units_arr, known, min_positive_pairs)
     ii, jj = np.meshgrid(known, known, indexing="ij")
     mask = (ii < jj) & (cohort_of[ii] != cohort_of[jj])
     ii, jj = ii[mask], jj[mask]
@@ -370,8 +393,49 @@ def same_unit_auc(
     return float(roc_auc_score(y, scores))
 
 
+def _same_unit_auc_by_blocks(
+    Zn: np.ndarray,
+    cohort_of: np.ndarray,
+    units_arr: np.ndarray,
+    known: np.ndarray,
+    min_positive_pairs: int,
+) -> float | None:
+    """:func:`same_unit_auc` on many researchers: the exact AUC, counted a block of rows at a time.
+
+    AUC = P(a same-unit pair scores above a different-unit pair), ties counting
+    one half: the same-unit pairs' scores are gathered and sorted in a first
+    pass, then each different-unit pair is counted against them in a second.
+    """
+    Zk, coh, uni = Zn[known], cohort_of[known], units_arr[known]
+    n = len(known)
+
+    def pairs(rows: slice) -> tuple[np.ndarray, np.ndarray]:
+        sims = Zk[rows] @ Zk.T
+        i = np.arange(rows.start, rows.stop)[:, None]
+        cross = (i < np.arange(n)[None, :]) & (coh[rows][:, None] != coh[None, :])
+        same = cross & (uni[rows][:, None] == uni[None, :])
+        return sims[same], sims[cross & ~same]
+
+    positives = np.sort(np.concatenate([pairs(r)[0] for r in row_blocks(n, n)] or [np.zeros(0)]))
+    if len(positives) < min_positive_pairs:
+        return None
+    above = 0.0
+    n_neg = 0
+    for rows in row_blocks(n, n):
+        negatives = pairs(rows)[1]
+        if not len(negatives):
+            continue
+        lower = np.searchsorted(positives, negatives, side="left")
+        upper = np.searchsorted(positives, negatives, side="right")
+        above += float((len(positives) - upper).sum()) + 0.5 * float((upper - lower).sum())
+        n_neg += len(negatives)
+    if n_neg == 0:
+        return None
+    return above / (float(len(positives)) * float(n_neg))
+
+
 def shared_vocab_mass(
-    T: np.ndarray, cohorts: list[str] | np.ndarray
+    T: np.ndarray | sparse.spmatrix, cohorts: list[str] | np.ndarray
 ) -> tuple[list[str], np.ndarray]:
     """Model-free overlap reference: V[s, s′] = Σ_senses min(p_s, p_s′).
 
@@ -379,12 +443,14 @@ def shared_vocab_mass(
     researchers). The geometry-based overlap (mixing matrix) must rank-correlate
     with this, or the joint space is inventing structure.
     """
-    T = np.asarray(T, dtype=float)
+    if not sparse.issparse(T):
+        T = np.asarray(T, dtype=float)
     cohort_of = np.asarray(cohorts, dtype=object)
     order = sorted(set(cohort_of.tolist()))
     profiles = []
     for s in order:
-        p = T[cohort_of == s].sum(axis=0)
+        # Summed row after row in order, whether T is dense or sparse (the same bits).
+        p = np.asarray(T[np.flatnonzero(cohort_of == s)].sum(axis=0), dtype=float).ravel()
         total = p.sum()
         profiles.append(p / total if total > 0 else p)
     P = np.vstack(profiles)
@@ -401,8 +467,12 @@ def mean_pairwise_cosine(V: np.ndarray) -> float:
     n = V.shape[0]
     if n < 2:
         return 1.0
-    sims = V @ V.T
-    return float((sims.sum() - n) / (n * (n - 1)))
+    if one_block(n, n):
+        total = (V @ V.T).sum()
+    else:  # Σᵢⱼ vᵢ·vⱼ = ‖Σᵢ vᵢ‖², without the n × n matrix
+        s = V.sum(axis=0)
+        total = float(s @ s)
+    return float((total - n) / (n * (n - 1)))
 
 
 def integrity_ratio(V_joint: np.ndarray, V_cohort: np.ndarray) -> float:
@@ -443,18 +513,26 @@ def bridge_pairs(
             kth_sim.append(float(Zn[i] @ Zn[same[-1]]))
     threshold = float(np.median(kth_sim)) if kth_sim else 1.0
 
-    sims = Zn @ Zn.T
-    ii, jj = np.meshgrid(np.arange(Zn.shape[0]), np.arange(Zn.shape[0]), indexing="ij")
-    mask = (ii < jj) & (cohort_of[ii] != cohort_of[jj]) & (sims >= threshold)
-    ii, jj = ii[mask], jj[mask]
-    order = np.argsort(-sims[ii, jj])[:top_n]
+    n = Zn.shape[0]
+    found_i, found_j, found_s = [], [], []
+    for rows in row_blocks(n, n):
+        sims = Zn[rows] @ Zn.T
+        ii, jj = np.meshgrid(np.arange(rows.start, rows.stop), np.arange(n), indexing="ij")
+        mask = (ii < jj) & (cohort_of[ii] != cohort_of[jj]) & (sims >= threshold)
+        found_i.append(ii[mask])
+        found_j.append(jj[mask])
+        found_s.append(sims[mask])
+    ii = np.concatenate(found_i) if found_i else np.zeros(0, dtype=int)
+    jj = np.concatenate(found_j) if found_j else np.zeros(0, dtype=int)
+    sims_found = np.concatenate(found_s) if found_s else np.zeros(0)
+    order = np.argsort(-sims_found)[:top_n]
     return [
         {
             "a": researcher_ids[int(ii[o])],
             "b": researcher_ids[int(jj[o])],
             "cohort_a": str(cohort_of[int(ii[o])]),
             "cohort_b": str(cohort_of[int(jj[o])]),
-            "cosine": round(float(sims[int(ii[o]), int(jj[o])]), 4),
+            "cosine": round(float(sims_found[o]), 4),
             "threshold": round(threshold, 4),
         }
         for o in order

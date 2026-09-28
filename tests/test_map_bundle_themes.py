@@ -26,7 +26,7 @@ from cartolex.atlas.map_merge import CohortInput
 
 def _dense_tables(cohort: CohortInput, S: np.ndarray | None):
     """The entity terms and vocabulary as the bundle computed them with the matrix made dense."""
-    X = np.asarray(cohort.X_tf, dtype=float)
+    X = cohort.X_tf.toarray()  # the cohort keeps it sparse
     rows = []
     for i, eid in enumerate(cohort.researcher_ids):
         for j, term in enumerate(cohort.terms):

@@ -55,6 +55,13 @@ dev = [
   "pytest>=7.0",
   # Exact pin: newer ruff releases also format Python blocks inside Markdown.
   "ruff==0.15.20",
+  # The optional t-SNE layout, tested on every supported Python.
+  "openTSNE>=1.0.4,<2",
+]
+# The t-SNE layout of a map version (method "tsne"): FFT-accelerated t-SNE,
+# BSD-3-Clause, wheels for Python 3.10 to 3.14 on Linux x86-64, macOS and Windows.
+tsne = [
+  "openTSNE>=1.0.4,<2",
 ]
 docs = [
   "sphinx>=7.2",

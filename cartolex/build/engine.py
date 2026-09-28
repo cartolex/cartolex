@@ -707,7 +707,7 @@ def _curated_from_themes(ctx: StageContext, tree: ThemesFile) -> None:
     atomic_write_bytes(ctx.out / "curated.json", json_bytes(doc))
 
 
-#: Keys of a map version's layout parameters → the layout stage's arguments.
+#: Keys of a UMAP map version's layout parameters → the layout stage's arguments.
 LAYOUT_PARAMS = {
     "n_neighbors": "umap_n_neighbors",
     "min_dist": "umap_min_dist",
@@ -721,9 +721,43 @@ LAYOUT_PARAMS = {
     "layout": "umap_layout",
 }
 
+#: The layout methods a map version may name, each with its parameters (key →
+#: the layout stage's argument) and the engine's layout it runs.
+LAYOUT_METHODS: dict[str, tuple[dict[str, str], str | None]] = {
+    "umap": (LAYOUT_PARAMS, None),
+    "tsne": ({"perplexity": "tsne_perplexity", "metric": "umap_metric"}, "tsne"),
+    "tree": ({}, "tree"),
+}
+
+
+#: From this many mapped people, the first map version is a t-SNE (when openTSNE is
+#: installed): it keeps people's neighbourhoods better than UMAP on the measured worlds
+#: of 10³ to 10⁵ people (``docs/dev/layouts.md``). Both reference worlds stay below it.
+TSNE_FROM_PEOPLE = 1_000
+
+
+def default_layout_method(mapped_units: int | None, *, tsne: bool | None = None) -> str:
+    """The layout method of a project's first map version, by the rule of its size.
+
+    ``tsne`` from :data:`TSNE_FROM_PEOPLE` mapped people when the optional
+    openTSNE package is installed (*tsne*, default: whether it is), ``umap``
+    otherwise.
+    """
+    if tsne is None:
+        from ..atlas.reducers import opentsne_available
+
+        tsne = opentsne_available()
+    if tsne and mapped_units is not None and mapped_units >= TSNE_FROM_PEOPLE:
+        return "tsne"
+    return "umap"
+
 
 def prepare_maps(project: Project) -> list[str]:
-    """Before the first layout: add and pin map version ``v1`` (seed: ``params.json``'s)."""
+    """Before the first layout: add and pin map version ``v1`` (seed: ``params.json``'s).
+
+    Its method follows :func:`default_layout_method` on the mapped people the
+    corpus stage counted.
+    """
     from ..project.maps import add_version, read_maps, save_maps
 
     maps, fp = read_maps(project.layout)
@@ -735,9 +769,18 @@ def prepare_maps(project: Project) -> list[str]:
             "(cartolex versions FOLDER --pin ID)"
         )
     params, _ = project.read_params()
-    maps, version = add_version(maps, seed=params.seed, note="the first map, from the defaults")
+    record = project.layout.run_json("corpus.assemble")
+    mapped = None
+    if record.exists():
+        mapped = json.loads(record.read_text(encoding="utf-8")).get("measures", {})
+        mapped = (mapped.get("counts") or {}).get("mapped_units")
+    method = default_layout_method(mapped)
+    note = "the first map, from the defaults"
+    if method != "umap":
+        note += f" ({method}: {mapped} mapped people)"
+    maps, version = add_version(maps, method=method, seed=params.seed, note=note)
     save_maps(project.layout, maps, expected=fp, action="first map version")
-    return [f"added and pinned map version {version}"]
+    return [f"added and pinned map version {version} ({method} layout)"]
 
 
 def run_layout(ctx: StageContext) -> dict[str, int]:
@@ -749,15 +792,29 @@ def run_layout(ctx: StageContext) -> dict[str, int]:
     version = pinned(maps)
     if version is None:
         raise StageRefused("no pinned map version in decisions/maps.json")
-    if version.layout.method != "umap":
-        raise StageRefused(f"the layout method {version.layout.method!r} is not available")
-    unknown = sorted(set(version.layout.params) - set(LAYOUT_PARAMS))
+    method = LAYOUT_METHODS.get(version.layout.method)
+    if method is None:
+        raise StageRefused(
+            f"the layout method {version.layout.method!r} is not available; "
+            f"known: {sorted(LAYOUT_METHODS)}"
+        )
+    known, engine_layout = method
+    unknown = sorted(set(version.layout.params) - set(known))
     if unknown:
         raise StageRefused(
-            f"map version {version.id}: unknown layout parameter(s) {unknown}; "
-            f"known: {sorted(LAYOUT_PARAMS)}"
+            f"map version {version.id}: unknown {version.layout.method} layout parameter(s) "
+            f"{unknown}; known: {sorted(known)}"
         )
-    kwargs = {LAYOUT_PARAMS[k]: v for k, v in version.layout.params.items()}
+    kwargs = {known[k]: v for k, v in version.layout.params.items()}
+    if engine_layout is not None:
+        kwargs["umap_layout"] = engine_layout
+    if engine_layout == "tsne":
+        from ..atlas.reducers import opentsne_available
+
+        if not opentsne_available():
+            raise StageRefused(
+                "the tsne layout needs the optional openTSNE package: pip install 'cartolex[tsne]'"
+            )
     copy_amended(ctx.stage.id, _folders(ctx))
     rctx = run_context(ctx, _settings(ctx), hi=0.9)
     _engine_call(
@@ -827,6 +884,7 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
         else None
     )
     corpus = ctx.folder("corpus.assemble") / "overlays"
+    feature_names = tfidf.get_feature_names_out()
     placed = 0
     sets = ctx.project.config.overlays
     for n_set, overlay in enumerate(sets):
@@ -857,6 +915,7 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
                 length_bonus_alpha=rctx.settings.length_bonus_alpha,
                 top_k=10,
                 top_n=rctx.settings.top_n_researcher,
+                feature_names=feature_names,
             )
             item: dict[str, Any] = {
                 "person_id": who.get(key, ""),

@@ -17,6 +17,7 @@ from cartolex.build import (
     Registry,
     Stage,
     load_params,
+    space_dimensions,
     theme_depth,
     theme_level_sizes,
 )
@@ -44,6 +45,24 @@ from cartolex.project.models import ParamsFile
 )
 def test_theme_depth(keywords, units, depth):
     assert theme_depth(keywords, units) == depth
+
+
+@pytest.mark.parametrize(
+    ("people", "dimensions"),
+    [
+        (1, 20),
+        (38, 20),  # the S demo world
+        (343, 20),  # the L demo world
+        (2_000, 20),
+        (8_000, 40),
+        (20_000, 63),
+        (100_000, 141),
+        (10**6, 200),  # capped
+    ],
+)
+def test_space_dimensions(people, dimensions):
+    assert space_dimensions(people) == dimensions
+    assert STAGES["themes.space"].param("dimensions").rule == "space_dimensions"
 
 
 def test_theme_levels_grow_geometrically_from_the_top():

@@ -5,6 +5,7 @@
 
     python -m cartolex.demo create --size S --seed 0 --out DIR [--corpus]
     python -m cartolex.demo services --size S --seed 0 [--port 8765] [--people-list FILE] [--list-only]
+    python -m cartolex.demo scale --people 100000 --seed 0 --out DIR [--workers 4]
 """
 
 from __future__ import annotations
@@ -63,9 +64,21 @@ def main(argv: list[str] | None = None) -> int:
     services.add_argument(
         "--list-only", action="store_true", help="write the list and exit without serving"
     )
+    scale = sub.add_parser(
+        "scale", help="write a large world (10⁴ to 10⁶ people) straight into a new project"
+    )
+    scale.add_argument("--people", required=True, type=int, help="mapped people")
+    scale.add_argument("--seed", default=0, type=int, help="random seed (default 0)")
+    scale.add_argument("--out", required=True, type=Path, help="the project folder (new)")
+    scale.add_argument("--languages", default="en,fr", help="en,fr (default) or en,fr,pt")
+    scale.add_argument(
+        "--workers", default=1, type=int, help="processes composing the texts (default 1)"
+    )
     args = parser.parse_args(argv)
     if args.command == "services":
         return _services(args)
+    if args.command == "scale":
+        return _scale(args)
 
     started = time.perf_counter()
     try:
@@ -99,6 +112,26 @@ def main(argv: list[str] | None = None) -> int:
             f"corpus contract: {manual['rows']} index rows, {manual['texts']} texts, "
             f"{manual['people']} people -> {args.out / 'workspace'}"
         )
+    print(f"done in {time.perf_counter() - started:.1f}s")
+    return 0
+
+
+def _scale(args: argparse.Namespace) -> int:
+    from .scale import write_scale_project
+
+    started = time.perf_counter()
+    try:
+        summary = write_scale_project(
+            args.out, args.people, seed=args.seed, languages=args.languages, workers=args.workers
+        )
+    except (ValueError, FileExistsError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(
+        f"scale world {args.people}/{args.seed}: {summary.mapped} mapped people, "
+        f"{summary.applicants} applicants, {summary.groups} groups, {summary.texts} texts, "
+        f"{summary.characters} characters -> {args.out}"
+    )
     print(f"done in {time.perf_counter() - started:.1f}s")
     return 0
 

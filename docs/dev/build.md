@@ -123,7 +123,7 @@ leaves the check to the run.
 | `keywords.extract` | `max_share` | 0.6 | 0.01–1 |
 | `keywords.triage` | `enabled` | false | true, false |
 | `keywords.build` | `max_keywords` | 10 000 | ≥ 10 |
-| `themes.space` | `dimensions` | 20 | 2–1000; a space never has more dimensions than people or keywords (the run says so) |
+| `themes.space` | `dimensions` | rule `space_dimensions` | 2–1000; a space never has more dimensions than people or keywords (the run says so) |
 | `themes.group` | `depth` | rule `theme_depth` | 1–4 |
 | `themes.group` | `top_groups` | 15 | 2–500, fewer than the kept keywords |
 | `themes.group` | `keywords_per_group` | 20 | 2–10 000; the levels must grow from the top |
@@ -140,6 +140,12 @@ give two levels (Theme › Topic). The top level has about `top_groups` groups,
 the finest about `keywords_per_group` keywords per group, and the levels in
 between grow geometrically: `theme_level_sizes(50_000, 3, 15, 20)` is
 `(15, 194, 2500)`. At depth 1 the one level follows `top_groups`.
+
+**The space's dimensions.** With P people whose texts build the lexicon, the
+space keeps 20 dimensions up to 2 000 people, then 20 × √(P / 2 000), at most
+200: 8 000 people give 40, 100 000 give 141. A small project keeps the 20 it
+always had (both reference worlds); the measures behind the rule are in
+[Sizes and machines](../sizes.md).
 
 **Sizes.** A rule reads `ProjectSizes`: the people whose texts build the
 lexicon, their texts, the characters of those texts, the kept keywords and the
@@ -250,15 +256,19 @@ run, and why it cannot run, if it cannot. A stage runs when it was never built,
 needs an update, failed, is forced, or an upstream stage runs.
 `BuildPlan.describe()` says all this in words.
 
-An estimate scales the stage's last measures by the ratio of its cost driver
-now to what it was then, or, without a previous run, uses the stage's
-`CostModel` (a fixed part plus a part per unit of the driver, to a power; a
-stand-in size while the driver is unknown, the vocabulary from the people). The
-cost models of `STAGES` are fitted on fresh builds of the S and L demo worlds
-(one process, whole-process peak memory; the layout's fixed time is mostly the
-compilation of the layout library in a new process): on those builds every
-stage's estimate is within a factor of 2 of its measure (1.9 at most, for a
-stage of under a second), and the totals within 15 %. The AI clean-up's model is a guess, its cost being the provider's.
+An estimate scales the part of the stage's last measures above its fixed part
+by what the stage's `CostModel` gives now over what it gave then (from the
+sizes the run recorded in its counts), or, without a previous run, uses the
+model itself: a fixed part plus a part per unit of the driver, to a power,
+plus optionally a linear part of a second size (the extraction costs per text
+as well as per character); a stand-in size while the driver is unknown (the
+vocabulary from the people, twelve per person, at most 10 000). The cost
+models of `STAGES` are fitted with `tools/cost_fit.py` on each stage run in a
+fresh process (`tools/scale_study.py`) on the demo worlds and on streamed
+worlds of 10³, 10⁴ and 10⁵ people ([Sizes and machines](../sizes.md)): from
+10³ to 10⁵ people every stage's estimate is within a factor of 2 of its
+measure, in time and in peak memory (`tests/test_build_costs.py` holds the
+measures). The AI clean-up's model is a guess, its cost being the provider's.
 A stage whose estimated peak memory exceeds the budget cannot run, nor can
 anything downstream of it, unless `build(allow_over_budget=True)` or a list of
 stage ids allows it. The budget is `budget_mb`, or by default the memory
@@ -349,7 +359,7 @@ made with.
 | `themes.space.dimensions` | `run_svd(svd_n_components=…)` |
 | the theme levels | every level: `draft_themes(level_sizes=…)`; the finest: `run_clustering(n_concepts=…)`; at depth 2 the top level of the two-level draft: `draft_subfields(n_subfields=…)` |
 | `map.trajectories.window_years` | `run_trajectories(bin_years=…)` |
-| the pinned map version | `run_umap(umap_random_state=seed, …)` with its layout parameters (`n_neighbors`, `min_dist`, `metric`, `layout`…) |
+| the pinned map version | `run_umap(umap_random_state=seed, …)` with its method's parameters: for `umap` (`n_neighbors`, `min_dist`, `metric`, `layout`…), `umap_layout="tsne"` and `tsne_perplexity` for `tsne`, `umap_layout="tree"` for `tree` |
 | `identity.ai.model` | `KeywordsConfig.llm_model` |
 | `identity.domain_title`, `identity.domain_description` | `KeywordsConfig.domain_title`, `.domain_description` (the AI's only context besides the terms) |
 | `decisions/stopwords.json` | the stop-word profile: every word added or removed, in any language, extends or shrinks the list of words that are never keywords |
@@ -361,7 +371,10 @@ keywords on its themes directly.
 **Map versions.** Before the first layout, `map.layout`'s `prepare` adds and
 pins map version `v1` (layout `umap`, the seed of `params.json`). A rebuild uses
 the pinned version; `cartolex versions` pins another or adds one with another
-seed.
+seed (`--try-another --seed N`) or another layout method (`--method umap|tsne|tree`,
+which starts from that method's defaults). A method the stage does not know, a
+parameter its method does not take, or `tsne` without the optional openTSNE
+package is refused with the reason ([layouts](layouts.md)).
 
 **The curated theme tree.** Before `themes.apply` runs, its `prepare` rebases
 `decisions/themes.json` onto the current vocabulary when it is based on

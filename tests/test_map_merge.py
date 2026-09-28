@@ -103,13 +103,14 @@ def test_assemble_pools_merged_senses_and_namespaces_rows() -> None:
     assert not joint.unmapped_terms
 
     col = {s: j for j, s in enumerate(joint.sense_ids)}
+    T = joint.T.toarray()  # the pooled matrix is sparse
     # The merged sense pools both cohorts' TF; the split senses stay apart.
     assert "phase transition" in col and "spectrum#c2" in col and "spectrum#c1" in col
-    np.testing.assert_allclose(joint.T[:, col["phase transition"]], [1.0, 0.0, 2.0, 3.0, 1.0])
-    np.testing.assert_allclose(joint.T[:, col["spectrum#c2"]], [0.0, 0.0, 0.0, 0.0, 4.0])
-    np.testing.assert_allclose(joint.T[:, col["spectrum#c1"]], [2.0, 1.0, 0.0, 0.0, 0.0])
+    np.testing.assert_allclose(T[:, col["phase transition"]], [1.0, 0.0, 2.0, 3.0, 1.0])
+    np.testing.assert_allclose(T[:, col["spectrum#c2"]], [0.0, 0.0, 0.0, 0.0, 4.0])
+    np.testing.assert_allclose(T[:, col["spectrum#c1"]], [2.0, 1.0, 0.0, 0.0, 0.0])
     # Pooling preserves total mass (every raw term is mapped).
-    assert joint.T.sum() == pytest.approx(sum(np.asarray(s.X_tf).sum() for s in _inputs()))
+    assert T.sum() == pytest.approx(sum(s.X_tf.sum() for s in _inputs()))
     assert joint.sense_cohorts["phase transition"] == ["c1", "c2"]
 
 
@@ -120,7 +121,7 @@ def test_assemble_counts_unmapped_terms() -> None:
     joint = assemble_joint_matrix(inputs, table)
     assert joint.unmapped_terms == {"c1": 1}
     col = {s: j for j, s in enumerate(joint.sense_ids)}
-    np.testing.assert_allclose(joint.T[:, col["laser"]], 0.0)
+    np.testing.assert_allclose(joint.T.toarray()[:, col["laser"]], 0.0)
 
 
 def test_joint_idf_pooled_and_macro() -> None:
@@ -155,7 +156,7 @@ def test_weight_matrix_length_bonus_sublinear_and_l2() -> None:
         sense_cohorts={"spectral gap": ["c2"], "laser": ["c2"]},
         unmapped_terms={},
     )
-    W = weight_matrix(joint, idf_mode="pooled", length_alpha=2.0)
+    W = weight_matrix(joint, idf_mode="pooled", length_alpha=2.0).toarray()
     # Both senses have df=1/N=1 → same IDF; ratio driven by sublinear TF (2 vs 1)
     # and the 2-token length bonus (1+2·1=3 vs 1): (2·3)/(1·1) = 6.
     assert np.linalg.norm(W[0]) == pytest.approx(1.0)

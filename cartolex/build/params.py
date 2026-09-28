@@ -39,6 +39,7 @@ __all__ = [
     "Rule",
     "check_params",
     "resolve_params",
+    "space_dimensions",
     "theme_depth",
     "theme_level_sizes",
 ]
@@ -130,6 +131,27 @@ def theme_level_sizes(
     return (int(top_groups), *inner, finest)
 
 
+#: The space's dimensions on a small project, and where the rule starts to grow them.
+SPACE_DIMENSIONS = 20
+SPACE_FROM_PEOPLE = 2_000
+#: The most dimensions the rule gives.
+SPACE_MAX_DIMENSIONS = 200
+
+
+def space_dimensions(people: int) -> int:
+    """How many dimensions the space of a project with *people* people keeps.
+
+    20 up to 2 000 people, then ``20 × √(people / 2 000)``: a field of more
+    people holds more distinct themes, and a space of 20 dimensions keeps a
+    smaller share of them (``docs/sizes.md`` has the measures); at most 200.
+    """
+    n = max(1, int(people))
+    if n <= SPACE_FROM_PEOPLE:
+        return SPACE_DIMENSIONS
+    grown = round(SPACE_DIMENSIONS * math.sqrt(n / SPACE_FROM_PEOPLE))
+    return int(min(SPACE_MAX_DIMENSIONS, max(SPACE_DIMENSIONS, grown)))
+
+
 @dataclass(frozen=True)
 class Rule:
     """A default computed from the project's sizes."""
@@ -148,6 +170,12 @@ RULES: dict[str, Rule] = {
             "min(⌊log₁₀ kept keywords⌋ − 1, ⌊log₁₀ mapped units⌋), clamped to 1–4",
             ("kept_keywords", "mapped_units"),
             lambda s: theme_depth(s.kept_keywords or 1, s.mapped_units or 1),
+        ),
+        Rule(
+            "space_dimensions",
+            "20 up to 2 000 people, then 20 × √(people / 2 000), at most 200",
+            ("people",),
+            lambda s: space_dimensions(s.people or 1),
         ),
     )
 }

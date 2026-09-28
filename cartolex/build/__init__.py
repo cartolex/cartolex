@@ -35,6 +35,7 @@ from .params import (
     ParamSpec,
     ProjectSizes,
     Rule,
+    space_dimensions,
     theme_depth,
     theme_level_sizes,
 )
@@ -77,6 +78,7 @@ __all__ = [
     "plan",
     "status",
     "table_fingerprint",
+    "space_dimensions",
     "theme_depth",
     "theme_level_sizes",
 ]

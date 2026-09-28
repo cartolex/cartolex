@@ -532,10 +532,11 @@ def _run_stage(
     seconds = round(time.monotonic() - t0, 3)
     probe(f"stage:ran:{stage.id}")
     counts = {**ctx.counts, **{k: int(v) for k, v in (returned or {}).items()}}
-    if stage.cost is not None and stage.cost.driver not in counts:
-        driver = view.sizes.get(stage.cost.driver)
-        if driver is not None:
-            counts[stage.cost.driver] = driver
+    for name in stage.cost.sizes() if stage.cost is not None else ():
+        if name not in counts:
+            value = view.sizes.get(name)
+            if value is not None:
+                counts[name] = value
     record = RunRecord(
         stage=stage.id,
         run_id=run_id,
