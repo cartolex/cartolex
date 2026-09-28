@@ -875,12 +875,20 @@ world's truth; its `README.md` tells a person how to run one bundle in a
 chat assistant and where to save the answer (`answer.txt` next to the
 bundle). `--suffix` writes a new set of bundles (`tocheck-v2/`,
 `kept-tocheck-v2/`) beside the existing ones, which keep their answers; the
-writer never overwrites a folder that holds an answer. Each part records the
-version of the prompt (`handoff.PROMPT_VERSION`). Version 2 says that a
+writer never overwrites a folder that holds an answer. Each set records the
+build it comes from (`--project`), so that later sets, made after the
+defaults changed, are scored against their own candidates; each part records
+the version of the prompt (`handoff.PROMPT_VERSION`). Version 2 says that a
 phrase joining a process, a property or a measure to an object of the field
 (« X des Y » in French, a compound in English) is a keyword, and keeps F for
 broken pieces: with the first prompt, a blind judge rejected most French
-« X des Y » terms as fragments.
+« X des Y » terms as fragments. Version 3 adds that a single everyday word is
+G unless it is a term of art, and that a French or Portuguese term takes as
+its English form the English term of the list that names the same thing.
+From version 3 the parts interleave the languages by rank (the best tenth of
+each language first, and so on), so that a term can meet its translation in
+its part; at size L, about a fifth of the French field terms whose English
+twin is a candidate find it in the same part.
 
 The second command scores every bundle present (or those named with
 `--only`). It reads every `answer*.txt` (`handoff.parse_answer`: the

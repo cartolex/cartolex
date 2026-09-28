@@ -229,6 +229,7 @@ def write_handoff_test(
             v.setdefault("prompt_version", 1)
             v.setdefault("commit", old.get("build", {}).get("engine_commit", ""))
             v.setdefault("project", old.get("build", {}).get("project", ""))
+            v.setdefault("reasons", _reasons(out / k))
 
     manifest = {
         "format": "cartolex-handoff-test/1",
@@ -293,6 +294,7 @@ def write_handoff_test(
             "prompt_version": handoff.PROMPT_VERSION,
             "commit": _git_commit(),
             "project": str(project),
+            "reasons": _reasons(target),
             "order": "languages interleaved by rank"
             if interleave
             else "one language after the other",
@@ -329,14 +331,34 @@ def _size_rows(manifest: dict) -> list[str]:
 
 PROMPT_NOTES = {
     1: "the first prompt",
-    2: "the revised prompt: a process, property or measure of an object of the field "
-    "is a keyword, and F is only for broken pieces",
+    2: "prompt 2: a process, property or measure of an object of the field is a keyword, "
+    "and F is only for broken pieces",
+    3: "prompt 3: as prompt 2, and a single everyday word is too generic unless it is a "
+    "term of art, and a French term takes as its English form the English term of the "
+    "list that names the same thing",
 }
-SCOPE_WORDS = {
-    "tocheck": "the candidates *to check* (single words, and phrases starting or ending "
-    "with a very common adjective)",
-    "kept-tocheck": "the candidates *kept* or *to check*",
+REASON_WORDS = {
+    "single-word": "single words",
+    "common-modifier": "phrases starting or ending with a very common adjective",
+    "multiword": "phrases of several words",
 }
+
+
+def _reasons(folder: Path) -> dict[str, int]:
+    """How many items of each band reason the parts under *folder* hold."""
+    counts: dict[str, int] = {}
+    for bundle_json in folder.rglob("bundle.json"):
+        for item in json.loads(bundle_json.read_text(encoding="utf-8"))["items"]:
+            code = str(item.get("reason", "")).split(":")[0]
+            counts[code] = counts.get(code, 0) + 1
+    return counts
+
+
+def _scope_words(info: dict) -> str:
+    bands = info.get("bands") or ["check"]
+    what = "*kept* or *to check*" if "kept" in bands else "*to check*"
+    reasons = [REASON_WORDS.get(r, r) for r, _ in sorted(info.get("reasons", {}).items())]
+    return f"the candidates {what}" + (f" ({', '.join(reasons)})" if reasons else "")
 
 
 def readme(manifest: dict) -> str:
@@ -345,7 +367,6 @@ def readme(manifest: dict) -> str:
     limit = manifest["max_tokens"]
     listing = []
     for name, info in manifest["bundles"].items():
-        scope = info.get("scope", name)
         n = len(info["parts"])
         how = (
             "in one bundle: one conversation"
@@ -353,8 +374,10 @@ def readme(manifest: dict) -> str:
             else f"in {n} parts (`part-01` to `part-{n:02d}`): one conversation each"
         )
         version = info.get("prompt_version", 1)
+        if n > 1 and str(info.get("order", "")).startswith("languages interleaved"):
+            how += " (each part holds the same stretch of every language, by rank)"
         listing.append(
-            f"- `{name}/`: {SCOPE_WORDS.get(scope, scope)}, {info['items']:,} terms, English "
+            f"- `{name}/`: {_scope_words(info)}, {info['items']:,} terms, English "
             f"and French, {how}; {PROMPT_NOTES.get(version, f'prompt {version}')}."
         )
     big = [
@@ -487,7 +510,9 @@ def main(argv: list[str] | None = None) -> int:
     out = args.out.expanduser().resolve()
     if ROOT in out.parents or out == ROOT:
         raise SystemExit("handoff: write the test folder outside the repository")
-    project = args.project or ROOT / ".cache" / "handoff" / f"project-{args.size}-{args.seed}"
+    project = (
+        args.project or ROOT / ".cache" / "handoff" / f"project-{args.size}-{args.seed}"
+    ).resolve()
     manifest = write_handoff_test(
         out,
         size=args.size,
