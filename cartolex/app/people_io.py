@@ -183,8 +183,24 @@ def _units(project: Project) -> dict[str, str]:
     return out
 
 
-def read_people(project: Project) -> tuple[list[dict[str, Any]], str | None]:
+def _stamp(project: Project) -> tuple[Any, ...]:
+    """What the tables' view depends on: each table's size and modification time."""
+    out: list[Any] = [str(project.layout.root)]
+    for name in ("people", "texts", "text_parts", "authorships", "affiliations", "organisations"):
+        path = project.layout.table(name)
+        try:
+            st = path.stat()
+            out.append((name, st.st_size, st.st_mtime_ns))
+        except FileNotFoundError:
+            out.append((name, None))
+    return tuple(out)
+
+
+def read_people(project: Project, cache: Any = None) -> tuple[list[dict[str, Any]], str | None]:
     """Every person: the table's row joined with the decision, and ``people.csv``'s fingerprint.
+
+    *cache* (an app's :class:`~cartolex.app.runtime.Cache`) keeps the tables'
+    part between calls while the tables do not change.
 
     Without ``people.csv`` everyone is ``mapped`` (as the build reads it); a
     person with no row in it once the file exists is ``undecided``.
@@ -192,10 +208,16 @@ def read_people(project: Project) -> tuple[list[dict[str, Any]], str | None]:
     layout = project.layout
     decisions = {r["person_id"]: r for r in read_decision_csv(layout.people_csv, "people")}
     file_exists = layout.people_csv.exists()
-    coverage = coverage_of(project)
-    units = _units(project)
+    if cache is not None:  # the tables change only when people are imported or collected
+        rows_, coverage, units = cache.get(
+            ("people", _stamp(project)),
+            lambda: (people_rows(project), coverage_of(project), _units(project)),
+        )
+        rows_ = [dict(r) for r in rows_]
+    else:
+        rows_, coverage, units = people_rows(project), coverage_of(project), _units(project)
     out = []
-    rows = people_rows(project)
+    rows = rows_
     known = {r["person_id"] for r in rows}
     # A decision whose person left the sources is listed, never dropped silently.
     for pid in sorted(set(decisions) - known):

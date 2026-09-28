@@ -30,6 +30,7 @@ def _name(p: dict[str, Any]) -> str:
 
 @routes.get("/api/people", action="people.read")
 def list_people(
+    request: Request,
     response: Response,
     ctx: ProjectDep,
     params: ListDep,
@@ -39,7 +40,7 @@ def list_people(
     coverage: Annotated[Literal["good", "thin", "none"] | None, Query()] = None,
 ) -> dict[str, Any]:
     """People with their role, identity state and coverage; paged, sorted and filtered here."""
-    people, fp = read_people(ctx.project)
+    people, fp = read_people(ctx.project, runtime_of(request).table_cache)
     counts: dict[str, dict[str, int]] = {"role": {}, "identity": {}, "coverage": {}}
     for p in people:
         for key, value in (
@@ -95,8 +96,8 @@ class PeopleEdit(BaseModel):
     note: Annotated[str | None, Field(max_length=2000)] = None
 
 
-def _known(ctx: Any, ids: list[str]) -> dict[str, dict[str, Any]]:
-    people, _ = read_people(ctx.project)
+def _known(request: Request, ctx: Any, ids: list[str]) -> dict[str, dict[str, Any]]:
+    people, _ = read_people(ctx.project, runtime_of(request).table_cache)
     by_id = {p["person_id"]: p for p in people}
     unknown = sorted(set(ids) - set(by_id))
     if unknown:
@@ -140,7 +141,7 @@ def edit_people(
         raise ApiError(422, "invalid", "nothing to change", next_action="fix-input")
     with ctx.handle.mutex:
         check_version(ctx.layout.people_csv, expected)
-        _known(ctx, body.person_ids)
+        _known(request, ctx, body.person_ids)
         what = ", ".join(f"{k} {v}" for k, v in changes.items() if k != "note") or "note"
         fp = write_people_csv(
             ctx.project,
@@ -169,7 +170,7 @@ def merge_people(
         raise ApiError(422, "invalid", "a person cannot be merged into themselves")
     with ctx.handle.mutex:
         check_version(ctx.layout.people_csv, expected)
-        by_id = _known(ctx, [body.target, *body.sources])
+        by_id = _known(request, ctx, [body.target, *body.sources])
         if by_id[body.target]["merged_into"]:
             raise ApiError(
                 409,

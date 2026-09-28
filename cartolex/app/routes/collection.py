@@ -98,7 +98,7 @@ def identities(
     state: Annotated[Literal["pending", "confirmed", "auto", "none", "all"], Query()] = "pending",
 ) -> dict[str, Any]:
     """The identity queue: each person to check, with candidate records and their evidence."""
-    people, fp = read_people(ctx.project)
+    people, fp = read_people(ctx.project, runtime_of(request).table_cache)
     rows = [
         p
         for p in people
@@ -203,7 +203,7 @@ def decide(
     expected = expected_version(request)
     with ctx.handle.mutex:
         check_version(ctx.layout.people_csv, expected)
-        people, _ = read_people(ctx.project)
+        people, _ = read_people(ctx.project, runtime_of(request).table_cache)
         if person_id not in {p["person_id"] for p in people}:
             raise ApiError(404, "not_found", f"no person {person_id!r}", next_action="reload")
         if body.decision == "none":
@@ -233,9 +233,9 @@ def decide(
 
 
 @routes.get("/api/collection/coverage", action="collection.read")
-def coverage(ctx: ProjectDep) -> dict[str, Any]:
+def coverage(request: Request, ctx: ProjectDep) -> dict[str, Any]:
     """How well the texts cover the people: counts per coverage class and per role."""
-    people, _ = read_people(ctx.project)
+    people, _ = read_people(ctx.project, runtime_of(request).table_cache)
     classes: dict[str, int] = {"good": 0, "thin": 0, "none": 0}
     by_role: dict[str, dict[str, int]] = {}
     texts = 0
