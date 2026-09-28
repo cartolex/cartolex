@@ -235,20 +235,20 @@ columns are the trilingual worlds (read with the three corpus languages):
 | … in French / in Portuguese | 66 / – | 437 / – | 66 / 34 | 437 / 266 |
 | Index rows | 535 | 5,241 | 535 | 5,241 |
 | Words | 46,036 | 435,872 | 46,509 | 438,880 |
-| Candidate terms, English / French / Portuguese | 3,985 / 1,467 / – | 22,722 / 6,042 / – | 3,511 / 1,451 / 942 | 20,267 / 5,987 / 4,794 |
-| Global keywords | 5,400 | 28,644 | 5,842 | 30,903 |
-| Refined keywords | 2,228 | 15,731 | 2,482 | 17,193 |
-| Atlas terms (rows of `umap_terms.csv`) | 546 | 3,328 | 573 | 3,430 |
+| Candidate terms, English / French / Portuguese | 2,516 / 1,467 / – | 9,260 / 6,042 / – | 2,268 / 1,451 / 942 | 8,742 / 5,987 / 4,794 |
+| Global keywords | 3,931 | 15,182 | 4,599 | 19,378 |
+| Refined keywords | 1,820 | 8,866 | 2,142 | 11,595 |
+| Atlas terms (rows of `umap_terms.csv`) | 552 | 3,254 | 574 | 3,468 |
 | Concepts / proto-subfields | 150 / 30 | 150 / 30 | 150 / 30 | 150 / 30 |
-| Atlas terms that are theme terms or methods | 46 % | 62 % | 40 % | 57 % |
-| … parts of one (a head word, a piece) | 33 % | 27 % | 39 % | 31 % |
-| … study settings or drivers | 6 % | 2 % | 7 % | 2 % |
-| … generic phrasing of the templates | 15 % | 9 % | 14 % | 10 % |
-| Engine run, total | 35.1 s | 105.6 s | 33.7 s | 109.4 s |
-| … extraction / consolidation / UMAP | 13.1 / 4.4 / 17.4 s | 62.0 / 20.1 / 22.4 s | 10.8 / 4.2 / 18.6 s | 66.3 / 24.4 / 17.8 s |
-| Peak memory | 770 MB | 896 MB | 778 MB | 879 MB |
+| Atlas terms that are theme terms or methods | 50 % | 72 % | 44 % | 64 % |
+| … parts of one (a head word, a piece) | 32 % | 22 % | 37 % | 27 % |
+| … study settings or drivers | 6 % | 1 % | 7 % | 2 % |
+| … generic phrasing of the templates | 12 % | 5 % | 12 % | 7 % |
+| Engine run, total | 36.6 s | 120.8 s | 40.4 s | 131.6 s |
+| … extraction / consolidation / UMAP | 12.7 / 5.8 / 17.8 s | 71.2 / 27.1 / 21.4 s | 15.1 / 7.5 / 17.5 s | 71.7 / 37.4 / 21.3 s |
+| Peak memory | 812 MB | 952 MB | 828 MB | 959 MB |
 
-Seed 1 gives 504 atlas terms for S and 3,157 for L. Most of the extraction
+Seed 1 gives 501 atlas terms for S and 3,137 for L. Most of the extraction
 time is parsing, done once: with the parse cache filled by a first run, the
 extraction of L takes about 30 s (most of it the language detection), and
 with four worker processes a first run takes about 30 s too. A language
@@ -260,12 +260,13 @@ is meant to remove such phrases.
 
 Two behaviours of the current engine show in these runs:
 
-- the extraction's English pattern allows one `of` complement (`degrees of
-  freedom`), and the English templates are full of `the X of Y` phrasing: at
-  size L about 13,500 of the 22,722 English candidates contain `of`, and only
-  a handful of them are theme terms (the triage is meant to drop the others);
-- at size L the refined keyword list is cut to the 10,000 best-scored terms
-  (the default of `global_top_n`).
+- the English templates are full of `the X of Y` phrasing; the extraction's
+  English pattern takes no `of` complement (the lexicon lab's default, see
+  {doc}`dev/lexicon-lab`), so such spans give their parts (`silicic acid
+  uptake`) rather than one long candidate each: with the complement, size L
+  had 22,722 English candidates, about 13,500 of them containing `of`;
+- at size L with Portuguese the refined keyword list is cut to the 10,000
+  best-scored terms (the default of `global_top_n`).
 
 ## Engine settings
 
