@@ -14,7 +14,13 @@ module they import must be one of
 
 Anything else — the demo generator, an application, collection code, a site
 builder, a web framework — fails the test, so the engine stays reusable on any
-corpus. Both directions between the two engine packages exist today (the atlas
+corpus.
+
+The collection package ``cartolex.collect`` has an allowlist of its own: the
+project format (``cartolex.project``), the packaged data and two engine
+helpers (PDF text and language detection). The demo world and its fake
+services are for tests only: collection never imports them, and they never
+import collection, so the fakes stay an independent picture of the services. Both directions between the two engine packages exist today (the atlas
 reads lexicon helpers at module level; two lexicon modules import atlas
 helpers inside functions).
 """
@@ -58,6 +64,16 @@ def _declared_imports() -> set[str]:
         dist = re.split(r"[<>=!~;\[ ]", dep, maxsplit=1)[0].strip()
         names.add(IMPORT_NAMES.get(dist, dist))
     return names
+
+
+#: What the collection package may import inside ``cartolex``.
+COLLECT_ALLOWED = (
+    "cartolex.collect",
+    "cartolex.project",
+    "cartolex._data",
+    "cartolex.lexicon.pdf_text",
+    "cartolex.lexicon.lang_utils",
+)
 
 
 def _module_of(py_file: Path, root: Path) -> str:
@@ -164,6 +180,8 @@ def test_the_guard_rejects_what_it_must() -> None:
         "cartolex.demo.generator",
         "cartolex.build",
         "cartolex.project",
+        "cartolex.collect",
+        "cartolex.collect.http",
         "cartolex",
         "fastapi",
         "playwright",
@@ -195,3 +213,34 @@ def test_relative_imports_are_resolved(tmp_path: Path) -> None:
         "cartolex.context",
     }
     assert "cartolex.context" not in _imports(probe, root=tmp_path, at_import=True)
+
+
+def _package_files(package: str) -> list[Path]:
+    pkg_dir = REPO_ROOT.joinpath(*package.split("."))
+    assert pkg_dir.is_dir(), f"package missing: {package} (guard would be vacuous)"
+    return sorted(pkg_dir.rglob("*.py"))
+
+
+def test_collection_imports_only_what_it_may() -> None:
+    declared = _declared_imports()
+    violations = []
+    for py_file in _package_files("cartolex.collect"):
+        for name in sorted(_imports(py_file)):
+            root = name.split(".")[0]
+            if root == "cartolex":
+                ok = _within(name, COLLECT_ALLOWED)
+            else:
+                ok = root in sys.stdlib_module_names or root in declared
+            if not ok:
+                violations.append(f"{py_file.relative_to(REPO_ROOT)} imports {name}")
+    assert not violations, "Collection layering violations:\n" + "\n".join(violations)
+
+
+def test_the_demo_never_imports_collection() -> None:
+    violations = [
+        f"{py_file.relative_to(REPO_ROOT)} imports {name}"
+        for py_file in _package_files("cartolex.demo")
+        for name in sorted(_imports(py_file))
+        if _within(name, ("cartolex.collect",))
+    ]
+    assert not violations, "\n".join(violations)
