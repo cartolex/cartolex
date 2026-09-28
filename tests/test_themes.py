@@ -22,6 +22,7 @@ from themes_random import (
 
 from cartolex.project.models import ThemesFile
 from cartolex.project.themes import (
+    LEVEL_REMOVED,
     NEW_WITHOUT_PLACE,
     SET_ASIDE,
     Change,
@@ -33,6 +34,7 @@ from cartolex.project.themes import (
     default_level_names,
     delete_node,
     insert_level,
+    keywords_at,
     keywords_under,
     merge_nodes,
     move_keywords,
@@ -179,8 +181,11 @@ def test_move_keywords():
     assert edit.tree.keywords["beach erosion"] == "n5" == edit.tree.keywords["coastal flooding"]
     assert edit.description == "move 2 keywords to n5"
     assert [c.kind for c in compare(_tree(), edit.tree)] == ["moved", "moved"]
-    with pytest.raises(ThemeEditError, match="deepest level"):
-        move_keywords(_tree(), "beach erosion", "n1")
+    broader = move_keywords(_tree(), "coastal flooding", "n1").tree  # onto a theme
+    assert broader.keywords["coastal flooding"] == "n1"
+    assert keywords_under(broader, "n2") == ["storm surge model"]
+    with pytest.raises(ThemeEditError, match="no node"):
+        move_keywords(_tree(), "beach erosion", "n9")
     with pytest.raises(ThemeEditError, match="put back instead"):
         move_keywords(_tree(), "numerical results", "n5")
     with pytest.raises(ThemeEditError, match="not in the tree"):
@@ -256,6 +261,21 @@ def test_split_node_by_a_partition():
         split_node(_tree(), "n2", [(["coastal flooding"], {})])
 
 
+def test_split_a_node_holding_keywords_and_nodes():
+    tree = move_keywords(_tree(), ["coral bleaching"], "n4").tree  # Ecology holds it and Reefs
+    tree = create_node(tree, "n4", {"en": "Plankton"}, node_id="n7").tree
+    tree = move_keywords(tree, "dune retreat", "n7").tree
+    edit = split_node(tree, "n4", [(["coral bleaching", "n7"], {"en": "Open sea"})])
+    new = next(n.id for n in edit.tree.nodes if n.names == {"en": "Open sea"})
+    assert keywords_at(edit.tree, new) == ["coral bleaching"]
+    assert [n.id for n in children(edit.tree, new)] == ["n7"]
+    assert [n.id for n in children(edit.tree, "n4")] == ["n5"]
+    clash = create_node(tree, "n4", {"en": "x"}, node_id="reef").tree
+    clash = rebase(clash, [*vocabulary_of(clash), "reef"], {"reef": "n4"}).tree
+    with pytest.raises(ThemeEditError, match="ambiguous|both a keyword"):
+        split_node(clash, "n4", [(["reef"], {"en": "y"})])
+
+
 def test_create_and_delete_nodes():
     edit = create_node(_tree(), "n4", {"en": "Plankton"}, position=0)
     assert edit.description == "create n6"
@@ -266,7 +286,7 @@ def test_create_and_delete_nodes():
     tree = create_node(_tree(), None, {"fr": "Sociétés"}, node_id="society").tree
     assert [n.id for n in children(tree, None)] == ["n1", "n4", "society"]
     with pytest.raises(ThemeEditError, match="deepest level"):
-        create_node(_tree(), "n2", {"en": "x"})
+        create_node(_tree(), "n2", {"en": "x"})  # no node below the deepest level
     with pytest.raises(ThemeEditError, match="already used"):
         create_node(_tree(), None, {"en": "x"}, node_id="n1")
     with pytest.raises(ThemeEditError, match="not a valid node id"):
@@ -297,6 +317,7 @@ def test_set_aside_and_put_back():
     back = put_back(tree, ["coral bleaching", "dune retreat"])
     assert back.tree == _tree() and back.description == "put back 2 keywords"
     assert put_back(tree, "coral bleaching", "n2").tree.keywords["coral bleaching"] == "n2"
+    assert put_back(tree, "coral bleaching", "n4").tree.keywords["coral bleaching"] == "n4"
     with pytest.raises(ThemeEditError, match="not set aside"):
         put_back(_tree(), "coral bleaching")
     orphan = ThemesFile.model_validate(
@@ -348,13 +369,20 @@ def test_attribution_is_checked_by_the_model():
     doc = _tree().model_dump(mode="json", by_alias=True)
     with pytest.raises(ValueError, match="not placed"):
         ThemesFile.model_validate({**doc, "attribution": {"numerical results": 0}})
-    with pytest.raises(ValueError, match="0 to 1 level"):
+    with pytest.raises(ValueError, match="fewer levels than the keyword's node"):
         ThemesFile.model_validate({**doc, "attribution": {"coastal flooding": 2}})
+    on_theme = {**doc["keywords"], "coastal flooding": "n1"}
+    with pytest.raises(ValueError, match="fewer levels than the keyword's node"):
+        ThemesFile.model_validate(
+            {**doc, "keywords": on_theme, "attribution": {"coastal flooding": 1}}
+        )
+    ok = ThemesFile.model_validate(
+        {**doc, "keywords": on_theme, "attribution": {"coastal flooding": 0}}
+    )
+    assert ok.attribution == {"coastal flooding": 0}
     aside = {"numerical results": {"from": "n2", "reason": "", "attribution": 2}}
     with pytest.raises(ValueError, match="0 to 1 level"):
         ThemesFile.model_validate({**doc, "set_aside": aside})
-    tree = ThemesFile.model_validate({**doc, "attribution": {"coastal flooding": 1}})
-    assert tree.attribution == {"coastal flooding": 1}
     # an entry without an attribution is written without the key
     assert "attribution" not in _tree().model_dump(by_alias=True)["set_aside"]["numerical results"]
 
@@ -366,7 +394,11 @@ def test_set_attribution():
     assert set_attribution(edit.tree, "beach erosion", 0).description == "count 1 keyword nowhere"
     cleared = set_attribution(edit.tree, ["beach erosion", "coastal flooding"], None)
     assert cleared.tree.attribution == {}
-    assert cleared.description == "count 2 keywords at every level"
+    assert cleared.description == "count 2 keywords at their node's level"
+    on_theme = move_keywords(_tree(), "beach erosion", "n1").tree
+    assert set_attribution(on_theme, "beach erosion", 0).tree.attribution == {"beach erosion": 0}
+    with pytest.raises(ThemeEditError, match="below the level of the keyword's node"):
+        set_attribution(on_theme, ["beach erosion", "dune retreat"], 1)
     with pytest.raises(ThemeEditError, match="None or 0 to 1"):
         set_attribution(_tree(), "beach erosion", 2)
     with pytest.raises(ThemeEditError, match="None or 0 to 1"):
@@ -379,37 +411,32 @@ def test_set_attribution():
 
 def test_the_carry_rule_on_moves():
     tree = _attributed()
-    within = move_keywords(tree, ["coastal flooding", "storm surge model"], "n3").tree
-    assert within.attribution == {"coastal flooding": 1, "storm surge model": 0}
-    across = move_keywords(tree, ["coastal flooding", "storm surge model"], "n5").tree
-    assert across.attribution == {"storm surge model": 0}  # another level-1 node: reset
-    moved = move_node(tree, "n2", "n4").tree  # Surge now under Ecology
-    assert moved.attribution == {"storm surge model": 0}
-    reordered = move_node(tree, "n1", None, position=1).tree
-    assert reordered.attribution == tree.attribution
-    assert [c.as_dict() for c in compare(tree, across) if c.kind == "attribution"] == [
+    same = move_keywords(tree, ["coastal flooding", "storm surge model"], "n2").tree
+    assert same.attribution == tree.attribution  # the same node: nothing changes
+    sibling = move_keywords(tree, ["coastal flooding", "storm surge model"], "n3").tree
+    assert sibling.attribution == {"storm surge model": 0}  # another node: dropped; 0 stays
+    up = move_keywords(tree, ["coastal flooding", "storm surge model"], "n1").tree
+    assert up.attribution == {"storm surge model": 0}
+    moved = move_node(tree, "n2", "n4").tree  # the keywords keep their node
+    assert moved.attribution == tree.attribution
+    assert [c.as_dict() for c in compare(tree, sibling) if c.kind == "attribution"] == [
         {"kind": "attribution", "keyword": "coastal flooding", "before": 1}
     ]
 
 
 def test_the_carry_rule_on_merges_and_splits():
     tree = _attributed()
-    assert merge_nodes(tree, "n2", "n3").tree.attribution == tree.attribution  # same parent
-    assert merge_nodes(tree, "n2", "n5").tree.attribution == {"storm surge model": 0}
-    # merging level-1 nodes: the merged node stands for both
+    assert merge_nodes(tree, "n2", "n3").tree.attribution == {"storm surge model": 0}
+    # merging level-1 nodes: the keywords of their children keep their nodes
     assert merge_nodes(tree, "n1", "n4").tree.attribution == tree.attribution
     split = split_node(tree, "n2", [(["coastal flooding"], {"en": "Flooding"})]).tree
-    assert split.attribution == tree.attribution  # the new node has the same parent
-    # depth 3 (Field › Theme › Topic): Hazards holds the themes Surge and Erosion
-    deeper = insert_level(tree, 3).tree
-    deeper = set_attribution(deeper, "beach erosion", 2).tree  # Hazards and Erosion
-    deeper = set_attribution(deeper, "dune retreat", 1).tree  # Hazards only
-    both = split_node(deeper, "n1", [(["n3"], {"en": "Coasts"})]).tree  # Erosion leaves Hazards
-    assert both.attribution == {
-        "beach erosion": 2,  # its level-2 node, Erosion, did not change
-        "coastal flooding": 1,  # still under Hazards
-        "storm surge model": 0,
-    }  # dune retreat's level-1 node changed: it counts at every level again
+    assert split.attribution == {"storm surge model": 0}
+    kept = split_node(tree, "n1", [(["n3"], {"en": "Coasts"})]).tree  # Surge stays in Hazards
+    assert kept.attribution == tree.attribution
+    moved = split_node(
+        tree, "n1", [(["n2"], {"en": "Storms"})]
+    ).tree  # Surge moves, keeps its keywords
+    assert moved.attribution == tree.attribution
 
 
 def test_set_aside_keeps_the_attribution_and_put_back_carries_it():
@@ -419,14 +446,14 @@ def test_set_aside_keeps_the_attribution_and_put_back_carries_it():
     assert tree.set_aside["storm surge model"].attribution == 0
     back = put_back(tree, ["coastal flooding", "storm surge model"]).tree
     assert back == _attributed()
-    elsewhere = put_back(tree, ["coastal flooding", "storm surge model"], "n5").tree
+    elsewhere = put_back(tree, ["coastal flooding", "storm surge model"], "n3").tree
     assert elsewhere.attribution == {"storm surge model": 0}
-    sibling = put_back(tree, ["coastal flooding"], "n3").tree
-    assert sibling.attribution == {"coastal flooding": 1}
+    up = put_back(tree, ["coastal flooding", "storm surge model"], "n1").tree
+    assert up.attribution == {"storm surge model": 0}
 
 
 def test_depth_changes_shift_attributions():
-    tree = _attributed()  # coastal flooding: 1, storm surge model: 0
+    tree = _attributed()  # on n2 (level 2): coastal flooding 1, storm surge model 0
     top = insert_level(tree, 1).tree  # a new level above the counted one
     assert top.attribution == {"coastal flooding": 2, "storm surge model": 0}
     middle = insert_level(tree, 2).tree  # just below the counted level
@@ -434,13 +461,13 @@ def test_depth_changes_shift_attributions():
     bottom = insert_level(tree, 3).tree
     assert bottom.attribution == tree.attribution
     for at in (1, 2, 3):
-        assert remove_level(insert_level(tree, at).tree, at).tree.attribution == tree.attribution
+        assert remove_level(insert_level(tree, at).tree, at).tree == tree
     # removing the level it counted toward: it counts toward no remaining level
     assert remove_level(tree, 1).tree.attribution == {
         "coastal flooding": 0,
         "storm surge model": 0,
     }
-    # removing the deepest level: every remaining level is counted, as by default
+    # removing its node's level: on the parent, it counts at that node's level again
     assert remove_level(tree, 2).tree.attribution == {"storm surge model": 0}
     aside = set_aside(tree, "coastal flooding").tree
     assert insert_level(aside, 1).tree.set_aside["coastal flooding"].attribution == 2
@@ -470,25 +497,35 @@ def _paths(tree: ThemesFile) -> dict[str, list[dict[str, str]]]:
     return out
 
 
-def test_insert_a_level_at_the_bottom_copies_each_leaf():
-    edit = insert_level(_tree(), 3)
+def _broad() -> ThemesFile:
+    """_tree() with keywords on the theme Hazards (n1) itself."""
+    tree = move_keywords(_tree(), ["coastal flooding"], "n1").tree
+    return set_attribution(tree, "coastal flooding", 0).tree
+
+
+def test_insert_a_level_at_the_bottom_adds_an_empty_level():
+    edit = insert_level(_broad(), 3)
     tree = edit.tree
     assert tree.depth == 3 and edit.description == "insert level 3"
     assert [lv.names["en"] for lv in tree.levels] == ["Field", "Theme", "Topic"]
     assert [lv.names["fr"] for lv in tree.levels] == ["Champ", "Thème", "Sujet"]
-    kid = children(tree, "n2")
-    assert len(kid) == 1 and kid[0].names == {"en": "Storm surge"}
-    assert tree.keywords["storm surge model"] == kid[0].id
-    assert tree.set_aside["numerical results"].source == kid[0].id  # the origin follows
-    assert {k: p[:2] for k, p in _paths(tree).items()} == _paths(_tree())
+    assert tree.nodes == _broad().nodes  # keywords stay on their nodes; no node yet below
+    assert tree.keywords == _broad().keywords
+    assert tree.set_aside == _broad().set_aside
+    assert _paths(tree) == _paths(_broad())
+    deeper = create_node(tree, "n2", {"en": "Surge models"}).tree  # room for finer topics
+    deeper = move_keywords(deeper, "storm surge model", "n6").tree
+    assert keywords_under(deeper, "n2") == ["storm surge model"]
+    assert keywords_at(deeper, "n2") == []
 
 
 def test_insert_a_level_at_the_top_makes_one_root():
-    tree = insert_level(_tree(), 1).tree
+    tree = insert_level(_broad(), 1).tree
     roots = children(tree, None)
     assert len(roots) == 1 and roots[0].names["en"] == "Field"
     assert [n.id for n in children(tree, roots[0].id)] == ["n1", "n4"]
-    assert tree.keywords == _tree().keywords
+    assert tree.keywords == _broad().keywords  # on their nodes, one level lower
+    assert node_level(tree, "n1") == 2 and keywords_at(tree, "n1") == ["coastal flooding"]
     named = insert_level(_tree(), 1, {"en": "Marine sciences"}).tree
     assert children(named, None)[0].names == {"en": "Marine sciences"}
     with pytest.raises(ThemeEditError, match="new root"):
@@ -496,29 +533,50 @@ def test_insert_a_level_at_the_top_makes_one_root():
 
 
 def test_insert_a_middle_level():
-    tree = insert_level(_tree(), 2).tree
+    tree = insert_level(_broad(), 2).tree
     assert [lv.names["en"] for lv in tree.levels] == ["Field", "Theme", "Topic"]
     mids = children(tree, "n1")
     assert len(mids) == 1 and mids[0].names == {"en": "Hazards"}
     assert [n.id for n in children(tree, mids[0].id)] == ["n2", "n3"]
-    assert tree.keywords == _tree().keywords
+    assert tree.keywords == _broad().keywords  # Hazards keeps its own keyword
+    assert keywords_at(tree, "n1") == ["coastal flooding"]
+    assert keywords_at(tree, mids[0].id) == []
+    assert node_level(tree, "n2") == 3
+    assert _paths(tree)["storm surge model"][0] == {"en": "Hazards"}
 
 
 def test_remove_a_level():
-    edit = remove_level(_tree(), 2)
+    edit = remove_level(_broad(), 2)
     tree = edit.tree
     assert tree.depth == 1 and [lv.names["en"] for lv in tree.levels] == ["Theme"]
     assert tree.keywords["coastal flooding"] == "n1" and tree.keywords["coral bleaching"] == "n4"
+    assert tree.keywords["storm surge model"] == "n1"
     assert tree.set_aside["numerical results"].source == "n1"
     assert edit.description == "remove level 2"
-    tree = remove_level(_tree(), 1).tree
+    edit = remove_level(_broad(), 1)
+    tree = edit.tree
     assert [lv.names["en"] for lv in tree.levels] == ["Theme"]  # Topic became the only level
     assert [(n.id, n.order) for n in children(tree, None)] == [("n2", 1), ("n3", 2), ("n5", 3)]
+    # the keyword of the removed top-level node has nowhere to go: set aside
+    entry = tree.set_aside["coastal flooding"]
+    assert (entry.source, entry.reason, entry.attribution) == ("n1", LEVEL_REMOVED, 0)
+    assert [c.kind for c in compare(_broad(), tree) if c.keyword == "coastal flooding"] == ["moved"]
     with pytest.raises(ThemeEditError, match="at least one level"):
         remove_level(tree, 1)
     four = insert_level(insert_level(_tree(), 1).tree, 1).tree
     with pytest.raises(ThemeEditError, match="already has 4"):
         insert_level(four, 1)
+
+
+def test_keywords_on_intermediate_levels_through_depth_changes():
+    tree = insert_level(_broad(), 1).tree  # Field › Theme › Topic; coastal flooding on a theme
+    assert node_level(tree, tree.keywords["coastal flooding"]) == 2
+    assert remove_level(tree, 1).tree == _broad()
+    flat = remove_level(tree, 2).tree  # the themes dissolve into the field
+    root = children(tree, None)[0].id
+    assert flat.keywords["coastal flooding"] == root
+    assert flat.attribution["coastal flooding"] == 0
+    assert flat.keywords["storm surge model"] == "n2" and node_level(flat, "n2") == 2
 
 
 def test_renamed_levels_keep_their_names_when_the_depth_changes():
@@ -560,9 +618,8 @@ def test_random_operations_keep_trees_valid_and_keywords_held(seed):
         assert vocabulary_of(result) == held  # no operation adds or loses a keyword
         assert edit.description and len(edit.description) <= 60
         assert set(result.review) <= held
-        for k, entry in result.set_aside.items():  # an origin is never a node of another level
-            if entry.source in levels_of(result):
-                assert levels_of(result)[entry.source] == result.depth, k
+        for k, n in result.attribution.items():  # below the level of the keyword's node
+            assert n < levels_of(result)[result.keywords[k]], k
         _check_attribution_carried(tree, edit)
         tree = result
 
@@ -574,22 +631,24 @@ def _effective(tree: ThemesFile, keyword: str) -> int | None:
 
 
 def _check_attribution_carried(before: ThemesFile, edit) -> None:
-    """Only set_attribution and depth changes set an attribution; others keep it or drop it."""
+    """Only set_attribution and depth changes set an attribution; others keep it or drop it.
+
+    The carry rule: a keyword that keeps its node keeps its attribution; one that
+    gets another node keeps only ``0``.
+    """
     after = edit.tree
-    word = edit.description.split()[0]
-    if word in {"count", "insert", "remove"}:
+    if edit.description.split()[0] in {"count", "insert", "remove"}:
         return
     for k in vocabulary_of(before):
         old, new = _effective(before, k), _effective(after, k)
         assert new in (old, None), (edit.description, k, old, new)
         if old == 0:
             assert new == 0, (edit.description, k)  # shown only: survives every move
-        if old and new and k in before.keywords and k in after.keywords:
-            # n >= 1 survives only where the keyword keeps its node on level n
-            chain_b = _chain(before, before.keywords[k])
-            chain_a = _chain(after, after.keywords[k])
-            if word != "merge":
-                assert chain_b[old - 1] == chain_a[old - 1], (edit.description, k)
+        if k in before.keywords and k in after.keywords:
+            if before.keywords[k] == after.keywords[k]:
+                assert new == old, (edit.description, k)
+            elif old:
+                assert new is None, (edit.description, k)
 
 
 def _chain(tree: ThemesFile, node_id: str) -> list[str]:
@@ -657,10 +716,10 @@ def test_rebase_removes_a_parent_emptied_with_its_already_empty_children():
 def test_rebase_forces_nothing():
     with pytest.raises(ThemeEditError, match="without a proposal"):
         rebase(_tree(), [*vocabulary_of(_tree()), "tidal inlet"], {})
-    with pytest.raises(ThemeEditError, match="deepest level"):
-        rebase(_tree(), ["tidal inlet"], {"tidal inlet": "n1"})
-    with pytest.raises(ThemeEditError, match="deepest level"):
+    with pytest.raises(ThemeEditError, match="not nodes of the tree"):
         rebase(_tree(), ["tidal inlet"], {"tidal inlet": "n9"})
+    broad = rebase(_tree(), [*vocabulary_of(_tree()), "tidal inlet"], {"tidal inlet": "n1"})
+    assert broad.tree.keywords["tidal inlet"] == "n1"  # any level may be proposed
     with pytest.raises(ThemeEditError, match="non-empty text"):
         rebase(_tree(), ["", "tidal inlet"], {"tidal inlet": None})
 

@@ -12,9 +12,20 @@ The correspondence:
 
 - nodes of level 1 are subfields, nodes of level 2 are concepts, and keyword
   texts are term indices through *terms*, the vocabulary in row order;
+- a keyword on a level-2 node is a term of that concept; its attribution is
+  the term's status: none is *defining*, ``1`` *subfield-only*, ``0``
+  *ride-along*;
+- the keywords on a level-1 node itself (broader than its topics) are the
+  terms of one more concept of that subfield, named like it and marked
+  ``theme_keywords_of``: each is *subfield-only* (``0``: *ride-along*), so it
+  counts toward the subfield's share only, as the engine's subfield-only status
+  always did, and that concept's own share is zero;
 - ``label`` holds a node's name in the reference language, ``label_<lang>`` its
   other names;
 - set-aside keywords are the document's trashed terms.
+
+Reading a document the engine wrote (without the tree's keys), a subfield-only
+term goes onto its subfield's node: that is what the status meant.
 
 What the curated format has no place for travels in keys the engine ignores:
 ``theme_node`` on each subfield and concept (the node's id, names and order),
@@ -41,6 +52,7 @@ __all__ = [
     "CURATED_SCHEMA_VERSION",
     "NOT_GROUPED",
     "STATUS_OF",
+    "THEME_KEYWORDS_OF",
     "Imported",
     "from_curated",
     "to_curated",
@@ -60,7 +72,9 @@ SUBFIELD_SEEDS = 20
 #: The engine's term status of each attribution of a depth-2 tree (``None``: every level).
 STATUS_OF: dict[int | None, str] = {None: "defining", 1: "subfield_only", 0: "ride_along"}
 _ATTRIBUTION_OF = {v: k for k, v in STATUS_OF.items()}
-_STATUS_LISTS = {1: "subfield_only_terms", 0: "ride_along_terms"}
+_LIST_OF = {"subfield_only": "subfield_only_terms", "ride_along": "ride_along_terms"}
+#: The key that marks the concept holding a level-1 node's own keywords.
+THEME_KEYWORDS_OF = "theme_keywords_of"
 
 _SUBFIELD_ID = re.compile(r"^s(0|[1-9][0-9]*)$")
 _CONCEPT_ID = re.compile(r"^c(0|[1-9][0-9]*)$")
@@ -151,12 +165,20 @@ def _norm(term: Any) -> str:
     return str(term).strip().lower()
 
 
-def _check_case(tree: ThemesFile) -> None:
-    seen: dict[tuple[str, str], tuple[str, int | None]] = {}
+def _status(tree: ThemesFile, keyword: str, on_top: bool) -> str:
+    """The engine's status of a placed keyword of a depth-2 tree."""
+    n = tree.attribution.get(keyword)
+    if on_top:
+        return "ride_along" if n == 0 else "subfield_only"
+    return STATUS_OF[n]
+
+
+def _check_case(tree: ThemesFile, top: set[str]) -> None:
+    seen: dict[tuple[str, str], tuple[str, str]] = {}
     for keyword, node_id in tree.keywords.items():
-        n = tree.attribution.get(keyword)
-        other = seen.setdefault((node_id, _norm(keyword)), (keyword, n))
-        if other[1] != n:
+        status = _status(tree, keyword, node_id in top)
+        other = seen.setdefault((node_id, _norm(keyword)), (keyword, status))
+        if other[1] != status:
             raise ValueError(
                 f"keywords {other[0]!r} and {keyword!r} of node {node_id!r} differ only by case "
                 "and have different attributions; the curated document cannot tell them apart"
@@ -189,11 +211,16 @@ def to_curated(
     :data:`SUBFIELD_SEEDS` of its concepts' ``top_terms`` as seeds, as the apply
     stage derives them. Nodes without keywords stay, as empty groups.
 
-    Attributions become the engine's term statuses (:data:`STATUS_OF`): ``1``
-    lists the keyword in its concept's ``subfield_only_terms``, ``0`` in its
-    ``ride_along_terms``; a set-aside keyword's is its trashed entry's
-    ``status``. The engine matches statuses without case, so two keywords of
-    one concept that differ only by case must share their attribution.
+    A keyword on a level-2 node is a term of its concept, and its attribution
+    the term's status (:data:`STATUS_OF`): ``1`` lists it in the concept's
+    ``subfield_only_terms``, ``0`` in its ``ride_along_terms``. The keywords on
+    a level-1 node itself go to one more concept of that subfield, after its
+    topics, named like the subfield, numbered after every other concept and
+    marked :data:`THEME_KEYWORDS_OF`: each is subfield-only (``0``: ride-along),
+    so the lexicon weights are those of subfield-only terms and that concept's
+    share is zero. A set-aside keyword's attribution is its trashed entry's
+    ``status``. The engine matches statuses without case, so two keywords of one
+    node that differ only by case must share their attribution.
     """
     if tree.depth != 2:
         raise ValueError(f"the curated document has two levels; this tree has {tree.depth}")
@@ -217,33 +244,60 @@ def to_curated(
     second = [n for n in tree.nodes if n.parent is not None]
     subfield_id = _int_ids([n.id for n in top], _SUBFIELD_ID)
     concept_id = _int_ids([n.id for n in second], _CONCEPT_ID)
-    rows: dict[str, list[int]] = {}
+    held: dict[str, list[str]] = {}
     for keyword, node_id in tree.keywords.items():
-        rows.setdefault(node_id, []).append(index[keyword])
-    statuses: dict[str, dict[str, list[str]]] = {}
-    for keyword, n in tree.attribution.items():
-        lists = statuses.setdefault(tree.keywords[keyword], {})
-        lists.setdefault(_STATUS_LISTS[n], []).append(keyword)
-    _check_case(tree)
+        held.setdefault(node_id, []).append(keyword)
+    top_ids = {n.id for n in top}
+    _check_case(tree, top_ids)
+    following = max(concept_id.values(), default=-1) + 1
+    own_id: dict[str, int] = {}
+    for node in top:
+        if held.get(node.id):
+            own_id[node.id] = following
+            following += 1
 
     def rank(row: int) -> tuple[float, int]:
         return (-float(scores.get(terms[row], 0.0)), row) if scores else (0.0, row)
 
+    def concept(
+        cid: int, node: ThemeNode, sid: int, keywords: list[str], extra: dict[str, Any]
+    ) -> dict[str, Any]:
+        on_top = node.id in top_ids
+        lists: dict[str, list[str]] = {}
+        for k in keywords:
+            status = _status(tree, k, on_top)
+            if status != "defining":
+                lists.setdefault(_LIST_OF[status], []).append(k)
+        indices = sorted(index[k] for k in keywords)
+        return {
+            "id": cid,
+            **_labels(node, reference_language),
+            "subfield_id": sid,
+            "term_indices": indices,
+            "term_merges": [],
+            "top_terms": [terms[i] for i in sorted(indices, key=rank)[:TOP_TERMS]],
+            **{key: sorted(ks) for key, ks in sorted(lists.items())},
+            **extra,
+        }
+
     concepts: list[dict[str, Any]] = []
-    for node in second:
-        indices = sorted(rows.get(node.id, []))
-        concepts.append(
-            {
-                "id": concept_id[node.id],
-                **_labels(node, reference_language),
-                "subfield_id": subfield_id[node.parent],  # type: ignore[index]
-                "term_indices": indices,
-                "term_merges": [],
-                "top_terms": [terms[i] for i in sorted(indices, key=rank)[:TOP_TERMS]],
-                **{key: sorted(ks) for key, ks in sorted(statuses.get(node.id, {}).items())},
-                "theme_node": _carried(node),
-            }
-        )
+    for theme in top:
+        sid = subfield_id[theme.id]
+        for node in second:
+            if node.parent == theme.id:
+                concepts.append(
+                    concept(
+                        concept_id[node.id],
+                        node,
+                        sid,
+                        held.get(node.id, []),
+                        {"theme_node": _carried(node)},
+                    )
+                )
+        if theme.id in own_id:
+            concepts.append(
+                concept(own_id[theme.id], theme, sid, held[theme.id], {THEME_KEYWORDS_OF: theme.id})
+            )
     subfields: list[dict[str, Any]] = []
     for node in top:
         seeds: list[str] = []
@@ -359,7 +413,13 @@ def from_curated(
       listed in :attr:`Imported.merges`;
     - the keywords of a subfield not kept, of stashed or trashed items, and
       keywords no group holds are set aside with the reason;
-    - term statuses become attributions (:data:`STATUS_OF`), kept in the
+    - the terms of a concept marked :data:`THEME_KEYWORDS_OF` go onto its
+      subfield's node (a ride-along one with attribution ``0``);
+    - in a concept the engine wrote (without a ``theme_node`` key), a
+      subfield-only term goes onto its subfield's node: it counts toward the
+      subfield only, as the status meant; in a concept :func:`to_curated`
+      wrote, it stays on the concept's node with attribution ``1``;
+    - other term statuses become attributions (:data:`STATUS_OF`), kept in the
       set-aside entry of a keyword set aside; a status naming no keyword of
       its concept is dropped;
     - pinned colours have no place in a tree and are dropped.
@@ -409,7 +469,7 @@ def from_curated(
     concept_node: dict[int, str] = {}
     seen_concepts: set[int] = set()
     placed_in: dict[int, int] = {}
-    not_kept = stale_statuses = 0
+    not_kept = stale_statuses = broadened = 0
 
     def set_aside_as(term: str, origin: str | None, reason: str, n: int | None) -> None:
         aside[term] = {"from": origin, "reason": reason}
@@ -432,30 +492,45 @@ def from_curated(
                 set_aside_as(term, None, "its group was not kept", status(term))
                 not_kept += 1
             continue
+        theme = subfield_node[sid]
         carried = c.get("theme_node") if isinstance(c.get("theme_node"), Mapping) else {}
-        placed_in[sid] = placed_in.get(sid, 0) + 1
-        node = {**carried, "id": carried.get("id") or f"c{cid}", "parent": subfield_node[sid]}
-        node.setdefault("names", _names_from_labels(c, reference_language))
-        node.setdefault("order", placed_in[sid])
-        nodes.append(node)
-        concept_node[cid] = node["id"]
+        if c.get(THEME_KEYWORDS_OF):  # the subfield's own keywords
+            concept_node[cid] = theme
+            node_id: str = theme
+        else:
+            placed_in[sid] = placed_in.get(sid, 0) + 1
+            node = {**carried, "id": carried.get("id") or f"c{cid}", "parent": theme}
+            node.setdefault("names", _names_from_labels(c, reference_language))
+            node.setdefault("order", placed_in[sid])
+            nodes.append(node)
+            concept_node[cid] = node_id = node["id"]
+        # a concept this module wrote carries its node; one the engine wrote does not
+        written_here = bool(carried)
         canonical_of = {int(x): int(g[0]) for g in c.get("term_merges") or [] for x in list(g)[1:]}
         mine: list[str] = []
         for row in c.get("term_indices") or []:
             term = claims.take(row, where)
             if int(row) in canonical_of:
                 target = terms[canonical_of[int(row)]]
-                set_aside_as(term, node["id"], f"merge variant of {target!r}", None)
+                set_aside_as(term, node_id, f"merge variant of {target!r}", None)
                 merges.append((term, target))
+                continue
+            mine.append(term)
+            n = status(term)
+            if node_id == theme:
+                keywords[term] = theme
+                if n == 0:
+                    attribution[term] = 0
+            elif n == 1 and not written_here:
+                keywords[term] = theme  # a subfield-only term of the engine: the subfield's
+                broadened += 1
             else:
-                keywords[term] = node["id"]
-                mine.append(term)
-                n = status(term)
+                keywords[term] = node_id
                 if n is not None:
                     attribution[term] = n
         named = {_norm(t) for t in mine}
         stale_statuses += sum(
-            1 for key in _STATUS_LISTS.values() for t in c.get(key) or [] if _norm(t) not in named
+            1 for key in _LIST_OF.values() for t in c.get(key) or [] if _norm(t) not in named
         )
 
     held_aside = {"stashed": 0, "trashed": 0}
@@ -511,6 +586,11 @@ def from_curated(
             notes.append(f"{_plural(n, 'keyword')} {label} in the document: set aside")
     if ungrouped:
         notes.append(f"{_plural(len(ungrouped), 'keyword')} in no group: set aside")
+    if broadened:
+        notes.append(
+            f"{_plural(broadened, 'subfield-only term')} placed on {'its' if broadened == 1 else 'their'} "
+            "subfield's node"
+        )
     if stale_statuses:
         what = "term status" if stale_statuses == 1 else "term statuses"
         notes.append(f"{stale_statuses} {what} naming no keyword of their concept dropped")

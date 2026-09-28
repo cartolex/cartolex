@@ -72,19 +72,24 @@ def random_tree(rng: random.Random, depth: int | None = None, *, size: int = 40)
         if level == 1 and rng.random() < 0.05:
             nodes, previous = [], []
             break
-    leaves = [n["id"] for n in nodes if _level(nodes, n["id"]) == depth]
+    level = {n["id"]: _level(nodes, n["id"]) for n in nodes}
+    leaves = [nid for nid, lv in level.items() if lv == depth]
+    anywhere = list(level)
     vocab = rng.sample(POOL, rng.randint(0, size))
     keywords: dict[str, str] = {}
     aside: dict[str, dict[str, Any]] = {}
     for k in vocab:
-        if leaves and rng.random() < 0.85:
-            keywords[k] = rng.choice(leaves)
+        if anywhere and rng.random() < 0.85:
+            # mostly on the deepest nodes, some higher up
+            keywords[k] = rng.choice(leaves if leaves and rng.random() < 0.6 else anywhere)
         else:
-            origin = rng.choice([*leaves, None, "gone"]) if leaves else None
+            origin = rng.choice([*anywhere, None, "gone"]) if anywhere else None
             aside[k] = {"from": origin, "reason": rng.choice(REASONS)}
             if rng.random() < 0.3:
                 aside[k]["attribution"] = rng.randint(0, depth - 1)
-    attribution = {k: rng.randint(0, depth - 1) for k in keywords if rng.random() < 0.3}
+    attribution = {
+        k: rng.randint(0, level[node] - 1) for k, node in keywords.items() if rng.random() < 0.3
+    }
     review = {k: rng.choice(REVIEW_STATES) for k in vocab if rng.random() < 0.2}
     levels = [{"names": names} for names in default_level_names(depth)]
     for lv in levels:
@@ -134,13 +139,11 @@ def next_vocabulary(rng: random.Random, tree: ThemesFile) -> tuple[list[str], li
 
 
 def random_proposals(rng: random.Random, tree: ThemesFile, new: list[str]) -> dict[str, str | None]:
-    leaves = leaves_of(tree)
-    proposals: dict[str, str | None] = {
-        k: (rng.choice([*leaves, None]) if leaves else None) for k in new
-    }
+    nodes = [n.id for n in tree.nodes]
+    proposals: dict[str, str | None] = {k: rng.choice([*nodes, None]) for k in new}
     # proposals for keywords the tree already holds are ignored
     for k in rng.sample(sorted(vocabulary_of(tree)), min(3, len(vocabulary_of(tree)))):
-        proposals[k] = rng.choice([*leaves, None]) if leaves else None
+        proposals[k] = rng.choice([*nodes, None])
     return proposals
 
 
@@ -148,7 +151,6 @@ def random_edit(rng: random.Random, tree: ThemesFile) -> Edit | None:
     """One random operation with valid arguments, or ``None`` when the chosen one has none."""
     levels = levels_of(tree)
     ids = list(levels)
-    leaves = [i for i in ids if levels[i] == tree.depth]
     placed = sorted(tree.keywords)
     aside = sorted(tree.set_aside)
     held = placed + aside
@@ -165,10 +167,8 @@ def random_edit(rng: random.Random, tree: ThemesFile) -> Edit | None:
         return rename_node(tree, rng.choice(ids), names)
     if kind == "rename_level":
         return rename_level(tree, rng.randint(1, tree.depth), random_names(rng, at_least=1))
-    if kind == "move_keywords" and placed and leaves:
-        return move_keywords(
-            tree, rng.sample(placed, rng.randint(1, len(placed))), rng.choice(leaves)
-        )
+    if kind == "move_keywords" and placed and ids:
+        return move_keywords(tree, rng.sample(placed, rng.randint(1, len(placed))), rng.choice(ids))
     if kind == "move_node" and ids:
         nid = rng.choice(ids)
         lv = levels[nid]
@@ -184,10 +184,9 @@ def random_edit(rng: random.Random, tree: ThemesFile) -> Edit | None:
             return merge_nodes(tree, nid, rng.choice(same))
     if kind == "split" and ids:
         nid = rng.choice(ids)
-        if levels[nid] == tree.depth:
-            members = [k for k in placed if tree.keywords[k] == nid]
-        else:
-            members = [n.id for n in tree.nodes if n.parent == nid]
+        kids = [n.id for n in tree.nodes if n.parent == nid]
+        own = [k for k in placed if tree.keywords[k] == nid]
+        members = [m for m in kids + own if not (m in kids and m in own)]
         if len(members) >= 2:
             rng.shuffle(members)
             cut = sorted(rng.sample(range(1, len(members)), rng.randint(1, len(members) - 1)))
@@ -208,18 +207,17 @@ def random_edit(rng: random.Random, tree: ThemesFile) -> Edit | None:
         return set_aside(
             tree, rng.sample(held, rng.randint(1, min(5, len(held)))), rng.choice(REASONS)
         )
-    if kind == "put_back" and aside and leaves:
+    if kind == "put_back" and aside and ids:
         chosen = rng.sample(aside, rng.randint(1, min(5, len(aside))))
         if rng.random() < 0.5:
-            return put_back(tree, chosen, rng.choice(leaves))
-        backable = [k for k in chosen if tree.set_aside[k].source in leaves]
+            return put_back(tree, chosen, rng.choice(ids))
+        backable = [k for k in chosen if tree.set_aside[k].source in levels]
         if backable:
             return put_back(tree, backable)
     if kind == "attribution" and placed:
-        levels_ = rng.choice([None, *range(tree.depth)])
-        return set_attribution(
-            tree, rng.sample(placed, rng.randint(1, min(5, len(placed)))), levels_
-        )
+        chosen = rng.sample(placed, rng.randint(1, min(5, len(placed))))
+        lowest = min(levels[tree.keywords[k]] for k in chosen)
+        return set_attribution(tree, chosen, rng.choice([None, *range(lowest)]))
     if kind == "review" and held:
         state = rng.choice([*REVIEW_STATES, None])
         return set_review(tree, rng.sample(held, rng.randint(1, min(5, len(held)))), state)

@@ -75,13 +75,16 @@ nothing in the engine names a particular deployment, source or procedure.
   create, delete, set aside, put back, review states, insert or remove a
   level), each returning the new tree and a short description of the change;
   it rebases a tree onto a new vocabulary with a reconciliation list, and
-  compares two trees. A keyword's attribution says how many levels, from the
-  top, its usage counts toward (the term statuses, at any depth), carried by
-  the carry rule. `cartolex.project.themes_versions` saves the tree as
+  compares two trees. A keyword sits on a node of any level (a keyword on a
+  higher node is broader than every node below it) and counts toward its node
+  and every node above; its attribution lowers that to the top levels, or to
+  none, and a move that gives it another node keeps only an attribution of 0.
+  `cartolex.project.themes_versions` saves the tree as
   versions, removing empty nodes and stamping each version with its action,
   and restores them; `cartolex.project.themes_curated` converts a depth-2
   tree to and from the engine's curated document, so the apply stage runs on
-  a tree, and lists the document's merge variants as `keywords.csv` rows. A
+  a tree (a theme's own keywords weigh as subfield-only terms), and lists the
+  document's merge variants as `keywords.csv` rows. A
   tree's review states name only keywords it holds (see
   `docs/dev/themes.md`).
 - **Errors a caller can catch.** `SettingsError`, `CorpusError` and
