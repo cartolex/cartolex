@@ -3,8 +3,12 @@
 
 Builds per-(researcher, time-bin) keyword fingerprints over the *same* canonical
 concept vocabulary used for the static lexical map, then projects them through
-the persisted SVD + UMAP models so a researcher's topical mobility can be drawn
-as a path in the existing semantic space.
+the persisted SVD and places them on the map by their nearest mapped people, so
+a researcher's topical mobility can be drawn as a path in the existing semantic
+space.
+
+The bins × keywords matrix is sparse; the steps that need dense arithmetic take
+it a block of rows at a time (:mod:`cartolex.atlas.blocks`).
 """
 
 from __future__ import annotations
@@ -16,11 +20,14 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from scipy import sparse
 from sklearn.preprocessing import normalize
 
 from cartolex.lexicon.canonicalization import fold_tfidf_to_canonical
 from cartolex.lexicon.text_utils import length_bonus
 from cartolex.lexicon.utils import make_researcher_id
+
+from .blocks import as_csr, dense_rows, row_blocks
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +45,17 @@ _META_COLUMNS = [
 
 @dataclass
 class TrajectoryData:
-    """Per-(researcher, time-bin) fingerprints aligned to the reference term space."""
+    """Per-(researcher, time-bin) fingerprints aligned to the reference term space.
 
-    B: np.ndarray  # (n_bins, n_terms) folded, length-bonus-weighted vectors
+    ``B`` may be given dense or sparse; it is kept as a float64 CSR matrix.
+    """
+
+    B: sparse.csr_matrix  # (n_bins, n_terms) folded, length-bonus-weighted vectors
     meta: pd.DataFrame  # one row per bin (see _META_COLUMNS)
     terms: list[str]  # reference term order (== static map's terms)
+
+    def __post_init__(self) -> None:
+        self.B = as_csr(self.B)
 
 
 def bin_bounds(year: int, *, bin_years: int, now_year: int) -> tuple[int, int]:
@@ -89,7 +102,7 @@ def build_trajectory_matrix(
         raise ValueError(f"docs is missing columns: {sorted(missing)}")
 
     empty = TrajectoryData(
-        B=np.zeros((0, len(ref_terms))),
+        B=sparse.csr_matrix((0, len(ref_terms))),
         meta=pd.DataFrame(columns=_META_COLUMNS),
         terms=ref_terms,
     )
@@ -148,47 +161,55 @@ def build_trajectory_matrix(
         canonical_terms=target_concepts,
         alias_to_canon=alias_to_canon,
     )
-    dense = folded.toarray().astype(float)
 
     # Length-bonus weighting matches compute_keywords_* in the consolidation stage.
     mult, _ = length_bonus(target_concepts, np.ones(len(target_concepts)), length_alpha)
-    dense = dense * mult[np.newaxis, :]
 
     concept_to_col = {t.lower(): j for j, t in enumerate(target_concepts)}
-    B = np.zeros((len(rows), len(ref_terms)), dtype=float)
-    for j, term in enumerate(ref_terms):
-        src = concept_to_col.get(term)
-        if src is not None:
-            B[:, j] = dense[:, src]
+    source = np.array([concept_to_col.get(term, -1) for term in ref_terms], dtype=np.int64)
+    mapped = np.flatnonzero(source >= 0)
 
     concepts_arr = np.array(target_concepts, dtype=object)
     top_terms: list[str] = []
-    for i in range(dense.shape[0]):
-        order = np.argsort(dense[i])[::-1]
-        top_terms.append(
-            ";".join(str(concepts_arr[c]) for c in order[:top_k_terms] if dense[i, c] > 0)
-        )
+    parts: list[sparse.csr_matrix] = []
+    for block in row_blocks(folded.shape[0], folded.shape[1]):
+        dense = dense_rows(folded, block)
+        dense = dense * mult[np.newaxis, :]
+        B = np.zeros((dense.shape[0], len(ref_terms)), dtype=float)
+        B[:, mapped] = dense[:, source[mapped]]
+        parts.append(sparse.csr_matrix(B))
+        for i in range(dense.shape[0]):
+            order = np.argsort(dense[i])[::-1]
+            top_terms.append(
+                ";".join(str(concepts_arr[c]) for c in order[:top_k_terms] if dense[i, c] > 0)
+            )
 
     meta = pd.DataFrame(rows, columns=_META_COLUMNS[:-1])
     meta["top_terms"] = top_terms
     logger.info(
         "Built %d trajectory bins for %d researchers.", len(meta), meta["researcher_id"].nunique()
     )
-    return TrajectoryData(B=B, meta=meta, terms=ref_terms)
+    return TrajectoryData(B=sparse.vstack(parts, format="csr"), meta=meta, terms=ref_terms)
 
 
-def project_trajectories(B: np.ndarray, svd_model, anchors) -> np.ndarray:
+def project_trajectories(B: np.ndarray | sparse.spmatrix, svd_model, anchors) -> np.ndarray:
     """Place bin fingerprints on the map.
 
     L2-normalise → ``svd.transform`` → placed by the nearest mapped people
-    (*anchors*, a :class:`~cartolex.atlas.placement.MapAnchors`). Returns an
-    ``(n_bins, 2)`` array; an empty input yields shape ``(0, 2)``.
+    (*anchors*, a :class:`~cartolex.atlas.placement.MapAnchors`), a block of rows at
+    a time. *B* may be dense or sparse. Returns an ``(n_bins, 2)`` array; an empty
+    input yields shape ``(0, 2)``.
     """
-    B = np.asarray(B, dtype=float)
+    if not sparse.issparse(B):
+        B = np.asarray(B, dtype=float)
     if B.shape[0] == 0:
         return np.zeros((0, 2))
-    Xn = normalize(B, norm="l2", axis=1)
-    Z = svd_model.transform(Xn)
+    Z = np.vstack(
+        [
+            svd_model.transform(normalize(dense_rows(B, rows), norm="l2", axis=1))
+            for rows in row_blocks(B.shape[0], B.shape[1])
+        ]
+    )
     return anchors.place(Z)
 
 
@@ -238,10 +259,11 @@ def build_trajectory_windows(
         rows = grp.sort_values("bin_end").index.tolist()
         starts = [int(meta.at[r, "bin_start"]) for r in rows]
         ends = [int(meta.at[r, "bin_end"]) for r in rows]
+        bins = traj.B[rows].toarray()
         for i in range(len(rows)):
             acc = np.zeros(traj.B.shape[1], dtype=float)
             for j in range(i, len(rows)):
-                acc = acc + traj.B[rows[j]]
+                acc = acc + bins[j]
                 mass = float(acc.sum())
                 if mass <= 0:
                     continue

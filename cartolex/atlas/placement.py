@@ -22,6 +22,13 @@ weighs most, never in the empty space between them. No fitted model is needed,
 nothing is random, and the arithmetic runs in a fixed order (``np.einsum``
 without optimisation, neighbours ranked by distance then by anchor index), so
 the positions are the same on any machine, whatever the chunk size.
+
+**Size.** A chunk of points holds at most :data:`CHUNK_CELLS` point × anchor
+distances. The candidates are found with the numeric library's matrix product
+(fast, but its last bits depend on the machine), then the exact distances are
+computed for them alone and ranked: every anchor within a margin of the k-th
+candidate distance is a candidate, so the neighbours are those of the exact
+distances, ties included.
 """
 
 from __future__ import annotations
@@ -44,6 +51,11 @@ __all__ = [
 K = 8
 #: The link radius, as a share of the map's radius.
 LINK_RADIUS = 0.25
+#: The point × anchor distances one chunk holds at most (2²²: 32 MB of float64).
+CHUNK_CELLS = 1 << 22
+#: How far a fast distance may be from the exact one (far above the rounding of a product
+#: of unit vectors): every anchor this close to the k-th fast distance is ranked exactly.
+_MARGIN = 1e-9
 
 
 @dataclass(frozen=True)
@@ -132,6 +144,34 @@ def _heaviest_group(positions: np.ndarray, weights: np.ndarray, radius: float) -
     return labels == best[:, None]
 
 
+def _nearest(
+    block: np.ndarray, anchors: np.ndarray, k: int, self_offset: int | None
+) -> tuple[np.ndarray, np.ndarray]:
+    """The *k* nearest anchors of each row of *block* and their exact cosine distances.
+
+    Ranked by exact distance (``np.einsum`` without optimisation, clipped to
+    [0, 2]), then by anchor index. *self_offset*, when given, is the index of the
+    block's first row among the anchors: row ``i`` then leaves out anchor
+    ``self_offset + i``.
+    """
+    n_rows = block.shape[0]
+    rows = np.arange(n_rows)
+    fast = 1.0 - block @ anchors.T
+    np.clip(fast, 0.0, 2.0, out=fast)
+    if self_offset is not None:
+        fast[rows, self_offset + rows] = np.inf
+    kth = np.partition(fast, k - 1, axis=1)[:, k - 1]
+    r, c = np.nonzero(fast <= (kth + _MARGIN)[:, None])
+    exact = 1.0 - np.einsum("ij,ij->i", block[r], anchors[c], optimize=False)
+    np.clip(exact, 0.0, 2.0, out=exact)
+    if self_offset is not None:
+        exact[c == self_offset + r] = np.inf
+    order = np.lexsort((c, exact, r))  # by row, then distance, then anchor index
+    first = np.searchsorted(r[order], rows)
+    take = order[first[:, None] + np.arange(k)[None, :]]
+    return c[take], exact[take]
+
+
 def place(
     vectors: np.ndarray,
     anchor_vectors: np.ndarray,
@@ -148,8 +188,9 @@ def place(
     anchors' map positions. *k* is capped at the number of anchors (minus one when
     *exclude_self*, which leaves out anchor ``i`` for vector ``i``, for
     leave-one-out checks). *link_radius* is a share of the map's radius. Work
-    proceeds in chunks of *chunk* rows, so memory stays proportional to
-    ``chunk × anchors``.
+    proceeds in chunks of at most *chunk* rows and :data:`CHUNK_CELLS` distances,
+    so memory stays bounded whatever the number of anchors; the positions do not
+    depend on the chunking.
     """
     V = _unit_rows(np.atleast_2d(vectors))
     A = _unit_rows(np.atleast_2d(anchor_vectors))
@@ -161,7 +202,7 @@ def place(
         raise ValueError(f"vectors have {V.shape[1]} dimensions, anchors {A.shape[1]}")
     k = max(1, min(k, n_anchors - (1 if exclude_self else 0)))
     radius = link_radius * map_radius(XY)
-    order_idx = np.arange(n_anchors)
+    chunk = max(1, min(int(chunk), CHUNK_CELLS // max(1, n_anchors)))
     n = V.shape[0]
     xy = np.empty((n, 2))
     nbrs = np.empty((n, k), dtype=np.int64)
@@ -171,14 +212,7 @@ def place(
     wts = np.empty((n, k))
     for start in range(0, n, chunk):
         block = V[start : start + chunk]
-        d = 1.0 - np.einsum("ij,kj->ik", block, A, optimize=False)
-        np.clip(d, 0.0, 2.0, out=d)
-        if exclude_self:
-            rows = np.arange(block.shape[0])
-            d[rows, start + rows] = np.inf
-        # rank by distance, then anchor index: a fixed tie-break
-        idx = np.lexsort((np.broadcast_to(order_idx, d.shape), d), axis=1)[:, :k]
-        dk = np.take_along_axis(d, idx, axis=1)
+        idx, dk = _nearest(block, A, k, start if exclude_self else None)
         w = neighbour_weights(dk)
         positions = XY[idx]
         mask = _heaviest_group(positions, w, radius)
