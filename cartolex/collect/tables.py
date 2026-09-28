@@ -646,7 +646,12 @@ Reader = Callable[[list[RawRun], SourceBuilder], None]
 
 def default_readers() -> dict[str, Reader]:
     """cartolex's readers, by raw folder name, in the order they run."""
+    from .people_import import read_corpus_runs, read_folder_runs, read_people_runs
+
     return {
+        "people": read_people_runs,
+        "corpus": read_corpus_runs,
+        "folder": read_folder_runs,
         # Resolution proposals are kept for the record; no table is built from them.
         "resolve": lambda runs, builder: None,
     }
