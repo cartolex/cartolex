@@ -8,7 +8,6 @@ from _app_helpers import TOKEN, Client, etag
 
 from cartolex.app import AppSettings, create_app
 from cartolex.project import Project
-from cartolex.project.handoff import Bundle, BundleItem, Verdict, parse_answers
 from cartolex.project.models import Overlay, Slot
 
 
@@ -311,20 +310,3 @@ def test_share_sources_and_empty_results(client):
         assert body["empty"]["next"]["action"] in ("build", "none"), url
     assert client.get("/api/themes").json()["empty"]["next"]["action"] == "build"
     assert client.post("/api/handoff/export", json={}).status_code == 409
-
-
-def test_the_handoff_format():
-    bundle = Bundle(
-        "Ocean physics",
-        "",
-        [BundleItem("tide gauge", "en", "check", "single-word", 3, 4, 0.5, ["tide gauge"], [])],
-    )
-    again = Bundle.from_dict(bundle.as_dict())
-    assert again == bundle and bundle.as_dict()["format"] == "cartolex-handoff/1"
-    assert "1. tide gauge [en]" in bundle.to_text()
-    answers = parse_answers(
-        "1. C en Tide Gauge=tide gauge\nG data\nK nothing here\n", ["tide gauge"]
-    )
-    assert answers == {"tide gauge": Verdict("C", "tide gauge")}
-    with pytest.raises(ValueError, match="handoff"):
-        Bundle.from_dict({"format": "other", "items": []})

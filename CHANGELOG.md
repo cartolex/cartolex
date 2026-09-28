@@ -217,8 +217,9 @@ nothing in the engine names a particular deployment, source or procedure.
   snapshots, people and their import, collection behind a protocol with
   stand-ins, keywords in their three bands, the theme tree's operations,
   versions and apply, the atlas bundle cached by lineage, sharing, settings
-  and the AI handoff, whose bundle and answer format move from the lexicon
-  lab into `cartolex.project.handoff` (`cartolex-handoff/1`). JSON log lines
+  and the AI handoff, whose reusable part (the parts a person gives a chat
+  assistant, the prompt, reading the answer back; `cartolex-handoff/1`) is
+  ported from the lexicon lab into `cartolex.project.handoff`. JSON log lines
   and a diagnostic without project data; a container image
   (`deploy/Dockerfile`, `docs/hosting.md`). The build takes the job id of its
   log from a runner, and a host's prompt folder and function words

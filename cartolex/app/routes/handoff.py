@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""The AI clean-up by handoff: export a bundle of terms, import the answers, accept a proposal."""
+"""The AI clean-up by handoff: export the parts of a handoff, import an answer, accept a proposal."""
 
 from __future__ import annotations
 
@@ -38,19 +38,25 @@ class TermRef(BaseModel):
 
 
 class ExportBody(BaseModel):
-    """The terms to send: a band (``check`` by default), or a list."""
+    """The terms to send: a band (``check`` by default), or a list; parts of at most
+    *max_tokens* (a chat assistant reads a limited amount at once)."""
 
     band: Literal["kept", "check", "aside"] | None = "check"
     terms: Annotated[list[TermRef], Field(max_length=MAX_TERMS)] | None = None
     lang: Annotated[str | None, Field(pattern=r"^[a-z]{2}$")] = None
     limit: Annotated[int, Field(ge=1, le=MAX_TERMS)] = 1000
+    max_tokens: Annotated[int, Field(ge=2_000, le=1_000_000)] = 24_000
 
 
-@routes.post("/api/handoff/export", action="keywords.read")
-def export(request: Request, body: ExportBody, ctx: ProjectDep) -> dict[str, Any]:
-    """A bundle of terms with their evidence, and its text with the instructions to paste."""
+def _export(request: Request, body: ExportBody, ctx: Any) -> dict[str, Any]:
     from cartolex.build.records import read_record
-    from cartolex.project.handoff import Bundle, BundleItem
+    from cartolex.project.handoff import (
+        BundleItem,
+        cautious_tokens,
+        part_files,
+        part_record,
+        split_items,
+    )
 
     runtime = runtime_of(request)
     rows, run_id = extracted(runtime, ctx)
@@ -59,7 +65,8 @@ def export(request: Request, body: ExportBody, ctx: ProjectDep) -> dict[str, Any
     decisions, _ = _decisions(ctx)
     wanted = {(t.term, t.language) for t in body.terms} if body.terms else None
     corpus = read_record(ctx.layout, "corpus.assemble")
-    n_people = max(1, (corpus.measures.counts.get("people", 0) if corpus else 0) or 1)
+    counts = corpus.measures.counts if corpus else {}
+    n_people, n_texts = max(1, counts.get("people", 0)), counts.get("texts", 0)
     items = []
     for row in sorted(rows, key=lambda r: -r["score_len"]):
         view = _effective(row, decisions.get((row["term"], row["language"])))
@@ -71,17 +78,14 @@ def export(request: Request, body: ExportBody, ctx: ProjectDep) -> dict[str, Any
             continue
         if body.lang and row["language"] != body.lang:
             continue
-        inside = (
-            [view["reason"].split(":", 1)[1].strip()]
-            if view["reason"].startswith("part-of:")
-            else []
-        )
+        reason = view["reason"]
+        inside = [reason.split(":", 1)[1].strip()] if reason.startswith("part-of:") else []
         items.append(
             BundleItem(
                 term=row["term"],
                 lang=row["language"],
                 band=view["band"],
-                reason=view["reason"],
+                reason=reason,
                 people=row["people"],
                 texts=row["texts"],
                 specificity=round(1.0 - row["people"] / n_people, 3),
@@ -92,10 +96,36 @@ def export(request: Request, body: ExportBody, ctx: ProjectDep) -> dict[str, Any
         if len(items) >= body.limit:
             break
     identity = ctx.project.config.identity
-    bundle = Bundle(identity.domain_title, identity.domain_description, items)
+    common = {"domain": identity.domain_title, "description": identity.domain_description}
+    chunks = split_items(
+        items, max_tokens=body.max_tokens, n_people=n_people, n_texts=n_texts, **common
+    )
+    parts = []
+    for k, chunk in enumerate(chunks, 1):
+        name = f"handoff-{k}" if len(chunks) > 1 else "handoff"
+        files = part_files(
+            chunk, n_people=n_people, n_texts=n_texts, part=k, parts=len(chunks), **common
+        )
+        parts.append(
+            {
+                "name": name,
+                "part": k,
+                "parts": len(chunks),
+                "terms": len(chunk),
+                "tokens": cautious_tokens(files["prompt.txt"] + files["terms.txt"]),
+                "files": files,
+                "bundle": part_record(
+                    chunk,
+                    name=name,
+                    part=k,
+                    parts=len(chunks),
+                    meta={"run": run_id},
+                    **common,
+                ),
+            }
+        )
     return {
-        "bundle": bundle.as_dict(),
-        "text": bundle.to_text(),
+        "parts": parts,
         "terms": len(items),
         "contains": list(CONTAINS),
         "never": list(NEVER),
@@ -108,8 +138,31 @@ def export(request: Request, body: ExportBody, ctx: ProjectDep) -> dict[str, Any
     }
 
 
+@routes.post("/api/handoff/export", action="keywords.read")
+def export(request: Request, body: ExportBody, ctx: ProjectDep) -> dict[str, Any]:
+    """The parts of a handoff: for each, the prompt to paste, the terms to attach, the answer's
+    format, and ``bundle.json`` (to send back with the answer); what they contain and never do."""
+    return _export(request, body, ctx)
+
+
+@routes.post("/api/handoff/export.zip", action="keywords.read")
+def export_zip(request: Request, body: ExportBody, ctx: ProjectDep) -> Response:
+    """The same parts as a zip: one folder per part with the files a person uploads."""
+    from cartolex.project.handoff import part_zip
+
+    out = _export(request, body, ctx)
+    if not out["parts"]:
+        raise ApiError(404, "empty", "no term to send in this band", next_action="none")
+    data = part_zip({p["name"]: p["files"] for p in out["parts"]})
+    return Response(
+        data,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="handoff.zip"'},
+    )
+
+
 class ImportBody(BaseModel):
-    """The bundle that was sent, and the answers as they came back (pasted)."""
+    """The part that was sent (its ``bundle.json``), and the answer as it came back (pasted)."""
 
     bundle: dict[str, Any]
     answer: Annotated[str, Field(min_length=1, max_length=5_000_000)]
@@ -120,29 +173,28 @@ def _ai_folder(ctx: Any) -> Path:
 
 
 def _proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
-    from cartolex.project.handoff import CODES, Bundle, parse_answers
+    from cartolex.project.handoff import CODES, items_of, parse_answer
 
     folder = _ai_folder(ctx)
     answer = folder / f"{proposal_id}.txt"
     sent = folder / f"{proposal_id}.bundle.json"
     if not answer.is_file() or not sent.is_file():
         raise ApiError(404, "not_found", f"no proposal {proposal_id}", next_action="reload")
-    bundle = Bundle.from_dict(json.loads(sent.read_text(encoding="utf-8")))
-    verdicts = parse_answers(answer.read_text(encoding="utf-8"), [i.term for i in bundle.items])
+    bundle = items_of(json.loads(sent.read_text(encoding="utf-8")))
+    parsed = parse_answer(answer.read_text(encoding="utf-8"), bundle)
     decisions, fp = _decisions(ctx)
     items = []
-    for item in bundle.items:
-        v = verdicts.get(item.term)
-        if v is None:
-            continue
+    for index in sorted(parsed.verdicts):
+        item, v = bundle[index], parsed.verdicts[index]
         current = decisions.get((item.term, item.lang))
         items.append(
             {
+                "number": index + 1,
                 "term": item.term,
                 "language": item.lang,
                 "code": v.code,
                 "meaning": CODES.get(v.code, ""),
-                "canonical": v.canonical,
+                "english": v.canonical,
                 "proposed": "keep" if v.accept else "exclude",
                 "current": current["decision"] if current else None,
             }
@@ -151,23 +203,31 @@ def _proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
         "id": proposal_id,
         "items": items,
         "answered": len(items),
-        "unanswered": len(bundle.items) - len(items),
+        "unanswered": parsed.missing(len(bundle)),
+        "read": {
+            "lines": parsed.lines,
+            "ignored": parsed.ignored,
+            "unmatched": parsed.unmatched,
+            "renumbered": parsed.renumbered,
+            "term_mismatch": parsed.term_mismatch,
+            "duplicates": parsed.duplicates,
+        },
         "keywords_version": version_of(fp),
     }
 
 
 @routes.post("/api/handoff/import", action="keywords.write")
 def import_answers(request: Request, body: ImportBody, ctx: ProjectDep) -> dict[str, Any]:
-    """Keep the answers as they came (``decisions/history/ai/``) and propose decisions.
+    """Keep the answer as it came (``decisions/history/ai/``) and propose decisions.
 
     Nothing reaches ``keywords.csv`` until the proposal is accepted. The first
     AI answers freeze the project's identity.
     """
-    from cartolex.project.files import atomic_write_bytes, utc_stamp
-    from cartolex.project.handoff import Bundle
+    from cartolex.project.files import atomic_write_bytes, json_bytes, utc_stamp
+    from cartolex.project.handoff import items_of
 
     try:
-        bundle = Bundle.from_dict(body.bundle)
+        items_of(body.bundle)
     except (KeyError, TypeError, ValueError) as exc:
         raise ApiError(
             422, "invalid", f"the bundle is not valid: {exc}", next_action="fix-input"
@@ -179,7 +239,7 @@ def import_answers(request: Request, body: ImportBody, ctx: ProjectDep) -> dict[
         while (folder / f"{proposal_id}.txt").exists():
             n += 1
             proposal_id = f"{base}-{n}"
-        atomic_write_bytes(folder / f"{proposal_id}.bundle.json", bundle.to_json().encode("utf-8"))
+        atomic_write_bytes(folder / f"{proposal_id}.bundle.json", json_bytes(body.bundle))
         atomic_write_bytes(folder / f"{proposal_id}.txt", body.answer.encode("utf-8"))
         proposal = _proposal(ctx, proposal_id)
         if proposal["answered"]:
@@ -191,11 +251,10 @@ def import_answers(request: Request, body: ImportBody, ctx: ProjectDep) -> dict[
 def proposals(ctx: ProjectDep) -> dict[str, Any]:
     """The proposals imported so far, the newest first."""
     folder = _ai_folder(ctx)
-    ids = sorted(
-        (p.name[: -len(".txt")] for p in folder.glob("*-handoff*.txt")) if folder.is_dir() else (),
-        reverse=True,
+    names = (
+        (p.name[: -len(".txt")] for p in folder.glob("*-handoff*.txt")) if folder.is_dir() else ()
     )
-    ids = [i for i in ids if re.match(r"^\d{8}T\d{6}Z-handoff(-\d+)?$", i)]
+    ids = sorted((i for i in names if re.match(r"^\d{8}T\d{6}Z-handoff(-\d+)?$", i)), reverse=True)
     return {
         "items": [{"id": i, "at": i[:16]} for i in ids],
         "total": len(ids),
@@ -246,7 +305,10 @@ def accept(
                 "language": i["language"],
                 "decision": i["proposed"],
                 "target": "",
-                "reason": f"AI: {i['meaning']}",
+                "reason": f"AI: {i['meaning']}"
+                + (
+                    f"; English form: {i['english']}" if i["english"] not in ("", i["term"]) else ""
+                ),
                 "source": "ai-handoff",
                 "decided_at": now,
             }

@@ -255,18 +255,26 @@ def _scenario(client: Client, tmp_path, world) -> None:
     # ── the AI handoff ──
     exported = client.post("/api/handoff/export", json={"band": "check", "limit": 5}).json()
     assert exported["terms"] == 5 and "texts" in exported["never"]
-    items = exported["bundle"]["items"]
+    part = exported["parts"][0]
+    assert part["parts"] == 1 and set(part["files"]) == {
+        "prompt.txt",
+        "terms.txt",
+        "expected-answer.txt",
+    }
+    assert "Coastal and marine systems" in part["files"]["prompt.txt"]
+    items = part["bundle"]["items"]
     answer = "\n".join(
         [
-            f"1. C {items[0]['lang']} {items[0]['term']}={items[0]['term']}",
-            f"G {items[1]['term']}",
-            "noise",
+            "Here is the list:",
+            f"1 | C | {items[0]['term']}",
+            f"2 | G | {items[1]['term']}",
         ]
     )
     proposal = client.post(
-        "/api/handoff/import", json={"bundle": exported["bundle"], "answer": answer}
+        "/api/handoff/import", json={"bundle": part["bundle"], "answer": answer}
     ).json()
     assert proposal["answered"] == 2 and proposal["unanswered"] == 3
+    assert proposal["read"]["ignored"] == 1
     assert [i["proposed"] for i in proposal["items"]] == ["keep", "exclude"]
     accepted = client.post(
         f"/api/handoff/proposals/{proposal['id']}/accept",
@@ -274,5 +282,7 @@ def _scenario(client: Client, tmp_path, world) -> None:
         headers={"If-Match": f'"{proposal["keywords_version"]}"'},
     )
     assert accepted.status_code == 200 and accepted.json()["accepted"] == 2
-    kept = client.get(f"/api/keywords?q={items[0]['term']}").json()["items"]
+    kept = client.get("/api/keywords", params={"q": items[0]["term"]}).json()["items"]
     assert any(k["decision"] and k["decision"]["source"] == "ai-handoff" for k in kept)
+    zipped = client.post("/api/handoff/export.zip", json={"band": "check", "limit": 5})
+    assert zipped.headers["content-type"] == "application/zip" and zipped.content[:2] == b"PK"

@@ -226,8 +226,9 @@ version, so it can be undone too).
 | --- | --- |
 | `GET /api/share`, `POST /api/share/builds` | the site builds in `outputs/sites/`; building a site comes in a later version (501 until then) |
 | `GET /api/settings`, `PUT /api/settings` | languages, language models, the AI identity (with what changing a frozen one costs: 409 `identity_frozen` unless `confirm_identity_change`), slots, projected sets, levels, data sources |
-| `POST /api/handoff/export {band, terms, lang, limit}` | a bundle of terms with their evidence (`cartolex-handoff/1`, `cartolex.project.handoff`), its text with the instructions to paste, and what it contains and never contains |
-| `POST /api/handoff/import {bundle, answer}` | keep the answers as they came in `decisions/history/ai/` and propose a decision per answered term; the first answers freeze the identity |
+| `POST /api/handoff/export {band, terms, lang, limit, max_tokens}` | the parts of a handoff (`cartolex.project.handoff`): for each, the prompt to paste, the terms to attach and the answer's format, its `bundle.json` (`cartolex-handoff/1`, sent back with the answer), and what they contain and never contain; parts stay under `max_tokens` (a chat assistant reads a limited amount at once) |
+| `POST /api/handoff/export.zip` | the same parts as a zip, one folder per part |
+| `POST /api/handoff/import {bundle, answer}` | keep the answer as it came in `decisions/history/ai/` (with the part it answers) and propose a decision per answered term, with what could not be read (lines ignored, renumbered, unmatched); the first answers freeze the identity |
 | `GET /api/handoff/proposals`, `GET /api/handoff/proposals/{id}`, `POST /api/handoff/proposals/{id}/accept {terms, all}` | proposals; accepted ones reach `keywords.csv` with the source `ai-handoff` |
 
 **The interface**: `/static/…` (the interface's files), `/static/ext/<id>/…`
