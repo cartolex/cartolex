@@ -257,7 +257,22 @@ ctx = RunContext.for_workspace(
 Groups are labelled by their value of the `unit` column everywhere (the
 aggregate table, the maps, the panels): write the label you want to show there.
 
-### 3.6 Subfields — deterministic concept hierarchy, curated by hand
+### 3.6 Themes — a tree of one to four levels, and the two-level subfields
+
+```python
+from cartolex.lexicon.theme_tree import draft_themes, apply_themes
+```
+
+`draft_themes(ctx, level_sizes=[15, 120, 800])` writes the grouping's proposal
+(`ctx.paths.themes_draft_json`), a `cartolex-themes/1` tree of `len(level_sizes)`
+levels: the finest level is the clustering stage's term clusters, each coarser
+level a Ward cut of the level below, every node named after its dominant
+keyword. `apply_themes(ctx)` applies `ctx.paths.themes_json` (the curated tree)
+or the proposal at any depth and writes the applied tree and its tables: each
+node's weight and share for every person and organisation, the keywords'
+weights, each node's top keywords (`docs/dev/themes-engine.md`,
+`docs/format/derived.md`). New readers use these files. The two-level
+documents below are still written at depth 2.
 
 ```python
 from cartolex.lexicon.subfields import draft_subfields, apply_subfields, load_subfields
@@ -344,7 +359,7 @@ you control, and the only permitted network egress is the opt-in Mistral
 triage (anonymized term strings). Keep it that way in your integration: see
 AGENTS.md for the layering and transmission rules the test suite enforces.
 
-## 7. Merging multiple cohorts (`map_bundle/2`)
+## 7. Merging multiple cohorts (`map_bundle/2` and `/3`)
 
 Several independently-built cohorts (departments, institutes, studies…) can be
 merged into one joint map. Each producer serializes its inputs as a *cohort
@@ -362,7 +377,16 @@ walkthrough: `python examples/merge_two_cohorts.py`.
 | `vocabulary.csv` | yes | `term,n_entities,tf_total,score_total` (score_total may be empty) |
 | `taxonomy.json` | optional | a `map_taxonomy/1` doc (curated concepts as labels + term strings; validated by `validate_taxonomy`) |
 | `decisions.json` | optional | a `map_reconcile_decisions/1` adjudication cache |
+| `themes.json` | in `map_bundle/3` | a `map_themes/1` theme tree of 1 to 4 levels: `depth`, `levels` (`level`, `names`), `nodes` (`id`, `parent`, `level`, `order`, `names`, `color`), checked by `validate_themes` |
+| `theme_weights.csv` | in `map_bundle/3` | `entity_id,level,node,weight,share`: each entity's weights on every level of the tree |
 | any other file | — | ignored by the reader (forward compatibility) |
+
+A bundle that carries a theme tree (`build_bundle(..., themes=…, theme_weights=…)`)
+is `map_bundle/3`; one without is `map_bundle/2`, readable by engines that
+know only that version. The reader takes both. `cartolex.build.bundle.project_bundle(project)`
+builds the bundle of a built project, its tree and weights included. A bundle
+is built from the matrix's non-zero entries: the people × keywords matrix is
+never made dense.
 
 CSV/JSON only — no pickles, no parquet. `write_bundle` is byte-deterministic
 (sorted rows, sorted JSON keys, fixed zip timestamps), so bundles diff and

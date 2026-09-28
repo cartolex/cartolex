@@ -68,6 +68,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=False,
         help="fail, instead of skipping, tests marked 'models' whose language models are missing",
     )
+    parser.addoption(
+        "--heavy",
+        action="store_true",
+        default=False,
+        help="also run the tests marked 'heavy' (large measures; run them under a memory cap)",
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -76,9 +82,16 @@ def pytest_configure(config: pytest.Config) -> None:
         "models(*langs): the test parses texts with the pinned language models of these "
         "languages (default: every supported language)",
     )
+    config.addinivalue_line(
+        "markers",
+        "heavy: a large measure (minutes, gigabytes), run only with --heavy: the full "
+        "check runs it once, under the machine's memory-capped runner",
+    )
 
 
 def pytest_runtest_setup(item: pytest.Item) -> None:
+    if item.get_closest_marker("heavy") and not item.config.getoption("--heavy"):
+        pytest.skip("a heavy measure: run with --heavy")
     marker = item.get_closest_marker("models")
     if marker is None:
         return

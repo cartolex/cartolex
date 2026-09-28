@@ -25,7 +25,12 @@ memory. Run the large ones through the machine's memory-capped runner.
 
 The keyword vectors are synthetic: unit vectors in 20 dimensions around topics
 of unequal sizes, like L2-normalised SVD keyword vectors; the same seed gives
-the same points. Nothing here changes a default; it is evidence for one.
+the same points. Ward is sensitive to small moves of the points, so the
+agreement is read against Ward's own: ``noise_changed`` is the share of
+keywords whose group changes when exact Ward runs on the points moved by
+0.1 %; and for synthetic points each cut is also compared with the topics the
+points were drawn around. Nothing here changes a default; it is evidence for
+one.
 """
 
 from __future__ import annotations
@@ -50,15 +55,17 @@ KEYWORDS_PER_GROUP = 20
 DIMENSIONS = 20
 
 
-def synthetic_keywords(n: int, *, seed: int = 0, d: int = DIMENSIONS) -> np.ndarray:
-    """*n* unit vectors in *d* dimensions around ``n / 20`` topics of unequal sizes."""
+def synthetic_keywords(
+    n: int, *, seed: int = 0, d: int = DIMENSIONS, spread: float = 0.6
+) -> tuple[np.ndarray, np.ndarray]:
+    """*n* unit vectors in *d* dimensions around ``n / 20`` topics of unequal sizes, and their topics."""
     rng = np.random.default_rng(seed)
     topics = max(2, n // KEYWORDS_PER_GROUP)
     centres = rng.normal(size=(topics, d))
     weights = rng.pareto(1.5, size=topics) + 1.0
     which = rng.choice(topics, size=n, p=weights / weights.sum())
-    points = centres[which] + rng.normal(scale=0.8, size=(n, d))
-    return points / np.linalg.norm(points, axis=1, keepdims=True)
+    points = centres[which] + rng.normal(scale=spread, size=(n, d))
+    return points / np.linalg.norm(points, axis=1, keepdims=True), which
 
 
 def demo_keywords(size: str) -> np.ndarray:
@@ -77,8 +84,14 @@ def demo_keywords(size: str) -> np.ndarray:
 
 def _points(spec: dict) -> np.ndarray:
     if spec.get("demo"):
-        return demo_keywords(spec["demo"])
-    return synthetic_keywords(int(spec["n"]), seed=int(spec.get("seed", 0)))
+        points = demo_keywords(spec["demo"])
+    else:
+        points = synthetic_keywords(int(spec["n"]), seed=int(spec.get("seed", 0)))[0]
+    if spec.get("noise"):
+        rng = np.random.default_rng(99)
+        points = points + rng.normal(scale=float(spec["noise"]), size=points.shape)
+        points /= np.linalg.norm(points, axis=1, keepdims=True)
+    return points
 
 
 def run_one(spec: dict) -> dict:
@@ -94,7 +107,12 @@ def run_one(spec: dict) -> dict:
 
         labels = fcluster(linkage(points, method="ward"), t=k, criterion="maxclust") - 1
     elif spec["method"] == "two-stage":
-        labels = two_stage_ward_labels(points, k, limit=int(spec.get("limit", EXACT_WARD_LIMIT)))
+        labels = two_stage_ward_labels(
+            points,
+            k,
+            limit=int(spec.get("limit", EXACT_WARD_LIMIT)),
+            init=spec.get("init", "k-means++"),
+        )
     else:  # the engine's path
         labels = ward_labels(points, k)
     seconds = time.perf_counter() - t0
@@ -127,32 +145,52 @@ def changed_share(a: np.ndarray, b: np.ndarray) -> float:
     return 1.0 - table[rows, cols].sum() / len(a)
 
 
-def agreement(spec: dict, limits: list[int]) -> list[dict]:
-    """Exact Ward against the two-stage cut with each micro-cluster count of *limits*."""
+def agreement(spec: dict, limits: list[int], inits: tuple[str, ...]) -> list[dict]:
+    """Exact Ward against the two-stage cut with each micro-cluster count of *limits*.
+
+    Also exact Ward on the same points moved by 0.1 % (Ward's own stability:
+    ``noise_changed``) and, for synthetic points, each cut against the topics
+    the points were drawn around (``*_topics_ari``).
+    """
     from sklearn.metrics import adjusted_rand_score
 
+    topics = None
+    if not spec.get("demo"):
+        topics = synthetic_keywords(int(spec["n"]), seed=int(spec.get("seed", 0)))[1]
     rows = []
     with tempfile.TemporaryDirectory() as tmp:
         exact_path = str(Path(tmp) / "exact.npy")
         exact = measure({**spec, "method": "exact", "labels": exact_path})
         a = np.load(exact_path)
+        noisy_path = str(Path(tmp) / "noisy.npy")
+        measure({**spec, "method": "exact", "noise": 1e-3, "labels": noisy_path})
+        noise_changed = round(changed_share(a, np.load(noisy_path)), 3)
         for limit in limits:
-            path = str(Path(tmp) / f"two-{limit}.npy")
-            two = measure({**spec, "method": "two-stage", "limit": limit, "labels": path})
-            b = np.load(path)
-            rows.append(
-                {
+            for init in inits:
+                path = str(Path(tmp) / f"two-{limit}-{init}.npy")
+                two = measure(
+                    {**spec, "method": "two-stage", "limit": limit, "init": init, "labels": path}
+                )
+                b = np.load(path)
+                row = {
                     "points": spec.get("demo") or spec["n"],
                     "groups": exact["k"],
                     "micro_clusters": min(limit, exact["n"]),
+                    "init": init,
                     "ari": round(float(adjusted_rand_score(a, b)), 3),
                     "changed": round(changed_share(a, b), 3),
-                    "exact_s": exact["seconds"],
-                    "exact_mb": exact["peak_mb"],
-                    "two_stage_s": two["seconds"],
-                    "two_stage_mb": two["peak_mb"],
+                    "noise_changed": noise_changed,
                 }
-            )
+                if topics is not None:
+                    row["exact_topics_ari"] = round(float(adjusted_rand_score(topics, a)), 3)
+                    row["two_stage_topics_ari"] = round(float(adjusted_rand_score(topics, b)), 3)
+                row.update(
+                    exact_s=exact["seconds"],
+                    exact_mb=exact["peak_mb"],
+                    two_stage_s=two["seconds"],
+                    two_stage_mb=two["peak_mb"],
+                )
+                rows.append(row)
     return rows
 
 
@@ -171,6 +209,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("what", nargs="?", choices=("threshold", "agreement", "scale"))
     parser.add_argument("--sizes", default="")
     parser.add_argument("--demo", action="store_true", help="also the stored demo worlds S and L")
+    parser.add_argument(
+        "--inits",
+        default="k-means++",
+        help="micro-clustering starts to compare, e.g. k-means++,random",
+    )
     parser.add_argument("--one", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.one:
@@ -179,6 +222,7 @@ def main(argv: list[str] | None = None) -> int:
     from cartolex.atlas.clustering import EXACT_WARD_LIMIT
 
     sizes = [int(s) for s in args.sizes.split(",") if s]
+    inits = tuple(i for i in args.inits.split(",") if i)
     rows: list[dict] = []
     if args.what == "threshold":
         for n in sizes or [5_000, 10_000, 15_000, 20_000]:
@@ -186,14 +230,19 @@ def main(argv: list[str] | None = None) -> int:
     elif args.what == "agreement":
         for n in sizes or [1_000, 10_000, 20_000]:
             limits = [EXACT_WARD_LIMIT] if n > EXACT_WARD_LIMIT else [n // 2, n // 5, n // 10]
-            rows += agreement({"n": n}, limits)
+            rows += agreement({"n": n}, limits, inits)
         if args.demo:
             for size in ("S", "L"):
                 n = len(demo_keywords(size))
-                rows += agreement({"demo": size}, [n // 2, n // 5, n // 10])
+                rows += agreement({"demo": size}, [n // 2, n // 5, n // 10], inits)
     elif args.what == "scale":
         for n in sizes or [1_000, 10_000, 100_000]:
-            rows.append({**measure({"n": n, "method": "engine"}), "limit": EXACT_WARD_LIMIT})
+            if n <= EXACT_WARD_LIMIT:
+                rows.append({**measure({"n": n, "method": "engine"}), "path": "exact"})
+                continue
+            for init in inits:
+                spec = {"n": n, "method": "two-stage", "init": init}
+                rows.append({**measure(spec), "path": f"two stages ({init})"})
     else:
         parser.error("say what to measure: threshold, agreement or scale")
     print(_table(rows))

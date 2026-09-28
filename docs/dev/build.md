@@ -305,11 +305,11 @@ project exists (it imports neither `cartolex.build` nor `cartolex.project`).
 | `keywords.triage` | the AI triage (`run_pipeline_stage_2_llm`), through `AIAccess` |
 | `keywords.build` | consolidation (`run_pipeline_stage_3`), then the person roster; `decisions/keywords.csv` becomes the engine's exclusion, keep and merge files first |
 | `themes.space` | the SVD space (`run_svd`) |
-| `themes.group` | the term clustering (`run_clustering`) and the subfield draft (`draft_subfields`) |
-| `themes.apply` | `apply_subfields` on the curated tree (below), or on the draft |
-| `map.layout` | the layout of the pinned map version (`run_umap`: the people fitted, the keywords placed by their nearest people), then the themes applied again on the map |
-| `map.trajectories` | `run_trajectories`: time bins and windows placed by their nearest people |
-| `overlays.position` | each projected set projected with `cartolex.lexicon.positioning` and placed by its nearest people: `<set>/positions.json` |
+| `themes.group` | the term clustering (`run_clustering`, the finest level), the levels above it and the proposal tree (`draft_themes`); at depth 2 also the two-level draft (`draft_subfields`) |
+| `themes.apply` | `apply_themes` on the curated tree (below) or on the proposal, at any depth; at depth 2 also `apply_subfields` on the two-level document |
+| `map.layout` | the layout of the pinned map version (`run_umap`: the people fitted, the keywords placed by their nearest people), then the themes applied again on the map (each node gets a position) |
+| `map.trajectories` | `run_trajectories`: time bins and windows placed by their nearest people, with each window's weights on every theme level |
+| `overlays.position` | each projected set projected with `cartolex.lexicon.positioning` and placed by its nearest people, with its weights on every theme level: `<set>/positions.json` |
 
 The figures and the portable bundle are outputs, not build stages.
 
@@ -345,17 +345,16 @@ made with.
 | `keywords.extract.min_people`, `.max_share`, `.counting_unit` | `KeywordsConfig.min_df`, `.max_df`, `.counting_unit` |
 | `keywords.build.max_keywords` | `KeywordsConfig.global_top_n` |
 | `themes.space.dimensions` | `run_svd(svd_n_components=…)` |
-| the theme levels | the top level: `draft_subfields(n_subfields=…)`; the finest: `run_clustering(n_concepts=…)` |
+| the theme levels | every level: `draft_themes(level_sizes=…)`; the finest: `run_clustering(n_concepts=…)`; at depth 2 the top level of the two-level draft: `draft_subfields(n_subfields=…)` |
 | `map.trajectories.window_years` | `run_trajectories(bin_years=…)` |
 | the pinned map version | `run_umap(umap_random_state=seed, …)` with its layout parameters (`n_neighbors`, `min_dist`, `metric`, `layout`…) |
 | `identity.ai.model` | `KeywordsConfig.llm_model` |
 | `identity.domain_title`, `identity.domain_description` | `KeywordsConfig.domain_title`, `.domain_description` (the AI's only context besides the terms) |
 | `decisions/stopwords.json` | the stop-word profile: every word added or removed, in any language, extends or shrinks the list of words that are never keywords |
 
-The engine builds two theme levels, themes over topics. A tree of one level
-keeps about `keywords_per_group` keywords per topic beneath its themes, and a
-tree of three or four keeps its top and finest levels; the run says so in its
-warnings.
+The engine builds every level of the depth the parameters give, from 1 to 4
+(see [Themes in the engine](themes-engine.md)): a tree of one level has its
+keywords on its themes directly.
 
 **Map versions.** Before the first layout, `map.layout`'s `prepare` adds and
 pins map version `v1` (layout `umap`, the seed of `params.json`). A rebuild uses
@@ -365,11 +364,13 @@ seed.
 **The curated theme tree.** Before `themes.apply` runs, its `prepare` rebases
 `decisions/themes.json` onto the current vocabulary when it is based on
 another one (`cartolex.project.themes.rebase`): a new keyword goes to the node
-of its draft topic when the tree has it, else aside, both marked « to check »,
-and the result is saved as a new version. The stage converts the tree with
-`cartolex.project.themes_curated.to_curated` and applies it. A tree of
-another depth than two is refused with the reason, until the engine applies
-other depths.
+of the tree that holds a strict majority of the other keywords of its group in
+the new proposal, looked for from the finest level up
+(`cartolex.build.engine.proposed_places`), else aside, both marked « to
+check », and the result is saved as a new version. The stage applies the tree
+at its depth; at depth 2 it also converts it with
+`cartolex.project.themes_curated.to_curated` into the two-level document and
+applies that, for the two-level outputs.
 
 **The AI clean-up** needs an `AIAccess`: the provider's key, or a client of
 one's own (`client_factory`, called like the provider SDK's client; the tests
@@ -413,7 +414,10 @@ stages, then checks the ownership table, the stages that need an update after
 curated theme tree applied, the AI clean-up through an injected client (and
 from its cache), a cancel and a killed process on real stages, and the command
 line. The numeric reference is also run through a project build
-(`docs/dev/reference.md`).
+(`docs/dev/reference.md`). `tests/test_build_themes.py` builds the S demo world
+at depths 1 to 4 with the command line, checks at depth 2 that the tables of
+any depth equal the two-level outputs exactly, and reads each depth's map
+bundle back.
 
 `tests/_build_fakes.py` declares small fake stages on the real stage ids, each
 writing a result that depends only on what it read and logging its calls

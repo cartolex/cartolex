@@ -152,32 +152,45 @@ def _relabel(Z: np.ndarray, n: int) -> None:
         Z[i, 3] = count[n + i]
 
 
-def micro_clusters(points: np.ndarray, m: int, *, seed: int = MICRO_SEED) -> np.ndarray:
+#: How the micro-clustering chooses its first centres (``"k-means++"`` or ``"random"``).
+MICRO_INIT = "k-means++"
+
+
+def micro_clusters(
+    points: np.ndarray, m: int, *, seed: int = MICRO_SEED, init: str = MICRO_INIT
+) -> np.ndarray:
     """Mini-batch k-means labels of *points* into at most *m* micro-clusters (0-based, dense).
 
-    Random initial centres drawn with *seed*, batches of ``max(1024, 4·m)``
-    points, no reassignment of small clusters: the result depends on the
-    points and the seed only. Empty clusters are dropped and the labels
-    renumbered in order.
+    First centres by *init* (drawn from at most ``3·m`` points) with *seed*,
+    batches of ``max(1024, 4·m)`` points, no reassignment of small clusters:
+    the result depends on the points and the seed only. Empty clusters are
+    dropped and the labels renumbered in order.
     """
     from sklearn.cluster import MiniBatchKMeans
 
+    P = np.asarray(points, dtype=float)
     km = MiniBatchKMeans(
         n_clusters=int(m),
-        init="random",
+        init=init,
+        init_size=min(len(P), 3 * int(m)),
         n_init=1,
         batch_size=max(1024, 4 * int(m)),
         max_iter=50,
         random_state=seed,
         reassignment_ratio=0.0,
     )
-    labels = km.fit_predict(np.asarray(points, dtype=float))
+    labels = km.fit_predict(P)
     _, dense = np.unique(labels, return_inverse=True)
     return dense.astype(int)
 
 
 def two_stage_ward_labels(
-    points: np.ndarray, n_clusters: int, *, limit: int = EXACT_WARD_LIMIT, seed: int = MICRO_SEED
+    points: np.ndarray,
+    n_clusters: int,
+    *,
+    limit: int = EXACT_WARD_LIMIT,
+    seed: int = MICRO_SEED,
+    init: str = MICRO_INIT,
 ) -> np.ndarray:
     """Ward cut of *points* into *n_clusters* groups through micro-clusters (0-based labels).
 
@@ -197,8 +210,8 @@ def two_stage_ward_labels(
         return np.zeros(n, dtype=int)
     m = micro_cluster_count(n, k, limit=limit)
     if 2 * k > m:
-        return micro_clusters(P, k, seed=seed)
-    micro = micro_clusters(P, m, seed=seed)
+        return micro_clusters(P, k, seed=seed, init=init)
+    micro = micro_clusters(P, m, seed=seed, init=init)
     n_micro = int(micro.max()) + 1
     if n_micro <= k:
         return micro
