@@ -756,7 +756,7 @@ export function createEditor({ api, projectId, announce = () => {} }) {
     if (data.tree) {
       const draft = readDraft(projectId);
       if (draft && !sameTree(draft.tree, data.tree)) {
-        const count = (draft.past || []).length;
+        const count = Math.max(1, (draft.past || []).length - (draft.saved_mark || 0));
         if (draft.base_version === base.value.version) {
           batch(() => {
             tree.value = draft.tree;
