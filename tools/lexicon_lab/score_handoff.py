@@ -123,11 +123,13 @@ class Truth:
         return self.matchers["en"].key(text) if "en" in self.matchers else tuple(text.split())
 
 
-def load_truth(manifest: dict) -> Truth:
-    """The world's gold (computed now, in memory) and the build's raw tables."""
+def load_truth(manifest: dict, project: Path | None = None) -> Truth:
+    """The world's gold (computed now, in memory) and the raw tables of the build *project*.
+
+    *project* defaults to the manifest's latest build; each bundle names its own.
+    """
     import analyses as lab_analyses
     import corpora
-    import handoff_bundles
     import run
 
     world = manifest["world"]
@@ -135,7 +137,15 @@ def load_truth(manifest: dict) -> Truth:
     corpus = corpora.demo_corpus(world["size"], world["seed"], languages=languages)
     parsed = lab_analyses.parse(corpus, n_jobs=1, names=False)
     matchers, golds = run.golds_of(parsed)
-    project = Path(manifest["build"]["project"])
+    return with_tables(Truth(matchers, golds, {}), manifest, project)
+
+
+def with_tables(truth: Truth, manifest: dict, project: Path | None = None) -> Truth:
+    """*truth* with the raw tables of the build *project* (built if missing)."""
+    import handoff_bundles
+
+    world = manifest["world"]
+    project = Path(project or manifest["build"]["project"])
     handoff_bundles.build_project(world["size"], world["seed"], project)
     tables = {
         lang: pd.read_csv(
@@ -144,7 +154,7 @@ def load_truth(manifest: dict) -> Truth:
         )
         for lang in world["languages"]
     }
-    return Truth(matchers, golds, tables)
+    return Truth(truth.matchers, truth.golds, tables)
 
 
 def oracle_verdicts(items, truth: Truth, *, error: float = 0.0, seed: int = 7) -> dict:
@@ -257,20 +267,32 @@ def score_test(
     """Every bundle of the test folder (or *only*), scored for the answers and the oracles."""
     manifest, bundles = load_test(folder, pattern, only)
     truth = truth or load_truth(manifest)
+    by_project: dict[str, Truth] = {}
     out: dict = {"folder": str(folder), "answers": pattern, "bundles": {}}
     for scope, parts in bundles.items():
+        project = manifest["bundles"][scope].get("project") or manifest["build"]["project"]
+        if project != manifest["build"]["project"]:
+            if project not in by_project:
+                by_project[project] = with_tables(truth, manifest, Path(project))
+            bundle_truth = by_project[project]
+        else:
+            bundle_truth = truth
         answered = [p for p in parts if p.answered]
         pool = answered or parts  # nothing answered yet: the oracles judge every part
         judges = {
             "answers": [p.parsed.verdicts if p.answered else None for p in parts],
-            "oracle": [oracle_verdicts(p.items, truth) if p in pool else None for p in parts],
+            "oracle": [
+                oracle_verdicts(p.items, bundle_truth) if p in pool else None for p in parts
+            ],
             f"noisy oracle {NOISE:.0%}": [
-                oracle_verdicts(p.items, truth, error=NOISE, seed=7 + k) if p in pool else None
+                oracle_verdicts(p.items, bundle_truth, error=NOISE, seed=7 + k)
+                if p in pool
+                else None
                 for k, p in enumerate(parts)
             ],
         }
         results = {
-            name: score(parts, v, truth) if any(x is not None for x in v) else None
+            name: score(parts, v, bundle_truth) if any(x is not None for x in v) else None
             for name, v in judges.items()
         }
         reading = [

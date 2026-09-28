@@ -228,6 +228,7 @@ def write_handoff_test(
             v.setdefault("scope", k)
             v.setdefault("prompt_version", 1)
             v.setdefault("commit", old.get("build", {}).get("engine_commit", ""))
+            v.setdefault("project", old.get("build", {}).get("project", ""))
 
     manifest = {
         "format": "cartolex-handoff-test/1",
@@ -291,6 +292,7 @@ def write_handoff_test(
             "scope": scope,
             "prompt_version": handoff.PROMPT_VERSION,
             "commit": _git_commit(),
+            "project": str(project),
             "order": "languages interleaved by rank"
             if interleave
             else "one language after the other",
