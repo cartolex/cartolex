@@ -47,6 +47,7 @@ __all__ = [
     "Service",
     "StubService",
     "build_bibliography",
+    "endpoints_at",
     "json_reply",
     "register_service",
 ]
@@ -84,6 +85,15 @@ SERVICE_FACTORIES: dict[str, Callable[[Bibliography], Service]] = {
 }
 
 
+def endpoints_at(base_url: str) -> dict[str, str]:
+    """The base URL of each service of demo services already running at *base_url*."""
+    base = base_url.rstrip("/")
+    return {
+        name: f"{base}/{name}" + (f"/{API_ROOTS[name]}" if name in API_ROOTS else "")
+        for name in SERVICE_FACTORIES
+    }
+
+
 def register_service(name: str, factory: Callable[[Bibliography], Service]) -> None:
     """Serve *name* with the service *factory* builds (replacing a stub)."""
     SERVICE_FACTORIES[name] = factory
@@ -100,7 +110,12 @@ class DemoServices:
         self.world = world
         self.bibliography = build_bibliography(world, layer_seed)
         services = {name: make(self.bibliography) for name, make in SERVICE_FACTORIES.items()}
-        self.server = DemoServer(services, port=port)
+        #: The first segment of every URL: which world and layer are served, so that answers
+        #: cached from one demo world are never taken for another's.
+        self.prefix = (
+            f"demo-{world.size.lower()}-{world.seed}-{'-'.join(world.languages)}-{layer_seed}"
+        )
+        self.server = DemoServer(services, port=port, prefix=self.prefix)
 
     @property
     def faults(self) -> FaultPlan:
@@ -121,7 +136,7 @@ class DemoServices:
 
     def endpoints(self) -> dict[str, str]:
         """Base URL of every service served, by name."""
-        return {name: self.url(name) for name in self.server.services}
+        return endpoints_at(self.base_url)
 
     def start(self) -> DemoServices:
         self.server.start()

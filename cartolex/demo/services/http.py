@@ -171,9 +171,11 @@ class _Server(ThreadingHTTPServer):
 class DemoServer:
     """Serves *services* on the loopback interface until :meth:`stop`."""
 
-    def __init__(self, services: Mapping[str, Service], *, port: int = 0) -> None:
+    def __init__(self, services: Mapping[str, Service], *, port: int = 0, prefix: str = "") -> None:
         self.services = dict(services)
         self.port = port
+        #: A first path segment that names what is served (the world), dropped before routing.
+        self.prefix = prefix.strip("/")
         self.faults = FaultPlan()
         self.requests: list[SeenRequest] = []
         self._lock = threading.Lock()
@@ -186,7 +188,7 @@ class DemoServer:
         if self._server is None:
             raise RuntimeError("the demo services are not started")
         host, port = self._server.server_address[:2]
-        return f"http://{host}:{port}"
+        return f"http://{host}:{port}" + (f"/{self.prefix}" if self.prefix else "")
 
     def start(self) -> DemoServer:
         if self._server is not None:
@@ -220,7 +222,10 @@ class DemoServer:
     # ── answering ──
     def dispatch(self, h: BaseHTTPRequestHandler) -> None:
         split = urlsplit(h.path)
-        name, _, rest = split.path.lstrip("/").partition("/")
+        path = split.path.lstrip("/")
+        if self.prefix and path.split("/", 1)[0] == self.prefix:
+            path = path.partition("/")[2]
+        name, _, rest = path.partition("/")
         query = dict(parse_qsl(split.query, keep_blank_values=True))
         headers = {k.lower(): v for k, v in h.headers.items()}
         with self._lock:

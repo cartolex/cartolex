@@ -179,7 +179,7 @@ def test_attempts_are_bounded_and_the_error_says_what_to_do(demo) -> None:
         _authors(client)
     assert len(demo.requests) == 3
     message = str(err.value)
-    assert demo.base_url.split("//")[1] in message
+    assert demo.base_url.split("//")[1].split("/")[0] in message
     assert "status 503" in message and "gave up after 3 attempts" in message
     assert "try again later" in message
 
@@ -452,3 +452,14 @@ def test_unknown_mode_and_cache_only_without_cache_are_refused(demo) -> None:
         HttpClient(local_settings(demo.endpoints()), mode="offline")  # type: ignore[arg-type]
     with pytest.raises(ValueError):
         HttpClient(local_settings(demo.endpoints()), mode="cache_only")
+
+
+def test_cached_answers_of_local_services_survive_a_new_port(tmp_path) -> None:
+    world = generate("XS", 0)
+    with DemoServices(world) as first:
+        _authors(_client(first, tmp_path))
+    with DemoServices(world) as second:
+        assert _authors(_client(second, tmp_path, mode="cache_only")).from_cache
+    with DemoServices(generate("XS", 1)) as other:
+        with pytest.raises(CacheMiss):
+            _authors(_client(other, tmp_path, mode="cache_only"))

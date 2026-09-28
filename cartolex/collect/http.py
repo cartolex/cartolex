@@ -220,13 +220,23 @@ class CursorPaging:
     max_pages: int = 10_000
 
 
+_LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
 def _canonical_url(url: str) -> str:
-    """Scheme and host in lower case, no default port, no trailing slash, no query."""
+    """Scheme and host in lower case, no default port, no trailing slash, no query.
+
+    A service on this computer (the demo services) is ``loopback`` whatever its
+    port, which changes from one run to the next.
+    """
     parts = urlsplit(url)
     host = (parts.hostname or "").lower()
     port = parts.port
     default = {"http": 80, "https": 443}.get(parts.scheme.lower())
-    netloc = host if port in (None, default) else f"{host}:{port}"
+    if host in _LOOPBACK:
+        netloc = "loopback"
+    else:
+        netloc = host if port in (None, default) else f"{host}:{port}"
     path = quote(parts.path.rstrip("/") or "/", safe="/:@-._~!$&'()*+,;=%")
     return urlunsplit((parts.scheme.lower(), netloc, path, "", ""))
 
