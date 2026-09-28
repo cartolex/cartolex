@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import threading
 from pathlib import Path
 
@@ -14,6 +13,7 @@ from _app_extension import make_extension
 from _app_helpers import TOKEN, Client, etag, fake_app, fake_project
 
 from cartolex.app import AppSettings, Branding, Extension, ExtensionError, NavEntry, create_app
+from cartolex.app.jobs import host_digest
 from cartolex.app.logs import JsonFormatter
 from cartolex.app.manifest import Manifest
 
@@ -440,7 +440,7 @@ def test_a_job_whose_process_is_gone_is_interrupted_never_running(tmp_path):
                 "event": "job",
                 "kind": "build",
                 "pid": 2**22 + 7,
-                "host": os.uname().nodename,
+                "host": host_digest(),
                 "boot": None,
             }
         )

@@ -130,7 +130,7 @@ are `queued`, `running`, `cancelling`, `succeeded`, `failed`, `cancelled` and
 « nothing changed » or « finished before the cancel ».
 
 Every job writes `logs/jobs/<job id>.jsonl` in its project: a `job` line (its
-kind, the process and the machine's boot), the build's own events (phases,
+kind, the process, a digest of the machine's name and its boot), the build's own events (phases,
 stage ends with counts and times) and a `job-end` line — never a name or a
 text. After a restart, a job whose log has no end and whose process is gone is
 `interrupted`, never `running`.

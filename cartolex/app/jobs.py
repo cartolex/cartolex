@@ -10,7 +10,8 @@ per project and group at a time (builds and collections share the group
 that runs.
 
 Every job writes ``logs/jobs/<job id>.jsonl`` in its project: a ``job`` line
-(its kind, the process and the machine's boot, never a name or a text), the
+(its kind, the process, a digest of the machine's name and its boot, never a
+name or a text), the
 events of its work (a build writes its own: phases, stage ends, counts, times)
 and a ``job-end`` line. After a restart, a job whose log has no end and whose
 process is gone is reported as ``interrupted``, never as running.
@@ -18,6 +19,7 @@ process is gone is reported as ``interrupted``, never as running.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import socket
@@ -237,7 +239,7 @@ class LocalJobRunner:
             job=job_id,
             kind=kind,
             pid=os.getpid(),
-            host=socket.gethostname(),
+            host=host_digest(),
             boot=boot_id(),
         )
         job.thread = threading.Thread(
@@ -361,6 +363,12 @@ def _error_text(exc: BaseException) -> str:
 # ── logs of earlier jobs ─────────────────────────────────────────────────────
 
 
+def host_digest(name: str | None = None) -> str:
+    """This machine, in a job log: a digest of its name (a name can be a person's)."""
+    raw = (name or socket.gethostname()).encode("utf-8")
+    return "sha256:" + hashlib.sha256(raw).hexdigest()[:16]
+
+
 def _pid_alive(pid: int) -> bool:
     from cartolex.project.lock import _pid_alive as alive
 
@@ -379,7 +387,7 @@ def read_job_logs(jobs_dir: Path, project: str, *, limit: int = 20) -> list[JobI
         return []
     files = sorted(folder.glob("*.jsonl"), reverse=True)[:limit]
     out: list[JobInfo] = []
-    here, boot = socket.gethostname(), boot_id()
+    here, boot = host_digest(), boot_id()
     for path in files:
         events = []
         try:
