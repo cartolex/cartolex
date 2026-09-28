@@ -80,7 +80,9 @@ lists each stage's parameters, their values and where each value comes from:
 a default, a rule computed from the project's size (the depth of the theme
 tree, for instance), or `decisions/params.json`. `--set` writes
 `decisions/params.json`, after checking the value; a value the stage cannot
-take is refused with the reason.
+take is refused with the reason. `--set themes.group.depth=3`, for example,
+groups the keywords into three levels of themes (1 to 4), whatever the rule
+says.
 
 ```bash
 cartolex versions my-project

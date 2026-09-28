@@ -244,10 +244,10 @@ def test_read_bundle_rejects_unsupported_schema_major(tmp_path: Path) -> None:
     write_bundle(bundle, dest)
     meta_path = dest / "bundle_meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    meta["schema"] = "map_bundle/3"
+    meta["schema"] = "map_bundle/4"
     meta_path.write_text(json.dumps(meta), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="map_bundle/3") as excinfo:
+    with pytest.raises(ValueError, match="map_bundle/4") as excinfo:
         read_bundle(dest)
     assert BUNDLE_SCHEMA in str(excinfo.value)
 
@@ -273,7 +273,7 @@ def test_read_bundle_reports_schema_mismatch_before_missing_file(tmp_path: Path)
     write_bundle(bundle, dest)
     meta_path = dest / "bundle_meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    meta["schema"] = "map_bundle/3"
+    meta["schema"] = "map_bundle/4"
     meta_path.write_text(json.dumps(meta), encoding="utf-8")
     (dest / "vocabulary.csv").unlink()  # also missing a file this engine requires
 

@@ -307,3 +307,27 @@ nothing in the engine names a particular deployment, source or procedure.
   (`deploy/Dockerfile`, `docs/hosting.md`). The build takes the job id of its
   log from a runner, and a host's prompt folder and function words
   (`EngineOptions`).
+- **Themes at any depth.** `themes.group` builds the depth its parameters give,
+  1 to 4: the finest level is the term clustering, each coarser level a Ward
+  cut of the one below, and the proposal is a theme tree
+  (`themes_draft.json`). A default project follows the depth rule: the S demo
+  world now gets one level of 15 themes, where the engine used to force 15
+  themes over 23 topics. `themes.apply` applies `decisions/themes.json` or the
+  proposal at any depth, keywords on any level with their attributions, and
+  writes each node's weight and share for every person and organisation, the
+  keywords' weights and the nodes' top keywords (`themes_applied.json`,
+  `theme_keywords.csv`, `theme_people.parquet`, `theme_organisations.parquet`,
+  `docs/format/derived.md`). The layout places the nodes on the map, the
+  trajectories and the projected people carry the weights of every level, and
+  the maps colour each keyword by its node: one hue per top-level node, a
+  shade for each node below. At depth 2 the two-level documents are still
+  written, unchanged; new readers use only the files of any depth. A rebase
+  proposes each new keyword the curated node that holds a majority of its
+  group in the new grouping. The lexicon weights and the map bundle no longer
+  make the people × keywords matrix dense (the same numbers, bit for bit); a
+  bundle carrying the theme tree and its weights is `map_bundle/3`, one
+  without stays `map_bundle/2`. Above 15 000 keywords the clustering runs in
+  two stages, mini-batch k-means micro-clusters then a size-weighted Ward, so
+  its memory no longer grows with the square of the vocabulary. `themes.group`
+  and `themes.apply` are at version 2; `map.layout`, `map.trajectories` and
+  `overlays.position` at version 3. See `docs/dev/themes-engine.md`.

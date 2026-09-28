@@ -267,8 +267,12 @@ def _measures_summary(data: dict) -> str:
     return " · ".join(parts)
 
 
-def check_tests(pythons: list[str], jobs: int) -> Result:
-    """pytest on every Python, at most *jobs* at a time; one summary per version."""
+def check_tests(pythons: list[str], jobs: int, heavy: str | None = None) -> Result:
+    """pytest on every Python, at most *jobs* at a time; one summary per version.
+
+    *heavy* names the Python that also runs the tests marked ``heavy`` (large
+    measures, memory-capped): the full check runs them once, the quick check never.
+    """
     t0 = time.monotonic()
     pending = [(py, ensure_venv(py)) for py in pythons]
     running: list[tuple[str, subprocess.Popen, Path]] = []
@@ -292,6 +296,7 @@ def check_tests(pythons: list[str], jobs: int) -> Result:
                 # The browser tests run once, in the `browser` check.
                 "-m",
                 "not browser",
+                *(["--heavy"] if py == heavy else []),
             ]
             # Each Python keeps its bytecode out of the source tree, so suites running
             # side by side never see each other's cache files. The tree under test comes
@@ -388,7 +393,8 @@ def main(argv: list[str] | None = None) -> int:
         elif name == "browser":
             results.append(check_browser(dev, args.quick))
         elif name == "tests":
-            results.append(check_tests(pythons, int(cfg.get("tests", {}).get("jobs", 2))))
+            heavy = None if args.quick else cfg.get("tests", {}).get("quick", "3.12")
+            results.append(check_tests(pythons, int(cfg.get("tests", {}).get("jobs", 2)), heavy))
         elif name == "reference":
             results.append(check_reference(args.full))
         elif name == "docs":

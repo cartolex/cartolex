@@ -11,15 +11,21 @@ most-general, largest subfield is flagged ``general``.
 Each node is seeded by its **dominant keyword** (the member term with the highest
 ``global_score``), a first-pass label the operator refines while curating the draft
 (``cartolex.lexicon.subfields``). See INTEGRATION.md.
+
+:func:`level_groups` generalises the cut to a theme tree of any depth: each
+coarser level is the same Ward cut of the centroids of the level below
+(:mod:`cartolex.lexicon.theme_tree` builds the tree from it).
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-from scipy.cluster.hierarchy import fcluster, linkage
 from sklearn.preprocessing import normalize
+
+from .clustering import ward_labels
 
 
 def _centroid(Zn: np.ndarray, idx) -> np.ndarray:
@@ -49,8 +55,55 @@ def group_subfields(concept_centroids: np.ndarray, *, target: int) -> np.ndarray
         return np.zeros(n, dtype=int)
     if target >= n:
         return np.arange(n, dtype=int)  # asked for ≥ n subfields → each concept stands alone
-    Z = linkage(normalize(C), method="ward")
-    return fcluster(Z, t=target, criterion="maxclust").astype(int) - 1
+    return ward_labels(normalize(C), target)
+
+
+@dataclass(frozen=True)
+class LevelGroups:
+    """The groups of one level of a theme tree, numbered by their position.
+
+    ``rows`` holds each group's keyword rows: on the finest level in increasing
+    order, above it the rows of its children one child after the other.
+    ``parent`` gives each group's position on the level above (``None`` on the
+    top level).
+    """
+
+    rows: tuple[np.ndarray, ...]
+    parent: np.ndarray | None = None
+
+
+def level_groups(
+    Z_terms: np.ndarray, finest_labels: np.ndarray | list[int], level_sizes: list[int] | tuple
+) -> list[LevelGroups]:
+    """The groups of every level of a theme tree, from the top, over the finest groups given.
+
+    *finest_labels* is each keyword's group on the finest level (the term
+    clustering; a negative label: no group). Each coarser level is the Ward
+    cut (:func:`group_subfields`) of the L2-normalised centroids of the level
+    below at that level's size, ``level_sizes[l]`` (the finest size, the last
+    one, is the clustering's and is not used here). At two levels this is
+    exactly :func:`build_hierarchy`'s cut of the concepts into subfields.
+    """
+    Zn = normalize(np.asarray(Z_terms, dtype=float))
+    labels = np.asarray(finest_labels, dtype=int)
+    numbers = sorted({int(x) for x in labels.tolist() if int(x) >= 0})
+    levels = [LevelGroups(tuple(np.flatnonzero(labels == c) for c in numbers))]
+    for size in reversed(list(level_sizes)[:-1]):
+        below = levels[0]
+        n = len(below.rows)
+        if n >= 2:
+            centroids = np.array([_centroid(Zn, np.sort(r)) for r in below.rows])
+            sub_of = group_subfields(centroids, target=int(size))
+        else:
+            sub_of = np.zeros(n, dtype=int)
+        upper = sorted(set(sub_of.tolist()))
+        position = {g: i for i, g in enumerate(upper)}
+        rows = tuple(
+            np.concatenate([below.rows[p] for p in range(n) if sub_of[p] == g]) for g in upper
+        )
+        levels[0] = LevelGroups(below.rows, np.array([position[int(g)] for g in sub_of], dtype=int))
+        levels.insert(0, LevelGroups(rows))
+    return levels
 
 
 def assign_subfields(

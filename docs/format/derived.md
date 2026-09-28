@@ -18,6 +18,40 @@ A build runs stages. Each has a stable id and a plain name, and writes into
 | `map.trajectories` | change over time | `map.layout` |
 | `overlays.position` | place projected people | `map.layout`, overlays |
 
+## The theme results
+
+The theme stages write, at every depth of the theme tree (1 to 4), the files
+readers use:
+
+| file | what it holds |
+| --- | --- |
+| `themes.group/themes_draft.json` | the grouping's proposal: a `cartolex-themes/1` tree (the format of `decisions/themes.json`), its keywords on its finest level, `based_on` the grouping's run |
+| `themes.apply/themes_tree.json` | the tree applied, as read: `decisions/themes.json` when it exists, else the proposal |
+| `themes.apply/themes_applied.json` | `cartolex-themes-applied/1`: `depth`, `levels` (with names), `source` (`decisions` or `draft`), `weights_basis`, `people_counted`, and every node in tree order with its `id`, `parent`, `level`, `order`, `names`, `color`, `weight`, `share`, `keywords` (on the node itself), `keywords_counted` and `top_keywords` |
+| `map.layout/themes_applied.json` | the same, each node with its place on the map (`x`, `y`) |
+| `themes.apply/theme_keywords.csv` | one row per placed keyword: `term`, `term_index`, `node`, `level` (its node's), `counts_to` (the levels its usage counts toward), `weight`, `share` |
+| `themes.apply/theme_people.parquet` | one row per mapped person and node with a weight: `researcher_id`, `person_id`, `level`, `node`, `weight`, `share` |
+| `themes.apply/theme_organisations.parquet` | one row per organisation (`unit`) and node: `unit`, `level`, `node`, `weight`, `share`, `people` |
+| `map.trajectories/trajectory_themes.parquet` | one row per person, time window and node: `researcher_id`, `window`, `level`, `node`, `weight`, `share` |
+| `overlays.position/<set>/positions.json` | each projected person's `levels`: `[{"level": 1, "nodes": [{"id", "weight", "share"}]}]` |
+
+A person's usage (their TF counts, by default) is divided by its sum over the
+keywords the tree places. Their weight on a node is the part on the keywords
+counting toward it: the keywords on the node and below it, each down to its
+attribution (`0`: nowhere). Their share on a node is that weight over their
+weights on the node's level, so a person's shares sum to 1 on each level where
+they have usage. An organisation adds up its people. A node's `weight` is the
+sum of every person's, and its `share` that sum over the people counted; a
+keyword's likewise. Colours: one hue per top-level node, a shade of it for
+each node below.
+
+At depth 2 the theme stages also write the engine's two-level documents
+(`subfields_draft.json`, `curated.json`, `subfields.json`,
+`subfield_weights.csv`, `lexicon_weights.csv`, the `subfields` and `concepts`
+of `trajectory_windows.json`, the `themes` and `topics` of `positions.json`).
+They serve the numeric reference and the migration of older projects; nothing
+new reads them, and at other depths they are absent (or empty).
+
 ## `run.json`
 
 Every stage folder holds the record of the run that produced it:

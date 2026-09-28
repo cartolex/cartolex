@@ -74,11 +74,41 @@ def project_text(
     top_n: int = 30,
     whitelist_terms: set[str] | None = None,
 ) -> tuple[np.ndarray, list[dict]]:
-    """Transform raw text → SVD embedding + top keywords.
+    """Transform raw text → SVD embedding + top keywords (see :func:`project_text_vector`)."""
+    z_vec, top_keywords, _ = project_text_vector(
+        text,
+        tfidf=tfidf,
+        restricted_terms=restricted_terms,
+        svd=svd,
+        alias_map=alias_map,
+        length_bonus_alpha=length_bonus_alpha,
+        top_k=top_k,
+        top_n=top_n,
+        whitelist_terms=whitelist_terms,
+    )
+    return z_vec, top_keywords
 
-    Returns ``(z_vec, top_keywords_list)`` where ``z_vec`` is the SVD-space
-    coordinate vector and ``top_keywords_list`` are the highest-weighted
-    restricted-vocabulary terms found in *text*.
+
+def project_text_vector(
+    text: str,
+    *,
+    tfidf: Any,
+    restricted_terms: list[str],
+    svd: Any,
+    alias_map: dict[str, str],
+    length_bonus_alpha: float,
+    top_k: int,
+    top_n: int = 30,
+    whitelist_terms: set[str] | None = None,
+) -> tuple[np.ndarray, list[dict], np.ndarray]:
+    """Transform raw text → SVD embedding + top keywords + the keyword vector that places it.
+
+    Returns ``(z_vec, top_keywords_list, x_vec)`` where ``z_vec`` is the
+    SVD-space coordinate vector, ``top_keywords_list`` are the highest-weighted
+    restricted-vocabulary terms found in *text*, and ``x_vec`` is the text's
+    vector over *restricted_terms* before normalisation (the kept terms, with
+    the length bonus): the usage a projected person's theme weights are read
+    from.
 
     The embedding must match exactly how the fitted space was built
     (``compute_keywords_by_researcher``); otherwise projected points land off
@@ -147,7 +177,7 @@ def project_text(
         if x_restricted[i] > 0
     ]
 
-    return z_vec, top_keywords
+    return z_vec, top_keywords, x_restricted
 
 
 # ── Describing a projected vector ─────────────────────────────────────────────

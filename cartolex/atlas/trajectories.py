@@ -200,6 +200,7 @@ def build_trajectory_windows(
     term_to_concept: dict[str, int],
     concept_to_subfield: dict[int, int],
     report: Callable[[float, str], Any] | None = None,
+    describe: Callable[[np.ndarray, np.ndarray], Any] | None = None,
 ) -> dict[str, list[dict]]:
     """Exact per-(researcher, contiguous-bin-window) reprojection + re-weighting.
 
@@ -217,7 +218,9 @@ def build_trajectory_windows(
     run); the full-span key is placed like the whole-history profile. Returns ``{researcher_id: [entry, ...]}`` with
     each entry ``{key, mass, x, y, subfields, concepts}``. Empty input -> ``{}``.
     *report*, when given, is called with the share of researchers done (it may
-    raise to stop the loop).
+    raise to stop the loop). *describe*, when given, is called with each window's
+    term columns and values; what it returns is the entry's ``levels`` (the
+    window's weights on every level of a theme tree, for example).
     """
     from cartolex.lexicon.subfields import researcher_group_weights
 
@@ -249,21 +252,19 @@ def build_trajectory_windows(
                     term_to_concept=term_to_concept,
                     concept_to_subfield=concept_to_subfield,
                 )
-                pending.append(
-                    (
-                        str(rid),
-                        {
-                            "key": f"{starts[i]}_{ends[j]}",
-                            "mass": round(mass, 6),
-                            "subfields": subfields,
-                            "concepts": concepts,
-                        },
-                    )
-                )
+                entry = {
+                    "key": f"{starts[i]}_{ends[j]}",
+                    "mass": round(mass, 6),
+                    "subfields": subfields,
+                    "concepts": concepts,
+                }
+                if describe is not None:
+                    cols = np.flatnonzero(acc > 0)
+                    entry["levels"] = describe(cols, acc[cols])
+                pending.append((str(rid), entry))
     xy = anchors.place(np.vstack(vectors)) if vectors else np.zeros((0, 2))
     for (rid, entry), (x, y) in zip(pending, xy, strict=True):
         entry = {**entry, "x": round(float(x), 4), "y": round(float(y), 4)}
-        out.setdefault(rid, []).append(
-            {k: entry[k] for k in ("key", "mass", "x", "y", "subfields", "concepts")}
-        )
+        keys = ("key", "mass", "x", "y", "subfields", "concepts", "levels")
+        out.setdefault(rid, []).append({k: entry[k] for k in keys if k in entry})
     return out

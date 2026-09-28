@@ -1,0 +1,253 @@
+# SPDX-License-Identifier: MIT
+"""Measure the keyword clustering at any size: exact Ward against micro-clusters then Ward.
+
+Usage::
+
+    python tools/theme_clustering_study.py threshold [--sizes 5000,10000,15000,20000]
+    python tools/theme_clustering_study.py agreement [--sizes 1000,10000,20000] [--demo]
+    python tools/theme_clustering_study.py scale [--sizes 1000,10000,100000]
+
+Every measurement runs in a fresh process (``--one``), which reports its wall
+time and its peak resident memory, so one measure never inherits another's
+memory. Run the large ones through the machine's memory-capped runner.
+
+* ``threshold``: time and peak memory of exact Ward (scipy) by number of keywords,
+  to choose :data:`cartolex.atlas.clustering.EXACT_WARD_LIMIT`;
+* ``agreement``: exact Ward against the two-stage cut on the same points, at
+  the finest level's size (20 keywords per group): adjusted Rand index and the
+  share of keywords whose group changes (after matching the groups one to one).
+  Below the threshold the two-stage cut is forced with fewer micro-clusters
+  (``n/2``, ``n/5``, ``n/10``); above it the engine's own rule applies.
+  ``--demo`` adds the keywords of the stored demo worlds (the drift baseline's
+  SVD keyword vectors, sizes S and L);
+* ``scale``: the engine's path (exact below the threshold, two stages above)
+  at each size: time and peak memory.
+
+The keyword vectors are synthetic: unit vectors in 20 dimensions around topics
+of unequal sizes, like L2-normalised SVD keyword vectors; the same seed gives
+the same points. Ward is sensitive to small moves of the points, so the
+agreement is read against Ward's own: ``noise_changed`` is the share of
+keywords whose group changes when exact Ward runs on the points moved by
+0.1 %; and for synthetic points each cut is also compared with the topics the
+points were drawn around. Nothing here changes a default; it is evidence for
+one.
+"""
+
+from __future__ import annotations
+
+import argparse
+import gzip
+import io
+import json
+import resource
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+import numpy as np
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+KEYWORDS_PER_GROUP = 20
+DIMENSIONS = 20
+
+
+def synthetic_keywords(
+    n: int, *, seed: int = 0, d: int = DIMENSIONS, spread: float = 0.6
+) -> tuple[np.ndarray, np.ndarray]:
+    """*n* unit vectors in *d* dimensions around ``n / 20`` topics of unequal sizes, and their topics."""
+    rng = np.random.default_rng(seed)
+    topics = max(2, n // KEYWORDS_PER_GROUP)
+    centres = rng.normal(size=(topics, d))
+    weights = rng.pareto(1.5, size=topics) + 1.0
+    which = rng.choice(topics, size=n, p=weights / weights.sum())
+    points = centres[which] + rng.normal(scale=spread, size=(n, d))
+    return points / np.linalg.norm(points, axis=1, keepdims=True), which
+
+
+def demo_keywords(size: str) -> np.ndarray:
+    """The SVD keyword vectors of a stored demo world (the drift baseline), L2-normalised."""
+    folder = ROOT / "tests" / "baseline" / size / "space"
+    path = folder / "term_coords.npy.gz"
+    if path.exists():
+        with gzip.open(path, "rb") as fh:
+            Z = np.load(io.BytesIO(fh.read()))
+    else:
+        Z = np.load(folder / "term_coords.npy")
+    from cartolex.atlas.clustering import prepare_cluster_embeddings
+
+    return prepare_cluster_embeddings(np.asarray(Z, dtype=float), 50)
+
+
+def _points(spec: dict) -> np.ndarray:
+    if spec.get("demo"):
+        points = demo_keywords(spec["demo"])
+    else:
+        points = synthetic_keywords(int(spec["n"]), seed=int(spec.get("seed", 0)))[0]
+    if spec.get("noise"):
+        rng = np.random.default_rng(99)
+        points = points + rng.normal(scale=float(spec["noise"]), size=points.shape)
+        points /= np.linalg.norm(points, axis=1, keepdims=True)
+    return points
+
+
+def run_one(spec: dict) -> dict:
+    """One measure, in this process: cluster, save the labels, report time and peak memory."""
+    from cartolex.atlas.clustering import EXACT_WARD_LIMIT, two_stage_ward_labels, ward_labels
+
+    points = _points(spec)
+    n = len(points)
+    k = int(spec.get("k") or max(2, round(n / KEYWORDS_PER_GROUP)))
+    t0 = time.perf_counter()
+    if spec["method"] == "exact":
+        from scipy.cluster.hierarchy import fcluster, linkage
+
+        labels = fcluster(linkage(points, method="ward"), t=k, criterion="maxclust") - 1
+    elif spec["method"] == "two-stage":
+        labels = two_stage_ward_labels(
+            points,
+            k,
+            limit=int(spec.get("limit", EXACT_WARD_LIMIT)),
+            init=spec.get("init", "k-means++"),
+        )
+    else:  # the engine's path
+        labels = ward_labels(points, k)
+    seconds = time.perf_counter() - t0
+    if spec.get("labels"):
+        np.save(spec["labels"], np.asarray(labels, dtype=np.int64))
+    peak_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return {"n": n, "k": k, "seconds": round(seconds, 2), "peak_mb": round(peak_kb / 1024, 1)}
+
+
+def measure(spec: dict) -> dict:
+    """Run :func:`run_one` in a fresh process and return its report."""
+    out = subprocess.run(
+        [sys.executable, __file__, "--one", json.dumps(spec)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(out.stdout.strip().splitlines()[-1])
+
+
+def changed_share(a: np.ndarray, b: np.ndarray) -> float:
+    """The share of points whose group changes once the groups of *a* and *b* are matched one to one."""
+    from scipy.optimize import linear_sum_assignment
+
+    ia = np.unique(a, return_inverse=True)[1]
+    ib = np.unique(b, return_inverse=True)[1]
+    table = np.zeros((ia.max() + 1, ib.max() + 1), dtype=np.int64)
+    np.add.at(table, (ia, ib), 1)
+    rows, cols = linear_sum_assignment(-table)
+    return 1.0 - table[rows, cols].sum() / len(a)
+
+
+def agreement(spec: dict, limits: list[int], inits: tuple[str, ...]) -> list[dict]:
+    """Exact Ward against the two-stage cut with each micro-cluster count of *limits*.
+
+    Also exact Ward on the same points moved by 0.1 % (Ward's own stability:
+    ``noise_changed``) and, for synthetic points, each cut against the topics
+    the points were drawn around (``*_topics_ari``).
+    """
+    from sklearn.metrics import adjusted_rand_score
+
+    topics = None
+    if not spec.get("demo"):
+        topics = synthetic_keywords(int(spec["n"]), seed=int(spec.get("seed", 0)))[1]
+    rows = []
+    with tempfile.TemporaryDirectory() as tmp:
+        exact_path = str(Path(tmp) / "exact.npy")
+        exact = measure({**spec, "method": "exact", "labels": exact_path})
+        a = np.load(exact_path)
+        noisy_path = str(Path(tmp) / "noisy.npy")
+        measure({**spec, "method": "exact", "noise": 1e-3, "labels": noisy_path})
+        noise_changed = round(changed_share(a, np.load(noisy_path)), 3)
+        for limit in limits:
+            for init in inits:
+                path = str(Path(tmp) / f"two-{limit}-{init}.npy")
+                two = measure(
+                    {**spec, "method": "two-stage", "limit": limit, "init": init, "labels": path}
+                )
+                b = np.load(path)
+                row = {
+                    "points": spec.get("demo") or spec["n"],
+                    "groups": exact["k"],
+                    "micro_clusters": min(limit, exact["n"]),
+                    "init": init,
+                    "ari": round(float(adjusted_rand_score(a, b)), 3),
+                    "changed": round(changed_share(a, b), 3),
+                    "noise_changed": noise_changed,
+                }
+                if topics is not None:
+                    row["exact_topics_ari"] = round(float(adjusted_rand_score(topics, a)), 3)
+                    row["two_stage_topics_ari"] = round(float(adjusted_rand_score(topics, b)), 3)
+                row.update(
+                    exact_s=exact["seconds"],
+                    exact_mb=exact["peak_mb"],
+                    two_stage_s=two["seconds"],
+                    two_stage_mb=two["peak_mb"],
+                )
+                rows.append(row)
+    return rows
+
+
+def _table(rows: list[dict]) -> str:
+    if not rows:
+        return ""
+    keys = list(dict.fromkeys(k for r in rows for k in r))
+    lines = ["| " + " | ".join(keys) + " |", "|" + " --- |" * len(keys)]
+    lines += ["| " + " | ".join(str(r.get(k, "")) for k in keys) + " |" for r in rows]
+    return "\n".join(lines)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Command-line entry point."""
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("what", nargs="?", choices=("threshold", "agreement", "scale"))
+    parser.add_argument("--sizes", default="")
+    parser.add_argument("--demo", action="store_true", help="also the stored demo worlds S and L")
+    parser.add_argument(
+        "--inits",
+        default="k-means++",
+        help="micro-clustering starts to compare, e.g. k-means++,random",
+    )
+    parser.add_argument("--one", help=argparse.SUPPRESS)
+    args = parser.parse_args(argv)
+    if args.one:
+        print(json.dumps(run_one(json.loads(args.one))))
+        return 0
+    from cartolex.atlas.clustering import EXACT_WARD_LIMIT
+
+    sizes = [int(s) for s in args.sizes.split(",") if s]
+    inits = tuple(i for i in args.inits.split(",") if i)
+    rows: list[dict] = []
+    if args.what == "threshold":
+        for n in sizes or [5_000, 10_000, 15_000, 20_000]:
+            rows.append(measure({"n": n, "method": "exact"}))
+    elif args.what == "agreement":
+        for n in sizes or [1_000, 10_000, 20_000]:
+            limits = [EXACT_WARD_LIMIT] if n > EXACT_WARD_LIMIT else [n // 2, n // 5, n // 10]
+            rows += agreement({"n": n}, limits, inits)
+        if args.demo:
+            for size in ("S", "L"):
+                n = len(demo_keywords(size))
+                rows += agreement({"demo": size}, [n // 2, n // 5, n // 10], inits)
+    elif args.what == "scale":
+        for n in sizes or [1_000, 10_000, 100_000]:
+            if n <= EXACT_WARD_LIMIT:
+                rows.append({**measure({"n": n, "method": "engine"}), "path": "exact"})
+                continue
+            for init in inits:
+                spec = {"n": n, "method": "two-stage", "init": init}
+                rows.append({**measure(spec), "path": f"two stages ({init})"})
+    else:
+        parser.error("say what to measure: threshold, agreement or scale")
+    print(_table(rows))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

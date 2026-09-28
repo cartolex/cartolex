@@ -7,7 +7,7 @@ The theme tree of a project lives in `decisions/themes.json` (its format is in
 | --- | --- |
 | `cartolex.project.themes` | the operations on a tree, the rebase onto a new vocabulary, the comparison of two trees |
 | `cartolex.project.themes_versions` | saving a tree, listing, reading and restoring its versions |
-| `cartolex.project.themes_curated` | the converters to and from the engine's two-level curated document |
+| `cartolex.project.themes_curated` | the converters to and from the engine's two-level curated document (depth 2) |
 
 Every function of `themes` is pure: it takes a `ThemesFile` and returns a new
 one, never changing its argument. Every tree it returns passes the
@@ -221,14 +221,18 @@ second are ordered by the time their file was written.
 expected=…)` saves it again as a new version with the action `restore <id>`, so
 a restore is undone like any other change.
 
-## The curated document, until the apply stage reads a tree
+## The two-level curated document
 
-The engine's apply stage reads a curated document with two levels: subfields,
-concepts, and term indices (rows of the lexical data). `to_curated(tree, terms,
+The apply stage reads the tree itself, at any depth
+([Themes in the engine](themes-engine.md)). At depth 2 it also writes the
+engine's two-level outputs, as they always were, from a curated document with
+two levels: subfields, concepts, and term indices (rows of the lexical data).
+Those outputs are for the numeric reference and for migrating older projects;
+new readers use the tables of any depth. `to_curated(tree, terms,
 reference_language=…, domain_title=…, scores=None)` writes a depth-2 tree in
 that format, and `from_curated(doc, terms, reference_language=…)` reads a
-curated document or the grouping stage's draft into a tree. `terms` is the
-vocabulary in row order.
+curated document or the grouping stage's two-level draft into a tree. `terms`
+is the vocabulary in row order.
 
 - Level-1 nodes are subfields, level-2 nodes concepts, keywords term indices;
   `label` holds the reference language's name, `label_<lang>` the others;

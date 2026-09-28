@@ -594,6 +594,7 @@ STAGES = Registry(
         Stage(
             "themes.group",
             "group keywords into topics and themes",
+            version=2,  # 2: the levels of the depth asked for, and the proposal tree
             upstream=("themes.space",),
             params=(
                 ParamSpec(
@@ -653,6 +654,7 @@ STAGES = Registry(
         Stage(
             "themes.apply",
             "apply your themes",
+            version=2,  # 2: trees of any depth, and the weights of every level
             upstream=("themes.group",),
             decisions=("decisions/themes.json",),
             cost=CostModel("kept_keywords", 0.01, 2.2e-5, 502.0, 0.037, fallback=("people", 12.0)),
@@ -662,7 +664,7 @@ STAGES = Registry(
         Stage(
             "map.layout",
             "draw the map",
-            version=2,  # 2: points are placed by their nearest people, not by UMAP
+            version=3,  # 2: placed by nearest people; 3: theme nodes placed on the map
             upstream=("themes.apply",),
             decisions=("decisions/maps.json",),
             project=("levels",),
@@ -673,7 +675,7 @@ STAGES = Registry(
         Stage(
             "map.trajectories",
             "change over time",
-            version=2,  # 2: points are placed by their nearest people, not by UMAP
+            version=3,  # 2: placed by nearest people; 3: weights on every theme level
             upstream=("map.layout",),
             project=("slots",),
             params=(
@@ -693,7 +695,7 @@ STAGES = Registry(
         Stage(
             "overlays.position",
             "place projected people",
-            version=2,  # 2: points are placed by their nearest people, not by UMAP
+            version=3,  # 2: placed by nearest people; 3: weights on every theme level
             upstream=("map.layout",),
             project=("overlays",),
             applies=_has_overlays,

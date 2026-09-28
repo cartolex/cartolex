@@ -181,6 +181,25 @@ def _load_hierarchy_doc(ctx: RunContext) -> dict | None:
     return doc if isinstance(doc, dict) else None
 
 
+def _load_theme_view(ctx: RunContext) -> dict | None:
+    """What the maps draw of the applied theme tree (any depth), or None before it is applied.
+
+    Rows of the view are the keywords' rows (the SVD term order, the row order
+    of the clustered keyword table).
+    """
+    from cartolex.atlas.plots import theme_view
+
+    applied_json, keywords_csv = ctx.paths.themes_applied_json, ctx.paths.theme_keywords_csv
+    if not (applied_json.exists() and keywords_csv.exists()):
+        return None
+    try:
+        applied = json.loads(applied_json.read_text(encoding="utf-8"))
+        keywords = pd.read_csv(keywords_csv)
+    except (OSError, ValueError):
+        return None
+    return theme_view(applied, keywords, language=ctx.settings.reference_language)
+
+
 def _load_applied_subfields(ctx: RunContext) -> list[dict] | None:
     """Return kept applied subfields, or None when the subfields are not applied yet."""
     doc = _load_hierarchy_doc(ctx)
@@ -200,17 +219,25 @@ def _concept_anchor_vectors(
 ) -> np.ndarray | None:
     """Concept centroids in SVD space, the anchors of the anchored UMAP layout.
 
-    Prefers the applied hierarchy's concepts (their ``term_indices``); falls
-    back to the raw term clusters when no hierarchy is applied yet (the concepts
-    ARE the term clusters). Returns one L2-normalised centroid per group, or None
-    when neither source exists. *doc*/*cluster_labels* are injectable for tests;
-    by default they are loaded from the run's artefacts (*ctx*).
+    Prefers the finest level of the applied theme tree (the keywords on each
+    of its nodes, at any depth), then the two-level applied hierarchy's
+    concepts (their ``term_indices``); falls back to the raw term clusters when
+    no hierarchy is applied yet (the concepts ARE the term clusters). Returns
+    one L2-normalised centroid per group, or None when no source exists.
+    *doc*/*cluster_labels* are injectable for tests; by default they are
+    loaded from the run's artefacts (*ctx*).
     """
     from sklearn.preprocessing import normalize
 
     Zn = normalize(np.asarray(Z_terms, dtype=float))
     groups: list[list[int]] = []
-    if doc is None and ctx is not None:
+    tree = _applied_tree(ctx.paths, list(terms)) if doc is None and ctx is not None else None
+    if tree is not None:
+        for node in tree.at_level(tree.depth).tolist():
+            idxs = np.flatnonzero(tree.node_of == node).tolist()
+            if idxs:
+                groups.append(idxs)
+    if not groups and doc is None and ctx is not None:
         doc = _load_hierarchy_doc(ctx)
     if isinstance(doc, dict):
         for c in doc.get("concepts", []):
@@ -783,6 +810,7 @@ def _run_lexical_plots(
     paths.atlas_dir.mkdir(parents=True, exist_ok=True)
 
     hierarchy_doc = _load_hierarchy_doc(ctx)
+    themes = _load_theme_view(ctx)
     xs = df_terms_clustered["umap_x"].values
     ys = df_terms_clustered["umap_y"].values
     x_min, x_max = xs.min(), xs.max()
@@ -800,6 +828,7 @@ def _run_lexical_plots(
         ylim=ylim,
         subfields=_load_applied_subfields(ctx),
         hierarchy_doc=hierarchy_doc,
+        themes=themes,
     )
     plot_individuals_and_labs(
         data,
@@ -821,6 +850,7 @@ def _run_lexical_plots(
         xlim=xlim,
         ylim=ylim,
         hierarchy_doc=hierarchy_doc,
+        themes=themes,
     )
     plot_lab_panels(
         data,
@@ -907,6 +937,45 @@ def _lexicon_maps(
     doc = doc if isinstance(doc, dict) else {}
     term_to_concept, concept_to_subfield, _cl, _sl = term_to_group_maps(doc, terms_by_idx)
     return term_to_concept, concept_to_subfield
+
+
+def _applied_tree(paths: Any, terms: list[str]) -> Any:
+    """The theme tree the apply stage applied (any depth), over *terms*; ``None`` before it ran."""
+    from cartolex.lexicon.theme_tree import read_tree
+
+    if not paths.themes_tree_json.exists():
+        return None
+    return read_tree(paths.themes_tree_json, terms)
+
+
+def _write_window_levels(tree: Any, windows: dict[str, list[dict]], out: Path) -> None:
+    """Move each window's ``levels`` into a table: one row per (person, window, node) with a weight."""
+    rows: list[tuple[str, str, int, str, float, float]] = []
+    for rid, entries in windows.items():
+        for entry in entries:
+            for lw in entry.pop("levels", None) or []:
+                for node, w, s in zip(lw.nodes.tolist(), lw.weights, lw.shares, strict=True):
+                    rows.append(
+                        (rid, entry["key"], lw.level, tree.nodes[node].id, float(w), float(s))
+                    )
+    columns = ["researcher_id", "window", "level", "node", "weight", "share"]
+    out.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(rows, columns=columns).to_parquet(out, index=False)
+    logger.info("Wrote %d window theme weights to %s", len(rows), out)
+
+
+def _term_colors(
+    ctx: RunContext, terms_df: pd.DataFrame | None, terms: list[str]
+) -> list[str] | None:
+    """Each keyword's theme colour, one per row of *terms_df* (a table with a ``term`` column)."""
+    view = _load_theme_view(ctx)
+    if view is None or terms_df is None or "term" not in terms_df.columns:
+        return None
+    row_of = {t: i for i, t in enumerate(terms)}
+    return [
+        view["row_color"].get(row_of.get(str(t), -1), "#d9d9d9")
+        for t in terms_df["term"].astype(str)
+    ]
 
 
 def run_trajectories(
@@ -1041,6 +1110,7 @@ def _run_trajectories(
     # the per-window subfield/concept weights are aggregated from each window's
     # own terms through the applied lexicon (evidence-based, not SVD proximity).
     term_to_concept, concept_to_subfield = _lexicon_maps(paths.subfields_json, list(traj.terms))
+    tree = _applied_tree(paths, list(traj.terms))
     windows = build_trajectory_windows(
         traj,
         svd_model=svd_model,
@@ -1048,7 +1118,10 @@ def _run_trajectories(
         term_to_concept=term_to_concept,
         concept_to_subfield=concept_to_subfield,
         report=lambda f, m: ctx.report(0.5 + 0.45 * f, m),
+        describe=None if tree is None else tree.describe,
     )
+    if tree is not None:
+        _write_window_levels(tree, windows, paths.trajectory_themes_parquet)
     windows_path = paths.trajectory_windows_json
     windows_path.write_text(json.dumps(windows, ensure_ascii=False), encoding="utf-8")
     logger.info("Wrote trajectory windows for %d researcher(s) to %s", len(windows), windows_path)
@@ -1065,6 +1138,7 @@ def _run_trajectories(
                 fig_path=paths.cohort_trajectories_png,
                 terms_df=terms_df,
                 legend_title=f"Cohort ({cohort_by})",
+                term_colors=_term_colors(ctx, terms_df, list(data.terms)),
             )
 
 

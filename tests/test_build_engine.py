@@ -154,6 +154,7 @@ def test_an_xs_project_builds_end_to_end(built):
     record = json.loads(project.layout.run_json("themes.group").read_text())
     assert record["measures"]["counts"]["topics"] >= 1
     assert record["parameters"]["depth"]["from"] == "rule"
+    assert record["measures"]["counts"]["depth"] == record["parameters"]["depth"]["value"] == 1
     maps = json.loads(project.layout.maps_json.read_text())
     assert maps["pinned"] == "v1" and maps["versions"][0]["layout"]["method"] == "umap"
     corpus = json.loads(project.layout.run_json("corpus.assemble").read_text())
@@ -162,7 +163,8 @@ def test_an_xs_project_builds_end_to_end(built):
     positions = json.loads(
         (project.layout.stage("overlays.position") / "applicants" / "positions.json").read_text()
     )
-    assert positions["items"] and {"person_id", "x", "y", "themes"} <= set(positions["items"][0])
+    assert positions["items"] and {"person_id", "x", "y", "levels"} <= set(positions["items"][0])
+    assert "themes" not in positions["items"][0]  # the two-level weights exist at depth 2 only
 
 
 def _matches(pattern: str, path: str) -> bool:
@@ -217,6 +219,10 @@ def test_a_curated_theme_tree_is_applied(built, tmp_path):
     from cartolex.project.themes_versions import read_themes, save_themes
 
     project = _copy(built, tmp_path)
+    params, fp = project.read_params()
+    stages = {**params.stages, "themes.group": {"level_sizes": [3, 8]}}  # two levels: both forms
+    project.save_params(params.model_copy(update={"stages": stages}), expected=fp, action="t")
+    assert build(project, year=YEAR, budget_mb=1e9).outcome == "succeeded"
     terms, _ = _vocabulary(project.layout.stage("themes.space"))
     draft = json.loads((project.layout.stage("themes.group") / "subfields_draft.json").read_text())
     tree = from_curated(draft, terms).tree
@@ -228,6 +234,13 @@ def test_a_curated_theme_tree_is_applied(built, tmp_path):
     assert result.ran_ids == ("themes.apply", "map.layout", "map.trajectories", "overlays.position")
     applied = json.loads((project.layout.stage("map.layout") / "subfields.json").read_text())
     assert "Renamed theme" in [s["label"] for s in applied["subfields"]]
+    generic = json.loads((project.layout.stage("map.layout") / "themes_applied.json").read_text())
+    assert generic["source"] == "decisions"
+    assert {"id": first, "names": {"en": "Renamed theme"}}.items() <= {
+        "id": generic["nodes"][0]["id"],
+        "names": {"en": generic["nodes"][0]["names"]["en"]},
+    }.items()
+    assert (project.layout.stage("themes.apply") / "curated.json").exists()
     rebased, _ = read_themes(project)
     assert rebased.based_on.vocabulary is not None  # rebased before the stage ran
     assert project.config.identity.frozen  # a curation decision froze it

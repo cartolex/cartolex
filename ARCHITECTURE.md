@@ -50,7 +50,8 @@ See `docs/dev/engine.md`.
 | `llm_triage`, `triage_typed`, `llm_filter`, `llm_prompts`, `llm_usage`, `mistral_client`, `credentials` | **Stage 2 (optional)**: LLM keyword triage — term strings only, cached; token usage recorded by the run's `UsageRecorder` |
 | `prompt_store` | Loads prompt templates from a prompt directory (default: `cartolex/_data/prompts/`), checked when used |
 | `consolidation`, `canonicalization` | **Stage 3**: canonical dedup, scoring, per-entity/unit/global outputs |
-| `subfields`, `subfields_edit`, `labels`, `lexicon_store` | Concept → subfield hierarchy (deterministic draft), curation apply/edit, optional LLM translation of display labels |
+| `theme_tree` | The theme tree of 1 to 4 levels in the engine: the grouping's proposal, reading a curated tree over the vocabulary, applying it (every level's weights for people, organisations and keywords, never with a dense matrix) |
+| `subfields`, `subfields_edit`, `labels`, `lexicon_store` | The two-level concept → subfield documents (written at depth 2), curation apply/edit, optional LLM translation of display labels |
 | `positioning` | Project new documents (a projected set) into a fitted SVD space and place them on the map; nearest terms and concept/subfield weights of a projected vector |
 | `pdf_text`, `pdf_corpus` | Generic PDF→text extraction with a per-document hook |
 | `whitelist` | The axis and person whitelists, read from the explicit files given |
@@ -65,11 +66,11 @@ See `docs/dev/engine.md`.
 | `io` | TF-IDF matrix assembly from the corpus contract |
 | `reducers` | SVD embeddings, the UMAP (or anchored t-SNE) layout of the people |
 | `placement` | Place keywords, projected documents and time bins on a finished map by their nearest people (the heaviest linked group of eight) |
-| `clustering` | Ward clustering of terms (cosine, SVD space) → concepts + proto-subfields |
-| `hierarchy` | Concept/subfield hierarchy documents |
+| `clustering` | Ward clustering of terms (cosine, SVD space) → concepts + proto-subfields; exact below a size threshold, micro-clusters then a size-weighted Ward above it |
+| `hierarchy` | Concept/subfield hierarchy documents; the groups of every level of a theme tree |
 | `plots` | Static maps (entities+labs, term clusters, superposed, panels); matplotlib is imported on first use |
 | `trajectories` | Per-(entity, time-bin) fingerprints projected through the SVD and placed on the map |
-| `map_bundle` | The portable `map_bundle/2` format (build, write, read, validate) — in-memory inputs, explicit destinations |
+| `map_bundle` | The portable `map_bundle/2` format, and `/3` with a theme tree (build, write, read, validate) — in-memory inputs, explicit destinations |
 | `model_files` | The fitted objects a project stores (vectorizer, lexical data, embeddings, SVD) as a JSON descriptor and an `.npz` array file, never a pickle; loading rebuilds them. No layout model: the embeddings hold the map |
 | `map_merge`, `reconcile`, `map_metrics` | Merging several fitted maps into one (multi-cohort reconciliation + quality metrics) |
 | `diagnostics`, `types` | Diagnostics and shared dataclasses |
