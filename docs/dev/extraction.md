@@ -30,6 +30,8 @@ stages (AI triage, consolidation, the atlas) read the same tables as before.
    one-letter words and the language's function words (below) break a phrase.
    The parser's sentence boundaries are not used: inside a stretch without
    punctuation they are mostly errors (a boundary inside a hyphenated word).
+   An elided word is a unit of its own, and the word after it starts a unit,
+   as after a space (see [word boundaries](#word-boundaries-and-elision)).
 5. **Patterns.** Every contiguous span of at most five units that fully
    matches the language's pattern is one occurrence of a candidate, nested
    spans included: `sediment transport model` also counts `sediment transport`,
@@ -39,7 +41,7 @@ stages (AI triage, consolidation, the atlas) read the same tables as before.
    | --- | --- | --- |
    | English | `(ADJ\|NOUN\|PROPN)* (NOUN\|PROPN\|gerund)` | `sea surface temperature`, `distributed systems`, `decision making` |
    | French | `NOUN ADJ* ((de\|du\|des\|d'\|à\|au\|aux) DET? (NOUN\|PROPN) ADJ*)?` | `trait de côte`, `masse d'eau`, `zone à risque`, `variabilité interannuelle du niveau marin` |
-   | Portuguese | the French shape, with `de`, `em`, `por`, `para`, `com`, `a` and their contractions (`do`, `da`, `dos`, `das`, `no`, `na`, `nos`, `nas`, `pelo`, `pela`, `pelos`, `pelas`, `ao`, `aos`, `à`, `às`) | `linha de costa`, `nível do mar`, `transporte pela corrente` |
+   | Portuguese | the French shape, with `de` (and its elided `d'`), `em`, `por`, `para`, `com`, `a` and their contractions (`do`, `da`, `dos`, `das`, `no`, `na`, `nos`, `nas`, `pelo`, `pela`, `pelos`, `pelas`, `ao`, `aos`, `à`, `às`) | `linha de costa`, `nível do mar`, `transporte pela corrente`, `coluna d'água` |
 
    An English `of` complement (`degrees of freedom`) is a switch of the
    lexicon lab, off: most English `X of Y` spans are phrasing (`role of
@@ -61,6 +63,49 @@ stages (AI triage, consolidation, the atlas) read the same tables as before.
 
 The code is `cartolex/lexicon/noun_phrases.py`; the patterns and classes are
 tested on hand-built parses in `tests/test_noun_phrases.py`, without any model.
+
+### Word boundaries and elision
+
+French writes some words elided before a vowel, with an apostrophe (straight
+or typographic): the article `l'`, the preposition `d'`, and the pronouns and
+conjunctions `qu'`, `j'`, `n'`, `s'`, `c'`, `m'`, `t'`; Portuguese elides
+`de` the same way (`d'água`). An elided word is a word unit of its own, and
+the word after it starts a unit, exactly as after a space:
+
+- The French model splits the elided word off (`l'` + `apprentissage`). A
+  token a model leaves whole — the Portuguese model keeps `d'água` as one
+  noun — is split by the extraction into the elided word and the rest, with
+  the rest's lemma; without that, `coluna d'água` was a noun followed by an
+  unknown noun `d'água`, never a candidate.
+- `d'` is the preposition `de` (its key part is `de`), `l'` an article (left
+  out of keys); the other elided words are pronouns or conjunctions and
+  break a phrase.
+- A word with an apostrophe inside it stays one word (`aujourd'hui`,
+  `presqu'île`, the compound `olho-d'água`), and Portuguese contractions
+  (`do`, `na`, `pelo`, `às`) are words of their own, prepositions of the
+  pattern: nothing is split off them.
+- The shown form writes no space after an elided word (`masse d'eau`), and
+  `cartolex.lexicon.text_utils.term_words` cuts a shown term back into the
+  same words (`systèmes`, `d'`, `information`, `géographique`).
+
+What sees these boundaries:
+
+- **The part-of rule** works on the units themselves: a phrase after `l'`
+  nests in a longer one exactly as a phrase after `la ` does.
+  `apprentissage profond` sits in `choix de l'apprentissage profond` as
+  `méthode statistique` sits in `choix de la méthode statistique`, and each
+  is set aside only when it is never seen outside that one longer phrase
+  (`tests/test_scoring.py`).
+- **The project's rejections**: a rejected word blocks the terms it is a word
+  of, after an elision too (`information` blocks `systèmes d'information
+  géographique`).
+- Two text-level rules read the words between spaces, where an elided word
+  goes with the next one: the length bonus (`masse d'eau` counts two words,
+  `trait de côte` three) and the consolidation's nested filter (it does not
+  see `information géographique` inside `systèmes d'information
+  géographique`). Giving them the extraction's boundaries was measured and
+  left out: it moves no band and loses field terms (see
+  [the lexicon lab](lexicon-lab.md#word-boundaries-and-elision)).
 
 ### Function words
 
@@ -92,8 +137,9 @@ with its person, its organisation (the index's `unit`) and its parts:
    weights per text part exist as switches of the lexicon lab, see
    {doc}`lexicon-lab`; they are not settings.)
 4. **Length bonus.** `score_len = score × (1 + length_bonus_alpha × (L − 1))`,
-   `L` being the number of words of the term (prepositions and articles
-   included).
+   `L` being the number of words of the term, prepositions and articles
+   included, as written between spaces (an elided `d'` or `l'` goes with the
+   word after it: `masse d'eau` has two).
 
 With the defaults this is exactly the historical scoring (one document per
 person, raw counts).
@@ -117,13 +163,21 @@ The rules are checked in the order `part-of`, `name`, `low-score`, then
 `single-word`, `common-modifier`, `below-threshold`, `multiword`. With the
 defaults, a candidate is kept (a phrase of two content words or more), to
 check (one content word) or set aside (a fragment of a longer candidate).
-The AI clean-up judges the kept and to-check bands and never sees the
-set-aside band; with its decisions, the consolidation keeps only accepted
-terms, so a set-aside candidate reaches the lexicon only if the same concept
-is accepted under another form. Without the AI clean-up, bands remove
-nothing: the consolidation reads every candidate. The rules and their
-defaults come from the lexicon lab ({doc}`lexicon-lab`); the rules marked
-off are its switches, not settings.
+Only the kept and to-check bands can reach the lexicon
+(`scoring.LEXICON_BANDS`, the one constant the triage and the consolidation
+share); the set-aside band stays in the raw tables with its reason. The AI
+clean-up judges those two bands and never sees the set-aside band; with its
+decisions, the consolidation keeps only accepted terms (its acceptance
+gate), so a set-aside candidate reaches the lexicon only if the same concept
+is accepted under another form. Without the AI clean-up, the consolidation's
+band gate (`consolidation.band_allowed_concepts`) keeps a concept only when
+one of its raw terms is in the kept or to-check band, so the set-aside band
+does not reach the lexicon either. Either way an explicit keep wins: the
+manual keep list (`manual_keep.csv`; in a project, the `keep` rows of
+`decisions/keywords.csv`). A raw table without a `band` column, from an
+older run, is read whole. Both gates report what they remove in the run's
+progress. The rules and their defaults come from the lexicon lab
+({doc}`lexicon-lab`); the rules marked off are its switches, not settings.
 
 ### The raw keyword tables
 

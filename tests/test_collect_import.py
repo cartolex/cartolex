@@ -284,8 +284,9 @@ def test_a_folder_of_documents_one_file_at_a_time(tmp_path) -> None:
     }
     parts = read_source_table(project.layout.table("text_parts"), "text_parts").to_pylist()
     assert {(p["part"], p["provider"]) for p in parts} == {("full", "folder")}
+    # The build reads a folder's documents whole by default: params.json is left alone.
     params, _ = project.read_params()
-    assert "full" in params.stages["corpus.assemble"]["parts"]
+    assert "corpus.assemble" not in params.stages
     assert project.config.slots[-1].kind == "folder"
     project.close()
 

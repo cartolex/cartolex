@@ -28,6 +28,7 @@ import json
 import os
 import secrets
 import tempfile
+from collections import defaultdict
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -183,15 +184,29 @@ class RawWriter:
 
 @dataclass(frozen=True)
 class RawRun:
-    """One raw run file: its slot, kind, id, header, and its records (read on demand)."""
+    """One raw run file: its slot, kind, id, header, and its records (read on demand).
+
+    With a *digests* cache (:class:`cartolex.collect.digests.DigestCache`), the
+    records of a digested kind come from the run's digest.
+    """
 
     path: Path
     slot: str
     kind: str
     run_id: str
     header: dict[str, Any]
+    digests: Any = field(default=None, compare=False, repr=False)
 
     def records(self) -> Iterator[dict[str, Any]]:
+        if self.digests is not None:
+            from .digests import DIGESTERS
+
+            if self.kind in DIGESTERS:
+                return self.digests.records(self)
+        return self.raw_records()
+
+    def raw_records(self) -> Iterator[dict[str, Any]]:
+        """The records as the run holds them."""
         with open(self.path, encoding="utf-8") as fh:
             next(fh, None)
             for n, line in enumerate(fh, start=2):
@@ -203,8 +218,11 @@ class RawRun:
                     raise ValueError(f"{self.path}, line {n}: not valid JSON ({exc})") from exc
 
 
-def read_runs(layout: ProjectLayout, slot: str, kind: str | None = None) -> list[RawRun]:
-    """The runs of *slot* (of one *kind*, or all), in time order."""
+def read_runs(
+    layout: ProjectLayout, slot: str, kind: str | None = None, *, digests: Any = None
+) -> list[RawRun]:
+    """The runs of *slot* (of one *kind*, or all), in time order; with *digests*, the records
+    of digested kinds are read from their digests."""
     root = raw_folder(layout, slot)
     if not root.is_dir():
         return []
@@ -223,7 +241,7 @@ def read_runs(layout: ProjectLayout, slot: str, kind: str | None = None) -> list
                 raise ValueError(f"{path}: the header line is not valid JSON ({exc})") from exc
             if header.get("format") != RAW_FORMAT:
                 raise ValueError(f"{path}: not a raw run (format {header.get('format')!r})")
-            runs.append(RawRun(path, slot, k, path.stem, header))
+            runs.append(RawRun(path, slot, k, path.stem, header, digests))
     return sorted(runs, key=lambda r: (r.run_id, r.kind))
 
 
@@ -368,6 +386,12 @@ class SourceBuilder:
         #: finders (:mod:`cartolex.collect.merge`), and the links finders stated between texts.
         self.text_records: dict[str, list[dict[str, Any]]] = {}
         self.text_links: list[tuple[str, str, str]] = []
+        # Indexes kept as rows come in, so that a lookup never scans every row.
+        self._affiliated: dict[str, set[str]] = defaultdict(set)
+        self._orgs_version = 0
+        self._words_version = -1
+        self._words_index: dict[tuple[str, ...], set[str]] = {}
+        self._existing_idx: dict[str, Any] | None = None
 
     def count(self, what: str, n: int = 1) -> None:
         self.counts[what] = self.counts.get(what, 0) + n
@@ -445,6 +469,7 @@ class SourceBuilder:
             "retrieved_at": retrieved_at,
         }
         org = self.orgs.get(oid)
+        self._orgs_version += 1
         if org is None:
             self.orgs[oid] = _Org(fields, list(parent_keys))
         else:
@@ -454,43 +479,65 @@ class SourceBuilder:
             org.parent_keys += [k for k in parent_keys if k not in org.parent_keys]
         return oid
 
+    def _existing_index(self) -> dict[str, Any]:
+        """The old tables' organisations and affiliations, indexed once (they never change)."""
+        if self._existing_idx is None:
+            from .names import words
+
+            names: dict[str, tuple[str, str]] = {}
+            by_words: dict[tuple[str, ...], set[str]] = defaultdict(set)
+            if "organisations" in self.existing:
+                given = self.registry.given("organisations")
+                table = self.existing["organisations"].select(
+                    ["org_id", "name", "acronym", "source"]
+                )
+                for row in table.to_pylist():
+                    names.setdefault(row["org_id"], (row["name"], row["source"]))
+                    if row["org_id"] in given:
+                        continue
+                    for text in (row["name"], row["acronym"] or ""):
+                        key = tuple(words(text))
+                        if key:
+                            by_words[key].add(row["org_id"])
+            affs: dict[str, set[str]] = defaultdict(set)
+            if "affiliations" in self.existing:
+                table = self.existing["affiliations"].select(["person_id", "org_id"])
+                for row in table.to_pylist():
+                    affs[row["person_id"]].add(row["org_id"])
+            self._existing_idx = {"names": names, "words": by_words, "affiliations": affs}
+        return self._existing_idx
+
     def affiliated_orgs(self, person_id: str) -> list[tuple[str, str, str]]:
         """``(org_id, name, source)`` of every organisation *person_id* is affiliated with so far."""
-        names = {oid: (o.fields["name"], o.fields["source"]) for oid, o in self.orgs.items()}
-        if "organisations" in self.existing:
-            for row in (
-                self.existing["organisations"].select(["org_id", "name", "source"]).to_pylist()
-            ):
-                names.setdefault(row["org_id"], (row["name"], row["source"]))
-        oids = {oid for (pid, oid, _src) in self.affiliations if pid == person_id}
-        if "affiliations" in self.existing:
-            for row in self.existing["affiliations"].select(["person_id", "org_id"]).to_pylist():
-                if row["person_id"] == person_id:
-                    oids.add(row["org_id"])
-        return sorted((oid, *names[oid]) for oid in oids if oid in names)
+        old = self._existing_index()
+        oids = set(self._affiliated.get(person_id, ())) | old["affiliations"].get(person_id, set())
+        out = []
+        for oid in oids:
+            org = self.orgs.get(oid)
+            if org is not None:
+                out.append((oid, org.fields["name"], org.fields["source"]))
+            elif oid in old["names"]:
+                out.append((oid, *old["names"][oid]))
+        return sorted(out)
 
     def org_by_name(self, name: str) -> str | None:
         """The one organisation named *name* (case, accents and punctuation aside), if any."""
         from .names import words
 
-        wanted = words(name)
+        wanted = tuple(words(name))
         if not wanted:
             return None
-        hits = {
-            oid
-            for oid, org in self.orgs.items()
-            if words(org.fields["name"]) == wanted
-            or words(org.fields.get("acronym") or "") == wanted
-        }
-        if "organisations" in self.existing:
-            given = self.registry.given("organisations")
-            for row in (
-                self.existing["organisations"].select(["org_id", "name", "acronym"]).to_pylist()
-            ):
-                if row["org_id"] in given:
-                    continue
-                if words(row["name"]) == wanted or words(row["acronym"] or "") == wanted:
-                    hits.add(row["org_id"])
+        if self._words_version != self._orgs_version:
+            by_words: dict[tuple[str, ...], set[str]] = defaultdict(set)
+            for oid, org in self.orgs.items():
+                for text in (org.fields["name"], org.fields.get("acronym") or ""):
+                    key = tuple(words(text))
+                    if key:
+                        by_words[key].add(oid)
+            self._words_index, self._words_version = by_words, self._orgs_version
+        hits = set(self._words_index.get(wanted, ())) | self._existing_index()["words"].get(
+            wanted, set()
+        )
         return hits.pop() if len(hits) == 1 else None
 
     def organisation_parents(self, oid: str, parents: Sequence[str]) -> None:
@@ -509,6 +556,7 @@ class SourceBuilder:
         span = self.affiliations.get(key)
         if span is None:
             self.affiliations[key] = [start, end]
+            self._affiliated[person_id].add(org_id)
             return
         if start is not None:
             span[0] = start if span[0] is None else min(span[0], start)
@@ -623,6 +671,22 @@ class SourceBuilder:
                     parents.append(pid)
             org.fields["parents"] = parents
 
+    def _confirmed_ids(self, people: dict[str, dict[str, Any]]) -> None:
+        """An idHAL confirmed as a person's record (``hal:<idHAL>`` in ``decisions/people.csv``)
+        joins their ``ids``, where the next HAL collection looks for it."""
+        if not self.layout.people_csv.exists():
+            return
+        for row in read_decision_csv(self.layout.people_csv, "people"):
+            person = people.get(row["person_id"])
+            if person is None or row["identity"] not in ("confirmed", "auto"):
+                continue
+            idhal = [r.split(":", 1)[1] for r in row["records"].split(";") if r.startswith("hal:")]
+            if not idhal:
+                continue
+            ids = dict(person["ids"] or {})
+            ids["idhal"] = sorted(set(ids.get("idhal") or []) | set(idhal))
+            person["ids"] = ids
+
     def _aliases(self, people: dict[str, dict[str, Any]]) -> None:
         """The name forms of rows merged into another join that person's aliases."""
         if not self.layout.people_csv.exists():
@@ -686,6 +750,7 @@ class SourceBuilder:
                     kept[name].append(row)
         people_all = {p["person_id"]: p for p in kept["people"] + built["people"]}
         self._aliases(people_all)
+        self._confirmed_ids(people_all)
         # Positions: a slot's texts in year order (unknown years last), then by id.
         texts = kept["texts"] + built["texts"]
         by_slot: dict[str, list[dict[str, Any]]] = {}
@@ -727,14 +792,19 @@ def default_readers() -> dict[str, Reader]:
     """cartolex's readers, by raw folder name, in the order they run."""
     from .hal import read_hal_runs
     from .harvest import read_openalex_runs, read_orcid_runs
+    from .institutions import read_institution_runs
     from .people_import import read_corpus_runs, read_folder_runs, read_people_runs
     from .providers import read_improve_runs
     from .scielo import read_scielo_runs
+    from .snowball import read_snowball_runs
 
     return {
         "people": read_people_runs,
         "corpus": read_corpus_runs,
         "folder": read_folder_runs,
+        # People taken from institutions come before the works harvested for them.
+        "institution": read_institution_runs,
+        "snowball": read_snowball_runs,
         "openalex": read_openalex_runs,
         "orcid": read_orcid_runs,
         # Resolution proposals are kept for the record; no table is built from them.
@@ -746,6 +816,10 @@ def default_readers() -> dict[str, Reader]:
         # Candidates found by a name are proposals: no table is built from them.
         "hal_candidates": lambda runs, builder: None,
         "scielo_candidates": lambda runs, builder: None,
+        # Failures are kept for the coverage report: no table is built from them.
+        "failures": lambda runs, builder: None,
+        # An institution's proposal: people enter only when taken (``institution`` runs).
+        "institution_proposals": lambda runs, builder: None,
     }
 
 
@@ -760,6 +834,8 @@ class RebuildReport:
     skipped_kinds: list[str] = field(default_factory=list)
     #: Texts merged across finders, per rule (see ``sources/merges.json``).
     merges: dict[str, int] = field(default_factory=dict)
+    #: Runs read whole and digested by this rebuild (the others were read from their digests).
+    digested: int = 0
 
 
 def rebuild_sources(
@@ -768,6 +844,8 @@ def rebuild_sources(
     *,
     readers: Mapping[str, Reader] | None = None,
     finder_priority: Sequence[str] | None = None,
+    incremental: bool = True,
+    jobs: int | None = None,
 ) -> RebuildReport:
     """Rebuild the six source tables from every slot's raw runs and write them.
 
@@ -777,10 +855,18 @@ def rebuild_sources(
     (:mod:`cartolex.collect.merge`, fields filled by *finder_priority*) and the
     merges listed in ``sources/merges.json``. Rebuilding from the same raw
     records and the same kept rows writes the same bytes.
+
+    With *incremental* (the default), a harvest's runs are read from their
+    digests in ``cache/sources/`` (:mod:`cartolex.collect.digests`): only the
+    runs not digested yet are read whole, in *jobs* worker processes when they
+    are many, and a run superseded for everyone it names is not read at all.
     """
+    from .digests import DIGESTERS, DigestCache
+    from .harvest import current_runs
     from .merge import FINDER_PRIORITY, merge_texts, write_merge_log
 
     readers = dict(readers or default_readers())
+    digests = DigestCache(layout, jobs=jobs) if incremental else None
     slots = [s.id for s in config.slots]
     registry = IdRegistry(layout, slots)
     existing = {
@@ -791,8 +877,19 @@ def rebuild_sources(
     builder = SourceBuilder(layout, config, registry, existing)
     report = RebuildReport()
     order = list(readers)
+    every_run: list[RawRun] = []
+    by_slot = {slot: read_runs(layout, slot, digests=digests) for slot in slots}
+    if digests is not None:
+        needed = []
+        for runs in by_slot.values():
+            every_run += runs
+            for kind in DIGESTERS:
+                of_kind = [r for r in runs if r.kind == kind]
+                current = current_runs(of_kind)
+                needed += [r for r in of_kind if r.run_id in current]
+        digests.prepare(needed)
     for slot in slots:
-        runs = read_runs(layout, slot)
+        runs = by_slot[slot]
         report.runs += len(runs)
         kinds = sorted(
             {r.kind for r in runs},
@@ -811,6 +908,9 @@ def rebuild_sources(
         write_source_table(layout.table(name), name, table)
         report.rows[name] = table.num_rows
     write_merge_log(layout, merged)
+    if digests is not None:
+        digests.save(every_run)
+        report.digested = digests.digested
     report.counts = dict(builder.counts)
     report.warnings = list(builder.warnings)
     report.merges = merged.counts()

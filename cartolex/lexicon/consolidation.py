@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from datetime import date
 from typing import TYPE_CHECKING
 
@@ -27,6 +27,7 @@ from .lexicon_store import (
     load_manual_blacklist,
     load_translation_map,
 )
+from .scoring import LEXICON_BANDS
 from .tfidf_utils import (
     compute_keywords_by_researcher,
     compute_keywords_by_unit,
@@ -110,6 +111,30 @@ def counted_forms(raw: pd.DataFrame) -> dict[str, str]:
             if form:
                 out[form] = row.concept
     return out
+
+
+def band_allowed_concepts(raw: pd.DataFrame, keep: Collection[str]) -> set[str] | None:
+    """The concepts of *raw* that may reach the lexicon by their band, or ``None``.
+
+    *raw* holds the merged raw terms with their ``concept``. A concept may
+    reach the lexicon when one of its raw terms is in a band of
+    :data:`~cartolex.lexicon.scoring.LEXICON_BANDS` (kept, to check) or has
+    no band (a row of an older table), or when the concept or one of its raw
+    terms is explicitly kept (*keep*, lower case). A concept whose every raw
+    term is set aside may not. ``None`` when *raw* has no ``band`` column
+    (tables of an older run): every concept may, as before bands existed.
+    """
+    if "band" not in raw.columns:
+        return None
+    kept = set(keep)
+    band = raw["band"]
+    open_rows = (
+        band.isna()
+        | band.isin(LEXICON_BANDS)
+        | raw["term"].astype(str).str.strip().str.lower().isin(kept)
+    )
+    concepts = set(raw.loc[open_rows, "concept"])
+    return concepts | (set(raw["concept"]) & kept)
 
 
 def counting_ngram_range(
@@ -325,6 +350,21 @@ def _run_pipeline_core(
         n_dropped = n_before - len(df_refined)
         if n_dropped:
             report(29, f"LLM acceptance gate removed {n_dropped} terms not seen by LLM")
+    else:
+        # Band gate: without LLM decisions, the set-aside band does not reach
+        # the lexicon either (with them, the acceptance gate drops it: the LLM
+        # never judges it). A concept passes when one of its raw terms is in
+        # the kept or to-check band, or when it is explicitly kept (manual
+        # keep list); set-aside candidates stay in the raw tables with their
+        # band and reason. Tables without a band column (an older run) are
+        # read whole.
+        allowed_by_band = band_allowed_concepts(global_df, manual_keep)
+        if allowed_by_band is not None:
+            n_before = len(df_refined)
+            df_refined = df_refined[df_refined["concept"].isin(allowed_by_band)]
+            n_dropped = n_before - len(df_refined)
+            if n_dropped:
+                report(29, f"Band gate removed {n_dropped} set-aside terms (no LLM decisions)")
 
     df_refined = df_refined.sort_values("score", ascending=False).reset_index(drop=True)
 
@@ -595,9 +635,12 @@ def run_pipeline(ctx: RunContext, *, progress_callback=None) -> None:
 
     Reads the raw keyword tables, the triage decisions and the operator
     files named by ``ctx.paths``; applies the run's stop-word additions and
-    removals (``ctx.stopwords``); writes the refined lists, the per-person,
-    per-group and domain tables, the restricted vectorizer and term aliases,
-    the person roster and the run's settings snapshot.
+    removals (``ctx.stopwords``). With triage decisions, only accepted terms
+    reach the lexicon; without them, every candidate but the set-aside band
+    (see :func:`band_allowed_concepts`); an explicit keep wins either way.
+    Writes the refined lists, the per-person, per-group and domain tables,
+    the restricted vectorizer and term aliases, the person roster and the
+    run's settings snapshot.
     """
     with ctx.threads.applied():
         _run_pipeline_core(ctx, progress_callback=ctx.percent_reporter(progress_callback))

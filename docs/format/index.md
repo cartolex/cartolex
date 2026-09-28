@@ -30,7 +30,8 @@ schemas
   decisions/            what people decided; small, readable, keyed by stable names
     history/            every earlier version of every decision file
   derived/              what cartolex computed; one folder per stage, each with its run.json
-  cache/                costly to recompute: AI answers, parsed texts, service responses
+  cache/                costly to recompute: AI answers, parsed texts, service responses,
+                        digests of the raw runs
   outputs/              offline atlases, figures, tables, map bundles (default root)
   logs/                 one record per job
 ```

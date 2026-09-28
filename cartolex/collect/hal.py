@@ -37,6 +37,7 @@ from .finders import (
     normalise_doi,
 )
 from .http import (
+    CacheMiss,
     Cancelled,
     CursorPaging,
     HttpClient,
@@ -44,6 +45,7 @@ from .http import (
     ServiceError,
     ServiceUnavailable,
 )
+from .outcomes import failure_record, write_failures
 from .tables import RawRun, RawWriter, SourceBuilder, iso, parse_time
 
 __all__ = [
@@ -369,6 +371,8 @@ def collect_hal(
     wanted_structures: set[int] = set()
     failures_in_a_row = 0
     proposals: list[dict[str, Any]] = []
+    failed: list[dict[str, Any]] = []
+    searched: list[str] = []
     with RawWriter(layout, slot, "hal", header) as run:
         for n, person in enumerate(people):
             client.progress(n / max(1, len(people)), f"HAL: person {n + 1} of {len(people)}")
@@ -383,14 +387,17 @@ def collect_hal(
                     _by_name(client, person, window, proposals, report)
                 else:
                     report.skip("no idHAL")
+                    continue
                 failures_in_a_row = 0
+                searched.append(person.person_id)
             except Cancelled:
                 raise
-            except ServiceError as exc:
-                if _budget_spent(client, exc):
+            except (ServiceError, CacheMiss) as exc:
+                if isinstance(exc, ServiceError) and _budget_spent(client, exc):
                     raise
                 failures_in_a_row += 1
                 report.failures.append({"person_id": person.person_id, "error": str(exc)})
+                failed.append(failure_record(person.person_id, "hal", exc))
         if wanted_structures:
             client.progress(1.0, "HAL: structures")
             try:
@@ -400,7 +407,12 @@ def collect_hal(
                 if _budget_spent(client, exc):
                     raise
                 report.failures.append({"person_id": "", "error": f"structures: {exc}"})
+        # The people reached: a later search supersedes an earlier failure (coverage).
+        run.header["searched"] = searched
     report.runs.append(run.path)
+    failures_run = write_failures(layout, slot, "hal", failed)
+    if failures_run is not None:
+        report.runs.append(failures_run)
     if proposals:
         with RawWriter(layout, slot, "hal_candidates", header) as run:
             for candidate in proposals:
@@ -490,6 +502,8 @@ def _by_name(
                     key,
                     {
                         "idhal": form.idhal,
+                        # What confirms it, as for any finder (resolve.confirm).
+                        "record": f"hal:{form.idhal}" if form.idhal else None,
                         "full_name": form.full_name,
                         "works": [],
                         "structures": [],

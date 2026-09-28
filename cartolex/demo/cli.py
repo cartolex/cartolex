@@ -3,9 +3,10 @@
 
 ::
 
-    python -m cartolex.demo create --size S --seed 0 --out DIR [--corpus]
+    python -m cartolex.demo create --size S --seed 0 --out DIR [--corpus] [--layer]
     python -m cartolex.demo services --size S --seed 0 [--port 8765] [--people-list FILE] [--list-only]
     python -m cartolex.demo scale --people 100000 --seed 0 --out DIR [--workers 4]
+    python -m cartolex.demo snapshot --size S --seed 0 --out DIR
 """
 
 from __future__ import annotations
@@ -36,6 +37,11 @@ def main(argv: list[str] | None = None) -> int:
         "--corpus",
         action="store_true",
         help="also write the engine's corpus contract in OUT/workspace",
+    )
+    create.add_argument(
+        "--layer",
+        action="store_true",
+        help="also write every name the demo services invent, in OUT/layer/strings.txt",
     )
     create.add_argument("--force", action="store_true", help="replace a demo world already in OUT")
     create.add_argument(
@@ -74,11 +80,21 @@ def main(argv: list[str] | None = None) -> int:
     scale.add_argument(
         "--workers", default=1, type=int, help="processes composing the texts (default 1)"
     )
+    snap = sub.add_parser(
+        "snapshot", help="write a mini OpenAlex snapshot of the demo services' index"
+    )
+    snap.add_argument("--size", default="S", type=str.upper, choices=sorted(SIZES))
+    snap.add_argument("--seed", default=0, type=int, help="the world's seed (default 0)")
+    snap.add_argument("--languages", default="en,fr", help="en,fr (default) or en,fr,pt")
+    snap.add_argument("--layer-seed", default=0, type=int, help="the bibliographic layer's seed")
+    snap.add_argument("--out", required=True, type=Path, help="the snapshot's folder")
     args = parser.parse_args(argv)
     if args.command == "services":
         return _services(args)
     if args.command == "scale":
         return _scale(args)
+    if args.command == "snapshot":
+        return _snapshot(args)
 
     started = time.perf_counter()
     try:
@@ -112,6 +128,14 @@ def main(argv: list[str] | None = None) -> int:
             f"corpus contract: {manual['rows']} index rows, {manual['texts']} texts, "
             f"{manual['people']} people -> {args.out / 'workspace'}"
         )
+    if args.layer:
+        from .services import build_bibliography, layer_strings
+
+        strings = layer_strings(build_bibliography(world))
+        out = args.out / "layer" / "strings.txt"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text("\n".join(strings) + "\n", encoding="utf-8")
+        print(f"services layer: {len(strings)} invented strings -> {out}")
     print(f"done in {time.perf_counter() - started:.1f}s")
     return 0
 
@@ -133,6 +157,20 @@ def _scale(args: argparse.Namespace) -> int:
         f"{summary.characters} characters -> {args.out}"
     )
     print(f"done in {time.perf_counter() - started:.1f}s")
+    return 0
+
+
+def _snapshot(args: argparse.Namespace) -> int:
+    from .services import build_bibliography, write_snapshot
+
+    try:
+        world = generate(size=args.size, seed=args.seed, languages=args.languages)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    manifest = write_snapshot(build_bibliography(world, args.layer_seed), args.out)
+    counts = ", ".join(f"{e['meta']['record_count']} {e['entity']}" for e in manifest["entities"])
+    print(f"snapshot of world {args.size}/{args.seed}: {counts} -> {args.out}")
     return 0
 
 

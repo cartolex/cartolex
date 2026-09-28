@@ -46,7 +46,8 @@ def test_texts_have_their_parts_languages_and_types(confirmed, services) -> None
     harvest(project, client(services, project))
     texts = {t["text_id"]: t for t in _table(project, "texts")}
     parts = _table(project, "text_parts")
-    by_title = {w.title: w for w in bib.world.works}
+    # World works, and the index's own works (the large collaboration some people signed).
+    by_title = {w.title: w for w in bib.world.works} | {w.title: w for w in bib.works.values()}
     for p in parts:
         world = by_title[texts[p["text_id"]]["title"]]
         assert p["language"] == world.language and p["provider"] == "openalex"

@@ -47,7 +47,7 @@ evaluation procedure or any particular field.
 ## 3. Checks
 
 `python tools/check.py` must pass before any merge (see `docs/dev/checks.md`).
-It runs ruff, the vocabulary scan, the tests on every supported Python, the
+It runs ruff, the vocabulary scan, the tests on the oldest supported Python, the
 reference comparison and the strict docs build. Lint with the pinned ruff from
 the project's development extra, not another version.
 

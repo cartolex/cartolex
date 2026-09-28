@@ -238,7 +238,7 @@
     },
     "Slot": {
       "additionalProperties": true,
-      "description": "One ordered way texts enter the project.",
+      "description": "One ordered way texts enter the project.\n\n``years`` (optional) is the window of publication years collections of this\nslot use by default; a collection given another window explicitly uses that.",
       "properties": {
         "doc_types": {
           "anyOf": [
@@ -279,6 +279,17 @@
           "default": true,
           "title": "Trajectory",
           "type": "boolean"
+        },
+        "years": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/YearWindow"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -286,6 +297,42 @@
         "kind"
       ],
       "title": "Slot",
+      "type": "object"
+    },
+    "YearWindow": {
+      "additionalProperties": true,
+      "description": "A window of publication years, both ends inclusive; an end left ``null`` is open.",
+      "properties": {
+        "from": {
+          "anyOf": [
+            {
+              "maximum": 2200,
+              "minimum": 1000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From"
+        },
+        "to": {
+          "anyOf": [
+            {
+              "maximum": 2200,
+              "minimum": 1000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "To"
+        }
+      },
+      "title": "YearWindow",
       "type": "object"
     }
   },

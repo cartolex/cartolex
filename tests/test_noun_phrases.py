@@ -156,6 +156,89 @@ def test_french_contractions_and_articles_group_by_lemma() -> None:
     assert ("plage à houle", "plages à la houle") in found
 
 
+def test_a_french_phrase_after_an_elided_word_starts_as_after_a_space() -> None:
+    """« choix de l'apprentissage profond » and « choix des méthodes statistiques » nest alike."""
+    elided = make_doc(
+        "fr",
+        [
+            ("le", "DET", "le"),
+            ("choix", "NOUN", "choix"),
+            ("de", "ADP", "de"),
+            ("l’", "DET", "le", "", "", "", False),
+            ("apprentissage", "NOUN", "apprentissage"),
+            ("profond", "ADJ", "profond"),
+        ],
+    )
+    spaced = make_doc(
+        "fr",
+        [
+            ("le", "DET", "le"),
+            ("choix", "NOUN", "choix"),
+            ("des", "ADP", "de"),
+            ("méthodes", "NOUN", "méthode"),
+            ("statistiques", "ADJ", "statistique"),
+        ],
+    )
+    lp = npx.PATTERNS["fr"]
+    for doc, inner, outer in (
+        (elided, "apprentissage profond", "choix de apprentissage profond"),
+        (spaced, "méthode statistique", "choix de méthode statistique"),
+    ):
+        a = npx.analyse(doc, "fr")
+        found = {s.key: s for s in npx.spans(a, lp, npx.lemma_table([a]))}
+        # The inner phrase is found where it starts, with the longer one around it.
+        assert found[inner].classes == "NA"
+        assert found[inner].containers == (outer,)
+        assert found[outer].classes in ("NPDNA", "NPNA")
+    assert "choix de l’apprentissage profond" in surfaces(candidates("fr", elided))
+
+
+def test_french_elided_pronouns_and_conjunctions_break_a_phrase() -> None:
+    """« qu' », « s' », « n' » … are not part of a term: the noun after them starts one."""
+    doc = make_doc(
+        "fr",
+        [
+            ("qu'", "SCONJ", "que", "", "", "", False),
+            ("aucune", "DET", "aucun"),
+            ("étude", "NOUN", "étude"),
+            ("s'", "PRON", "se", "", "", "", False),
+            ("appuie", "VERB", "appuyer"),
+            ("sur", "ADP", "sur"),
+            ("l'", "DET", "le", "", "", "", False),
+            ("érosion", "NOUN", "érosion"),
+            ("côtière", "ADJ", "côtier"),
+        ],
+    )
+    assert keys(candidates("fr", doc)) == {"étude", "érosion", "érosion côtier"}
+
+
+def test_a_french_elision_left_attached_by_the_tokenizer_is_split() -> None:
+    """A token « l'apprentissage » or « d'eau » is cut as the French models usually cut it."""
+    attached = make_doc(
+        "fr",
+        [
+            ("l'apprentissage", "NOUN", "apprentissage"),
+            ("automatique", "ADJ", "automatique"),
+            ("et", "CCONJ", "et"),
+            ("la", "DET", "le"),
+            ("masse", "NOUN", "masse"),
+            ("D’eau", "NOUN", "d’eau"),
+            ("et", "CCONJ", "et"),
+            ("qu'estuaire", "NOUN", "qu'estuaire"),
+            ("et", "CCONJ", "et"),
+            ("aujourd'hui", "ADV", "aujourd'hui"),
+            ("presqu'île", "NOUN", "presqu'île"),
+        ],
+    )
+    found = candidates("fr", attached)
+    assert ("apprentissage automatique", "apprentissage automatique") in found
+    assert ("masse de eau", "masse d’eau") in found
+    # « qu' » breaks the phrase; a word with an apostrophe inside stays whole.
+    assert "estuaire" in keys(found) and "presqu'île" in keys(found)
+    a = npx.analyse(attached, "fr")
+    assert a.runs[0] == (("l'", "D"), ("apprentissage", "N"), ("automatique", "A"))
+
+
 def test_french_participle_is_an_adjective_and_function_words_break() -> None:
     doc = make_doc(
         "fr",
@@ -224,6 +307,56 @@ def test_portuguese_contractions_share_their_preposition() -> None:
     assert found[("erosão de praia", "erosão das praias")] == 1
     assert ("transporte por corrente", "transporte pela corrente") in found
     assert ("corrente para costa", "corrente para a costa") in found
+
+
+def test_a_portuguese_elided_preposition_is_a_word_unit() -> None:
+    """« coluna d'água »: the model keeps « d'água » as one token; it is split into « d' » and « água »."""
+    doc = make_doc(
+        "pt",
+        [
+            ("a", "DET", "o"),
+            ("coluna", "NOUN", "coluna"),
+            ("d'água", "NOUN", "d'água"),
+            ("e", "CCONJ", "e"),
+            ("os", "DET", "o"),
+            ("níveis", "NOUN", "nível"),
+            ("d’água", "NOUN", "d’águo"),
+            ("extremos", "ADJ", "extremo"),
+        ],
+    )
+    found = candidates("pt", doc)
+    assert ("coluna de água", "coluna d'água") in found
+    assert ("nível de água extremo", "níveis d’água extremos") in found
+    # The word after the elision is a candidate of its own, as after a space.
+    assert ("água", "água") in found
+    assert not any(k.startswith(("d'", "d’")) for k in keys(found))
+    a = npx.analyse(doc, "pt")
+    assert a.runs[0] == (("a", "D"), ("coluna", "N"), ("d'", "P"), ("água", "N"))
+    assert {("água", "água", 1), ("água", "águo", 1)} <= set(a.lemmas)
+    # A word with an apostrophe inside it is one word: « olho-d'água ».
+    compound = make_doc("pt", [("o", "DET", "o"), ("olho-d'água", "NOUN", "olho-d'água")])
+    assert keys(candidates("pt", compound)) == {"olho-d'água"}
+
+
+def test_portuguese_contractions_are_words_not_elisions() -> None:
+    """« do », « pelo », « nas » are prepositions of their own; nothing is split off them."""
+    doc = make_doc(
+        "pt",
+        [
+            ("nível", "NOUN", "nível"),
+            ("do", "ADP", "de o"),
+            ("mar", "NOUN", "mar"),
+            ("pelo", "ADP", "por o"),
+            ("método", "NOUN", "método"),
+            ("nas", "ADP", "em o"),
+            ("praias", "NOUN", "praia"),
+        ],
+    )
+    a = npx.analyse(doc, "pt")
+    assert [c for _, c in a.runs[0]] == list("NPNPNPN")
+    found = candidates("pt", doc)
+    assert ("nível de mar", "nível do mar") in found
+    assert ("método em praia", "método nas praias") in found
 
 
 def test_portuguese_article_is_not_a_preposition() -> None:

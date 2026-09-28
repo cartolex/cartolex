@@ -4,33 +4,46 @@
 Every request goes through the job's :class:`~cartolex.collect.http.HttpClient`,
 with its kind (for the cache lifetime) and the kinds of data it sends:
 
-============================== ======================= ==============
-request                        kind                    sends
-============================== ======================= ==============
-``authors?search=``            ``person_search``       a name
-``authors?filter=orcid:``      ``authors_by_orcid``    an identifier
-``authors/<id>``               ``author``              an identifier
-``institutions?search=``       ``institution_search``  an institution name
-``works?filter=author.id:``    ``works_by_author``     identifiers
-``works?filter=doi:``          ``works_by_doi``        DOIs, 50 at a time
-============================== ======================= ==============
+============================================= =========================== ==============
+request                                       kind                        sends
+============================================= =========================== ==============
+``authors?search=``                           ``person_search``           a name
+``authors?filter=orcid:``                     ``authors_by_orcid``        an identifier
+``authors/<id>``                              ``author``                  an identifier
+``institutions?search=``                      ``institution_search``      an institution name
+``institutions/<id>``, ``institutions/ror:``  ``institution``             an identifier
+``institutions?filter=lineage:``              ``institution_units``       identifiers
+``works?filter=author.id:``                   ``works_by_author``         identifiers
+``works?filter=authorships.institutions.``    ``works_by_institution``    identifiers
+``lineage:``
+``works?filter=doi:``                         ``works_by_doi``            DOIs, 50 at a time
+============================================= =========================== ==============
 
-Lists of works use cursor paging at the documented maximum of 100 per page.
+Lists use cursor paging at the documented maximum of 100 per page.
+:class:`OpenAlexApi` gathers these requests behind the methods every finder
+uses, so that the snapshot (:class:`cartolex.collect.snapshot.SnapshotSource`)
+can stand in for the API.
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Sequence
-from typing import Any
+from typing import Any, Protocol
 
 from .http import CursorPaging, Fetched, HttpClient, NotFound
 
 __all__ = [
+    "AUTHOR_BATCH",
     "DOI_BATCH",
     "PAGING",
     "PER_PAGE",
+    "OpenAlexApi",
+    "OpenAlexSource",
     "author",
+    "institution",
+    "institution_units",
+    "parse_institution_ref",
     "authors_by_orcid",
     "bare_doi",
     "doc_type",
@@ -40,6 +53,8 @@ __all__ = [
     "short_id",
     "works_by_authors",
     "works_by_dois",
+    "works_by_institutions",
+    "works_of_authors",
 ]
 
 SERVICE = "openalex"
@@ -47,7 +62,12 @@ SERVICE = "openalex"
 PER_PAGE = 100
 #: DOIs asked for in one request (the documented limit of one filter is 100 values).
 DOI_BATCH = 50
+#: Author records asked for in one request, when many people's works are needed at once.
+AUTHOR_BATCH = 50
 _ID = re.compile(r"([AWIST]\d+)$", re.IGNORECASE)
+_INSTITUTION = re.compile(r"(?:^|/|\b)(I\d{2,})\b", re.IGNORECASE)
+#: A ROR id: ``0``, six characters of Crockford's base 32, two check digits.
+_ROR = re.compile(r"(?:ror\.org/|ror:|^)\s*(0[0-9a-hjkmnp-tv-z]{6}\d{2})\b", re.IGNORECASE)
 
 
 def _check_list(data: Any) -> None:
@@ -149,6 +169,95 @@ def author(client: HttpClient, author_id: str) -> Fetched | None:
         )
     except NotFound:
         return None
+
+
+def parse_institution_ref(text: str) -> str | None:
+    """``I…`` (an OpenAlex institution) or ``ror:0…`` (a ROR id) from an id or a URL holding one."""
+    text = (text or "").strip()
+    ror = _ROR.search(text)
+    if ror and ("ror" in text.lower() or len(text) == 9):
+        return f"ror:{ror.group(1).lower()}"
+    found = _INSTITUTION.search(text)
+    return found.group(1).upper() if found else None
+
+
+def institution(client: HttpClient, ref: str) -> Fetched | None:
+    """One institution record, by its OpenAlex id or ``ror:<id>``; ``None`` when there is none."""
+    try:
+        return client.get_json(
+            SERVICE,
+            f"institutions/{ref}",
+            kind="institution",
+            sends=["identifier"],
+            validate=_check_entity,
+        )
+    except NotFound:
+        return None
+
+
+def institution_units(client: HttpClient, roots: Sequence[str]) -> Fetched:
+    """The institutions *roots* and every unit below them (their ``lineage`` holds a root)."""
+    ids = sorted({r for r in roots if r})
+    if not ids:
+        raise ValueError("no institution to ask for")
+    return client.get_all(
+        SERVICE,
+        "institutions",
+        {"filter": "lineage:" + "|".join(ids), "per_page": PER_PAGE},
+        kind="institution_units",
+        sends=["identifier"],
+        paging=PAGING,
+        validate=_check_list,
+    )
+
+
+def works_by_institutions(
+    client: HttpClient, roots: Sequence[str], *, years: tuple[int, int] | None = None
+) -> Fetched:
+    """Every work an author signed at one of *roots* or a unit below it, within *years*."""
+    ids = sorted({r for r in roots if r})
+    if not ids:
+        raise ValueError("no institution to ask for")
+    filters = ["authorships.institutions.lineage:" + "|".join(ids), *_window(years)]
+    return client.get_all(
+        SERVICE,
+        "works",
+        {"filter": ",".join(filters), "per_page": PER_PAGE},
+        kind="works_by_institution",
+        sends=["identifier"],
+        paging=PAGING,
+        validate=_check_list,
+    )
+
+
+def works_of_authors(
+    client: HttpClient, author_ids: Sequence[str], *, years: tuple[int, int] | None = None
+) -> tuple[dict[str, list[dict[str, Any]]], list[Fetched]]:
+    """The works of each author record, asked :data:`AUTHOR_BATCH` records at a time.
+
+    Returns author id → its works (a work of two of them is under both), and the answers.
+    """
+    ids = sorted({a for a in author_ids if a})
+    out: dict[str, list[dict[str, Any]]] = {a: [] for a in ids}
+    answers = []
+    for i in range(0, len(ids), AUTHOR_BATCH):
+        batch = set(ids[i : i + AUTHOR_BATCH])
+        fetched = works_by_authors(client, sorted(batch), years=years)
+        answers.append(fetched)
+        for work in fetched.data:
+            for aid in _work_authors(work) & batch:
+                out[aid].append(work)
+    return out, answers
+
+
+def _work_authors(work: dict[str, Any]) -> set[str]:
+    return {
+        a
+        for a in (
+            short_id((x.get("author") or {}).get("id")) for x in work.get("authorships") or []
+        )
+        if a
+    }
 
 
 def search_institutions(client: HttpClient, name: str, *, per_page: int = 5) -> list[dict]:
@@ -256,3 +365,75 @@ def record_summary(record: dict[str, Any]) -> dict[str, Any]:
         "last_year": max(years) if years else None,
         "topics": [t.get("display_name") for t in (record.get("topics") or [])[:3]],
     }
+
+
+# ── sources: the API, or the snapshot ────────────────────────────────────────
+
+Years = tuple[int | None, int | None] | None
+
+
+def api_window(years: Years) -> tuple[int, int] | None:
+    """A year window as the request builders take it (0 for an open end)."""
+    if years is None or (years[0] is None and years[1] is None):
+        return None
+    return (years[0] or 0, years[1] or 0)
+
+
+class OpenAlexSource(Protocol):
+    """What the finders ask of OpenAlex; :class:`OpenAlexApi` and the snapshot answer it."""
+
+    #: Where the records come from, as a job's record and the privacy summary name it.
+    label: str
+
+    def author(self, author_id: str) -> Fetched | None: ...
+
+    def works_by_authors(self, author_ids: Sequence[str], years: Years) -> Fetched: ...
+
+    def works_by_dois(self, dois: Iterable[str]) -> list[tuple[dict[str, Any], Fetched]]: ...
+
+    def institution(self, ref: str) -> Fetched | None: ...
+
+    def search_institutions(self, name: str) -> list[dict[str, Any]]: ...
+
+    def institution_units(self, roots: Sequence[str]) -> Fetched: ...
+
+    def works_by_institutions(self, roots: Sequence[str], years: Years) -> Fetched: ...
+
+    def works_of_authors(
+        self, author_ids: Sequence[str], years: Years
+    ) -> dict[str, list[dict[str, Any]]]: ...
+
+
+class OpenAlexApi:
+    """OpenAlex through its API, request by request, through the job's client."""
+
+    label = "api"
+
+    def __init__(self, client: HttpClient) -> None:
+        self.client = client
+
+    def author(self, author_id: str) -> Fetched | None:
+        return author(self.client, author_id)
+
+    def works_by_authors(self, author_ids: Sequence[str], years: Years) -> Fetched:
+        return works_by_authors(self.client, author_ids, years=api_window(years))
+
+    def works_by_dois(self, dois: Iterable[str]) -> list[tuple[dict[str, Any], Fetched]]:
+        return works_by_dois(self.client, dois)
+
+    def institution(self, ref: str) -> Fetched | None:
+        return institution(self.client, ref)
+
+    def search_institutions(self, name: str) -> list[dict[str, Any]]:
+        return search_institutions(self.client, name, per_page=10)
+
+    def institution_units(self, roots: Sequence[str]) -> Fetched:
+        return institution_units(self.client, roots)
+
+    def works_by_institutions(self, roots: Sequence[str], years: Years) -> Fetched:
+        return works_by_institutions(self.client, roots, years=api_window(years))
+
+    def works_of_authors(
+        self, author_ids: Sequence[str], years: Years
+    ) -> dict[str, list[dict[str, Any]]]:
+        return works_of_authors(self.client, author_ids, years=api_window(years))[0]

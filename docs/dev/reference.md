@@ -136,7 +136,8 @@ kept in `.cache/reference/reports/` (`<name>.md` for the reference,
 ### Through a project
 
 With `--via-project`, each demo world is also written as a cartolex project
-(`cartolex.demo.project.write_project`) and `run.py --project` runs the engine
+(`cartolex.demo.project.write_project`, its people without attributes, as the
+workspace's index has none) and `run.py --project` runs the engine
 through the project build (`cartolex.build.build`) instead of calling it on the
 workspace. The adapter's `ProjectEngine` sets the project's decisions to the
 workspace run's settings (`set_reference_decisions`: the recency window, the AI

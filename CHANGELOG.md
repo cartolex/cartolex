@@ -169,12 +169,34 @@ nothing in the engine names a particular deployment, source or procedure.
   word as too generic unless it is a term of art, and gives a term of
   another language the canonical form of the reference-language term that
   names the same thing. The AI caches' keys are unchanged.
+- **Set-aside candidates stay out of the lexicon without AI too.** Without AI
+  decisions, the consolidation's band gate keeps only the concepts with a
+  candidate in the kept or to-check band
+  (`cartolex.lexicon.scoring.LEXICON_BANDS`, the constant the triage now
+  shares in place of `JUDGED_BANDS`) and reports what it removed in the run's
+  progress. Set-aside candidates stay in the raw tables with their band and
+  reason; an explicit keep (the manual keep list, a `keep` in
+  `decisions/keywords.csv`) still wins, and a raw table without a `band`
+  column is read whole. With AI decisions nothing changes (`keywords.build`,
+  stage version 2).
 - **The browser-handoff test.** `tools/lexicon_lab/handoff_bundles.py` writes, from
   a project build of a demo world, the bundles a person hands to a chat
   assistant (a prompt, the numbered terms with their evidence, the answer
   format, zipped; parts sized to fit one conversation), and
   `tools/lexicon_lab/score_handoff.py` scores the answers against the
   world's truth, beside the lab's oracle.
+- **Elided words are words of their own.** An elided article, preposition,
+  pronoun or conjunction (`l'`, `d'`, `qu'`, `s'` …, straight or typographic
+  apostrophe) is a word unit of its own, and the word after it starts one, as
+  after a space. A token the language model leaves whole is split: the
+  Portuguese model keeps `d'água` as one noun, so `coluna d'água` or `massas
+  d'água` were never candidates (`keywords.extract`, stage version 3; parse
+  cache patterns `np2`). `text_utils.term_words` cuts a shown term back into
+  the extraction's words, and a word of the project's rejections now blocks a
+  term after an elision too. The part-of rule already saw the elision; the
+  nested filter and the length bonus still read words between spaces, a
+  choice the lexicon lab measured (`docs/dev/lexicon-lab.md`). English and
+  French candidates of the demo worlds are unchanged.
 - **Demo bodies.** `generate(..., bodies=True)` (`--bodies`) gives every work
   a long, repetitive body with generic filler (introduction, methods,
   results, discussion, captions) in its language, from a random stream of its
@@ -226,6 +248,36 @@ nothing in the engine names a particular deployment, source or procedure.
   links), each provider declaring what it sends. `body` and `full` parts are
   private (`PRIVATE_PARTS`). The HTTP client reads bytes answers
   (`get_bytes`), and the demo services serve all of these services offline.
+- **Institutions, collaborators, the snapshot and coverage.** People come in
+  from institutions (`cartolex collect institutions`, `propose_people` and
+  `take_people`: by OpenAlex or ROR id, or found by name; every unit below
+  the institutions; authors with enough works in the window, with their
+  evidence; affiliations dated by work; organisations with the project's
+  levels, mapped from the index's types, and every parent; split records
+  suggested, never merged) and from collaborators (`collect collaborators`,
+  `snowball`: co-authors of confirmed seeds round by round, with the joint
+  works, the path back to a seed and a topical fit; works of more than 25
+  authors left out; whole rounds up to a cap; `context` by default;
+  decisions in `snowball.csv`). The OpenAlex snapshot stands in for the API
+  (`collect snapshot`, `--snapshot`; `cartolex.collect.snapshot` streams its
+  partitions, in worker processes on request, and gives the same tables).
+  The coverage report (`collect coverage`, `cartolex.collect.coverage`) says
+  who is good, thin, failed or without data, why (the first blocking
+  cause), by organisation, year and language, and offers a retry of what
+  failed, documents for one person, or an exclusion; a person's failed
+  collection is recorded and the job goes on. HAL and SciELO proposals are
+  confirmed like OpenAlex records (`hal:<idHAL>`, `orcid:…`) and listed with
+  them (`identity_queue`). A slot may set its window of years
+  (`project.json`, `collect window`), `params.json` the collection's
+  parameters (`collect`); the raw runs, the id registry and the merge log
+  are documented as part of the format. Rebuilding the tables reads the
+  harvests from digests in `cache/sources/`, so only new runs are read
+  whole; PDFs are read in a worker process with a timeout. The build reads a
+  folder's or a corpus's documents whole and a collection's texts (not its
+  datasets or software) by rules on the slot's kind, and people's attributes
+  reach the engine's index. The demo layer gains RORs, a joint unit, outside
+  co-authors' own works, a 30-author collaboration and a mini snapshot, and
+  the vocabulary scan reads the names it invents.
 - **The engine on a project.** Each stage runs the engine
   (`cartolex.build.engine`): an ownership table gives every engine file a
   place in the project, the layout's amendments of earlier files are copied

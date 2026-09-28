@@ -28,7 +28,9 @@ if TYPE_CHECKING:
     from .stages import Registry, Stage
 
 __all__ = [
+    "DOC_TYPES_BY_SLOT_KIND",
     "GLOBAL_PARAMS",
+    "PARTS_BY_SLOT_KIND",
     "RULES",
     "SIZE_NAMES",
     "CrossCheck",
@@ -162,6 +164,35 @@ class Rule:
     compute: Callable[[ProjectSizes], Any]
 
 
+#: The parts of a text read by default, by the kind of its slot: collected texts by their
+#: title and abstract (a full text collected on request counts only when asked for),
+#: documents a person gave (a folder, a corpus) whole.
+PARTS_BY_SLOT_KIND: dict[str, list[str]] = {
+    "collection": ["title", "abstract"],
+    "folder": ["title", "abstract", "full"],
+    "corpus": ["title", "abstract", "full"],
+}
+
+#: The document types read by default, by the kind of the slot: a collection slot reads
+#: texts (articles, preprints, books and their chapters, theses, reports, communications),
+#: not the datasets, software or peer reviews an index also lists; a folder or a corpus
+#: slot reads every document it was given. A slot's own ``doc_types`` replace these.
+DOC_TYPES_BY_SLOT_KIND: dict[str, list[str] | None] = {
+    "collection": [
+        "article",
+        "book",
+        "chapter",
+        "communication",
+        "preprint",
+        "proceedings",
+        "report",
+        "review",
+        "thesis",
+    ],
+    "folder": None,
+    "corpus": None,
+}
+
 RULES: dict[str, Rule] = {
     rule.name: rule
     for rule in (
@@ -176,6 +207,24 @@ RULES: dict[str, Rule] = {
             "20 up to 2 000 people, then 20 × √(people / 2 000), at most 200",
             ("people",),
             lambda s: space_dimensions(s.people or 1),
+        ),
+        Rule(
+            "doc_types_by_slot_kind",
+            "a collection slot reads articles, preprints, reviews, books, chapters, theses, "
+            "reports and communications; a folder or a corpus slot every document; a slot's "
+            "own doc_types replace these",
+            (),
+            lambda s: {
+                kind: (list(types) if types is not None else None)
+                for kind, types in DOC_TYPES_BY_SLOT_KIND.items()
+            },
+        ),
+        Rule(
+            "parts_by_slot_kind",
+            "title and abstract for a collection slot; title, abstract and the whole document "
+            "for a folder or a corpus slot",
+            (),
+            lambda s: {kind: list(parts) for kind, parts in PARTS_BY_SLOT_KIND.items()},
         ),
     )
 }
@@ -273,9 +322,12 @@ class ParamSpec:
         return None
 
     def coerce(self, value: Any) -> Any:
-        """The value as stored in a record (a float parameter set to 1 is 1.0)."""
+        """The value as stored in a record (a float parameter set to 1 is 1.0); a rule's value
+        by slot kind stays a mapping."""
         if self.type == "float":
             return float(value)
+        if isinstance(value, Mapping):
+            return {k: self.coerce(v) for k, v in value.items()}
         if self.type in ("list", "ints") and value is not None:
             return list(value)
         return value

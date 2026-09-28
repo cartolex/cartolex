@@ -46,8 +46,15 @@ def _table(name: str, rows: list[dict]) -> pa.Table:
     return pa.table({f.name: [r.get(f.name) for r in rows] for f in schema}, schema=schema)
 
 
-def write_project(world: DemoWorld, root: Path | str, *, name: str | None = None) -> Project:
-    """Create a project in *root* (empty or missing) from *world*; return it, open for writing."""
+def write_project(
+    world: DemoWorld, root: Path | str, *, name: str | None = None, attributes: bool = True
+) -> Project:
+    """Create a project in *root* (empty or missing) from *world*; return it, open for writing.
+
+    People carry the attributes an imported list would give them (career stage, site),
+    which reach the engine's index; with *attributes* false they carry none, as the
+    world's own corpus contract (the reference run through a project compares the two).
+    """
     languages = sorted({w.language for w in world.works}, key=lambda lang: (lang != "fr", lang))
     project = Project.init(
         Path(root),
@@ -106,7 +113,7 @@ def write_project(world: DemoWorld, root: Path | str, *, name: str | None = None
                 if value
             ],
             "source": "import",
-            "columns": [("career_stage", p.career_stage), ("site", p.site)],
+            "columns": [("career_stage", p.career_stage), ("site", p.site)] if attributes else [],
             "retrieved_at": STAMP,
         }
         for p in world.people

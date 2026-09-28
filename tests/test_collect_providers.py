@@ -381,18 +381,10 @@ def test_a_broken_file_only_loses_its_own_text(demo, tmp_path, monkeypatch) -> N
     rows = [{"text_id": f"h{i}", "ids": {"hal": d.hal_id}} for i, d in enumerate(others[:3])]
     project = _texts(tmp_path, rows)
     demo.faults.add("malformed", service="hal", path=others[0].hal_id + "/document", times=None)
-    import cartolex.lexicon.pdf_text as pdf_mod
+    from cartolex.collect import pdfworker
 
-    real = pdf_mod.extract_text
-    calls = {"n": 0}
-
-    def flaky(path):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            raise RuntimeError("a font the extractor cannot read")
-        return real(path)
-
-    monkeypatch.setattr(pdf_mod, "extract_text", flaky)
+    # The PDF worker process reads with a reader whose first file fails.
+    monkeypatch.setattr(pdfworker, "EXTRACTOR", "_pdf_fakes:fails_first")
     report = improve_texts(
         client_for(demo, project), project.layout, project.config, providers=["hal"],
         abstracts=False, full_text=True,

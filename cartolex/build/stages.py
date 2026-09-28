@@ -488,16 +488,28 @@ STAGES = Registry(
             ),
             sources=SOURCE_TABLES,
             project=("languages", "slots", "levels", "overlays"),
-            # version 2: projected sets kept in folders of their own are gathered too
-            version=2,
+            # version 2: projected sets kept in folders of their own are gathered too;
+            # version 3: people's attributes in the index, the parts and the document types
+            # by slot kind
+            version=3,
             extra_inputs=_overlay_tables,
             params=(
                 ParamSpec(
                     "parts",
                     "list",
-                    "the parts of a text that feed the lexicon",
-                    default=["title", "abstract"],
+                    "the parts of a text that feed the lexicon (by default, by the kind of its "
+                    "slot: a folder's or a corpus's documents are read whole)",
+                    rule="parts_by_slot_kind",
                     choices=("title", "abstract", "body", "full"),
+                    minimum=1,
+                ),
+                ParamSpec(
+                    "doc_types",
+                    "list",
+                    "the document types read, for every slot without doc_types of its own (by "
+                    "default, by the kind of the slot: a collection reads texts, not datasets, "
+                    "software or peer reviews)",
+                    rule="doc_types_by_slot_kind",
                     minimum=1,
                 ),
                 ParamSpec(
@@ -536,8 +548,9 @@ STAGES = Registry(
             "find keyword candidates",
             upstream=("corpus.assemble",),
             # version 2: the lexicon lab's defaults (no English "of" complement,
-            # simpler bands, no common-modifier rule)
-            version=2,
+            # simpler bands, no common-modifier rule); version 3: an elided word
+            # the tokenizer leaves attached (Portuguese d'água) is a word of its own
+            version=3,
             decisions=("decisions/stopwords.json",),
             project=("languages", "identity.language_models"),
             params=(
@@ -608,6 +621,9 @@ STAGES = Registry(
             "keywords.build",
             "build the vocabulary",
             upstream=("keywords.extract", "keywords.triage"),
+            # version 2: without the AI clean-up, the set-aside band does not
+            # reach the vocabulary either (an explicit keep still wins)
+            version=2,
             decisions=("decisions/keywords.csv",),
             project=("languages",),
             params=(

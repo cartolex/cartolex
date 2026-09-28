@@ -331,3 +331,27 @@ def test_explicit_level_sizes_must_grow_and_fit_the_vocabulary():
             stage, sizes, make_config()
         )
         assert (not problems) if message is None else message in problems[0]
+
+
+def test_the_parts_read_follow_the_slot_kind_unless_set():
+    stage = STAGES["corpus.assemble"]
+    by_kind = resolve_params(stage, ParamsFile(), ProjectSizes(), year=YEAR).values["parts"]
+    assert by_kind.source == "rule" and by_kind.rule == "parts_by_slot_kind"
+    assert by_kind.value == {
+        "collection": ["title", "abstract"],
+        "folder": ["title", "abstract", "full"],
+        "corpus": ["title", "abstract", "full"],
+    }
+    chosen = ParamsFile.model_validate({"stages": {"corpus.assemble": {"parts": ["title"]}}})
+    given = resolve_params(stage, chosen, ProjectSizes(), year=YEAR).values["parts"]
+    assert given.source == "params.json" and given.value == ["title"]
+
+
+def test_the_types_read_follow_the_slot_kind_unless_set():
+    stage = STAGES["corpus.assemble"]
+    by_kind = resolve_params(stage, ParamsFile(), ProjectSizes(), year=YEAR).values["doc_types"]
+    assert by_kind.source == "rule" and by_kind.rule == "doc_types_by_slot_kind"
+    assert by_kind.value["folder"] is None and by_kind.value["corpus"] is None
+    assert {"article", "preprint", "review", "book", "chapter", "thesis", "report",
+            "communication"} <= set(by_kind.value["collection"])  # fmt: skip
+    assert not {"dataset", "software", "peer-review", "other"} & set(by_kind.value["collection"])
