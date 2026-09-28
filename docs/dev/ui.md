@@ -198,6 +198,11 @@ with a gap (running), a cross (failed), a dash (skipped). Only errors and
 warnings carry a hue, and always with an icon and a word. The system font
 stack only (no web font); tabular figures in tables and counts.
 
+A host application may set its own accent, per theme, in the manifest's
+`branding.accent` (`{"light": "#rrggbb", "dark": "#rrggbb"}`); the shell
+passes it to the style sheet as `--cx-brand-accent-light` and
+`--cx-brand-accent-dark`, which replace the accent and the focus ring.
+
 Every colour, size and duration is a token (`--cx-*`) of `css/tokens.css`.
 The contrast check computes the WCAG ratio of every text token on every
 background token in both themes (at least 4.5:1, muted text included) and of
@@ -261,10 +266,16 @@ python tools/ui_fixture_server.py            # prints http://127.0.0.1:<port>/ga
 ```
 
 The fixture server stands in for the app: it serves `static/`, the test
-extension at `/static/ext/demo/`, `GET /api/app/manifest`,
-`GET /api/project/state`, `GET /api/jobs` and `POST /api/jobs/<id>/cancel`
-from `tests/fixtures/`, the shell for every other path, and the app's
-Content-Security-Policy on every answer.
+extension at `/static/ext/demo/`, `GET /api/app/manifest`
+(`tests/fixtures/ui/manifest.json`: the shape of the contract's copy
+`tests/fixtures/manifest.example.json`, with the core pages and the test
+extension), `GET /api/project/state`, `GET /api/jobs` and
+`POST /api/jobs/<id>/cancel` (`tests/fixtures/ui/`), the shell for every other
+path, and the app's Content-Security-Policy on every answer.
+
+The core pages' modules (`pages/people.js`, `keywords.js`, `themes.js`,
+`map.js`, `share.js`, `settings.js`) are placeholders until their screens are
+built; pages placed in `settings` are listed in the header's settings menu.
 
 ## Checks
 

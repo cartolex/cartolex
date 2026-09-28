@@ -10,6 +10,7 @@
 import { Component, html, useRef, useState } from './preact.js';
 import { autonym, locale, t } from './i18n.js';
 import { currentRoute } from './router.js';
+import { areaOfPage } from './states.js';
 import { THEMES } from './stores/prefs.js';
 import {
   ActivityDrawer, ActivityIndicator, ConfirmDialog, MenuButton, Slot, StatusDot, Toaster,
@@ -27,7 +28,7 @@ class Outlet extends Component {
 }
 
 function NavItem({ entry, areas, active }) {
-  const area = areas.get(entry.area || entry.id);
+  const area = areas.get(areaOfPage(entry));
   const label = t(entry.label);
   return html`<li class="cx-nav__item">
     <a href=${entry.route} class=${`cx-nav__link ${active ? 'is-active' : ''}`}
@@ -54,7 +55,10 @@ export function Shell({ app }) {
   const brandName = branding.name || manifest.app.name;
   const defaultLogo = !branding.logo || branding.logo === '/static/brand/logo.svg';
 
+  const settingsPages = registries.pages.list().filter((p) => p.placement === 'settings' && p.label);
   const displayItems = [
+    ...settingsPages.map((entry) => ({ id: `page:${entry.id}`, label: t(entry.label), icon: 'settings' })),
+    ...(settingsPages.length ? [{ kind: 'separator', id: 'sep-pages' }] : []),
     {
       kind: 'group', id: 'theme', label: t('display.theme'),
       items: THEMES.map((theme) => ({
@@ -73,6 +77,10 @@ export function Shell({ app }) {
   ];
   const onDisplay = (item) => {
     const [kind, value] = item.id.split(/:(.*)/s);
+    if (kind === 'page') {
+      const entry = registries.pages.get(value);
+      if (entry) app.router.navigate(entry.route);
+    }
     if (kind === 'theme') app.setTheme(value);
     if (kind === 'locale') app.switchLocale(value);
   };

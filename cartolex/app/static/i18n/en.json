@@ -28,6 +28,7 @@
   "nav.share": "Share",
   "nav.settings": "Settings",
   "nav.gallery": "Component gallery",
+  "nav.people": "People",
 
   "area.corpus.in_sentence": "texts",
   "area.keywords.in_sentence": "keywords",
@@ -35,6 +36,11 @@
   "area.map.in_sentence": "map",
   "area.overlays.in_sentence": "placements",
   "area.share.in_sentence": "site",
+  "area.corpus": "Texts",
+  "area.keywords": "Keywords",
+  "area.themes": "Themes",
+  "area.map": "Map",
+  "area.share": "Share",
 
   "display.menu": "Display settings",
   "display.theme": "Theme",

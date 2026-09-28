@@ -78,6 +78,22 @@ def test_interface_languages_are_english_french_and_portuguese():
     ]
 
 
+def test_the_ui_fixture_manifest_has_the_contract_shape():
+    """The fixture server's manifest: the contract copy's keys, nothing else."""
+    fixtures = ROOT / "tests" / "fixtures"
+    example = json.loads((fixtures / "manifest.example.json").read_text(encoding="utf-8"))
+    ui = json.loads((fixtures / "ui" / "manifest.json").read_text(encoding="utf-8"))
+    assert set(ui) == set(example)
+    for key in ("app", "locales", "capabilities", "project", "security"):
+        assert set(ui[key]) == set(example[key]), key
+    assert set(example["branding"]) <= set(ui["branding"]) <= {"name", "logo", "accent"}
+    allowed = set(example["nav"][0]) | {"placement"}
+    assert all(set(example["nav"][0]) <= set(entry) <= allowed for entry in ui["nav"])
+    for entry in ui["nav"]:
+        module = ui_check.STATIC / entry["module"].removeprefix("/static/")
+        assert module.is_file(), entry["module"]
+
+
 # ── the checks catch what they are for ──────────────────────────────────────
 
 

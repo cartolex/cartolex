@@ -33,3 +33,11 @@ export function summaryState(states) {
   if (never) return 'needs_update';
   return 'up_to_date';
 }
+
+/** The area a page's status dot sums up, when the page's id is not an area's. */
+export const PAGE_AREAS = { people: 'corpus' };
+
+/** The area of a page entry (its `area`, the mapping above, or its own id). */
+export function areaOfPage(entry) {
+  return entry.area || PAGE_AREAS[entry.id] || entry.id;
+}

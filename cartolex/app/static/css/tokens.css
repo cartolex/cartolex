@@ -16,7 +16,8 @@
  *   --cx-text          body text;  --cx-text-muted  secondary text (still 4.5:1)
  *   --cx-rule          thin decorative separators (not a boundary a person must see)
  *   --cx-border        boundaries of controls: fields, buttons, checkboxes (3:1)
- *   --cx-accent        the one accent: the active navigation item and links
+ *   --cx-accent        the one accent: the active navigation item and links (a host
+ *                      may set its own per theme: --cx-brand-accent-light|dark)
  *   --cx-focus         the focus ring (3:1 on every background)
  *   --cx-danger / --cx-warning   the only hues, always with an icon and a word
  */
@@ -103,9 +104,9 @@
   --cx-rule: #e2e2e2;
   --cx-border: #7d7d7d;
   --cx-border-strong: #141414;
-  --cx-accent: #2b47a8;
+  --cx-accent: var(--cx-brand-accent-light, #2b47a8);
   --cx-accent-text: #ffffff;
-  --cx-focus: #2b47a8;
+  --cx-focus: var(--cx-brand-accent-light, #2b47a8);
   --cx-danger: #b3261e;
   --cx-danger-surface: #fdf1f0;
   --cx-warning: #8a5300;
@@ -130,9 +131,9 @@
   --cx-rule: #2e2e2e;
   --cx-border: #8c8c8c;
   --cx-border-strong: #ededed;
-  --cx-accent: #9fb4ff;
+  --cx-accent: var(--cx-brand-accent-dark, #9fb4ff);
   --cx-accent-text: #121212;
-  --cx-focus: #9fb4ff;
+  --cx-focus: var(--cx-brand-accent-dark, #9fb4ff);
   --cx-danger: #ff9a8f;
   --cx-danger-surface: #2a1715;
   --cx-warning: #f2b75e;
@@ -158,9 +159,9 @@
     --cx-rule: #2e2e2e;
     --cx-border: #8c8c8c;
     --cx-border-strong: #ededed;
-    --cx-accent: #9fb4ff;
+    --cx-accent: var(--cx-brand-accent-dark, #9fb4ff);
     --cx-accent-text: #121212;
-    --cx-focus: #9fb4ff;
+    --cx-focus: var(--cx-brand-accent-dark, #9fb4ff);
     --cx-danger: #ff9a8f;
     --cx-danger-surface: #2a1715;
     --cx-warning: #f2b75e;

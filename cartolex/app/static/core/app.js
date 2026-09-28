@@ -87,6 +87,7 @@ export async function boot(root) {
   }
   const manifest = manifestResult.data;
   runtime.app = { ...manifest.app };
+  applyAccent(manifest.branding && manifest.branding.accent);
 
   const locales = manifest.locales;
   const code = pickLocale(locales.available, {
@@ -214,6 +215,21 @@ export async function boot(root) {
   exposeDebug(app);
   await router.start();
   return app;
+}
+
+/**
+ * A host's accent (`branding.accent: {light, dark}`, `#rrggbb` each, checked
+ * by the server for contrast) replaces the accent and focus colour of that
+ * theme; tokens.css reads it through `--cx-brand-accent-light|dark`.
+ */
+function applyAccent(accent) {
+  if (!accent) return;
+  for (const theme of ['light', 'dark']) {
+    const value = accent[theme];
+    if (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)) {
+      document.documentElement.style.setProperty(`--cx-brand-accent-${theme}`, value);
+    }
+  }
 }
 
 /** A read-only handle for the browser tests and for diagnostics (no project data). */

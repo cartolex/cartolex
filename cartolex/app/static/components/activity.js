@@ -66,7 +66,10 @@ function JobItem({ job, jobs }) {
   const p = job.progress || {};
   const running = job.state === 'running' || job.state === 'queued' || job.state === 'cancelling';
   const title = job.title || kindWord(job, 'noun');
-  const error = job.error ? errorFromResponse({ error: job.error }, { status: job.error.status }) : null;
+  // The API gives a job's error as the error shape, or as a sentence.
+  const error = !job.error ? null : typeof job.error === 'string'
+    ? errorFromResponse({ error: { code: `job_${job.state}`, message: job.error } })
+    : errorFromResponse({ error: job.error }, { status: job.error.status });
   return html`<li class=${`cx-job cx-job--${job.state}`} data-job=${job.id}>
     <div class="cx-job__head">
       <${StatusDot} state=${DOT[job.state] || 'never_built'} />

@@ -6,7 +6,8 @@ from fixtures and with the standard library only:
 
 * ``/static/…`` — ``cartolex/app/static/``, and ``/static/ext/demo/…`` — the
   generic test extension (``tests/fixtures/ui-extension/``);
-* ``GET /api/app/manifest`` — ``tests/fixtures/manifest.example.json``;
+* ``GET /api/app/manifest`` — ``tests/fixtures/ui/manifest.json`` (the shape of
+  ``tests/fixtures/manifest.example.json``, with the core pages and the test extension);
 * ``GET /api/project/state`` — ``tests/fixtures/ui/project-state.example.json``;
 * ``GET /api/jobs`` and ``POST /api/jobs/<id>/cancel`` — ``tests/fixtures/ui/jobs.example.json``;
 * any other ``/api/…`` path — 404 with the error shape;
@@ -16,8 +17,9 @@ from fixtures and with the standard library only:
 Every response carries the Content-Security-Policy the app sends
 (:data:`CSP`), ``X-Content-Type-Options: nosniff`` and ``text/javascript`` for
 JavaScript. State-changing calls must carry the CSRF header with the token of
-the ``cartolex_csrf`` cookie set on the shell document. The server listens on
-the loopback interface only, on a free port by default.
+the cookie the manifest names (``security.csrf_cookie``), set on the shell
+document. The server listens on the loopback interface only, on a free port by
+default.
 
 Tests run it in a thread (:func:`serve`) and change :attr:`FixtureServer.data`
 between steps; ``python tools/ui_fixture_server.py`` serves it for a person
@@ -72,7 +74,7 @@ CSRF_COOKIE = "cartolex_csrf"
 def load_fixtures() -> dict:
     """The fixture API's data: manifest, project state and jobs."""
     return {
-        "manifest": json.loads((FIXTURES / "manifest.example.json").read_text(encoding="utf-8")),
+        "manifest": json.loads((FIXTURES / "ui" / "manifest.json").read_text(encoding="utf-8")),
         "state": json.loads(
             (FIXTURES / "ui" / "project-state.example.json").read_text(encoding="utf-8")
         ),
@@ -181,8 +183,9 @@ class Handler(BaseHTTPRequestHandler):
             self.rfile.read(length)
         if not path.startswith("/api/"):
             return self._error(HTTPStatus.METHOD_NOT_ALLOWED, "method_not_allowed", "Not here.")
-        if self.headers.get(self.server.data["manifest"]["security"]["csrf_header"]) != (
-            self._cookie(CSRF_COOKIE) or "\0"
+        security = self.server.data["manifest"]["security"]
+        if self.headers.get(security["csrf_header"]) != (
+            self._cookie(security.get("csrf_cookie") or CSRF_COOKIE) or "\0"
         ):
             return self._error(HTTPStatus.FORBIDDEN, "csrf", "The request is not from this app.")
         parts = path.strip("/").split("/")
@@ -226,7 +229,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _shell(self) -> None:
         data = (STATIC / "index.html").read_bytes()
-        cookie = f"{CSRF_COOKIE}={self.server.token}; Path=/; SameSite=Strict"
+        name = self.server.data["manifest"]["security"].get("csrf_cookie") or CSRF_COOKIE
+        cookie = f"{name}={self.server.token}; Path=/; SameSite=Strict"
         self._headers(HTTPStatus.OK, MIME[".html"], len(data), {"Set-Cookie": cookie})
         if self.command != "HEAD":
             self.wfile.write(data)

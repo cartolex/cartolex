@@ -28,6 +28,7 @@
   "nav.share": "Partager",
   "nav.settings": "Réglages",
   "nav.gallery": "Galerie des composants",
+  "nav.people": "Personnes",
 
   "area.corpus.in_sentence": "textes",
   "area.keywords.in_sentence": "mots-clés",
@@ -35,6 +36,11 @@
   "area.map.in_sentence": "carte",
   "area.overlays.in_sentence": "placements",
   "area.share.in_sentence": "site",
+  "area.corpus": "Textes",
+  "area.keywords": "Mots-clés",
+  "area.themes": "Thèmes",
+  "area.map": "Carte",
+  "area.share": "Partager",
 
   "display.menu": "Réglages d’affichage",
   "display.theme": "Thème",

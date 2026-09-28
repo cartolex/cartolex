@@ -806,7 +806,9 @@ def theme_tokens(css: str) -> dict[str, dict[str, str]]:
 def _hex(value: str, tokens: dict[str, str]) -> tuple[float, float, float]:
     seen = 0
     while value.startswith("var("):
-        value = tokens[value[4:].split(")")[0].split(",")[0].strip()]
+        # var(--name, fallback): the token when the sheet defines it, else the fallback.
+        name, _, fallback = value[4:].rsplit(")", 1)[0].partition(",")
+        value = tokens.get(name.strip(), fallback.strip())
         seen += 1
         if seen > 10:
             raise ValueError("var() loop")
