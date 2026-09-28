@@ -338,7 +338,14 @@ def _source(args: argparse.Namespace, client: Any) -> Any:
             return True
         return False
 
-    return SnapshotSource(Snapshot(folder, progress=client.progress, cancel=cancelled))
+    return SnapshotSource(
+        Snapshot(
+            folder,
+            progress=client.progress,
+            cancel=cancelled,
+            jobs=getattr(args, "jobs", None) or 1,
+        )
+    )
 
 
 def _plan_options(args: argparse.Namespace, action: str) -> dict[str, Any]:
@@ -616,6 +623,9 @@ def _service_options(p: argparse.ArgumentParser) -> None:
     )
     p.add_argument("--world", help="the demo world of --services demo, SIZE:SEED (default S:0)")
     p.add_argument("--people", nargs="+", metavar="ID", help="only these people")
+    p.add_argument(
+        "--jobs", type=int, default=1, help="snapshot parts read at once, in worker processes"
+    )
 
 
 def add_parser(sub: Any) -> None:

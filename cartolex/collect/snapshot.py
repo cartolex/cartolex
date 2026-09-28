@@ -46,6 +46,7 @@ from .openalex import Years, bare_doi, short_id
 __all__ = [
     "ENTITIES",
     "Partition",
+    "Query",
     "ScanReport",
     "Snapshot",
     "SnapshotSource",
@@ -92,7 +93,8 @@ class Snapshot:
     """A downloaded OpenAlex snapshot, read by streaming its partitions.
 
     *progress* receives ``(fraction, message)`` as bytes are read; *cancel* is
-    asked every few thousand lines whether to stop (:class:`Cancelled`).
+    asked every few thousand lines whether to stop (:class:`Cancelled`); *jobs*
+    worker processes read that many parts at once.
     """
 
     def __init__(
@@ -101,8 +103,11 @@ class Snapshot:
         *,
         progress: Callable[[float, str], None] | None = None,
         cancel: Callable[[], bool] | None = None,
+        jobs: int = 1,
     ) -> None:
         self.root = Path(root)
+        #: Worker processes reading parts at once (1: in this process).
+        self.jobs = max(1, int(jobs))
         if not self.root.is_dir():
             raise FileNotFoundError(f"{self.root} is not a folder")
         self._progress = progress
@@ -162,52 +167,38 @@ class Snapshot:
         return sum(p.size for e in entities for p in self.partitions(e))
 
     # ── streaming ──
-    def scan(
-        self,
-        entity: str,
-        maybe: Callable[[bytes], bool],
-        keep: Callable[[dict[str, Any]], bool],
-        *,
-        what: str = "",
-    ) -> dict[str, dict[str, Any]]:
-        """Every record of *entity* that *keep* accepts, by id, the newest partition's copy.
-
-        *maybe* sees each raw line first and must be true for every line *keep*
-        could accept (a quick test on bytes, so most lines are never parsed).
-        Deleted works are left out.
-        """
-        parts = self.partitions(entity)
+    def scan(self, query: Query, *, what: str = "") -> dict[str, dict[str, Any]]:
+        """Every record of the query's entity that it accepts, by id, the newest partition's
+        copy; deleted works are left out. With *jobs* above 1, the parts are read in that
+        many worker processes."""
+        parts = self.partitions(query.entity)
         total = sum(p.size for p in parts) or 1
-        done = 0
         started = time.perf_counter()
         found: dict[str, dict[str, Any]] = {}
         report = self.report
         report.passes += 1
-        for part in parts:
-            with open(part.path, "rb") as raw, gzip.GzipFile(fileobj=raw) as gz:
-                reader = io.BufferedReader(gz, buffer_size=1 << 20)
-                for n, line in enumerate(reader):
-                    report.lines += 1
-                    if n % 20000 == 0:
-                        self._check_cancel()
-                        self._report(
-                            (done + raw.tell()) / total, f"snapshot: {entity} {what}".strip()
-                        )
-                    if not maybe(line):
-                        continue
-                    report.parsed += 1
-                    try:
-                        record = json.loads(line)
-                    except ValueError:
-                        continue
-                    if isinstance(record, dict) and keep(record):
-                        rid = short_id(record.get("id"))
-                        if rid:
-                            found[rid] = record
-            done += part.size
+        message = f"snapshot: {query.entity} {what}".strip()
+        if self.jobs > 1 and len(parts) > 1:
+            results = self._scan_parallel(parts, query, total, message)
+        else:
+            results = []
+            done = 0
+            for part in parts:
+                results.append(
+                    _scan_part(
+                        str(part.path),
+                        query,
+                        lambda pos, done=done: self._tick((done + pos) / total, message),
+                    )
+                )
+                done += part.size
+        for part, (records, lines, parsed) in zip(parts, results, strict=True):
+            found.update(records)  # parts in date order: the newest copy wins
+            report.lines += lines
+            report.parsed += parsed
             report.bytes += part.size
-            report.by_entity[entity] = report.by_entity.get(entity, 0) + part.size
-        if entity == "works" and found:
+            report.by_entity[query.entity] = report.by_entity.get(query.entity, 0) + part.size
+        if query.entity == "works" and found:
             gone = self.deleted(set(found))
             report.deleted += len(gone)
             for wid in gone:
@@ -215,6 +206,33 @@ class Snapshot:
         report.kept += len(found)
         report.seconds += time.perf_counter() - started
         return found
+
+    def _scan_parallel(
+        self, parts: list[Partition], query: Query, total: int, message: str
+    ) -> list[tuple[dict[str, dict[str, Any]], int, int]]:
+        import multiprocessing
+        from concurrent.futures import ProcessPoolExecutor, wait
+
+        context = multiprocessing.get_context("spawn")
+        with ProcessPoolExecutor(max_workers=self.jobs, mp_context=context) as pool:
+            futures = [pool.submit(_scan_part, str(p.path), query, None) for p in parts]
+            pending = set(futures)
+            done_bytes = 0
+            sizes = {f: p.size for f, p in zip(futures, parts, strict=True)}
+            while pending:
+                finished, pending = wait(pending, timeout=0.5)
+                done_bytes += sum(sizes[f] for f in finished)
+                try:
+                    self._tick(done_bytes / total, message)
+                except Cancelled:
+                    for f in pending:
+                        f.cancel()
+                    raise
+            return [f.result() for f in futures]
+
+    def _tick(self, fraction: float, message: str) -> None:
+        self._check_cancel()
+        self._report(fraction, message)
 
     def deleted(self, work_ids: set[str]) -> set[str]:
         """Those of *work_ids* the deletion log lists (it is streamed, never loaded whole)."""
@@ -242,15 +260,10 @@ class Snapshot:
     # ── queries ──
     def authors(self, ids: Iterable[str]) -> dict[str, dict[str, Any]]:
         """The author records of *ids*."""
-        wanted = {i.encode() for i in ids if i}
+        wanted = frozenset(i for i in ids if i)
         if not wanted:
             return {}
-        return self.scan(
-            "authors",
-            lambda line: bool(wanted & set(_AUTHOR.findall(line))),
-            lambda r: (short_id(r.get("id")) or "").encode() in wanted,
-            what="by id",
-        )
+        return self.scan(Query("authors", ids=wanted), what="by id")
 
     def institutions(
         self,
@@ -259,38 +272,19 @@ class Snapshot:
         rors: Iterable[str] = (),
         lineage: Iterable[str] = (),
         names: Iterable[str] = (),
+        everything: bool = False,
     ) -> dict[str, dict[str, Any]]:
         """Institution records: by id, by ROR id, every unit whose lineage holds one of
-        *lineage*, or whose names hold every word of one of *names*."""
-        want_ids = {i.encode() for i in ids if i}
-        want_rors = {r.lower().encode() for r in rors if r}
-        want_lineage = {i.encode() for i in lineage if i}
-        word_sets = [set(_words(n)) for n in names if _words(n)]
-
-        def maybe(line: bytes) -> bool:
-            if word_sets:
-                return True
-            if want_rors and want_rors & set(_ROR.findall(line.lower())):
-                return True
-            return bool((want_ids | want_lineage) & set(_INSTITUTION.findall(line)))
-
-        def keep(r: dict[str, Any]) -> bool:
-            rid = (short_id(r.get("id")) or "").encode()
-            if rid in want_ids:
-                return True
-            ror = (r.get("ror") or "").rsplit("/", 1)[-1].lower().encode()
-            if ror and ror in want_rors:
-                return True
-            if want_lineage & {(short_id(x) or "").encode() for x in r.get("lineage") or []}:
-                return True
-            if word_sets:
-                shown = [r.get("display_name") or ""]
-                shown += list(r.get("display_name_acronyms") or [])
-                shown += list(r.get("display_name_alternatives") or [])
-                return any(ws <= set(_words(s)) for ws in word_sets for s in shown)
-            return False
-
-        return self.scan("institutions", maybe, keep, what="institutions")
+        *lineage*, whose names hold every word of one of *names*, or all of them."""
+        query = Query(
+            "institutions",
+            ids=frozenset(i for i in ids if i),
+            rors=frozenset(r.lower() for r in rors if r),
+            lineage=frozenset(i for i in lineage if i),
+            names=tuple(n for n in names if n),
+            everything=everything,
+        )
+        return self.scan(query, what="institutions")
 
     def works(
         self,
@@ -302,29 +296,116 @@ class Snapshot:
     ) -> dict[str, dict[str, Any]]:
         """Works signed by one of *author_ids*, or by an author at one of *lineage* or a
         unit below it, or with one of *dois*; within *years* (by publication date)."""
-        want_authors = {a.encode() for a in author_ids if a}
-        want_lineage = {i.encode() for i in lineage if i}
-        want_dois = {d for d in (bare_doi(x) for x in dois) if d}
-        want_doi_bytes = {d.encode() for d in want_dois}
-        first, last = years if years is not None else (None, None)
+        query = Query(
+            "works",
+            author_ids=frozenset(a for a in author_ids if a),
+            lineage=frozenset(i for i in lineage if i),
+            dois=frozenset(d for d in (bare_doi(x) for x in dois) if d),
+            years=tuple(years) if years is not None else None,  # type: ignore[arg-type]
+        )
+        return self.scan(query, what="works")
 
-        def maybe(line: bytes) -> bool:
-            if want_authors and want_authors & set(_AUTHOR.findall(line)):
-                return True
-            if want_lineage and want_lineage & set(_INSTITUTION.findall(line)):
-                return True
-            if want_doi_bytes:
-                return any(d.lower() in want_doi_bytes for d in _DOI.findall(line))
-            return False
 
-        def keep(r: dict[str, Any]) -> bool:
-            return in_window(r, first, last) and (
-                bool(want_authors and _authors_of(r) & want_authors)
-                or bool(want_lineage and _lineages_of(r) & want_lineage)
-                or bool(want_dois and bare_doi(r.get("doi")) in want_dois)
+@dataclass(frozen=True)
+class Query:
+    """What one pass looks for: ids, ROR ids, lineages, DOIs, names, years. It is plain
+    data, so that a worker process builds the same tests from it."""
+
+    entity: str
+    ids: frozenset[str] = frozenset()
+    author_ids: frozenset[str] = frozenset()
+    lineage: frozenset[str] = frozenset()
+    dois: frozenset[str] = frozenset()
+    rors: frozenset[str] = frozenset()
+    names: tuple[str, ...] = ()
+    years: tuple[int | None, int | None] | None = None
+    everything: bool = False
+
+
+def _tests(q: Query) -> tuple[Callable[[bytes], bool], Callable[[dict[str, Any]], bool]]:
+    """The quick test on a raw line (true for every line the second could accept), and the
+    test on the parsed record."""
+    if q.everything:
+        return (lambda line: True), (lambda r: True)
+    ids = {i.encode() for i in q.ids}
+    authors = {a.encode() for a in q.author_ids}
+    lineage = {i.encode() for i in q.lineage}
+    rors = {r.encode() for r in q.rors}
+    dois = set(q.dois)
+    doi_bytes = {d.encode() for d in dois}
+    word_sets = [set(_words(n)) for n in q.names if _words(n)]
+    first, last = q.years if q.years is not None else (None, None)
+    pattern = _AUTHOR if q.entity == "authors" else (_WORK if q.entity == "works" else _INSTITUTION)
+
+    def maybe(line: bytes) -> bool:
+        if word_sets:
+            return True
+        if ids and ids & set(pattern.findall(line)):
+            return True
+        if authors and authors & set(_AUTHOR.findall(line)):
+            return True
+        if lineage and lineage & set(_INSTITUTION.findall(line)):
+            return True
+        if rors and rors & set(_ROR.findall(line.lower())):
+            return True
+        return bool(doi_bytes) and any(d.lower() in doi_bytes for d in _DOI.findall(line))
+
+    def keep(r: dict[str, Any]) -> bool:
+        rid = (short_id(r.get("id")) or "").encode()
+        if q.entity == "works":
+            if not in_window(r, first, last):
+                return False
+            return (
+                rid in ids
+                or bool(authors and _authors_of(r) & authors)
+                or bool(lineage and _lineages_of(r) & lineage)
+                or bool(dois and bare_doi(r.get("doi")) in dois)
             )
+        if rid in ids:
+            return True
+        if q.entity != "institutions":
+            return False
+        ror = (r.get("ror") or "").rsplit("/", 1)[-1].lower().encode()
+        if ror and ror in rors:
+            return True
+        if lineage & {(short_id(x) or "").encode() for x in r.get("lineage") or []}:
+            return True
+        if word_sets:
+            shown = [r.get("display_name") or ""]
+            shown += list(r.get("display_name_acronyms") or [])
+            shown += list(r.get("display_name_alternatives") or [])
+            return any(ws <= set(_words(s)) for ws in word_sets for s in shown)
+        return False
 
-        return self.scan("works", maybe, keep, what="works")
+    return maybe, keep
+
+
+def _scan_part(
+    path: str, query: Query, tick: Callable[[int], None] | None
+) -> tuple[dict[str, dict[str, Any]], int, int]:
+    """One part: the records *query* accepts, by id, and the lines read and parsed. Runs in a
+    worker process too (then without *tick*, which receives the compressed bytes read)."""
+    maybe, keep = _tests(query)
+    found: dict[str, dict[str, Any]] = {}
+    lines = parsed = 0
+    with open(path, "rb") as raw, gzip.GzipFile(fileobj=raw) as gz:
+        reader = io.BufferedReader(gz, buffer_size=1 << 20)
+        for line in reader:
+            lines += 1
+            if tick is not None and lines % 20000 == 1:
+                tick(raw.tell())
+            if not maybe(line):
+                continue
+            parsed += 1
+            try:
+                record = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(record, dict) and keep(record):
+                rid = short_id(record.get("id"))
+                if rid:
+                    found[rid] = record
+    return found, lines, parsed
 
 
 def in_window(work: dict[str, Any], first: int | None, last: int | None) -> bool:
@@ -441,9 +522,7 @@ class SnapshotSource:
 
     def _all_institutions(self) -> dict[str, dict[str, Any]]:
         if self._institutions is None:
-            self._institutions = self.snapshot.scan(
-                "institutions", lambda line: True, lambda r: True, what="institutions"
-            )
+            self._institutions = self.snapshot.institutions(everything=True)
         return self._institutions
 
     def institution(self, ref: str) -> Fetched | None:

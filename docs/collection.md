@@ -283,7 +283,7 @@ part is read line by line and only the lines that may concern the people,
 institutions or identifiers asked for are parsed, so memory holds what is
 found, never a part. A harvest makes one pass over the authors and one over
 the works for all its people; a round of collaborators two passes over the
-works. The tables are the same as from the API; a record's retrieval time is
+works. `--jobs 4` reads four parts at once, in worker processes. The tables are the same as from the API; a record's retrieval time is
 the snapshot's release date.
 
 ## What was collected for whom: coverage

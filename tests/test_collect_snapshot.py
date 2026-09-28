@@ -113,3 +113,16 @@ def test_a_harvest_from_the_snapshot_gives_the_tables_of_the_api(
     assert {a.date().isoformat() for a in at} == {"2026-01-14"}
     by_api.close()
     by_snapshot.close()
+
+
+def test_parts_read_in_worker_processes_give_the_same_records(services, snapshot_dir) -> None:
+    bib = services.bibliography
+    person = next(p for p in bib.world.people if p.openalex_id and bib.record_ids(p.person_id))
+    top = next(i for i in bib.institutions.values() if i.ror)
+    alone, together = Snapshot(snapshot_dir), Snapshot(snapshot_dir, jobs=2)
+    assert together.works(author_ids=[person.openalex_id]) == alone.works(
+        author_ids=[person.openalex_id]
+    )
+    assert together.institutions(lineage=[top.id]) == alone.institutions(lineage=[top.id])
+    assert together.report.lines == alone.report.lines
+    assert together.report.parsed == alone.report.parsed

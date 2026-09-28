@@ -39,7 +39,8 @@ from cartolex.collect.tables import IdRegistry, RawWriter, iso, rebuild_sources 
 from cartolex.demo import generate  # noqa: E402
 from cartolex.demo import names as nm  # noqa: E402
 from cartolex.demo.services import build_bibliography  # noqa: E402
-from cartolex.demo.services.openalex import ROOT as OA, OpenAlexService  # noqa: E402
+from cartolex.demo.services.openalex import ROOT as OA  # noqa: E402
+from cartolex.demo.services.openalex import OpenAlexService  # noqa: E402
 from cartolex.project import Project  # noqa: E402
 from cartolex.project.layout import SOURCE_TABLES  # noqa: E402
 from cartolex.project.models import Slot  # noqa: E402
