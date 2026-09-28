@@ -854,15 +854,18 @@ def import_folder(
     *,
     slot: str | None = None,
     create_people: bool = False,
+    person_id: str | None = None,
     now: datetime | None = None,
 ) -> ImportReport:
     """Import a folder of documents, each matched to a person.
 
     A file in a sub-folder belongs to the person the sub-folder names; a file
-    at the top belongs to the person its name names. Each file is read on its
-    own: an unreadable file is reported with its reason and never stops the
-    others. With *create_people*, a sub-folder whose name matches nobody
-    creates a person. The text of each file becomes one ``full`` part.
+    at the top belongs to the person its name names; with *person_id*, every
+    file belongs to that person (documents added for one person, from the
+    coverage report). Each file is read on its own: an unreadable file is
+    reported with its reason and never stops the others. With *create_people*,
+    a sub-folder whose name matches nobody creates a person. The text of each
+    file becomes one ``full`` part.
     """
     now = now or datetime.now(timezone.utc)
     folder = Path(folder)
@@ -882,7 +885,12 @@ def import_folder(
         report.rows_read += 1
         parts = path.relative_to(folder).parts
         label = parts[0] if len(parts) > 1 else path.stem
-        pid, why = _match_person(label, people)
+        if person_id is not None:
+            if person_id not in {p["person_id"] for p in people}:
+                raise ValueError(f"{person_id} is not a person of the project")
+            pid, why = person_id, ""
+        else:
+            pid, why = _match_person(label, people)
         person = None
         if pid is None and len(parts) > 1 and create_people and why.startswith("no person"):
             last, first = split_full_name(label.replace("_", " "))
