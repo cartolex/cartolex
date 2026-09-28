@@ -15,6 +15,47 @@ def tokenize(term: str) -> list[str]:
     return term.strip().lower().split()
 
 
+#: Words French writes elided before a vowel, with an apostrophe: the article
+#: ``l'``, the preposition ``d'`` (Portuguese elides it too: ``d'água``), and
+#: the pronouns and conjunctions ``qu'``, ``j'``, ``n'``, ``s'``, ``c'``,
+#: ``m'``, ``t'``.
+ELIDED_WORDS = frozenset({"l", "d", "qu", "j", "n", "s", "c", "m", "t"})
+#: The straight and the typographic apostrophe.
+APOSTROPHES = ("'", "’")
+# An elided word at the start of a word, before a letter (« d'eau », « L’Atlantique »);
+# never inside a word (« aujourd'hui », « presqu'île », « olho-d'água »).
+_ELIDED_ALTERNATIVES = "|".join(sorted(ELIDED_WORDS, key=lambda w: (-len(w), w)))
+_ELISION = re.compile(
+    rf"(?<!\S)({_ELIDED_ALTERNATIVES})([{''.join(APOSTROPHES)}])(?=[^\W\d_])", re.IGNORECASE
+)
+
+
+def split_elision(word: str) -> tuple[str, str] | None:
+    """``(elided word with its apostrophe, rest)`` for a word that starts with one, else ``None``.
+
+    ``split_elision("d'água") == ("d'", "água")``; a word with an apostrophe
+    inside it (``aujourd'hui``, ``presqu'île``) is one word.
+    """
+    m = _ELISION.match(word)
+    if m is None:
+        return None
+    return word[: m.end()], word[m.end() :]
+
+
+def term_words(term: str) -> list[str]:
+    """The words of a term as the keyword extraction cuts them, in lower case.
+
+    Words are separated by spaces, and an elided word (:data:`ELIDED_WORDS`,
+    straight or typographic apostrophe) is a word of its own: the word after
+    it starts a word, as after a space. ``term_words("systèmes d'information
+    géographique") == ["systèmes", "d'", "information", "géographique"]``; a
+    hyphen or slash compound (``île-barrière``) is one word. It is the inverse
+    of :func:`cartolex.lexicon.noun_phrases.join_surface`, which writes no
+    space after an elided word.
+    """
+    return _ELISION.sub(r"\1\2 ", term.strip().lower()).split()
+
+
 # Letter runs of length ≥2 (no digits / underscores), matching how the keyword
 # vectorizer tokenises. Used by the split-word healer below.
 _WORD_RE = re.compile(r"[^\W\d_]{2,}", re.UNICODE)

@@ -51,7 +51,7 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 
 from .lexical_filters import is_malformed_term
 from .noun_phrases import TextAnalysis, _Keyer, language_patterns, lemma_table, spans
-from .text_utils import length_bonus, tokenize
+from .text_utils import length_bonus, term_words
 
 __all__ = [
     "BANDS",
@@ -191,8 +191,9 @@ def _features(doc: list[str]) -> list[str]:
 
 
 def _blocked(term: str, blacklist: Collection[str]) -> bool:
+    """Whether *term*, or one of its words (an elided word apart), is among the rejections."""
     low = term.lower()
-    return low in blacklist or any(t in blacklist for t in tokenize(low))
+    return low in blacklist or any(t in blacklist for t in term_words(low))
 
 
 def _vote(parts: Mapping[str, float], present: Mapping[str, float], how: str) -> float:
