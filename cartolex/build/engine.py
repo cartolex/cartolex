@@ -245,6 +245,7 @@ def run_corpus(ctx: StageContext) -> dict[str, int]:
         ctx.out,
         parts=ctx.params["parts"],
         provider_priority=ctx.params["provider_priority"],
+        doc_types=ctx.params["doc_types"],
     )
     people: set[tuple[str, str, str]] = set()
     texts = characters = 0

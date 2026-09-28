@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from .stages import Registry, Stage
 
 __all__ = [
+    "DOC_TYPES_BY_SLOT_KIND",
     "GLOBAL_PARAMS",
     "PARTS_BY_SLOT_KIND",
     "RULES",
@@ -150,6 +151,26 @@ PARTS_BY_SLOT_KIND: dict[str, list[str]] = {
     "corpus": ["title", "abstract", "full"],
 }
 
+#: The document types read by default, by the kind of the slot: a collection slot reads
+#: texts (articles, preprints, books and their chapters, theses, reports, communications),
+#: not the datasets, software or peer reviews an index also lists; a folder or a corpus
+#: slot reads every document it was given. A slot's own ``doc_types`` replace these.
+DOC_TYPES_BY_SLOT_KIND: dict[str, list[str] | None] = {
+    "collection": [
+        "article",
+        "book",
+        "chapter",
+        "communication",
+        "preprint",
+        "proceedings",
+        "report",
+        "review",
+        "thesis",
+    ],
+    "folder": None,
+    "corpus": None,
+}
+
 RULES: dict[str, Rule] = {
     rule.name: rule
     for rule in (
@@ -158,6 +179,17 @@ RULES: dict[str, Rule] = {
             "min(⌊log₁₀ kept keywords⌋ − 1, ⌊log₁₀ mapped units⌋), clamped to 1–4",
             ("kept_keywords", "mapped_units"),
             lambda s: theme_depth(s.kept_keywords or 1, s.mapped_units or 1),
+        ),
+        Rule(
+            "doc_types_by_slot_kind",
+            "a collection slot reads articles, preprints, reviews, books, chapters, theses, "
+            "reports and communications; a folder or a corpus slot every document; a slot's "
+            "own doc_types replace these",
+            (),
+            lambda s: {
+                kind: (list(types) if types is not None else None)
+                for kind, types in DOC_TYPES_BY_SLOT_KIND.items()
+            },
         ),
         Rule(
             "parts_by_slot_kind",

@@ -444,7 +444,8 @@ STAGES = Registry(
             sources=SOURCE_TABLES,
             project=("languages", "slots", "levels", "overlays"),
             # version 2: projected sets kept in folders of their own are gathered too;
-            # version 3: people's attributes in the index, the parts by slot kind
+            # version 3: people's attributes in the index, the parts and the document types
+            # by slot kind
             version=3,
             extra_inputs=_overlay_tables,
             params=(
@@ -455,6 +456,15 @@ STAGES = Registry(
                     "slot: a folder's or a corpus's documents are read whole)",
                     rule="parts_by_slot_kind",
                     choices=("title", "abstract", "body", "full"),
+                    minimum=1,
+                ),
+                ParamSpec(
+                    "doc_types",
+                    "list",
+                    "the document types read, for every slot without doc_types of its own (by "
+                    "default, by the kind of the slot: a collection reads texts, not datasets, "
+                    "software or peer reviews)",
+                    rule="doc_types_by_slot_kind",
                     minimum=1,
                 ),
                 ParamSpec(

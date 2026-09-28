@@ -69,6 +69,8 @@ class CorpusSummary:
     slots: dict[str, dict[str, int]] = field(default_factory=dict)
     skipped_people: int = 0
     texts_without_parts: int = 0
+    #: Texts of a document type their slot does not read (a dataset in a collection slot).
+    texts_left_out_by_type: int = 0
 
 
 def render_text(parts: Sequence[tuple[str, str, str]], *, chosen: Sequence[str]) -> str:
@@ -116,6 +118,7 @@ def assemble_corpus(
     parts: Sequence[str] | Mapping[str, Sequence[str]] = ("title", "abstract"),
     provider_priority: Sequence[str] = (),
     unit_level: str | None = None,
+    doc_types: Sequence[str] | Mapping[str, Sequence[str] | None] | None = None,
 ) -> CorpusSummary:
     """Write the engine's corpus for *config*'s fit slots and projected sets into *out_dir*.
 
@@ -130,7 +133,10 @@ def assemble_corpus(
     (``collection``, ``folder``, ``corpus``), the parts read of that slot's texts
     (a slot the project does not declare, as in an overlay's own folder, reads as
     a collection). *provider_priority* picks one provider per (text, part,
-    language), earlier first, unknown providers last in name order. *unit_level* names the level
+    language), earlier first, unknown providers last in name order. *doc_types*
+    are the document types read of every slot, or by the kind of the slot
+    (``None``: every type); a slot's own ``doc_types`` in ``project.json``
+    replace them. A text of another type is left out, and counted. *unit_level* names the level
     whose organisation fills the ``unit`` column (default: the project's first
     level, else any affiliation).
     """
@@ -142,6 +148,17 @@ def assemble_corpus(
     fit_slots = [s.id for s in config.slots if s.fit]
     written: dict[Path, set[str]] = defaultdict(set)
     kinds = {s.id: s.kind for s in config.slots}
+    own_types = {s.id: set(s.doc_types) for s in config.slots if s.doc_types}
+
+    def types_of(slot: str) -> set[str] | None:
+        if slot in own_types:
+            return own_types[slot]
+        if doc_types is None:
+            return None
+        if isinstance(doc_types, Mapping):
+            chosen = doc_types.get(kinds.get(slot, "collection"))
+            return set(chosen) if chosen is not None else None
+        return set(doc_types)
 
     def parts_of(slot: str) -> Sequence[str]:
         if isinstance(parts, Mapping):
@@ -170,6 +187,10 @@ def assemble_corpus(
                 )
             )
             for tid in texts_of:
+                allowed = types_of(text_meta[tid]["slot"])
+                if allowed is not None and text_meta[tid]["doc_type"] not in allowed:
+                    summary.texts_left_out_by_type += 1
+                    continue
                 body = render_text(
                     chosen_parts.get(tid, ()), chosen=parts_of(text_meta[tid]["slot"])
                 )

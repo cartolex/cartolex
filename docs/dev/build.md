@@ -116,6 +116,7 @@ leaves the check to the run.
 | stage | parameter | default | allowed |
 | --- | --- | --- | --- |
 | `corpus.assemble` | `parts` | rule `parts_by_slot_kind`: title, abstract for a collection slot; title, abstract, full for a folder or a corpus slot | title, abstract, body, full (a list set here applies to every slot) |
+| `corpus.assemble` | `doc_types` | rule `doc_types_by_slot_kind`: article, book, chapter, communication, preprint, proceedings, report, review, thesis for a collection slot; every type for a folder or a corpus slot; a slot's own `doc_types` replace it | document types (a list set here applies to every slot without its own) |
 | `corpus.assemble` | `provider_priority` | folder, openalex, hal, scielo, europepmc, arxiv, biorxiv | provider names; the others follow alphabetically |
 | `corpus.assemble` | `recency_years` | 5 | 0–200; 0 keeps every year |
 | `keywords.extract` | `counting_unit` | person | person, text, organisation |

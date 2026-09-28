@@ -154,6 +154,12 @@ its authorships name every project person on it at their rank, with the
 institutions it states for them, which date their affiliations. Employments
 declared in the registry date affiliations too.
 
+The index also lists datasets, software, peer reviews and other records that
+are not texts: they stay in the tables, and by default the build reads a
+collection slot's articles, preprints, reviews, books, chapters, theses,
+reports and communications only (the rule `doc_types_by_slot_kind`); a slot's
+own `doc_types` in `project.json` replace the list.
+
 Harvesting a person again replaces what the earlier harvest brought for them;
 texts keep their ids. `--years` keeps a window of years (by default, every
 year). Answers are cached in the project: `--refresh` fetches again,
