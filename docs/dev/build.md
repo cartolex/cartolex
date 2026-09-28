@@ -287,7 +287,9 @@ and runs exactly its `run` items, one at a time, in order:
   failed attempt; the build stops there, and the stages after it do not run.
 - **Log.** `logs/jobs/<job id>.jsonl` records the start, each phase, each stage's
   end (run id, seconds, peak memory, counts), and the end: stage names, counts
-  and times, never texts or names.
+  and times, never texts or names. The job id is a new run id, or the
+  `job_id` a job runner passes (letters, digits, `-` and `_`): the build then
+  appends to the log the runner started.
 
 One build runs at a time on a project: `plan` raises `BuildBusy` while a job
 runs a stage it would run.

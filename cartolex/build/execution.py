@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 import threading
 import time
@@ -55,6 +56,9 @@ __all__ = [
 
 #: The longest silence between two progress events, in seconds.
 MAX_HEARTBEAT_S = 10.0
+
+#: A job id names a file of ``logs/jobs/``: letters, digits, ``-`` and ``_``.
+_JOB_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 def _now() -> datetime:
@@ -581,6 +585,7 @@ def build(
     heartbeat_s: float = 5.0,
     year: int | None = None,
     probe: Callable[[str], None] | None = None,
+    job_id: str | None = None,
 ) -> BuildResult:
     """Run what :func:`~cartolex.build.plan` says, with the same arguments.
 
@@ -591,11 +596,16 @@ def build(
     refused. *progress* receives :class:`Progress` events, at least every
     *heartbeat_s* seconds (at most ten). *cancel* stops the build at the next
     chunk or stage. *probe*, for tests, is called with the name of each step.
+    *job_id* names the job's log, ``logs/jobs/<job id>.jsonl`` (default: a new
+    run id); a job runner passes its own id, so the log it started is the one
+    the build appends to.
     """
     if not project.writable:
         raise PermissionError("a build writes: open the project with write=True")
     if not 0 < heartbeat_s <= MAX_HEARTBEAT_S:
         raise ValueError(f"heartbeat_s must be in (0, {MAX_HEARTBEAT_S:g}] seconds")
+    if job_id is not None and not _JOB_ID.match(job_id):
+        raise ValueError(f"a job id is letters, digits, '-' and '_' only: {job_id!r}")
     registry = registry or STAGES
     probe = probe or (lambda _: None)
     project.recovered += recover(project.layout)
@@ -629,7 +639,7 @@ def build(
         else:
             runnable.append(item)
 
-    job_id = new_run_id()
+    job_id = job_id or new_run_id()
     log = _JobLog(project.layout.jobs / f"{job_id}.jsonl")
     log.write(
         "start",
