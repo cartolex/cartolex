@@ -40,3 +40,16 @@ Each entry says when the stored baseline (`tests/baseline/`) was rewritten, why,
 - Reason: The lexicon lab's defaults: English noun phrases take no of complement, nothing is set aside for a low score, and a candidate is a fragment of a longer one only when it is never seen outside it. The English candidates change, and with them every later stage; the French candidates change only in their band and reason.
 - Engine: 1.0.0.dev0, source fingerprint `b9a57a10e58fae0a`
 - L: against the previous baseline, 12 stages: 1 identical, 11 different (extract, triage, build, space, group, layout, draft, apply, trajectories, projection, bundle)
+
+## 2026-09-28 — S, merge
+
+- Reason: The owner's lexicon decisions (gate G2): the common-modifier band rule is off, so phrases with a widespread edge adjective are kept instead of to check; the AI clean-up judges the kept and to-check bands only, never the set-aside band, with the third version of its prompt. The raw tables change in band and reason only; the triage sees fewer candidates, and every later stage follows.
+- Engine: 1.0.0.dev0, source fingerprint `016f9bd6289f2ac4`
+- S: against the previous baseline, 12 stages: 1 identical, 11 different (extract, triage, build, space, group, layout, draft, apply, trajectories, projection, bundle)
+- merge: against the previous baseline, 1 stage: 0 identical, 1 different (merge)
+
+## 2026-09-28 — L
+
+- Reason: The owner's lexicon decisions (gate G2): the common-modifier band rule is off, so phrases with a widespread edge adjective are kept instead of to check; the AI clean-up judges the kept and to-check bands only, never the set-aside band, with the third version of its prompt. The raw tables change in band and reason only; the triage sees fewer candidates, and every later stage follows.
+- Engine: 1.0.0.dev0, source fingerprint `016f9bd6289f2ac4`
+- L: against the previous baseline, 12 stages: 1 identical, 11 different (extract, triage, build, space, group, layout, draft, apply, trajectories, projection, bundle)
