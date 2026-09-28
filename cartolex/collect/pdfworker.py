@@ -28,6 +28,8 @@ __all__ = ["DEFAULT_TIMEOUT", "PdfError", "PdfWorker", "extract_pdf", "pdf_worke
 
 #: Seconds a file may take before it is left out.
 DEFAULT_TIMEOUT = 120.0
+#: Seconds a new worker may take to start (it loads the reader first; files wait for it).
+STARTUP_TIMEOUT = 120.0
 #: The function that reads a file's text, as ``module:function``.
 EXTRACTOR = "cartolex.lexicon.pdf_text:extract_text"
 
@@ -42,8 +44,12 @@ def _load(spec: str) -> Callable[[Path], str]:
 
 
 def _serve(conn: Any, extractor: str) -> None:  # pragma: no cover - runs in the worker
-    """The worker's loop: read a path, answer ``("ok", text)`` or ``("error", reason)``."""
+    """The worker's loop: say it is ready, then read a path, answer ``("ok", text)`` or
+    ``("error", reason)``."""
     extract = _load(extractor)
+    import pypdf  # noqa: F401 - loaded before the first file, not during its time
+
+    conn.send(("ready", None))
     while True:
         try:
             message = conn.recv()
@@ -90,6 +96,13 @@ class PdfWorker:
         process.start()
         child.close()
         self._process, self._conn = process, parent
+        try:
+            ready = parent.poll(STARTUP_TIMEOUT) and parent.recv()[0] == "ready"
+        except (EOFError, OSError):
+            ready = False
+        if not ready:
+            self._stop()
+            raise PdfError("the PDF reader could not start")
 
     def extract(self, path: Path, *, strict: bool = False) -> str:
         """The text of the PDF at *path*; :class:`PdfError` says why when there is none.
