@@ -584,10 +584,27 @@ def _chunks_of_works(world: _World, workers: int, chunk: int = 500) -> Iterator[
             yield from (world.works_of(pi) for pi in range(s, e))
         return
     import multiprocessing as mp
+    from collections import deque
+    from concurrent.futures import ProcessPoolExecutor
 
-    # Spawned workers each receive the compact world once; results come back in order.
-    with mp.get_context("spawn").Pool(workers, initializer=_share, initargs=(world,)) as pool:
-        for part in pool.imap(_works_between, bounds):
+    # Spawned workers each receive the compact world once; at most two chunks per
+    # worker are in flight, and the results are taken in order. A worker that
+    # cannot start (a script without a main guard) breaks the pool at once.
+    context = mp.get_context("spawn")
+    with ProcessPoolExecutor(
+        workers, mp_context=context, initializer=_share, initargs=(world,)
+    ) as pool:
+        pending: deque = deque()
+        todo = iter(bounds)
+        for b in todo:
+            pending.append(pool.submit(_works_between, b))
+            if len(pending) >= 2 * workers:
+                break
+        while pending:
+            part = pending.popleft().result()
+            nxt = next(todo, None)
+            if nxt is not None:
+                pending.append(pool.submit(_works_between, nxt))
             yield from part
 
 
