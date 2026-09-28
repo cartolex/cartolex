@@ -131,10 +131,17 @@ class ScaleSummary:
 class _World:
     """The compact world: groups, and each person's attributes as arrays."""
 
-    def __init__(self, people: int, seed: int, languages: tuple[str, ...]) -> None:
+    def __init__(
+        self,
+        people: int,
+        seed: int,
+        languages: tuple[str, ...],
+        led_works: tuple[int, int] | None = None,
+    ) -> None:
         self.n_mapped = int(people)
         self.seed = int(seed)
         self.languages = languages
+        self.led_works = led_works
         self.key = f"cartolex-scale/{self.n_mapped}/{self.seed}"
         self.groups: list[_Group] = []
         self.institutions: list[tuple[str, nm.Site]] = []
@@ -357,9 +364,14 @@ class _World:
         text_rng = self.rng("text", pi)
         stage = CAREER_STAGES[self.stage[pi]]
         weights = self.term_weights(pi)
-        n_led = rng.randint(1, 2) if coverage == "thin" else rng.randint(*_LED_WORKS[stage])
+        if self.led_works is not None:
+            n_led = rng.randint(*self.led_works)
+        elif coverage == "thin":
+            n_led = rng.randint(1, 2)
+        else:
+            n_led = rng.randint(*_LED_WORKS[stage])
         drafts = [self._draft(pi, stage, weights, rng, text_rng) for _ in range(n_led)]
-        if stage == "phd" and coverage == "good" and rng.random() < 0.6:
+        if self.led_works is None and stage == "phd" and coverage == "good" and rng.random() < 0.6:
             drafts.append(self._draft(pi, stage, weights, rng, text_rng, thesis=True))
         return [d for _, d in sorted(enumerate(drafts), key=lambda x: (x[1]["year"], x[0]))]
 
@@ -587,6 +599,7 @@ def write_scale_project(
     languages: str | tuple[str, ...] | None = None,
     workers: int = 1,
     row_group: int = ROW_GROUP,
+    led_works: tuple[int, int] | None = None,
     progress: Callable[[str, int, int], None] | None = None,
 ) -> ScaleSummary:
     """Create a project in *root* (empty or missing) with a streamed world of *people* mapped people.
@@ -594,6 +607,9 @@ def write_scale_project(
     The world also holds a projected set of applicants (a tenth as many). The
     source tables are written a row group of *row_group* rows at a time;
     *workers* processes compose the texts (the tables do not depend on it).
+    *led_works*, when given, is the range of works every person with works
+    leads (instead of their career stage's; no thesis is added): a lighter
+    world with the same people and groups.
     *progress*, when given, is called with a phase name, the people done and
     the people in all. Returns what was written.
     """
@@ -607,7 +623,7 @@ def write_scale_project(
     if people < 12:
         raise ValueError("a streamed world has at least 12 people; use generate() for less")
     langs = parse_languages(languages)
-    world = _World(people, seed, langs)
+    world = _World(people, seed, langs, led_works)
     world.build_groups()
     summary = ScaleSummary(groups=len(world.groups), institutions=len(world.institutions))
 

@@ -8,7 +8,8 @@ Usage::
     python tools/scale_study.py table FILE.jsonl …
 
 ``world`` writes a project with a streamed world of that many mapped people
-(:mod:`cartolex.demo.scale`). ``build`` runs the project's stages one at a time,
+(:mod:`cartolex.demo.scale`), the year pinned to 2026 (``--led-works`` and
+``--parts`` make a lighter world: works per person, text parts read). ``build`` runs the project's stages one at a time,
 each in a fresh process (``cartolex build DIR --only STAGE``, so the earlier
 stages are kept), and appends one JSON line per stage to *FILE*: the stage's
 own measures from its ``run.json`` (wall seconds, peak memory, counts), the
@@ -64,8 +65,22 @@ def cmd_world(args: argparse.Namespace) -> int:
         print(f"[{time.perf_counter() - t0:7.0f}s] {phase}: {done}/{total}", flush=True)
 
     summary = write_scale_project(
-        args.out, args.people, seed=args.seed, workers=args.workers, progress=progress
+        args.out,
+        args.people,
+        seed=args.seed,
+        workers=args.workers,
+        led_works=tuple(args.led_works) if args.led_works else None,
+        progress=progress,
     )
+    settings = ["pinned_year=2026"]
+    if args.parts:
+        settings.append("corpus.assemble.parts=" + json.dumps(args.parts))
+    for setting in settings:
+        subprocess.run(
+            [sys.executable, "-m", "cartolex.cli", "params", str(args.out), "--set", setting],
+            check=True,
+            capture_output=True,
+        )
     info = {
         **summary.as_dict(),
         "seed": args.seed,
@@ -158,6 +173,8 @@ def main(argv: list[str] | None = None) -> int:
     w.add_argument("--seed", type=int, default=0)
     w.add_argument("--workers", type=int, default=1)
     w.add_argument("--out", type=Path, required=True)
+    w.add_argument("--led-works", type=int, nargs=2, metavar=("LOW", "HIGH"))
+    w.add_argument("--parts", nargs="+", help="the text parts the lexicon reads")
     w.set_defaults(run=cmd_world)
     b = sub.add_parser("build", help="run and measure each stage in a fresh process")
     b.add_argument("folder", type=Path)
