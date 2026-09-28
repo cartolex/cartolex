@@ -145,10 +145,10 @@ def test_part_weights() -> None:
 def test_the_of_complement_is_a_switch() -> None:
     phrase = "degrees/N of/P freedom/N"
     units = [unit(i, f"t{i}", ("full", text(phrase))) for i in range(3)]
-    on = scores(score_units("en", units, 3, min_df=1, max_df=1.0))
-    off = scores(
+    off = scores(score_units("en", units, 3, min_df=1, max_df=1.0))
+    on = scores(
         score_units(
-            "en", units, 3, min_df=1, max_df=1.0, options=ScoringOptions(of_complement=False)
+            "en", units, 3, min_df=1, max_df=1.0, options=ScoringOptions(of_complement=True)
         )
     )
     assert "degrees of freedom" in on and "degrees of freedom" not in off
@@ -164,9 +164,10 @@ def test_bands_and_reasons() -> None:
         if i < 3:
             phrases += ["coral/N reef/N"] * 3
         units.append(unit(i, f"t{i}", ("full", text(*phrases))))
-    no_tail = ScoringOptions(bands=BandRules(drop_share=0.0))
-    result = score_units("en", units, 10, min_df=3, max_df=1.0, options=no_tail)
+    result = score_units("en", units, 10, min_df=3, max_df=1.0)
     bands = result.table.set_index("term")[["band", "reason"]]
+    # By default nothing is set aside for its score.
+    assert "low-score" not in set(bands["reason"])
     assert tuple(bands.loc["support vector machine"]) == ("kept", "multiword")
     assert tuple(bands.loc["coral reef"]) == ("kept", "multiword")
     # Always inside the longer phrase: a fragment of it.
@@ -174,6 +175,15 @@ def test_bands_and_reasons() -> None:
     assert tuple(bands.loc["data"]) == ("check", "single-word")
     # An edge adjective every person uses makes a phrase common.
     assert tuple(bands.loc["recent approach"]) == ("check", "common-modifier: recent")
+    plain = score_units(
+        "en",
+        units,
+        10,
+        min_df=3,
+        max_df=1.0,
+        options=ScoringOptions(bands=BandRules(generic_spread=None)),
+    )
+    assert plain.table.set_index("term").loc["recent approach", "band"] == "kept"
     # The least specific tail is set aside.
     strict = score_units(
         "en",
@@ -181,7 +191,7 @@ def test_bands_and_reasons() -> None:
         10,
         min_df=3,
         max_df=1.0,
-        options=ScoringOptions(bands=BandRules(drop_share=0.5, fragment_share=1.1)),
+        options=ScoringOptions(bands=BandRules(drop_share=0.5, fragment_share=None)),
     )
     reasons = set(strict.table["reason"])
     assert "low-score" in reasons and not any(r.startswith("part-of") for r in reasons)

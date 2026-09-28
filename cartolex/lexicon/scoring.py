@@ -25,13 +25,15 @@ corpus (:class:`TextUnit`: a person's text, its organisation and its parts).
    ``kept``     ``multiword``: a phrase of two content words or more
    ``check``    ``single-word``; ``common-modifier: <word>`` (its edge
                 adjective is used by many people); ``below-threshold``
-   ``aside``    ``part-of: <term>`` (almost always seen inside that
-                longer candidate); ``low-score`` (the least specific
-                tail); ``name: person|place`` (when names are known)
+   ``aside``    ``part-of: <term>`` (never seen outside that longer
+                candidate); ``low-score`` (the least specific tail, off
+                by default); ``name: person|place`` (when names are
+                known)
    ===========  =====================================================
 
-The defaults reproduce the historical scoring: people, raw frequency, equal
-parts, α = 2.
+The scores reproduce the historical scoring: people, raw frequency, equal
+parts, α = 2. The other choices are switches of the lexicon lab
+(``tools/lexicon_lab``, ``docs/dev/lexicon-lab.md``), which set the defaults.
 """
 
 from __future__ import annotations
@@ -77,35 +79,36 @@ FORMS_SEPARATOR = "|"
 
 @dataclass(frozen=True)
 class BandRules:
-    """The thresholds of the three bands.
+    """The thresholds of the three bands; ``None`` turns a rule off.
 
-    ``fragment_share``: a candidate found this often inside one and the same
-    longer kept candidate is a fragment of it (set aside). ``drop_share``: the
-    least specific share of the candidates, by ``score_len``, is set aside.
-    ``keep_share``: a multi-word phrase is kept only within the best
-    ``keep_share`` of the candidates (1: every one). ``generic_spread``: an
-    edge adjective used by at least this share of people makes a phrase
-    common (to check). ``name_share``: a candidate this often inside a
-    recognised name of a person or a place is set aside (only when names are
-    known).
+    ``fragment_share``: a candidate found this often (a share of its
+    occurrences) inside one and the same longer candidate is a fragment of it
+    (set aside); by default, every time. ``drop_share``: the least specific
+    share of the candidates, by ``score_len``, is set aside (0: none, the
+    default). ``keep_share``: a multi-word phrase is kept only within the best
+    ``keep_share`` of the candidates (1: every one, the default).
+    ``generic_spread``: an edge adjective used by at least this share of
+    people makes a phrase common (to check). ``name_share``: a candidate this
+    often inside a recognised name of a person or a place is set aside (only
+    when names are known). The defaults are the lexicon lab's.
     """
 
-    fragment_share: float = 0.9
-    drop_share: float = 0.1
+    fragment_share: float | None = 1.0
+    drop_share: float = 0.0
     keep_share: float = 1.0
-    generic_spread: float = 0.2
+    generic_spread: float | None = 0.2
     name_share: float = 0.5
 
 
 @dataclass(frozen=True)
 class ScoringOptions:
-    """How candidates are scored (see the module docstring); the defaults are historical."""
+    """How candidates are scored (see the module docstring); the defaults are the lab's."""
 
     counting_unit: str = "person"
     vote: str = "frequency"
     part_weights: Mapping[str, float] = field(default_factory=dict)
     length_bonus_alpha: float = 2.0
-    of_complement: bool = True
+    of_complement: bool = False
     bands: BandRules = field(default_factory=BandRules)
 
     def __post_init__(self) -> None:
@@ -446,13 +449,17 @@ def _assign_bands(
     edge_first = lang == "en"  # the modifier comes first in English, last in French and Portuguese
     for c, p in zip(rows, pct, strict=True):
         c.percentile = float(p)
-        container = next(
-            (
-                k
-                for k, n in c.containers
-                if k in candidates and n >= rules.fragment_share * max(c.occurrences, 1)
-            ),
-            None,
+        container = (
+            next(
+                (
+                    k
+                    for k, n in c.containers
+                    if k in candidates and n >= rules.fragment_share * max(c.occurrences, 1)
+                ),
+                None,
+            )
+            if rules.fragment_share is not None
+            else None
         )
         if container is not None:
             c.band, c.reason = "aside", f"part-of: {candidates[container].term}"
@@ -465,7 +472,8 @@ def _assign_bands(
         else:
             edge = (c.classes[0] if edge_first else c.classes[-1]) if c.classes else ""
             word = c.key.split(" ")[0 if edge_first else -1]
-            if edge == "A" and word_people[word] >= rules.generic_spread * n_people:
+            spread = rules.generic_spread
+            if edge == "A" and spread is not None and word_people[word] >= spread * n_people:
                 c.band, c.reason = "check", f"common-modifier: {word}"
             elif p < 1.0 - rules.keep_share:
                 c.band, c.reason = "check", "below-threshold"

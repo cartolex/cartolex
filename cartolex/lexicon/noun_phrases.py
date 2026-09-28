@@ -27,8 +27,8 @@ pattern is one occurrence of a candidate — nested spans included, so
 ``sediment transport model`` also counts ``sediment transport``,
 ``transport model``, ``sediment``, ``transport`` and ``model``:
 
-- English: ``(ADJ|NOUN|PROPN)* (NOUN|PROPN|gerund)``, with at most one ``of``
-  complement (``degrees of freedom``);
+- English: ``(ADJ|NOUN|PROPN)* (NOUN|PROPN|gerund)``; one ``of`` complement
+  (``degrees of freedom``) is a switch of the lexicon lab, off by default;
 - French: ``NOUN ADJ* ((de|du|des|d'|à|au|aux) DET? (NOUN|PROPN) ADJ*)?``;
 - Portuguese: the French shape with ``de``, ``em``, ``por``, ``para``,
   ``com``, ``a`` and their contractions with the article (``do``, ``da``,
@@ -131,7 +131,7 @@ PATTERNS: Mapping[str, LanguagePatterns] = MappingProxyType(
     {
         "en": LanguagePatterns(
             lang="en",
-            pattern=f"{_EN_NP}(?:P{_EN_NP})?",
+            pattern=_EN_NP,
             prepositions=_prep_map({"of": ("of",)}),
             preposition_pos=frozenset({"ADP"}),
         ),
@@ -380,11 +380,17 @@ class _Keyer:
         return part
 
 
-def language_patterns(lang: str, *, of_complement: bool = True) -> LanguagePatterns:
-    """The patterns of *lang*; without *of_complement*, English phrases take no ``of`` complement."""
+def language_patterns(lang: str, *, of_complement: bool = False) -> LanguagePatterns:
+    """The patterns of *lang*; with *of_complement*, English phrases may take one ``of`` complement.
+
+    The complement (``degrees of freedom``) is a switch of the lexicon lab, off
+    by default: most ``X of Y`` spans are phrasing (``role of silicic acid
+    uptake``), and they made the terms inside them look like fragments of a
+    longer phrase.
+    """
     lp = PATTERNS[lang]
-    if lang == "en" and not of_complement:
-        return dataclasses.replace(lp, pattern=_EN_NP)
+    if lang == "en" and of_complement:
+        return dataclasses.replace(lp, pattern=f"{_EN_NP}(?:P{_EN_NP})?")
     return lp
 
 

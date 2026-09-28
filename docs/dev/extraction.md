@@ -37,9 +37,14 @@ stages (AI triage, consolidation, the atlas) read the same tables as before.
 
    | language | pattern | examples |
    | --- | --- | --- |
-   | English | `(ADJ\|NOUN\|PROPN)* (NOUN\|PROPN\|gerund)`, with at most one `of` complement | `sea surface temperature`, `distributed systems`, `decision making`, `degrees of freedom` |
+   | English | `(ADJ\|NOUN\|PROPN)* (NOUN\|PROPN\|gerund)` | `sea surface temperature`, `distributed systems`, `decision making` |
    | French | `NOUN ADJ* ((de\|du\|des\|d'\|à\|au\|aux) DET? (NOUN\|PROPN) ADJ*)?` | `trait de côte`, `masse d'eau`, `zone à risque`, `variabilité interannuelle du niveau marin` |
    | Portuguese | the French shape, with `de`, `em`, `por`, `para`, `com`, `a` and their contractions (`do`, `da`, `dos`, `das`, `no`, `na`, `nos`, `nas`, `pelo`, `pela`, `pelos`, `pelas`, `ao`, `aos`, `à`, `às`) | `linha de costa`, `nível do mar`, `transporte pela corrente` |
+
+   An English `of` complement (`degrees of freedom`) is a switch of the
+   lexicon lab, off: most English `X of Y` spans are phrasing (`role of
+   silicic acid uptake`, `context of storm events`), and they made the terms
+   inside them look like fragments of a longer phrase ({doc}`lexicon-lab`).
 
    The Portuguese tokenizer keeps a contraction as one token tagged as a
    preposition (`do` is `de` + `o`), so `nível do mar` is `N P N`; an
@@ -103,16 +108,17 @@ interface turns into words:
 | `kept` | `multiword` | a phrase of two content words or more (prepositions and articles do not count) |
 | `check` | `single-word` | one content word |
 | `check` | `common-modifier: <word>` | the adjective at the phrase's edge (first in English, last in French and Portuguese) appears in the candidates of at least 20 % of the people (`recent approach`) |
-| `check` | `below-threshold` | a multi-word phrase outside the best `keep_share` of the candidates (all are kept by default) |
-| `aside` | `part-of: <term>` | at least 90 % of its occurrences sit inside one and the same longer kept candidate (`vector machine` in `support vector machine`) |
-| `aside` | `low-score` | the least specific tenth of the candidates, by `score_len` |
-| `aside` | `name: person\|place` | mostly inside a recognised name of a person or a place (only when names are recognised) |
+| `check` | `below-threshold` | a multi-word phrase outside the best `keep_share` of the candidates (off: every one is kept) |
+| `aside` | `part-of: <term>` | every occurrence sits inside one and the same longer candidate (`vector machine` in `support vector machine`) |
+| `aside` | `low-score` | the least specific `drop_share` of the candidates, by `score_len` (off) |
+| `aside` | `name: person\|place` | mostly inside a recognised name of a person or a place (only when names are recognised; the engine does not recognise them) |
 
 The rules are checked in the order `part-of`, `name`, `low-score`, then
 `single-word`, `common-modifier`, `below-threshold`, `multiword`. Bands
 describe candidates; they remove nothing: the triage and consolidation read
-every candidate, as before. The thresholds are those of the prototype and are
-compared in the lexicon lab ({doc}`lexicon-lab`).
+every candidate, as before. The rules and their defaults come from the
+lexicon lab ({doc}`lexicon-lab`); the rules marked off are its switches, not
+settings.
 
 ### The raw keyword tables
 
