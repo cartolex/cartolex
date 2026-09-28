@@ -450,21 +450,23 @@ def check_pdf(data: bytes) -> None:
 
 def pdf_text(data: bytes, work_dir: Path) -> tuple[str, str | None]:
     """The text of a PDF as ``(text, error)``; the file is extracted on its own, from a
-    temporary file in *work_dir* removed afterwards, and a failure is returned, never raised.
+    temporary file in *work_dir* removed afterwards, in the job's worker process (a file
+    that takes too long is left out, :mod:`cartolex.collect.pdfworker`), and a failure is
+    returned, never raised.
 
     Lines are joined into paragraphs (a blank line separates them), spaces tidied, and a
     word cut at a line-end hyphen is joined again.
     """
-    from cartolex.lexicon.pdf_text import extract_text
+    from ..pdfworker import PdfError, extract_pdf
 
     work_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=work_dir, prefix="pdf-") as tmp:
         path = Path(tmp) / "document.pdf"
         path.write_bytes(data)
         try:
-            raw = extract_text(path)
-        except Exception as exc:  # noqa: BLE001 - one broken file never stops a job
-            return "", f"{type(exc).__name__}: {exc}"
+            raw = extract_pdf(path)
+        except PdfError as exc:  # one broken file never stops a job
+            return "", str(exc)
     text = clean(re.sub(r"\(cid:\d+\)", " ", raw))
     # A word cut at a hyphen at the end of a line is joined again, hyphen kept (it may belong
     # to a compound word): "ground-\nwater" gives "ground-water", never two words.

@@ -273,13 +273,16 @@ def improve_texts(
     work_dir: Path | None = None,
     registry: Mapping[str, Provider] | None = None,
     now: Callable[[], datetime] | None = None,
+    pdf_timeout: float | None = None,
 ) -> ImproveReport:
     """Improve the texts of the tables: fill missing abstracts, and (with *full_text*, off by
     default) fetch full texts, from *providers* (every one by default, in their stated orders).
 
     *slots* and *text_ids* narrow the texts looked at; *work_dir* is where PDF
     files are extracted, one temporary file each (default: ``cache/tmp/``);
-    *registry* replaces :data:`PROVIDERS` (a provider configured otherwise).
+    *registry* replaces :data:`PROVIDERS` (a provider configured otherwise);
+    a PDF is read in a worker process that waits at most *pdf_timeout* seconds
+    for it (:mod:`cartolex.collect.pdfworker`).
     Progress, cancel and the egress record go through *client*. A failure is
     reported per text and the job goes on; a provider whose service fails three
     times in a row is not asked again in this job. The tables are not rebuilt
@@ -304,37 +307,52 @@ def improve_texts(
         steps += [("full_text", known[n]) for n in FULL_TEXT_ORDER if n in chosen]
         steps += [("full_text", known[n]) for n in chosen if n not in FULL_TEXT_ORDER]
     done: dict[str, set[str]] = {"abstract": set(), "full_text": set()}
+    from ..pdfworker import DEFAULT_TIMEOUT, pdf_worker
+
     try:
-        for step, (request, provider) in enumerate(steps):
-            client.progress(step / max(1, len(steps)), f"texts: {provider.name}, {request}")
-            if request == "abstract":
-                todo = [
-                    t
-                    for t in texts
-                    if not t.has_abstract
-                    and t.text_id not in done["abstract"]
-                    and provider.for_abstract(t)
-                ]
-                results = provider.abstracts(client, todo) if todo else {}
-            else:
-                todo = [
-                    t
-                    for t in texts
-                    if not t.has_full_text
-                    and t.text_id not in done["full_text"]
-                    and provider.for_full_text(t)
-                ]
-                results = _full_texts(client, provider, todo, work, report)
-            for text in todo:
-                _settle(
-                    text, provider, request, results.get(text.text_id), runs, done, report, clock
-                )
+        with pdf_worker(pdf_timeout or DEFAULT_TIMEOUT):
+            _improve_steps(client, texts, steps, work, runs, done, report, clock)
         report.runs = runs.close()
     except BaseException:
         runs.discard()
         raise
     client.progress(1.0, "texts: done")
     return report
+
+
+def _improve_steps(
+    client: HttpClient,
+    texts: list[TextRef],
+    steps: list[tuple[str, Provider]],
+    work: Path,
+    runs: Any,
+    done: dict[str, set[str]],
+    report: ImproveReport,
+    clock: Callable[[], datetime],
+) -> None:
+    """Ask each provider, in the providers' orders, for what the texts lack."""
+    for step, (request, provider) in enumerate(steps):
+        client.progress(step / max(1, len(steps)), f"texts: {provider.name}, {request}")
+        if request == "abstract":
+            todo = [
+                t
+                for t in texts
+                if not t.has_abstract
+                and t.text_id not in done["abstract"]
+                and provider.for_abstract(t)
+            ]
+            results = provider.abstracts(client, todo) if todo else {}
+        else:
+            todo = [
+                t
+                for t in texts
+                if not t.has_full_text
+                and t.text_id not in done["full_text"]
+                and provider.for_full_text(t)
+            ]
+            results = _full_texts(client, provider, todo, work, report)
+        for text in todo:
+            _settle(text, provider, request, results.get(text.text_id), runs, done, report, clock)
 
 
 def _settle(

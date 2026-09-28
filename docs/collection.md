@@ -64,8 +64,10 @@ cartolex collect folder my-project reports/ [--create-people]
 PDF and text files, matched to people by a sub-folder per person
 (`reports/Ada Tavelin/…`) or a name in the file name
 (`tavelin-2021-report.pdf`). Each file is read on its own: a file that cannot
-be read, that holds no text (a scan without a text layer), or that names nobody
-or several people is reported with its reason, and the others come in. With
+be read, that holds no text (a scan without a text layer), that takes more than
+two minutes to read (a PDF is read in a separate process, which is stopped
+then), or that names nobody or several people is reported with its reason, and
+the others come in. With
 `--create-people`, a sub-folder that names nobody creates a person. A year in
 the file name dates the text.
 

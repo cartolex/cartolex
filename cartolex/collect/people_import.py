@@ -37,6 +37,7 @@ from cartolex.project.tables import read_source_table
 
 from .decisions import read_people, update_people
 from .names import compatible_first_names, fold, name_key, split_full_name, surname_parts, words
+from .pdfworker import DEFAULT_TIMEOUT, PdfError, extract_pdf, pdf_worker
 from .tables import RawRun, RawWriter, SourceBuilder, iso, parse_time, rebuild_sources
 from .text import clean, detect_language
 
@@ -812,13 +813,8 @@ FOLDER_SUFFIXES = (".pdf", ".txt", ".md")
 
 def _read_document(path: Path) -> str:
     if path.suffix.lower() == ".pdf":
-        import pypdf
-
-        from cartolex.lexicon.pdf_text import extract_text
-
-        with open(path, "rb") as fh:  # a file that is not a PDF fails here, with its reason
-            len(pypdf.PdfReader(fh, strict=True).pages)
-        return extract_text(path)
+        # In the job's worker process, with a timeout; a file that is not a PDF is refused.
+        return extract_pdf(path, strict=True)
     raw = path.read_bytes()
     try:
         return raw.decode("utf-8-sig")
@@ -855,6 +851,7 @@ def import_folder(
     slot: str | None = None,
     create_people: bool = False,
     person_id: str | None = None,
+    pdf_timeout: float | None = None,
     now: datetime | None = None,
 ) -> ImportReport:
     """Import a folder of documents, each matched to a person.
@@ -862,8 +859,10 @@ def import_folder(
     A file in a sub-folder belongs to the person the sub-folder names; a file
     at the top belongs to the person its name names; with *person_id*, every
     file belongs to that person (documents added for one person, from the
-    coverage report). Each file is read on its own: an unreadable file is
-    reported with its reason and never stops the others. With *create_people*,
+    coverage report). Each file is read on its own, a PDF in a worker process
+    that waits at most *pdf_timeout* seconds for it (``pdfworker.DEFAULT_TIMEOUT``
+    by default): an unreadable file, or one that takes too long, is reported
+    with its reason and never stops the others. With *create_people*,
     a sub-folder whose name matches nobody creates a person. The text of each
     file becomes one ``full`` part.
     """
@@ -879,6 +878,41 @@ def import_folder(
     files = sorted(
         p for p in folder.rglob("*") if p.is_file() and p.suffix.lower() in FOLDER_SUFFIXES
     )
+    with pdf_worker(pdf_timeout or DEFAULT_TIMEOUT):
+        records = _read_folder(folder, files, people, person_id, create_people, report, now)
+    # The folder's name only: no absolute path is stored in a project file.
+    header = {"folder": folder.resolve().name, "files": report.rows_read}
+    with RawWriter(project.layout, slot, "folder", header, now=now) as writer:
+        for rec in records:
+            writer.add(rec)
+    report.run_id = writer.run_id
+    report.texts = len(records)
+    before = set(read_people(project.layout))
+    rebuild_sources(project.layout, project.config)
+    created = {rec["person"]["key"] for rec in records if rec["person"] is not None}
+    if created:
+        pid_of = _registry_ids(project, slot, created)
+        new = {
+            pid: {"role": "mapped", "identity": "none"}
+            for pid in pid_of.values()
+            if pid not in before
+        }
+        report.people_created = len(new)
+        update_people(project.layout, new, action="import folder", only_new=True, now=now)
+    _full_parts(project, report)
+    return report
+
+
+def _read_folder(
+    folder: Path,
+    files: Sequence[Path],
+    people: Sequence[Mapping[str, Any]],
+    person_id: str | None,
+    create_people: bool,
+    report: ImportReport,
+    now: datetime,
+) -> list[dict[str, Any]]:
+    """Read each file on its own: a record per readable file, the others refused."""
     records = []
     for path in files:
         rel = path.relative_to(folder).as_posix()
@@ -904,6 +938,9 @@ def import_folder(
             continue
         try:
             text = clean(_read_document(path))
+        except PdfError as exc:
+            report.refused.append((rel, f"could not be read ({exc})"))
+            continue
         except Exception as exc:  # one broken file never stops the others
             report.refused.append(
                 (rel, f"could not be read ({type(exc).__name__}: {str(exc)[:120]})")
@@ -926,27 +963,7 @@ def import_folder(
                 "retrieved_at": iso(now),
             }
         )
-    # The folder's name only: no absolute path is stored in a project file.
-    header = {"folder": folder.resolve().name, "files": report.rows_read}
-    with RawWriter(project.layout, slot, "folder", header, now=now) as writer:
-        for rec in records:
-            writer.add(rec)
-    report.run_id = writer.run_id
-    report.texts = len(records)
-    before = set(read_people(project.layout))
-    rebuild_sources(project.layout, project.config)
-    created = {rec["person"]["key"] for rec in records if rec["person"] is not None}
-    if created:
-        pid_of = _registry_ids(project, slot, created)
-        new = {
-            pid: {"role": "mapped", "identity": "none"}
-            for pid in pid_of.values()
-            if pid not in before
-        }
-        report.people_created = len(new)
-        update_people(project.layout, new, action="import folder", only_new=True, now=now)
-    _full_parts(project, report)
-    return report
+    return records
 
 
 def read_folder_runs(runs: list[RawRun], builder: SourceBuilder) -> None:

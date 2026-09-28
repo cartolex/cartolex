@@ -446,7 +446,18 @@ a document that declares entities is refused. LaTeX is read from one gzipped
 file or a tar, `\input` and `\include` files inlined, accent macros and escapes
 decoded, maths, labels, citations and comments dropped. A PDF goes through
 `cartolex.lexicon.pdf_text`, each file on its own in a temporary file under
-`cache/tmp/`: a file that cannot be read is reported for its text only. A
+`cache/tmp/`, in the job's PDF worker (below): a file that cannot be read, or
+takes too long, is reported for its text only.
+
+**The PDF worker.** `cartolex.collect.pdfworker.PdfWorker(timeout)` reads each
+PDF in a separate process (started with `spawn`, once per job, when the first
+PDF comes) and waits at most `timeout` seconds (120 by default) for its text;
+a file that takes longer is left out with the reason (`no text after 120 s`),
+the process is stopped and the next file gets a new one. `import_folder` and
+`improve_texts` open one for their job (`pdf_worker(timeout)`, their
+`pdf_timeout` argument), and every PDF they read goes through it
+(`extract_pdf`). Tests replace the reading function with
+`extractor="module:function"`, imported in the worker. A
 link a service gives is followed only when it is `http(s)` and, unless the
 job's services are local, not a private address.
 
