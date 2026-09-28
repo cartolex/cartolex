@@ -358,11 +358,19 @@ def triage_costs(parsed, scored, matchers, golds, corpus_name: str) -> list[dict
     return rows
 
 
+def count_words(corpus) -> int:
+    """Words of the corpus, each text once (a co-written text is listed once per author)."""
+    seen: dict[str, int] = {}
+    for t in corpus.texts:
+        seen.setdefault(t.text_id, sum(len(v.split()) for v in t.parts.values()))
+    return sum(seen.values())
+
+
 def run_corpus(spec: CorpusSpec, *, jobs: int, quick: bool) -> CorpusResult:
     t0 = time.perf_counter()
     corpus = spec.make()
     parsed = lab_analyses.parse(corpus, n_jobs=jobs, names=spec.names)
-    words = sum(len(v.split()) for t in corpus.texts for v in t.parts.values())
+    words = count_words(corpus)
     info = {
         "corpus": spec.name,
         "languages": ",".join(sorted(parsed.units)),
