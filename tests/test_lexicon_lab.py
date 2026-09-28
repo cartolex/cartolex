@@ -158,11 +158,33 @@ def test_usage_lines() -> None:
     assert lines["tide gauge"] == ["The tide gauge records s…"]
 
 
-def test_variant_families_start_with_the_current_default() -> None:
+def test_reasons_count_what_each_rule_catches() -> None:
+    m = measures.Matcher("en", {})
+    gold = measures.Gold(all={("tide", "gauge"), ("wave",)}, shared=set(), canonical={}, themes={})
+    table = pd.DataFrame(
+        [
+            ("tide gauge", "kept", "multiword"),
+            ("recent approach", "check", "common-modifier: recent"),
+            ("wave", "check", "single-word"),
+            ("gauge", "aside", "part-of: tide gauge"),
+            ("vector machine", "aside", "part-of: support vector machine"),
+        ],
+        columns=["term", "band", "reason"],
+    )
+    assert measures.by_reason(table, m, gold) == {
+        ("kept", "multiword"): [1, 1],
+        ("check", "common-modifier"): [1, 0],
+        ("check", "single-word"): [1, 1],
+        ("aside", "part-of"): [2, 0],
+    }
+
+
+def test_variant_families_start_with_the_default() -> None:
     for family, options in variants.FAMILIES.items():
-        assert "current" in options[0].label, family
+        assert "default" in options[0].label, family
         assert options[0].options == variants.BASE
-    assert len(variants.BAND_POINTS) == 12
+    labels = [variants.band_variant(r).label for r in variants.BAND_POINTS]
+    assert len(labels) == len(set(labels)) == 14
 
 
 @pytest.mark.models("en", "fr")
@@ -172,6 +194,12 @@ def test_the_lab_runs_end_to_end(tmp_path: Path) -> None:
     argv = ["--suite", "smoke", "--out", str(out), "--cache", str(tmp_path / "cache")]
     assert run.main(argv) == 0
     text = out.read_text(encoding="utf-8")
-    for heading in ("## Corpora", "## Of complement", "## Bands: operating points", "## AI triage"):
+    for heading in (
+        "## Corpora",
+        "## Of complement",
+        "## Bands: operating points",
+        "## Bands: what each rule catches",
+        "## AI triage",
+    ):
         assert heading in text
     assert "demo XS" in text and "API, every candidate (today)" in text

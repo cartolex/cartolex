@@ -112,6 +112,7 @@ class CorpusResult:
     rows: list[dict] = field(default_factory=list)
     bands: list[dict] = field(default_factory=list)
     triage: list[dict] = field(default_factory=list)
+    reasons: list[dict] = field(default_factory=list)
 
 
 def peak_mb() -> float:
@@ -216,6 +217,46 @@ def measure(parsed, variant, matchers, golds, *, stability: bool, workspace) -> 
     return row, scored
 
 
+REASON_ORDER = [
+    ("kept", "multiword"),
+    ("check", "single-word"),
+    ("check", "common-modifier"),
+    ("check", "below-threshold"),
+    ("aside", "part-of"),
+    ("aside", "low-score"),
+    ("aside", "name"),
+]
+
+
+def reasons(parsed, matchers, golds, corpus_name: str) -> list[dict]:
+    """What each band rule catches (every rule on), and the gold share among it."""
+    v = variants.diagnostic(names=parsed.names is not None)
+    scored = score(parsed, v)
+    cells: dict[tuple[str, str], list[int]] = {}
+    for lang, sc in scored.items():
+        for key, (n, g) in measures.by_reason(sc.table, matchers[lang], golds[lang]).items():
+            cell = cells.setdefault(key, [0, 0])
+            cell[0] += n
+            cell[1] += g
+    total = [sum(c[0] for c in cells.values()), sum(c[1] for c in cells.values())]
+    order = [k for k in REASON_ORDER if k in cells] + sorted(set(cells) - set(REASON_ORDER))
+    rows = []
+    for (band, reason), (n, g) in [(k, cells[k]) for k in order] + [
+        (("all", "every candidate"), total)
+    ]:
+        rows.append(
+            {
+                "corpus": corpus_name,
+                "band": band,
+                "reason": reason,
+                "candidates": n,
+                "gold": g,
+                "gold_share": g / n if n else float("nan"),
+            }
+        )
+    return rows
+
+
 def triage_costs(parsed, scored, matchers, golds, corpus_name: str) -> list[dict]:
     """API triage (today: every candidate, bare strings) against a handoff of the to-check band."""
     from cartolex.lexicon.triage_typed import build_typed_prompt
@@ -311,19 +352,24 @@ def run_corpus(spec: CorpusSpec, *, jobs: int, quick: bool) -> CorpusResult:
                 if v.names and parsed.names is None:
                     continue
                 todo.append(v)
-        todo.append(variants.recommended())
+        rec = variants.recommended()
+        triage_on = variants.BASELINE
+        if rec.options != variants.BASE or rec.names:
+            todo.append(rec)
+            triage_on = rec
         for v in todo:
             LOG.info("%s: %s", spec.name, v.id)
             row, scored = measure(
                 parsed, v, matchers, golds, stability=spec.stability, workspace=workspace
             )
             result.rows.append(row)
-            if v is variants.BASELINE:
+            if v is triage_on:
                 result.triage += triage_costs(parsed, scored, matchers, golds, spec.name)
-        for keep, drop, fragments in variants.BAND_POINTS:
-            v = variants.band_variant(keep, drop, fragments, base=variants.recommended().options)
+        for rules in variants.BAND_POINTS:
+            v = variants.band_variant(rules, base=rec.options)
             row, _ = measure(parsed, v, matchers, golds, stability=False, workspace=None)
             result.bands.append(row)
+        result.reasons = reasons(parsed, matchers, golds, spec.name)
     finally:
         if workspace is not None:
             workspace.close()
@@ -379,12 +425,48 @@ MAIN_COLUMNS = [
 ]
 
 
-def report(results: list[CorpusResult], suite: str, seconds: float) -> str:
+SUMMARY_COLUMNS = [
+    ("corpus", "corpus", ""),
+    ("variant", "label", ""),
+    ("AI load", "check", "int"),
+    ("precision", "precision", "pct"),
+    ("recall", "recall", "pct"),
+    ("F1", "f1", "pct"),
+    ("AUC", "auc", ""),
+    ("best 10 %", "p_top", "pct"),
+    ("gold aside", "gold_set_aside", "int"),
+    ("Jaccard", "jaccard", ""),
+    ("ARI themes", "ari_themes", ""),
+    ("mix cos", "mix_cosine", ""),
+]
+
+
+def summary(results) -> list[str]:
+    """One compact table per choice, every corpus: the tables the documentation quotes."""
+    lines = ["## Summary by choice", ""]
+    for family in variants.FAMILIES:
+        rows = []
+        for r in results:
+            mine = [x for x in r.rows if x["family"] == family]
+            if not mine:
+                continue
+            base = next(x for x in r.rows if x["family"] == "baseline")
+            first = dict(base, label=variants.FAMILIES[family][0].label)
+            for x in [first, *mine]:
+                rows.append(dict(x, corpus=r.info["corpus"]))
+        if rows:
+            cols = [c for c in SUMMARY_COLUMNS if any(c[1] in x for x in rows) or c[1] == "corpus"]
+            lines += [f"### {family.capitalize()}", ""] + table(rows, cols) + [""]
+    return lines
+
+
+def report(results, suite: str, seconds: float, peak: float | None = None) -> str:
     lines = [
         f"# Lexicon lab report — suite {suite}",
         "",
         f"Generated by `tools/lexicon_lab/run.py --suite {suite}` in {seconds / 60:.1f} min, "
-        f"peak memory {peak_mb():.0f} MB. Window: at least {MIN_PEOPLE} people, at most "
+        f"peak memory {peak if peak is not None else peak_mb():.0f} MB. Window: at least "
+        f"{MIN_PEOPLE} people, at most "
         f"{MAX_SHARE:.0%} of them. Judge: the oracle (it accepts exactly the gold). "
         "Stability: the same corpus without 10 % of its texts (two draws).",
         "",
@@ -406,8 +488,11 @@ def report(results: list[CorpusResult], suite: str, seconds: float) -> str:
             ("lab s", "seconds", "s"),
         ],
     )
+    lines += [""] + summary(results)
     families = ["baseline", *variants.FAMILIES, "recommended"]
     for family in families:
+        if not any(x["family"] == family for r in results for x in r.rows):
+            continue
         lines += ["", f"## {family.capitalize()}", ""]
         for r in results:
             rows = [x for x in r.rows if x["family"] in (family, "baseline")]
@@ -415,7 +500,7 @@ def report(results: list[CorpusResult], suite: str, seconds: float) -> str:
                 rows = [x for x in rows if x["family"] == family]
             if not rows:
                 continue
-            lines += [f"**{r.spec.name}**", ""]
+            lines += [f"**{r.info['corpus']}**", ""]
             cols = [c for c in MAIN_COLUMNS if any(c[1] in x for x in rows)]
             lines += table(rows, cols) + [""]
     lines += [
@@ -423,12 +508,14 @@ def report(results: list[CorpusResult], suite: str, seconds: float) -> str:
         "## Bands: operating points",
         "",
         "On the recommended scoring. Keep: the share of the best-scored candidates in which a "
-        "multi-word phrase is kept; drop: the least specific share set aside; fragments: the "
-        "part-of rule.",
+        "multi-word phrase is kept; low score: the least specific share set aside; fragments: "
+        "the part-of rule (the share of a candidate's occurrences inside one longer candidate "
+        "that makes it a fragment); common modifiers: the rule that sends a phrase with a "
+        "widespread edge adjective to check.",
         "",
     ]
     for r in results:
-        lines += [f"**{r.spec.name}**", ""]
+        lines += [f"**{r.info['corpus']}**", ""]
         lines += table(
             r.bands,
             [
@@ -437,7 +524,35 @@ def report(results: list[CorpusResult], suite: str, seconds: float) -> str:
                 if c[1] not in ("jaccard", "spearman", "ari_topics", "ari_themes", "mix_cosine")
             ],
         ) + [""]
-    lines += ["", "## AI triage: routes and what they would cost", ""]
+    lines += [
+        "",
+        "## Bands: what each rule catches",
+        "",
+        "Every rule on (the least specific tenth set aside, names when they are recognised); "
+        "a candidate takes the first rule that fires. A rule that sets aside or sends to check "
+        "is useful when the gold share of what it catches is well below that of every candidate.",
+        "",
+    ]
+    lines += table(
+        [x for r in results for x in r.reasons],
+        [
+            ("corpus", "corpus", ""),
+            ("band", "band", ""),
+            ("reason", "reason", ""),
+            ("candidates", "candidates", "int"),
+            ("gold", "gold", "int"),
+            ("gold share", "gold_share", "pct"),
+        ],
+    )
+    lines += [
+        "",
+        "## AI triage: routes and what they would cost",
+        "",
+        "On the recommended set. Tokens are estimated at four characters each; the prices are "
+        "illustrative. The API routes send bare strings in batches of 150, as the engine's "
+        "triage does; the handoff sends one bundle with the evidence of each term.",
+        "",
+    ]
     rows = [t for r in results for t in r.triage if "input_tokens" in t]
     cols = [
         ("corpus", "corpus", ""),
@@ -478,7 +593,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--cache", type=Path, help="folder of the lab's parse cache (default .cache/lexicon_lab/)"
     )
+    parser.add_argument(
+        "--from-json", type=Path, help="write the report of numbers saved with --json, run nothing"
+    )
     args = parser.parse_args(argv)
+    if args.from_json is not None:
+        saved = json.loads(args.from_json.read_text(encoding="utf-8"))
+        results = [
+            CorpusResult(None, d["info"], d["rows"], d["bands"], d["triage"], d.get("reasons", []))
+            for d in saved["corpora"]
+        ]
+        text = report(results, saved["suite"], saved["seconds"], saved.get("peak_mb"))
+        out = args.out or args.from_json.with_suffix(".md")
+        out.write_text(text, encoding="utf-8")
+        print(f"report: {out}")
+        return 0
     if args.cache is not None:
         lab_analyses.CACHE = args.cache
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
@@ -502,24 +631,30 @@ def main(argv: list[str] | None = None) -> int:
     for spec in specs:
         LOG.info("corpus %s", spec.name)
         results.append(run_corpus(spec, jobs=args.jobs, quick=args.suite == "quick"))
-    text = report(results, args.suite, time.perf_counter() - t0)
+    seconds = time.perf_counter() - t0
+    text = report(results, args.suite, seconds)
     if skipped:
         text += f"\nSkipped (not in the cache; run with --fetch): {', '.join(skipped)}\n"
     out = args.out or lab_analyses.CACHE / f"report-{args.suite}.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
     if args.json:
-        args.json.write_text(
-            json.dumps(
-                [
-                    {"info": r.info, "rows": r.rows, "bands": r.bands, "triage": r.triage}
-                    for r in results
-                ],
-                indent=1,
-                default=str,
-            ),
-            encoding="utf-8",
-        )
+        saved = {
+            "suite": args.suite,
+            "seconds": seconds,
+            "peak_mb": peak_mb(),
+            "corpora": [
+                {
+                    "info": r.info,
+                    "rows": r.rows,
+                    "bands": r.bands,
+                    "triage": r.triage,
+                    "reasons": r.reasons,
+                }
+                for r in results
+            ],
+        }
+        args.json.write_text(json.dumps(saved, indent=1, default=str), encoding="utf-8")
     print(f"report: {out}")
     return 0
 

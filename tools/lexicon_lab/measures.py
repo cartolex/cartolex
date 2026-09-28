@@ -146,6 +146,21 @@ def evaluate(table, matcher: Matcher, gold: Gold) -> dict:
     }
 
 
+def by_reason(table, matcher: Matcher, gold: Gold) -> dict[tuple[str, str], list[int]]:
+    """``{(band, reason code): [candidates, gold among them]}`` of one scored table.
+
+    The reason code drops what follows the colon (``part-of: sea level`` is
+    ``part-of``): what each band rule catches, and how much gold it catches.
+    """
+    out: dict[tuple[str, str], list[int]] = {}
+    for term, band, reason in zip(table["term"], table["band"], table["reason"], strict=True):
+        k = matcher.key(term)
+        cell = out.setdefault((band, str(reason).split(":")[0]), [0, 0])
+        cell[0] += 1
+        cell[1] += int(bool(k) and k in gold.all)
+    return out
+
+
 COUNTS = (
     "candidates",
     "kept",
