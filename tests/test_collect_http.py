@@ -203,10 +203,10 @@ def test_backoff_grows_with_jitter(demo) -> None:
 
 
 def test_a_request_that_never_answers_times_out_and_is_retried(demo) -> None:
-    client = _client(demo, timeouts=Timeouts(connect=1.0, read=0.3))
-    demo.faults.add("hang", service="openalex", delay=3.0, times=1)
+    client = _client(demo, timeouts=Timeouts(connect=2.0, read=1.0))
+    demo.faults.add("hang", service="openalex", delay=6.0, times=1)
     assert _authors(client).data["results"]
-    demo.faults.add("hang", service="openalex", delay=3.0, times=None)
+    demo.faults.add("hang", service="openalex", delay=6.0, times=None)
     with pytest.raises(ServiceUnavailable, match="no answer within the time allowed"):
         _authors(client)
 
