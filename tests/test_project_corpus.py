@@ -91,3 +91,29 @@ def test_render_text_reading_order():
     assert render_text(parts, chosen=("body",)) == "Body.\n"
     assert render_text([("full", "en", "\nWhole text.\n")], chosen=("full",)) == "Whole text.\n"
     assert render_text(parts, chosen=()) == ""
+
+
+def test_an_overlay_with_its_own_root_is_read_from_there(world_and_project, tmp_path):
+    import pyarrow as pa
+    import pyarrow.compute as pc
+
+    from cartolex.project import Project, ProjectLayout
+    from cartolex.project.models import Overlay
+    from cartolex.project.tables import read_source_table, write_source_table
+
+    world, base = world_and_project
+    name, members = next(iter(world.overlay_sets.items()))
+    ids = [p.person_id for p in members]
+    source = ProjectLayout(base / "project")
+    root = tmp_path / "outside" / name  # beside the project, as a host application would keep it
+    for table in ("texts", "text_parts", "people", "authorships", "organisations", "affiliations"):
+        t = read_source_table(source.table(table), table)
+        if "person_id" in t.column_names:
+            t = t.filter(pc.is_in(t["person_id"], value_set=pa.array(ids)))
+        write_source_table(root / "tables" / f"{table}.parquet", table, t)
+    project = Project.open(base / "project")
+    config = project.config.model_copy(update={"overlays": [Overlay(id=name, root=str(root))]})
+    assemble_corpus(project.layout, config, tmp_path / "out")
+    old = _rows_with_texts(base / "workspace" / "overlay" / name / "index.csv")
+    new = _rows_with_texts(tmp_path / "out" / "overlays" / name / "index.csv")
+    assert new == old and new
