@@ -887,7 +887,7 @@ def _run_lexical_plots(
 
 #: The people whose texts one step of the trajectories reads at a time: the
 #: texts of a large project never sit in memory together.
-TRAJECTORY_CHUNK = 5000
+TRAJECTORY_CHUNK = 1000
 
 _DOC_COLUMNS = ["last_name", "first_name", "unit", "doc_year", "doc_type"]
 

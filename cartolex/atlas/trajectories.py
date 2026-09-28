@@ -213,6 +213,30 @@ def project_trajectories(B: np.ndarray | sparse.spmatrix, svd_model, anchors) ->
     return anchors.place(Z)
 
 
+def _window_projector(svd_model) -> Callable[[np.ndarray], np.ndarray]:
+    """One window's vector → its place in the space: L2-normalised, then the SVD's transform.
+
+    For a fitted ``TruncatedSVD`` the arithmetic of ``normalize`` and
+    ``transform`` is done directly (the same operations on the same arrays, so
+    the same bits) without their input checks, which cost more than the
+    product for one row; any other model is called as it is.
+    """
+    from sklearn.decomposition import TruncatedSVD
+
+    if type(svd_model) is not TruncatedSVD:
+        return lambda acc: svd_model.transform(normalize(acc.reshape(1, -1), norm="l2"))[0]
+    tiny = 10 * np.finfo(np.float64).eps
+
+    def project(acc: np.ndarray) -> np.ndarray:
+        x = np.array(acc.reshape(1, -1), dtype=np.float64, order="C")
+        norms = np.sqrt(np.einsum("ij,ij->i", x, x))
+        norms[norms < tiny] = 1.0
+        x /= norms[:, None]
+        return (x @ svd_model.components_.T)[0]
+
+    return project
+
+
 def build_trajectory_windows(
     traj: TrajectoryData,
     *,
@@ -247,6 +271,7 @@ def build_trajectory_windows(
 
     if traj.B.shape[0] == 0 or traj.meta.empty:
         return {}
+    to_space = _window_projector(svd_model)
     meta = traj.meta.reset_index(drop=True)
     out: dict[str, list[dict]] = {}
     pending: list[tuple[str, dict]] = []
@@ -267,7 +292,7 @@ def build_trajectory_windows(
                 mass = float(acc.sum())
                 if mass <= 0:
                     continue
-                vectors.append(svd_model.transform(normalize(acc.reshape(1, -1), norm="l2"))[0])
+                vectors.append(to_space(acc))
                 scored = [(traj.terms[c], float(acc[c])) for c in np.nonzero(acc)[0] if acc[c] > 0]
                 subfields, concepts = researcher_group_weights(
                     scored,
