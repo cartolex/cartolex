@@ -6,6 +6,9 @@
   and the record of what left the computer;
 * :mod:`~cartolex.collect.services` — the services cartolex talks to and the
   settings a job is given;
+* :mod:`~cartolex.collect.text` — text hygiene at the boundary;
+* :mod:`~cartolex.collect.tables` — the source writers: raw records in each
+  slot's ``raw/`` folder, stable ids, and the six source tables rebuilt from them.
 
 The engine never imports this package; this package imports the project format
 (:mod:`cartolex.project`) and a few engine helpers (PDF text, language detection).
@@ -37,6 +40,7 @@ from .services import (
     Timeouts,
     local_settings,
 )
+from .tables import IdRegistry, RawWriter, SourceBuilder, read_runs, rebuild_sources
 
 __all__ = [
     "SERVICES",
@@ -49,15 +53,20 @@ __all__ = [
     "Fetched",
     "HttpCache",
     "HttpClient",
+    "IdRegistry",
     "IncompleteResults",
     "MalformedResponse",
     "NotFound",
     "RateLimit",
+    "RawWriter",
     "RequestRefused",
     "RetryPolicy",
     "Service",
     "ServiceError",
     "ServiceUnavailable",
+    "SourceBuilder",
     "Timeouts",
     "local_settings",
+    "read_runs",
+    "rebuild_sources",
 ]
