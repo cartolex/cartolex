@@ -116,7 +116,7 @@ def test_bundle_items_carry_their_evidence() -> None:
     )
     text = b.to_text()
     assert "Coastal systems" in text and "1. " in text and "data [en]" in text
-    assert '"format": "cartolex-handoff/0"' in b.to_json()
+    assert '"format": "cartolex-handoff/1"' in b.to_json()
 
 
 def test_judges() -> None:
