@@ -332,10 +332,11 @@ console error, an uncaught exception or a CSP violation fails a test:
   Activity drawer;
 - the theme editor on the real app (`tests/browser/test_theme_editor.py`, with
   `app_harness.py`): the S demo world built as a project once per session,
-  then each scenario on a fresh copy served by the app on a free loopback
-  port (see {doc}`themes-editor`); the budgets on the L world are marked
-  `slow`. A test waits with a predicate that returns a boolean, never an
-  element: an element handle would keep a page alive and read as a leak.
+  then each scenario on a fresh copy served by the app on a free loopback port
+  (see {doc}`themes-editor`): the main flows, a keyboard script of the menu
+  actions, axe, and one budget on the L world (marked `slow`). A test waits
+  with a predicate that returns a boolean, never an element: an element handle
+  would keep a page alive and read as a leak.
 
 The browser tests need `tools/requirements-browser.txt` (Playwright, which
 `tools/check.py` installs into the quick Python's environment) and a Chromium

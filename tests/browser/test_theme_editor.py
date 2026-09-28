@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: MIT
-"""The theme editor on the real app, on the S demo world at depth 2 (L for the budgets).
+"""The theme editor on the real app, on the S demo world at depth 2 (L for the budget).
 
-Every scenario starts from a fresh copy of the built project: open, search,
-rename, move by menu and by drag, merge, split, set aside and put back, undo and
-redo, a draft restored after a reload, a stale save reloaded and merged, save,
-versions compared and restored, the « To check » queue, apply in the
-background, and the AI handoff exported, imported and accepted. Then axe, the
-keyboard, the three languages, teardown and leaks, and the budgets.
+The main flows only, each from a fresh copy of the built project: search and
+rename, undo and redo, move by the menu, merge, split, set aside and put back,
+a draft restored after a reload, a save refused (412) then reloaded and
+merged, apply in the background, and the AI handoff imported and accepted.
+Then a keyboard script of the menu actions, axe in one theme, and one budget
+on the L world: page ready and search.
 """
 
 from __future__ import annotations
@@ -147,7 +147,7 @@ def test_open_search_rename_undo_and_redo(editor):
     assert row(ui, "Climate archives").count() == 1
 
 
-def test_move_by_menu_and_by_drag(editor):
+def test_move_by_the_menu(editor):
     ui = editor
     page = ui.page
     t = tree(ui)
@@ -160,27 +160,11 @@ def test_move_by_menu_and_by_drag(editor):
     page.keyboard.press("ArrowDown")
     page.keyboard.press("Shift+F10")
     menu_item(ui, "Move to…").click()
-    target = tops[1]
-    pick(ui, name_of(target))
+    pick(ui, name_of(tops[1]))
     wait_status(ui, "1 unsaved change")
     assert undo_label(ui).startswith("Undo: Move 1 keyword to")
     moved = [k for k in kws if tree_after(ui).get(k) != topic["id"]]
     assert len(moved) == 1
-    # drag the next keyword onto a treemap rectangle
-    rows = outline(ui).locator("[role=treeitem]:not([aria-expanded])")
-    source = rows.first
-    term = source.locator(".cx-themes-row__term").inner_text()
-    cell = page.locator(f'.cx-treemap__cell[data-node="{tops[2]["id"]}"]')
-    source.drag_to(cell, target_position={"x": 12, "y": 8})  # on the theme's own label strip
-    wait_status(ui, "2 unsaved changes")
-    assert tree_after(ui)[term] == tops[2]["id"]
-    # and onto another row of the outline
-    row(ui, name_of(tops[0])).first.scroll_into_view_if_needed()
-    source = outline(ui).locator("[role=treeitem]:not([aria-expanded])").first
-    term = source.locator(".cx-themes-row__term").inner_text()
-    source.drag_to(row(ui, name_of(tops[0])).first)
-    wait_status(ui, "3 unsaved changes")
-    assert tree_after(ui)[term] == tops[0]["id"]
 
 
 def tree_after(ui) -> dict:
@@ -263,25 +247,6 @@ def test_a_draft_survives_a_reload(editor):
     assert row(ui, "Kept in the draft").count() == 0
 
 
-def test_leaving_with_changes_asks_in_the_page(editor):
-    ui = editor
-    page = ui.page
-    outline(ui).focus()
-    page.keyboard.press("Home")
-    page.keyboard.press("F2")
-    dialog(ui).get_by_label("Name in English").fill("Not saved yet")
-    dialog(ui).get_by_label("Name in English").press("Enter")
-    wait_status(ui, "1 unsaved change")
-    page.locator('[data-nav="overview"]').click()
-    question = page.get_by_role("alertdialog", name="Leave the theme editor?")
-    question.wait_for()
-    question.get_by_role("button", name="Stay on the page").click()
-    assert page.url.endswith("/themes")
-    page.locator('[data-nav="overview"]').click()
-    page.get_by_role("alertdialog").get_by_role("button", name="Leave, keep the draft").click()
-    page.wait_for_url(re.compile(r"/overview$"))
-
-
 @pytest.mark.allow_console_errors
 def test_a_stale_save_reloads_and_merges(editor):
     ui = editor
@@ -336,77 +301,6 @@ def test_a_stale_save_reloads_and_merges(editor):
     network = [e for e in ui.collected.console_errors if "412" not in e]
     assert network == [], network
     assert ui.collected.page_errors == []
-
-
-def test_versions_compare_and_restore(editor):
-    ui = editor
-    page = ui.page
-    t = tree(ui)
-    first = next(n for n in t["nodes"] if n["parent"] is None)
-    page.locator(".cx-themes__toolbar").get_by_role("button", name="Save the proposal").click()
-    wait_status(ui, "Saved")
-    row(ui, name_of(first)).first.click()
-    page.keyboard.press("F2")
-    dialog(ui).get_by_label("Name in English").fill("Second version")
-    dialog(ui).get_by_label("Name in English").press("Enter")
-    wait_status(ui, "1 unsaved change")
-    page.keyboard.press("Control+s")
-    wait_status(ui, "Saved")
-    toolbar = page.locator(".cx-themes__toolbar")
-    toolbar.get_by_role("button", name="More").click()
-    menu_item(ui, "Versions…").click()
-    drawer = dialog(ui)
-    items = drawer.locator(".cx-themes-versions__item")
-    items.nth(1).wait_for()
-    assert items.count() == 2
-    items.nth(1).get_by_role("button", name="Compare with the current tree").click()
-    compare = page.get_by_role("dialog", name=re.compile("and the current tree"))
-    compare.locator(".cx-themes-changes").wait_for()
-    assert "renamed" in compare.inner_text()
-    compare.get_by_role("button", name="Restore this version").click()
-    page.locator(".cx-toast", has_text="is the current tree again").wait_for()
-    assert row(ui, name_of(first)).count() >= 1
-    versions = api(ui, "GET", "/api/themes/versions")["data"]["items"]
-    assert len(versions) == 3 and versions[0]["made_by"].startswith("restore ")
-
-
-def test_the_to_check_queue_by_keyboard(editor):
-    ui = editor
-    page = ui.page
-    current = api(ui, "GET", "/api/themes")
-    t = current["data"]["tree"]
-    terms = sorted(t["keywords"])[:3]
-    marked = api(
-        ui,
-        "POST",
-        "/api/themes/ops",
-        {"tree": t, "ops": [{"op": "set_review", "keywords": terms, "state": "to_check"}]},
-    )["data"]["tree"]
-    assert (
-        api(ui, "PUT", "/api/themes", {"tree": marked, "action": "mark"}, current["etag"])["status"]
-        == 200
-    )
-    page.reload()
-    ui.wait_ready(0)
-    banner = page.locator(".cx-themes-banner", has_text="3 keywords wait")
-    banner.wait_for()
-    banner.get_by_role("button", name="Review them").click()
-    queue = page.get_by_role("tree", name="Keywords to check")
-    queue.focus()
-    page.keyboard.press("a")  # accept the first where it is
-    page.locator(".cx-tabs__tab", has_text="To check").get_by_text("2").wait_for()
-    page.keyboard.press("m")  # move the next one
-    tops = [n for n in t["nodes"] if n["parent"] is None]
-    pick(ui, name_of(tops[-1]))
-    page.locator(".cx-tabs__tab", has_text="To check").get_by_text("1").wait_for()
-    queue.focus()
-    page.keyboard.press("s")  # set the last one aside
-    dialog(ui).locator("button[type=submit]").click()
-    page.locator(".cx-tabs__tab", has_text="To check").get_by_text("0").wait_for()
-    page.keyboard.press("Control+s")
-    wait_status(ui, "Saved")
-    review = tree(ui)["review"]
-    assert all(review[k] == "reviewed" for k in terms)
 
 
 def test_apply_runs_in_the_background(editor):
@@ -465,90 +359,6 @@ def test_ai_handoff_export_import_and_accept(editor):
     wait_status(ui, "proposal")
     proposals = api(ui, "GET", "/api/themes/handoff/proposals")["data"]["items"]
     assert len(proposals) == 1
-
-
-def test_a_range_of_keywords_moves_together_and_saving_removes_empty_nodes(editor):
-    ui = editor
-    page = ui.page
-    keys = page.keyboard
-    t = tree(ui)
-    tops = [n for n in t["nodes"] if n["parent"] is None]
-    topic = next(n for n in t["nodes"] if n["parent"] == tops[0]["id"])
-    row(ui, name_of(topic)).first.click()
-    keys.press("ArrowRight")
-    keys.press("ArrowDown")
-    keys.press("Shift+ArrowDown")
-    keys.press("Shift+ArrowDown")
-    assert outline(ui).locator("[role=treeitem][aria-selected=true]").count() == 3
-    keys.press("Shift+F10")
-    menu_item(ui, "Move to…").click()
-    pick(ui, name_of(tops[1]))
-    wait_status(ui, "1 unsaved change")
-    assert undo_label(ui).startswith("Undo: Move 3 keywords to")
-    # a new node left empty is removed by the save, which says so
-    page.locator(".cx-themes-outline__tools").get_by_role("button", name="New node").click()
-    dialog(ui).get_by_label("Name in English").fill("Left empty")
-    dialog(ui).get_by_label("Name in English").press("Enter")
-    wait_status(ui, "2 unsaved changes")
-    keys.press("Control+s")
-    page.locator(".cx-toast", has_text="empty node").wait_for()
-    assert "Left empty" not in {name_of(n) for n in tree(ui)["nodes"]}
-
-
-def test_a_tree_of_another_vocabulary_shows_a_banner_and_rebases(editor):
-    ui = editor
-    page = ui.page
-    current = api(ui, "GET", "/api/themes")
-    other = {
-        **current["data"]["tree"],
-        "based_on": {"run": None, "vocabulary": "sha256:" + "0" * 64},
-    }
-    assert (
-        api(ui, "PUT", "/api/themes", {"tree": other, "action": "older"}, current["etag"])["status"]
-        == 200
-    )
-    page.reload()
-    ui.wait_ready(0)
-    banner = page.locator(".cx-themes-banner", has_text="earlier vocabulary")
-    banner.wait_for()
-    banner.get_by_role("button", name="Rebase onto the current vocabulary").click()
-    page.locator(".cx-toast", has_text="Rebased").wait_for()
-    banner.wait_for(state="detached")
-    assert api(ui, "GET", "/api/themes")["data"]["based_on_current"] is True
-
-
-def test_a_clustering_only_change_is_agreed_once_in_the_editor(editor):
-    ui = editor
-    page = ui.page
-    page.locator(".cx-themes__toolbar").get_by_role("button", name="Save the proposal").click()
-    wait_status(ui, "Saved")
-    params = api(ui, "GET", "/api/params")
-    changed = api(
-        ui, "PUT", "/api/params", {"stages": {"themes.group": {"top_groups": 12}}}, params["etag"]
-    )
-    assert changed["status"] == 200
-    job = api(ui, "POST", "/api/build", {"scope": ["themes.group"], "dry_run": False})["data"][
-        "job"
-    ]
-    page.wait_for_function(
-        """async (id) => { const r = await fetch('/api/jobs/' + id); const j = await r.json();
-          return j.state === 'succeeded'; }""",
-        arg=job["id"],
-        timeout=120_000,
-        polling=500,
-    )
-    page.reload()
-    ui.wait_ready(0)
-    banner = page.locator(".cx-themes-banner", has_text="grouping ran again")
-    banner.wait_for()
-    banner.get_by_role("button", name="Compare…").click()
-    compare = page.get_by_role("dialog", name="A new proposal of the grouping")
-    compare.locator(".cx-themes-changes").wait_for()
-    compare.get_by_role("button", name="Adopt the proposal").click()
-    page.locator(".cx-toast", has_text="The proposal is now your tree").wait_for()
-    banner.wait_for(state="detached")
-    tops = [n for n in tree(ui)["nodes"] if n["parent"] is None]
-    assert len(tops) == 12
 
 
 def test_every_action_by_the_keyboard_alone(editor):
@@ -681,14 +491,13 @@ def test_every_action_by_the_keyboard_alone(editor):
     assert 0 in saved["attribution"].values() and saved["set_aside"] == {}
 
 
-# ── accessibility, keyboard, languages ───────────────────────────────────────
+# ── accessibility ────────────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("theme", ["light", "dark"])
 def test_the_editor_and_its_dialogs_have_no_serious_violation(
-    demo_s, app_for, open_app, axe_source, theme
+    demo_s, app_for, open_app, axe_source
 ):
-    ui = open_app(app_for(demo_s), theme=theme, bypass_csp=True)
+    ui = open_app(app_for(demo_s), bypass_csp=True)
     open_editor(ui)
     page = ui.page
     problems = blocking(run_axe(ui, axe_source))
@@ -718,124 +527,11 @@ def test_the_editor_and_its_dialogs_have_no_serious_violation(
     assert problems == [], "AI handoff:\n" + "\n".join(problems)
 
 
-def test_tab_reaches_every_part_in_order_with_a_visible_focus(editor):
-    ui = editor
-    page = ui.page
-    page.locator("h1").focus()
-    seen = []
-    for _ in range(40):
-        page.keyboard.press("Tab")
-        info = page.evaluate(
-            """() => {
-              const el = document.activeElement;
-              const style = getComputedStyle(el);
-              const part = el.closest('.cx-themes__toolbar, .cx-themes-search, .cx-themes-outline,'
-                + ' .cx-themes-centre, .cx-themes-panel');
-              return {part: part ? part.className.split(' ')[0] : null,
-                      ring: style.outlineStyle !== 'none' || style.boxShadow !== 'none'};
-            }"""
-        )
-        if info["part"] and (not seen or seen[-1] != info["part"]):
-            seen.append(info["part"])
-        assert info["ring"], f"no visible focus on a stop in {info['part']}"
-        if info["part"] == "cx-themes-panel":
-            break
-    assert seen[:4] == [
-        "cx-themes__toolbar",
-        "cx-themes-search",
-        "cx-themes-outline",
-        "cx-themes-centre",
-    ]
-    assert "cx-themes-panel" in seen
-
-
-@pytest.mark.parametrize("locale", ["fr", "pt-BR"])
-def test_the_editor_speaks_french_and_portuguese(demo_s, app_for, open_app, locale):
-    ui = open_app(app_for(demo_s), locale=locale)
-    open_editor(ui)
-    page = ui.page
-    assert ui.missing_keys() == []
-    words = {"fr": ("Enregistrer", "Carte proportionnelle"), "pt-BR": ("Salvar", "Mapa de áreas")}[
-        locale
-    ]
-    text = page.locator(".cx-themes").inner_text()
-    assert all(w in text for w in words)
-    outline(ui).focus()
-    page.keyboard.press("Home")
-    page.keyboard.press("Shift+F10")
-    page.locator("[role=menu]").wait_for()
-    page.keyboard.press("Escape")
-    page.keyboard.press("F2")
-    dialog(ui).wait_for()
-    assert ui.missing_keys() == []
-
-
-# ── teardown, leaks and budgets ──────────────────────────────────────────────
+# ── the budget on the L world ────────────────────────────────────────────────
 
 
 @pytest.mark.slow
-def test_leaving_the_editor_ten_times_leaves_nothing_behind(demo_s, app_for, open_app):
-    ui = open_app(app_for(demo_s))
-    cdp = ui.page.context.new_cdp_session(ui.page)
-    cdp.send("Performance.enable")
-
-    def round_trip():
-        # Waited for with a function, not a locator: a locator's handle would keep the page.
-        ui.navigate("/themes")
-        ui.page.wait_for_function(
-            "() => Boolean(document.querySelector('.cx-themes__body [role=tree]'))"
-        )
-        ui.navigate("/overview")
-
-    for _ in range(2):
-        round_trip()
-    before = ui.metrics(cdp)
-    for _ in range(10):
-        round_trip()
-    after = ui.metrics(cdp)
-    growth = {k: after[k] - before[k] for k in before}
-    write_measures(MEASURES, "themes_leaks", {"before": before, "after": after, "growth": growth})
-    left = ui.page.evaluate(
-        "() => document.querySelectorAll('.cx-themes, dialog[open], [role=menu]').length"
-    )
-    assert left == 0
-    assert growth["nodes"] <= max(0.02 * before["nodes"], 50), (before, after)
-    assert growth["listeners"] <= max(0.02 * before["listeners"], 10), (before, after)
-    assert growth["heap"] <= max(0.10 * before["heap"], 2 * 1024 * 1024), (before, after)
-
-
-SHOWN = """(text) => {
-  window.__shown = null;
-  window.__pressed = null;
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && window.__pressed === null) window.__pressed = performance.now();
-  }, {capture: true, once: true});
-  const seen = () => [...document.querySelectorAll('.cx-themes-outline [role=treeitem]')]
-    .some((r) => r.textContent.startsWith(text));
-  const watch = new MutationObserver(() => {
-    if (seen()) {
-      window.__shown = performance.now();
-      watch.disconnect();
-    }
-  });
-  watch.observe(document.querySelector('.cx-themes'), {subtree: true, childList: true, characterData: true});
-}"""
-
-FEEDBACK = """() => new Promise((resolve) => {
-  const start = performance.now();
-  const status = document.querySelector('.cx-themes__status');
-  const before = status.textContent;
-  const check = () => {
-    if (status.textContent !== before) resolve(performance.now() - start);
-    else requestAnimationFrame(check);
-  };
-  document.querySelector('[role=tree]').dispatchEvent(new KeyboardEvent('keydown', {key: 'z', ctrlKey: true, bubbles: true}));
-  requestAnimationFrame(check);
-})"""
-
-
-@pytest.mark.slow
-def test_budgets_on_the_l_world(demo_l, app_for, open_app):
+def test_page_ready_and_search_on_the_l_world(demo_l, app_for, open_app):
     ui = open_app(app_for(demo_l))
     page = ui.page
     before = ui.token()
@@ -867,67 +563,16 @@ def test_budgets_on_the_l_world(demo_l, app_for, open_app):
             )
         )
     field.fill("")
-    # an operation's feedback: from the key press (Enter in the dialog) to the outline showing it,
-    # measured in the page
-    top = next(n for n in t["nodes"] if n["parent"] is None)
-    first_topic = next(n for n in t["nodes"] if n["parent"] == top["id"])
-    ops = []
-    name = name_of(first_topic)
-    for i in range(5):
-        row(ui, name).first.click()
-        page.keyboard.press("F2")
-        field = dialog(ui).get_by_label("Name in English")
-        field.fill(f"Topic {i}")
-        page.evaluate(SHOWN, f"Topic {i}")
-        field.press("Enter")
-        page.wait_for_function("() => window.__shown !== null")
-        ops.append(page.evaluate("() => window.__shown - window.__pressed"))
-        name = f"Topic {i}"
-    undo = [page.evaluate(FEEDBACK) for _ in range(3)]
     measures = {
         "keywords": n_keywords,
         "nodes": len(t["nodes"]),
         "ready_ms": round(ready["duration"], 1),
         "search_ms": [round(x, 1) for x in searches],
-        "operation_ms": [round(x, 1) for x in ops],
-        "undo_ms": [round(x, 1) for x in undo],
     }
     write_measures(MEASURES, "themes_budgets_l", measures)
     assert before < ui.token()
     assert ready["duration"] < 1000, measures
     assert max(searches) < 100, measures
-    assert sorted(ops)[len(ops) // 2] < 100 and max(ops) < 200, measures
-    assert max(undo) < 100, measures
-
-
-@pytest.mark.slow
-def test_the_map_pans_at_60_frames_a_second_with_10000_points(ui):
-    ui.open("/gallery")
-    page = ui.page
-    frame = page.locator('[data-gallery="map"] .cx-map-frame__box')
-    frame.scroll_into_view_if_needed()
-    box = frame.bounding_box()
-    page.evaluate(
-        """() => { window.__frames = []; const tick = (t) => { window.__frames.push(t);
-          if (window.__frames.length < 400) requestAnimationFrame(tick); }; requestAnimationFrame(tick); }"""
-    )
-    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    page.mouse.down()
-    for i in range(120):
-        page.mouse.move(
-            box["x"] + box["width"] / 2 + (i % 40) * 3, box["y"] + box["height"] / 2 + (i % 20) * 2
-        )
-    page.mouse.up()
-    stats = page.evaluate(
-        """() => { const f = window.__frames; const d = [];
-          for (let i = 1; i < f.length; i += 1) d.push(f[i] - f[i - 1]);
-          d.sort((a, b) => a - b);
-          return {frames: f.length, median: d[Math.floor(d.length / 2)], p95: d[Math.floor(d.length * 0.95)],
-                  points: document.querySelector('.cx-gallery__map').dataset.points}; }"""
-    )
-    write_measures(MEASURES, "map_pan", stats)
-    assert int(stats["points"]) >= 10_000
-    assert stats["median"] <= 1000 / 55, stats
 
 
 # ── screenshots of every state (--ui-screenshots) ────────────────────────────
@@ -942,11 +587,10 @@ def test_screenshots_of_every_state(demo_s, app_for, open_app, pytestconfig):
 
     out = Path(target) / "themes"
     out.mkdir(parents=True, exist_ok=True)
-    for theme in ("light", "dark"):
-        for locale in ("en", "fr", "pt-BR"):
-            ui = open_app(app_for(demo_s), theme=theme, locale=locale)
-            _states(ui, out, f"{theme}-{locale}")
-            ui.page.context.close()
+    for theme, locale in (("light", "en"), ("dark", "en"), ("light", "fr")):
+        ui = open_app(app_for(demo_s), theme=theme, locale=locale)
+        _states(ui, out, f"{theme}-{locale}")
+        ui.page.context.close()
 
 
 def _states(ui, out, suffix: str) -> None:

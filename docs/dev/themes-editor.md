@@ -144,9 +144,11 @@ The screen uses the component library and adds three components to it:
 
 ## Measures
 
-The browser check measures them on the L demo world (depth 2: 2 955 keywords,
-163 nodes; the app on the same computer; `tests/browser/test_theme_editor.py`,
-in `.cache/check/ui-measures.json`):
+On the L demo world (depth 2: 2 955 keywords, 163 nodes; the app on the same
+computer). The browser check keeps measuring the page's readiness and the
+search (`tests/browser/test_theme_editor.py`, in
+`.cache/check/ui-measures.json`); the other lines were measured while the
+screen was built, with the same harness:
 
 | measure | budget | measured |
 | --- | --- | --- |
