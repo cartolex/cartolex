@@ -297,14 +297,16 @@ _ACCENTS = {
     "H": "\u030b",
     "k": "\u0328",
 }
+#: Escaped characters; braces and the tilde go through placeholders (restored last), since
+#: bare braces and tildes are LaTeX syntax.
 _ESCAPES = {
     "\\%": "%",
     "\\&": "&",
     "\\$": "$",
     "\\#": "#",
     "\\_": "_",
-    "\\{": "{",
-    "\\}": "}",
+    "\\{": "\x02",
+    "\\}": "\x03",
 }
 _DROPPED_ENVS = ("equation", "equation*", "align", "align*", "eqnarray", "eqnarray*",
                  "displaymath", "tabular", "thebibliography", "verbatim", "lstlisting")  # fmt: skip
@@ -343,23 +345,32 @@ def _decode(text: str) -> str:
 
     def accent(m: re.Match[str]) -> str:
         mark, letter = m.group(1), m.group(2) or m.group(3)
-        if letter in ("\\i", "i") and mark != "c":
+        if letter.strip() in ("\\i", "i") and mark != "c":
             letter = "i"
         return letter + _ACCENTS.get(mark, "")
 
-    text = re.sub(r"\{?\\([\'`^\"~=.Hckuv])\s*(?:\{\s*(\\?\w)\s*\}|(\\?[A-Za-z]))\}?", accent, text)
-    text = text.replace("\\textbackslash{}", "\x00").replace("\\textasciitilde{}", "~")
+    text = re.sub(r"\\" + _DROPPED_ARGS + r"\s*(\[[^\]]*\])?\s*\{[^{}]*\}", "", text)
+    # \'e, \'{e}, {\'e}; a letter-named accent (\c, \v…) needs braces or a space: \c{c}, \c c.
+    text = re.sub(
+        r"\{?\\([\'`^\"~=.])\s*(?:\{\s*(\\?[A-Za-z])\s*\}|(\\i(?![A-Za-z])\s?|[A-Za-z]))\}?",
+        accent,
+        text,
+    )
+    text = re.sub(r"\{?\\([Hckuv])(?:\s*\{\s*(\\?[A-Za-z])\s*\}|\s+([A-Za-z]))\}?", accent, text)
+    text = text.replace("\\textbackslash{}", "\x00").replace("\\textasciitilde{}", "\x01")
     text = text.replace("\\textasciicircum{}", "^")
     for escaped, plain in _ESCAPES.items():
         text = text.replace(escaped, plain)
     text = re.sub(r"\\(ldots|dots)\b\s*", "…", text)
+    text = re.sub(r"\\[,;:!]", " ", text)  # small spaces
+    text = re.sub(r"\\i\b\s?", "i", text)  # a dotless i left alone
     text = text.replace("---", "—").replace("--", "–").replace("``", "“").replace("''", "”")
     text = re.sub(r"(?<!\\)~", " ", text)
-    text = re.sub(r"\\" + _DROPPED_ARGS + r"\s*(\[[^\]]*\])?\s*\{[^{}]*\}", "", text)
     for _ in range(5):  # nested styling: \emph{\textbf{x}}
         text = re.sub(r"\\[A-Za-z]+\*?\s*(\[[^\]]*\])?\s*\{([^{}]*)\}", r"\2", text)
     text = re.sub(r"\\[A-Za-z]+\*?", "", text)
     text = text.replace("{", "").replace("}", "").replace("\\\\", " ").replace("\x00", "\\")
+    text = text.replace("\x01", "~").replace("\x02", "{").replace("\x03", "}")
     return unicodedata.normalize("NFC", text)
 
 
@@ -441,7 +452,8 @@ def pdf_text(data: bytes, work_dir: Path) -> tuple[str, str | None]:
     """The text of a PDF as ``(text, error)``; the file is extracted on its own, from a
     temporary file in *work_dir* removed afterwards, and a failure is returned, never raised.
 
-    Lines are joined into paragraphs (a blank line separates them), spaces tidied.
+    Lines are joined into paragraphs (a blank line separates them), spaces tidied, and a
+    word cut at a line-end hyphen is joined again.
     """
     from cartolex.lexicon.pdf_text import extract_text
 
@@ -454,5 +466,8 @@ def pdf_text(data: bytes, work_dir: Path) -> tuple[str, str | None]:
         except Exception as exc:  # noqa: BLE001 - one broken file never stops a job
             return "", f"{type(exc).__name__}: {exc}"
     text = clean(re.sub(r"\(cid:\d+\)", " ", raw))
+    # A word cut at a hyphen at the end of a line is joined again, hyphen kept (it may belong
+    # to a compound word): "ground-\nwater" gives "ground-water", never two words.
+    text = re.sub(r"(?<=\w)-\n(?=[^\W\d_])", "-", text)
     paragraphs = [" ".join(p.split()) for p in re.split(r"\n\s*\n", text)]
     return "\n\n".join(p for p in paragraphs if p), None
