@@ -353,6 +353,8 @@
   "gallery.dialog.left": "You chose to leave.",
   "gallery.dialog.stayed": "You chose to stay.",
   "gallery.dialog.drawer_title": "Details",
+  "gallery.guard.caption": "A navigation guard: with unsaved changes, leaving the page asks first",
+  "gallery.guard.label": "Pretend this page has unsaved changes",
   "gallery.toast.info": "The map version 2 is pinned",
   "gallery.toast.success": "The keywords are saved",
   "gallery.toast.warning": "Two people share the same profile",

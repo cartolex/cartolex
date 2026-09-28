@@ -353,6 +353,8 @@
   "gallery.dialog.left": "Vous avez choisi de partir.",
   "gallery.dialog.stayed": "Vous avez choisi de rester.",
   "gallery.dialog.drawer_title": "Détails",
+  "gallery.guard.caption": "Une garde de navigation : avec des modifications non enregistrées, quitter la page demande d’abord",
+  "gallery.guard.label": "Faire comme si cette page avait des modifications non enregistrées",
   "gallery.toast.info": "La version 2 de la carte est épinglée",
   "gallery.toast.success": "Les mots-clés sont enregistrés",
   "gallery.toast.warning": "Deux personnes partagent le même profil",

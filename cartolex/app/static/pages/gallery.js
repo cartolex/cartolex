@@ -9,7 +9,7 @@
  * classes `is-hover` and `is-focus`, which the style sheet draws exactly as
  * `:hover` and `:focus-visible`.
  */
-import { computed, html, signal, useMemo, useState } from '../core/preact.js';
+import { computed, html, signal, useEffect, useMemo, useRef, useState } from '../core/preact.js';
 import { autonym, formatNumber, locale, t } from '../core/i18n.js';
 import { definePage, usePageTitle } from '../core/page.js';
 import { THEMES } from '../core/stores/prefs.js';
@@ -303,7 +303,18 @@ function Menus({ ctx }) {
   <//>`;
 }
 
-function Dialogs() {
+function Guard({ ctx }) {
+  const [dirty, setDirty] = useState(false);
+  const state = useRef(false);
+  state.current = dirty;
+  useEffect(() => ctx.guard({ dirty: () => state.current }), []);
+  return html`<${Example} label=${t('gallery.guard.caption')} wide>
+    <${Checkbox} label=${t('gallery.guard.label')} checked=${dirty} data-guard="toggle"
+      onChange=${(e) => setDirty(e.currentTarget.checked)} />
+  <//>`;
+}
+
+function Dialogs({ ctx }) {
   const [open, setOpen] = useState(null);
   const [name, setName] = useState('');
   const [answer, setAnswer] = useState('');
@@ -315,6 +326,7 @@ function Dialogs() {
       <${Button} onClick=${() => setOpen('drawer')}>${t('gallery.dialog.drawer')}<//>
       <span class="cx-gallery__note" role="status">${answer}</span>
     </div>
+    <${Guard} ctx=${ctx} />
     <${Dialog} open=${open === 'dialog'} onClose=${close} title=${t('gallery.dialog.title')}
       description=${t('gallery.dialog.description')}
       footer=${html`<${Button} variant="ghost" onClick=${close}>${t('common.cancel')}<//>
@@ -555,7 +567,7 @@ function Gallery({ ctx }) {
     <${TabsDemo} />
     <${TableDemo} ctx=${ctx} />
     <${Menus} ctx=${ctx} />
-    <${Dialogs} />
+    <${Dialogs} ctx=${ctx} />
     <${Toasts} ctx=${ctx} />
     <${Forms} />
     <${Empties} />

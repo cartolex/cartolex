@@ -5,7 +5,7 @@
  * it in `modules` and its catalogues after the base ones.
  */
 export function register(api) {
-  const { html, definePage, usePageTitle } = api.ui;
+  const { html, definePage, usePage, usePageTitle, useEffect } = api.ui;
   const { Card, EmptyState } = api.components;
   const { t } = api.i18n;
   api.i18n.add('en', { 'ext.demo.runtime': 'Added at run time' });
@@ -13,7 +13,14 @@ export function register(api) {
   api.i18n.add('pt-BR', { 'ext.demo.runtime': 'Adicionado na execução' });
 
   function DemoPage() {
+    const ctx = usePage();
     usePageTitle(t('ext.demo.title'));
+    // A slow call: when the page is left first, its answer must never reach the page.
+    useEffect(() => {
+      ctx.api.get('/api/ext/demo/slow').then(() => {
+        window.cxDemoAnswers = (window.cxDemoAnswers || 0) + 1;
+      });
+    }, []);
     return html`<div class="cx-page">
       <h1 class="cx-page__title">${t('ext.demo.title')}</h1>
       <${EmptyState} title=${t('ext.demo.empty')} action=${{ label: t('ext.demo.action'), href: '/overview' }}>

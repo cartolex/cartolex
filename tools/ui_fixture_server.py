@@ -214,6 +214,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(HTTPStatus.OK, data["state"])
         if path == "/api/jobs":
             return self._json(HTTPStatus.OK, data["jobs"])
+        if path == "/api/ext/demo/slow":
+            # The test extension's own route: the tests delay it to answer late.
+            return self._json(HTTPStatus.OK, {"answer": 42})
         return self._error(
             HTTPStatus.NOT_FOUND,
             "not_found",

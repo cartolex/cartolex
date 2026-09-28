@@ -353,6 +353,8 @@
   "gallery.dialog.left": "Você escolheu sair.",
   "gallery.dialog.stayed": "Você escolheu ficar.",
   "gallery.dialog.drawer_title": "Detalhes",
+  "gallery.guard.caption": "Uma proteção de navegação: com alterações não salvas, sair da página pergunta antes",
+  "gallery.guard.label": "Fingir que esta página tem alterações não salvas",
   "gallery.toast.info": "A versão 2 do mapa está fixada",
   "gallery.toast.success": "As palavras-chave foram salvas",
   "gallery.toast.warning": "Duas pessoas compartilham o mesmo perfil",
