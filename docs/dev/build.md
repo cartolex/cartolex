@@ -123,7 +123,7 @@ leaves the check to the run.
 | `keywords.extract` | `max_share` | 0.6 | 0.01–1 |
 | `keywords.triage` | `enabled` | false | true, false |
 | `keywords.build` | `max_keywords` | 10 000 | ≥ 10 |
-| `themes.space` | `dimensions` | 20 | 2–1000; a space never has more dimensions than people or keywords (the run says so) |
+| `themes.space` | `dimensions` | rule `space_dimensions` | 2–1000; a space never has more dimensions than people or keywords (the run says so) |
 | `themes.group` | `depth` | rule `theme_depth` | 1–4 |
 | `themes.group` | `top_groups` | 15 | 2–500, fewer than the kept keywords |
 | `themes.group` | `keywords_per_group` | 20 | 2–10 000; the levels must grow from the top |
@@ -140,6 +140,12 @@ give two levels (Theme › Topic). The top level has about `top_groups` groups,
 the finest about `keywords_per_group` keywords per group, and the levels in
 between grow geometrically: `theme_level_sizes(50_000, 3, 15, 20)` is
 `(15, 194, 2500)`. At depth 1 the one level follows `top_groups`.
+
+**The space's dimensions.** With P people whose texts build the lexicon, the
+space keeps 20 dimensions up to 2 000 people, then 20 × √(P / 2 000), at most
+200: 8 000 people give 40, 100 000 give 141. A small project keeps the 20 it
+always had (both reference worlds); the measures behind the rule are in
+[Sizes and machines](../sizes.md).
 
 **Sizes.** A rule reads `ProjectSizes`: the people whose texts build the
 lexicon, their texts, the characters of those texts, the kept keywords and the
@@ -349,7 +355,7 @@ made with.
 | `themes.space.dimensions` | `run_svd(svd_n_components=…)` |
 | the theme levels | every level: `draft_themes(level_sizes=…)`; the finest: `run_clustering(n_concepts=…)`; at depth 2 the top level of the two-level draft: `draft_subfields(n_subfields=…)` |
 | `map.trajectories.window_years` | `run_trajectories(bin_years=…)` |
-| the pinned map version | `run_umap(umap_random_state=seed, …)` with its layout parameters (`n_neighbors`, `min_dist`, `metric`, `layout`…) |
+| the pinned map version | `run_umap(umap_random_state=seed, …)` with its method's parameters: for `umap` (`n_neighbors`, `min_dist`, `metric`, `layout`…), `umap_layout="tsne"` and `tsne_perplexity` for `tsne`, `umap_layout="tree"` for `tree` |
 | `identity.ai.model` | `KeywordsConfig.llm_model` |
 | `identity.domain_title`, `identity.domain_description` | `KeywordsConfig.domain_title`, `.domain_description` (the AI's only context besides the terms) |
 | `decisions/stopwords.json` | the stop-word profile: every word added or removed, in any language, extends or shrinks the list of words that are never keywords |
@@ -361,7 +367,10 @@ keywords on its themes directly.
 **Map versions.** Before the first layout, `map.layout`'s `prepare` adds and
 pins map version `v1` (layout `umap`, the seed of `params.json`). A rebuild uses
 the pinned version; `cartolex versions` pins another or adds one with another
-seed.
+seed (`--try-another --seed N`) or another layout method (`--method umap|tsne|tree`,
+which starts from that method's defaults). A method the stage does not know, a
+parameter its method does not take, or `tsne` without the optional openTSNE
+package is refused with the reason ([layouts](layouts.md)).
 
 **The curated theme tree.** Before `themes.apply` runs, its `prepare` rebases
 `decisions/themes.json` onto the current vocabulary when it is based on
