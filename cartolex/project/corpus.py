@@ -119,35 +119,35 @@ def assemble_corpus(
     fit_slots = [s.id for s in config.slots if s.fit]
     written: dict[Path, set[str]] = defaultdict(set)
 
+    def texts_of(pid: str, slots: set[str] | None, src: _Loaded) -> list[str]:
+        text_meta = src.text_meta
+        found = [
+            t for t in src.by_person.get(pid, ()) if slots is None or text_meta[t]["slot"] in slots
+        ]
+        found.sort(
+            key=lambda t: (
+                slot_rank.get(text_meta[t]["slot"], 1 << 30),
+                text_meta[t]["slot"],
+                text_meta[t]["position"],
+            )
+        )
+        return found
+
     def emit(
-        target: Path, members: list[str], slots: set[str] | None, src: _Loaded
+        target: Path, members: list[str], slots: set[str] | None, src: _Loaded, bodies: set[str]
     ) -> dict[str, int]:
         rows = []
         keys: list[tuple[str, str, str, str]] = []
-        people, units, by_person = src.people, src.units, src.by_person
-        text_meta, chosen_parts = src.text_meta, src.chosen_parts
+        people, units, text_meta = src.people, src.units, src.text_meta
         for pid in members:
             person = people[pid]
             n_before = len(rows)
-            texts_of = [
-                t for t in by_person.get(pid, ()) if slots is None or text_meta[t]["slot"] in slots
-            ]
-            texts_of.sort(
-                key=lambda t: (
-                    slot_rank.get(text_meta[t]["slot"], 1 << 30),
-                    text_meta[t]["slot"],
-                    text_meta[t]["position"],
-                )
-            )
-            for tid in texts_of:
-                body = render_text(chosen_parts.get(tid, ()), chosen=parts)
-                if not body:
+            for tid in texts_of(pid, slots, src):
+                if tid not in bodies:
                     summary.texts_without_parts += 1
                     continue
                 rel = f"texts/{tid}.txt"
-                if tid not in written[target]:
-                    _write(target / rel, body.encode("utf-8"))
-                    written[target].add(tid)
+                written[target].add(tid)
                 meta = text_meta[tid]
                 rows.append(
                     (
@@ -171,22 +171,40 @@ def assemble_corpus(
             "people": len({(r[0], r[1], r[2]) for r in rows}),
         }
 
+    # Who is read where: each target folder, its people and the slots they are read from.
     mapped = sorted(pid for pid, (role, _) in roles.items() if role == "mapped")
-    for slot_id in fit_slots:
-        summary.slots[slot_id] = emit(out_dir / slot_id, mapped, {slot_id}, main)
+    plans: list[tuple[str, Path, list[str], set[str] | None, _Loaded, Path]] = [
+        (slot_id, out_dir / slot_id, mapped, {slot_id}, main, layout.tables)
+        for slot_id in fit_slots
+    ]
     for overlay in config.overlays:
         target = out_dir / "overlays" / overlay.id
         if overlay.root is None:
             members = sorted(
                 pid for pid, (role, s) in roles.items() if role == "projected" and s == overlay.id
             )
-            summary.slots[f"overlay:{overlay.id}"] = emit(target, members, None, main)
+            plans.append((f"overlay:{overlay.id}", target, members, None, main, layout.tables))
             continue
         root = Path(overlay.root)
         if not root.is_absolute():
             root = layout.root / root
         own = _load(root / "tables", config, unit_level, provider_priority)
-        summary.slots[f"overlay:{overlay.id}"] = emit(target, sorted(own.people), None, own)
+        plans.append(
+            (f"overlay:{overlay.id}", target, sorted(own.people), None, own, root / "tables")
+        )
+
+    # The texts are written while their parts are read, a row group at a time: the
+    # parts of the whole corpus are never held in memory together.
+    by_tables: dict[Path, list[tuple[Path, set[str]]]] = defaultdict(list)
+    for _, target, members, slots, src, tables in plans:
+        wanted = {t for pid in members for t in texts_of(pid, slots, src)}
+        by_tables[tables].append((target, wanted))
+    bodies: dict[Path, set[str]] = {}
+    for tables, targets in by_tables.items():
+        src = main if tables == layout.tables else next(p[4] for p in plans if p[5] == tables)
+        bodies[tables] = _write_texts(tables, src.text_meta, targets, parts, provider_priority)
+    for name, target, members, slots, src, tables in plans:
+        summary.slots[name] = emit(target, members, slots, src, bodies[tables])
     summary.skipped_people = sum(
         1 for role, _ in roles.values() if role not in ("mapped", "projected")
     )
@@ -201,7 +219,6 @@ class _Loaded:
     people: dict[str, dict]
     units: dict[str, str]
     by_person: dict[str, list[str]]
-    chosen_parts: dict[str, list[tuple[str, str, str]]]
 
 
 def _table(tables: Path, name: str) -> Path:
@@ -236,7 +253,6 @@ def _load(
         people=people,
         units=_units(tables, config, unit_level),
         by_person=_texts_by_person(tables, text_meta),
-        chosen_parts=_chosen_parts(tables, set(text_meta), provider_priority),
     )
 
 
@@ -286,26 +302,89 @@ def _texts_by_person(tables: Path, text_meta: dict[str, dict]) -> dict[str, list
     return by_person
 
 
-def _chosen_parts(
-    tables: Path, text_ids: set[str], provider_priority: Sequence[str]
-) -> dict[str, list[tuple[str, str, str]]]:
-    """text_id → one (part, language, content) per part and language, by provider priority."""
-    table = read_source_table(_table(tables, "text_parts"), "text_parts").select(
-        ["text_id", "part", "language", "provider", "content"]
-    )
-    rank = {p: i for i, p in enumerate(provider_priority)}
-    best: dict[tuple[str, str, str], tuple[tuple[int, str], str]] = {}
-    for tid, part, lang, provider, content in zip(
-        *(table[c].to_pylist() for c in ("text_id", "part", "language", "provider", "content")),
-        strict=True,
-    ):
-        if tid not in text_ids:
-            continue
-        key = (tid, part, lang)
+def _choose(
+    rows: list[tuple[str, str, str, str]], rank: dict[str, int]
+) -> list[tuple[str, str, str]]:
+    """One ``(part, language, content)`` per part and language of one text, by provider priority."""
+    best: dict[tuple[str, str], tuple[tuple[int, str], str]] = {}
+    for part, lang, provider, content in rows:
+        key = (part, lang)
         order = (rank.get(provider, len(rank)), provider)
         if key not in best or order < best[key][0]:
             best[key] = (order, content)
-    chosen: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
-    for (tid, part, lang), (_, content) in sorted(best.items()):
-        chosen[tid].append((part, lang, content))
-    return chosen
+    return [(part, lang, content) for (part, lang), (_, content) in sorted(best.items())]
+
+
+#: Rows of ``text_parts`` read at a time.
+PARTS_BATCH = 20_000
+
+
+def _write_texts(
+    tables: Path,
+    text_meta: dict[str, dict],
+    targets: list[tuple[Path, set[str]]],
+    parts: Sequence[str],
+    provider_priority: Sequence[str],
+) -> set[str]:
+    """Write each wanted text into the target folders that want it; return the texts with a body.
+
+    ``text_parts`` is read a batch of rows at a time, in its order (by
+    ``text_id``): a text's parts are chosen (one per part and language, by
+    provider priority) and its file written once they are all read. Each batch
+    is checked like the whole table (columns, types, values, order, keys),
+    and the order across batches too.
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    from .tables import TableError, _check
+
+    path = _table(tables, "text_parts")
+    rank = {p: i for i, p in enumerate(provider_priority)}
+    wanted_by = [(target, wanted) for target, wanted in targets if wanted]
+    bodies: set[str] = set()
+    current: str | None = None
+    pending: list[tuple[str, str, str, str]] = []
+    last_key: tuple | None = None
+
+    def finish(tid: str | None) -> None:
+        if tid is None or tid not in text_meta:
+            return
+        body = render_text(_choose(pending, rank), chosen=parts)
+        if not body:
+            return
+        data = None
+        for target, wanted in wanted_by:
+            if tid in wanted:
+                data = data if data is not None else body.encode("utf-8")
+                _write(target / f"texts/{tid}.txt", data)
+        bodies.add(tid)
+
+    columns = ["text_id", "part", "language", "provider", "content"]
+    for batch in pq.ParquetFile(path).iter_batches(batch_size=PARTS_BATCH):
+        table = _check("text_parts", pa.Table.from_batches([batch]), str(path))
+        if table.num_rows == 0:
+            continue
+        first = tuple(table.slice(0, 1).select(list(_KEY)).to_pylist()[0].values())
+        if last_key is not None and _order(first) <= _order(last_key):
+            raise TableError(f"{path}: rows are not sorted by {', '.join(_KEY)}")
+        last_key = tuple(
+            table.slice(table.num_rows - 1, 1).select(list(_KEY)).to_pylist()[0].values()
+        )
+        for tid, part, lang, provider, content in zip(
+            *(table[c].to_pylist() for c in columns), strict=True
+        ):
+            if tid != current:
+                finish(current)
+                current, pending = tid, []
+            pending.append((part, lang, provider, content))
+    finish(current)
+    return bodies
+
+
+_KEY = ("text_id", "part", "language", "provider")
+
+
+def _order(key: tuple) -> tuple:
+    """A key of ``text_parts`` in the table's sort order (a missing value last)."""
+    return tuple((v is None, v or "") for v in key)
