@@ -103,17 +103,19 @@ reads only those (`invalid_copilot_result`).
 
 | route | what it does |
 | --- | --- |
-| `GET /api/themes/copilot/summary` | what a themes bundle holds and never holds, and its counts (nodes, keywords, set aside, people) |
-| `GET /api/themes/copilot/export?language=` | the themes bundle: the saved tree, else the grouping's proposal; `language` is the curator's |
+| `POST /api/themes/copilot/summary {tree, language}` | what a themes bundle holds and never holds, and its counts (nodes, keywords, set aside, people) |
+| `POST /api/themes/copilot/export {tree, language}` | the themes bundle (a zip) of the tree being edited, unsaved edits included (default: the saved tree, else the grouping's proposal); `language` is the curator's |
 | `POST /api/themes/copilot/import {result}` | keeps the result in `decisions/history/ai/<time>-copilot-themes.json`, and gives each change as a proposal item (`verb`, `kind`, `ops`, `reason`, `refused` when it cannot apply after the changes before it), `applicable`, `matches`, `measures`, `notes`; the first answers freeze the identity |
 | `GET /api/themes/copilot/proposals/{id}` | one of them, read again |
 | `GET /api/keywords/copilot/summary?scope=&usage_lines=` | the same for triage (`scope`: `both`, Kept and To check, or `check`) |
 | `GET /api/keywords/copilot/export?scope=&usage_lines=&language=` | the triage bundle |
-| `POST /api/keywords/copilot/import {result}` | keeps the result in `decisions/history/ai/<time>-copilot-triage.json` and gives a keyword proposal (the shape of `GET /api/handoff/proposals/{id}`, each item with its `reason`), accepted with `POST /api/handoff/proposals/{id}/accept` (source `ai-handoff`, reason « AI: » and the assistant's) |
+| `POST /api/keywords/copilot/import {result}` | keeps the result in `decisions/history/ai/<time>-copilot-triage.json` and gives a keyword proposal (the shape of `GET /api/handoff/proposals/{id}`, each item with its `reason`), accepted with `POST /api/handoff/proposals/{id}/accept` (source `ai-copilot`, its own route in the Keywords list; reason « AI: » and the assistant's) |
 
 The theme editor reviews the changes like a handoff's (accept or reject each,
 preview on the tree), applies the accepted ones through `POST /api/themes/ops`
-and saves them at once, as a version.
+and saves them at once, as a version whose action starts with `ai-copilot:`
+and says how many other unsaved edits it holds. Accepted keyword decisions
+have the source `ai-copilot`, their own route in the Keywords list.
 
 ## Sizes and times
 

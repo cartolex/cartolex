@@ -9,7 +9,7 @@ import { has, t } from '../../core/i18n.js';
 import { Icon } from '../../components/index.js';
 
 export const BANDS = ['kept', 'check', 'aside'];
-export const ROUTES = ['person', 'ai-handoff', 'ai-api', 'extraction'];
+export const ROUTES = ['person', 'ai-handoff', 'ai-copilot', 'ai-api', 'extraction'];
 /** A band's shape: a check (kept), a dash (to check), a cross (set aside). */
 const BAND_ICON = { kept: 'check', check: 'dash', aside: 'cross' };
 

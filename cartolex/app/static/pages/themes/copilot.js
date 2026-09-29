@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 /**
  * The AI copilot of the theme tree: download a bundle an assistant that runs
- * code works from on its own (the saved tree, its vectors and the kit),
+ * code works from on its own (the tree being edited, unsaved edits included,
+ * its vectors and the kit),
  * bring back its `result.json`, review each change with its reason (accept or
  * reject, preview on the tree), then apply the accepted ones as ordinary
  * operations and save them as a version.
  */
 import { html, useEffect, useState } from '../../core/preact.js';
 import { formatNumber, locale, t } from '../../core/i18n.js';
+import { downloadFile } from '../../core/dom.js';
 import { Button, Dialog, Stepper } from '../../components/index.js';
 import { COPILOT_STEPS, CopilotExport, CopilotImport, CopilotOutcome, stepState } from '../copilot/parts.js';
 import { ProposalList } from './handoff.js';
@@ -37,14 +39,23 @@ export function ThemeCopilotDialog({ api, editor, onClose, onPreview, onApply, r
   const index = editor.editIndex.value;
   const language = lang2(locale.value);
 
+  const [making, setMaking] = useState(false);
   useEffect(() => {
     if (resume) return;
-    api.get('/api/themes/copilot/summary').then((r) => {
+    api.post('/api/themes/copilot/summary', { tree: editor.tree.value, language }).then((r) => {
       if (r.ok) setSummary(r.data);
       else setError(r.error);
     });
   }, []);
 
+  const download = async () => {
+    setMaking(true);
+    setError(null);
+    const r = await api.post('/api/themes/copilot/export', { tree: editor.tree.value, language });
+    setMaking(false);
+    if (r.ok && r.data && r.data.blob) downloadFile('copilot-themes.zip', r.data.blob, 'application/zip');
+    else setError(r.error);
+  };
   const read = async (result) => {
     setBusy(true);
     setError(null);
@@ -66,10 +77,8 @@ export function ThemeCopilotDialog({ api, editor, onClose, onPreview, onApply, r
     const counts = c ? t('copilot.themes.counts', { nodes: formatNumber(c.nodes), keywords: formatNumber(c.keywords),
       people: formatNumber(c.people) }) : null;
     body = html`<${CopilotExport} lead=${t('copilot.themes.lead')} contains=${CONTAINS} never=${NEVER}
-      counts=${counts} error=${error}
-      href=${summary ? `/api/themes/copilot/export?language=${encodeURIComponent(language)}` : null}>
-      ${editor.dirty.value ? html`<p class="cx-copilot__note" role="note">${t('copilot.themes.unsaved')}</p>`
-        : summary && summary.source === 'draft' ? html`<p class="cx-copilot__note" role="note">${t('copilot.themes.draft')}</p>` : null}
+      counts=${counts} error=${error} onDownload=${summary ? download : null} busy=${making}>
+      <p class="cx-copilot__note" role="note">${t('copilot.themes.current')}</p>
     <//>`;
     footer = html`<${Button} variant="ghost" onClick=${() => onClose('close')}>${t('common.cancel')}<//>
       <${Button} variant="primary" iconAfter="chevron-right" disabled=${!summary}

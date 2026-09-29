@@ -155,9 +155,9 @@ export function ThemesEditor() {
   const { run, focusSearch } = installActions({ editor, ui, setDialog, toast });
 
   // ── saving, applying, versions ──
-  async function save({ quiet = false } = {}) {
+  async function save({ quiet = false, action = null } = {}) {
     if (!editor.tree.value) return false;
-    const result = await editor.save();
+    const result = await editor.save({ action });
     if (result.stale) {
       setDialog({ kind: 'stale' });
       return false;
@@ -292,11 +292,11 @@ export function ThemesEditor() {
     setCopilot(null);
     editor.preview.value = { tree: result.data.tree, proposal, accepted, refused, source };
   };
-  const applyProposal = async (proposal, accepted) => {
+  const applyProposal = async (proposal, accepted, label = null) => {
     const ops = acceptedOps(proposal, accepted);
     editor.preview.value = null;
     const result = await editor.run(ops, { lenient: true, labelKey: { key: 'themes.ai.entry', params: { count: ops.length } },
-      label: `apply ${ops.length} AI proposals` });
+      label: label || `apply ${ops.length} AI proposals` });
     setHandoff(null);
     if (result.ok) {
       const refused = result.steps.filter((s) => s.refused).length;
@@ -307,9 +307,15 @@ export function ThemesEditor() {
   };
   // A copilot's accepted changes are saved at once, as a version of their own.
   const applyCopilot = async (proposal, accepted) => {
-    const result = await applyProposal(proposal, accepted);
+    // The version's action names the copilot (ai-copilot), and the other unsaved edits it holds.
+    const others = editor.unsaved.value;
+    const label = `ai-copilot: apply ${accepted.size} ${accepted.size === 1 ? 'change' : 'changes'} of the AI copilot`;
+    const result = await applyProposal(proposal, accepted, label);
     setCopilot(null);
-    if (result && result.ok && result.changed) await save({ quiet: true });
+    if (result && result.ok && result.changed) {
+      await save({ quiet: true,
+        action: others ? `${label}, with ${others} other unsaved ${others === 1 ? 'edit' : 'edits'}` : label });
+    }
   };
 
   // ── rendering ──

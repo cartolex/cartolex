@@ -301,7 +301,7 @@ DECISION_TABLES: dict[str, DecisionTable] = {
         key=("term", "language"),
         allowed={
             "decision": frozenset({"keep", "exclude", "merge"}),
-            "source": frozenset({"person", "ai-handoff", "ai-api"}),
+            "source": frozenset({"person", "ai-handoff", "ai-copilot", "ai-api"}),
         },
     ),
     "snowball": DecisionTable(

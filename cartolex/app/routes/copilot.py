@@ -24,7 +24,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import Path as PathParam
 from fastapi import Query, Request, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..deps import ProjectDep
 from ..errors import ApiError
@@ -112,16 +112,22 @@ def _zip(data: bytes, name: str) -> Response:
 # ── themes ───────────────────────────────────────────────────────────────────
 
 
-def _theme_source(request: Request, ctx: Any) -> tuple[Any, str, Any]:
-    """The tree a bundle sends (the saved one, else the proposal), its source and the proposal."""
+def _theme_source(
+    request: Request, ctx: Any, edited: dict[str, Any] | None = None
+) -> tuple[Any, str, Any]:
+    """The tree a bundle sends (the one being edited when given, else the saved one, else
+    the proposal), its source and the proposal."""
     from cartolex.project.themes_versions import read_themes
 
-    from .themes import _draft
+    from .themes import _draft, _parse_tree
 
     draft = _draft(runtime_of(request), ctx)
-    tree = read_themes(ctx.project)[0]
-    source = "saved" if tree is not None else "draft"
-    tree = tree if tree is not None else draft
+    if edited is not None:
+        tree, source = _parse_tree(edited), "edited"
+    else:
+        tree = read_themes(ctx.project)[0]
+        source = "saved" if tree is not None else "draft"
+        tree = tree if tree is not None else draft
     if tree is None or not (tree.keywords or tree.set_aside):
         raise ApiError.of("theme_handoff_empty")
     return tree, source, draft
@@ -146,14 +152,22 @@ def _space_models(request: Request, ctx: Any) -> tuple[Any, Any]:
     return runtime_of(request).table_cache.get(("copilot-space", ctx.id, record.run_id), load)
 
 
-@routes.get("/api/themes/copilot/summary", action="themes.read")
-def themes_summary(request: Request, ctx: ProjectDep) -> dict[str, Any]:
+class ThemesExportBody(BaseModel):
+    """The tree to send (the one being edited, unsaved edits included; default: the saved
+    tree, else the proposal) and the curator's language."""
+
+    tree: dict[str, Any] | None = None
+    language: Annotated[str, Field(pattern=r"^[a-z]{2}$")] = "en"
+
+
+@routes.post("/api/themes/copilot/summary", action="themes.read")
+def themes_summary(request: Request, body: ThemesExportBody, ctx: ProjectDep) -> dict[str, Any]:
     """What a themes bundle would hold and never holds, and its counts (nothing is made)."""
     from cartolex.project.copilot import THEMES_CONTAINS, THEMES_NEVER
 
     from .themes import _usage
 
-    tree, source, _ = _theme_source(request, ctx)
+    tree, source, _ = _theme_source(request, ctx, body.tree)
     _, people, _ = _usage(runtime_of(request), ctx)
     return {
         "task": "themes",
@@ -169,12 +183,12 @@ def themes_summary(request: Request, ctx: ProjectDep) -> dict[str, Any]:
     }
 
 
-@routes.get("/api/themes/copilot/export", action="themes.read")
-def themes_export(request: Request, ctx: ProjectDep, language: Language = "en") -> Response:
-    """The themes bundle (a zip): the saved tree, else the proposal; *language* is the curator's."""
+@routes.post("/api/themes/copilot/export", action="themes.read")
+def themes_export(request: Request, body: ThemesExportBody, ctx: ProjectDep) -> Response:
+    """The themes bundle (a zip) of the tree sent (default: the saved one, else the proposal)."""
     from cartolex.project.copilot import themes_bundle
 
-    tree, _, draft = _theme_source(request, ctx)
+    tree, _, draft = _theme_source(request, ctx, body.tree)
     data, emb = _space_models(request, ctx)
     X = data.X
     U = data.X_tf if getattr(data, "X_tf", None) is not None else data.X
@@ -190,7 +204,7 @@ def themes_export(request: Request, ctx: ProjectDep, language: Language = "en") 
         Z_terms=emb.Z_terms,
         Z_people=emb.Z_ind,
         context=context,
-        curator_language=language,
+        curator_language=body.language,
         mask=_names(ctx),
     )
     return _zip(zipped, "copilot-themes.zip")

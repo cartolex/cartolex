@@ -41,6 +41,7 @@
 }
 
 .cx-kw-route--ai-handoff,
+.cx-kw-route--ai-copilot,
 .cx-kw-route--ai-api {
   border-style: dashed;
 }

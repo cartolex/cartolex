@@ -306,15 +306,16 @@ export function createEditor({ api, projectId, announce = () => {} }) {
   }
 
   /**
-   * Save the tree as a new version (`If-Match`: the version it started from).
+   * Save the tree as a new version (`If-Match`: the version it started from), named
+   * `action` when given, else after the steps since the last save.
    * Resolves to `{ok}`, `{ok: false, stale: true}` on a 412, or the error.
    */
-  function save() {
+  function save({ action = null } = {}) {
     return serial(async () => {
       if (!tree.value) return { ok: false };
       busy.value = true;
       const before = tree.value;
-      const result = await api.put('/api/themes', { tree: before, action: actionName() },
+      const result = await api.put('/api/themes', { tree: before, action: action || actionName() },
         { ifMatch: base.value.version });
       busy.value = false;
       if (!result.ok) {

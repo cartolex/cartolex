@@ -301,7 +301,8 @@ def accept(
     body: AcceptBody,
     ctx: ProjectDep,
 ) -> dict[str, Any]:
-    """Write the accepted decisions into ``keywords.csv`` (source ``ai-handoff``); ``If-Match``."""
+    """Write the accepted decisions into ``keywords.csv`` (source ``ai-handoff``, or
+    ``ai-copilot`` for a copilot's result); ``If-Match``."""
     expected = expected_version(request)
     with ctx.handle.mutex:
         check_version(ctx.layout.keywords_csv, expected)
@@ -322,7 +323,7 @@ def accept(
                 + (
                     f"; English form: {i['english']}" if i["english"] not in ("", i["term"]) else ""
                 ),
-                "source": "ai-handoff",
+                "source": "ai-copilot" if "-copilot-" in proposal_id else "ai-handoff",
                 "decided_at": now,
             }
         fp = _write(ctx, rows, expected, f"accept {len(items)} AI answers")

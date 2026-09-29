@@ -26,10 +26,13 @@ export function stepState(step, id) {
  * @param {string[]} props.contains catalogue keys
  * @param {string[]} props.never catalogue keys
  * @param {string|null} props.counts the counts in words
- * @param {string|null} props.href the download address (null while loading)
+ * @param {string|null} [props.href] the download address (null while loading)
+ * @param {Function|null} [props.onDownload] or: make the zip and offer it (a POST)
+ * @param {boolean} [props.busy] while the zip is made
  * @param {object} [props.error]
  */
-export function CopilotExport({ lead, contains, never, counts, href, error, children }) {
+export function CopilotExport({ lead, contains, never, counts, href, onDownload = null, busy = false,
+  error, children }) {
   const uid = useUid('cx-copilot');
   return html`<p class="cx-handoff__lead">${lead}</p>
     ${children}
@@ -49,6 +52,9 @@ export function CopilotExport({ lead, contains, never, counts, href, error, chil
     ${href ? html`<div class="cx-handoff__actions">
       <a class="cx-button cx-button--primary cx-button--m" href=${href} download>
         <${Icon} name="download" /><span class="cx-button__label">${t('copilot.download')}</span></a>
+    </div>` : null}
+    ${onDownload ? html`<div class="cx-handoff__actions">
+      <${Button} variant="primary" icon="download" loading=${busy} onClick=${onDownload}>${t('copilot.download')}<//>
     </div>` : null}
     <p class="cx-handoff__hint">${t('copilot.hint')}</p>`;
 }

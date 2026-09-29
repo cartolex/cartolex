@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 """The AI copilot's dialogs on the real app (the S demo world at depth 2).
 
-The bundle is downloaded from the dialog's link, a short session of the kit
+The bundle is downloaded from the dialog, a short session of the kit
 answers it (in this process), and its ``result.json`` goes back through the
 dialog: the theme changes are applied and saved as a version, the keyword
 decisions accepted. The review screenshots with ``--ui-screenshots``.
@@ -17,11 +17,13 @@ import pytest
 from test_theme_editor import api, dialog, open_editor, wait_status
 
 
-def _answer(ui, href: str, folder: Path, task: str) -> Path:
-    """Download the bundle at *href*, answer it with the kit, and return its result file."""
+def _answer(ui, button, folder: Path, task: str) -> Path:
+    """Download the bundle with *button*, answer it with the kit, and return its result file."""
     from cartolex.copilot import open_bundle
 
-    body = ui.page.request.get(ui.server.url.rstrip("/") + href).body()
+    with ui.page.expect_download() as download:
+        button.click()
+    body = Path(download.value.path()).read_bytes()
     zipfile.ZipFile(io.BytesIO(body)).extractall(folder)
     s = open_bundle(folder)
     if task == "themes":
@@ -40,11 +42,11 @@ def _themes(ui, folder: Path, shots: Path | None, suffix: str) -> None:
     page.locator(".cx-themes__toolbar .cx-menubutton button").last.click()
     page.get_by_role("menu").get_by_role("menuitem").nth(2).click()
     d = dialog(ui)
-    link = d.locator("a[download]")
-    link.wait_for()
+    button = d.locator(".cx-handoff__actions button")
+    button.wait_for()
     if shots:
         page.screenshot(path=str(shots / f"themes-export-{suffix}.png"))
-    result = _answer(ui, link.get_attribute("href"), folder, "themes")
+    result = _answer(ui, button, folder, "themes")
     d.locator(".cx-dialog__footer button").last.click()
     d.locator("input[type=file]").set_input_files(str(result))
     d.locator(".cx-themes-ai__item").first.wait_for()
@@ -64,7 +66,7 @@ def _keywords(ui, folder: Path, shots: Path | None, suffix: str) -> None:
     link.wait_for()
     if shots:
         page.screenshot(path=str(shots / f"keywords-export-{suffix}.png"))
-    result = _answer(ui, link.get_attribute("href"), folder, "triage")
+    result = _answer(ui, link, folder, "triage")
     d.locator(".cx-dialog__footer button").last.click()
     d.locator("input[type=file]").set_input_files(str(result))
     d.locator(".cx-kw-review").wait_for()
@@ -85,6 +87,9 @@ def test_a_copilot_result_is_reviewed_applied_and_saved(demo_s, app_for, open_ap
     assert len(versions) == before + 1
     _keywords(ui, tmp_path / "triage", None, "")
     ui.page.locator(".cx-toast", has_text="2 AI decisions accepted").wait_for()
+    assert api(ui, "GET", "/api/keywords?route=ai-copilot")["data"]["total"] == 2
+    made_by = [v["made_by"] or "" for v in api(ui, "GET", "/api/themes/versions")["data"]["items"]]
+    assert any(m.startswith("ai-copilot: apply 2 changes") for m in made_by), made_by
 
 
 @pytest.mark.slow

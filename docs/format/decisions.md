@@ -105,7 +105,7 @@ An unknown step or parameter, or a value below its smallest (1, and 2 for
 | `decision` | `keep`, `exclude` or `merge` |
 | `target` | for `merge`: the keyword it merges into |
 | `reason` | why, in words |
-| `source` | `person`, `ai-handoff` or `ai-api` |
+| `source` | `person`, `ai-handoff`, `ai-copilot` or `ai-api` |
 | `decided_at` | UTC time |
 
 A proposal imported from an AI (by handoff or by API) is kept as it came in

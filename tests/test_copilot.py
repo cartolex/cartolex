@@ -89,8 +89,12 @@ def client(project, tmp_path_factory) -> Client:
     return Client(app)
 
 
-def _bundle(client: Client, url: str) -> dict[str, bytes]:
-    r = client.get(url)
+#: The themes bundle of the tree being edited (here: none sent, so the saved one or the proposal).
+THEMES = ("/api/themes/copilot/export", {"language": "fr"})
+
+
+def _bundle(client: Client, url: str | tuple[str, dict]) -> dict[str, bytes]:
+    r = client.post(url[0], json=url[1]) if isinstance(url, tuple) else client.get(url)
     assert r.status_code == 200, r.text
     with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
         return {name: zf.read(name) for name in zf.namelist()}
@@ -105,7 +109,7 @@ def _texts(files: dict[str, bytes]) -> str:
 
 def test_no_bundle_holds_a_name_an_identifier_an_organisation_or_a_text(client):
     world = generate("XS", 0)
-    themes = _texts(_bundle(client, "/api/themes/copilot/export?language=fr"))
+    themes = _texts(_bundle(client, THEMES))
     triage = _texts(_bundle(client, "/api/keywords/copilot/export?scope=both"))
     audit = _texts(_bundle(client, "/api/keywords/copilot/export?scope=both&usage_lines=true"))
     assert "[name]" in audit or "…" in audit  # the excerpts are there, masked
@@ -192,7 +196,7 @@ def _run(python: Path, folder: Path, code: str) -> str:
     return out.stdout
 
 
-def _unpack(client: Client, url: str, folder: Path) -> Path:
+def _unpack(client: Client, url: str | tuple[str, dict], folder: Path) -> Path:
     for name, data in _bundle(client, url).items():
         (folder / name).parent.mkdir(parents=True, exist_ok=True)
         (folder / name).write_bytes(data)
@@ -261,7 +265,7 @@ TRIAGE_SESSION = """
 
 def test_a_whole_session_runs_offline_and_its_result_imports_as_a_proposal(client, tmp_path):
     python = _sandbox(tmp_path)
-    folder = _unpack(client, "/api/themes/copilot/export?language=fr", tmp_path / "themes")
+    folder = _unpack(client, THEMES, tmp_path / "themes")
     _run(python, folder, THEMES_SESSION)
     result = json.loads((folder / "result/result.json").read_text(encoding="utf-8"))
     assert (
@@ -292,5 +296,7 @@ def test_a_whole_session_runs_offline_and_its_result_imports_as_a_proposal(clien
         headers={"If-Match": f'"{proposal["keywords_version"]}"'},
     )
     assert accepted.status_code == 200 and accepted.json()["accepted"] == 3
+    decided = client.get("/api/keywords?route=ai-copilot").json()
+    assert decided["total"] == 3
     bad = client.post("/api/keywords/copilot/import", json={"result": {"format": "other"}})
     assert bad.status_code == 422 and bad.json()["error"]["code"] == "invalid_copilot_result"

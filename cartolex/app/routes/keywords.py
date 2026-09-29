@@ -88,9 +88,11 @@ def api_verdicts(runtime: Any, ctx: Any) -> tuple[dict[str, dict[str, str]], Any
     return runtime.table_cache.get(("triage", ctx.id, record.run_id), load), record
 
 
-#: Which route decided a keyword: you, an AI in a browser (handoff), an AI by API, or
-#: nobody yet (the extraction's band).
-ROUTES = ("person", "ai-handoff", "ai-api", "extraction")
+#: Which route decided a keyword: you, an AI in a browser (handoff), an AI copilot that
+#: runs code, an AI by API, or nobody yet (the extraction's band).
+ROUTES = ("person", "ai-handoff", "ai-copilot", "ai-api", "extraction")
+#: The sources of ``keywords.csv`` that are an AI's answers the person accepted.
+AI_SOURCES = ("ai-handoff", "ai-copilot")
 
 
 def _effective(
@@ -114,7 +116,7 @@ def _effective(
     out["decision"] = {
         k: decision[k] for k in ("decision", "target", "reason", "source", "decided_at")
     }
-    out["route"] = "ai-handoff" if decision["source"] == "ai-handoff" else "person"
+    out["route"] = decision["source"] if decision["source"] in AI_SOURCES else "person"
     why = decision["reason"] or "by you"
     if decision["decision"] == "keep":
         out["band"], out["reason"] = "kept", f"kept: {why}"
@@ -132,7 +134,7 @@ def languages_split(ctx: Any, decisions: dict, triage: Any) -> dict[str, Any] | 
     langs = list(ctx.project.config.languages.corpus)
     if len(langs) < 2 or triage is not None:
         return None
-    if any(d.get("source") == "ai-handoff" for d in decisions.values()):
+    if any(d.get("source") in AI_SOURCES for d in decisions.values()):
         return None
     return item("health_languages_split", level="warning", languages=langs)
 
@@ -143,7 +145,7 @@ class Where(BaseModel):
     band: Band | None = None
     lang: Annotated[str | None, Field(pattern=r"^[a-z]{2}$")] = None
     decision: Literal["keep", "exclude", "merge", "none"] | None = None
-    route: Literal["person", "ai-handoff", "ai-api", "extraction"] | None = None
+    route: Literal["person", "ai-handoff", "ai-copilot", "ai-api", "extraction"] | None = None
     q: Annotated[str, Field(max_length=300)] = ""
 
 
@@ -214,7 +216,7 @@ def list_keywords(
     lang: Annotated[str | None, Query(pattern=r"^[a-z]{2}$")] = None,
     decision: Annotated[Literal["keep", "exclude", "merge", "none"] | None, Query()] = None,
     route: Annotated[
-        Literal["person", "ai-handoff", "ai-api", "extraction"] | None, Query()
+        Literal["person", "ai-handoff", "ai-copilot", "ai-api", "extraction"] | None, Query()
     ] = None,
 ) -> dict[str, Any]:
     """The candidates in their three bands (kept, to check, set aside) with the reason of each,
