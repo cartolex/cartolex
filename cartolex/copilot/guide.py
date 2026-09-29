@@ -189,12 +189,13 @@ _TRIAGE_GUIDE = """\
 - **exclude** (codes `N` name, `H` a real term not informative in this field,
   `K` administrative wording, `G` too generic, `F` broken piece): a single
   everyday word is `G` unless a term of art of the field. `K`, `G` and `F` say
-  the term is never a keyword in any field (category `never`: it can spare other
-  projects the question); give them only when sure, else `H`.
+  the term is never a keyword in any field (category `never`); when you are sure
+  of it, say `confidence="sure"` (the default is `unsure`): only such answers
+  spare other projects the question. A term that could be a keyword elsewhere is `H`.
 - **merge** into another term: a French or Portuguese term into the English term
   of the list that names the same thing, or a variant into its usual spelling.
 
-`session.keep(term, lang, reason)`, `session.exclude(term, lang, reason, code="G")`,
+`session.keep(term, lang, reason)`, `session.exclude(term, lang, reason, code="G", confidence="sure")`,
 `session.merge(term, lang, into, reason)`; `session.decide_many(rows)` for a list.
 Judge the terms yourself, reading them; the kit's neighbours and pairs are
 evidence, not a verdict. A term left undecided keeps the curator's current state.

@@ -26,7 +26,7 @@ from typing import Any
 import numpy as np
 
 from ..lexicon.categories import ACCEPTED, CATEGORIES, REJECTED, category_of
-from .bundle import CODES, DECISIONS
+from .bundle import CODES, CONFIDENCES, DECISIONS
 from .session import Session
 
 __all__ = ["TriageSession"]
@@ -184,12 +184,15 @@ class TriageSession(Session):
         target: str = "",
         code: str = "",
         category: str = "",
+        confidence: str = "unsure",
     ) -> None:
         """Decide one candidate: ``keep``, ``exclude``, or ``merge`` into *target*.
 
         *category* defaults to the code's; a kept or merged term takes an accepted
         category (``concept``, ``method``, ``object``, ``place``, ``field``), an
-        excluded one ``never`` or ``here``.
+        excluded one ``never`` or ``here``. *confidence* is ``sure`` or ``unsure`` (the
+        default): only a ``never`` exclusion given as sure spares other projects the
+        question (it enters the machine's rejection cache).
         """
         if decision not in DECISIONS:
             raise ValueError(f"decision is one of {', '.join(DECISIONS)}")
@@ -201,6 +204,8 @@ class TriageSession(Session):
         allowed = REJECTED if decision == "exclude" else ACCEPTED
         if category and category not in allowed:
             raise ValueError(f"a {decision} takes a category among {', '.join(allowed)}")
+        if confidence not in CONFIDENCES:
+            raise ValueError(f"confidence is one of {', '.join(CONFIDENCES)}")
         if decision == "merge" and not target.strip():
             raise ValueError("a merge names the term it goes into")
         if not str(reason or "").strip():
@@ -213,6 +218,7 @@ class TriageSession(Session):
             "target": target.strip() if decision == "merge" else "",
             "code": code,
             "category": category,
+            "confidence": confidence,
             "reason": str(reason).strip()[:2000],
         }
 
@@ -220,11 +226,19 @@ class TriageSession(Session):
         """Keep a candidate as a keyword of the field."""
         self.decide(term, lang, "keep", reason, code=code)
 
-    def exclude(self, term: str, lang: str | None, reason: str, *, code: str = "G") -> None:
+    def exclude(
+        self,
+        term: str,
+        lang: str | None,
+        reason: str,
+        *,
+        code: str = "G",
+        confidence: str = "unsure",
+    ) -> None:
         """Exclude a candidate (a name, not informative here, admin wording, too generic, a
-        broken piece). ``K``, ``G`` and ``F`` say it is never a keyword in any field: give
-        them only when sure, else ``H``."""
-        self.decide(term, lang, "exclude", reason, code=code)
+        broken piece). ``K``, ``G`` and ``F`` say it is never a keyword in any field; say
+        ``confidence="sure"`` when you are sure of it."""
+        self.decide(term, lang, "exclude", reason, code=code, confidence=confidence)
 
     def merge(
         self, term: str, lang: str | None, into: str, reason: str, *, code: str = "C"
@@ -304,7 +318,8 @@ class TriageSession(Session):
 
     def decide_many(self, rows: Iterable[Mapping[str, Any]]) -> int:
         """Several decisions at once: rows with ``term``, ``lang``, ``decision``, ``reason``
-        and optionally ``target``, ``code`` and ``category``. Returns how many were recorded."""
+        and optionally ``target``, ``code``, ``category`` and ``confidence``. Returns how many
+        were recorded."""
         n = 0
         for r in rows:
             self.decide(
@@ -315,6 +330,7 @@ class TriageSession(Session):
                 target=r.get("target", "") or "",
                 code=r.get("code", "") or "",
                 category=r.get("category", "") or "",
+                confidence=r.get("confidence", "") or "unsure",
             )
             n += 1
         return n

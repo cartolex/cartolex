@@ -225,7 +225,9 @@ nothing in the engine names a particular deployment, source or procedure.
   answers also store the category). `decisions/keywords.csv` gains an optional
   `category` column. `never` answers enter a per-machine rejection cache
   (`<data dir>/rejects/<lang>.jsonl`, `cartolex-rejects/1`, with the route, the
-  day and a fingerprint of the project), beside cartolex's shipped list
+  day and a fingerprint of the project; a handoff's or a copilot's answer
+  enters only when marked `sure`, a new field of their answers, `unsure` when
+  absent), beside cartolex's shipped list
   (`cartolex/_data/rejects/<lang>.json`, empty for now; `cartolex rejects export`
   builds one from a cache for the maintainers to review). At extraction, the
   candidates they name go to a fourth band, `rejected` (« rejected by

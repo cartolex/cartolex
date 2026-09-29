@@ -20,9 +20,10 @@ The result is one JSON document, ``result/result.json``:
   operations in the JSON form of ``POST /api/themes/ops``, applied in order;
   ``tree``, the tree they give; ``measures`` before and after;
 - ``triage``: ``decisions``, each ``{"term", "language", "decision", "target",
-  "code", "category", "reason"}`` (``keep``, ``exclude``, or ``merge`` into
-  ``target``; the category, :mod:`cartolex.lexicon.categories`, follows the
-  code when absent); ``measures``;
+  "code", "category", "confidence", "reason"}`` (``keep``, ``exclude``, or
+  ``merge`` into ``target``; the category, :mod:`cartolex.lexicon.categories`,
+  follows the code when absent; the confidence is ``sure`` or ``unsure``,
+  ``unsure`` when absent); ``measures``;
 
 and ``notes`` for the curator. :func:`check_result` lists what is wrong with a
 result; the kit writes only results it passes, the application reads only those.
@@ -76,6 +77,8 @@ CHANGE_KINDS = (
 )
 #: The decisions of a triage result.
 DECISIONS = ("keep", "exclude", "merge")
+#: How sure the assistant is of a decision (absent: ``unsure``).
+CONFIDENCES = ("sure", "unsure")
 #: The triage codes (those of the keyword handoff), and the categories they give.
 CODES = {code: meaning for code, (_, meaning) in _CODES.items()}
 MAX_CHANGES = 2_000
@@ -167,6 +170,8 @@ def check_result(doc: Any, *, task: str | None = None) -> list[str]:
                 problems.append(f"decision {i}: code is one of {', '.join(CODES)}")
             if d.get("category") not in (None, "", *CATEGORIES):
                 problems.append(f"decision {i}: category is one of {', '.join(CATEGORIES)}")
+            if d.get("confidence") not in (None, "", *CONFIDENCES):
+                problems.append(f"decision {i}: confidence is one of {', '.join(CONFIDENCES)}")
             if not _text(d.get("reason", ""), 2_000):
                 problems.append(f"decision {i}: reason is text")
             if len(problems) > 50:

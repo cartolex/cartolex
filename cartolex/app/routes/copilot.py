@@ -412,6 +412,7 @@ def triage_proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
                 "language": lang,
                 "code": d.get("code") or "",
                 "category": str(d.get("category") or category_of(d.get("code") or "")),
+                "confidence": "sure" if d.get("confidence") == "sure" else "unsure",
                 "meaning": CODES.get(d.get("code") or "", ""),
                 "english": target,
                 "proposed": d["decision"],
