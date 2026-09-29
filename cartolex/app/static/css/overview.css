@@ -1,0 +1,112 @@
+/* SPDX-License-Identifier: MIT */
+/*
+ * The overview (pages/overview/): the next step across the page, then the
+ * stages beside a column of the health panel, the map's preview and the
+ * shared builds. Colours, sizes and durations come from tokens.css only.
+ */
+
+.cx-overview__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cx-space-3) var(--cx-space-4);
+}
+
+.cx-overview > .cx-grid {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+
+.cx-overview__side {
+  display: grid;
+  gap: var(--cx-space-5);
+  align-content: start;
+}
+
+@media (max-width: 56rem) {
+  .cx-overview > .cx-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The next step: one sentence and one button. */
+.cx-overview-next {
+  border-color: var(--cx-border-strong);
+}
+
+.cx-overview-next__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cx-space-3) var(--cx-space-5);
+}
+
+.cx-overview-next__text {
+  font-size: var(--cx-text-l);
+  max-width: var(--cx-text-width);
+}
+
+.cx-overview-next__text::first-letter {
+  text-transform: uppercase;
+}
+
+/* The health panel: a warning has its icon, its word and the warning hue. */
+.cx-overview-health__list {
+  display: grid;
+  gap: var(--cx-space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.cx-overview-health__item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--cx-space-2);
+  align-items: start;
+}
+
+.cx-overview-health__item > div {
+  display: grid;
+  gap: var(--cx-space-2);
+  justify-items: start;
+}
+
+.cx-overview-health__item.is-warning > .cx-icon {
+  color: var(--cx-warning);
+}
+
+.cx-overview-health__item.is-info > .cx-icon {
+  color: var(--cx-text-muted);
+}
+
+.cx-overview-health__word {
+  font-weight: var(--cx-weight-bold);
+}
+
+.cx-overview-health__item.is-warning .cx-overview-health__word {
+  color: var(--cx-warning);
+}
+
+/* The map's preview. */
+.cx-overview-preview__frame {
+  height: 14rem;
+  border: var(--cx-rule-width) solid var(--cx-rule);
+  border-radius: var(--cx-radius-m);
+}
+
+.cx-overview-preview__note {
+  margin-top: var(--cx-space-2);
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}
+
+.cx-overview-shares__list {
+  display: grid;
+  gap: var(--cx-space-1);
+  padding: 0;
+  list-style: none;
+}
+
+.cx-overview .cx-empty {
+  padding: var(--cx-space-5) var(--cx-space-4);
+}

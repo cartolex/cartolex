@@ -10,6 +10,8 @@ from fixtures and with the standard library only:
   ``tests/fixtures/manifest.example.json``, with the core pages and the test extension);
 * ``GET /api/project/state`` — ``tests/fixtures/ui/project-state.example.json``;
 * ``GET /api/jobs`` and ``POST /api/jobs/<id>/cancel`` — ``tests/fixtures/ui/jobs.example.json``;
+* ``GET /api/overview``, ``GET /api/build`` and the dry run ``POST /api/build`` —
+  ``tests/fixtures/ui/overview.example.json``;
 * ``GET /api/themes`` and ``GET /api/themes/usage`` — ``tests/fixtures/ui/themes.example.json``
   (a small theme tree), and ``GET /api/atlas`` — no map yet;
 * any other ``/api/…`` path — 404 with the error shape;
@@ -82,6 +84,7 @@ def load_fixtures() -> dict:
         ),
         "jobs": json.loads((FIXTURES / "ui" / "jobs.example.json").read_text(encoding="utf-8")),
         **json.loads((FIXTURES / "ui" / "themes.example.json").read_text(encoding="utf-8")),
+        **json.loads((FIXTURES / "ui" / "overview.example.json").read_text(encoding="utf-8")),
     }
 
 
@@ -199,6 +202,10 @@ class Handler(BaseHTTPRequestHandler):
                         job["state"] = "cancelling"
                         return self._json(HTTPStatus.ACCEPTED, {"job": job})
             return self._error(HTTPStatus.NOT_FOUND, "job_not_found", "No such running job.")
+        if path == "/api/build":
+            # The dry run only: the fixture never starts a build.
+            with self.server.lock:
+                return self._json(HTTPStatus.OK, self.server.data["plan"])
         return self._error(HTTPStatus.NOT_FOUND, "not_found", "No such route.")
 
     def _static(self, path: str) -> None:
@@ -220,6 +227,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(HTTPStatus.OK, data["state"])
         if path == "/api/jobs":
             return self._json(HTTPStatus.OK, data["jobs"])
+        if path == "/api/overview":
+            return self._json(HTTPStatus.OK, data["overview"])
+        if path == "/api/build":
+            return self._json(HTTPStatus.OK, data["build"])
         if path == "/api/themes":
             return self._json(HTTPStatus.OK, data["themes"], {"ETag": '"sha256:fixture"'})
         if path == "/api/themes/usage":

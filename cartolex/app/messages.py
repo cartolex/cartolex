@@ -79,6 +79,54 @@ MESSAGES: dict[str, MessageKind] = {
     "stage_refused": MessageKind("the stage could not run: {detail}"),
     "language_model_missing": MessageKind("a language model is missing: {detail}"),
     "stage_failed": MessageKind("the stage failed ({error_type}): {detail}"),
+    # the overview's health panel (``GET /api/overview``)
+    "health_map_stale": MessageKind(
+        "the map was drawn from inputs that changed since; building the map restores it",
+        "Build the map",
+        "build",
+    ),
+    "health_model_missing": MessageKind(
+        "the language model {model} for {language} is not installed; the keyword extraction "
+        "needs it",
+        "Open the settings",
+        "settings",
+    ),
+    "health_too_large": MessageKind(
+        "{stage} needs about {need_mb} MB of memory and this machine has about {budget_mb} MB",
+        "Open the settings",
+        "settings",
+    ),
+    "health_languages_split": MessageKind(
+        "the texts are in {languages}: without the AI clean-up, keywords of each language may "
+        "form themes of their own",
+        "Open the settings",
+        "settings",
+    ),
+    "health_snowball_cap": MessageKind(
+        "the last proposal of collaborators in {slot} stopped at the cap of {cap} people",
+        "Open the settings",
+        "settings",
+    ),
+    # the overview's one next step
+    "next_watch_build": MessageKind("a build is running", "Follow the build", "open:/build"),
+    "next_import_people": MessageKind(
+        "start with the people whose texts make the map", "Add people", "open:/people"
+    ),
+    "next_install_model": MessageKind(
+        "install the language model the keyword extraction needs", "Open the settings", "settings"
+    ),
+    "next_see_failure": MessageKind(
+        "{stage} failed: see why and build again", "See what failed", "build"
+    ),
+    "next_first_build": MessageKind("build the keywords, the themes and the map", "Build", "build"),
+    "next_restore_map": MessageKind(
+        "the map is out of date: building it restores it", "Build the map", "build"
+    ),
+    "next_update": MessageKind("some results need an update", "Build", "build"),
+    "next_curate_themes": MessageKind(
+        "check the themes the grouping proposed and name them", "Open the themes", "open:/themes"
+    ),
+    "next_open_map": MessageKind("everything is up to date", "Open the map", "open:/map"),
     # why a stage needs an update (``Reason.kind``)
     "reason_code": MessageKind("{detail}"),
     "reason_input": MessageKind("{detail}"),
@@ -90,7 +138,9 @@ MESSAGES: dict[str, MessageKind] = {
 
 def message(code: str, **params: Any) -> dict[str, Any]:
     """``{"code", "params", "message"}`` of *code*."""
-    text = MESSAGES[code].template.format(**{k: str(v) for k, v in params.items()})
+    text = MESSAGES[code].template.format(
+        **{k: ", ".join(map(str, v)) if isinstance(v, list) else str(v) for k, v in params.items()}
+    )
     return {"code": code, "params": params, "message": text}
 
 

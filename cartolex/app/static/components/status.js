@@ -92,7 +92,8 @@ export function reasonText(reason) {
 /**
  * The build's stages with their state, reasons and progress.
  * @param {{stages: Array<object>, title?: any, compact?: boolean}} props
- *   each stage: {id, name, state, reasons?, skip_reason?, progress?}
+ *   each stage: {id, name, state, reasons?, skip_reason?, progress?}; `stateText` replaces
+ *   the state's word (« Waiting » in a running build), `note` adds a line under it
  */
 export function StageTracker({ stages, label, compact = false }) {
   const done = stages.filter((s) => ['up_to_date', 'skipped'].includes(stateKey(s.state))).length;
@@ -110,8 +111,9 @@ export function StageTracker({ stages, label, compact = false }) {
             <div class="cx-tracker__line">
               <span class="cx-tracker__index">${formatNumber(i + 1)}</span>
               <span class="cx-tracker__name">${stageName(stage)}</span>
-              <span class="cx-tracker__state">${stateLabel(key)}</span>
+              <span class="cx-tracker__state">${stage.stateText || stateLabel(key)}</span>
             </div>
+            ${!compact && stage.note ? html`<p class="cx-tracker__reason">${stage.note}</p>` : null}
             ${!compact && key === 'skipped' && stage.skip_reason
               ? html`<p class="cx-tracker__reason">${stage.skip_reason}</p>` : null}
             ${!compact && (stage.reasons || []).length ? html`<ul class="cx-tracker__reasons">
