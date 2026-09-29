@@ -50,13 +50,17 @@ organisations (a share of at least a fifth) and keywords.
   each build (the API refuses a build without the answer, 422
   `names_question`). With pseudonyms the site holds no name, and people get
   site ids (`s1`, `s2`…) in a shuffled order. Organisations are always named.
+- **Projected people** (placed on the finished map, possibly a sensitive set
+  such as applicants) have their own question, `names_projected`, asked only
+  when the project has some: pseudonyms (shuffled `q1`, `q2`…) unless named
+  explicitly, and then listed among the checks to look at.
 - **Texts**: none by default; `titles`, or `abstracts` (titles and abstracts),
   read through `shareable_parts()`, so a full text never goes in.
 - Never a project id, an identifier, or the extra columns of the people's lists.
 
 `cartolex.site.checks.plan` gives the privacy summary and the checks before
 publishing: `no_map` (blocks), `names_unanswered` (to answer), `names_shown`,
-`abstracts_included`, `map_stale`, `themes_untranslated` (the same name in
+`projected_names_shown`, `abstracts_included`, `map_stale`, `themes_untranslated` (the same name in
 every display language), `themes_technical`, `themes_empty`, `title_generic`
 (to look at), `full_texts_kept` (good to know); each with the fix the screen
 offers (build the map, open the themes, change a field).

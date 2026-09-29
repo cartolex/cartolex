@@ -41,11 +41,14 @@ function checkText(check) {
 /** What the site will hold and never hold. */
 function Summary({ summary, options }) {
   const s = summary;
-  const people = s.people + s.projected;
+  const people = s.people;
   return html`<ul class="cx-share-summary" aria-label=${t('share.summary')}>
     ${people ? html`<li><${Icon} name=${options.names ? 'warning' : options.names === false ? 'check' : 'help'} />
       <span>${t(options.names === null ? 'share.summary.people_unanswered'
         : options.names ? 'share.summary.people_names' : 'share.summary.people_pseudonyms', { n: people })}</span></li>` : null}
+    ${s.projected ? html`<li><${Icon} name=${options.namesProjected ? 'warning' : 'check'} />
+      <span>${t(options.namesProjected ? 'share.summary.projected_names' : 'share.summary.projected_pseudonyms',
+        { n: s.projected })}</span></li>` : null}
     <li><${Icon} name="check" /><span>${t('share.summary.orgs', { n: s.organisations })}</span></li>
     <li><${Icon} name="check" /><span>${t('share.summary.keywords', { keywords: s.keywords, themes: s.themes })}</span></li>
     <li><${Icon} name=${options.texts === 'abstracts' ? 'warning' : 'check'} /><span>${t(`share.summary.texts.${options.texts}`)}</span></li>
@@ -67,7 +70,7 @@ function Checks({ checks, onFix }) {
 }
 
 export function SiteCard({ ctx, available, job, running, onStarted }) {
-  const [options, setOptions] = useState({ names: null, texts: 'none', title: '',
+  const [options, setOptions] = useState({ names: null, namesProjected: false, texts: 'none', title: '',
     language: LANGUAGES.includes(locale.value) ? locale.value : 'en' });
   const [plan, setPlan] = useState(null);
   const [planError, setPlanError] = useState(null);
@@ -78,6 +81,7 @@ export function SiteCard({ ctx, available, job, running, onStarted }) {
   const readPlan = async (o) => {
     const query = { texts: o.texts, language: o.language };
     if (o.names !== null) query.names = o.names ? 'names' : 'pseudonyms';
+    query.names_projected = o.namesProjected ? 'names' : 'pseudonyms';
     if (o.title) query.title = o.title;
     const r = await ctx.api.get('/api/share/plan', { query });
     if (r.ok) {
@@ -109,12 +113,14 @@ export function SiteCard({ ctx, available, job, running, onStarted }) {
     setStartError(null);
     const r = onStarted(await ctx.api.post('/api/share/builds', {
       names: options.names === null ? null : options.names ? 'names' : 'pseudonyms',
+      names_projected: options.namesProjected ? 'names' : 'pseudonyms',
       texts: options.texts, title: options.title, language: options.language }));
     setStarting(false);
     if (!r.ok) setStartError(r.error);
   };
 
-  const people = plan && plan.summary.people + plan.summary.projected > 0;
+  const people = plan && plan.summary.people > 0;
+  const projected = plan && plan.summary.projected > 0;
   const progress = job && job.progress ? job.progress.fraction : null;
   return html`<${Card} level=${2} title=${t('share.site.title')} class="cx-share__site">
     <p class="cx-share__note">${t('share.site.text')}</p>
@@ -134,6 +140,11 @@ export function SiteCard({ ctx, available, job, running, onStarted }) {
       options=${[{ value: 'pseudonyms', label: t('share.names.pseudonyms'), help: t('share.names.pseudonyms.help') },
         { value: 'names', label: t('share.names.names'), help: t('share.names.names.help') }]}
       onChange=${(v) => set({ names: v === 'names' })} />` : null}
+    ${projected ? html`<${Choice} name="names_projected" label=${t('share.names_projected')}
+      help=${t('share.names_projected.help')} value=${options.namesProjected ? 'names' : 'pseudonyms'}
+      options=${[{ value: 'pseudonyms', label: t('share.names.pseudonyms') },
+        { value: 'names', label: t('share.names.names') }]}
+      onChange=${(v) => set({ namesProjected: v === 'names' })} />` : null}
     <${Choice} name="texts" label=${t('share.texts')} value=${options.texts}
       options=${['none', 'titles', 'abstracts'].map((v) => ({ value: v, label: t(`share.texts.${v}`) }))}
       onChange=${(v) => set({ texts: v })} />

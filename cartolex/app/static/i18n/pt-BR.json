@@ -1990,5 +1990,10 @@
   "error.site_not_found.title": "Esta construção não existe mais",
   "error.site_not_found.message": "Este site não existe mais. Recarregue a lista.",
   "error.export_not_found.title": "Este arquivo não existe mais",
-  "error.export_not_found.message": "O arquivo exportado não existe mais. Recarregue a lista."
+  "error.export_not_found.message": "O arquivo exportado não existe mais. Recarregue a lista.",
+  "share.names_projected": "Nomes das pessoas posicionadas",
+  "share.names_projected.help": "As pessoas posicionadas no mapa pronto (por exemplo, candidaturas) podem ser um conjunto sensível: pseudônimos, salvo escolha contrária.",
+  "share.summary.projected_pseudonyms": "{n, plural, one {# pessoa posicionada, com pseudônimo} other {# pessoas posicionadas, com pseudônimos}}",
+  "share.summary.projected_names": "{n, plural, one {# pessoa posicionada, nomeada} other {# pessoas posicionadas, nomeadas}}",
+  "share.check.projected_names_shown": "{count, plural, one {# pessoa posicionada aparece} other {# pessoas posicionadas aparecem}} com o nome: podem ser um conjunto sensível."
 }

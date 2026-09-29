@@ -1990,5 +1990,10 @@
   "error.site_not_found.title": "This build is gone",
   "error.site_not_found.message": "The site build no longer exists. Reload the list.",
   "error.export_not_found.title": "This file is gone",
-  "error.export_not_found.message": "The exported file no longer exists. Reload the list."
+  "error.export_not_found.message": "The exported file no longer exists. Reload the list.",
+  "share.names_projected": "Names of the placed people",
+  "share.names_projected.help": "People placed on the finished map (for example applicants) may be a sensitive set: pseudonyms unless you choose otherwise.",
+  "share.summary.projected_pseudonyms": "{n, plural, one {# placed person, under a pseudonym} other {# placed people, under pseudonyms}}",
+  "share.summary.projected_names": "{n, plural, one {# placed person, named} other {# placed people, named}}",
+  "share.check.projected_names_shown": "{count, plural, one {# placed person is} other {# placed people are}} shown by name: they may be a sensitive set."
 }

@@ -94,9 +94,11 @@ SITE_SCRIPTS = (
 @dataclass(frozen=True)
 class SiteOptions:
     """What the person building chose: names or pseudonyms (asked at each build of a people
-    atlas), the texts carried, the title and the language the site opens in."""
+    atlas), names of the projected people (pseudonyms unless chosen explicitly: they may be a
+    sensitive set), the texts carried, the title and the language the site opens in."""
 
     names: bool | None = None
+    names_projected: bool = False
     texts: str = "none"
     title: str = ""
     language: str = "en"
@@ -107,11 +109,13 @@ class SiteOptions:
         names = raw.get("names")
         if isinstance(names, str):
             names = {"names": True, "pseudonyms": False}.get(names)
+        names_projected = raw.get("names_projected") in (True, "names")
         texts = raw.get("texts") if raw.get("texts") in TEXT_MODES else "none"
         language = raw.get("language") if raw.get("language") in LANGUAGES else "en"
         title = str(raw.get("title") or "").strip()[:120]
         return cls(
             names=names if isinstance(names, bool) else None,
+            names_projected=names_projected,
             texts=str(texts),
             title=title,
             language=str(language),
@@ -195,6 +199,7 @@ def list_builds(project: Project) -> list[dict[str, Any]]:
                     "built_at": record.get("built_at"),
                     "title": record.get("options", {}).get("title"),
                     "names": record.get("options", {}).get("names"),
+                    "names_projected": record.get("options", {}).get("names_projected", False),
                     "texts": record.get("options", {}).get("texts"),
                     "language": record.get("options", {}).get("language"),
                     "counts": record.get("counts", {}),
@@ -282,6 +287,7 @@ def build_site(
     data = gather(
         project,
         names=bool(options.names),
+        names_projected=options.names_projected,
         texts=options.texts,
         progress=lambda f, m: say(0.8 * f, m),
     )
