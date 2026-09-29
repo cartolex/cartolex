@@ -156,6 +156,9 @@ def ensure_env(name: str, *, python: str = PYTHON, rebuild: bool = False) -> Pat
     if name not in ENV_NAMES:
         raise SystemExit(f"reference: unknown environment {name!r} (expected {ENV_NAMES})")
     venv = venv_dir(name)
+    if os.environ.get("CARTOLEX_VENVS_FROZEN") and (venv / "pyvenv.cfg").is_file():
+        # Shared by several checkouts: never clear or rebuild it under another run.
+        return venv
     stamp_path = venv / STAMP_NAME
     wanted = _wanted_stamp(name, python)
     if not rebuild and stamp_path.is_file():
