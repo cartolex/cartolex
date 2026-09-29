@@ -10,7 +10,8 @@ Served from the demo's sources layer (:mod:`cartolex.demo.services.sources`):
 * **bioRxiv and medRxiv** (``biorxiv``):
   ``details/<server>/<DOI>/na/json`` (``{"messages", "collection"}``, the
   ``jatsxml`` link and ``published``); ``content/<DOI>.source.xml`` the JATS;
-* **Europe PMC** (``europepmc``): ``search?query=DOI:"…"&resultType=core&format=json``
+* **Europe PMC** (``europepmc``): ``search?query=DOI:"…"&resultType=core&format=json``,
+  several clauses joined by ``OR`` (``DOI:"…"``, ``PMCID:…``, ``(EXT_ID:… OR …) AND SRC:MED``)
   (``resultList.result`` with ``abstractText``, ``pmcid``, ``isOpenAccess``);
   ``<PMCID>/fullTextXML`` the JATS of an open-access article (404 otherwise);
 * **a file host** (``files``): ``oa/<work>.pdf``, the open-access copies OpenAlex links to.
@@ -26,7 +27,7 @@ from xml.sax.saxutils import escape, quoteattr
 from .biblio import Bibliography
 from .http import DEMO_BASE, Reply, Request, json_reply
 from .render import Document, render_jats, render_latex, render_pdf
-from .sources import ArxivEntry, sources_layer
+from .sources import ArxivEntry, PmcEntry, sources_layer
 
 __all__ = ["ArxivService", "BiorxivService", "EuropePmcService", "FilesService"]
 
@@ -212,10 +213,25 @@ class EuropePmcService:
 
     def _search(self, query: dict[str, str]) -> Reply:
         q = query.get("query", "")
-        m = re.fullmatch(r'\s*DOI:"?([^"]+)"?\s*', q)
+        body = re.sub(r"\s+AND\s+SRC:MED\s*$", "", q.strip()).strip()
+        if body.startswith("(") and body.endswith(")"):
+            body = body[1:-1]
+        wanted: list[PmcEntry] = []
+        for clause in re.split(r"\s+OR\s+", body):
+            m = re.fullmatch(r'\s*(DOI|PMCID|EXT_ID):"?([^"]+)"?\s*', clause)
+            if not m:
+                continue
+            field, value = m.group(1), m.group(2)
+            if field == "DOI":
+                e = self._by_doi.get(value.lower())
+            elif field == "PMCID":
+                e = self.layer.pmc.get(value)
+            else:
+                e = next((x for x in self.layer.pmc.values() if x.pmid == value), None)
+            if e is not None and e not in wanted:
+                wanted.append(e)
         found = []
-        if m and m.group(1).lower() in self._by_doi:
-            e = self._by_doi[m.group(1).lower()]
+        for e in wanted[: int(query.get("pageSize", "25"))]:
             found.append(
                 {
                     "id": e.pmid,

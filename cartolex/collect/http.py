@@ -414,6 +414,7 @@ class HttpCache:
         url: str,
         params: Mapping[str, Any] | None,
         answer: CachedAnswer,
+        durable: bool = True,
     ) -> None:
         entry = {
             "format": CACHE_FORMAT,
@@ -428,7 +429,7 @@ class HttpCache:
             "body": answer.body,
         }
         data = json.dumps(entry, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        atomic_write_bytes(self.path(service, key), gzip.compress(data, mtime=0))
+        atomic_write_bytes(self.path(service, key), gzip.compress(data, mtime=0), durable=durable)
 
 
 # ── the client ───────────────────────────────────────────────────────────────
@@ -480,11 +481,15 @@ class HttpClient:
         self.counts: dict[str, int] = {"sent": 0, "cached": 0, "retried": 0}
 
     # ── progress and cancel ──
-    def progress(self, fraction: float, message: str = "") -> None:
-        """Report how far the job is (never backwards) and what it is doing."""
+    def progress(self, fraction: float, message: str = "", **detail: Any) -> None:
+        """Report how far the job is (never backwards) and what it is doing; *detail*
+        (``eta_s``, ``code``, ``params``…) goes to the callback when given."""
         self._fraction = max(self._fraction, min(1.0, max(0.0, float(fraction))))
         if self._progress_cb is not None:
-            self._progress_cb(self._fraction, message)
+            if detail:
+                self._progress_cb(self._fraction, message, **detail)
+            else:
+                self._progress_cb(self._fraction, message)
 
     def check_cancel(self) -> None:
         """Raise :class:`Cancelled` when the job was asked to stop."""
@@ -541,6 +546,50 @@ class HttpClient:
         if self.settings.api_key(service.name):
             kinds.append("API key")
         return kinds
+
+    # ── one cached answer per item (a batched request answers many) ──
+    def _item_key(self, svc: Service, kind: str, ident: str) -> str:
+        return HttpCache.key("ITEM", svc.base_url, {"id": ident}, variant=kind)
+
+    def cached_item(self, service: str, kind: str, ident: str) -> tuple[bool, Any]:
+        """``(True, value)`` when the answer about one item (*ident*, e.g. a DOI) is in the
+        cache and fresh, else ``(False, None)``. A batched request stores what it learnt
+        per item (:meth:`store_item`), so a job cut short, or asking another mix of
+        items, reuses it."""
+        svc = self.service(service)
+        if self.cache is None or self.mode == "refresh":
+            return False, None
+        key = self._item_key(svc, kind, ident)
+        hit = self.cache.read(svc.name, key)
+        if hit is None:
+            return False, None
+        age = (self._now() - hit.retrieved_at).total_seconds()
+        if age > svc.lifetime(kind) and self.mode != "cache_only":
+            return False, None
+        try:
+            value = json.loads(hit.body)
+        except ValueError:
+            self.cache.path(svc.name, key).unlink(missing_ok=True)
+            return False, None
+        self.counts["cached"] += 1
+        return True, value
+
+    def store_item(self, service: str, kind: str, ident: str, value: Any) -> None:
+        """Keep what a service answered about one item (``None``: it has nothing)."""
+        if self.cache is None:
+            return
+        svc = self.service(service)
+        body = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        self.cache.write(
+            svc.name,
+            self._item_key(svc, kind, ident),
+            kind=kind,
+            method="ITEM",
+            url=svc.base_url,
+            params={"id": ident},
+            answer=CachedAnswer(200, {"content-type": "application/json"}, body, self._now()),
+            durable=False,  # one per text: a lost entry is only asked again
+        )
 
     def get_json(
         self,

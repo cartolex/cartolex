@@ -73,6 +73,7 @@ export function Notice({ plan }) {
         <td>${coded('corpus.purpose', h.purpose)}</td>
         <td>${h.sends.map((s) => coded('corpus.sends', s)).join(', ')}</td>
         <td>${h.requests ? t('corpus.notice.about', { n: formatNumber(h.requests) }) : t('corpus.notice.depends')}
+          ${h.requests && h.seconds >= 1 ? html`<br /><span class="cx-corpus-muted">${t('corpus.notice.host_time', { time: formatDuration(h.seconds) })}</span>` : null}
           ${h.cost_usd ? html`<br /><span class="cx-corpus-muted">${t('corpus.notice.cost', { usd: h.cost_usd.toFixed(3) })}</span>` : null}</td>
       </tr>`)}</tbody>
     </table>` : html`<p>${t('corpus.notice.nothing')}</p>`}

@@ -78,8 +78,10 @@ def json_bytes(obj: Any) -> bytes:
     return (json.dumps(obj, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 
-def atomic_write_bytes(path: Path, data: bytes) -> None:
-    """Write *data* to *path* so that a reader never sees a partial file."""
+def atomic_write_bytes(path: Path, data: bytes, *, durable: bool = True) -> None:
+    """Write *data* to *path* so that a reader never sees a partial file; *durable* also
+    waits for the disk (off for a cache entry that can be fetched again: thousands of
+    them would otherwise wait minutes)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
@@ -87,13 +89,15 @@ def atomic_write_bytes(path: Path, data: bytes) -> None:
         with os.fdopen(fd, "wb") as fh:
             fh.write(data)
             fh.flush()
-            os.fsync(fh.fileno())
+            if durable:
+                os.fsync(fh.fileno())
         replace_path(tmp, path)
     except BaseException:
         with contextlib.suppress(FileNotFoundError):
             os.unlink(tmp)
         raise
-    _fsync_dir(path.parent)
+    if durable:
+        _fsync_dir(path.parent)
 
 
 def replace_path(src: str | os.PathLike[str], dst: str | os.PathLike[str]) -> None:

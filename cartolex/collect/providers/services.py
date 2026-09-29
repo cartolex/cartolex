@@ -42,6 +42,7 @@ __all__ = [
 
 _ATOM = "{http://www.w3.org/2005/Atom}"
 _ARXIV = "{http://arxiv.org/schemas/atom}"
+_ARXIV_DOI = "10.48550/arxiv."
 
 
 def _bare_arxiv(value: str) -> str:
@@ -75,52 +76,39 @@ class ArxivProvider(Provider):
     sends = ("identifier",)
     describes = "the arXiv identifier of a preprint"
     full_text_format = "latex"
-    batch = 50
+    batch = 100
+    item_kind = "arxiv_query"
 
     def for_abstract(self, text: TextRef) -> bool:
-        return bool(text.ids.get("arxiv"))
+        return self.lookup(text) is not None
 
     for_full_text = for_abstract
 
-    def abstracts(self, client: HttpClient, texts: Sequence[TextRef]) -> dict[str, Any]:
-        out: dict[str, Any] = {}
-        by_id: dict[str, list[TextRef]] = {}
-        for t in texts:
-            by_id.setdefault(_bare_arxiv(t.ids["arxiv"]), []).append(t)
-        ids = sorted(by_id)
-        for i in range(0, len(ids), self.batch):
-            chunk = ids[i : i + self.batch]
-            try:
-                data = client.get_bytes(
-                    "arxiv",
-                    "query",
-                    {"id_list": ",".join(chunk), "max_results": len(chunk)},
-                    kind="arxiv_query",
-                    sends=self.sends,
-                    validate=check_xml,
-                ).content
-                entries = self._entries(data)
-            except (ServiceError, ValueError) as exc:
-                for aid in chunk:
-                    for t in by_id[aid]:
-                        out[t.text_id] = exc
-                continue
-            for aid in chunk:
-                entry = entries.get(aid)
-                for t in by_id[aid]:
-                    if entry is None:
-                        out[t.text_id] = None
-                        continue
-                    summary, doi = entry
-                    links = [("version_of_doi", doi)] if doi and doi != (t.doi or "") else []
-                    out[t.text_id] = Found(plain_abstracts([(None, summary)]), links, read="api")
-        return out
+    def lookup(self, text: TextRef) -> tuple[str, str] | None:
+        """By the arXiv id, or the one in an arXiv DOI (``10.48550/arXiv.<id>``)."""
+        if text.ids.get("arxiv"):
+            return ("id", _bare_arxiv(text.ids["arxiv"]))
+        doi = str(text.doi or "").lower()
+        if doi.startswith(_ARXIV_DOI):
+            return ("id", _bare_arxiv(doi[len(_ARXIV_DOI) :]))
+        return None
 
-    def abstract(self, client: HttpClient, text: TextRef) -> Found | None:
-        result = self.abstracts(client, [text])[text.text_id]
-        if isinstance(result, Exception):
-            raise result
-        return result
+    def fetch(self, client: HttpClient, field: str, values: Sequence[str]) -> dict[str, Any]:
+        data = client.get_bytes(
+            "arxiv",
+            "query",
+            {"id_list": ",".join(values), "max_results": len(values)},
+            kind="arxiv_query",
+            sends=self.sends,
+            validate=check_xml,
+            cache=False,
+        ).content
+        return {k: list(v) for k, v in self._entries(data).items()}
+
+    def found(self, record: Any, text: TextRef) -> Found | None:
+        summary, doi = record
+        links = [("version_of_doi", doi)] if doi and doi != (text.doi or "") else []
+        return Found(plain_abstracts([(None, summary)]), links, read="api")
 
     @staticmethod
     def _entries(data: bytes) -> dict[str, tuple[str, str | None]]:
@@ -142,7 +130,7 @@ class ArxivProvider(Provider):
         try:
             data = client.get_bytes(
                 "arxiv",
-                f"{root}/e-print/{_bare_arxiv(text.ids['arxiv'])}",
+                f"{root}/e-print/{(self.lookup(text) or ('', ''))[1]}",
                 kind="arxiv_eprint",
                 sends=self.sends,
                 validate=_check_eprint,
@@ -230,32 +218,58 @@ class EuropePmcProvider(Provider):
 
     for_full_text = for_abstract
 
-    def _record(self, client: HttpClient, text: TextRef) -> dict[str, Any] | None:
-        if text.doi:
-            query = f'DOI:"{text.doi}"'
-        elif text.ids.get("pmcid"):
-            query = f"PMCID:{text.ids['pmcid']}"
+    batch = 50  # a GET query of 50 DOIs stays far below URL length limits
+    item_kind = "europepmc_search"
+    _KEPT = ("abstractText", "isOpenAccess", "pmcid", "pmid", "doi")
+
+    def lookup(self, text: TextRef) -> tuple[str, str] | None:
+        if text.doi and '"' not in text.doi:
+            return ("DOI", str(text.doi).lower())
+        if text.ids.get("pmcid"):
+            return ("PMCID", str(text.ids["pmcid"]))
+        if text.ids.get("pmid"):
+            return ("EXT_ID", str(text.ids["pmid"]))
+        return None
+
+    def fetch(self, client: HttpClient, field: str, values: Sequence[str]) -> dict[str, Any]:
+        if field == "DOI":
+            query = " OR ".join(f'DOI:"{v}"' for v in values)
+        elif field == "PMCID":
+            query = " OR ".join(f"PMCID:{v}" for v in values)
         else:
-            query = f"EXT_ID:{text.ids['pmid']} AND SRC:MED"
+            query = "(" + " OR ".join(f"EXT_ID:{v}" for v in values) + ") AND SRC:MED"
         data = client.get_json(
             "europepmc",
             "search",
-            {"query": query, "resultType": "core", "format": "json", "pageSize": 1},
+            {
+                "query": query,
+                "resultType": "core",
+                "format": "json",
+                "pageSize": min(1000, 2 * len(values) + 5),
+            },
             kind="europepmc_search",
-            sends=["DOI" if text.doi else "identifier"],
+            sends=["DOI" if field == "DOI" else "identifier"],
             validate=lambda d: d["resultList"]["result"].__iter__(),
+            cache=False,
         ).data
-        results = [r for r in data["resultList"]["result"] if isinstance(r, dict)]
-        return results[0] if results else None
+        out: dict[str, Any] = {}
+        attr = {"DOI": "doi", "PMCID": "pmcid", "EXT_ID": "pmid"}[field]
+        for r in data["resultList"]["result"]:
+            if not isinstance(r, dict):
+                continue
+            value = str(r.get(attr) or "")
+            value = value.lower() if field == "DOI" else value
+            if value in values and value not in out:
+                out[value] = {k: r.get(k) for k in self._KEPT}
+        return out
 
-    def abstract(self, client: HttpClient, text: TextRef) -> Found | None:
-        record = self._record(client, text)
-        if record is None or not record.get("abstractText"):
+    def found(self, record: Any, text: TextRef) -> Found | None:
+        if not record.get("abstractText"):
             return None
         return Found(plain_abstracts([(None, str(record["abstractText"]))]), read="api")
 
     def full_text(self, client: HttpClient, text: TextRef, work_dir: Path) -> Found | None:
-        record = self._record(client, text)
+        record = self.record(client, text)
         if record is None or record.get("isOpenAccess") != "Y" or not record.get("pmcid"):
             return None
         try:
@@ -286,29 +300,45 @@ class HalProvider(Provider):
 
     for_full_text = for_abstract
 
-    def _doc(self, client: HttpClient, text: TextRef) -> dict[str, Any] | None:
-        hal_id = text.ids.get("hal")
-        q = f'halId_s:"{hal_id}"' if hal_id else f'doiId_s:"{text.doi}"'
+    batch = 100
+    item_kind = "hal_record"
+
+    def lookup(self, text: TextRef) -> tuple[str, str] | None:
+        if text.ids.get("hal"):
+            return ("halId_s", str(text.ids["hal"]))
+        if text.doi and '"' not in text.doi:
+            return ("doiId_s", str(text.doi).lower())
+        return None
+
+    def fetch(self, client: HttpClient, field: str, values: Sequence[str]) -> dict[str, Any]:
+        q = f"{field}:(" + " OR ".join(f'"{v}"' for v in values) + ")"
         data = client.get_json(
             "hal",
             "search/",
-            {"q": q, "fl": ",".join(HAL_FIELDS), "rows": 1, "wt": "json"},
+            {"q": q, "fl": ",".join(HAL_FIELDS), "rows": 3 * len(values), "wt": "json"},
             kind="hal_record",
-            sends=["identifier" if hal_id else "DOI"],
+            sends=["identifier" if field == "halId_s" else "DOI"],
             validate=lambda d: d["response"]["docs"].__iter__(),
+            cache=False,
         ).data
-        docs = [d for d in data["response"]["docs"] if isinstance(d, dict)]
-        return docs[0] if docs else None
+        out: dict[str, Any] = {}
+        for d in data["response"]["docs"]:
+            if not isinstance(d, dict):
+                continue
+            value = str(d.get(field) or "")
+            value = value.lower() if field == "doiId_s" else value
+            if value in values and value not in out:
+                out[value] = d
+        return out
 
-    def abstract(self, client: HttpClient, text: TextRef) -> Found | None:
-        doc = self._doc(client, text)
-        work = parse_hal_doc(doc) if doc else None
+    def found(self, record: Any, text: TextRef) -> Found | None:
+        work = parse_hal_doc(record)
         if work is None or not work.abstracts:
             return None
         return Found(plain_abstracts(work.abstracts), read="api")
 
     def full_text(self, client: HttpClient, text: TextRef, work_dir: Path) -> Found | None:
-        doc = self._doc(client, text)
+        doc = self.record(client, text)
         if not doc or not doc.get("fileMain_s"):
             return None
         url = check_link(str(doc["fileMain_s"]), local_ok=is_local(client, "hal"))
@@ -389,29 +419,49 @@ class OpenAlexProvider(Provider):
 
     for_full_text = for_abstract
 
-    def _work(self, client: HttpClient, text: TextRef) -> dict[str, Any] | None:
-        oid = str(text.ids.get("openalex") or "").rsplit("/", 1)[-1]
-        path, kind = (f"works/{oid}", "work") if oid else (f"works/doi:{text.doi}", "works_by_doi")
-        try:
-            return client.get_json(
-                "openalex",
-                path,
-                kind=kind,
-                sends=["identifier" if oid else "DOI"],
-                validate=lambda d: d["id"],
-            ).data
-        except NotFound:
-            return None
+    batch = 100  # OpenAlex combines at most 100 values with |
+    item_kind = "works_by_doi"
+    _SELECT = "id,doi,language,abstract_inverted_index,best_oa_location,locations"
 
-    def abstract(self, client: HttpClient, text: TextRef) -> Found | None:
-        work = self._work(client, text)
-        if not work or not work.get("abstract_inverted_index"):
+    def lookup(self, text: TextRef) -> tuple[str, str] | None:
+        oid = str(text.ids.get("openalex") or "").rsplit("/", 1)[-1]
+        if oid:
+            return ("openalex", oid)
+        doi = str(text.doi or "").lower()
+        if doi and not set(doi) & {"|", ","}:  # the filter's separators
+            return ("doi", doi)
+        return None
+
+    def fetch(self, client: HttpClient, field: str, values: Sequence[str]) -> dict[str, Any]:
+        data = client.get_json(
+            "openalex",
+            "works",
+            {"filter": f"{field}:{'|'.join(values)}", "per_page": 100, "select": self._SELECT},
+            kind="works_by_doi",
+            sends=["identifier" if field == "openalex" else "DOI"],
+            validate=lambda d: d["results"].__iter__(),
+            cache=False,
+        ).data
+        out: dict[str, Any] = {}
+        for w in data["results"]:
+            if not isinstance(w, dict):
+                continue
+            if field == "openalex":
+                value = str(w.get("id") or "").rsplit("/", 1)[-1]
+            else:
+                value = str(w.get("doi") or "").lower().removeprefix("https://doi.org/")
+            if value in values and value not in out:
+                out[value] = w
+        return out
+
+    def found(self, record: Any, text: TextRef) -> Found | None:
+        if not record.get("abstract_inverted_index"):
             return None
-        abstract = abstract_from_inverted_index(work["abstract_inverted_index"])
-        return Found(plain_abstracts([(work.get("language"), abstract)]), read="api")
+        abstract = abstract_from_inverted_index(record["abstract_inverted_index"])
+        return Found(plain_abstracts([(record.get("language"), abstract)]), read="api")
 
     def full_text(self, client: HttpClient, text: TextRef, work_dir: Path) -> Found | None:
-        work = self._work(client, text)
+        work = self.record(client, text)
         if not work:
             return None
         links: list[str] = []

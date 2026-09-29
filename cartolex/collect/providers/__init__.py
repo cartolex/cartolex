@@ -28,6 +28,7 @@ rebuilt.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -40,7 +41,7 @@ from cartolex.project.tables import read_source_table
 
 from ..http import Cancelled, HttpClient, ServiceError, ServiceUnavailable
 from ..tables import RawRun, RawWriter, SourceBuilder, iso, parse_time
-from .base import Found, Provided, Provider, TextRef, UnsafeLink
+from .base import MAX_FAILURES_IN_A_ROW, Found, Provided, Provider, TextRef, UnsafeLink
 from .services import (
     ArxivProvider,
     BiorxivProvider,
@@ -60,6 +61,7 @@ __all__ = [
     "coverage",
     "Provider",
     "TextRef",
+    "improve_estimate",
     "improve_texts",
     "provider_egress",
     "read_improve_runs",
@@ -83,8 +85,6 @@ ABSTRACT_ORDER: tuple[str, ...] = ("scielo", "hal", "europepmc", "biorxiv", "arx
 #: The order providers are asked for a full text: JATS and LaTeX first, then PDF files.
 FULL_TEXT_ORDER: tuple[str, ...] = ("europepmc", "biorxiv", "scielo", "arxiv", "hal", "openalex")
 FULL_PARTS = frozenset({"body", "full"})
-#: A provider whose service fails this many times in a row is not asked again in the job.
-MAX_FAILURES_IN_A_ROW = 3
 
 
 def provider_egress(
@@ -104,6 +104,25 @@ def provider_egress(
         }
         for n in names
     ]
+
+
+def improve_estimate(
+    layout: ProjectLayout,
+    *,
+    providers: Iterable[str] | None = None,
+    registry: Mapping[str, Provider] | None = None,
+) -> dict[str, int]:
+    """How many requests filling the missing abstracts sends at most, per provider: every
+    text without an abstract that a provider can serve, as if none had filled it before
+    (answers already cached are not counted out)."""
+    known = registry or PROVIDERS
+    names = list(providers) if providers is not None else list(known)
+    todo = [t for t in text_refs(layout) if not t.has_abstract]
+    out: dict[str, int] = {}
+    for n in names:
+        p = known[n]
+        out[n] = p.requests_for([t for t in todo if p.for_abstract(t)])
+    return out
 
 
 def text_refs(
@@ -333,6 +352,7 @@ def _improve_steps(
     """Ask each provider, in the providers' orders, for what the texts lack."""
     for step, (request, provider) in enumerate(steps):
         client.progress(step / max(1, len(steps)), f"texts: {provider.name}, {request}")
+        tell = _progress(client, provider.name, step, len(steps))
         if request == "abstract":
             todo = [
                 t
@@ -341,7 +361,7 @@ def _improve_steps(
                 and t.text_id not in done["abstract"]
                 and provider.for_abstract(t)
             ]
-            results = provider.abstracts(client, todo) if todo else {}
+            results = provider.abstracts(client, todo, tell) if todo else {}
         else:
             todo = [
                 t
@@ -350,9 +370,35 @@ def _improve_steps(
                 and t.text_id not in done["full_text"]
                 and provider.for_full_text(t)
             ]
-            results = _full_texts(client, provider, todo, work, report)
+            results = _full_texts(client, provider, todo, work, report, tell)
         for text in todo:
             _settle(text, provider, request, results.get(text.text_id), runs, done, report, clock)
+
+
+def _progress(
+    client: HttpClient, provider: str, step: int, steps: int
+) -> Callable[[int, int], None]:
+    """Progress within a provider: « provider · text n of N », a fraction that moves per
+    request, and the time left at the rate measured since the first request."""
+    start: list[float] = []
+
+    def tell(done: int, total: int) -> None:
+        now = time.monotonic()
+        if not start:
+            start.extend((now, float(done)))
+        eta = None
+        elapsed, first = now - start[0], start[1]
+        if elapsed > 0 and done > first:
+            eta = round((total - done) * elapsed / (done - first), 1)
+        client.progress(
+            (step + done / max(1, total)) / max(1, steps),
+            f"texts: {provider} · text {done} of {total}",
+            code="improve_texts",
+            params={"provider": provider, "n": done, "total": total},
+            eta_s=eta,
+        )
+
+    return tell
 
 
 def _settle(
@@ -389,10 +435,13 @@ def _full_texts(
     todo: Sequence[TextRef],
     work: Path,
     report: ImproveReport,
+    tell: Callable[[int, int], None] | None = None,
 ) -> dict[str, Any]:
     out: dict[str, Any] = {}
     failures = 0
     for n, text in enumerate(todo):
+        if tell is not None and n:
+            tell(n, len(todo))
         if failures >= MAX_FAILURES_IN_A_ROW:
             report.stopped.append(f"{provider.name}: stopped after {failures} failures in a row")
             for rest in todo[n:]:

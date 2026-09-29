@@ -464,3 +464,32 @@ def test_improving_twice_asks_nothing_new(demo, tmp_path) -> None:
     report = improve_texts(client, project.layout, project.config, providers=["europepmc"])
     assert len(demo.requests) == before and report.outcomes == []
     assert datetime.now(timezone.utc) > T0
+
+
+def test_many_texts_are_asked_in_batches_and_a_cancel_keeps_what_came(demo, tmp_path) -> None:
+    from cartolex.collect.http import Cancelled
+    from cartolex.collect.providers import improve_estimate
+
+    cases = _cases(demo)
+    rows = [{"text_id": f"t{i:04d}", "doi": f"10.9999/demo.{i}"} for i in range(1995)]
+    rows += [cases[k] for k in ("x_pmc", "x_hal", "x_oa", "x_arxiv", "x_scielo")]
+    project = _texts(tmp_path, rows)
+    asks = improve_estimate(project.layout)
+    assert asks["hal"] == 21 and asks["openalex"] == 21 and asks["arxiv"] == 1
+    stop = {"after": 3}
+
+    def cancel() -> bool:
+        return sum(r.service == "hal" for r in demo.requests) >= stop["after"]
+
+    with pytest.raises(Cancelled):
+        improve_texts(client_for(demo, project, cancel=cancel), project.layout, project.config)
+    first = len(demo.requests)
+    seen: list[tuple[float, str, dict]] = []
+    client = client_for(demo, project, progress=lambda f, m, **d: seen.append((f, m, d)))
+    report = improve_texts(client, project.layout, project.config)
+    again = demo.requests[first:]
+    assert first + len(again) < 100  # one request per text would be about 6,000
+    assert sum(r.service == "hal" for r in again) == 21 - 3  # the batches before the cancel
+    assert report.counts["hal"]["improved"] == 1 and report.counts["europepmc"]["improved"] == 1
+    hal = [d["params"] for _f, _m, d in seen if d and d["params"]["provider"] == "hal"]
+    assert hal[-1]["n"] == hal[-1]["total"] > 1900 and len(hal) > 10

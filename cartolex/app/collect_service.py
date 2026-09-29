@@ -197,13 +197,18 @@ class ServiceCollection(BaseCollection):
                 self._host_json("scielo", 1 + len(opts.get("issns") or ()), ["journal identifiers"])
             )
         if action == "harvest" and opts.get("abstracts"):
-            from cartolex.collect.providers import provider_egress
+            from cartolex.collect.providers import improve_estimate, provider_egress
 
+            # The texts already collected; at most, as if no provider filled one before another.
+            asks = improve_estimate(project.layout)
             for entry in provider_egress():
-                if entry["service"] in {h["service"] for h in hosts}:
+                n = asks.get(entry["provider"], 0)
+                same = next((h for h in hosts if h["service"] == entry["service"]), None)
+                if same is not None:
+                    same["requests"] += n
                     continue
                 hosts.append(
-                    self._host_json(entry["service"], 0, list(entry["sends"]), purpose=None)
+                    self._host_json(entry["service"], n, list(entry["sends"]), purpose=None)
                 )
         notes = [dict(n) for n in base.coded_notes]
         if self.local:  # nothing is paid to services on this computer
@@ -219,7 +224,9 @@ class ServiceCollection(BaseCollection):
                     "leaves it",
                 },
             )
-        seconds = sum(h["requests"] / h["rate"] for h in hosts if h["rate"])
+        for h in hosts:  # the time each host's requests take at its rate
+            h["seconds"] = round(h["requests"] / h["rate"], 1) if h["rate"] else None
+        seconds = sum(h["seconds"] or 0 for h in hosts)
         return {
             "available": True,
             "code": None,
@@ -342,7 +349,7 @@ class ServiceCollection(BaseCollection):
         from cartolex.collect.http import HttpClient
 
         def make(phase: int, phases: int, name: str) -> HttpClient:
-            def progress(fraction: float, message: str) -> None:
+            def progress(fraction: float, message: str, **detail: Any) -> None:
                 control.progress(
                     {
                         "fraction": (phase + fraction) / phases,
@@ -351,6 +358,9 @@ class ServiceCollection(BaseCollection):
                         "phase": phase + 1,
                         "phases": phases,
                         "message": message,
+                        "code": detail.get("code"),
+                        "params": detail.get("params") or {},
+                        "eta_s": detail.get("eta_s"),
                     }
                 )
 

@@ -96,6 +96,7 @@ function JobItem({ job, jobs }) {
       ${p.stage ? html`<p class="cx-job__meta">
         ${t('tracker.phase', { phase: p.phase, phases: p.phases })}${' · '}
         ${stageName({ id: p.stage, name: p.name })}${' · '}${formatPercent(p.stage_fraction || 0)}
+        ${p.code === 'improve_texts' ? html`${' · '}${t('tracker.improve', p.params)}` : null}
         ${p.eta_s ? html`${' · '}${t('tracker.eta', { eta: formatDuration(p.eta_s) })}` : null}
       </p>` : null}
       ${job.cancellable !== false ? html`<${Button} size="s" variant="secondary"

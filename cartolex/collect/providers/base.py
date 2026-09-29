@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import ipaddress
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -16,6 +16,7 @@ from .formats import Structured
 
 __all__ = [
     "Found",
+    "Progress",
     "Provided",
     "Provider",
     "TextRef",
@@ -138,6 +139,16 @@ def plain_abstracts(items: Iterable[tuple[str | None, str]]) -> list[Provided]:
     return out
 
 
+#: Called with ``(texts done, texts to do)`` as a provider goes.
+Progress = Callable[[int, int], None]
+#: A provider whose service fails this many times in a row is not asked again in the job.
+MAX_FAILURES_IN_A_ROW = 3
+
+
+def _not_asked(service: str) -> ServiceUnavailable:
+    return ServiceUnavailable(service, None, "not asked", "the service had stopped answering")
+
+
 class Provider:
     """A text provider: improves texts already found.
 
@@ -146,6 +157,13 @@ class Provider:
     *describes* them in words. :meth:`for_abstract` and :meth:`for_full_text`
     say which texts it can improve; :meth:`abstract` and :meth:`full_text` do it
     (returning ``None`` when the service has nothing for the text).
+
+    A provider whose service answers many texts in one request sets *batch* (how
+    many identifiers one request carries) and gives :meth:`lookup` (the
+    ``(field, value)`` it asks by), :meth:`fetch` (one request for many values)
+    and :meth:`found` (the abstract in a record). What a request learnt is kept
+    per text (*item_kind*, in the HTTP cache), so a job cut short is not asked
+    again, whatever mix of texts the next one asks about.
     """
 
     name: str = ""
@@ -154,6 +172,10 @@ class Provider:
     describes: str = ""
     #: What its full texts are: ``jats``, ``latex`` or ``pdf`` (structured ones are tried first).
     full_text_format: str = "pdf"
+    #: How many texts one request asks about (1: one request per text).
+    batch: int = 1
+    #: The cache kind of what is kept per text.
+    item_kind: str = ""
 
     def for_abstract(self, text: TextRef) -> bool:
         return False
@@ -162,24 +184,69 @@ class Provider:
         return False
 
     def abstract(self, client: HttpClient, text: TextRef) -> Found | None:
+        if self.batch > 1:
+            result = self.abstracts(client, [text])[text.text_id]
+            if isinstance(result, Exception):
+                raise result
+            return result
         return None
 
     def full_text(self, client: HttpClient, text: TextRef, work_dir: Path) -> Found | None:
         return None
 
+    # ── batched lookups ──
+    def lookup(self, text: TextRef) -> tuple[str, str] | None:
+        """The ``(field, value)`` a batched provider asks about *text* by."""
+        return None
+
+    def fetch(self, client: HttpClient, field: str, values: Sequence[str]) -> dict[str, Any]:
+        """One request about many *values* of *field*: the record of each value found."""
+        raise NotImplementedError
+
+    def found(self, record: Any, text: TextRef) -> Found | None:
+        """The abstract (and links) a record gives."""
+        return None
+
+    def record(self, client: HttpClient, text: TextRef) -> Any:
+        """The record of one text: from the cache kept per text, else asked alone."""
+        key = self.lookup(text)
+        if key is None:
+            return None
+        hit, value = client.cached_item(self.service, self.item_kind, f"{key[0]}:{key[1]}")
+        if hit:
+            return value
+        value = self.fetch(client, key[0], [key[1]]).get(key[1])
+        client.store_item(self.service, self.item_kind, f"{key[0]}:{key[1]}", value)
+        return value
+
+    def requests_for(self, texts: Sequence[TextRef]) -> int:
+        """How many requests :meth:`abstracts` sends at most for *texts* (nothing cached)."""
+        if self.batch <= 1:
+            return len(texts)
+        fields: dict[str, set[str]] = {}
+        for t in texts:
+            key = self.lookup(t)
+            if key is not None:
+                fields.setdefault(key[0], set()).add(key[1])
+        return sum(-(-len(v) // self.batch) for v in fields.values())
+
     def abstracts(
-        self, client: HttpClient, texts: Sequence[TextRef]
+        self,
+        client: HttpClient,
+        texts: Sequence[TextRef],
+        progress: Progress | None = None,
     ) -> dict[str, Found | None | Exception]:
-        """Abstracts of several texts; a provider whose service answers many at once
-        overrides it. Returns, per text id, what was found, ``None``, or the error."""
+        """Abstracts of several texts: per text id, what was found, ``None``, or the error.
+        *progress* hears ``(done, total)`` after each request."""
+        if self.batch > 1:
+            return self._batched(client, texts, progress)
         out: dict[str, Any] = {}
         failures = 0
-        for text in texts:
-            if failures >= 3:  # the service stopped answering: the others are not asked
-                out[text.text_id] = ServiceUnavailable(
-                    self.service, None, "not asked", "the service had stopped answering"
-                )
+        for n, text in enumerate(texts):
+            if failures >= MAX_FAILURES_IN_A_ROW:  # the others are not asked
+                out[text.text_id] = _not_asked(self.service)
                 continue
+            client.check_cancel()
             try:
                 out[text.text_id] = self.abstract(client, text)
                 failures = 0
@@ -188,4 +255,69 @@ class Provider:
                 failures += 1
             except (ServiceError, ValueError) as exc:  # reported per text by the caller
                 out[text.text_id] = exc
+            if progress is not None:
+                progress(n + 1, len(texts))
+        return out
+
+    def _batched(
+        self, client: HttpClient, texts: Sequence[TextRef], progress: Progress | None
+    ) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        by_key: dict[tuple[str, str], list[TextRef]] = {}
+        for t in texts:
+            key = self.lookup(t)
+            if key is None:
+                out[t.text_id] = None
+            else:
+                by_key.setdefault(key, []).append(t)
+
+        def settle(key: tuple[str, str], value: Any) -> None:
+            for t in by_key[key]:
+                if isinstance(value, Exception) or value is None:
+                    out[t.text_id] = value
+                    continue
+                try:
+                    out[t.text_id] = self.found(value, t)
+                except (ValueError, KeyError, TypeError) as exc:
+                    out[t.text_id] = ValueError(f"unreadable record: {exc}")
+
+        missing: dict[str, list[str]] = {}
+        for key in sorted(by_key):
+            hit, value = client.cached_item(self.service, self.item_kind, f"{key[0]}:{key[1]}")
+            if hit:
+                settle(key, value)
+            else:
+                missing.setdefault(key[0], []).append(key[1])
+        total = len(texts)
+        if progress is not None:
+            progress(len(out), total)
+        chunks = [
+            (f, values[i : i + self.batch])
+            for f, values in missing.items()
+            for i in range(0, len(values), self.batch)
+        ]
+        failures = 0
+        for f, chunk in chunks:
+            if failures >= MAX_FAILURES_IN_A_ROW:
+                for v in chunk:
+                    settle((f, v), _not_asked(self.service))
+                continue
+            client.check_cancel()
+            try:
+                records = self.fetch(client, f, chunk)
+                failures = 0
+            except ServiceUnavailable as exc:
+                failures += 1
+                records = exc
+            except (ServiceError, ValueError) as exc:
+                records = exc
+            for v in chunk:
+                if isinstance(records, Exception):
+                    settle((f, v), records)
+                    continue
+                value = records.get(v)
+                client.store_item(self.service, self.item_kind, f"{f}:{v}", value)
+                settle((f, v), value)
+            if progress is not None:
+                progress(len(out), total)
         return out
