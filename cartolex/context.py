@@ -149,6 +149,7 @@ class EnginePaths:
 
     # ── the theme tree, at any depth ──
     themes_draft_json: Path  # the grouping's proposal tree
+    text_keywords_npz: Path  # the texts × keywords the comb read, beside the proposal
     themes_tree_json: Path  # the tree the apply stage applied, as it read it
     themes_applied_json: Path  # the applied tree: nodes, weights, colours, positions
     theme_keywords_csv: Path
@@ -235,6 +236,7 @@ class EnginePaths:
             group_panel_png=PathPattern(atlas, "umap_lab_{}.png"),
             trajectory_themes_parquet=atlas / "trajectory_themes.parquet",
             themes_draft_json=auto / "themes_draft.json",
+            text_keywords_npz=auto / "text_keywords.npz",
             themes_tree_json=auto / "themes_tree.json",
             themes_applied_json=auto / "themes_applied.json",
             theme_keywords_csv=auto / "theme_keywords.csv",

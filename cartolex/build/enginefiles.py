@@ -176,6 +176,7 @@ ENGINE_FILES: dict[str, Place] = {
     "group_panel_png": NotProvided(_FIGURE, "umap_lab_{}.png"),
     # ── the theme tree ──
     "themes_draft_json": Owned("themes.group", "themes_draft.json"),
+    "text_keywords_npz": Owned("themes.group", "text_keywords.npz"),
     "themes_tree_json": Owned("themes.apply", "themes_tree.json"),
     "themes_applied_json": Owned("themes.apply", "themes_applied.json", amended_by=("map.layout",)),
     "theme_keywords_csv": Owned("themes.apply", "theme_keywords.csv"),
