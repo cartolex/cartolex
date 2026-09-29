@@ -52,7 +52,7 @@ def test_the_fixture_is_a_valid_manifest_and_the_app_serves_its_shape(tmp_path):
         assert manifest["project"]["open"] is True and manifest["project"]["name"] == "Build test"
         assert manifest["security"]["csrf_header"] == "X-Cartolex-CSRF"
         assert manifest["security"]["csrf_cookie"] == app.state.cartolex.csrf_cookie
-        assert [n["id"] for n in manifest["nav"]][:2] == ["overview", "people"]
+        assert [n["id"] for n in manifest["nav"]][:2] == ["overview", "build"]
         assert manifest["modules"] == []
         assert manifest["capabilities"] == {
             "collection": False,
@@ -79,7 +79,7 @@ def test_a_page_whose_module_is_missing_shows_the_placeholder(tmp_path, caplog):
         assert modules["overview"] == "/static/pages/overview.js"
         assert modules["people"] == modules["settings"] == "/static/pages/placeholder.js"
         warnings = [r for r in caplog.records if getattr(r, "event", "") == "missing_module"]
-        assert len(warnings) == 6  # once per page, not once per request
+        assert len(warnings) == 7  # once per page, not once per request
         assert client.get("/static/pages/people.js").status_code == 404
     finally:
         app.state.cartolex.shutdown()
@@ -128,7 +128,7 @@ def test_the_app_runs_with_the_test_extension(tmp_path):
             "order": 70,
             "placement": "main",
         }
-        assert [n["id"] for n in m["nav"]].index("reports") == 6  # after map (50) and share (60)
+        assert [n["id"] for n in m["nav"]].index("reports") == 7  # after map (50) and share (60)
         assert m["modules"] == ["/static/ext/reports/index.js"]
         assert m["locales"]["catalogues"]["fr"] == [
             "/static/i18n/fr.json",
