@@ -41,6 +41,7 @@ dev/reference
 dev/placement
 dev/layouts
 dev/ui
+dev/site
 dev/themes-editor
 dev/usability-g3
 dev/collection

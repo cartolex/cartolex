@@ -65,6 +65,25 @@ Everything stays in the project folder:
 
 Nothing is kept anywhere else: cartolex has no server and sends no usage data.
 
+## What a shared site holds
+
+An offline site (the Share screen, `outputs/sites/<date>/`) is what leaves the
+project when you send it. Before each build the Share screen says what it will
+hold and checks it:
+
+- **People's names**: a site that shows people asks at each build whether it
+  shows their names or pseudonyms (« Person 12 »); nothing is chosen for you.
+  With pseudonyms, the names are not in the site's files at all, and people are
+  listed in a shuffled order. Organisations are always named.
+- **Texts**: none by default, only keywords, themes and places on the map. On
+  request the titles, or the titles and abstracts. Never a full text (a `body`
+  or `full` part), never an identifier (ORCID, a service's id, a project id),
+  never the extra columns of the people's lists.
+- **Figures** of the map never name people.
+
+Each build is kept in its own folder and never replaced; a build made before a
+later change of the project is marked stale.
+
 ## Deleting
 
 - **The services' answers**: delete `cache/http/`. The next collection fetches
@@ -73,7 +92,8 @@ Nothing is kept anywhere else: cartolex has no server and sends no usage data.
   tables in `sources/tables/` and `cache/sources/`; the project keeps its
   decisions.
 - **The whole project**: delete its folder. Copies you made (backups, shared
-  bundles, exported sites) are yours to delete too.
+  bundles, exported sites in `outputs/sites/`, files in `outputs/exports/`) are
+  yours to delete too.
 - **One person**: set their role to `excluded` so that nothing uses them. Erasing
   every trace of one person means removing them from the list you import,
   deleting the raw runs and the cache, and collecting again; cartolex 1.0 has no

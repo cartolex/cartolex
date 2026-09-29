@@ -78,6 +78,7 @@ include = ["cartolex*"]
 "cartolex._data" = ["stopwords/*.json", "prompts/*.txt", "prompts/*.md"]
 "cartolex.project.schemas" = ["*.schema.json"]
 "cartolex.app" = ["static/**/*"]
+"cartolex.site" = ["assets/*", "i18n/*.json"]
 "cartolex.app.schemas" = ["*.schema.json"]
 
 [tool.ruff]
