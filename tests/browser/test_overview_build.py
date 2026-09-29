@@ -38,7 +38,7 @@ def test_the_next_step_leads_to_a_build_that_ends_in_one_sentence(
     ui = open_app(server, theme=theme)
     page = ui.page  # the launch link opens the overview
     assert _next_step(ui) in ("next_curate_themes", "next_open_map")
-    page.locator(".cx-overview-preview canvas").wait_for()
+    page.locator(".cx-overview-preview .cx-map-frame__canvas").wait_for()
     assert page.locator(".cx-overview-stages .cx-tracker__stage").count() >= 5
     _shots(request, ui, "overview-built-light")
 
@@ -85,7 +85,7 @@ def test_overview_and_build_screenshots(request, demo_s, app_for, open_app):
         ui.page.add_init_script(prefs_script(theme=theme, locale=locale))
         ui.page.reload()
         _next_step(ui)
-        ui.page.locator(".cx-overview-preview canvas").wait_for()
+        ui.page.locator(".cx-overview-preview .cx-map-frame__canvas").wait_for()
         _shots(request, ui, f"overview-{theme}-{locale}")
         ui.navigate("/build?scope=map")
         ui.page.locator(".cx-build .cx-card").first.wait_for()

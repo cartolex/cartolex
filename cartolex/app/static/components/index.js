@@ -28,5 +28,7 @@ export { Tabs } from './tabs.js';
 export { Toaster, createToaster } from './toast.js';
 export { DRAG_TYPE, TreeView } from './tree-view.js';
 export { HUES, Treemap, layoutTree, squarify } from './treemap.js';
-export { MapFrame, createCanvas2DRenderer } from './map-frame.js';
+export {
+  MapFrame, MapSymbol, convexHull, createCanvas2DRenderer, createWebGLRenderer,
+} from './map-frame.js';
 export { Help, Tooltip } from './tooltip.js';

@@ -186,7 +186,7 @@ The screen uses the component library and adds three components to it:
 | --- | --- |
 | `TreeView` | a virtualised tree (the rows in view only) with the tree pattern's keyboard, single and range selection, type-ahead, context menu, drag and drop, and a caller's own keys (the queue's A, M, S) |
 | `Treemap` | squarified nested rectangles by weight, hue families from `--cx-hue-1` to `--cx-hue-12`, labels that fit or are cut, zoom, keyboard, drop targets |
-| `MapFrame` | points on a canvas: a scene (layers of points, a palette of colours or tokens, a highlight), a view (pan, zoom, fit), hit testing through a grid, resize, theme changes, and a renderer interface (`resize`, `draw`, `invalidate`, `destroy`) that a WebGL renderer can take over |
+| `MapFrame` | points on a canvas: a scene (layers of points, a palette of colours or tokens, a highlight), a view (pan, zoom, fit), hit testing through a grid, resize, theme changes, and a renderer interface (`resize`, `draw`, `invalidate`, `destroy`); WebGL draws it when the browser has it, Canvas 2D otherwise ({doc}`ui`) |
 
 ## Measures
 

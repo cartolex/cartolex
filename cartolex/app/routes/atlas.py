@@ -17,12 +17,13 @@ import hashlib
 import json
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any, Literal
 
-from fastapi import Request, Response
+from fastapi import Query, Request, Response
 from fastapi.responses import JSONResponse
 
 from ..deps import ProjectDep
+from ..errors import ApiError
 from ..messages import empty
 from ..routing import Routes, runtime_of
 
@@ -31,6 +32,9 @@ routes = Routes(tags=["atlas"])
 #: The stages whose results the bundle reads; their run ids are its lineage.
 LINEAGE = ("corpus.assemble", "themes.apply", "map.layout", "map.trajectories", "overlays.position")
 FORMAT = "cartolex-atlas/2"
+TEXTS_FORMAT = "cartolex-atlas-texts/1"
+#: The most regions one request asks for.
+MAX_REGIONS = 500
 #: The top keywords each node lists.
 TOP_KEYWORDS = 10
 #: Decimals kept for weights and shares, and for map coordinates.
@@ -275,14 +279,59 @@ def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
     }
 
 
-def _etag(runs: dict[str, str | None]) -> str:
-    key = json.dumps({"format": FORMAT, "runs": runs}, sort_keys=True)
+def _etag(runs: dict[str, str | None], more: list[str | None] | None = None) -> str:
+    key = json.dumps({"format": FORMAT, "runs": runs, "more": more or []}, sort_keys=True)
     return f'"atlas-{hashlib.sha256(key.encode()).hexdigest()[:32]}"'
 
 
+def _bundle(runtime: Any, ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
+    key = ("atlas", FORMAT, ctx.id, tuple(sorted(runs.items())))
+    return runtime.atlas_cache.get(key, lambda: build_bundle(ctx, runs))
+
+
+def _extras(runtime: Any, ctx: Any, runs: dict[str, str | None], bundle: dict[str, Any]) -> Any:
+    """The organisations, filters and years of the map (from the tables: their stamp keys it)."""
+    from ..atlas_layers import map_extras
+    from ..corpus_view import stamp
+
+    key = ("atlas-extras", ctx.id, tuple(sorted(runs.items())), stamp(ctx.project))
+    return runtime.atlas_cache.get(
+        key, lambda: map_extras(ctx, bundle["people"], runtime.table_cache)
+    )
+
+
+def _with_base(ctx: Any, bundle: dict[str, Any], base: str | None) -> dict[str, Any]:
+    if not base:
+        return bundle
+    from ..atlas_layers import base_bundle, read_base
+
+    doc = read_base(ctx, base)
+    if doc is None:
+        raise ApiError.of("base_not_found", base=base)
+    return base_bundle(ctx, bundle, doc)
+
+
+def _base_fp(ctx: Any, base: str | None) -> str | None:
+    if not base:
+        return None
+    entry = next((b for b in ctx.project.config.bases if b.id == base), None)
+    path = ctx.layout.root / entry.bundle if entry else None
+    if path is None or not path.is_file():
+        return "missing"
+    st = path.stat()
+    return f"{base}:{st.st_size}:{st.st_mtime_ns}"
+
+
 @routes.get("/api/atlas", action="atlas.read")
-def atlas(request: Request, ctx: ProjectDep) -> Response:
-    """The data the map draws, cached by its lineage; ``If-None-Match`` gives 304 when unchanged."""
+def atlas(
+    request: Request, ctx: ProjectDep, base: Annotated[str | None, Query(max_length=64)] = None
+) -> Response:
+    """The data the map draws, cached by its lineage; ``If-None-Match`` gives 304 when unchanged.
+
+    The bundle carries what the atlas page adds (``organisations``, ``organisation_levels``,
+    ``columns``, ``people_extra``, ``years``); ``base`` places it on a base's map."""
+    from ..corpus_view import stamp
+
     runtime = runtime_of(request)
     runs = lineage(ctx)
     if runs["map.layout"] is None:
@@ -293,9 +342,71 @@ def atlas(request: Request, ctx: ProjectDep) -> Response:
                 "empty": empty("empty_no_map"),
             }
         )
-    etag = _etag(runs)
+    etag = _etag(runs, [str(stamp(ctx.project)), _base_fp(ctx, base)])
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag})
-    key = ("atlas", FORMAT, ctx.id, tuple(sorted(runs.items())))
-    bundle = runtime.atlas_cache.get(key, lambda: build_bundle(ctx, runs))
-    return JSONResponse({**bundle, "available": True}, headers={"ETag": etag})
+    bundle = _bundle(runtime, ctx, runs)
+    extras = _extras(runtime, ctx, runs, bundle)
+    placed = _with_base(ctx, bundle, base)
+    if base:
+        from ..atlas_layers import map_extras
+
+        extras = map_extras(ctx, placed["people"], runtime.table_cache)
+    body = {
+        **placed,
+        "organisations": extras["organisations"],
+        "organisation_levels": extras["organisation_levels"],
+        "columns": extras["columns"],
+        "people_extra": extras["people"],
+        "years": extras["years"],
+        "bases": [{"id": b.id, "map_version": b.map_version} for b in ctx.project.config.bases],
+        "available": True,
+    }
+    return JSONResponse(body, headers={"ETag": etag})
+
+
+@routes.get("/api/atlas/texts", action="atlas.read")
+def atlas_texts(
+    request: Request, ctx: ProjectDep, base: Annotated[str | None, Query(max_length=64)] = None
+) -> Response:
+    """Every text placed on the map (columnar: ``id``, ``title``, ``year``, ``x``, ``y``, ``by``,
+    ``terms``, ``people``), cached like the bundle; ``base`` places them on a base's map."""
+    from ..atlas_layers import place_texts
+    from ..corpus_view import stamp
+
+    runtime = runtime_of(request)
+    runs = lineage(ctx)
+    if runs["map.layout"] is None:
+        return JSONResponse({"format": TEXTS_FORMAT, "available": False,
+                             "empty": empty("empty_no_map")})  # fmt: skip
+    etag = _etag(runs, ["texts", str(stamp(ctx.project)), _base_fp(ctx, base)])
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers={"ETag": etag})
+    bundle = _with_base(ctx, _bundle(runtime, ctx, runs), base)
+    key = ("atlas-texts", ctx.id, etag)
+    texts = runtime.atlas_cache.get(
+        key, lambda: place_texts(ctx, bundle["keywords"], bundle["people"])
+    )
+    return JSONResponse(
+        {"format": TEXTS_FORMAT, "available": True, **texts}, headers={"ETag": etag}
+    )
+
+
+@routes.get("/api/atlas/regions", action="atlas.read")
+def atlas_regions(
+    request: Request,
+    ctx: ProjectDep,
+    kind: Literal["person", "organisation"],
+    ids: Annotated[str, Query(max_length=20_000)],
+) -> dict[str, Any]:
+    """The keywords a region spans, by id (``ids``: comma-separated, at most 500): a person's
+    most used keywords, or those of an organisation's current members."""
+    from ..atlas_layers import keyword_sets
+
+    wanted = [i for i in dict.fromkeys(ids.split(",")) if i][:MAX_REGIONS]
+    runtime = runtime_of(request)
+    runs = lineage(ctx)
+    extras = None
+    if kind == "organisation" and runs["map.layout"] is not None:
+        extras = _extras(runtime, ctx, runs, _bundle(runtime, ctx, runs))
+    return {"kind": kind, "keywords": keyword_sets(ctx, kind, wanted, extras)}

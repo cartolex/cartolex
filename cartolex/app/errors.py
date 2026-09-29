@@ -208,6 +208,19 @@ ERRORS: dict[str, ErrorKind] = {
     "no_pinned_version": ErrorKind(
         409, "there is no pinned map version to start from: build the map first", "build"
     ),
+    "base_not_found": ErrorKind(404, "there is no base map {base}", "reload"),
+    "base_no_map": ErrorKind(
+        422, "{path} holds no project with a map: build its map there first", "fix-input"
+    ),
+    "base_same_project": ErrorKind(
+        422, "a project's own map cannot be its base: choose another project", "fix-input"
+    ),
+    "base_in_use": ErrorKind(
+        409, "a map version is placed on {base}: discard it before removing the base", "fix-input"
+    ),
+    "bases_hosted": ErrorKind(
+        409, "on a hosted service a base map is added by whoever runs it", "none"
+    ),
     "no_versions": ErrorKind(404, "{file} has no versions; files with versions: {files}"),
     "file_not_written": ErrorKind(404, "{file} does not exist yet"),
     "version_not_found": ErrorKind(404, "there is no version {version} of {file}", "reload"),

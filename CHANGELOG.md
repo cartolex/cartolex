@@ -444,6 +444,27 @@ nothing in the engine names a particular deployment, source or procedure.
   the pages in view (10⁵ people). New routes: organisations, texts, a
   person's sheet, duplicates, collaborators, the institutions' proposal,
   documents and corpora imported as a job (`docs/dev/api.md`).
+- **The atlas.** The map screen (`/map`) shows the treemap of the themes,
+  the map and the panel of what is selected together. The map shows people,
+  keywords, organisations of one level, texts, projected people and time
+  windows, several at once, one symbol per kind, as points or as regions
+  spanning their keywords; filters built from the people's own columns and a
+  period hide what they leave out, and one button clears them all, the period
+  included; the selected person's time windows are joined by a line; « Find on
+  the map » selects by name; a world view places organisations at their
+  address. Every count says what it counts. The state is kept in the address.
+  Map versions are pinned, discarded or tried (another seed, or UMAP, t-SNE,
+  the theme tree), and another project's map can be added as a base, on which
+  this project is placed by the keywords both share. The MapFrame draws with
+  WebGL (10⁵ points pan at the frame rate on a laptop's integrated GPU; Canvas
+  2D when WebGL is missing), reveals keywords and texts with the zoom, keeps a
+  legend, shows a hover card and labels the selection. Its modules under
+  `components/map/` use no library, so the offline site can load them, as
+  modules or as one classic script (`cartolex.app.static_files.classic_script`).
+  New routes: `GET /api/atlas/texts`, `GET /api/atlas/regions`,
+  `GET|POST /api/map/bases`, `DELETE /api/map/bases/{id}`; `GET /api/atlas`
+  adds the organisations, the people's columns and the years, and takes
+  `base` (`docs/dev/api.md`).
 - **Theme names in each language.** The proposal names a node, in each
   language, after its most used keyword that has a form in that language (its
   own, or one the consolidation pairs attest), else after the most used

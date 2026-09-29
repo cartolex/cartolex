@@ -204,6 +204,8 @@ build.
 | `PUT /api/params {seed, pinned_year, stages}` | replace `decisions/params.json` (`If-Match`); refused values: 422 with every reason |
 | `GET /api/map/versions` | the versions, newest first, and the pinned one |
 | `POST /api/map/versions {action: pin | try | discard, version, seed, method, note, build}` | pin a version, try another layout (a new version beside the pinned one, with another seed or `method`: `umap`, `tsne` when openTSNE is installed, `tree`), discard a version nobody pinned; `build: true` also redraws the map. `GET` gives `methods` and the default rule (`default_method`: t-SNE from `tsne_from_people` mapped people) |
+| `GET /api/map/bases` | the base maps: other projects' maps copied into this one (`sources/bases/<id>/base_map.json`: the places of their keywords and people, without names, and their top-level themes) |
+| `POST /api/map/bases {folder, id}`, `DELETE /api/map/bases/{id}` | copy another project's map (locally; `If-Match` of `project.json`) and add it to `project.json`'s `bases`, or remove one; refused: `base_no_map`, `base_same_project`, `base_in_use`, `bases_hosted` |
 
 **Snapshots**: `GET /api/snapshots` (each decision file's versions and each
 stage's current and previous generation), `GET /api/snapshots?file=themes.json`,
@@ -249,6 +251,8 @@ version, so it can be undone too).
 | `GET /api/themes/versions`, `GET /api/themes/versions/{id}`, `POST /api/themes/versions/{id}/restore` | versions |
 | `POST /api/themes/apply` | a build job of the themes and the map |
 | `GET /api/atlas` | what the map draws at any depth of the theme tree (levels, nodes, people, keywords, units, trajectories, projected people, bounds), `cartolex-atlas/2` (described below, with the theme editor's routes), cached by its lineage (the runs it is made from), with an `ETag` |
+| `GET /api/atlas/texts` | every text placed on the map, columnar (`cartolex-atlas-texts/1`: `id`, `title`, `year`, `x`, `y`, `by`, `terms`, `people`, `unplaced`); `base` places them on a base map |
+| `GET /api/atlas/regions?kind=person\|organisation&ids=a,b` | the keywords a region spans, by id (at most 500 ids): a person's most used keywords (at most 40), or those of an organisation's current members |
 
 **Sharing, settings, the AI handoff**
 
@@ -376,6 +380,11 @@ catalogues give each code its text in every interface language.
 | `map_version_missing` | 422 | name the version to {action} | `action` | `fix-input` |
 | `map_version_pinned` | 409 | {version} is pinned: pin another version before discarding it | `version` | `fix-input` |
 | `no_pinned_version` | 409 | there is no pinned map version to start from: build the map first | — | `build` |
+| `base_not_found` | 404 | there is no base map {base} | `base` | `reload` |
+| `base_no_map` | 422 | {path} holds no project with a map: build its map there first | `path` | `fix-input` |
+| `base_same_project` | 422 | a project's own map cannot be its base: choose another project | — | `fix-input` |
+| `base_in_use` | 409 | a map version is placed on {base}: discard it before removing the base | `base` | `fix-input` |
+| `bases_hosted` | 409 | on a hosted service a base map is added by whoever runs it | — | `none` |
 | `no_versions` | 404 | {file} has no versions; files with versions: {files} | `file`, `files` | `none` |
 | `file_not_written` | 404 | {file} does not exist yet | `file` | `none` |
 | `version_not_found` | 404 | there is no version {version} of {file} | `version`, `file` | `reload` |
@@ -528,6 +537,32 @@ only, so a project of depth 1, 3 or 4 gets its map like one of depth 2.
   person) that counts toward each node of that level; each level sums to 1
   where there is usage. A keyword's `node` is `null` when it is set aside.
 - The `ETag` depends on the format and the lineage; `If-None-Match` gives 304.
+
+The atlas page (`/map`) reads, beside the engine's results, what the tables
+say (`cartolex.app.atlas_layers`), so the `ETag` also follows the tables:
+
+- `organisations`: every organisation (`id`, `name`, `acronym`, `level`,
+  `parents`, `location` `{lat, lon}` or null), placed (`x`, `y`) at the mean of
+  the **mapped people affiliated to it now**, directly or through an
+  organisation below it; `members` counts them, `members_ever` counts the
+  people of the corpus ever affiliated to it (the same way, past affiliations
+  included). `organisation_levels`: the project's levels, smallest first, with
+  their names and how many organisations each has.
+- `columns`: each extra column of the people on the map with its values and
+  counts (a column with one value, or more than 200, is left out);
+  `people_extra`: person id → `role`, `columns`, `orgs` (current
+  organisations); `years`: the first and last year of the texts; `bases`: the
+  project's base maps.
+- `?base=<id>` answers the bundle placed on a base map: each keyword the base
+  has at its place there; each person at the mean of their keywords' places
+  there, weighted by use; keywords the base lacks, people without a shared
+  keyword, units, time windows and projected people are not placed; `base`
+  holds the base's name, map version, the shared keywords' count, its people's
+  places and its top-level themes, and `bounds` are the base's.
+- `GET /api/atlas/texts` places each text at the mean of the map's keywords
+  found in its title and abstract (runs of up to six words, keyword aliases
+  included; `by: 0`), else at the mean of its authors on the map (`by: 1`);
+  `terms` indexes `keywords` of the bundle.
 
 ### The theme tree
 
