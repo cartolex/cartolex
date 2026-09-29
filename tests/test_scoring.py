@@ -160,7 +160,7 @@ def test_bands_and_reasons() -> None:
     for i in range(10):
         phrases = ["support/N vector/N machine/N", "recent/A approach/N", "recent/A model/N"]
         if i < 5:
-            phrases.append("data/N")
+            phrases += ["data/N"] * 4
         if i < 3:
             phrases += ["coral/N reef/N"] * 3
         units.append(unit(i, f"t{i}", ("full", text(*phrases))))
@@ -267,3 +267,53 @@ def test_no_candidate_in_the_window_gives_an_empty_table() -> None:
     units = [unit(0, "t0", ("full", text(ST)))]
     result = score_units("en", units, 1, min_df=3, max_df=1.0)
     assert result.empty and list(result.table.columns) == RAW_COLUMNS
+
+
+def test_text_in_another_language_is_set_aside() -> None:
+    """French read by an English tagger: its articles are nouns, and are set aside."""
+    french = text("des/N mesures/N de/R la/N variabilité/N")
+    title = text("LE/R LITTORAL/R")
+    english = text("La/R Niña/R events/N", "sea/N level/N", "de/R Vries/R model/N")
+    units = [
+        unit(i, f"t{i}", ("title", title), ("abstract", french))
+        if i < 3
+        else unit(i, f"t{i}", ("full", english))
+        for i in range(6)
+    ]
+    bands = score_units("en", units, 6, min_df=3, max_df=1.0).table.set_index("term")
+    # Two different French closed words: the paragraph is read as French.
+    assert tuple(bands.loc["des"])[-2:] == ("aside", "stop-word")
+    assert "des mesures" not in bands.index and "mesures" in bands.index
+    assert "la variabilité" not in bands.index
+    # A title alone with one closed word: the phrase is set aside by its edge,
+    # and makes no fragment of the word inside it.
+    assert tuple(bands.loc["LE LITTORAL"])[-2:] == ("aside", "stop-word-edge: LE")
+    assert not bands.loc["LITTORAL", "reason"].startswith("part-of")
+    # A capitalised name, or one closed word in an English paragraph, changes nothing.
+    assert bands.loc["La Niña events", "band"] == "kept"
+    assert bands.loc["de Vries model", "band"] == "kept"
+    off = score_units(
+        "en",
+        units,
+        6,
+        min_df=3,
+        max_df=1.0,
+        options=ScoringOptions(bands=BandRules(stop_words=False, even_spread=None)),
+    ).table.set_index("term")
+    assert tuple(off.loc["des mesures de la variabilité"])[-2:] == ("kept", "multiword")
+
+
+def test_a_stop_word_of_the_language_and_an_evenly_spread_word() -> None:
+    units = []
+    for i in range(10):
+        phrases = ["relação/N", "estudo/N", "linha/N de/P costa/N"]
+        if i < 3:
+            phrases += ["maré/N"] * 6
+        units.append(unit(i, f"t{i}", ("full", text(*phrases))))
+    bands = score_units("pt", units, 10, min_df=3, max_df=1.0).table.set_index("term")
+    # « relação » is in spaCy's Portuguese stop words, « de » inside a phrase is not an edge.
+    assert tuple(bands.loc["relação"])[-2:] == ("aside", "stop-word")
+    assert bands.loc["linha de costa", "band"] == "kept"
+    # Used once by everyone: spread like a random word. Gathered in three people: to check.
+    assert tuple(bands.loc["estudo"])[-2:] == ("aside", "even-spread")
+    assert tuple(bands.loc["maré"])[-2:] == ("check", "single-word")

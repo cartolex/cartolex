@@ -84,6 +84,20 @@ several words is not always a keyword (`study area`, `recent decades`).
 - *part of «…»*: the phrase is never seen outside the same longer phrase
   (`vector machine` is only ever part of `support vector machine`), so the
   longer phrase stands for it.
+- *a stop word*: a single word that is a grammatical word of its language
+  (`relação`, `fait`), or a grammatical word of another language: when a
+  French paragraph lands among the English texts (a mixed paragraph, a title
+  in capitals), the English model takes `des`, `la` or `LE` for nouns. Such a
+  paragraph is recognised by holding two different French grammatical words
+  inside its phrases; there these words cut the phrases they are in.
+- *starts or ends with a word of another language*: `LE LITTORAL`,
+  `qu'une attention` among the English candidates. A capitalised word
+  begins a name and does not count (`La Niña`, `El Niño`).
+- *a word used evenly by many people*: a single word used by at least a
+  fifth of the people, and by about as many people as it would reach if its
+  occurrences were scattered at random over the texts (`study`, `approach`,
+  `résultats`, `objetivo`). A word of the field gathers in the texts of the
+  people who work on its subject and stays to check.
 
 **What reaches the lexicon.** Without the AI clean-up, the kept and to-check
 candidates reach the lexicon, and those set aside do not. With it, only the

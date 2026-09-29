@@ -96,8 +96,25 @@ class LabCorpus:
 # ── demo worlds ─────────────────────────────────────────────────────────────
 
 
-def demo_corpus(size: str, seed: int = 0, *, languages: str = "en,fr", bodies: bool = False):
-    """A demo world as a lab corpus: its cohort, its works' parts, its truth."""
+#: Every how many French texts one is read as English (see :func:`demo_corpus`).
+MISDETECTED_EVERY = 10
+
+
+def demo_corpus(
+    size: str,
+    seed: int = 0,
+    *,
+    languages: str = "en,fr",
+    bodies: bool = False,
+    misdetected: bool = False,
+):
+    """A demo world as a lab corpus: its cohort, its works' parts, its truth.
+
+    With *misdetected*, one French text in :data:`MISDETECTED_EVERY` goes to
+    the English stream, its title in capitals, as language detection sends a
+    French paragraph or a shouted French title there; none of its terms is
+    English gold.
+    """
     from cartolex.demo import generate
     from cartolex.demo.writers import lexicon_truth
 
@@ -108,6 +125,8 @@ def demo_corpus(size: str, seed: int = 0, *, languages: str = "en,fr", bodies: b
         for pid in work.authors:
             by_person.setdefault(pid, []).append(work)
     people, texts, mix = [], [], {}
+    french = sorted({w.work_id for w in world.works if w.language == "fr"})
+    misread = set(french[::MISDETECTED_EVERY]) if misdetected else set()
     for person in world.cohort:
         works = sorted(by_person.get(person.person_id, []), key=lambda w: (w.year, w.work_id))
         if not works:
@@ -119,7 +138,10 @@ def demo_corpus(size: str, seed: int = 0, *, languages: str = "en,fr", bodies: b
             parts = {"title": w.title, "abstract": w.abstract}
             if w.body:
                 parts["body"] = w.body
-            texts.append(LabText(index, groups[person.group].acronym, w.work_id, w.language, parts))
+            lang = w.language
+            if w.work_id in misread:
+                lang, parts["title"] = "en", w.title.upper()
+            texts.append(LabText(index, groups[person.group].acronym, w.work_id, lang, parts))
     gold = [
         GoldTerm(
             r["text"],
@@ -134,6 +156,7 @@ def demo_corpus(size: str, seed: int = 0, *, languages: str = "en,fr", bodies: b
     ]
     name = f"demo {size}" + (" trilingual" if "pt" in world.languages else "")
     name += " bodies" if bodies else ""
+    name += " misdetected" if misdetected else ""
     return LabCorpus(
         name=name,
         kind="demo",

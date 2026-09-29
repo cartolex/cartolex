@@ -17,7 +17,7 @@ handoff = importlib.import_module("handoff")
 variants = importlib.import_module("variants")
 
 from cartolex.lexicon.noun_phrases import TextAnalysis  # noqa: E402
-from cartolex.lexicon.scoring import TextUnit, score_units  # noqa: E402
+from cartolex.lexicon.scoring import BandRules, ScoringOptions, TextUnit, score_units  # noqa: E402
 
 
 def test_loose_keys_ignore_articles_accents_and_inflection() -> None:
@@ -96,7 +96,11 @@ def test_stability_helpers() -> None:
 def _scored():
     a = TextAnalysis(runs=((("tide", "N"), ("gauge", "N")), (("data", "N"),)), lemmas=())
     units = [TextUnit(i, "g", f"t{i}", (("full", (a,)),)) for i in range(3)]
-    return {"en": score_units("en", units, 3, min_df=1, max_df=1.0)}
+    # « data », used once by everyone, would be evenly spread: the rule is off here.
+    rules = BandRules(even_spread=None)
+    return {
+        "en": score_units("en", units, 3, min_df=1, max_df=1.0, options=ScoringOptions(bands=rules))
+    }
 
 
 def test_bundle_items_carry_their_evidence() -> None:

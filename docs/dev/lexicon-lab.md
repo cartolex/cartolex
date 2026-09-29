@@ -105,6 +105,13 @@ it):
 | semeval | en | 122 | 244 | 1,694,500 | 3,034 | 967 |
 | scielo | pt | 200 | 1,000 | 204,362 | 3,196 | 818 |
 
+The trilingual worlds of the stop-word measures below read one French text
+in ten as English, its title in capitals (`demo_corpus(..., misdetected=True)`,
+the corpora `demo S|L trilingual misdetected`): language detection sends
+such text to the English stream of a real corpus (a mixed paragraph, a
+shouted title), and none of its terms is English gold. The tables measured
+before that change name the plain trilingual worlds.
+
 Benchmarks have no people: consecutive texts form pseudo-people (5 abstracts,
 or 2 articles), and pseudo-people pseudo-organisations of 5. They are read
 from `.cache/datasets/` for evaluation only and never committed; `--fetch`
@@ -1034,6 +1041,73 @@ precision with the oracle's answers, and 2–4 points of precision without
 the AI clean-up. Not adopted: a change of the band rules and of the nested
 filter for the owner to weigh.
 
+## Stop words and evenly spread words
+
+A field report: with English and French texts and no AI clean-up, little
+junk in English but much in French. Two mechanisms, both reproduced on the
+trilingual worlds with misdetected French texts (above):
+
+- French text in the English stream: the English tagger takes `des`, `de`,
+  `la`, `LE`, `UN` for nouns, so they are single-word candidates to check
+  (which reach the lexicon without AI), and French phrasing becomes kept
+  English phrases (`dans les`, `ces résultats indiquent que la`). On demo L,
+  1,047 kept or to-check English candidates held a French closed word.
+- Generic words of scientific writing (`étude`, `objectif`, `résultats`,
+  `approche`, `resultados`, `study`, `objective`) are single words to check,
+  used by many people.
+
+The rules (`docs/dev/extraction.md`, *Text in another language, and stop
+words* and *Evenly spread single words*):
+
+- **Stop words.** A paragraph whose phrases hold two different closed words
+  of another language is read as that language: there those words cut
+  phrases and are set aside (`stop-word`); a single word among the stream
+  language's stop words (spaCy's list, the function and closed words) is set
+  aside; a phrase starting or ending with another language's closed word is
+  set aside (`stop-word-edge`). spaCy's lists judge single words of their own
+  language only: they hold content words (`sistema`, `nível`, `front`,
+  `bottom`, and in the French list `car`, `bat`).
+- **Even spread.** Chosen over a hand list of generic words, which would be
+  a keyword list in reverse and differ by field. The measure is the number
+  of people who use a single word over the number its occurrences would
+  reach if scattered at random over the texts, in proportion to each
+  person's volume: about 1 for a word used like any other, well below 1 for
+  a word gathered in some people's texts. Rare words are spread like random
+  ones by construction, hence the floor on the people who use it. On the
+  demo worlds, sorting the single words to check by kind (template phrasing
+  of the texts, words of one or two themes' terms, other): at a fifth of
+  the people and 90 % of random, the rule takes 86 of 161 template words on
+  S and 94 of 175 on L, and no word of a theme's terms; the other words it
+  takes are generic heads shared by many terms (`processes`, `dados`,
+  `changements`, `observações`). The same measure over organisations
+  instead of people separated the kinds less well. A person-level measure
+  does not see words gathered in a group of people who each use them once:
+  the floor is what protects them.
+
+Measured on the trilingual worlds with misdetected texts (`--corpora "demo S
+trilingual misdetected,demo L trilingual misdetected"`); *no AI* is the
+lexicon the consolidation takes without the AI clean-up (kept and to-check
+bands), *final* the lab's oracle judge on the same bands:
+
+| corpus | rules | to check | no AI: lexicon | no AI: precision | no AI: recall | final precision | English candidates with a French closed word | gold lost |
+|---|---|---|---|---|---|---|---|---|
+| demo S | before | 932 | 3,257 | 29.8 % | 80.6 % | 41.7 % | 141 | – |
+| demo S | stop words | 935 | 3,136 | 31.0 % | 80.6 % | 44.0 % | 4 | 0 |
+| demo S | stop words and even spread (default) | 766 | 2,967 | 32.8 % | 80.6 % | 44.0 % | 2 | 0 |
+| demo L | before | 2,152 | 15,403 | 39.6 % | 80.8 % | 45.9 % | 1,047 | – |
+| demo L | stop words | 2,226 | 14,494 | 42.1 % | 80.8 % | 49.6 % | 18 | 0 |
+| demo L | stop words and even spread (default) | 2,075 | 14,343 | 42.5 % | 80.8 % | 49.6 % | 18 | 0 |
+
+No reachable gold term leaves the lexicon (recall unchanged); with every
+band rule on, the stop-word and even-spread reasons catch 62 and 164
+candidates on S, 118 and 151 on L, none of them gold. The even-spread
+thresholds barely matter on L (80 % of random: 14,315 terms; as random:
+14,408; a tenth of the people: 14,330, all at 80.8 % recall); on S a tenth
+of the people loses 0.3 point of recall (three single-word gold terms:
+`meta-analysis` in two languages, `télédétection`), so the floor stays at a
+fifth. The theme ARI moves within its usual range between
+variants (0.17–0.23 on L); the person mixes do not move.
+
 ## Time and memory
 
 | corpus | words | parsing, first run (s) | name recognition (s) | scoring, one variant (s) | whole corpus in the lab (s) |
@@ -1071,7 +1145,9 @@ on, name recognition dominate. The quick suite takes about 3 minutes.
    is gold about as often as any candidate (unchanged).
 7. **Three bands without a tuned share** — kept: a multi-word phrase; to
    check: a single word; set aside: a phrase never seen outside one longer
-   phrase (applied; the common-modifier rule is off since G2).
+   phrase (applied; the common-modifier rule is off since G2), a stop word,
+   another language's closed word at a phrase's edge, and an evenly spread
+   single word (applied, see [stop words](#stop-words-and-evenly-spread-words)).
 8. **The AI judges the kept and to-check bands** — left unjudged, the kept
    band is 41–56 % study settings and template phrasing on the demo worlds;
    the set-aside band holds almost no gold (applied at G2).

@@ -83,12 +83,16 @@ __all__ = [
     "Span",
     "TextAnalysis",
     "analyse",
+    "closed_form",
+    "closed_words",
+    "foreign_words",
     "function_words",
     "join_surface",
     "language_patterns",
     "lemma_table",
     "occurrences",
     "spans",
+    "stop_words",
 ]
 
 #: Version of what :func:`analyse` records (classes, surfaces, patterns):
@@ -96,6 +100,12 @@ __all__ = [
 PATTERN_VERSION = "np2"
 #: Longest candidate, in word units (prepositions and articles included).
 MAX_UNITS = 5
+#: A paragraph whose phrases hold this many different closed words of another
+#: language is read as that language (see :func:`spans`).
+FOREIGN_READING = 2
+#: The class of a closed word of another language in a paragraph read as that
+#: language: a candidate of its own, which the scoring sets aside.
+FOREIGN_CLASS = "F"
 
 #: Characters that join two words into one unit when no space surrounds them.
 JOINERS = frozenset({"-", "‐", "‑", "–", "/"})
@@ -195,6 +205,75 @@ def _function_word_data() -> dict[str, frozenset[str]]:
 def function_words(lang: str) -> frozenset[str]:
     """The short list of function words that break a phrase in *lang* (packaged)."""
     return _function_word_data().get(lang, frozenset())
+
+
+@functools.lru_cache(maxsize=1)
+def _closed_word_data() -> dict[str, frozenset[str]]:
+    resource = files("cartolex._data") / "stopwords" / "closed_words.json"
+    data = json.loads(resource.read_text(encoding="utf-8"))
+    return {
+        lang: frozenset(str(w).strip().lower() for w in words if str(w).strip())
+        for lang, words in data.items()
+        if not lang.startswith("_")
+    }
+
+
+def closed_words(lang: str) -> frozenset[str]:
+    """The closed-class words of *lang* (packaged): articles, prepositions, pronouns …"""
+    return _closed_word_data().get(lang, frozenset())
+
+
+def closed_form(surface: str) -> str | None:
+    """*surface* in lower case when it may be a closed word, else ``None``.
+
+    Only a word written in lower case or in capitals may be one: a
+    capitalised word begins a name (``La Niña``, ``El Niño``). A word that
+    starts with an elided word (``qu'une``, left whole by another language's
+    tokenizer) is that elided word (``qu'``).
+    """
+    if not (surface.islower() or surface.isupper()):
+        return None
+    low = surface.lower()
+    parts = split_elision(low)
+    return parts[0] if parts is not None else low
+
+
+@functools.cache
+def foreign_words(lang: str) -> frozenset[str]:
+    """The closed words of every other language the lists know, but none of *lang*'s own.
+
+    Words that *lang* itself uses as closed words, prepositions or articles of
+    its pattern, or function words are left out (``de`` is French, Spanish and
+    Portuguese): in its own language, a word the tagger takes for a noun is
+    one (``croissance des vers``).
+    """
+    own = closed_words(lang) | function_words(lang)
+    lp = PATTERNS.get(lang)
+    if lp is not None:
+        own = own | frozenset(lp.prepositions) | lp.articles
+    others = frozenset().union(*(w for code, w in _closed_word_data().items() if code != lang))
+    return others - own
+
+
+@functools.cache
+def stop_words(lang: str) -> frozenset[str]:
+    """The stop words of *lang*: spaCy's list for the language, the function and closed words.
+
+    A candidate of one word among them is set aside. spaCy's lists hold
+    words that are content words inside a phrase (``nível do mar``,
+    ``bottom water``), so they never cut a phrase; the language's words
+    only, since another language's list holds this language's content words
+    (the French list holds ``car`` and ``bat``).
+    """
+    from spacy.util import get_lang_class
+
+    try:
+        spacy_words = get_lang_class(lang).Defaults.stop_words
+    except Exception:  # pragma: no cover - a language spaCy does not know
+        spacy_words = set()
+    return (
+        frozenset(str(w).lower() for w in spacy_words) | function_words(lang) | closed_words(lang)
+    )
 
 
 # ── One text ────────────────────────────────────────────────────────────────
@@ -496,23 +575,60 @@ class Span:
     containers: tuple[str, ...]
 
 
+def _reads_as_foreign(analysis: TextAnalysis, foreign: frozenset[str]) -> bool:
+    """Whether the phrases of *analysis* hold :data:`FOREIGN_READING` different *foreign* words."""
+    seen: set[str] = set()
+    for run in analysis.runs:
+        for u in run:
+            if u[1] in _CONTENT:
+                low = closed_form(u[0])
+                if low in foreign:
+                    seen.add(low)
+                    if len(seen) >= FOREIGN_READING:
+                        return True
+    return False
+
+
 def spans(
     analysis: TextAnalysis,
     lp: LanguagePatterns,
     lemmas: Mapping[str, str],
     *,
     keyer: _Keyer | None = None,
+    foreign: frozenset[str] = frozenset(),
 ) -> list[Span]:
     """Every candidate occurrence of one analysed text, with its containers (see :class:`Span`).
 
     Every span of at most :data:`MAX_UNITS` units of a run that fully matches
     the pattern *lp* is one occurrence, nested spans included; *lemmas* is the
     corpus lemma table (:func:`lemma_table`).
+
+    *foreign* are the closed words of other languages (:func:`foreign_words`),
+    written in lower case or in capitals (:func:`closed_form`). A text whose
+    phrases hold :data:`FOREIGN_READING` different ones is text
+    in another language that reached this language's stream (a paragraph
+    detected wrongly, a title in capitals): there each of them breaks the
+    phrase it is in, and is an occurrence of its own, of class
+    :data:`FOREIGN_CLASS`, when it alone would match the pattern.
     """
     rx = lp.regex
     keyer = keyer if keyer is not None else _Keyer(lp, lemmas)
     out: list[Span] = []
-    for run in analysis.runs:
+    runs: Iterable[Sequence[Unit]] = analysis.runs
+    if foreign and _reads_as_foreign(analysis, foreign):
+        runs = []
+        for run in analysis.runs:
+            piece: list[Unit] = []
+            for u in run:
+                if u[1] in _CONTENT and closed_form(u[0]) in foreign:
+                    runs.append(piece)
+                    piece = []
+                    if rx.fullmatch(u[1]):
+                        out.append(Span(keyer.key(u) or u[0].lower(), u[0], FOREIGN_CLASS, ()))
+                else:
+                    piece.append(u)
+            runs.append(piece)
+    for run in runs:
         classes = "".join(u[1] for u in run)
         n = len(classes)
         keys = [keyer.key(u) for u in run]

@@ -516,3 +516,19 @@ def test_function_word_lists_are_short_and_packaged() -> None:
         assert 10 < len(words) < 80
         # Content words the n-gram extraction's stop lists used to block are absent.
         assert not words & {"recrutement", "analysis", "data", "método", "étude"}
+
+
+def test_closed_words_of_other_languages() -> None:
+    """A stream's foreign words: the other languages' closed words, never its own."""
+    en, fr, pt = npx.foreign_words("en"), npx.foreign_words("fr"), npx.foreign_words("pt")
+    assert {"des", "la", "le", "un", "que", "do", "los"} <= en
+    assert {"the", "and", "with"} <= fr and not fr & {"de", "des", "la", "vers"}
+    assert "de" not in pt and "des" in pt
+    # Content words and chemical symbols of another language are not closed words.
+    assert not (en | fr | pt) & {"car", "son", "os", "an", "au", "ni", "se", "el", "sem", "tem"}
+    # A capitalised word begins a name; an elision left attached is the elided word.
+    assert [npx.closed_form(w) for w in ("des", "LE", "La", "qu'une")] == ["des", "le", None, "qu'"]
+    # A stop word judges single words: spaCy's list and the packaged words.
+    assert {"relação", "the", "des"} <= npx.stop_words("pt") | npx.stop_words(
+        "en"
+    ) | npx.stop_words("fr")

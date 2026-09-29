@@ -75,7 +75,9 @@ SUITES = {
         CorpusSpec("demo S", lambda: corpora.demo_corpus("S"), theme_recovery=True),
         CorpusSpec("demo S bodies", lambda: corpora.demo_corpus("S", bodies=True)),
         CorpusSpec(
-            "demo S trilingual", lambda: corpora.demo_corpus("S", languages="en,fr,pt"), names=False
+            "demo S trilingual misdetected",
+            lambda: corpora.demo_corpus("S", languages="en,fr,pt", misdetected=True),
+            names=False,
         ),
     ],
     "full": [
@@ -83,10 +85,16 @@ SUITES = {
         CorpusSpec(
             "demo S bodies", lambda: corpora.demo_corpus("S", bodies=True), theme_recovery=True
         ),
+        CorpusSpec(
+            "demo S trilingual misdetected",
+            lambda: corpora.demo_corpus("S", languages="en,fr,pt", misdetected=True),
+            theme_recovery=True,
+            names=False,
+        ),
         CorpusSpec("demo L", lambda: corpora.demo_corpus("L"), theme_recovery=True),
         CorpusSpec(
-            "demo L trilingual",
-            lambda: corpora.demo_corpus("L", languages="en,fr,pt"),
+            "demo L trilingual misdetected",
+            lambda: corpora.demo_corpus("L", languages="en,fr,pt", misdetected=True),
             theme_recovery=True,
             names=False,
         ),
@@ -221,6 +229,9 @@ REASON_ORDER = [
     ("kept", "multiword"),
     ("check", "single-word"),
     ("check", "common-modifier"),
+    ("aside", "stop-word"),
+    ("aside", "stop-word-edge"),
+    ("aside", "even-spread"),
     ("check", "below-threshold"),
     ("aside", "part-of"),
     ("aside", "low-score"),
@@ -455,6 +466,9 @@ MAIN_COLUMNS = [
     ("recall", "recall", "pct"),
     ("recall ceiling", "recall_ceiling", "pct"),
     ("F1", "f1", "pct"),
+    ("no AI: lexicon", "lexicon", "int"),
+    ("no AI: precision", "precision_lexicon", "pct"),
+    ("no AI: recall", "recall_lexicon", "pct"),
     ("ranking AUC", "auc", ""),
     ("precision, best 10 %", "p_top", "pct"),
     ("gold set aside", "gold_set_aside", "int"),
@@ -474,6 +488,9 @@ SUMMARY_COLUMNS = [
     ("precision", "precision", "pct"),
     ("recall", "recall", "pct"),
     ("F1", "f1", "pct"),
+    ("no AI: lexicon", "lexicon", "int"),
+    ("no AI: precision", "precision_lexicon", "pct"),
+    ("no AI: recall", "recall_lexicon", "pct"),
     ("AUC", "auc", ""),
     ("best 10 %", "p_top", "pct"),
     ("gold aside", "gold_set_aside", "int"),

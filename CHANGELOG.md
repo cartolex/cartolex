@@ -197,6 +197,24 @@ nothing in the engine names a particular deployment, source or procedure.
   nested filter and the length bonus still read words between spaces, a
   choice the lexicon lab measured (`docs/dev/lexicon-lab.md`). English and
   French candidates of the demo worlds are unchanged.
+- **Stop words and evenly spread words are set aside.** Text of another
+  language in a stream (a mixed paragraph, a title in capitals) made its
+  articles single-word candidates (`des`, `la`, `LE` among the English ones)
+  and its phrasing kept phrases. `cartolex/_data/stopwords/closed_words.json`
+  lists the closed words of English, French, Portuguese and Spanish; a
+  paragraph whose phrases hold two different closed words of another
+  language is read as that language, and there they cut phrases. New
+  set-aside reasons: `stop-word` (such a word, or a single word among the
+  language's spaCy stop words and packaged words), `stop-word-edge: <word>`
+  (a phrase starting or ending with another language's closed word; a
+  capitalised word begins a name: `La Niña`) and `even-spread` (a single word
+  used by at least a fifth of the people, spread over them like a randomly
+  scattered word: `étude`, `objetivo`, `study`). Switches of `BandRules`
+  (`stop_words`, `even_spread`, `even_people`) for the lexicon lab, which
+  gains trilingual worlds with misdetected French texts and the precision
+  and recall of the lexicon without AI; on them no gold term is lost, and
+  the English candidates holding a French closed word fall from 1,047 to 18
+  on L (`keywords.extract`, stage version 4; the parse cache is unchanged).
 - **Demo bodies.** `generate(..., bodies=True)` (`--bodies`) gives every work
   a long, repetitive body with generic filler (introduction, methods,
   results, discussion, captions) in its language, from a random stream of its
