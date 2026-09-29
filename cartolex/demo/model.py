@@ -139,6 +139,8 @@ class DemoWorld:
     themes: tuple[Theme, ...]
     languages: tuple[str, ...] = LANGUAGES
     bodies: bool = False
+    # share of the cohort given a second subject unrelated to their first
+    two_subjects: float = 0.0
 
     @property
     def trilingual(self) -> bool:
@@ -148,7 +150,7 @@ class DemoWorld:
     @property
     def is_default(self) -> bool:
         """Whether the world uses the default options (its files keep the historical format)."""
-        return not self.trilingual and not self.bodies
+        return not self.trilingual and not self.bodies and not self.two_subjects
 
     @property
     def cohort(self) -> tuple[Person, ...]:

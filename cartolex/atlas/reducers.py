@@ -256,6 +256,63 @@ def compute_svd_embeddings(
     )
 
 
+def text_tfidf(D: Any) -> Any:
+    """The texts' TF-IDF over the keywords, each row L2-normalised.
+
+    *D* is texts × keywords (presence, :func:`cartolex.lexicon.theme_comb.corpus_texts`);
+    the IDF is the smoothed one of scikit-learn, over the texts; a text without
+    any keyword stays a zero row.
+    """
+    from scipy import sparse
+
+    D = sparse.csr_matrix(D, dtype=np.float64)
+    df = np.bincount(D.indices, minlength=D.shape[1]).astype(float)
+    idf = np.log((1.0 + D.shape[0]) / (1.0 + df)) + 1.0
+    return normalize(D @ sparse.diags(idf), norm="l2", axis=1).tocsr()
+
+
+def compute_text_svd_embeddings(
+    data: LexicalData,
+    D: Any,
+    *,
+    n_components: int,
+    model_path: Path,
+    random_state: int = 42,
+) -> Embeddings:
+    """The space fitted on the texts: truncated SVD of the texts' TF-IDF (:func:`text_tfidf`).
+
+    Keywords are near when the same *texts* use them, not the same people: a
+    person's two unrelated subjects stay apart. The keywords' vectors are the
+    components scaled by the singular values, as in
+    :func:`compute_svd_embeddings`; the people are placed as a projected person
+    is, by their L2-normalised row of the lexical matrix through the fitted SVD
+    (so a projected person and a mapped one are placed alike).
+    """
+    from cartolex.atlas.model_files import save_svd
+
+    T = text_tfidf(D)
+    T = T[np.asarray(T.getnnz(axis=1)) > 0]
+    n_components = min(n_components, T.shape[0], T.shape[1])
+    svd = TruncatedSVD(n_components=n_components, random_state=random_state)
+    with threadpool_limits(limits=1, user_api="blas"):  # see compute_svd_embeddings
+        svd.fit(T)
+        Z_ind = svd.transform(normalize(data.X, norm="l2", axis=1))
+    save_svd(svd, model_path)
+    logger.info(
+        "Text space: %d texts × %d keywords → %d components (cumulative %.3f)",
+        T.shape[0],
+        T.shape[1],
+        n_components,
+        svd.explained_variance_ratio_.sum(),
+    )
+    return Embeddings(
+        Z_ind=Z_ind,
+        Z_terms=svd.components_.T * svd.singular_values_,
+        umap_ind=None,
+        umap_terms=None,
+    )
+
+
 def compute_umap(
     emb: Embeddings,
     *,

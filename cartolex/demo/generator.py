@@ -73,6 +73,8 @@ FRENCH_GROUPS = 0.22
 # In a trilingual world, share of cohort groups that write often in Portuguese
 # (chosen among those that do not write often in French).
 PORTUGUESE_GROUPS = 0.22
+# A two-subject person's weight on their first subject (the second, unrelated, has the rest).
+FIRST_SUBJECT = 0.55
 # Probability of 0, 1, 2 or 3 co-authors from the cohort on a work.
 COAUTHOR_WEIGHTS = (0.18, 0.34, 0.3, 0.18)
 
@@ -167,8 +169,12 @@ class _Builder:
         seed: int,
         languages: tuple[str, ...] = LANGUAGES,
         bodies: bool = False,
+        two_subjects: float = 0.0,
     ) -> None:
         self.spec = spec
+        self.two_subjects = float(two_subjects)
+        self.rng_two = _rng(spec.code, seed, "two-subjects")
+        self.unrelated: set[str] = set()  # people with two unrelated subjects
         self.seed = seed
         self.languages = languages
         self.bodies = bodies
@@ -368,6 +374,10 @@ class _Builder:
         idhal = make_idhal(first, last) if rng.random() < p_idhal else ""
 
         themes = self._mixture(group)
+        person_id = f"p{len(self.people) + 1:04d}"
+        if self.two_subjects and role == COHORT and self.rng_two.random() < self.two_subjects:
+            themes = self._two_subjects(next(iter(themes)))
+            self.unrelated.add(person_id)
         kinds_ok = ("any", THEME_BY_ID[next(iter(themes))].kind)
         pool = [m for m in METHODS if m.kind in kinds_ok and m not in group.methods]
         methods = tuple(rng.sample(list(group.methods), 2)) + (rng.choice(pool),)
@@ -380,7 +390,7 @@ class _Builder:
 
         self.people.append(
             Person(
-                person_id=f"p{len(self.people) + 1:04d}",
+                person_id=person_id,
                 last_name=last,
                 first_name=first,
                 group=group.group_id,
@@ -417,6 +427,19 @@ class _Builder:
             reverse=True,
         )
         return _normalise(dict(zip(chosen, values, strict=True)))
+
+    def _two_subjects(self, first: str) -> dict[str, float]:
+        """The first subject and a second one unrelated to it (neither lists the other as a
+        neighbour)."""
+        far = [
+            t.id
+            for t in THEMES
+            if t.id != first
+            and t.id not in THEME_BY_ID[first].neighbours
+            and first not in t.neighbours
+        ]
+        second = self.rng_two.choice(far)
+        return {first: FIRST_SUBJECT, second: round(1.0 - FIRST_SUBJECT, 3)}
 
     # -- works ---------------------------------------------------------------
 
@@ -491,6 +514,8 @@ class _Builder:
         primary = _weighted_choice(rng, theme_ids, [lead.themes[t] for t in theme_ids])
         secondary = None
         others = [t for t in theme_ids if t != primary]
+        if lead.person_id in self.unrelated:
+            others = []  # the two subjects never meet in one text
         # A theme made mostly of techniques studies the topics of another one.
         needs_topics = len(THEME_BY_ID[primary].topics) < MIN_TOPICS
         if others and (needs_topics or rng.random() < 0.35):
@@ -627,6 +652,7 @@ def generate(
     languages: str | tuple[str, ...] | None = None,
     *,
     bodies: bool = False,
+    two_subjects: float = 0.0,
 ) -> DemoWorld:
     """Generate the demo world of the given *size* (``XS``, ``S`` or ``L``) and *seed*.
 
@@ -638,12 +664,17 @@ def generate(
     With *bodies*, every work also gets a body (``Work.body``, see
     :mod:`cartolex.demo.bodies`): long, repetitive, with generic filler, written
     from a stream of its own, so the rest of the world is unchanged.
+
+    With *two_subjects* (a share, 0 to 1), that share of the cohort works on
+    two unrelated subjects (themes neither of which is the other's neighbour),
+    each text on one of them only: the case where a person's keywords come
+    from two fields. The default world has none.
     """
     key = size.upper()
     if key not in SIZES:
         raise ValueError(f"unknown size {size!r}; expected one of {', '.join(SIZES)}")
     langs = parse_languages(languages)
-    builder = _Builder(SIZES[key], int(seed), langs, bool(bodies))
+    builder = _Builder(SIZES[key], int(seed), langs, bool(bodies), float(two_subjects))
     builder.build_structure()
     builder.assign_portuguese()
     builder.build_people()
@@ -657,4 +688,5 @@ def generate(
         themes=THEMES,
         languages=langs,
         bodies=bool(bodies),
+        two_subjects=float(two_subjects),
     )

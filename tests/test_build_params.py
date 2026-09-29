@@ -95,7 +95,8 @@ def test_the_parameter_set_stays_small():
     """Every parameter earns its place: a new one is a decision, not a habit."""
     count = sum(len(s.params) for s in STAGES)
     # 17: themes.group.comb, off in the reference run (the workspace run has no comb)
-    assert count <= 17, f"{count} parameters: justify each new one"
+    # 18: themes.space.space_unit, the space by texts, under study (off by default)
+    assert count <= 18, f"{count} parameters: justify each new one"
 
 
 def test_a_registry_refuses_what_does_not_fit():
