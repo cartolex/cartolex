@@ -44,6 +44,9 @@ MESSAGES: dict[str, MessageKind] = {
     "empty_no_themes": MessageKind(
         "no themes yet: build the themes to get a first draft", "Build the themes", "build"
     ),
+    "empty_no_borderline": MessageKind(
+        "no keyword sits near the border between two nodes", "Close", "none"
+    ),
     "empty_tree_never_saved": MessageKind("the tree was never saved", "Close", "none"),
     "empty_no_map": MessageKind("no map yet: build the map", "Build the map", "build"),
     "empty_no_map_versions": MessageKind(

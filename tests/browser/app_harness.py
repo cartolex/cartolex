@@ -45,7 +45,9 @@ class AppServer:
     """The app on a project, served by uvicorn in a thread on a free loopback port; with
     *collection*, the app's collection service (the demo services, for the corpus screen)."""
 
-    def __init__(self, project: Path, data_dir: Path, *, collection: object = None) -> None:
+    def __init__(
+        self, project: Path | None, data_dir: Path, *, collection: object = None
+    ) -> None:
         import uvicorn
 
         from cartolex.app import AppSettings, create_app

@@ -174,8 +174,17 @@ report as it is.
 `POST /api/projects/close`, `GET /api/projects/recent` (locally);
 `GET /api/projects` (hosted: the projects the principal may open);
 `POST /api/projects {folder | id, name, domain_title, domain_description,
-languages, reference}` creates a project, with the extensions' slots,
-projected sets and identity, and opens it.
+languages, reference, display, start}` creates a project, with the extensions' slots,
+projected sets and identity, and opens it; `display` defaults to the reference
+and the corpus languages; `start` (`people`, `institutions`, `collaborators`,
+`folder`, `corpus`) is where it starts from: a folder or a corpus adds a slot of
+that kind, and the answer's `next` is the page to go to.
+`GET /api/projects/defaults` gives the suggested folder (`~/cartolex-projects`,
+locally), the starting points and the languages; `POST /api/projects/demo
+{folder}` (locally) creates the demo project (the S demo world: an invented
+community of coastal and marine sciences, in English and French) in an empty or
+new folder (default `~/cartolex-projects/demo`) and opens it; it still needs a
+build.
 
 **State and building**
 
@@ -194,7 +203,7 @@ projected sets and identity, and opens it.
 | `GET /api/params` | per stage, each parameter's effective value, origin (`default`, `rule` with the rule, `params.json`), limits, the value of its last run and whether it changed since; the validation messages; the sizes the rules use |
 | `PUT /api/params {seed, pinned_year, stages}` | replace `decisions/params.json` (`If-Match`); refused values: 422 with every reason |
 | `GET /api/map/versions` | the versions, newest first, and the pinned one |
-| `POST /api/map/versions {action: pin | try | discard, version, seed, note, build}` | pin a version, try another layout (a new version beside the pinned one), discard a version nobody pinned; `build: true` also redraws the map |
+| `POST /api/map/versions {action: pin | try | discard, version, seed, method, note, build}` | pin a version, try another layout (a new version beside the pinned one, with another seed or `method`: `umap`, `tsne` when openTSNE is installed, `tree`), discard a version nobody pinned; `build: true` also redraws the map. `GET` gives `methods` and the default rule (`default_method`: t-SNE from `tsne_from_people` mapped people) |
 
 **Snapshots**: `GET /api/snapshots` (each decision file's versions and each
 stage's current and previous generation), `GET /api/snapshots?file=themes.json`,
@@ -247,6 +256,12 @@ version, so it can be undone too).
 | --- | --- |
 | `GET /api/share`, `POST /api/share/builds` | the site builds in `outputs/sites/`; building a site comes in a later version (501 until then) |
 | `GET /api/settings`, `PUT /api/settings` | languages, language models, the AI identity (with what changing a frozen one costs: 409 `identity_frozen` unless `confirm_identity_change`), slots, projected sets, levels, data sources |
+| `GET /api/settings/stopwords`, `PUT /api/settings/stopwords {add, remove}` | the words added to and removed from the lists of words that are never keywords, per language (`decisions/stopwords.json`, `If-Match`); a word both added and removed: `stopword_both` |
+| `GET /api/settings/prompts`, `PUT /api/settings/prompts/{name} {text}` | the prompts a project may replace (the packaged text, the project's own in `decisions/prompts/<name>.txt`, the placeholders); `text: null` goes back to the packaged one (the project's is kept in the history); a placeholder the packaged text lacks: `prompt_placeholder` (`If-Match`) |
+| `GET /api/settings/backup` | a zip of `project.json` and `decisions/` with its history, and `backup.json` (`cartolex-backup/1`); texts, caches and built results are left out |
+| `POST /api/settings/restore` | a backup (multipart `file`): its decision files replace the project's, each current version kept in its history first; `project.json` stays; `not_a_backup` otherwise |
+| `POST /api/settings/reset {what: built}` | remove the built results (every stage is then never built); decisions, texts and caches stay; 409 `busy` while a job runs |
+| `GET /api/machine`, `PUT /api/machine/keys {service, key}` | this computer: the keys saved on it (`mistral`, `openalex`; whether set, from the environment or saved, the last four characters; never shown whole, never in a project: `<data dir>/keys.json`, readable by its owner only; an environment variable wins), whether the AI clean-up can run by API, OpenAlex's daily budget with and without a key, the processors, the memory available and the build's memory budget; `key: null` removes a key; refused on a hosted service (`keys_hosted`) |
 | `POST /api/handoff/export {band, terms, lang, limit, max_tokens}` | the parts of a handoff (`cartolex.project.handoff`): for each, the prompt to paste, the terms to attach and the answer's format, its `bundle.json` (`cartolex-handoff/1`, sent back with the answer), and what they contain and never contain; parts stay under `max_tokens` (a chat assistant reads a limited amount at once) |
 | `POST /api/handoff/export.zip` | the same parts as a zip, one folder per part |
 | `POST /api/handoff/import {bundle, answer}` | keep the answer as it came in `decisions/history/ai/` (with the part it answers) and propose a decision per answered term, with what could not be read (lines ignored, renumbered, unmatched); the first answers freeze the identity |
@@ -351,6 +366,12 @@ catalogues give each code its text in every interface language.
 | `job_not_found` | 404 | there is no job {job} | `job` | `reload` |
 | `job_ended` | 409 | the job has already ended ({state}) | `state` | `none` |
 | `job_elsewhere` | 409 | this job runs in another process; stop it there | — | `none` |
+| `keys_hosted` | 409 | on a hosted service the keys are set by whoever runs it | — | `none` |
+| `stopword_both` | 422 | a word is both added and removed: {words} | `words` | `fix-input` |
+| `prompt_not_found` | 404 | there is no prompt {name} to change | `name` | `reload` |
+| `prompt_invalid` | 422 | the prompt cannot be read: {detail} | `detail` | `fix-input` |
+| `prompt_placeholder` | 422 | the prompt uses placeholders the AI clean-up does not fill: {unknown} | `unknown`, `allowed` | `fix-input` |
+| `not_a_backup` | 422 | this file is not a backup of a cartolex project | — | `fix-input` |
 | `map_version_not_found` | 404 | there is no map version {version} | `version` | `reload` |
 | `map_version_missing` | 422 | name the version to {action} | `action` | `fix-input` |
 | `map_version_pinned` | 409 | {version} is pinned: pin another version before discarding it | `version` | `fix-input` |
@@ -425,6 +446,7 @@ the English `message` the same way; an empty result also names its next action.
 | `empty_no_keywords` | no keywords yet: build the keywords first | — | `build` |
 | `empty_no_themes` | no themes yet: build the themes to get a first draft | — | `build` |
 | `empty_tree_never_saved` | the tree was never saved | — | `none` |
+| `empty_no_borderline` | no keyword sits near the border between two nodes | — | `none` |
 | `empty_no_map` | no map yet: build the map | — | `build` |
 | `empty_no_map_versions` | no map yet: the first build draws one and pins it | — | `build` |
 | `empty_up_to_date` | everything is up to date | — | `none` |
@@ -515,6 +537,8 @@ only, so a project of depth 1, 3 or 4 gets its map like one of depth 2.
 | `GET /api/themes/draft` | the grouping's latest proposal, whatever tree is saved: `{run, tree}` (`no_proposal` before the first grouping) |
 | `GET /api/themes/usage` | each keyword of the current vocabulary: `{term: [people, weight]}` (how many people use it; the sum of its share of each person's usage), `people` counted; `ETag` by the space's run |
 | `POST /api/themes/ops` | `{tree, ops, lenient}`: the operations applied in order; each step is `{op, description}`, or with `lenient` a refused step is skipped and reported as `{op, refused}` |
+| `POST /api/themes/borderline` | `{tree, level, reviewed, offset, limit, sort, q}`: the placed keywords of the tree sent, paged, smallest margin first: `keyword`, `node` (its node at the level compared: `level`, else its own node's), `other` (the nearest other node of that level), `own` and `near` (cosines to the two nodes' centroids in the space, the keyword left out of its own) and `margin` (`own − near`; negative: nearer the other node); `negative` counts those. Keywords marked `reviewed` (« keep here ») are left out unless `reviewed`. `no_space` before the space is built; the measure is in `cartolex.lexicon.theme_fit` |
+| `POST /api/themes/suggestions` | `{tree, keywords, top, scope}`: for each keyword (default: the set-aside ones and those « to check », `scope` `aside`, `check` or `both`), the `top` nodes (at most 10, default 3) holding keywords whose centroid is nearest: `{suggestions: {keyword: [{node, score}]}}`, *score* the cosine |
 | `POST /api/themes/compare` | `{before, after, limit}`: every difference (`cartolex.project.themes.compare`), with `total` and `counts` by kind |
 | `POST /api/themes/rebase` | rebases the saved tree onto the current vocabulary now, as an apply does first (send `If-Match`): `{written, notes, version, to_check, tree}` |
 | `POST /api/themes/proposal` | `{decision: adopt \| keep, run}` (send `If-Match`): agree once on a new grouping of the same vocabulary; `adopt` saves the proposal, `keep` records that the tree was kept over it (`based_on.run`); `proposal_changed` when a newer proposal replaced `run` |
@@ -569,6 +593,7 @@ unreadable lines have a `problem`: `unknown_action`, `missing_fields`,
 | `no_proposal` | 404 | the grouping has proposed no tree yet: build the themes first | `build` |
 | `proposal_changed` | 409 | a newer proposal ({run}) replaced the one you saw: look at it first | `reload` |
 | `theme_handoff_empty` | 404 | the tree holds no keyword to send | — |
+| `no_space` | 409 | the keywords have no space yet: build the themes first | `build` |
 | `invalid_theme_bundle` | 422 | this is not a theme bundle of cartolex: {detail} | `fix-input` |
 
 **Keeping over an unanswered proposal, and the versions' names.** When a

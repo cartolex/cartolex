@@ -45,7 +45,7 @@ def _view(runtime: Any, ctx: Any) -> dict[str, Any]:
                 "install": f"cartolex models add {lang}",
             }
         )
-    ai = runtime.settings.ai_access
+    ai = runtime.ai_access()
     return {
         "name": config.name,
         "identity": {

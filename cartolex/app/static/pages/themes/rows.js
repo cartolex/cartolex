@@ -30,7 +30,7 @@ export function NodeRow({ index, row, words }) {
   </span>`;
 }
 
-export function KeywordRow({ index, term, words, detail = null }) {
+export function KeywordRow({ index, term, words, detail = null, after = null }) {
   const review = (index.tree.review || {})[term];
   const attribution = (index.tree.attribution || {})[term];
   return html`<span class="cx-themes-row cx-themes-row--keyword">
@@ -40,6 +40,7 @@ export function KeywordRow({ index, term, words, detail = null }) {
       ${t('themes.badge.to_check')}</span>` : null}
     ${attribution !== undefined ? html`<span class="cx-themes-badge">
       ${attribution === 0 ? t('themes.badge.nowhere') : t('themes.badge.counts', { level: attribution })}</span>` : null}
+    ${after}
     <span class="cx-themes-row__count">${formatNumber(index.people(term))}</span>
   </span>`;
 }

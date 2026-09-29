@@ -376,3 +376,33 @@ def test_the_theme_handoff_exports_the_tree_and_reads_an_answer(depths, client_f
         "/api/themes/handoff/import", json={"bundle": {"format": "x"}, "answer": "1 | MOVE"}
     )
     assert bad.status_code == 422 and bad.json()["error"]["code"] == "invalid_theme_bundle"
+
+
+def test_borderline_keywords_and_suggested_places_follow_the_tree_sent(depths, client_for):
+    client = client_for(depths[2])
+    tree = client.get("/api/themes").json()["tree"]
+    listed = client.post("/api/themes/borderline", json={"tree": tree, "limit": 5}).json()
+    items = listed["items"]
+    assert listed["total"] > 100 and len(items) == 5 and listed["sort"] == "margin"
+    margins = [i["margin"] for i in items]
+    assert margins == sorted(margins) and items[0]["other"] != items[0]["node"]
+    first = items[0]["keyword"]
+    # « keep here » marks it reviewed: it leaves the list
+    kept = client.post(
+        "/api/themes/ops",
+        json={
+            "tree": tree,
+            "ops": [{"op": "set_review", "keywords": [first], "state": "reviewed"}],
+        },
+    ).json()["tree"]
+    again = client.post("/api/themes/borderline", json={"tree": kept, "limit": 500}).json()
+    assert again["total"] == listed["total"] - 1
+    assert first not in {i["keyword"] for i in again["items"]}
+    # set aside, it gets suggested places; the best is a node holding keywords
+    aside = client.post(
+        "/api/themes/ops", json={"tree": kept, "ops": [{"op": "set_aside", "keywords": [first]}]}
+    ).json()["tree"]
+    found = client.post("/api/themes/suggestions", json={"tree": aside}).json()["suggestions"]
+    assert list(found) == [first] and len(found[first]) == 3
+    assert found[first][0]["node"] in set(aside["keywords"].values())
+    assert found[first][0]["score"] >= found[first][2]["score"]

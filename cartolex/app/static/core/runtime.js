@@ -41,7 +41,7 @@ export function runAction(action, { onRetry, onReload } = {}) {
   if (kind === 'retry') (onRetry || (() => window.location.reload()))();
   else if (kind === 'reload') (onReload || onRetry || (() => window.location.reload()))();
   else if (kind === 'settings') runtime.navigate('/settings');
-  else if (kind === 'open-project') runtime.navigate('/');
+  else if (kind === 'open-project') runtime.navigate('/start');
   else if (kind === 'build') runtime.navigate('/build');
   else if (kind === 'wait') runtime.openActivity();
   else if (kind === 'open') runtime.navigate(action.startsWith('open:') ? action.slice(5) : action);

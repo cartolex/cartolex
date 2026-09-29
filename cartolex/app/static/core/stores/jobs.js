@@ -23,8 +23,9 @@ export const IDLE_MS = 20000;
  * @param {{value: string[]}} options.dismissed a signal holding dismissed job ids
  * @param {(job: object) => void} [options.onFinished]
  * @param {{fast?: number, idle?: number}} [options.timing]
+ * @param {boolean} [options.enabled] false when no project is open: nothing is polled
  */
-export function createJobsStore({ api, dismissed, onFinished, timing = {} }) {
+export function createJobsStore({ api, dismissed, onFinished, timing = {}, enabled = true }) {
   const jobs = signal([]);
   const error = signal(null);
   const watchers = signal(0);
@@ -55,6 +56,8 @@ export function createJobsStore({ api, dismissed, onFinished, timing = {} }) {
   };
 
   const poll = () => {
+    // No project open: no job to follow (every job belongs to a project).
+    if (!enabled) return Promise.resolve({ ok: false, kind: 'no-project' });
     if (inFlight) return inFlight;
     inFlight = api.get('/api/jobs').then((result) => {
       inFlight = null;

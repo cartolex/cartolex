@@ -292,7 +292,7 @@ extension), `GET /api/project/state`, `GET /api/jobs` and
 path, and the app's Content-Security-Policy on every answer.
 
 The core pages' modules (`pages/keywords.js`, `map.js`,
-`share.js`, `settings.js`) are placeholders until their screens are built;
+`share.js`) are placeholders until their screens are built;
 the overview (`pages/overview.js`: `overview/page.js`, `cards.js`,
 `preview.js`) and the build (`pages/build.js`, a page placed `hidden`:
 `build/page.js`, `preflight.js`, `run.js`, `words.js`) are built. The overview
@@ -306,7 +306,12 @@ anyway »), then follows the job it starts with the StageTracker and Stop,
 and ends in one sentence (« nothing changed », « finished before the stop »)
 with an ErrorCard naming the cause and the next action when a stage failed;
 pages placed in `settings` are listed in the header's settings menu. The
-themes screen (`pages/themes.js`, {doc}`themes-editor`) is built. A screen
+themes screen (`pages/themes.js`, {doc}`themes-editor`) is built, and so are
+the settings (`pages/settings.js`: one module per section under
+`pages/settings/`, the section in the address, `/settings?section=build`; each
+section reads what it shows when it opens) and the start screen
+(`pages/start.js` and `pages/start/`: recent projects, the demo project, a new
+project; `/start`, and `/start?new=1` for the form). A screen
 is split into modules of a few hundred lines each, under a folder named after
 it, with a small entry module: `pages/themes.js` loads `pages/themes/editor.js`,
 which puts together the outline (`outline.js`, `rows.js`, `review.js`), the

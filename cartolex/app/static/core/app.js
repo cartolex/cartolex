@@ -114,6 +114,7 @@ export async function boot(root) {
   });
   const jobs = createJobsStore({
     api,
+    enabled: Boolean(manifest.project && manifest.project.open),
     dismissed: prefs.dismissedJobs,
     onFinished: (job) => {
       project.refresh();

@@ -225,6 +225,62 @@ def test_merge_split_set_aside_and_put_back(editor):
     assert undo_label(ui) == "Undo: Put back 1 keyword"
 
 
+#: The draft the editor keeps (written a moment after each change), or null.
+DRAFT = (
+    "(() => { for (const k of Object.keys(localStorage)) if (k.startsWith('cartolex.themes-draft/1:'))"
+    " return JSON.parse(localStorage.getItem(k)); return null; })()"
+)
+
+
+def wait_placed(ui, keyword: str, node: str) -> None:
+    """Wait until the draft places *keyword* on *node*."""
+    ui.page.wait_for_function(
+        f"([k, n]) => ({DRAFT})?.tree.keywords[k] === n", arg=[keyword, node], timeout=5000
+    )
+
+
+def test_borderline_keywords_and_suggested_places_by_the_keyboard(editor):
+    ui = editor
+    page = ui.page
+    page.get_by_role("tab", name=re.compile("^Borderline")).click()
+    border = page.get_by_role("tree", name="Borderline keywords")
+    border.locator("[role=treeitem]").first.wait_for()
+    t = tree(ui)
+    listed = api(ui, "POST", "/api/themes/borderline", {"tree": t, "limit": 3})["data"]["items"]
+    first, second = listed[0], listed[1]
+    # O moves the first to the other node; A keeps the next one here (marked reviewed)
+    border.locator("[role=treeitem]").first.click()
+    page.keyboard.press("o")
+    wait_status(ui, "1 unsaved change")
+    wait_placed(ui, first["keyword"], first["other"])
+    assert undo_label(ui).startswith("Undo: Move 1 keyword to")
+    page.wait_for_function(
+        "(k) => document.getElementById(document.activeElement.getAttribute('aria-activedescendant'))"
+        "?.textContent.includes(k)",
+        arg=second["keyword"],
+    )
+    page.keyboard.press("a")
+    wait_status(ui, "2 unsaved changes")
+    # S sets the next one aside; in the tray, 1 puts it at its first suggested place
+    page.keyboard.press("s")
+    dialog(ui).locator("button[type=submit]").click()
+    dialog(ui).wait_for(state="detached")
+    wait_status(ui, "3 unsaved changes")
+    page.wait_for_function(f"() => ({DRAFT})?.past.length === 3")
+    draft = page.evaluate(f"() => ({DRAFT}).tree")
+    aside = [k for k in draft["set_aside"] if k not in t["set_aside"]]
+    assert len(aside) == 1
+    places = api(ui, "POST", "/api/themes/suggestions", {"tree": draft})["data"]["suggestions"]
+    page.get_by_role("tab", name=re.compile("^Set aside")).click()
+    tray = page.get_by_role("tree", name="Keywords set aside")
+    tray.locator("[role=treeitem]", has_text=aside[0]).click()
+    page.locator(".cx-themes-suggest button").first.wait_for()
+    page.keyboard.press("1")
+    wait_status(ui, "4 unsaved changes")
+    wait_placed(ui, aside[0], places[aside[0]][0]["node"])
+    assert undo_label(ui) == "Undo: Put back 1 keyword"
+
+
 def test_a_draft_survives_a_reload(editor):
     ui = editor
     page = ui.page
@@ -672,6 +728,9 @@ def _states(ui, out, suffix: str) -> None:
     page.locator(".cx-themes-outline .cx-tabs__tab").nth(2).click()
     page.locator(".cx-themes-outline [role=tree] [role=treeitem]").first.click()
     shot("check")
+    page.locator(".cx-themes-outline .cx-tabs__tab").nth(3).click()
+    page.locator(".cx-themes-outline [role=tree] [role=treeitem]").first.click()
+    shot("borderline")
     page.locator(".cx-themes-outline .cx-tabs__tab").nth(0).click()
     page.locator(".cx-themes-centre .cx-tabs__tab").nth(1).click()
     page.locator(".cx-map-frame canvas").wait_for()

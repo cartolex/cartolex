@@ -140,6 +140,7 @@ CORE_NAV: tuple[tuple[str, int, str], ...] = (
     ("map", 50, "main"),
     ("share", 60, "main"),
     ("settings", 90, "settings"),
+    ("start", 95, "settings"),
 )
 
 DEFAULT_LOGO = "/static/brand/logo.svg"
@@ -227,7 +228,7 @@ def build_manifest(runtime: Runtime, principal: Principal, project: dict | None)
         )
     nav.sort(key=lambda n: (n.order, n.id))
     modules = [_ext_path(e.id, m) for e in combined.extensions for m in e.modules]
-    ai = runtime.settings.ai_access
+    ai = runtime.ai_access()
     capabilities = Capabilities(
         collection=runtime.collection.available,
         ai_api=bool(ai is not None and (ai.api_key or ai.client_factory)),

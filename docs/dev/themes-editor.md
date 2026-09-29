@@ -98,6 +98,38 @@ be applied again to another tree (below).
   rebase agrees with the grouping it placed the new keywords from: the
   question comes back only if the grouping runs again after it.
 
+## Borderline keywords and suggested places
+
+- The **« Borderline » tab** lists the placed keywords nearest the border
+  between their node and another (`POST /api/themes/borderline`, paged,
+  smallest margin first), each with the other node and its margin; a
+  « Compare at » choice compares every keyword at one level (through its
+  node's ancestor there) instead of its own node's. Its keys: A keeps a
+  keyword here (`set_review` reviewed: it leaves the list), O moves it to the
+  other node (`move_keywords`), S sets it aside, J and K move; the same
+  actions are in its context menu.
+- **Suggested places**: a keyword set aside or « to check » shows its three
+  nearest nodes in the side panel (`POST /api/themes/suggestions`), and the
+  first in its row of the tray or the queue; a button, or 1, 2 or 3 in the tray
+  or the queue, puts it there (`put_back`, or `move_keywords` and
+  `set_review` from the queue): one step of the undo list.
+
+**The measure** (`cartolex.lexicon.theme_fit`): the margin of a keyword is
+`cos(k, own) − cos(k, other)` in the keywords' space (`themes.space`), where
+`own` is the centroid of the other keywords of its node (the keyword left
+out) and `other` the nearest centroid of another node of the same level; a
+centroid is the renormalised mean of the L2-normalised vectors of the
+keywords on or under the node. Why: the grouping cut the same space with Ward's
+method on these normalised vectors and centroids, so the margin says how near
+the keyword came to being grouped elsewhere; leaving it out of its own node
+removes its pull on a small node; one level at a time keeps a node from
+competing with its parent; a silhouette over every pair of keywords would say
+much the same at a cost that grows with the square of the vocabulary. A
+suggestion's score is the cosine to the centroid of the keywords placed on a
+node. Both read the tree being edited, so they follow each change; they are
+asked only while shown, a quarter of a second after the last change, and cost
+a few milliseconds on S.
+
 ## Apply
 
 « Save and apply » saves if needed and starts `POST /api/themes/apply` in the

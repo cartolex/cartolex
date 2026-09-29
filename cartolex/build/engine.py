@@ -346,11 +346,19 @@ def run_extract(ctx: StageContext) -> dict[str, int]:
     return counts
 
 
-def triage_runner(ai: AIAccess | None) -> Callable[[StageContext], dict[str, int]]:
-    """The ``keywords.triage`` runner, reaching the provider through *ai*."""
+def triage_runner(
+    access: AIAccess | Callable[[], AIAccess | None] | None,
+) -> Callable[[StageContext], dict[str, int]]:
+    """The ``keywords.triage`` runner, reaching the provider through *access*.
+
+    *access* may be a function, asked at each run: an app whose key is saved
+    or removed while it runs gives the build the key of the moment.
+    """
 
     def run_triage(ctx: StageContext) -> dict[str, int]:
         from ..lexicon.llm_triage import run_pipeline_stage_2_llm
+
+        ai = access() if callable(access) else access
 
         identity = ctx.project.config.identity.ai
         if identity is None or identity.provider != "mistral":
@@ -984,7 +992,10 @@ def _with_options(
     return runner
 
 
-def engine_registry(ai: AIAccess | None = None, options: EngineOptions | None = None) -> Registry:
+def engine_registry(
+    ai: AIAccess | Callable[[], AIAccess | None] | None = None,
+    options: EngineOptions | None = None,
+) -> Registry:
     """cartolex's stages with their runners; the AI clean-up reaches its provider through *ai*.
 
     *options* (a host's prompts and function words) reach every stage.
