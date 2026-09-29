@@ -1,0 +1,82 @@
+# Build the source archive, the wheel and the installer kit, check what they
+# hold, and install the wheel on each system as a new user would
+# (tools/install_check.py). They are kept as the run's artifact; nothing is
+# published or tagged.
+#
+# Started by hand only (Actions → Release build → Run workflow).
+name: Release build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: "utf-8"
+  MPLBACKEND: Agg
+
+jobs:
+  build:
+    name: build the archives
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Source archive, then the wheel built from it
+        run: uv build --out-dir dist
+      - name: What they hold
+        run: uv run --no-project --python 3.12 tools/package_check.py dist/*.whl dist/*.tar.gz
+      - name: The installer kit (launchers that install this version from the package index)
+        run: uv run --no-project --python 3.12 tools/installer_zip.py --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 30
+
+  install:
+    name: install, ${{ matrix.os }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Fresh environments, Python 3.10 and 3.14
+        shell: bash
+        run: uv run --no-project --python 3.12 tools/install_check.py --wheel dist/*.whl
+      - name: The installer kit's launcher, from the built wheel
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          CARTOLEX_HOME: ${{ runner.temp }}/cartolex-kit
+        run: |
+          mkdir -p "$RUNNER_TEMP/kit" && cd "$RUNNER_TEMP/kit"
+          unzip -q "$GITHUB_WORKSPACE"/dist/cartolex-installer-*.zip
+          CARTOLEX_WHEEL="$(ls "$GITHUB_WORKSPACE"/dist/*.whl)" bash cartolex-installer-*/install-cartolex.sh </dev/null
+          "$CARTOLEX_HOME/env/bin/cartolex" models list
+      - name: The installer kit's launcher, from the built wheel (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CARTOLEX_HOME: ${{ runner.temp }}\cartolex-kit
+        run: |
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\kit" | Out-Null
+          $zip = Get-ChildItem dist\cartolex-installer-*.zip | Select-Object -First 1
+          Expand-Archive $zip.FullName -DestinationPath "$env:RUNNER_TEMP\kit"
+          $env:CARTOLEX_WHEEL = (Get-ChildItem dist\*.whl | Select-Object -First 1).FullName
+          $launcher = Get-ChildItem "$env:RUNNER_TEMP\kit" -Recurse -Filter install-cartolex.ps1 | Select-Object -First 1
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File $launcher.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$env:CARTOLEX_HOME\env\Scripts\cartolex.exe" models list

@@ -39,7 +39,7 @@ def validate_project(root: Path) -> list[Problem]:
 
     def rel(p: Path) -> str:
         try:
-            return str(p.relative_to(layout.root))
+            return p.relative_to(layout.root).as_posix()
         except ValueError:
             return str(p)
 

@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from ..project.files import StaleWrite, atomic_write_bytes, json_bytes
+from ..project.files import StaleWrite, atomic_write_bytes, json_bytes, replace_path
 from ..project.generations import CHUNKS, STAGING_MARKER, recover, remove_tree, swap_in
 from ..project.models import Measures, RunRecord
 from .machine import PeakMemory, boot_id
@@ -434,7 +434,7 @@ def _prepare_staging(
         if stray.is_dir() and stray != reuse and not (stray / STAGING_MARKER).exists():
             remove_tree(stray)
     if reuse is not None:
-        os.replace(reuse, target)
+        replace_path(reuse, target)
     else:
         target.mkdir(parents=True)
     lock = project.lock_info

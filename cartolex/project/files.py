@@ -15,8 +15,10 @@ import contextlib
 import hashlib
 import json
 import os
+import sys
 import tempfile
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -34,6 +36,7 @@ __all__ = [
     "fingerprint",
     "json_bytes",
     "read_model",
+    "replace_path",
     "utc_stamp",
     "write_decision",
 ]
@@ -85,12 +88,34 @@ def atomic_write_bytes(path: Path, data: bytes) -> None:
             fh.write(data)
             fh.flush()
             os.fsync(fh.fileno())
-        os.replace(tmp, path)
+        replace_path(tmp, path)
     except BaseException:
         with contextlib.suppress(FileNotFoundError):
             os.unlink(tmp)
         raise
     _fsync_dir(path.parent)
+
+
+def replace_path(src: str | os.PathLike[str], dst: str | os.PathLike[str]) -> None:
+    """Rename *src* over *dst* (:func:`os.replace`), retried for a moment on Windows.
+
+    There a file cannot be replaced, nor a folder renamed, while another thread or
+    process has it (or a file inside it) open: a reader of the old version refuses
+    the rename for as long as it reads. Elsewhere the rename is done once.
+    """
+    if sys.platform != "win32":
+        os.replace(src, dst)
+        return
+    delay = 0.05
+    for attempt in range(8):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if attempt == 7:
+                raise
+            time.sleep(delay)
+            delay = min(delay * 2, 0.5)
 
 
 def _fsync_dir(folder: Path) -> None:

@@ -1,0 +1,171 @@
+# The checks of tools/check.py on Linux, macOS and Windows (docs/dev/checks.md).
+#
+# Started by hand only (Actions → CI → Run workflow): no push or pull-request
+# trigger until the maintainers decide otherwise.
+#
+# The vocabulary scan reads its list of banned terms from the repository secret
+# CARTOLEX_DENYLIST (the list's text, one pattern per line); the list itself is
+# never part of the repository. Without the secret the scan is skipped, and says so.
+name: CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      reference_all_systems:
+        description: "Also run the reference comparison on macOS and Windows"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: "utf-8"
+  MPLBACKEND: Agg
+  # check.py itself needs Python 3.11 or later (it reads its settings with tomllib).
+  CHECK: uv run --no-project --python 3.12 tools/check.py
+
+jobs:
+  static:
+    name: lint, vocabulary, interface modules
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the vocabulary scan reads every commit message
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          prune-cache: false # keep the language models' wheels too
+          cache-dependency-glob: |
+            pyproject.toml
+            tools/requirements-*.txt
+      - name: Banned-terms list from the repository secret
+        env:
+          DENYLIST: ${{ secrets.CARTOLEX_DENYLIST }}
+        shell: bash
+        run: |
+          if [ -n "$DENYLIST" ]; then
+            printf '%s\n' "$DENYLIST" > "$RUNNER_TEMP/deny-list.txt"
+            echo "CARTOLEX_DENYLIST=$RUNNER_TEMP/deny-list.txt" >> "$GITHUB_ENV"
+          else
+            echo "::notice::no CARTOLEX_DENYLIST secret: the vocabulary scan is skipped"
+          fi
+      - run: ${{ env.CHECK }} --only lint vocab js
+      - name: Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-static
+          path: .cache/check/
+          retention-days: 7
+
+  tests:
+    name: tests, ${{ matrix.os }}, Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.10", "3.14"]
+        include:
+          - os: ubuntu-latest
+            python: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          prune-cache: false
+          cache-suffix: py${{ matrix.python }}
+          cache-dependency-glob: |
+            pyproject.toml
+            tools/requirements-*.txt
+      - run: ${{ env.CHECK }} --only tests --pythons ${{ matrix.python }}
+      - name: Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-tests-${{ matrix.os }}-${{ matrix.python }}
+          path: .cache/check/
+          retention-days: 7
+
+  reference:
+    name: reference S, ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.reference_all_systems && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          prune-cache: false
+          cache-suffix: reference
+          cache-dependency-glob: |
+            tools/reference/requirements-ref.txt
+            tools/requirements-models.txt
+      - run: ${{ env.CHECK }} --only reference
+      - name: Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reference-${{ matrix.os }}
+          path: |
+            .cache/check/
+            .cache/reference/runs/*.md
+          retention-days: 14
+
+  docs:
+    name: documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          prune-cache: false
+          cache-suffix: docs
+          cache-dependency-glob: pyproject.toml
+      - run: ${{ env.CHECK }} --only docs
+
+  browser:
+    name: interface in a browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          prune-cache: false
+          cache-suffix: browser
+          cache-dependency-glob: |
+            pyproject.toml
+            tools/requirements-*.txt
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('tools/requirements-browser.txt') }}
+      # The environment and Playwright first (the js check installs it), then Chromium.
+      - run: ${{ env.CHECK }} --only js
+      - run: .venvs/py3.12/bin/python -m playwright install --with-deps chromium
+      - run: ${{ env.CHECK }} --only browser
+      - name: Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-browser
+          path: .cache/check/
+          retention-days: 7

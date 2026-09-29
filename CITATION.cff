@@ -6,6 +6,13 @@ abstract: >-
   keywords, themes and a two-dimensional atlas, with an offline site to share it.
 type: software
 license: MIT
+repository-code: "https://github.com/cartolex/cartolex"
+keywords:
+  - science mapping
+  - keyword extraction
+  - text mining
+  - bibliometrics
+  - topic maps
 authors:
   - given-names: "Elisa"
     family-names: "Klüger"

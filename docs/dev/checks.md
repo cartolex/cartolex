@@ -64,3 +64,57 @@ Commit and tag messages have no exceptions.
 The test suite blocks every outbound connection except loopback
 (`tests/conftest.py`). A test that needs data from a web service uses a
 synthetic fixture or a local fake server.
+
+## Packaging and installation
+
+`tools/package_check.py` checks a built wheel and source archive: the wheel
+holds exactly the package's tracked files (modules, interface, schemas, prompt
+templates, stop-word lists, vendored libraries with their licences) and its
+metadata; neither holds tests, caches, review material or bytecode; the
+optional libraries are extras (`llm`, `tsne`, `dev`, `docs`), never core
+dependencies. `tests/test_packaging.py` builds both archives offline and runs
+it.
+
+`tools/install_check.py` installs the wheel into fresh environments (Python
+3.10 and 3.14 by default, made with uv), installs the language models, runs
+`cartolex --help`, builds the XS demo world as a project and fetches
+`/api/health` from `cartolex api`, printing the time and size of each step. It
+reaches the network; `--cold-cache` downloads everything, as a first install.
+
+`tools/installer_zip.py` builds the installer kit for people who do not
+program (`dist/cartolex-installer-<version>.zip`, see {doc}`../install`): the
+launchers of `installer/` with the version to install written in, executable
+scripts, CRLF line endings for the Windows files, the same bytes for the same
+inputs. The launchers take `CARTOLEX_WHEEL` (a wheel to install instead of the
+release, for testing), `CARTOLEX_HOME` (the folder, `~/cartolex` by default)
+and `CARTOLEX_ROUTE=system` (skip uv, to test the fallback).
+
+```bash
+uv build --out-dir dist                     # the source archive, then the wheel from it
+python tools/installer_zip.py --out dist    # the installer kit
+python tools/package_check.py dist/*.whl dist/*.tar.gz
+python tools/install_check.py --wheel dist/cartolex-*.whl
+```
+
+## Continuous integration
+
+Two workflows run on GitHub Actions, started by hand only (Actions → the
+workflow → Run workflow); no push or pull request starts them.
+
+- `.github/workflows/ci.yml` runs the checks above with `tools/check.py`, one
+  job per check: lint, vocabulary and interface modules on Linux; the tests on
+  Linux, macOS and Windows with Python 3.10 and 3.14, and 3.12 on Linux; the
+  reference comparison (size S) on Linux, or on every system when the run asks
+  for it; the documentation; the browser checks in Chromium on Linux. uv's
+  cache (the packages and the language models' wheels) and Playwright's
+  Chromium are cached between runs.
+- `.github/workflows/release.yml` builds the source archive, the wheel and
+  the installer kit, checks the archives with `tools/package_check.py`, keeps
+  them as the run's artifact, and on each system runs
+  `tools/install_check.py` and the kit's launcher with the built wheel. It
+  publishes nothing.
+
+The vocabulary scan's list is a repository secret, `CARTOLEX_DENYLIST`, that
+holds the list's text; the workflow writes it to a temporary file and points
+`$CARTOLEX_DENYLIST` at it. Without the secret the scan is skipped and the run
+says so. The list is never committed.

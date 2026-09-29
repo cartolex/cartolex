@@ -499,3 +499,24 @@ def test_a_slot_window_and_the_collection_parameters_are_optional_keys():
     ):
         with pytest.raises(ValueError):
             ParamsFile.model_validate({"collect": bad})
+
+
+def test_a_rename_refused_by_a_reader_on_windows_is_retried(tmp_path, monkeypatch) -> None:
+    """On Windows a reader holding the old file refuses the rename for a moment."""
+    import cartolex.project.files as files
+
+    src, dst = tmp_path / "new", tmp_path / "old"
+    src.write_text("new", encoding="utf-8")
+    dst.write_text("old", encoding="utf-8")
+    real, refusals = os.replace, [PermissionError("in use")]
+
+    def replace(a, b):
+        if refusals:
+            raise refusals.pop()
+        real(a, b)
+
+    monkeypatch.setattr(files.sys, "platform", "win32")
+    monkeypatch.setattr(files.os, "replace", replace)
+    monkeypatch.setattr(files.time, "sleep", lambda s: None)
+    files.replace_path(src, dst)
+    assert dst.read_text(encoding="utf-8") == "new" and not src.exists()

@@ -22,7 +22,7 @@ WORKDIR /opt/cartolex
 COPY pyproject.toml README.md LICENSE ./
 COPY cartolex ./cartolex
 COPY tools/requirements-models.txt ./requirements-models.txt
-RUN pip install . \
+RUN pip install ".[llm]" \
     && if [ "$WITH_MODELS" = "1" ]; then pip install --require-hashes -r requirements-models.txt; fi \
     && rm -rf /opt/cartolex/cartolex /root/.cache
 
