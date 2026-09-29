@@ -18,6 +18,7 @@ import { Button, EmptyState, ErrorCard, Select, TreeView } from '../../component
 import { lang2, levelName, nodeName } from './model.js';
 import { nodePath } from './dialogs.js';
 import { KeywordRow } from './rows.js';
+import { LevelsPane, MeasureSelect } from './levels.js';
 
 /** How long after the last change the lists are asked again (ms). */
 const SETTLE = 250;
@@ -174,8 +175,13 @@ export function SuggestedPlaces({ editor, ui, term }) {
   </section>`;
 }
 
-/** The borderline tab of the outline. */
+/** The borderline tab of the outline: the keywords near a border, or those the texts put higher. */
 export function BorderlinePane({ editor, ui }) {
+  if (ui.levels.shown.value === 'levels') return html`<${LevelsPane} editor=${editor} ui=${ui} />`;
+  return html`<${MarginPane} editor=${editor} ui=${ui} />`;
+}
+
+function MarginPane({ editor, ui }) {
   const index = editor.index.value;
   const tree = editor.tree.value;
   const fit = ui.fit;
@@ -243,6 +249,7 @@ export function BorderlinePane({ editor, ui }) {
     ...index.tree.levels.map((_, i) => ({ value: String(i + 1), label: levelName(index.tree, i + 1, lang) }))];
   return html`<div class="cx-themes-check cx-themes-border">
     <div class="cx-themes-border__head">
+      <${MeasureSelect} ui=${ui} />
       <label class="cx-themes-border__level">
         <span>${t('themes.border.level')}</span>
         <${Select} value=${String(chosen)} options=${levels}

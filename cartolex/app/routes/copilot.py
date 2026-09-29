@@ -195,10 +195,17 @@ def themes_export(request: Request, body: ThemesExportBody, ctx: ProjectDep) -> 
     context = _context(
         ctx, depth=tree.depth, dimensions=int(emb.Z_terms.shape[1]), cluster_components=50
     )
+    from cartolex.lexicon.theme_comb import tree_levels
+
+    from .themes_fit import _texts
+
+    terms = [str(t) for t in data.terms]
+    doc = tree.model_dump(mode="json", by_alias=True)
+    D = _texts(request, ctx, terms)
     zipped, _ = themes_bundle(
-        tree=tree.model_dump(mode="json", by_alias=True),
+        tree=doc,
         draft=draft.model_dump(mode="json", by_alias=True) if draft is not None else None,
-        terms=[str(t) for t in data.terms],
+        terms=terms,
         X=X,
         U=U,
         Z_terms=emb.Z_terms,
@@ -206,6 +213,7 @@ def themes_export(request: Request, body: ThemesExportBody, ctx: ProjectDep) -> 
         context=context,
         curator_language=body.language,
         mask=_names(ctx),
+        levels=tree_levels(doc, terms, D) if D is not None else None,
     )
     return _zip(zipped, "copilot-themes.zip")
 

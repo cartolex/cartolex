@@ -14,8 +14,10 @@
 
 from __future__ import annotations
 
+import io
 import json
 import shutil
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -25,6 +27,7 @@ from cartolex.app import AppSettings, create_app
 from cartolex.cli import main as cli
 from cartolex.demo import generate
 from cartolex.demo.project import write_project
+from cartolex.lexicon.theme_tree import TOO_BROAD
 
 pytestmark = pytest.mark.models("en", "fr")
 
@@ -467,3 +470,24 @@ def test_the_atlas_page_reads_organisations_texts_regions_and_bases(built, clien
         client.get("/api/atlas", params={"base": "nope"}).json()["error"]["code"]
         == "base_not_found"
     )
+
+
+def test_the_comb_on_the_tree_sent_suggests_too_broad_keywords_put_back(depths, client_for):
+    client = client_for(depths[2])
+    tree = client.get("/api/themes").json()["tree"]
+    broad = sorted(k for k, v in tree["set_aside"].items() if v["reason"] == TOO_BROAD)
+    assert broad, "the comb sets some keywords aside on the S world"
+    # put back on their topics, the comb reads them as too broad again
+    back = client.post(
+        "/api/themes/ops", json={"tree": tree, "ops": [{"op": "put_back", "keywords": broad[:3]}]}
+    ).json()["tree"]
+    listed = client.post("/api/themes/levels", json={"tree": back, "limit": 500}).json()
+    assert listed["theta"] is not None and listed["sort"] == "suggested"
+    found = {i["keyword"]: i for i in listed["items"]}
+    assert any(found.get(k, {}).get("to", "") is None for k in broad[:3])
+    assert all(i["to"] is None or i["share"] > 0 for i in listed["items"])
+    # the copilot bundle carries the same reading
+    r = client.post("/api/themes/copilot/export", json={"tree": back, "language": "en"})
+    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+        levels = json.loads(zf.read("baseline/levels.json"))
+    assert levels["theta"] == listed["theta"] and levels["items"]

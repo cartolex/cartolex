@@ -104,3 +104,21 @@ def test_a_combed_name_prefers_a_concept_or_object_on_a_tie_of_use():
         [-1], [[0, 1, 2]], [[0, 1, 2]], terms, scores, {}, ["en"], "en", preferred={"salt marsh"}
     )
     assert plain == [{"en": "studies"}] and liked == [{"en": "salt marsh"}]
+
+
+def test_on_a_curated_tree_the_comb_suggests_moving_up_or_setting_aside():
+    from cartolex.lexicon.theme_comb import tree_levels
+
+    doc = {
+        "nodes": [
+            {"id": "s0", "parent": None},
+            {"id": "s1", "parent": None},
+            *[{"id": f"c{i}", "parent": "s0" if i < 2 else "s1"} for i in range(4)],
+        ],
+        "keywords": {t: f"c{int(p)}" for t, p in zip(TERMS, FINEST, strict=True)},
+    }
+    theta, found = tree_levels(doc, TERMS, _texts(), grid=(0.5,))
+    by = {s.keyword: s for s in found}
+    assert theta == 0.5 and set(by) == {"wide", "field"}
+    assert (by["wide"].node, by["wide"].to) == ("c0", "s0") and by["wide"].share >= 0.5
+    assert by["field"].to is None and by["field"].share < 0.5

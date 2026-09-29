@@ -49,6 +49,7 @@ __all__ = [
     "APPLIED_FORMAT",
     "CHUNK_BYTES",
     "LANGUAGES",
+    "TEXT_KEYWORDS",
     "TOO_BROAD",
     "TOP_KEYWORDS",
     "TREE_FORMAT",
@@ -85,6 +86,8 @@ CHUNK_BYTES = 64 * 2**20
 #: A combed node is named after a keyword of its own only when at least this share of
 #: the keyword's use (against its siblings') falls in the node.
 OWN_NAME_FLOOR = 0.5
+#: The texts × keywords matrix the comb read, beside the proposal (``themes.group``).
+TEXT_KEYWORDS = "text_keywords.npz"
 #: Why the comb sets a keyword aside: its texts spread over every theme.
 TOO_BROAD = "too broad for any theme"
 #: The languages a tree names its nodes and levels in (the project's).
@@ -797,7 +800,11 @@ def write_theme_draft(
     if texts is not None:
         combed = _comb(levels, terms, texts)
         if combed is not None:
-            placement, spread = combed
+            placement, spread, D = combed
+            from .theme_comb import save_text_keywords
+
+            # the editor reads the comb on curated trees from it
+            save_text_keywords(draft_json_out.parent / TEXT_KEYWORDS, D, terms)
     doc = propose_tree(
         levels,
         terms,
@@ -823,8 +830,9 @@ def write_theme_draft(
 
 def _comb(
     levels: Sequence[Any], terms: Sequence[str], texts: Mapping[str, Any]
-) -> tuple[tuple[np.ndarray, np.ndarray], np.ndarray] | None:
-    """The comb's placement of every keyword row and the keywords' spread (``None``: not combed)."""
+) -> tuple[tuple[np.ndarray, np.ndarray], np.ndarray, Any] | None:
+    """The comb's placement of every keyword row, the keywords' spread and the texts × keywords
+    matrix read (``None``: not combed)."""
     from . import theme_comb as tc
 
     n_finest = len(levels[-1].rows)
@@ -859,7 +867,7 @@ def _comb(
         " › ".join(str(counts[lv]) for lv in range(1, len(levels) + 1)),
         counts[0],
     )
-    return (combed.level, combed.node), P
+    return (combed.level, combed.node), P, D
 
 
 # ── applying a tree ──────────────────────────────────────────────────────────

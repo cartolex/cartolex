@@ -294,6 +294,36 @@ def test_borderline_keywords_and_suggested_places_by_the_keyboard(editor):
     assert undo_label(ui) == "Undo: Put back 1 keyword"
 
 
+def _too_broad(t: dict) -> list[str]:
+    return sorted(k for k, v in t["set_aside"].items() if v["reason"] == "too broad for any theme")
+
+
+def test_the_comb_suggestions_by_the_keyboard(editor):
+    ui = editor
+    page = ui.page
+    t = tree(ui)
+    broad = _too_broad(t)[:3]
+    ops = [{"op": "put_back", "keywords": broad}]
+    back = api(ui, "POST", "/api/themes/ops", {"tree": t, "ops": ops})["data"]["tree"]
+    current = api(ui, "GET", "/api/themes")
+    api(ui, "PUT", "/api/themes", {"tree": back, "action": "put back"}, current["etag"])
+    page.reload()
+    ui.wait_ready(0)
+    page.get_by_role("tab", name=re.compile("^Borderline")).click()
+    page.locator(".cx-themes-border select").first.select_option("levels")
+    listed = page.get_by_role("tree", name="Keywords the texts put higher")
+    listed.locator("[role=treeitem]").first.wait_for()
+    first = api(ui, "POST", "/api/themes/levels", {"tree": back, "limit": 1})["data"]["items"][0]
+    listed.locator("[role=treeitem]").first.click()
+    page.keyboard.press("u")  # the suggestion: moved up, or set aside as too broad
+    wait_status(ui, "1 unsaved change")
+    draft = page.evaluate(f"() => ({DRAFT}).tree")
+    if first["to"]:
+        assert draft["keywords"][first["keyword"]] == first["to"]
+    else:
+        assert draft["set_aside"][first["keyword"]]["reason"] == first["reason"]
+
+
 def test_a_draft_survives_a_reload(editor):
     ui = editor
     page = ui.page
@@ -693,7 +723,8 @@ def _states(ui, out, suffix: str) -> None:
         {
             "tree": t,
             "ops": [
-                {"op": "set_review", "keywords": sorted(t["keywords"])[:3], "state": "to_check"}
+                {"op": "set_review", "keywords": sorted(t["keywords"])[:3], "state": "to_check"},
+                {"op": "put_back", "keywords": _too_broad(t)[:3]},
             ],
         },
     )["data"]["tree"]
@@ -749,6 +780,10 @@ def _states(ui, out, suffix: str) -> None:
     page.locator(".cx-themes-outline .cx-tabs__tab").nth(3).click()
     page.locator(".cx-themes-outline [role=tree] [role=treeitem]").first.click()
     shot("borderline")
+    page.locator(".cx-themes-border select").first.select_option("levels")
+    page.locator(".cx-themes-outline [role=tree] [role=treeitem]").first.click()
+    shot("levels")
+    page.locator(".cx-themes-border select").first.select_option("margin")
     page.locator(".cx-themes-outline .cx-tabs__tab").nth(0).click()
     page.locator(".cx-themes-centre .cx-tabs__tab").nth(1).click()
     page.locator(".cx-map-frame__canvas").wait_for()

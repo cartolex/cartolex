@@ -133,6 +133,8 @@ _THEMES_GUIDE = """\
 2. **Diagnose.** `session.borderline(n=30)` lists the keywords nearest the
    border of their node (a negative margin: nearer another node);
    `session.suggest([...])` the nodes nearest a keyword.
+   `session.levels()` lists the keywords whose texts support a higher node
+   (move them up) or no theme at all (set aside, or counted nowhere).
    `session.stability()` says how much the grouping holds without 10 % of the people.
 3. **Try other groupings** when the structure itself is poor:
    `other = session.regroup([12, 60])` (groups per level, from the top), then

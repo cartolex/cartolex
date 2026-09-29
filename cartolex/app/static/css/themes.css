@@ -999,3 +999,12 @@
   width: 0.75rem;
   height: 0.75rem;
 }
+
+/* the comb's suggestions: an arrow up (move up), a hollow ring (too broad) */
+.cx-themes-levels__mark::before {
+  display: inline-block;
+  margin-inline-end: 0.35em;
+  color: var(--cx-text-muted);
+}
+.cx-themes-levels__mark.is-up::before { content: "\2191"; }
+.cx-themes-levels__mark.is-broad::before { content: "\25CB"; }

@@ -47,6 +47,12 @@ MESSAGES: dict[str, MessageKind] = {
     "empty_no_borderline": MessageKind(
         "no keyword sits near the border between two nodes", "Close", "none"
     ),
+    "empty_no_texts": MessageKind(
+        "the grouping did not read the texts: build the themes with the comb", "Close", "none"
+    ),
+    "empty_no_levels": MessageKind(
+        "every keyword sits on the level its texts support, or you kept it there", "Close", "none"
+    ),
     "empty_tree_never_saved": MessageKind("the tree was never saved", "Close", "none"),
     "empty_no_map": MessageKind("no map yet: build the map", "Build the map", "build"),
     "empty_no_map_versions": MessageKind(

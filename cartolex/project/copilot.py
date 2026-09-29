@@ -48,6 +48,7 @@ __all__ = [
 THEMES_CONTAINS = (
     "the theme tree (node ids, names, levels), the set-aside keywords and why, and the grouping's proposal",
     "the keywords, how many people use each, and their vectors in the keywords' space",
+    "the comb's suggestions: the keywords whose texts support a higher node, or no theme",
     "each person's usage of the keywords and vector, as numbered rows in a random order",
     "the field's title and description, as the assistant's context",
     "the cartolex kit (a wheel) and its guide",
@@ -338,12 +339,16 @@ def themes_bundle(
     context: Mapping[str, Any],
     curator_language: str,
     mask: NameMask,
+    levels: tuple[float, Sequence[Any]] | None = None,
 ) -> tuple[bytes, dict[str, Any]]:
     """The bundle of a theme tree: its zip and manifest.
 
     *terms* are the space's keywords in the columns of *X* (the lexical
     matrix) and *U* (the usage), in the rows of *Z_terms*; the rows of *X*,
-    *U* and *Z_people* are the people, shuffled here.
+    *U* and *Z_people* are the people, shuffled here. *levels* (θ and the
+    :class:`cartolex.lexicon.theme_comb.LevelSuggestion` of the tree) go into
+    ``baseline/levels.json``: the comb read on the tree, from the texts (which
+    stay home).
     """
     from scipy import sparse
 
@@ -389,6 +394,27 @@ def themes_bundle(
     if proposal is not None:
         base["draft"] = measures.summary(proposal, kept_terms, Zt32)
     data["baseline/measures.json"] = _json(base)
+    if levels is not None:
+        theta, found = levels
+        placed = set(work["keywords"])
+        data["baseline/levels.json"] = _json(
+            {
+                "measure": "the comb: a keyword's texts placed by their other keywords; the lowest "
+                "node holding a share theta of its use (above what any keyword gives the node)",
+                "theta": theta,
+                "items": [
+                    {
+                        "keyword": x.keyword,
+                        "node": x.node,
+                        "to": x.to,
+                        "share": x.share,
+                        "texts": x.texts,
+                    }
+                    for x in found
+                    if x.keyword in placed
+                ],
+            }
+        )
     counts = {
         "levels": int(work["depth"]),
         "nodes": len(work["nodes"]),

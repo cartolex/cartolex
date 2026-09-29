@@ -110,6 +110,102 @@ def borderline(request: Request, body: BorderlineBody, ctx: ProjectDep) -> dict[
     )
 
 
+def _texts(request: Request, ctx: Any, terms: list[str]) -> Any:
+    """The texts × keywords the grouping's comb read (``None``: not read, the comb was off)."""
+    from cartolex.build.records import read_record
+    from cartolex.lexicon.theme_comb import load_text_keywords
+    from cartolex.lexicon.theme_tree import TEXT_KEYWORDS
+
+    record = read_record(ctx.layout, "themes.group")
+    path = ctx.layout.stage("themes.group") / TEXT_KEYWORDS
+    if record is None or not path.exists():
+        return None
+    D = runtime_of(request).table_cache.get(
+        ("text-keywords", ctx.id, record.run_id), lambda: load_text_keywords(path)
+    )
+    return D if D.shape[1] == len(terms) else None
+
+
+LEVEL_SORTS = {
+    "suggested": lambda i: (i["to"] is None, -i["share"] if i["to"] else i["share"], i["keyword"]),
+    "keyword": lambda i: i["keyword"],
+    "share": lambda i: (i["share"], i["keyword"]),
+}
+
+
+class LevelsBody(BaseModel):
+    """The tree being edited and a page."""
+
+    tree: dict[str, Any]
+    reviewed: bool = False
+    offset: Annotated[int, Field(ge=0, le=10_000_000)] = 0
+    limit: Annotated[int, Field(ge=1, le=MAX_LIMIT)] = 100
+    sort: Annotated[str, Field(max_length=64, pattern=r"^-?[a-z_]+$")] | None = None
+    q: Annotated[str, Field(max_length=200)] | None = None
+
+
+@routes.post("/api/themes/levels", action="themes.read")
+def levels(request: Request, body: LevelsBody, ctx: ProjectDep) -> dict[str, Any]:
+    """The placed keywords whose texts support a higher node: move up, or too broad for any theme.
+
+    The comb (:func:`cartolex.lexicon.theme_comb.tree_levels`) read on the tree
+    sent, from the texts the grouping read. Each item: ``keyword``, ``node``
+    (where the tree puts it), ``to`` (the ancestor to move it up to; ``null``:
+    too broad for any theme), ``share`` (the share of its use that node holds,
+    above what any keyword gives it; too broad: the best a top-level node
+    holds), ``texts`` and ``reason`` (the set-aside reason of a keyword too
+    broad). Moves up first, largest share first. Keywords kept
+    here (review ``kept``) are left out unless ``reviewed``. Empty with
+    ``empty_no_texts`` when the grouping did not read the texts.
+    """
+    from cartolex.lexicon.theme_comb import tree_levels
+    from cartolex.lexicon.theme_tree import TOO_BROAD
+
+    tree = _parse_tree(body.tree)
+    terms, _ = _space(request, ctx)
+    params = ListParams(body.offset, body.limit, body.sort, body.q)
+    D = _texts(request, ctx, terms)
+    if D is None:
+        return page(
+            [],
+            params,
+            sorts=LEVEL_SORTS,
+            default_sort="suggested",
+            empty=empty("empty_no_texts"),
+            extra={"theta": None, "too_broad": 0},
+        )
+    doc = tree.model_dump(mode="json", by_alias=True)
+    review = doc.get("review") or {}
+    theta, found = tree_levels(doc, terms, D)
+    items = [
+        {
+            "keyword": s.keyword,
+            "node": s.node,
+            "to": s.to,
+            "share": s.share,
+            "texts": s.texts,
+            "reason": None if s.to else TOO_BROAD,
+            "review": review.get(s.keyword),
+        }
+        for s in found
+        if (body.reviewed or review.get(s.keyword) != "kept")
+        and (not params.q or params.q in s.keyword.casefold())
+    ]
+    return page(
+        items,
+        params,
+        sorts=LEVEL_SORTS,
+        default_sort="suggested",
+        filters={"q": body.q, "reviewed": body.reviewed or None},
+        empty=empty("empty_no_levels"),
+        extra={
+            "measure": "share of the keyword's texts on the node, above what any keyword gives it",
+            "theta": theta,
+            "too_broad": sum(1 for i in items if i["to"] is None),
+        },
+    )
+
+
 class SuggestBody(BaseModel):
     """The tree being edited and the keywords to place (every set-aside and « to check » one
     when absent)."""

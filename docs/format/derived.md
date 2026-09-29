@@ -25,7 +25,8 @@ readers use:
 
 | file | what it holds |
 | --- | --- |
-| `themes.group/themes_draft.json` | the grouping's proposal: a `cartolex-themes/1` tree (the format of `decisions/themes.json`), its keywords on its finest level, `based_on` the grouping's run |
+| `themes.group/themes_draft.json` | the grouping's proposal: a `cartolex-themes/1` tree (the format of `decisions/themes.json`), each keyword on the level its texts support (on the finest level without the comb; too broad for any theme: set aside), `based_on` the grouping's run |
+| `themes.group/text_keywords.npz` | with the comb: which keyword each text uses (texts × the vocabulary's keywords, in its row order; `indices`, `indptr`, `shape`), each text once; the editor reads the comb on a curated tree from it |
 | `themes.apply/themes_tree.json` | the tree applied, as read: `decisions/themes.json` when it exists, else the proposal |
 | `themes.apply/themes_applied.json` | `cartolex-themes-applied/1`: `depth`, `levels` (with names), `source` (`decisions` or `draft`), `weights_basis`, `people_counted`, and every node in tree order with its `id`, `parent`, `level`, `order`, `names`, `color`, `weight`, `share`, `keywords` (on the node itself), `keywords_counted` and `top_keywords` |
 | `map.layout/themes_applied.json` | the same, each node with its place on the map (`x`, `y`) |

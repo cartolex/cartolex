@@ -27,6 +27,7 @@ import { ThemeCopilotDialog } from './copilot.js';
 import { OperationDialog } from './operations.js';
 import { createUi, installActions, refusal } from './actions.js';
 import { createFit } from './fit.js';
+import { createLevels } from './levels.js';
 
 function Banner({ tone = 'info', icon, children, actions }) {
   return html`<div class=${`cx-themes-banner cx-themes-banner--${tone}`} role="status">
@@ -52,6 +53,7 @@ export function ThemesEditor() {
   const ui = useMemo(() => {
     const u = createUi(editor);
     u.fit = createFit({ api: ctx.api });
+    u.levels = createLevels({ api: ctx.api });
     return u;
   }, []);
   const [atlas, setAtlas] = useState(null);

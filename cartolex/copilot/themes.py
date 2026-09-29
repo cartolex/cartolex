@@ -182,6 +182,14 @@ class ThemesSession(Session):
             for b in borderline(doc or self.tree, self.terms, self.Z_terms, level=level)[:n]
         ]
 
+    def levels(self, n: int = 25) -> list[dict[str, Any]]:
+        """The comb read on the bundled tree: keywords whose texts support a higher node (``to``)
+        or no theme (``to`` None), with the share that node holds. From ``baseline/levels.json``
+        (the texts stay home): it describes the tree as bundled, not your changes."""
+        if not self.path("baseline/levels.json").is_file():
+            return []
+        return list(self.json("baseline/levels.json")["items"])[:n]
+
     def suggest(self, keywords: Iterable[str], *, top: int = 3) -> dict[str, list[dict[str, Any]]]:
         """For each keyword, the nodes whose keywords are nearest it."""
         from dataclasses import asdict

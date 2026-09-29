@@ -100,6 +100,19 @@ does not make their keywords look broad.
    0.25 the small world loses specific keywords, below 0.1 it keeps the
    broad ones.
 
+**On a curated tree: suggestions only.** The grouping keeps the texts it read
+(`themes.group/text_keywords.npz`). The editor's « Borderline » tab can show,
+instead of the keywords nearest a border, the comb read on the tree being
+edited (`POST /api/themes/levels`, `cartolex.lexicon.theme_comb.tree_levels`):
+every node is a cell, each keyword's texts are placed by their other
+keywords' nodes, θ is calibrated on the tree the same way, and a keyword the
+comb takes to a strict ancestor of its node is suggested « move up to
+<node> », one no top-level node holds « too broad for any theme », each with
+its share (U applies it, A keeps it here). A move to a node elsewhere is the
+borderline list's business. The copilot's themes bundle carries the same
+reading of the tree it holds (`baseline/levels.json`, `session.levels()`);
+the texts stay home. Nothing changes a curated tree by itself.
+
 The comb holds the keywords × topics spread in memory; above 5·10⁷ cells
 (10 000 keywords on 5 000 topics) the proposal is not combed and says so.
 

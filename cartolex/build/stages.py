@@ -678,7 +678,8 @@ STAGES = Registry(
             "group keywords into topics and themes",
             # version 2: the levels of the depth asked for, and the proposal tree;
             # version 3: each name in a language from a keyword with a form in it;
-            # version 4: the comb (each keyword on the level its texts support)
+            # version 4: the comb (each keyword on the level its texts support), and the
+            # texts × keywords it read (text_keywords.npz)
             version=4,
             upstream=("themes.space",),
             params=(

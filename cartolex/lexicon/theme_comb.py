@@ -47,12 +47,16 @@ __all__ = [
     "MIN_TEXTS",
     "THETA_GRID",
     "Combed",
+    "LevelSuggestion",
     "calibrate",
     "comb",
     "corpus_texts",
     "document_keywords",
     "keyword_spread",
     "level_maps",
+    "load_text_keywords",
+    "save_text_keywords",
+    "tree_levels",
 ]
 
 #: A keyword used in fewer texts keeps its node: too little evidence to move it.
@@ -213,13 +217,16 @@ class Combed:
     ``level[k]``: the level (1 on top) of its node, ``0`` when it is too broad
     for any theme, ``-1`` when it was not placed; ``node[k]``: its node's
     position on that level (``-1`` for ``0`` and ``-1``); ``texts[k]``: the
-    texts that gave evidence; ``theta``: the ``θ`` used on the finest level.
+    texts that gave evidence; ``share[k]``: the share (relative) of its use its
+    node holds, or, too broad, the best a top-level node holds; ``theta``: the
+    ``θ`` used on the finest level.
     """
 
     level: np.ndarray
     node: np.ndarray
     texts: np.ndarray
     theta: float = 0.0
+    share: np.ndarray | None = None
 
     def counts(self, depth: int) -> dict[int, int]:
         """Keywords per level, ``0`` for too broad."""
@@ -239,8 +246,8 @@ def comb(
     """Place each keyword on the lowest node whose subtree holds ≥ θ of its use.
 
     *P*, *n* from :func:`keyword_spread`; *finest* each keyword's finest node;
-    *maps* from :func:`level_maps`; *theta* one value, or one per level from
-    the top. From the finest level up, the node with the most use on the level
+    *maps* from :func:`level_maps` (a cell above a level maps to ``-1`` there);
+    *theta* one value, or one per level from the top. From the finest level up, the node with the most use on the level
     is taken when its share reaches that level's ``θ``; no level reaching it:
     too broad (level ``0``). With *relative* (the engine's reading), a node's
     share is read above the share ``b`` all the keywords' use gives it:
@@ -262,19 +269,27 @@ def comb(
     node[evidence] = -1
     waiting = evidence.copy()
     rows = np.arange(len(finest))
+    held = np.zeros(len(finest))
     for lv in range(depth, 0, -1):
         m = np.asarray(maps[lv - 1], dtype=np.int64)
-        M = sparse.csr_matrix((np.ones(len(m)), (np.arange(len(m)), m)))
+        cells = np.flatnonzero(m >= 0)
+        M = sparse.csr_matrix(
+            (np.ones(len(cells)), (cells, m[cells])), shape=(len(m), int(m.max(initial=-1)) + 1)
+        )
         S = np.asarray(M.T @ share.T).T  # keywords × nodes of the level
         if relative:
             b = M.T @ base
             S = (S - b) / np.maximum(1.0 - b, 1e-12)
         best = S.argmax(axis=1)
-        ok = waiting & (S[rows, best] >= th[lv - 1] - 1e-12)
+        top = S[rows, best] if S.shape[1] else np.zeros(len(rows))
+        ok = waiting & (top >= th[lv - 1] - 1e-12)
         level[ok] = lv
         node[ok] = best[ok]
+        held[ok] = top[ok]
+        if lv == 1:
+            held[waiting & ~ok] = top[waiting & ~ok]
         waiting &= ~ok
-    return Combed(level=level, node=node, texts=np.asarray(n), theta=float(th[-1]))
+    return Combed(level=level, node=node, texts=np.asarray(n), theta=float(th[-1]), share=held)
 
 
 def _per_node(c: Combed, nodes: Sequence[int]) -> np.ndarray:
@@ -306,7 +321,7 @@ def calibrate(
     depth = len(maps)
     if depth == 1:
         return comb(P, n, finest, maps, DEFAULT_THETA, min_texts=min_texts)
-    nodes = [int(np.max(m)) + 1 if len(m) else 0 for m in maps]
+    nodes = [int(np.max(m, initial=-1)) + 1 for m in maps]
     best: tuple[float, Combed] | None = None
     for t in grid:
         c = comb(P, n, finest, maps, float(t), min_texts=min_texts)
@@ -315,3 +330,116 @@ def calibrate(
             best = (err, c)
     assert best is not None
     return best[1]
+
+
+# ── suggestions on a tree of any shape ───────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class LevelSuggestion:
+    """A placed keyword the texts would put higher: on an ancestor (``to``), or nowhere."""
+
+    keyword: str
+    node: str  # where the tree puts it
+    to: str | None  # the ancestor its texts support; None: too broad for any theme
+    share: float  # the (relative) share of its use that node holds, or the best top node's
+    texts: int
+
+
+def tree_levels(
+    doc: Mapping[str, Any],
+    terms: Sequence[str],
+    D: sparse.spmatrix,
+    *,
+    grid: Sequence[float] = THETA_GRID,
+    min_texts: int = MIN_TEXTS,
+) -> tuple[float, list[LevelSuggestion]]:
+    """The comb read on a curated tree: the keywords whose texts support a higher node.
+
+    *doc* is a ``cartolex-themes/1`` tree over *terms* (the columns of *D*,
+    texts × keywords). Every node is a cell: a keyword's texts are placed by
+    their other keywords' nodes. The comb (at the θ of *grid* that balances
+    the tree's levels, :func:`calibrate`) is read for each placed keyword; one
+    it takes to a strict ancestor of its node is suggested « move up », one no
+    top-level node holds is suggested « too broad for any theme ». Moves to a
+    node elsewhere are the borderline list's business, not this one's. The
+    suggestions come with the largest shares first (too broad: the smallest
+    best share first).
+    """
+    nodes = [str(n["id"]) for n in doc.get("nodes") or []]
+    parent = {str(n["id"]): n.get("parent") for n in doc.get("nodes") or []}
+    level: dict[str, int] = {}
+
+    def level_of(nid: str) -> int:
+        if nid not in level:
+            up = parent.get(nid)
+            level[nid] = 1 if up is None else level_of(str(up)) + 1
+        return level[nid]
+
+    depth = max((level_of(n) for n in nodes), default=0)
+    if not depth:
+        return 0.0, []
+    cell = {nid: j for j, nid in enumerate(nodes)}
+    row = {t: i for i, t in enumerate(terms)}
+    finest = np.full(len(terms), -1, dtype=np.int64)
+    for k, nid in (doc.get("keywords") or {}).items():
+        if k in row and nid in cell:
+            finest[row[k]] = cell[nid]
+    by_level = {lv: [n for n in nodes if level_of(n) == lv] for lv in range(1, depth + 1)}
+    position = {n: i for lv in by_level.values() for i, n in enumerate(lv)}
+
+    def ancestor(nid: str, lv: int) -> str | None:
+        if level_of(nid) < lv:
+            return None
+        while level_of(nid) > lv:
+            nid = str(parent[nid])
+        return nid
+
+    maps = []
+    for lv in range(1, depth + 1):
+        m = np.full(len(nodes), -1, dtype=np.int64)
+        for j, nid in enumerate(nodes):
+            a = ancestor(nid, lv)
+            if a is not None:
+                m[j] = position[a]
+        maps.append(m)
+    if len(terms) * len(nodes) > MAX_CELLS or D.shape[1] != len(terms):
+        return 0.0, []
+    P, n = keyword_spread(D, finest, len(nodes))
+    combed = calibrate(P, n, finest, maps, grid=grid, min_texts=min_texts)
+    out: list[LevelSuggestion] = []
+    for i in np.flatnonzero(finest >= 0):
+        own = nodes[finest[i]]
+        lv, pos = int(combed.level[i]), int(combed.node[i])
+        share = round(float(combed.share[i]), 4) if combed.share is not None else 0.0
+        if lv == 0:
+            out.append(LevelSuggestion(terms[i], own, None, share, int(n[i])))
+        elif lv < level_of(own):
+            to = by_level[lv][pos]
+            if ancestor(own, lv) == to:
+                out.append(LevelSuggestion(terms[i], own, to, share, int(n[i])))
+    out.sort(key=lambda s: (s.to is None, -s.share if s.to else s.share, s.keyword))
+    return combed.theta, out
+
+
+def save_text_keywords(path: Path, D: sparse.spmatrix, terms: Sequence[str]) -> None:
+    """Store the texts × keywords presence matrix (the comb's reading of the texts)."""
+    D = sparse.csr_matrix(D)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as fh:
+        np.savez_compressed(
+            fh,
+            indices=D.indices.astype(np.int32),
+            indptr=D.indptr.astype(np.int64),
+            shape=np.asarray(D.shape, dtype=np.int64),
+            terms=np.asarray(len(terms), dtype=np.int64),
+        )
+
+
+def load_text_keywords(path: Path) -> sparse.csr_matrix:
+    """The matrix :func:`save_text_keywords` stored."""
+    with np.load(path, allow_pickle=False) as a:
+        shape = tuple(int(x) for x in a["shape"])
+        return sparse.csr_matrix(
+            (np.ones(len(a["indices"])), a["indices"], a["indptr"]), shape=shape
+        )
