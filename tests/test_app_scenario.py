@@ -78,7 +78,7 @@ def _scenario(client: Client, tmp_path, world) -> None:
     # ── collect (the stand-in answers from the demo world) ──
     plan = client.get("/api/collection/plan").json()
     assert plan["people"] == len(cohort) and plan["leaves_the_computer"]
-    assert "the texts already in the project" in plan["never_leaves"]
+    assert "never_texts" in {n["code"] for n in plan["never_leaves"]}
     job = client.post("/api/collection/start").json()["job"]
     done = client.wait_job(job["id"])
     assert done["state"] == "succeeded" and done["result"]["texts"] > 100

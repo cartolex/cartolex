@@ -4,7 +4,7 @@
 ::
 
     cartolex                                   (the app: same as `cartolex app`)
-    cartolex app [FOLDER] [--port N] [--no-browser]
+    cartolex app [FOLDER] [--port N] [--no-browser] [--services demo [--world SIZE:SEED]]
     cartolex api [FOLDER] [--host H] [--port N] [--allowed-host NAME…] [--projects-root DIR]
     cartolex init FOLDER --name NAME --field TITLE [--description TEXT] [--languages en,fr]
     cartolex status FOLDER
@@ -263,7 +263,43 @@ def _versions(args: argparse.Namespace) -> int:
         project.close()
 
 
-def _app_settings(args: argparse.Namespace, *, hosted: bool) -> object:
+def _collection(args: argparse.Namespace, stack: object) -> object:
+    """The app's collection: the bibliographic services, or the demo services of a demo world
+    (``--services demo``), started for as long as the app runs (*stack* stops them)."""
+    import os
+
+    from cartolex.app.collect_service import ServiceCollection
+    from cartolex.collect.services import CollectSettings, local_settings
+
+    contact = os.environ.get("CARTOLEX_CONTACT") or None
+    key = os.environ.get("OPENALEX_API_KEY") or None
+    keys = {"openalex": key} if key else {}
+    services = getattr(args, "services", None)
+    if services in (None, "real"):
+        return ServiceCollection(
+            CollectSettings(contact=contact, api_keys=keys, user_agent="cartolex")
+        )
+    from cartolex.demo.services import DemoServices, endpoints_at
+
+    if services == "demo":
+        from cartolex.demo import generate
+
+        size, _, seed = (args.world or "S:0").partition(":")
+        demo = stack.enter_context(  # type: ignore[attr-defined]
+            DemoServices(generate(size.upper(), int(seed or 0)))
+        )
+        print(f"demo services of world {size.upper()}/{seed or 0} at {demo.base_url}")
+        endpoints = demo.endpoints()
+    else:
+        endpoints = endpoints_at(services)
+    return ServiceCollection(
+        local_settings(endpoints, contact=contact, api_keys=keys),
+        local=True,
+        label="demo services (on this computer)",
+    )
+
+
+def _app_settings(args: argparse.Namespace, *, hosted: bool, stack: object = None) -> object:
     import os
 
     from cartolex.app import AppSettings
@@ -281,20 +317,24 @@ def _app_settings(args: argparse.Namespace, *, hosted: bool) -> object:
         allowed_hosts=tuple(getattr(args, "allowed_host", None) or ()),
         secure_cookies=bool(getattr(args, "secure_cookies", False)),
         ai_access=AIAccess(api_key=key) if key else None,
+        collection=_collection(args, stack) if stack is not None else None,  # type: ignore[arg-type]
     )
 
 
 def _app(args: argparse.Namespace) -> int:
+    import contextlib
+
     from cartolex.app.server import serve
 
-    settings = _app_settings(args, hosted=False)
-    return serve(
-        settings,  # type: ignore[arg-type]
-        args.extensions,
-        host="127.0.0.1",
-        port=args.port,
-        open_browser=not args.no_browser,
-    )
+    with contextlib.ExitStack() as stack:
+        settings = _app_settings(args, hosted=False, stack=stack)
+        return serve(
+            settings,  # type: ignore[arg-type]
+            args.extensions,
+            host="127.0.0.1",
+            port=args.port,
+            open_browser=not args.no_browser,
+        )
 
 
 def _api(args: argparse.Namespace) -> int:
@@ -303,14 +343,17 @@ def _api(args: argparse.Namespace) -> int:
     hosted = args.projects_root is not None
     if hosted and args.folder is not None:
         raise ValueError("give a project folder, or --projects-root for many projects, not both")
-    settings = _app_settings(args, hosted=hosted)
-    return serve(
-        settings,  # type: ignore[arg-type]
-        args.extensions,
-        host=args.host,
-        port=args.port,
-        open_browser=False,
-    )
+    import contextlib
+
+    with contextlib.ExitStack() as stack:
+        settings = _app_settings(args, hosted=hosted, stack=stack)
+        return serve(
+            settings,  # type: ignore[arg-type]
+            args.extensions,
+            host=args.host,
+            port=args.port,
+            open_browser=False,
+        )
 
 
 def _demo(argv: list[str]) -> int:
@@ -382,6 +425,15 @@ def _models(args: argparse.Namespace) -> int:
     return status
 
 
+def _services_options(p: argparse.ArgumentParser) -> None:
+    p.add_argument(
+        "--services",
+        help="where collection goes: the bibliographic services (default), 'demo' (the demo "
+        "services of --world, on this computer), or the URL of running demo services",
+    )
+    p.add_argument("--world", help="the demo world of --services demo, SIZE:SEED (default S:0)")
+
+
 def _parser(extensions: Sequence[Extension] = ()) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cartolex", description="Map a research field from the texts of its people."
@@ -393,6 +445,7 @@ def _parser(extensions: Sequence[Extension] = ()) -> argparse.ArgumentParser:
     app.add_argument("--port", type=int, default=0, help="the port (default: a free one)")
     app.add_argument("--no-browser", action="store_true", help="print the link, open nothing")
     app.add_argument("--data-dir", type=Path, help="the app's own folder (recent projects)")
+    _services_options(app)
     app.set_defaults(run=_app)
 
     api = sub.add_parser("api", help="serve the app without a browser (hosting)")
@@ -411,6 +464,7 @@ def _parser(extensions: Sequence[Extension] = ()) -> argparse.ArgumentParser:
     )
     api.add_argument("--secure-cookies", action="store_true", help="behind HTTPS: Secure cookies")
     api.add_argument("--data-dir", type=Path, help="the app's own folder")
+    _services_options(api)
     api.set_defaults(run=_api)
 
     init = sub.add_parser("init", help="create a project in an empty folder")

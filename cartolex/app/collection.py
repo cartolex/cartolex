@@ -17,7 +17,6 @@ in behind the same calls; until they land, two implementations exist:
 
 from __future__ import annotations
 
-import json
 import secrets
 import unicodedata
 from collections.abc import Mapping, Sequence
@@ -26,16 +25,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 from .errors import ApiError
+from .importing import confirm_list, propose_list
 from .messages import message
-from .people_io import (
-    MappingError,
-    import_people,
-    parse_list,
-    people_rows,
-    propose_mapping,
-    read_people,
-)
-from .uploads import clean_name
+from .people_io import people_rows, read_people
 
 if TYPE_CHECKING:
     from cartolex.demo.model import DemoWorld
@@ -50,12 +42,18 @@ __all__ = [
     "UnavailableCollection",
 ]
 
-#: What cartolex never sends anywhere during a collection.
+#: What cartolex never sends anywhere during a collection: a code and its English words.
 NEVER_SENT = (
-    "the texts already in the project",
-    "your decisions (roles, keywords, themes)",
-    "AI answers and keys",
+    ("never_texts", "the texts already in the project"),
+    ("never_decisions", "your decisions (roles, identities, keywords, themes)"),
+    ("never_ai", "AI answers and keys"),
+    ("never_emails", "e-mail addresses (they are never stored)"),
 )
+
+
+def never_leaves() -> list[dict[str, str]]:
+    """What never leaves the computer, as ``{code, message}``."""
+    return [{"code": code, "message": text} for code, text in NEVER_SENT]
 
 
 class CollectionService(Protocol):
@@ -87,12 +85,21 @@ class CollectionService(Protocol):
         """Add the people of the list kept in *folder*, with the confirmed mapping."""
         ...
 
-    def plan(self, project: Project) -> dict[str, Any]:
-        """What a collection would do: people, services, what leaves the computer."""
+    def plan(
+        self, project: Project, action: str = "collect", options: Mapping[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """What *action* would do: people, services, what leaves the computer and what never
+        does. ``actions`` lists the actions the service offers."""
         ...
 
-    def collect(self, project: Project, control: JobControl) -> Mapping[str, Any]:
-        """Collect (runs in a job): progress and cancel through *control*."""
+    def collect(
+        self,
+        project: Project,
+        control: JobControl,
+        action: str = "collect",
+        options: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any]:
+        """Run *action* (in a job): progress and cancel through *control*."""
         ...
 
     def candidates(
@@ -115,36 +122,7 @@ class BaseCollection:
     def propose_import(
         self, project: Project, folder: Path, filename: str, data: bytes
     ) -> dict[str, Any]:
-        parsed = parse_list(data)
-        if not parsed.rows:
-            raise ApiError.of("empty_list")
-        folder.mkdir(parents=True, exist_ok=True)
-        name = clean_name(filename, default="list.txt")
-        (folder / "raw").mkdir(exist_ok=True)
-        (folder / "raw" / name).write_bytes(data)
-        proposal = {
-            "import_id": folder.name,
-            "file": name,
-            "kind": parsed.kind,
-            "columns": parsed.columns,
-            "rows": len(parsed.rows),
-            "preview": parsed.rows[:10],
-            "mapping": propose_mapping(parsed),
-            "fields": [
-                "last_name",
-                "first_name",
-                "name",
-                "orcid",
-                "email",
-                "unit",
-                "column",
-                "ignore",
-            ],
-            "warnings": parsed.warnings,
-            "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        }
-        (folder / "proposal.json").write_text(json.dumps(proposal), encoding="utf-8")
-        return proposal
+        return propose_list(project, folder, filename, data)
 
     def confirm_import(
         self,
@@ -156,34 +134,32 @@ class BaseCollection:
         set_id: str,
         expected_people: str | None,
     ) -> dict[str, Any]:
-        raw = folder / "raw"
-        files = sorted(raw.iterdir()) if raw.is_dir() else []
-        if not files:
-            raise ApiError.of("import_not_found")
-        parsed = parse_list(files[0].read_bytes())
-        try:
-            return import_people(
-                project,
-                parsed,
-                mapping,
-                role=role,
-                set_id=set_id,
-                expected_people=expected_people,
-            )
-        except MappingError as exc:
-            raise ApiError.of(exc.code, **exc.params) from exc
+        return confirm_list(project, folder, mapping, role=role, set_id=set_id)
 
-    def plan(self, project: Project) -> dict[str, Any]:
+    def plan(
+        self, project: Project, action: str = "collect", options: Mapping[str, Any] | None = None
+    ) -> dict[str, Any]:
         return {
             "available": False,
             **message("collection_unavailable"),
+            "action": action,
+            "actions": [],
             "services": self.describe(),
             "people": 0,
             "leaves_the_computer": [],
-            "never_leaves": list(NEVER_SENT),
+            "never_leaves": never_leaves(),
+            "stored": [],
+            "notes": [],
+            "consent_needed": False,
         }
 
-    def collect(self, project: Project, control: JobControl) -> Mapping[str, Any]:
+    def collect(
+        self,
+        project: Project,
+        control: JobControl,
+        action: str = "collect",
+        options: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any]:
         raise ApiError.of("collection_unavailable")
 
     def candidates(
@@ -236,7 +212,11 @@ class DemoCollection(BaseCollection):
                 out[row["person_id"]] = found
         return out
 
-    def plan(self, project: Project) -> dict[str, Any]:
+    def plan(
+        self, project: Project, action: str = "collect", options: Mapping[str, Any] | None = None
+    ) -> dict[str, Any]:
+        if action != "collect":
+            raise ApiError.of("unknown_collection_action", action=action, actions=["collect"])
         people, _ = read_people(project)
         wanted = [p for p in people if p["role"] in ("mapped", "context", "projected")]
         return {
@@ -244,20 +224,39 @@ class DemoCollection(BaseCollection):
             "code": None,
             "params": {},
             "message": "",
+            "action": action,
+            "actions": ["collect"],
             "services": self.describe(),
             "people": len(wanted),
             "leaves_the_computer": [
                 {
-                    "what": f"the names and ORCID iDs of {len(wanted)} people",
-                    "to": self.name,
-                    "note": "a stand-in: nothing leaves this computer",
+                    "service": self.id,
+                    "label": self.name,
+                    "host": "",
+                    "local": True,
+                    "purpose": {"code": "purpose_demo", "message": "a stand-in inside cartolex"},
+                    "sends": [{"code": "sends_names", "message": "names"}],
+                    "requests": len(wanted),
+                    "cost_usd": None,
+                    "policy": "",
                 }
             ],
-            "never_leaves": list(NEVER_SENT),
+            "never_leaves": never_leaves(),
+            "stored": [],
+            "notes": [
+                {"code": "note_local", "message": "a stand-in: nothing leaves this computer"}
+            ],
+            "consent_needed": False,
             "estimate": {"seconds": max(1, len(wanted) // 20)},
         }
 
-    def collect(self, project: Project, control: JobControl) -> Mapping[str, Any]:
+    def collect(
+        self,
+        project: Project,
+        control: JobControl,
+        action: str = "collect",
+        options: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any]:
         import pyarrow as pa
 
         from cartolex.project.tables import (
@@ -407,7 +406,7 @@ class DemoCollection(BaseCollection):
             )
         control.progress({"fraction": 1.0, "message": "done"})
         control.event("collected", people=len(matches), texts=len(texts))
-        return {"people": len(matches), "texts": len(texts), "slot": slot.id}
+        return {"action": "collect", "people": len(matches), "texts": len(texts), "slot": slot.id}
 
     def candidates(
         self, project: Project, person_ids: Sequence[str]

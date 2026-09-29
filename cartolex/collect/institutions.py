@@ -62,6 +62,7 @@ __all__ = [
     "propose_levels",
     "propose_people",
     "read_institution_runs",
+    "read_proposal",
     "resolve_institutions",
     "take_people",
 ]
@@ -497,6 +498,49 @@ def _latest_proposal(project: Project, slot: str, run_id: str | None) -> RawRun:
             + (f" (no run {run_id})" if run_id else "")
         )
     return runs[-1]
+
+
+def read_proposal(
+    project: Project, *, run_id: str | None = None, slot: str | None = None
+) -> InstitutionProposal:
+    """The latest institution proposal (or *run_id*) read again from its raw run: the people
+    with ``min_works`` works or more (and the person each already is), the suggested merges,
+    the units and the levels. Raises :class:`FileNotFoundError` when there is none."""
+    slot = _collection_slot(project, slot, "collection")
+    run = _latest_proposal(project, slot, run_id)
+    units: dict[str, Unit] = {}
+    authors: dict[str, dict[str, Any]] = {}
+    for rec in run.records():
+        if rec.get("type") == "unit":
+            unit = Unit.of(rec["record"])
+            units[unit.id] = unit
+        elif rec.get("type") == "author":
+            authors[rec["record"].split(":", 1)[1]] = rec
+    header = run.header
+    min_works = int(header.get("min_works") or MIN_WORKS)
+    years = header.get("years")
+    proposal = InstitutionProposal(
+        roots=list(header.get("roots") or []),
+        window=(years[0], years[1]) if years else None,
+        min_works=min_works,
+        units=units,
+        levels=dict(header.get("levels") or {}),
+        works=int(header.get("works") or 0),
+        slot=slot,
+        run_id=run.run_id,
+        source=str(header.get("source") or "api"),
+    )
+    known = _records_of_people(project)
+    for aid in sorted(authors):
+        person = _person_of(authors[aid], units)
+        person.person_id = known.get(authors[aid]["record"])
+        if person.works >= min_works:
+            proposal.people.append(person)
+        else:
+            proposal.below += 1
+    proposal.people.sort(key=lambda p: (-p.works, p.name, p.record))
+    proposal.merges = _merges(authors, units, min_works)
+    return proposal
 
 
 def take_people(

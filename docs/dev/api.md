@@ -206,16 +206,25 @@ version, so it can be undone too).
 
 | route | what it does |
 | --- | --- |
-| `GET /api/people` | people with their role, set, identity state, records, unit and coverage (texts, texts with an abstract, years, and a class: good, thin, none); filters `role`, `identity`, `set`, `coverage`, `q`; counts per role, identity and coverage |
-| `PATCH /api/people {person_ids, role, set, note}` | roles, sets, notes (`If-Match`) |
+| `GET /api/people` | people with their role, set, identity state, records, unit, extra columns, coverage (texts, texts with an abstract, years, a class: good, thin, none) and coverage `state` (good, thin, failed, no_data) with its first blocking `cause`; filters `role`, `identity`, `set`, `coverage` (a class or a state), `source`, `col=<column>:<value>` (repeatable), `q`; counts per role, identity, class and state; `facets`: each extra column's values and counts (filters built from the people's own columns) |
+| `PATCH /api/people {person_ids \| where, role, set, note}` | roles, sets, notes (`If-Match`); `where` (the list's filters) changes every person it keeps, for « all N matching » |
 | `POST /api/people/merge {target, sources}` | rows that are one person |
-| `POST /api/people/import` | a CSV file (a form's `file`) or `{"text": …}` (a pasted list, one person per line): kept outside the project until confirmed, and a mapping proposal (column → `last_name`, `first_name`, `name`, `orcid`, `email`, `unit`, `column`, `ignore`) with a preview |
-| `POST /api/people/import/{id}/confirm {mapping, role, set}`, `DELETE /api/people/import/{id}` | add the people (`If-Match` of the people), or forget the import |
-| `GET /api/collection/plan` | what a collection would do and **what leaves the computer**, and what never does |
-| `POST /api/collection/start`, `GET /api/collection`, `POST /api/collection/cancel` | the collection job |
-| `GET /api/collection/identities?state=pending` | the identity queue: each person with candidate records and their evidence |
-| `POST /api/collection/identities/{person_id} {decision: accept | none | id, record}`, `POST /api/collection/identities/accept {person_ids}` | decide one identity, or accept the best candidates of many |
-| `GET /api/collection/coverage` | coverage per class and per role |
+| `GET /api/people/duplicates` | pairs of people who may be one person, with the reason (`cartolex.collect.people_import.find_duplicates`); none is merged |
+| `GET /api/people/{id}/sheet` | why a profile is what it is: the coverage and its first blocking cause, the sources used and discarded, each finder's latest attempt, the texts, the affiliations with their years, the decision |
+| `POST /api/people/import` | a CSV file (a form's `file`) or `{"text": …}` (a pasted list, one person per line): kept outside the project until confirmed, and a mapping proposal, one field per column: `last_name`, `first_name`, `name` (a full name), `orcid`, `openalex`, `idhal`, `role`, `set`, `org:<level>` (an organisation at that level; a new level is added), `column` (kept as a filter), `ignore`; e-mail columns are refused (never stored) |
+| `POST /api/people/import/{id}/confirm {mapping, role, set}`, `DELETE /api/people/import/{id}` | add the people (`If-Match` of the people): the answer counts them and lists the possible duplicates; or forget the import |
+| `POST /api/people/import/documents` | a form: `file` (a zip, or one document), `kind` (`folder`: documents matched to people by their names or folders, or every one to `person_id`; `corpus`: a zip holding its index CSV and the files), `create_people`; a job of kind `import` |
+| `GET /api/organisations` | organisations with their level, parents, units below, people now and ever; filters `level`, `parent`, `q`; counts per level |
+| `GET /api/organisations/{id}` | one organisation: parents, units, each person's affiliation with its years and source |
+| `GET /api/texts` | texts with their parts (part, language, provider), richest content (`title`, `abstract`, `full`), people; filters `slot`, `year`, `language`, `content`, `provider`, `person`, `q` (title or DOI); counts per content and provider |
+| `GET /api/texts/{id}` | one text: each part by provider with a preview, its people, the records merged into it (`sources/merges.json`), its versions (preprints) and the conflicts between finders |
+| `GET /api/collection/plan?action=`, `POST /api/collection/plan {action, …}` | what an action would do and **what leaves the computer**: each host with its purpose, what it is sent, the requests and their cost at the service's prices; what never leaves; what is kept and where; notes; the estimate; `consent_needed` |
+| `POST /api/collection/start {action, …, consent}`, `GET /api/collection`, `POST /api/collection/cancel` | the collection job: `identify`, `harvest`, `institutions`, `collaborators` or `retry` (`collect` for a stand-in); when the plan asks consent, the start carries `consent: true` (else 409 `consent_needed`, with the plan) |
+| `GET /api/collection/identities?state=pending&clear=&finder=` | the identity queue: each person with every finder's candidate records (OpenAlex with the ORCID registry as evidence, HAL, SciELO), their score, evidence and detail; the single clear match flagged (`clear`); counts of clear, unclear and without candidate |
+| `POST /api/collection/identities/{person_id} {decision: accept \| none \| id, record}`, `POST /api/collection/identities/accept {person_ids}` | decide one identity, or accept the single clear match of many (the others are `left`) |
+| `GET /api/collection/coverage` | coverage per class and role; the four states and their first blocking causes; states by organisation; texts by year (with an abstract, titles only) and by language; the slots' summary |
+| `GET /api/collection/collaborators`, `POST /api/collection/collaborators/decide {decisions}` | collaborators round by round with joint texts, fit and path, and the cap, rounds and cut of the latest run; decisions `mapped`, `context`, `projected`, `no`, `later` (`If-Match` of the people) |
+| `GET /api/collection/institutions`, `POST /api/collection/institutions/take {take, role}` | the latest search of institutions and the latest proposal of their people (paged), with suggested merges and levels; take `all` or records (`A1+A2`: one person with two records) |
 | `GET /api/sources`, `GET /api/sources/{slot}/files`, `POST /api/sources/{slot}/files` | a folder or corpus slot's files; upload a document or a zip archive into `sources/<slot>/` |
 
 **Keywords, themes, atlas**
@@ -261,10 +270,33 @@ A page whose module is missing is listed in the manifest with
 
 Importing people and collecting texts go through a `CollectionService`
 (`cartolex.app.collection`): `describe()`, `propose_import()`,
-`confirm_import()`, `plan()`, `collect()` (in a job) and `candidates()`.
-Until the collection services land, `UnavailableCollection` (the default)
-imports lists but collects nothing, and `DemoCollection(world)` answers from a
-demo world without leaving the computer — the tests and demonstrations use it.
+`confirm_import()`, `plan(action, options)`, `collect(control, action, options)`
+(in a job) and `candidates()`. A list is imported by
+`cartolex.collect.people_import` for every service (`cartolex.app.importing`
+turns the interface's one field per column into its mapping).
+
+- `ServiceCollection(settings)` (`cartolex.app.collect_service`, the default of
+  the command line) runs the finders of `cartolex.collect`: `identify`
+  (`resolve`, HAL by name, SciELO with a collection), `harvest` (OpenAlex and
+  ORCID, HAL by idHAL, missing abstracts on request), `institutions` (a search,
+  or the people of the institutions chosen), `collaborators` (`snowball`) and
+  `retry` (`retry_failed`). Each phase has its own `HttpClient`, whose progress
+  and cancel are the job's; the job's log gets one `egress` line per host (the
+  kinds of data sent, never the values). Its plan comes from
+  `cartolex.collect.privacy.plan_collection`, with HAL, SciELO and the text
+  providers added, and every message carries a code for the catalogues.
+  `cartolex app --services demo --world S:0` runs it against the demo services
+  of a demo world, on this computer; the tests do the same.
+- `UnavailableCollection` (the default of `AppSettings`) imports lists but
+  collects nothing.
+- `DemoCollection(world)` answers from a demo world without leaving the
+  computer or reaching a service (action `collect` only).
+
+The reading routes (coverage, organisations, texts, a person's sheet,
+collaborators, the institutions' proposal) read the project's tables and raw
+records (`cartolex.app.corpus_view`), whatever the service; each list is
+computed once per version of what it reads and kept in the app's cache.
+
 The site builder is a `SiteBuilder` protocol (`cartolex.app.share`) with a
 stand-in that lists earlier builds.
 
@@ -346,7 +378,16 @@ catalogues give each code its text in every interface language.
 | `person_not_found` | 404 | there is no person {person} | `person` | `reload` |
 | `invalid_record` | 422 | a record is scheme:id (orcid:0000-0002-1825-0097, openalex:A123…) or an ORCID iD | — | `fix-input` |
 | `not_a_candidate` | 409 | this record is not a candidate of this person; paste an id instead | — | `fix-input` |
-| `no_candidates` | 409 | none of these people has a candidate record | — | `none` |
+| `no_clear_match` | 409 | none of these people has a single clear match; decide them one by one | — | `none` |
+| `unknown_collection_action` | 422 | {action} is not a collection action; actions: {actions} | `action`, `actions` | `fix-input` |
+| `institutions_missing` | 422 | search institutions by a name, or choose the institutions to read | — | `fix-input` |
+| `consent_needed` | 409 | this collection sends data to {hosts}: read what leaves the computer, then confirm | `hosts` | `confirm` |
+| `organisation_not_found` | 404 | there is no organisation {org} | `org` | `reload` |
+| `text_not_found` | 404 | there is no text {text} | `text` | `reload` |
+| `no_institution_proposal` | 404 | nobody was proposed from institutions yet: read institutions first | — | `none` |
+| `import_refused` | 422 | the import was refused: {detail} | `detail` | `fix-input` |
+| `documents_missing` | 422 | no document (PDF, text) in what was sent | — | `fix-input` |
+| `corpus_index_missing` | 422 | the archive holds no index (a CSV file at its top) | — | `fix-input` |
 | `slot_not_found` | 404 | the project has no slot {slot} | `slot` | `none` |
 | `slot_collected` | 409 | slot {slot} is filled by collection, not by uploads | `slot` | `none` |
 | `file_too_large` | 413 | the file is larger than the limit ({limit_mb} MB) | `limit_mb` | `fix-input` |

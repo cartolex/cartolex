@@ -34,7 +34,9 @@ OpenAlex, as a parameter; if you give an API key, it goes to its service only.
 work: the hosts, why, the kinds of data, the number of requests and, where a
 service charges, the estimated cost (`--dry-run` on `cartolex collect resolve`,
 `harvest`, `snapshot`, `institutions`, `collaborators` and `coverage --retry`;
-in Python, `cartolex.collect.privacy.plan_collection`). The people of an
+in Python, `cartolex.collect.privacy.plan_collection`). In the app, the
+Collect dialog shows it before every collection, and the collection starts
+only once you have confirmed you read it. The people of an
 institution and the collaborators found are people too: what the harvest then
 sends for them is what it sends for anyone. After a collection, the job's
 record in `logs/jobs/` names every host contacted and the kinds of data sent,

@@ -64,7 +64,7 @@ def test_importing_a_list_proposes_a_mapping_then_adds_people(client):
         "Nom": "last_name",
         "Prénom": "first_name",
         "ORCID": "orcid",
-        "Laboratoire": "unit",
+        "Laboratoire": "org:laboratoire",
         "Grade": "column",
     }
     assert body["preview"][0] == ["Walrusson", "Ada", "0000-0002-1825-0097", "LAB-A", "senior"]
@@ -75,18 +75,19 @@ def test_importing_a_list_proposes_a_mapping_then_adds_people(client):
     assert ada["orcid"] == "0000-0002-1825-0097" and ada["unit"] == "LAB-A"
     assert ada["columns"] == {"Grade": "senior"} and ada["identity"] == "pending"
     assert ada["coverage"]["class"] == "none"
-    # the same list again adds nobody; a pasted list adds by names
+    # the same list again adds nobody; a pasted list of names proposes its duplicates
     _, again = _import(client)
     assert again["added"] == 0 and again["already_known"] == 3
     _, pasted = _import(
         client, "Name\nSeaholm, Cleo\nDune Marlow\n", name="pasted.txt", role="projected"
     )
-    assert pasted["added"] == 1
+    assert pasted["added"] == 2
+    assert [d["reason"] for d in pasted["duplicates"]] == ["the same name"]
     marlow = client.get("/api/people?q=marlow").json()["items"][0]
     assert (marlow["last_name"], marlow["first_name"]) == ("Marlow", "Dune")
     assert (marlow["role"], marlow["set"]) == ("projected", "applicants")
     counts = client.get("/api/people").json()["counts"]["role"]
-    assert counts == {"mapped": 3, "projected": 1}
+    assert counts == {"mapped": 3, "projected": 2}
     # a mapping without a name is refused, and the import stays waiting
     proposal = client.post("/api/people/import", json={"text": CSV}).json()
     bad = client.post(

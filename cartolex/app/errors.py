@@ -252,7 +252,30 @@ ERRORS: dict[str, ErrorKind] = {
     "not_a_candidate": ErrorKind(
         409, "this record is not a candidate of this person; paste an id instead", "fix-input"
     ),
-    "no_candidates": ErrorKind(409, "none of these people has a candidate record"),
+    "no_clear_match": ErrorKind(
+        409, "none of these people has a single clear match; decide them one by one"
+    ),
+    "unknown_collection_action": ErrorKind(
+        422, "{action} is not a collection action; actions: {actions}", "fix-input"
+    ),
+    "institutions_missing": ErrorKind(
+        422, "search institutions by a name, or choose the institutions to read", "fix-input"
+    ),
+    "consent_needed": ErrorKind(
+        409,
+        "this collection sends data to {hosts}: read what leaves the computer, then confirm",
+        "confirm",
+    ),
+    "organisation_not_found": ErrorKind(404, "there is no organisation {org}", "reload"),
+    "text_not_found": ErrorKind(404, "there is no text {text}", "reload"),
+    "no_institution_proposal": ErrorKind(
+        404, "nobody was proposed from institutions yet: read institutions first"
+    ),
+    "import_refused": ErrorKind(422, "the import was refused: {detail}", "fix-input"),
+    "documents_missing": ErrorKind(422, "no document (PDF, text) in what was sent", "fix-input"),
+    "corpus_index_missing": ErrorKind(
+        422, "the archive holds no index (a CSV file at its top)", "fix-input"
+    ),
     # sources and uploads
     "slot_not_found": ErrorKind(404, "the project has no slot {slot}"),
     "slot_collected": ErrorKind(409, "slot {slot} is filled by collection, not by uploads"),
