@@ -33,10 +33,12 @@ Language = Literal["en", "fr", "pt-BR"]
 
 
 class SiteBody(BaseModel):
-    """A site's options: ``names`` (asked at each build of a people atlas), the texts carried,
+    """A site's options: ``names`` (asked at each build of a people atlas), ``names_projected``
+    (pseudonyms unless chosen), the texts carried,
     the title and the language the site opens in."""
 
     names: Names | None = None
+    names_projected: Names = "pseudonyms"
     texts: Texts = "none"
     title: Annotated[str, Field(max_length=120)] = ""
     language: Language = "en"
@@ -94,6 +96,7 @@ def plan(
     request: Request,
     ctx: ProjectDep,
     names: Names | None = None,
+    names_projected: Names = "pseudonyms",
     texts: Texts = "none",
     title: Annotated[str, Query(max_length=120)] = "",
     language: Language = "en",
@@ -103,7 +106,15 @@ def plan(
     from cartolex.site.builder import SiteOptions
     from cartolex.site.checks import plan as site_plan
 
-    options = SiteOptions.of({"names": names, "texts": texts, "title": title, "language": language})
+    options = SiteOptions.of(
+        {
+            "names": names,
+            "names_projected": names_projected,
+            "texts": texts,
+            "title": title,
+            "language": language,
+        }
+    )
     return site_plan(ctx.project, options, stale_stages=_stale_stages(request, ctx.project))
 
 

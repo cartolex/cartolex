@@ -185,11 +185,13 @@ def gather(
     project: Project,
     *,
     names: bool,
+    names_projected: bool = False,
     texts: str = "none",
     progress: Callable[[float, str], None] | None = None,
     rng: random.Random | None = None,
 ) -> SiteData:
-    """The data of a site of *project*: names shown when *names*, texts as *texts*
+    """The data of a site of *project*: names shown when *names* (projected people's when
+    *names_projected*: pseudonyms otherwise, in a shuffled order), texts as *texts*
     (``none``, ``titles`` or ``abstracts``). Raises :class:`SiteDataError` without a map."""
     from cartolex.app.atlas_layers import keyword_sets, map_extras
     from cartolex.app.routes.atlas import build_bundle, lineage
@@ -302,12 +304,15 @@ def gather(
 
     # ── projected people: placed on the finished map, never moving it ──
     projected = [o for o in bundle["overlays"] if o["x"] is not None and o["y"] is not None]
-    projected_names = _names_of(ctx) if names and projected else {}
-    if not names:
+    projected_names = _names_of(ctx) if names_projected and projected else {}
+    if not names_projected:
         (rng or random.SystemRandom()).shuffle(projected)
     projected_core = {
         "id": [f"q{k + 1}" for k in range(len(projected))],
-        "name": [projected_names.get(o["person_id"]) or None if names else None for o in projected],
+        "name": [
+            projected_names.get(o["person_id"]) or None if names_projected else None
+            for o in projected
+        ],
         "x": [_r(o["x"], XY) for o in projected],
         "y": [_r(o["y"], XY) for o in projected],
         "top": [_largest(o["shares"][0]) if o["shares"] else None for o in projected],
@@ -405,6 +410,7 @@ def gather(
         "projected": projected_core,
         "bounds": bundle["bounds"],
         "names": bool(names),
+        "names_projected": bool(names_projected),
         "texts": texts,
     }
     details = {

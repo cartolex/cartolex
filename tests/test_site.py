@@ -88,6 +88,22 @@ def test_titles_and_abstracts_never_carry_a_private_part(project):
     assert record["counts"]["texts"] > 0
     assert not [c for c in private if c in text]
     assert any(n in text for n in _people_names(project))  # names were asked for
+    script = (folder / "data" / "core.js").read_text(encoding="utf-8")
+    core = json.loads(script.split('["core"] = ', 1)[1].rstrip().rstrip(";"))
+    projected = core["projected"]
+    assert projected["id"] and projected["name"] == [None] * len(
+        projected["id"]
+    )  # still pseudonyms
+
+
+def test_projected_names_need_their_own_choice(project):
+    from cartolex.site.checks import plan
+
+    codes = {c["code"] for c in plan(project, SiteOptions(names=False))["checks"]}
+    assert "projected_names_shown" not in codes
+    shown = plan(project, SiteOptions(names=False, names_projected=True))
+    assert shown["summary"]["projected"] > 0 and shown["ready"]
+    assert "projected_names_shown" in {c["code"] for c in shown["checks"]}
 
 
 def test_builds_are_never_overwritten_and_go_stale(project):

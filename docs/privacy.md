@@ -74,7 +74,9 @@ hold and checks it:
 - **People's names**: a site that shows people asks at each build whether it
   shows their names or pseudonyms (« Person 12 »); nothing is chosen for you.
   With pseudonyms, the names are not in the site's files at all, and people are
-  listed in a shuffled order. Organisations are always named.
+  listed in a shuffled order. Organisations are always named. People placed on
+  the finished map (for example applicants) have their own question and stay
+  pseudonymous unless you choose to name them.
 - **Texts**: none by default, only keywords, themes and places on the map. On
   request the titles, or the titles and abstracts. Never a full text (a `body`
   or `full` part), never an identifier (ORCID, a service's id, a project id),

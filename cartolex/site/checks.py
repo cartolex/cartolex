@@ -8,7 +8,8 @@ never carries, and the checks, each ``{"code", "level", "params", "fix"}``:
 - ``blocker``: nothing can be built (``no_map``);
 - ``question``: the build waits for an answer (``names_unanswered``: a people
   atlas asks at each build whether to show names);
-- ``warning``: publishable, but worth a look — names shown, abstracts
+- ``warning``: publishable, but worth a look — names shown, projected people's
+  names shown (pseudonyms unless chosen: they may be a sensitive set), abstracts
   included, the map or the themes not up to date, themes whose name is the
   same in two languages (probably untranslated), technical names, empty
   themes, a generic title;
@@ -106,6 +107,7 @@ def plan(
     summary: dict[str, Any] = {
         "title": title,
         "names": options.names,
+        "names_projected": options.names_projected,
         "texts": options.texts,
         "people": 0,
         "projected": 0,
@@ -133,13 +135,17 @@ def plan(
         keywords=sum(1 for k in bundle["keywords"] if k["x"] is not None),
         themes=len(bundle["nodes"]),
     )
-    if people or summary["projected"]:
+    if people:
         if options.names is None:
             checks.append(_check("names_unanswered", "question", {"action": "fix-input",
                                                                    "field": "names"}))  # fmt: skip
         elif options.names:
             checks.append(_check("names_shown", "warning", {"action": "fix-input", "field": "names"},
-                                 count=len(people) + summary["projected"]))  # fmt: skip
+                                 count=len(people)))  # fmt: skip
+    if summary["projected"] and options.names_projected:
+        checks.append(_check("projected_names_shown", "warning",
+                             {"action": "fix-input", "field": "names_projected"},
+                             count=summary["projected"]))  # fmt: skip
     if options.texts == "abstracts":
         checks.append(_check("abstracts_included", "warning",
                              {"action": "fix-input", "field": "texts"}))  # fmt: skip

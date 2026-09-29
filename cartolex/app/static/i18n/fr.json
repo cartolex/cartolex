@@ -1859,5 +1859,10 @@
   "error.site_not_found.title": "Cette construction n'existe plus",
   "error.site_not_found.message": "Ce site n'existe plus. Rechargez la liste.",
   "error.export_not_found.title": "Ce fichier n'existe plus",
-  "error.export_not_found.message": "Le fichier exporté n'existe plus. Rechargez la liste."
+  "error.export_not_found.message": "Le fichier exporté n'existe plus. Rechargez la liste.",
+  "share.names_projected": "Noms des personnes placées",
+  "share.names_projected.help": "Les personnes placées sur la carte achevée (par exemple des candidatures) peuvent former un ensemble sensible : pseudonymes sauf choix contraire.",
+  "share.summary.projected_pseudonyms": "{n, plural, one {# personne placée, sous pseudonyme} other {# personnes placées, sous pseudonymes}}",
+  "share.summary.projected_names": "{n, plural, one {# personne placée, nommée} other {# personnes placées, nommées}}",
+  "share.check.projected_names_shown": "{count, plural, one {# personne placée est montrée} other {# personnes placées sont montrées}} sous son nom : elles peuvent former un ensemble sensible."
 }
