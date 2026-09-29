@@ -273,6 +273,19 @@ def test_borderline_keywords_and_suggested_places_by_the_keyboard(editor):
     places = api(ui, "POST", "/api/themes/suggestions", {"tree": draft})["data"]["suggestions"]
     page.get_by_role("tab", name=re.compile("^Set aside")).click()
     tray = page.get_by_role("tree", name="Keywords set aside")
+    tray.locator("[role=treeitem]").first.wait_for()
+    # the tray is virtualised and also holds the proposal's keywords too broad for any
+    # theme: scroll it until the keyword is drawn
+    item = tray.locator("[role=treeitem]", has_text=aside[0])
+    for step in range(21):
+        if item.count():
+            break
+        tray.evaluate(
+            "(el, at) => { let s = el; while (s && s.scrollHeight <= s.clientHeight) "
+            "s = s.parentElement; if (s) s.scrollTop = at * s.scrollHeight; }",
+            step / 20,
+        )
+        page.wait_for_timeout(50)
     tray.locator("[role=treeitem]", has_text=aside[0]).click()
     page.locator(".cx-themes-suggest button").first.wait_for()
     page.keyboard.press("1")
@@ -544,7 +557,9 @@ def test_every_action_by_the_keyboard_alone(editor):
     assert any(name_of(n) == "Keyboard theme" for n in saved["nodes"])
     assert any(name_of(n) == "Keyboard topic" for n in saved["nodes"])
     assert not any(name_of(n) == "Empty for a moment" for n in saved["nodes"])
-    assert 0 in saved["attribution"].values() and saved["set_aside"] == {}
+    # one keyword set aside, one put back (the first of the tray: one the comb set aside)
+    assert 0 in saved["attribution"].values()
+    assert len(saved["set_aside"]) == len(t["set_aside"])
 
 
 # ── accessibility ────────────────────────────────────────────────────────────

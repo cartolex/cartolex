@@ -578,7 +578,7 @@ def propose_tree(
     *placement* (``(level, position)`` per keyword row, as
     :class:`cartolex.lexicon.theme_comb.Combed` gives them) puts them on a node
     of another level; level ``0`` sets a keyword aside as too broad for any
-    theme. A keyword in no group is set aside.
+    theme, ``from`` its topic. A keyword in no group is set aside.
 
     Names, in each language, from the forms in *forms*
     (``{language: {keyword: form}}``, see
@@ -685,7 +685,8 @@ def propose_tree(
         if at_level[r] >= 1:
             keywords[t] = f"{prefix[int(at_level[r]) - 1]}{int(at_node[r])}"
         elif at_level[r] == 0:
-            aside[t] = {"from": None, "reason": TOO_BROAD}
+            # from its topic: « put back » returns it there
+            aside[t] = {"from": f"{prefix[-1]}{int(finest[r])}", "reason": TOO_BROAD}
         else:
             aside[t] = {"from": None, "reason": "in no group of the grouping"}
     return {
