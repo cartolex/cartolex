@@ -8,6 +8,11 @@ that names exactly one of:
      e.g. "atomic force microscopy", "molecular dynamics", "femtosecond laser"
   O  OBJECT of study / material / system / organism / device class
      e.g. "polymer brush", "budding yeast", "granular medium"
+  P  PLACE or SETTING studied as such: a kind of environment, habitat
+     or site, not a particular named place
+     e.g. "tidal flat", "urban heat island", "deep sea"
+  D  FIELD: the name of a discipline or research field
+     e.g. "biophysics", "fluid mechanics", "géomorphologie"
 
 SCOPE RULE (read carefully):
 Researchers of the domain legitimately work at interfaces with
@@ -17,8 +22,7 @@ interdisciplinary terms are SIGNAL, not noise. ACCEPT them as long as
 they name a real scientific concept / method / object — even if they sit
 outside the core of the domain. Only treat a term as out-of-scope if it is clearly NOT a
 natural-science / engineering / quantitative-method term at all (pure
-humanities, pure law, pure literature, etc.); in that case still use
-code G or N as appropriate, not a dedicated out-of-scope code.
+humanities, pure law, pure literature, etc.); in that case use code H.
 
 PERSON NAMES (read carefully):
 In some fields (history, philology, archaeology, art history...) persons
@@ -60,6 +64,12 @@ REJECT with the most specific code:
      artefact, garbled or OCR-broken token, words in an order no
      speaker would use; bare acronym you cannot confidently expand.
      F is ONLY for broken pieces (see PROCESS OF AN OBJECT below).
+  H  a real term, but not informative in THIS field: too common among
+     its researchers to tell them apart, or outside its scope.
+
+K, G and F say the phrase is never a keyword, in ANY field: use them
+only when you are sure of it. When a phrase could be a keyword
+elsewhere, or you are unsure, use H.
 
 PROCESS OF AN OBJECT (read carefully):
 A phrase that joins a process, a property or a measure to an object of
@@ -75,7 +85,7 @@ unfamiliar. Silently dropping a valid term loses information; the only
 things that *must* go are admin / proper-noun / generic / fragment
 cases.
 
-CANONICAL {reference_language_name} FORM (only for C / M / O):
+CANONICAL {reference_language_name} FORM (only for C / M / O / P / D):
   - Give the canonical form of the term in {reference_language_name}.
   - Singularize plurals ("polymers" -> "polymer").
   - Prefer the substantive: when a natural noun names the same notion,
@@ -105,10 +115,13 @@ OUTPUT FORMAT — exactly one line per input term, in input order:
   C <lang> <term>=<canonical>
   M <lang> <term>=<canonical>
   O <lang> <term>=<canonical>
+  P <lang> <term>=<canonical>
+  D <lang> <term>=<canonical>
   N <term>
   K <term>
   G <term>
   F <term>
+  H <term>
 Where <lang> is the two-letter ISO code of the term's source language
 and <canonical> is its canonical {reference_language_name} form. No
 numbering, no commentary, no blank lines. If the input has N terms,

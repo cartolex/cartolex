@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -105,16 +105,21 @@ def node_names(
     forms: Mapping[str, Mapping[str, str]],
     languages: Sequence[str],
     reference_language: str,
+    preferred: Collection[str] = (),
 ) -> dict[str, str]:
     """A node's name in each of *languages*, from the rows of its keywords (in the node's order).
 
     In each language: the form (:func:`keyword_forms`) of the most used keyword
-    (highest *scores*, the first in *rows* on a tie) that has one there; when
-    none has one, the reference-language form of the most used keyword that has
-    one; else the most used keyword itself. Without a map for the reference
-    language every keyword is its own form there. Blank names are left out.
+    (highest *scores*; on a tie, a keyword of *preferred* first, a concept or an
+    object of study, then the first in *rows*) that has one there; when none has
+    one, the reference-language form of the most used keyword that has one; else
+    the most used keyword itself. Without a map for the reference language every
+    keyword is its own form there. Blank names are left out.
     """
-    ranked = [str(terms[r]) for r in sorted(rows, key=lambda r: -float(scores[r]))]
+    ranked = [
+        str(terms[r])
+        for r in sorted(rows, key=lambda r: (-float(scores[r]), str(terms[r]) not in preferred))
+    ]
     if not ranked:
         return {}
 

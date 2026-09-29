@@ -127,6 +127,8 @@ ENGINE_FILES: dict[str, Place] = {
     # ── extraction, triage and consolidation ──
     "raw_terms_csv": Owned("keywords.extract", "raw_keywords_{}.csv"),
     "global_terms_csv": Owned("keywords.extract", "keywords_global.csv"),
+    "rejects_json": Owned("keywords.extract", "rejects.json"),
+    "keyword_categories_json": Owned("keywords.build", "categories.json"),
     "term_people_npz": Owned("keywords.extract", "term_people.npz"),
     "refined_terms_csv": Owned("keywords.build", "keywords_global_refined.csv"),
     "refined_terms_lang_csv": Owned("keywords.build", "keywords_global_refined_{}.csv"),

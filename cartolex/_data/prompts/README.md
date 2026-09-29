@@ -47,8 +47,11 @@ Notes on the shipped defaults:
   pieces, a process, property or measure of an object of the field is a
   keyword, a single everyday word is G unless it is a term of art, and a term
   of another language takes the canonical form of the reference-language term
-  that names the same thing. The triage judges the kept and to-check bands of
-  the extraction only, never the set-aside band.
+  that names the same thing. Since the handoff's prompt version 4 both also
+  answer P (a place or setting), D (a field) and H (not informative in this
+  field), and K, G and F only when sure: each code has a category
+  (`cartolex.lexicon.categories`), and the `never` ones feed the rejection
+  cache. The triage judges every band of the extraction but the rejected one.
 - The triage LLM response cache is keyed by *(term, domain title, model)* —
   not by prompt text — so editing the triage template does **not** invalidate
   cached verdicts. Delete the workspace LLM cache if you change semantics and

@@ -26,6 +26,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
+from ..lexicon.categories import CATEGORIES
 from .files import atomic_write_bytes, replace_path
 
 __all__ = [
@@ -262,11 +263,16 @@ def read_source_table(path: Path, name: str, columns: list[str] | None = None) -
 
 @dataclass(frozen=True)
 class DecisionTable:
-    """The columns of one CSV decision file, its key and the values some columns allow."""
+    """The columns of one CSV decision file, its key and the values some columns allow.
+
+    *optional* columns were added within the format's version: a file without them is
+    read with them empty, and they are written only when a row fills one.
+    """
 
     columns: tuple[str, ...]
     key: tuple[str, ...]
     allowed: dict[str, frozenset[str]] = field(default_factory=dict)
+    optional: tuple[str, ...] = ()
 
 
 DECISION_TABLES: dict[str, DecisionTable] = {
@@ -302,7 +308,9 @@ DECISION_TABLES: dict[str, DecisionTable] = {
         allowed={
             "decision": frozenset({"keep", "exclude", "merge"}),
             "source": frozenset({"person", "ai-handoff", "ai-copilot", "ai-api"}),
+            "category": frozenset(CATEGORIES),
         },
+        optional=("category",),
     ),
     "snowball": DecisionTable(
         columns=(
@@ -335,6 +343,9 @@ def read_decision_csv(path: Path, name: str) -> list[dict[str, str]]:
         if missing:
             raise TableError(f"{path}: missing column(s) {missing}")
         rows = [{k: (v or "") for k, v in row.items() if k is not None} for row in reader]
+    for row in rows:
+        for col in spec.optional:
+            row.setdefault(col, "")
     seen: set[tuple[str, ...]] = set()
     for i, row in enumerate(rows, start=2):
         for col, allowed in spec.allowed.items():
@@ -352,10 +363,12 @@ def read_decision_csv(path: Path, name: str) -> list[dict[str, str]]:
 
 
 def decision_csv_bytes(name: str, rows: list[dict[str, str]]) -> bytes:
-    """The canonical bytes of a CSV decision file: its columns first, rows sorted by key."""
+    """The canonical bytes of a CSV decision file: its columns first (an optional one only
+    when a row fills it), rows sorted by key."""
     spec = DECISION_TABLES[name]
-    extra = sorted({k for r in rows for k in r} - set(spec.columns))
-    columns = list(spec.columns) + extra
+    optional = [c for c in spec.optional if any(r.get(c) for r in rows)]
+    extra = sorted({k for r in rows for k in r} - set(spec.columns) - set(spec.optional))
+    columns = list(spec.columns) + optional + extra
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=columns, lineterminator="\n", extrasaction="raise")
     writer.writeheader()

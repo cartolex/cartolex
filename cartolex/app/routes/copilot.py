@@ -8,8 +8,8 @@ proposal the curator already reviews for a handoff:
 - **themes** — the saved tree (else the grouping's proposal) with the space's
   vectors; the result's changes become operations to accept one by one in the
   theme editor (``POST /api/themes/ops``), then saved as a version;
-- **triage** — the Kept and To check candidates (or To check only) with their
-  evidence; the result's decisions become a keyword proposal, accepted with
+- **triage** — the candidates an AI judges (kept, to check and set aside; or
+  kept and to check, or to check only) with their evidence; the result's decisions become a keyword proposal, accepted with
   ``POST /api/handoff/proposals/{id}/accept``.
 
 The result is kept as it came in ``decisions/history/ai/``; the first
@@ -302,8 +302,8 @@ def themes_proposal(request: Request, proposal_id: CopilotId, ctx: ProjectDep) -
 
 # ── triage ───────────────────────────────────────────────────────────────────
 
-Scope = Literal["both", "check"]
-SCOPES = {"both": ["kept", "check"], "check": ["check"]}
+Scope = Literal["all", "both", "check"]
+SCOPES = {"all": ["kept", "check", "aside"], "both": ["kept", "check"], "check": ["check"]}
 
 
 def _triage_items(request: Request, ctx: Any, scope: str) -> tuple[list[dict[str, Any]], int]:
@@ -327,7 +327,7 @@ def _triage_items(request: Request, ctx: Any, scope: str) -> tuple[list[dict[str
 def triage_summary(
     request: Request,
     ctx: ProjectDep,
-    scope: Annotated[Scope, Query()] = "both",
+    scope: Annotated[Scope, Query()] = "all",
     usage_lines: bool = False,
 ) -> dict[str, Any]:
     """What a triage bundle would hold and never holds, and its counts (nothing is made)."""
@@ -341,6 +341,7 @@ def triage_summary(
             "terms": len(items),
             "check": sum(1 for i in items if i["band"] == "check"),
             "kept": sum(1 for i in items if i["band"] == "kept"),
+            "aside": sum(1 for i in items if i["band"] == "aside"),
             "people": n_people,
         },
         "contains": contains,
@@ -354,7 +355,7 @@ def triage_summary(
 def triage_export(
     request: Request,
     ctx: ProjectDep,
-    scope: Annotated[Scope, Query()] = "both",
+    scope: Annotated[Scope, Query()] = "all",
     usage_lines: bool = False,
     language: Language = "en",
 ) -> Response:
@@ -392,6 +393,7 @@ def triage_export(
 def triage_proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
     """An imported triage result in the shape of a keyword proposal (``GET /api/handoff/proposals/{id}``)."""
     from cartolex.copilot.bundle import CODES
+    from cartolex.lexicon.categories import category_of
 
     from ..etags import version_of
     from .handoff import _decisions
@@ -409,6 +411,7 @@ def triage_proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
                 "term": term,
                 "language": lang,
                 "code": d.get("code") or "",
+                "category": str(d.get("category") or category_of(d.get("code") or "")),
                 "meaning": CODES.get(d.get("code") or "", ""),
                 "english": target,
                 "proposed": d["decision"],

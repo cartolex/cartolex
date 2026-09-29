@@ -5,7 +5,9 @@
  * (`as`), the organisations' level (`org`), the period (`from`, `to`), the
  * people's filters (`f`, repeated `column:value`), the selection (`sel`,
  * `kind:id`), the treemap's zoom (`theme`), the view (`view`: `map` or
- * `world`) and the base map (`base`). Values that are the defaults are left
+ * `world`), the base map (`base`), the keywords' categories shown (`kc`,
+ * comma-separated; none: every one) and the keywords' colour (`kcol`: by
+ * `theme` or by `category`). Values that are the defaults are left
  * out of the address.
  */
 
@@ -45,6 +47,8 @@ export function readState(query) {
     theme: q.get('theme') || '',
     view: q.get('view') === 'world' ? 'world' : 'map',
     base: q.get('base') || '',
+    kc: (q.get('kc') || '').split(',').filter(Boolean),
+    kcol: q.get('kcol') === 'category' ? 'category' : 'theme',
   };
 }
 
@@ -62,6 +66,8 @@ export function queryOf(state) {
   if (state.theme) q.set('theme', state.theme);
   if (state.view !== 'map') q.set('view', state.view);
   if (state.base) q.set('base', state.base);
+  if (state.kc && state.kc.length) q.set('kc', state.kc.join(','));
+  if (state.kcol === 'category') q.set('kcol', 'category');
   return q;
 }
 
@@ -75,14 +81,15 @@ export function writeState(state) {
   }
 }
 
-/** Every filter cleared: the people's columns and the period. */
+/** Every filter cleared: the people's columns, the keywords' categories and the period. */
 export function withoutFilters(state) {
-  return { ...state, filters: [], from: null, to: null };
+  return { ...state, filters: [], kc: [], from: null, to: null };
 }
 
-/** Whether any filter is on (the people's columns or the period). */
+/** Whether any filter is on (the people's columns, the keywords' categories or the period). */
 export function filtered(state) {
-  return state.filters.length > 0 || state.from !== null || state.to !== null;
+  return state.filters.length > 0 || (state.kc || []).length > 0 || state.from !== null
+    || state.to !== null;
 }
 
 /** The filters grouped by column: a person matches one value of each column. */

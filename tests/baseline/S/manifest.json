@@ -4,7 +4,7 @@
    "applied": {
     "file": "apply/applied.json.gz",
     "kind": "json",
-    "sha256": "a7405a270af5f8ee3841774be437d938246b5e0b7b4804517c086c29470e86e3"
+    "sha256": "59d4b8e6a80932881bfb96f271852cfa91311f724e5cff0730e2523da4160ee6"
    },
    "lexicon_weights": {
     "columns": [
@@ -29,8 +29,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 491,
-    "sha256": "ea61086ee6d63382b34a093bcb9f7ad7c2783ef2ff3be7bded5510bcc0368321"
+    "rows": 490,
+    "sha256": "a4c731a1959414ac873d809bae858fcaa6f9819d4586bf574f95d6b16e4ed915"
    },
    "person_weights": {
     "columns": [
@@ -50,8 +50,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 330,
-    "sha256": "e927b6c46ed4bd1b33169f414b8770b583740e718afd0bec3e5b6f1ad617c53e"
+    "rows": 327,
+    "sha256": "87f72b31e7781192464d06d052690dd6abae00988b55dafeb43965ba315187b6"
    },
    "returned_matches_file": {
     "file": "apply/returned_matches_file.json",
@@ -75,8 +75,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 946,
-    "sha256": "e86b97f8b8ba42e2d34c7d16bfdd165beee8b47174ee89ea6c80bfd7c7da571f"
+    "rows": 947,
+    "sha256": "e21dadcb3b2974bb8d03c89283296c780b64dfef36537b865dedf63b2ec25a2f"
    },
    "domain_terms": {
     "columns": [
@@ -98,7 +98,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 200,
-    "sha256": "ddfbd4b70d563c187bbfb408b9867f9d6f077bb1ab71f686b1ab436a71239b92"
+    "sha256": "336979ec9ce575062f8da0a832e33437664229eae7d0039414f17b8d7c12ffc2"
    },
    "group_terms": {
     "columns": [
@@ -123,7 +123,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 300,
-    "sha256": "cddab3752900ea15285b526c127c46a468377243f5e87793cf47a79d04d04043"
+    "sha256": "55983796374e5116e004a7f84d6224b8fb99771a0727e41ca84bb6ecffd063b1"
    },
    "pairs": {
     "columns": [
@@ -149,7 +149,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 901,
-    "sha256": "798fda4349726743174ae25296f365cb6dd8ee9e5d216e0f82f047765dc28851"
+    "sha256": "06e443b474ce01d869d808c36d926ccded4901e2702ad8ad2e20420985409ac7"
    },
    "person_terms": {
     "columns": [
@@ -176,7 +176,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 1065,
-    "sha256": "923c293017b13e3e429f3c995008250a53dff72ef5416ee0c72f09bf252fa884"
+    "sha256": "a98ba3f345013bcfd4ba4e5421946f190c4b11ae563b50d9345d6828d12b8f6b"
    },
    "refined": {
     "columns": [
@@ -201,17 +201,17 @@
     "kind": "table",
     "ordered": false,
     "rows": 901,
-    "sha256": "5bb3e1edd367f90b158c4a1a778bd3227b6ea45582260d730b5d503edced23a7"
+    "sha256": "b276e3abf22e1781f5d27f75e7b622c21377f8d153d334990399693947866838"
    },
    "refined_en": {
     "kind": "hash",
     "of": "table",
-    "sha256": "95302144435f97c165419fbb60cf55bee1237eba10b7896c3ff9e8443b724565"
+    "sha256": "2f466006828284ff25f49f9d5d9f5d86a0408695f094153b19fd28e40cb29cc0"
    },
    "refined_fr": {
     "kind": "hash",
     "of": "table",
-    "sha256": "5fd8391b66990a5295db80750b92be5b4669bc2688289c54a4dedc18699cf82b"
+    "sha256": "bd12bfb23efa87b16b394094d42c4a2567199b85a42739233e69e0938f560b9b"
    },
    "settings": {
     "file": "build/settings.json",
@@ -233,8 +233,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 946,
-    "sha256": "dc1831de49131cd4f2ae1c4bea0f8421c0f9fa6a4d73b436278f61d1f101947a"
+    "rows": 947,
+    "sha256": "73a0255a5a16cc1f19fd9ea8c3cc6f99f5f820ea9f03a7e2766e30c031669dd5"
    }
   },
   "bundle": {
@@ -277,12 +277,12 @@
     "kind": "table",
     "ordered": false,
     "rows": 1065,
-    "sha256": "fa11ec598a2b17466b8e2eeaf258b7fd38d7aa895ddaf7e21d83da2fef2e9123"
+    "sha256": "358e591c4d2a49d66a93319ab821b213fc73601daab74ed3a85180c76cc1b88e"
    },
    "meta": {
     "file": "bundle/meta.json",
     "kind": "json",
-    "sha256": "ec3248d17f7a02940dc193e7bcd1bd2f32529ea7848bd0befee4646298d4adb8"
+    "sha256": "89431de95d40d5847755c740587dba4863e606d6fbc87c1d19dffc419b2a4c28"
    },
    "round_trip": {
     "file": "bundle/round_trip.json",
@@ -292,7 +292,7 @@
    "taxonomy": {
     "file": "bundle/taxonomy.json",
     "kind": "json",
-    "sha256": "d81e52f7dda5b0dd720c44f7acfc05b52abcea425aeaf9cb8e959c4ec8e3163e"
+    "sha256": "d6bc3d3e4524993a3ead4cf65685aa3c55525cac307cd36d427795b172a2ad63"
    },
    "vocabulary": {
     "columns": [
@@ -313,20 +313,20 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 491,
-    "sha256": "8ee03e40f42b70737c22775d75437094d6614ecc6f014043bfd270c50a72bfdf"
+    "rows": 490,
+    "sha256": "b748d546c882dadd6b5f151bf3191af6d1d56610d582c4474be071ef2fc78463"
    },
    "zip": {
     "file": "bundle/zip.json",
     "kind": "json",
-    "sha256": "2bac28aadf4c9b215dff0914f2b98e7adca8404fcad96c534a94cbc782fd08d2"
+    "sha256": "7b9be0101da6f58378f516cf1f5a09f2f5a037d46126cfaff6cb5109758bc4df"
    }
   },
   "draft": {
    "draft": {
     "file": "draft/draft.json.gz",
     "kind": "json",
-    "sha256": "e763b1d268b4de9acad76e17707352b3e50489da11990c1d818a22a3d6009b90"
+    "sha256": "55f97671d9ee743d5b6e7b129fc2c6f87dc08e5f1b209c4aed8cf34e7266988f"
    }
   },
   "extract": {
@@ -442,26 +442,26 @@
     "kind": "table",
     "ordered": false,
     "rows": 150,
-    "sha256": "3f03fcd8628c71568f7019e898716cd28805c39f836d5c1a2ee7bd9345cf779c"
+    "sha256": "3439df818c4b491a33f83662761d0a9713d93fd1b3e8d8c7dad8dfcaa436f1ba"
    },
    "proto_subfields": {
     "file": "group/proto_subfields.json",
     "kind": "json",
-    "sha256": "cc911d44b9896e9936fa4b900ab1013a619c2d55fcc38e913a61580d32e19798"
+    "sha256": "c886e41b943d744d57fbe75255c9c93dab060492448b622db246bd0bdda79b76"
    },
    "term_labels": {
-    "count": 491,
+    "count": 490,
     "file": "group/term_labels.json",
     "kind": "labels",
-    "sha256": "3482bf05480b055e8001ac5a131810e810e5eeb2fee36b4de611a11f49f92949"
+    "sha256": "0c719143b24a24c59e6e51ee4440666d6529261452157e423bdc45e853301c8c"
    },
    "term_scores": {
     "file": "group/term_scores.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "00a9bbf96618198bdfe683a8475360f348609983af2d1322381e2ab32bbff7b0",
+    "sha256": "564f8d32b52da00b8b39e081e224029aaf320bca0b98a6758db7e8c20c360001",
     "shape": [
-     491
+     490
     ],
     "stored_dtype": "float64"
    }
@@ -470,12 +470,12 @@
    "clustered_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "3fdb6aa2a2054235ee6fb098158285ebd686477e5bcea0ebc753f514766b424d"
+    "sha256": "dda85d3d479fe2c5ba66e1410ebd632b1a5af3ff6495ad7e65e871414514d67f"
    },
    "diagnostics": {
     "file": "layout/diagnostics.json",
     "kind": "json",
-    "sha256": "929a50016278af514c82b4aa7a4d5618838a08612ba918d064c3a06d19a64d77"
+    "sha256": "de0660841cbccf667c1c505647d15e4abcb277319cd3fb2c6a6b968305724736"
    },
    "groups": {
     "columns": [
@@ -507,18 +507,18 @@
     "kind": "table",
     "ordered": true,
     "rows": 6,
-    "sha256": "7bf05137f6201145019c1e15ae5c8bceddc9d3e428eb68b57365645a260ec723"
+    "sha256": "2cdaa33763c23803fedaa55ba95d3a12f1e0e104ef25fdf5574c495858c9766e"
    },
    "person_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "60c9a4dd88dc5fe39174a90f424118c40a9885e05ecb5d29eaf63a2f17477d78"
+    "sha256": "36b06488485e59714908feb4dd80e1d9578c911c23028a0f73660ccfe76fbc04"
    },
    "person_xy": {
     "file": "layout/person_xy.npy",
     "kind": "array",
     "role": "layout",
-    "sha256": "32dcf255d9330bfcd0a4a6256461a20dd2b76b6cc925578d471da56990d73b9a",
+    "sha256": "218c3b37f3e65b034602e6722d0e4e0b31668e4188965d22e6b8c9308789884c",
     "shape": [
      38,
      2
@@ -528,15 +528,15 @@
    "term_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "288a27b8e3fda967198291f5f1c3250459fa4fbeefa0512651a04089eaee4b99"
+    "sha256": "d82cece3ffe53f6477a0a1d2e56c78334e1fd0171a7875d216fafad7dce52de2"
    },
    "term_xy": {
     "file": "layout/term_xy.npy",
     "kind": "array",
     "role": "layout",
-    "sha256": "9c084f72edaf06279d678457c53f27afd2d4c5d212e9c5519e9d5d76cdb9808b",
+    "sha256": "07cd8e7541c92f1ecd96d13fe5c9ebeee1f383151652f46b962b71137933fc2d",
     "shape": [
-     491,
+     490,
      2
     ],
     "stored_dtype": "float64"
@@ -547,7 +547,7 @@
     "file": "projection/applicants_coords.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "6265654543ec53a10355ba5abd276902a1658a241e043ab669f3edb40411d69a",
+    "sha256": "b203e1feb85ef1006a923e33e11ed7291b9a6ea2de90102418df366df1d02f1e",
     "shape": [
      4,
      20
@@ -557,7 +557,7 @@
    "applicants_details": {
     "file": "projection/applicants_details.json",
     "kind": "json",
-    "sha256": "b47e3ca6117e4c4574e421d457f165bb7089ea0dc76738001ba29df5fbeb65a0"
+    "sha256": "28c091bdc33797a0fd4fb68255d6c5cc660f18a39d49d30a5b154e5eb468c782"
    },
    "applicants_items": {
     "count": 4,
@@ -569,7 +569,7 @@
     "file": "projection/applicants_xy.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "980c4a088bbe16a2e0c4e14c787d4119df0a7e31721eb246b38970019d7f4520",
+    "sha256": "90c9b2dd48a056c0ed419db16c3b8c86f7f163552af72550247bfe1d0511659b",
     "shape": [
      4,
      2
@@ -607,7 +607,7 @@
     "file": "space/explained_variance_ratio.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "18956cc81af320f61fff4198de93c4cb92be75637988a63e420e2c56cec24c99",
+    "sha256": "8f70ac3f707bed96d3d76543166867667f989afab5e02cc272fa60a15155b090",
     "shape": [
      20
     ],
@@ -634,13 +634,13 @@
     "kind": "table",
     "ordered": false,
     "rows": 1065,
-    "sha256": "daea33234bf48693dfa48bff9a670c3204d8463bde2592517da523e8561f9b43"
+    "sha256": "7f1182818611eacf6f9a3233c949f35fed605f663b3415c9c9160fbf9dced9eb"
    },
    "person_coords": {
     "file": "space/person_coords.npy",
     "kind": "array",
     "role": "embedding",
-    "sha256": "c7579a94c46af5fe85cad31b134b446bb85ba9a89aac7c954e2fa368aa51daaa",
+    "sha256": "d080afea3d8c32dcface687e6844177a199d844577e1d88106e9e484c0699b7c",
     "shape": [
      38,
      20
@@ -650,7 +650,7 @@
    "person_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "1c14c881dbc1a351d47bb9286c838529f851e03b023552fcdbe6ee05c7f47c15"
+    "sha256": "eaa87707976b781bb1aadb6bf562cde69acf18238d1f4f3e3076fcb3032b0176"
    },
    "persons": {
     "count": 38,
@@ -662,7 +662,7 @@
     "file": "space/singular_values.npy",
     "kind": "array",
     "role": "spectrum",
-    "sha256": "dc96c2cd911178c0d2cabcb06bad59e7f7045098be01f6a89e3996f3ebcd2661",
+    "sha256": "ad611426b689b408c2ed6b28779e4e2c5d907d3895c5f8b61c9e377c3b64aabe",
     "shape": [
      20
     ],
@@ -672,9 +672,9 @@
     "file": "space/term_coords.npy.gz",
     "kind": "array",
     "role": "embedding",
-    "sha256": "6edb44525d8d392f04e6c3f84685387dc7558a43b543d1f8322091d529bf5981",
+    "sha256": "e02509edc54d8ba07a3a38974b0ed5f7790a991768268ea60d9557a6dcf6477f",
     "shape": [
-     491,
+     490,
      20
     ],
     "stored_dtype": "float64"
@@ -682,13 +682,13 @@
    "term_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "a9a763363205a9e1bfffe6022065fc2ba82a2060bfc94a8d68165c748973bdac"
+    "sha256": "ae798a1cd66a12397f8159bff4dfb9c7520be0b0697df27bc5cc575f2f7b73bb"
    },
    "terms": {
-    "count": 491,
+    "count": 490,
     "file": "space/terms.json",
     "kind": "strings",
-    "sha256": "2ef33bcdbd1ace9a58f914eb17ec6a65b8734279f2395a7f1a34e9e4fe8b4a9a"
+    "sha256": "55bb22de74f4f50297e8989e53ec81b852aa86177b6b7b2137ecf910e4b3a5f5"
    }
   },
   "trajectories": {
@@ -719,48 +719,48 @@
     "kind": "table",
     "ordered": false,
     "rows": 140,
-    "sha256": "33fc93eace42381fa52cd2bd091b395c1ba043984c1587b5904df56b3e2a7d3d"
+    "sha256": "9edc0180567e452bdfda728eddf676a0ab412f93b5680d08d072237e83fbf5d0"
    },
    "windows": {
     "file": "trajectories/windows.json.gz",
     "kind": "json",
-    "sha256": "a385a48cc782eb0ec9f1181a401d62d09183b22e89a94d1acb4b5b25d6ffc882"
+    "sha256": "f2090c0c88893d28fb01e30b35e9078344578caef1e0e9a337ef9f018e579030"
    }
   },
   "triage": {
    "batch_cache": {
     "file": "triage/batch_cache.json.gz",
     "kind": "json",
-    "sha256": "3b448aec726fc12b7481241cdbc75ea152f6dfef13ad8447c31cb3502461a43c"
+    "sha256": "457e04fd7c9baf5c79d61b163ca3abeb572c3d6c86b693c4c45e68093c148f88"
    },
    "calls": {
     "file": "triage/calls.json",
     "kind": "json",
-    "sha256": "b51294d0c952e0f79abe3b61bdc5d0cd3a83d6b3923c2be7df58570e9137a4d7"
+    "sha256": "2a8ac775b75a575fe275d7797bb9920e727f54655fbfe1b65afc344bccd666fe"
    },
    "decisions": {
     "file": "triage/decisions.json.gz",
     "kind": "json",
-    "sha256": "3c1b65c0f9cfb5caf111ed69b9eab5c7217a82553c38302247b065a79094eb58"
+    "sha256": "6f300ce2930fe7b053fa1e6db939146b8cbd577bea25ce07bdbc8d8afe19dd96"
    },
    "term_cache": {
     "file": "triage/term_cache.json.gz",
     "kind": "json",
-    "sha256": "bea86cfbb4bfe0a8bb48f4c585b6b73f05064d972203e99cc926b9415a9c6ab3"
+    "sha256": "ffa3ddc5a2a7b440f19e5ae4e6f3413b063aae58963d6a3079d6e32f6768a085"
    },
    "translations": {
     "file": "triage/translations.json",
     "kind": "json",
-    "sha256": "57a0816846387678304645cd8737149401808df7a14cf7a58a0053e164738abe"
+    "sha256": "1bd14a076b12f1a90756b3651be082bce674ba27b496dbb0187ef702dce9dc98"
    }
   }
  },
  "baseline": {
   "date": "2026-09-29",
-  "reason": "Stop words and evenly spread single words are set aside: a single word among the language's spaCy stop words or closed words, a closed word of another language in a paragraph read as that language (two different ones among its phrases; there they also cut phrases), a phrase starting or ending with another language's closed word, and a single word used by at least a fifth of the people as evenly as a randomly scattered word. The raw tables change in band and reason, and the English candidates of paragraphs read as French change; the triage sees fewer candidates, and every later stage follows."
+  "reason": "Keyword categories and the rejection lists: the AI triage judges every band but the rejected one (the set-aside band too, so a rule's set-aside can be rescued), with the codes P, D and H added and a category stored in each per-term answer. The extraction's tables are unchanged (the shipped rejection lists are empty and the reference run has no machine cache); the triage sees more candidates and accepts some set-aside ones, and every later stage follows; a theme's name prefers a concept or an object on a tie of use."
  },
  "environment": {
-  "engine_fingerprint": "e2a5bef153603723fcf934ebd6ae9d8f4bf60e19ea59b6fd2506eeb02aea7d64",
+  "engine_fingerprint": "c1107b902d974b0a40372c35fd65bd400bb958cec0b9ccd54df3b53072a34742",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {

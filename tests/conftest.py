@@ -45,6 +45,14 @@ def _guarded_connect_ex(self: socket.socket, address: Any) -> int:
 socket.socket.connect = _guarded_connect  # type: ignore[method-assign]
 socket.socket.connect_ex = _guarded_connect_ex  # type: ignore[method-assign]
 
+
+@pytest.fixture(autouse=True)
+def _own_data_folder(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
+    """The app's own folder on this computer (its rejection cache above all) is a temporary
+    one: a test never reads or writes the real one."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path_factory.mktemp("data-home")))
+
+
 # Make langdetect deterministic across the whole suite (its default seed is a
 # PRNG, which would make language-detection assertions flaky).
 try:  # pragma: no cover - only when langdetect is installed

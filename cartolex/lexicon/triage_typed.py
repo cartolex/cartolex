@@ -8,8 +8,10 @@ Three layers:
 2. ``run_typed_triage`` — single LLM pass with a short prompt giving the
    domain's title and, when the project owner wrote one, its description as
    context (``KeywordsConfig.domain_description``). Emits a typed verdict
-   per term: ``C`` (concept), ``M`` (method), ``O`` (object of study) for
-   accepts; ``N`` / ``K`` / ``G`` / ``F`` for rejects.
+   per term: ``C`` (concept), ``M`` (method), ``O`` (object of study),
+   ``P`` (place or setting), ``D`` (field) for accepts; ``N`` / ``K`` /
+   ``G`` / ``F`` / ``H`` for rejects. Each code has a category
+   (:mod:`cartolex.lexicon.categories`).
 3. ``post_check_typed`` — deterministic guard against the most common
    LLM failure mode (reordering / inserting connectives when emitting
    the canonical English form).
@@ -17,7 +19,7 @@ Three layers:
 Output dict is backward-compatible with the v2 consumer in
 ``cartolex.lexicon.consolidation`` (keys ``accepted``, ``rejected``,
 ``canonical_map``, ``translation_map``, ``term_lang``), plus two new
-keys: ``typed`` (term → {verdict, lang, canonical_en}) and
+keys: ``typed`` (term → {verdict, lang, canonical_en, category}) and
 ``reject_reasons`` (term → letter code).
 """
 
@@ -34,6 +36,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from .categories import ACCEPT_CODES as _ACCEPT
+from .categories import REJECT_CODES as _REJECT
+from .categories import category_of
 from .llm_filter import TermDecisionCache
 from .mistral_client import (
     DEFAULT_TIMEOUT_S,
@@ -55,8 +60,8 @@ logger = logging.getLogger(__name__)
 
 ProgressCallback = Callable[[int, str], None] | None
 
-ACCEPT_CODES = frozenset({"C", "M", "O"})
-REJECT_CODES = frozenset({"N", "K", "G", "F"})
+ACCEPT_CODES = frozenset(_ACCEPT)
+REJECT_CODES = frozenset(_REJECT)
 
 # Admin-verb leads, bare generic nouns and header-noise adjectives are
 # externalized as language-keyed blocks in cartolex/_data/stopwords/core.json
@@ -427,9 +432,9 @@ def build_typed_prompt(
 # ACCEPT lines: "C en term=canonical"  (lang mandatory). <lang> is the term's
 # source-language ISO code — any two letters (generalised from the original
 # en|fr) so corpora in other languages are not dropped to the "F" fallback.
-_ACCEPT_RE = re.compile(r"^([CMO])\s+([a-z]{2})\s+(.+)$")
+_ACCEPT_RE = re.compile(r"^([CMOPD])\s+([a-z]{2})\s+(.+)$")
 # REJECT lines: "N term" (no lang, no canonical)
-_REJECT_RE = re.compile(r"^([NKGF])\s+(.+)$")
+_REJECT_RE = re.compile(r"^([NKGFH])\s+(.+)$")
 
 
 def _parse_typed_lines(text: str, input_terms: list[str]) -> dict[str, TypedDecision]:
@@ -574,9 +579,9 @@ def run_typed_triage(
 
     Returns a dict backward-compatible with v2 plus two new keys::
 
-        typed           term -> {verdict, lang, canonical_en}
+        typed           term -> {verdict, lang, canonical_en, category}
         reject_reasons  term -> short reason code
-                        (one of: prefilter_<reason>, N, K, G, F)
+                        (one of: prefilter_<reason>, N, K, G, F, H)
 
     ``cache_path`` / ``term_cache_path`` are the batch and per-term answer
     caches, keyed by the terms, *domain_title* and *model* — never by the
@@ -645,7 +650,7 @@ def run_typed_triage(
     for t in survivors:
         hit = term_cache.get(_TYPED_CACHE_PHASE, t, domain_title, model)
         if hit is not None:
-            cached[t] = TypedDecision(**hit)
+            cached[t] = TypedDecision(hit["verdict"], hit["lang"], hit["canonical_en"])
         else:
             uncached.append(t)
     if progress and cached:
@@ -684,7 +689,12 @@ def run_typed_triage(
                     t,
                     domain_title,
                     model,
-                    {"verdict": d.verdict, "lang": d.lang, "canonical_en": d.canonical_en},
+                    {
+                        "verdict": d.verdict,
+                        "lang": d.lang,
+                        "canonical_en": d.canonical_en,
+                        "category": category_of(d.verdict),
+                    },
                 )
             term_cache.flush()
 
@@ -757,6 +767,7 @@ def run_typed_triage(
             "verdict": d.verdict,
             "lang": d.lang,
             "canonical_en": d.canonical_en,
+            "category": category_of(d.verdict),
         }
         if d.verdict in ACCEPT_CODES:
             canonical_map[t] = d.canonical_en
@@ -775,9 +786,10 @@ def run_typed_triage(
         n_c = sum(1 for d in decisions.values() if d.verdict == "C")
         n_m = sum(1 for d in decisions.values() if d.verdict == "M")
         n_o = sum(1 for d in decisions.values() if d.verdict == "O")
+        n_other = len(accepted) - n_c - n_m - n_o
         progress(
             100,
-            f"Done. Accepted {len(accepted)} (C={n_c} M={n_m} O={n_o}); "
+            f"Done. Accepted {len(accepted)} (C={n_c} M={n_m} O={n_o} other={n_other}); "
             f"rejected {len(rejected_all)} "
             f"(prefilter={len(pre_rejected)}, llm={len(rejected_llm)}).",
         )

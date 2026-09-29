@@ -3,6 +3,10 @@
 
 - **Stop words** (``decisions/stopwords.json``): words added to or removed from
   the lists of words that are never keywords, per language.
+- **Rejected automatically**: cartolex's list of rejections and this computer's
+  cache of an AI's ``never`` answers (:mod:`cartolex.lexicon.rejects`): what
+  they hold, the cache's terms, emptying it, and switching them off for the
+  project (the ``rejects`` parameter of ``keywords.extract``).
 - **Prompts**: the instructions the AI clean-up sends, packaged with cartolex;
   a project may replace one with its own text (``decisions/prompts/<name>.txt``),
   which uses no placeholder the packaged text lacks.
@@ -32,7 +36,7 @@ from fastapi import Path as PathParam
 from fastapi import Request, Response
 from pydantic import BaseModel, Field
 
-from ..deps import ProjectDep
+from ..deps import ListDep, ProjectDep, page
 from ..errors import ApiError
 from ..etags import check_version, etag_of, expected_version, version_of
 from ..routing import Routes, runtime_of
@@ -124,6 +128,149 @@ def put_stopwords(
     view = _stopwords(ctx)
     response.headers["ETag"] = etag_of(view["version"])
     return view
+
+
+# ── rejected automatically ───────────────────────────────────────────────────
+
+
+def _rejects(request: Request, ctx: Any) -> dict[str, Any]:
+    from cartolex.lexicon.rejects import shipped_terms
+
+    from .keywords import machine_rejects
+
+    params, fp = ctx.project.read_params()
+    enabled = (params.stages.get("keywords.extract") or {}).get("rejects", True) is not False
+    langs = list(ctx.project.config.languages.corpus)
+    machine = machine_rejects(runtime_of(request))
+    counts = machine.counts() if machine is not None else {}
+    return {
+        "enabled": enabled,
+        "languages": langs,
+        "shipped": {lang: len(shipped_terms(lang)) for lang in langs},
+        "machine": {
+            "available": machine is not None,
+            "counts": counts,
+            "total": sum(counts.values()),
+        },
+        "version": version_of(fp),
+    }
+
+
+@routes.get("/api/settings/rejects", action="settings.read")
+def get_rejects(request: Request, response: Response, ctx: ProjectDep) -> dict[str, Any]:
+    """The candidates rejected automatically: whether the project uses the lists (the
+    ``rejects`` parameter; ETag of ``params.json``), how many terms cartolex's list holds per
+    corpus language, and this computer's cache."""
+    view = _rejects(request, ctx)
+    response.headers["ETag"] = etag_of(view["version"])
+    return view
+
+
+class RejectsBody(BaseModel):
+    enabled: bool
+
+
+@routes.put("/api/settings/rejects", action="settings.write")
+def put_rejects(
+    request: Request, response: Response, body: RejectsBody, ctx: ProjectDep
+) -> dict[str, Any]:
+    """Switch the rejection lists on or off for this project (``If-Match`` of ``params.json``);
+    the keywords need a build after."""
+    expected = expected_version(request)
+    with ctx.handle.mutex:
+        params, fp = ctx.project.read_params()
+        check_version(ctx.layout.params_json, expected)
+        stage = {k: v for k, v in (params.stages.get("keywords.extract") or {}).items()}
+        if body.enabled:
+            stage.pop("rejects", None)
+        else:
+            stage["rejects"] = False
+        stages = {k: v for k, v in params.stages.items() if k != "keywords.extract"}
+        if stage:
+            stages["keywords.extract"] = stage
+        ctx.project.save_params(
+            params.model_copy(update={"stages": stages}),
+            expected=fp,
+            action=f"switch the rejection lists {'on' if body.enabled else 'off'}",
+        )
+    view = _rejects(request, ctx)
+    response.headers["ETag"] = etag_of(view["version"])
+    return view
+
+
+def _machine(request: Request) -> Any:
+    from .keywords import machine_rejects
+
+    machine = machine_rejects(runtime_of(request))
+    if machine is None:
+        raise ApiError.of("rejects_hosted")
+    return machine
+
+
+@routes.get("/api/settings/rejects/terms", action="settings.read")
+def reject_terms(
+    request: Request, ctx: ProjectDep, params: ListDep, lang: Language | None = None
+) -> dict[str, Any]:
+    """The terms of this computer's cache (one per term and language: how many projects gave
+    it, the routes, the latest day), paged; ``q`` filters the terms."""
+    from ..messages import empty
+
+    machine = _machine(request)
+    items: dict[tuple[str, str], dict[str, Any]] = {}
+    for code in [lang] if lang else machine.languages():
+        for r in machine.entries(code):
+            key = (" ".join(r["term"].split()).casefold(), code)
+            item = items.setdefault(
+                key,
+                {
+                    "term": r["term"],
+                    "language": code,
+                    "projects": set(),
+                    "routes": set(),
+                    "date": "",
+                },
+            )
+            item["projects"].add(r["project"])
+            item["routes"].add(r["route"])
+            item["date"] = max(item["date"], r["date"])
+    rows = [
+        {**i, "projects": len(i["projects"]), "routes": sorted(i["routes"])}
+        for i in items.values()
+        if not params.q or params.q in i["term"].casefold()
+    ]
+    return page(
+        rows,
+        params,
+        sorts={
+            "term": lambda v: v["term"].casefold(),
+            "projects": lambda v: (v["projects"], v["term"]),
+            "date": lambda v: (v["date"], v["term"]),
+        },
+        default_sort="term",
+        filters={"lang": lang, "q": params.q},
+        empty=empty("empty_no_rejects"),
+    )
+
+
+class ClearRejectsBody(BaseModel):
+    """Empty the cache of one language, or of every one (no language)."""
+
+    language: Language | None = None
+    terms: Annotated[list[Word], Field(max_length=5_000)] | None = None
+
+
+@routes.post("/api/settings/rejects/clear", action="settings.write")
+def clear_rejects(request: Request, body: ClearRejectsBody, ctx: ProjectDep) -> dict[str, Any]:
+    """Empty this computer's cache, or remove some terms from it (with *language*); it is
+    shared by every project on this computer. The keywords need a build after."""
+    machine = _machine(request)
+    if body.terms and body.language:
+        removed = machine.remove(body.language, body.terms)
+    elif body.terms:
+        removed = sum(machine.remove(code, body.terms) for code in machine.languages())
+    else:
+        removed = machine.clear(body.language)
+    return {"removed": removed, **_rejects(request, ctx)}
 
 
 # ── prompts ──────────────────────────────────────────────────────────────────

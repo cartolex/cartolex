@@ -1,5 +1,11 @@
 # SPDX-License-Identifier: MIT
-"""Keywords: the three bands with their reasons, paged on the server; decisions; restore."""
+"""Keywords: the bands with their reasons and categories, paged on the server; decisions; restore.
+
+The ``rejected`` band holds the candidates the rejection lists banned (cartolex's
+list, or an AI's ``never`` answer in an earlier project on this computer): a
+person's decision on one of them, a *put back* (keep) above all, removes it from
+the machine's cache.
+"""
 
 from __future__ import annotations
 
@@ -18,7 +24,8 @@ from ..routing import Routes, runtime_of
 
 routes = Routes(tags=["keywords"])
 
-Band = Literal["kept", "check", "aside"]
+Band = Literal["kept", "check", "aside", "rejected"]
+Category = Literal["concept", "method", "object", "place", "field", "never", "here"]
 Term = Annotated[str, Field(min_length=1, max_length=300)]
 Lang = Annotated[str, Field(pattern=r"^([a-z]{2})?$")]
 #: The most decisions one request carries.
@@ -95,15 +102,27 @@ ROUTES = ("person", "ai-handoff", "ai-copilot", "ai-api", "extraction")
 AI_SOURCES = ("ai-handoff", "ai-copilot")
 
 
+def machine_rejects(runtime: Any) -> Any:
+    """The rejection cache of this computer, or ``None`` (a hosted service)."""
+    from cartolex.lexicon.rejects import MachineRejects
+
+    folder = getattr(runtime, "rejects_folder", None)
+    return None if folder is None else MachineRejects(folder)
+
+
 def _effective(
     row: dict[str, Any], decision: dict[str, str] | None, verdict: dict[str, str] | None = None
 ) -> dict[str, Any]:
+    from cartolex.lexicon.categories import category_of
     from cartolex.project.handoff import ACCEPT_CODES, CODES
 
-    out = {**row, "extracted_band": row["band"], "decision": None, "ai": None}
+    out = {**row, "extracted_band": row["band"], "decision": None, "ai": None, "category": None}
     if verdict is not None:
         code = str(verdict.get("verdict", ""))
         out["ai"] = {"route": "api", "code": code, "english": verdict.get("canonical_en") or ""}
+        out["category"] = verdict.get("category") or category_of(code) or None
+    if decision is not None and decision.get("category"):
+        out["category"] = decision["category"]
     if decision is None:
         if verdict is not None and out["ai"]["code"] in CODES:
             code = out["ai"]["code"]
@@ -114,7 +133,8 @@ def _effective(
             out["route"] = "extraction"
         return out
     out["decision"] = {
-        k: decision[k] for k in ("decision", "target", "reason", "source", "decided_at")
+        k: decision.get(k, "")
+        for k in ("decision", "target", "reason", "source", "decided_at", "category")
     }
     out["route"] = decision["source"] if decision["source"] in AI_SOURCES else "person"
     why = decision["reason"] or "by you"
@@ -144,6 +164,7 @@ class Where(BaseModel):
 
     band: Band | None = None
     lang: Annotated[str | None, Field(pattern=r"^[a-z]{2}$")] = None
+    category: Category | Literal["none"] | None = None
     decision: Literal["keep", "exclude", "merge", "none"] | None = None
     route: Literal["person", "ai-handoff", "ai-copilot", "ai-api", "extraction"] | None = None
     q: Annotated[str, Field(max_length=300)] = ""
@@ -156,8 +177,9 @@ def keyword_view(runtime: Any, ctx: Any, where: Where) -> dict[str, Any]:
     verdicts, triage = api_verdicts(runtime, ctx)
     matched: set[tuple[str, str]] = set()
     view = []
-    counts: dict[str, int] = {"kept": 0, "check": 0, "aside": 0}
+    counts: dict[str, int] = {"kept": 0, "check": 0, "aside": 0, "rejected": 0}
     routes_: dict[str, int] = dict.fromkeys(ROUTES, 0)
+    categories: dict[str, int] = {}
     by_lang: dict[str, int] = {}
     for row in rows:
         key = (row["term"], row["language"])
@@ -168,6 +190,8 @@ def keyword_view(runtime: Any, ctx: Any, where: Where) -> dict[str, Any]:
         counts[item["band"]] = counts.get(item["band"], 0) + 1
         routes_[item["route"]] += 1
         by_lang[item["language"]] = by_lang.get(item["language"], 0) + 1
+        cat = item["category"] or "none"
+        categories[cat] = categories.get(cat, 0) + 1
         view.append(item)
     orphans = [
         {"term": t, "language": lang_, "decision": d["decision"]}
@@ -185,6 +209,7 @@ def keyword_view(runtime: Any, ctx: Any, where: Where) -> dict[str, Any]:
         if (where.band is None or v["band"] == where.band)
         and (where.lang is None or v["language"] == where.lang)
         and (where.route is None or v["route"] == where.route)
+        and (where.category is None or (v["category"] or "none") == where.category)
         and (
             where.decision is None
             or (where.decision == "none" and v["decision"] is None)
@@ -200,6 +225,7 @@ def keyword_view(runtime: Any, ctx: Any, where: Where) -> dict[str, Any]:
         "triage": triage,
         "counts": counts,
         "routes": routes_,
+        "categories": categories,
         "languages": by_lang,
         "orphans": orphans,
         "items": items,
@@ -218,13 +244,16 @@ def list_keywords(
     route: Annotated[
         Literal["person", "ai-handoff", "ai-copilot", "ai-api", "extraction"] | None, Query()
     ] = None,
+    category: Annotated[Category | Literal["none"] | None, Query()] = None,
 ) -> dict[str, Any]:
-    """The candidates in their three bands (kept, to check, set aside) with the reason of each,
-    your decisions and the AI's verdicts by API applied, and the route that decided each;
-    paged, sorted and filtered here."""
+    """The candidates in their bands (kept, to check, set aside, rejected automatically) with
+    the reason and the category of each, your decisions and the AI's verdicts by API applied,
+    and the route that decided each; paged, sorted and filtered here."""
     runtime = runtime_of(request)
     v = keyword_view(
-        runtime, ctx, Where(band=band, lang=lang, decision=decision, route=route, q=params.q)
+        runtime,
+        ctx,
+        Where(band=band, lang=lang, decision=decision, route=route, category=category, q=params.q),
     )
     run_id, decisions, fp, triage = v["run"], v["decisions"], v["fp"], v["triage"]
     counts, routes_, by_lang, orphans, items = (
@@ -257,11 +286,19 @@ def list_keywords(
             "language": lambda v: (v["language"], -v["score_len"]),
         },
         default_sort="-score",
-        filters={"band": band, "lang": lang, "decision": decision, "route": route, "q": params.q},
+        filters={
+            "band": band,
+            "lang": lang,
+            "decision": decision,
+            "route": route,
+            "category": category,
+            "q": params.q,
+        },
         empty=nothing,
         extra={
             "counts": counts,
             "routes": routes_,
+            "categories": v["categories"],
             "languages": by_lang,
             "corpus_languages": list(ctx.project.config.languages.corpus),
             "counting_unit": unit,
@@ -294,8 +331,17 @@ def list_decisions(
         counts[d["decision"]] = counts.get(d["decision"], 0) + 1
     items = [
         {
-            k: d[k]
-            for k in ("term", "language", "decision", "target", "reason", "source", "decided_at")
+            k: d.get(k, "")
+            for k in (
+                "term",
+                "language",
+                "decision",
+                "target",
+                "reason",
+                "source",
+                "decided_at",
+                "category",
+            )
         }
         for d in decisions.values()
         if (decision is None or d["decision"] == decision)
@@ -322,10 +368,22 @@ class KeywordDecision(BaseModel):
     decision: Literal["keep", "exclude", "merge"]
     target: Annotated[str, Field(max_length=300)] = ""
     reason: Annotated[str, Field(max_length=500)] = ""
+    #: The keyword's category; empty: the one it had (an AI's), or none.
+    category: Category | Literal[""] = ""
 
 
 class DecisionsBody(BaseModel):
     decisions: Annotated[list[KeywordDecision], Field(min_length=1, max_length=MAX_DECISIONS)]
+
+
+def _kept_category(before: dict[str, str], decision: str) -> str:
+    """The category a new decision keeps from the row it replaces: an accepted one for a keep
+    or a merge, a rejected one for an exclusion."""
+    from cartolex.lexicon.categories import ACCEPTED, REJECTED
+
+    category = before.get("category") or ""
+    allowed = REJECTED if decision == "exclude" else ACCEPTED
+    return category if category in allowed else ""
 
 
 class KeywordRef(BaseModel):
@@ -335,6 +393,18 @@ class KeywordRef(BaseModel):
 
 class RestoreBody(BaseModel):
     keywords: Annotated[list[KeywordRef], Field(min_length=1, max_length=MAX_DECISIONS)]
+
+
+def spare(runtime: Any, terms: list[tuple[str, str]]) -> int:
+    """A person decided on *terms* (term, language): they leave the machine's rejection cache."""
+    machine = machine_rejects(runtime)
+    if machine is None:
+        return 0
+    by_lang: dict[str, list[str]] = {}
+    for term, lang in terms:
+        for code in [lang] if lang else machine.languages():
+            by_lang.setdefault(code, []).append(term)
+    return sum(machine.remove(lang, ts) for lang, ts in by_lang.items())
 
 
 def _write(
@@ -356,7 +426,10 @@ def _write(
 def decide(
     request: Request, response: Response, body: DecisionsBody, ctx: ProjectDep
 ) -> dict[str, Any]:
-    """Keep, exclude or merge keywords, one or many (send ``If-Match`` of ``keywords.csv``)."""
+    """Keep, exclude or merge keywords, one or many (send ``If-Match`` of ``keywords.csv``).
+
+    Keeping or merging a keyword takes it out of the machine's rejection cache (a put back
+    from the ``rejected`` band); a category, when given, is stored with the decision."""
     expected = expected_version(request)
     languages = set(ctx.project.config.languages.corpus)
     for d in body.decisions:
@@ -364,11 +437,22 @@ def decide(
             raise ApiError.of("not_a_corpus_language", language=d.language)
         if d.decision == "merge" and (not d.target.strip() or d.target == d.term):
             raise ApiError.of("merge_target_missing", term=d.term)
+        if d.category and not _kept_category({"category": d.category}, d.decision):
+            from cartolex.lexicon.categories import ACCEPTED, REJECTED
+
+            allowed = REJECTED if d.decision == "exclude" else ACCEPTED
+            raise ApiError.of(
+                "keyword_category_mismatch",
+                term=d.term,
+                decision=d.decision,
+                allowed=", ".join(allowed),
+            )
     now = decided_now()
     with ctx.handle.mutex:
         check_version(ctx.layout.keywords_csv, expected)
         rows, _ = _decisions(ctx)
         for d in body.decisions:
+            before = rows.get((d.term, d.language)) or {}
             rows[(d.term, d.language)] = {
                 "term": d.term,
                 "language": d.language,
@@ -377,10 +461,15 @@ def decide(
                 "reason": d.reason,
                 "source": "person",
                 "decided_at": now,
+                "category": d.category or _kept_category(before, d.decision),
             }
         kinds = sorted({d.decision for d in body.decisions})
         fp = _write(ctx, rows, expected, f"{'/'.join(kinds)} {len(body.decisions)} keywords")
         ctx.project.freeze_identity("first curation decision")
+        spare(
+            runtime_of(request),
+            [(d.term, d.language) for d in body.decisions if d.decision != "exclude"],
+        )
     response.headers["ETag"] = etag_of(fp)
     return {"decided": len(body.decisions), "version": version_of(fp)}
 
@@ -428,6 +517,7 @@ def decide_where(
             raise ApiError.of("too_many_decisions", n=len(items), max=MAX_DECISIONS)
         rows, _ = _decisions(ctx)
         for v in items:
+            before = rows.get((v["term"], v["language"])) or {}
             rows[(v["term"], v["language"])] = {
                 "term": v["term"],
                 "language": v["language"],
@@ -436,8 +526,11 @@ def decide_where(
                 "reason": body.reason,
                 "source": "person",
                 "decided_at": now,
+                "category": _kept_category(before, body.decision),
             }
         fp = _write(ctx, rows, expected, f"{body.decision} {len(items)} keywords")
         ctx.project.freeze_identity("first curation decision")
+        if body.decision == "keep":
+            spare(runtime_of(request), [(v["term"], v["language"]) for v in items])
     response.headers["ETag"] = etag_of(fp)
     return {"decided": len(items), "version": version_of(fp)}

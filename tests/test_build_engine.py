@@ -308,6 +308,65 @@ def test_the_ai_clean_up_runs_with_an_injected_client(built, tmp_path):
     project.close()
 
 
+class _NeverSingleWords(_FakeModel):
+    """Answers every single word « never a keyword » (G), every phrase a concept."""
+
+    def complete(self, *, model: str, messages: list[dict], temperature: float, **_):
+        terms = json.loads(messages[-1]["content"])
+        content = "\n".join(f"C en {t}={t}" if " " in t else f"G {t}" for t in terms)
+        message = SimpleNamespace(content=content, model_dump=lambda: {"content": content})
+        usage = SimpleNamespace(prompt_tokens=1, completion_tokens=1)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=usage)
+
+
+def _raw(project: Project, band: str) -> dict[str, str]:
+    import pandas as pd
+
+    raw = pd.read_csv(project.layout.stage("keywords.extract") / "raw_keywords_en.csv")
+    rows = raw[raw["band"] == band]
+    return dict(zip(rows["term"].str.lower(), rows["reason"], strict=True))
+
+
+@pytest.mark.models("en", "fr")
+def test_never_answers_reject_the_candidates_of_another_project(built, tmp_path):
+    from cartolex.build.engine import EngineOptions
+    from cartolex.lexicon.rejects import MachineRejects
+
+    machine = MachineRejects(tmp_path / "rejects")
+    registry = engine_registry(
+        AIAccess(client_factory=_NeverSingleWords, max_concurrent=1),
+        EngineOptions(rejects_folder=machine.folder),
+    )
+    first = _copy(built, tmp_path / "a")
+    identity = first.config.identity.model_copy(
+        update={"ai": AIIdentity(provider="mistral", model="m")}
+    )
+    first.save_config(first.config.model_copy(update={"identity": identity}), action="t")
+    params, fp = first.read_params()
+    stages = {**params.stages, "keywords.triage": {"enabled": True}}
+    first.save_params(params.model_copy(update={"stages": stages}), expected=fp, action="t")
+    run = {"registry": registry, "year": YEAR, "budget_mb": 1e9, "consent": lambda r: True}
+    assert build(first, ["keywords.triage"], **run).outcome == "succeeded"
+    cached = machine.terms("en")
+    assert cached and all(" " not in t for t in cached)
+    # A project's own answers never reject its own candidates.
+    build(first, ["keywords.extract"], force=["keywords.extract"], **run)
+    assert not _raw(first, "rejected")
+    first.close()
+
+    second = _copy(built, tmp_path / "b")
+    second.save_config(second.config.model_copy(update={"name": "Another map"}), action="t")
+    assert build(second, ["keywords.extract"], force=["keywords.extract"], **run).outcome == (
+        "succeeded"
+    )
+    rejected = _raw(second, "rejected")
+    assert rejected and set(rejected) <= cached
+    assert set(rejected.values()) == {"rejected-earlier"}
+    counts = json.loads(second.layout.run_json("keywords.extract").read_text())["measures"]
+    assert counts["counts"]["rejected"] >= len(rejected)
+    second.close()
+
+
 @pytest.mark.models("en", "fr")
 def test_a_cancel_stops_a_real_stage_and_changes_nothing_in_it(built, tmp_path):
     project = _copy(built, tmp_path)

@@ -92,3 +92,10 @@ Each entry says when the stored baseline (`tests/baseline/`) was rewritten, why,
 - Reason: Stop words and evenly spread single words are set aside: a single word among the language's spaCy stop words or closed words, a closed word of another language in a paragraph read as that language (two different ones among its phrases; there they also cut phrases), a phrase starting or ending with another language's closed word, and a single word used by at least a fifth of the people as evenly as a randomly scattered word. The raw tables change in band and reason, and the English candidates of paragraphs read as French change; the triage sees fewer candidates, and every later stage follows.
 - Engine: 1.0.0.dev0, source fingerprint `e2a5bef153603723`
 - L: against the previous baseline, 12 stages: 10 identical, 2 different (extract, triage)
+
+## 2026-09-29 — S, merge
+
+- Reason: Keyword categories and the rejection lists: the AI triage judges every band but the rejected one (the set-aside band too, so a rule's set-aside can be rescued), with the codes P, D and H added and a category stored in each per-term answer. The extraction's tables are unchanged (the shipped rejection lists are empty and the reference run has no machine cache); the triage sees more candidates and accepts some set-aside ones, and every later stage follows; a theme's name prefers a concept or an object on a tie of use.
+- Engine: 1.0.0.dev0, source fingerprint `c1107b902d974b0a`
+- S: against the previous baseline, 12 stages: 2 identical, 10 different (triage, build, space, group, layout, draft, apply, trajectories, projection, bundle)
+- merge: against the previous baseline, 1 stage: 0 identical, 1 different (merge)

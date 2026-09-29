@@ -242,10 +242,10 @@ version, so it can be undone too).
 
 | route | what it does |
 | --- | --- |
-| `GET /api/keywords` | the candidates of the current extraction in their three bands (`kept`, `check`, `aside`) with the reason of each, your decisions and the AI's verdicts by API (`keywords.triage`) applied, and the `route` that decided each (`person`, `ai-handoff`, `ai-copilot`, `ai-api`, `extraction`); filters `band`, `lang`, `decision`, `route`, `q` (the term or one of its forms); counts per band, route and language; the counting unit of the extraction; `warning` when several corpus languages have no AI filtering yet (`health_languages_split`); decisions whose keyword disappeared (listed, never dropped) |
+| `GET /api/keywords` | the candidates of the current extraction in their bands (`kept`, `check`, `aside`, and `rejected`: rejected automatically by the rejection lists, reason `rejected-list` or `rejected-earlier`) with the reason and the `category` of each (`concept`, `method`, `object`, `place`, `field`, `never`, `here`; a decision's, else the AI's by API), your decisions and the AI's verdicts by API (`keywords.triage`) applied, and the `route` that decided each (`person`, `ai-handoff`, `ai-copilot`, `ai-api`, `extraction`); filters `band`, `lang`, `category` (`none`: no category), `decision`, `route`, `q` (the term or one of its forms); counts per band, category, route and language; the counting unit of the extraction; `warning` when several corpus languages have no AI filtering yet (`health_languages_split`); decisions whose keyword disappeared (listed, never dropped) |
 | `GET /api/keywords/decisions` | the decisions of `keywords.csv`, the latest first (the history, each one restorable); filters `decision`, `source`, `q` |
 | `POST /api/keywords/decisions/where {where, decision, reason}` | keep or exclude every keyword the list's filters keep (`If-Match`) |
-| `POST /api/keywords/decisions {decisions: [{term, language, decision, target, reason}]}` | keep, exclude or merge, one or many (`If-Match`); the first decision freezes the identity |
+| `POST /api/keywords/decisions {decisions: [{term, language, decision, target, reason, category}]}` | keep, exclude or merge, one or many (`If-Match`); the first decision freezes the identity; a keep or a merge takes the term out of this computer's rejection cache (a *put back* from the `rejected` band); `category` (optional) is an accepted one for a keep or a merge, `never` or `here` for an exclusion (`keyword_category_mismatch`) |
 | `POST /api/keywords/restore {keywords}` | undo decisions (an exclusion restored) |
 | `GET /api/themes` | the saved tree, or the draft of the last grouping, with the keywords the tree lacks or holds too many |
 | `POST /api/themes/ops {tree, ops}` | apply operations of `cartolex.project.themes` (`rename_node`, `rename_level`, `move_keywords`, `move_node`, `merge_nodes`, `split_node`, `create_node`, `delete_node`, `set_aside`, `put_back`, `set_review`, `set_attribution`, `prune_empty`, `insert_level`, `remove_level`) to a tree; answers the new tree and each step's description (the names of the undo list). Nothing is saved |
@@ -268,17 +268,19 @@ version, so it can be undone too).
 | `GET /api/share/tables/themes.csv` | the theme tree as CSV |
 | `POST /api/share/exports {kind}`, `GET /api/share/exports/<name>` | write the map bundle (`map_bundle`) or the project as one zip without its caches (`project`) into `outputs/exports/` (a job, dated names), and download it |
 | `GET /api/settings`, `PUT /api/settings` | languages, language models, the AI identity (with what changing a frozen one costs: 409 `identity_frozen` unless `confirm_identity_change`), slots, projected sets, levels, data sources |
+| `GET /api/settings/rejects`, `PUT /api/settings/rejects {enabled}` | the candidates rejected automatically: whether the project uses the rejection lists (the `rejects` parameter of `keywords.extract`, ETag of `params.json`), the terms of cartolex's list per corpus language, this computer's cache (`<data dir>/rejects/`, none on a hosted service) |
+| `GET /api/settings/rejects/terms?lang=`, `POST /api/settings/rejects/clear {language, terms}` | the cache's terms (one per term and language: how many projects gave it, the routes, the last day), paged; remove some terms, or empty the cache (of one language); `rejects_hosted` on a hosted service |
 | `GET /api/settings/stopwords`, `PUT /api/settings/stopwords {add, remove}` | the words added to and removed from the lists of words that are never keywords, per language (`decisions/stopwords.json`, `If-Match`); a word both added and removed: `stopword_both` |
 | `GET /api/settings/prompts`, `PUT /api/settings/prompts/{name} {text}` | the prompts a project may replace (the packaged text, the project's own in `decisions/prompts/<name>.txt`, the placeholders); `text: null` goes back to the packaged one (the project's is kept in the history); a placeholder the packaged text lacks: `prompt_placeholder` (`If-Match`) |
 | `GET /api/settings/backup` | a zip of `project.json` and `decisions/` with its history, and `backup.json` (`cartolex-backup/1`); texts, caches and built results are left out |
 | `POST /api/settings/restore` | a backup (multipart `file`): its decision files replace the project's, each current version kept in its history first; `project.json` stays; `not_a_backup` otherwise |
 | `POST /api/settings/reset {what: built}` | remove the built results (every stage is then never built); decisions, texts and caches stay; 409 `busy` while a job runs |
 | `GET /api/machine`, `PUT /api/machine/keys {service, key}` | this computer: the keys saved on it (`mistral`, `openalex`; whether set, from the environment or saved, the last four characters; never shown whole, never in a project: `<data dir>/keys.json`, readable by its owner only; an environment variable wins), whether the AI clean-up can run by API, OpenAlex's daily budget with and without a key, the processors, the memory available and the build's memory budget; `key: null` removes a key; refused on a hosted service (`keys_hosted`) |
-| `POST /api/handoff/export {band, bands, terms, lang, limit, max_tokens, group}` | the parts of a handoff (`cartolex.project.handoff`): for each, the prompt to paste, the terms to attach and the answer's format, its `bundle.json` (`cartolex-handoff/1`, sent back with the answer), and what they contain and never contain; parts stay under `max_tokens` (a chat assistant reads a limited amount at once); with `group` (the default) the terms the same people use share a part (`group_items`, from the extraction's `term_people.npz`), so a term and its translation are judged together |
+| `POST /api/handoff/export {band, bands, terms, lang, limit, max_tokens, group, skip_answered}` | the parts of a handoff (by default every band an AI judges, `kept`, `check` and `aside`, never `rejected`; with `skip_answered`, the default, without the terms an AI already answered in `keywords.csv`) (`cartolex.project.handoff`): for each, the prompt to paste, the terms to attach and the answer's format, its `bundle.json` (`cartolex-handoff/1`, sent back with the answer), and what they contain and never contain; parts stay under `max_tokens` (a chat assistant reads a limited amount at once); with `group` (the default) the terms the same people use share a part (`group_items`, from the extraction's `term_people.npz`), so a term and its translation are judged together |
 | `POST /api/handoff/export.zip` | the same parts as a zip, one folder per part |
 | `POST /api/handoff/import {bundle, answer}` | keep the answer as it came in `decisions/history/ai/` (with the part it answers) and propose a decision per answered term, with what could not be read (lines ignored, renumbered, unmatched); the first answers freeze the identity |
-| `GET /api/handoff/proposals`, `GET /api/handoff/proposals/{id}`, `POST /api/handoff/proposals/{id}/accept {terms, all}` | proposals; accepted ones reach `keywords.csv` with the source `ai-handoff` (`ai-copilot` for a copilot's result); an accepted term whose English form is another term is merged into it |
-| `GET /api/keywords/ai` | the two routes of the AI filtering: by handoff (the proposals so far) and by API (provider, whether a key is saved, what is sent, an estimate of the calls and tokens, the last run) |
+| `GET /api/handoff/proposals`, `GET /api/handoff/proposals/{id}`, `POST /api/handoff/proposals/{id}/accept {terms, all}` | proposals, each answered term with its code and `category`; accepted ones reach `keywords.csv` with the source `ai-handoff` (`ai-copilot` for a copilot's result) and their category; an accepted term whose English form is another term is merged into it; an accepted exclusion of category `never` enters this computer's rejection cache |
+| `GET /api/keywords/ai` | the two routes of the AI filtering: by handoff (the proposals so far) and by API (provider, whether a key is saved, what is sent, an estimate of the calls and tokens, the last run); the estimate counts every candidate but those rejected automatically (`terms`, `rejected`), those already answered in `cache/ai/` (`answered`) and the `new` ones, the only ones that cost calls |
 | `POST /api/keywords/ai/run {consent}` | filter by API: switch `keywords.triage` on in `params.json` and start it as a build job (202); `ai_api_not_ready` without a key or a provider, `ai_consent_needed` without consent |
 
 **The person**: `GET /api/me/preferences` and `PUT /api/me/preferences
@@ -383,6 +385,7 @@ catalogues give each code its text in every interface language.
 | `job_ended` | 409 | the job has already ended ({state}) | `state` | `none` |
 | `job_elsewhere` | 409 | this job runs in another process; stop it there | — | `none` |
 | `keys_hosted` | 409 | on a hosted service the keys are set by whoever runs it | — | `none` |
+| `rejects_hosted` | 409 | on a hosted service there is no rejection cache of this computer | — | `none` |
 | `stopword_both` | 422 | a word is both added and removed: {words} | `words` | `fix-input` |
 | `prompt_not_found` | 404 | there is no prompt {name} to change | `name` | `reload` |
 | `prompt_invalid` | 422 | the prompt cannot be read: {detail} | `detail` | `fix-input` |
@@ -446,6 +449,7 @@ catalogues give each code its text in every interface language.
 | `archive_corrupt` | 422 | a member of the archive is larger than it says | — | `fix-input` |
 | `not_a_corpus_language` | 422 | {language} is not a corpus language | `language` | `fix-input` |
 | `merge_target_missing` | 422 | merge {term} into another keyword | `term` | `fix-input` |
+| `keyword_category_mismatch` | 422 | {term}: a {decision} takes a category among {allowed} | `term`, `decision`, `allowed` | `fix-input` |
 | `no_decision` | 404 | none of these keywords has a decision | — | `reload` |
 | `invalid_tree` | 422 | the tree is not valid: {detail} | `detail` | `reload` |
 | `theme_refused` | 422 | the change was refused: {detail} | `detail` | `fix-input` |
@@ -489,6 +493,7 @@ the English `message` the same way; an empty result also names its next action.
 | `empty_no_identity_in_state` | nobody is in this state | — | `none` |
 | `empty_handoff` | no term to send in this band | — | `none` |
 | `empty_no_proposals` | no AI answers imported yet | — | `none` |
+| `empty_no_rejects` | no term rejected by an AI on this computer yet | — | `none` |
 | `empty_no_decisions` | no decision yet: keep, exclude or merge keywords in the list | — | `none` |
 | `collection_unavailable` | collecting texts from bibliographic services is not available in this version; import texts into a folder or corpus slot instead | — | — |
 | `stage_switched_off` | switched off (set {stage}.enabled in decisions/params.json to run it) | `stage` | — |

@@ -1,14 +1,18 @@
 # SPDX-License-Identifier: MIT
 """The copilot's session on the keyword triage: read the candidates, decide, hand back.
 
-Each candidate term of the bundle (the Kept and To check bands, or To check
-only) comes with its evidence: how many people and texts use it, its other
+Each candidate term of the bundle (the Kept, To check and Set aside bands, never
+those rejected automatically; or Kept and To check, or To check only) comes
+with its evidence: how many people and texts use it, its other
 spellings, the longer phrases it sits in, its band and the extraction's reason,
 and, when the curator asked for them, a few usage lines with names masked.
 :meth:`TriageSession.neighbours` and :meth:`~TriageSession.pairs` read who
 uses what (people as opaque numbers) to find a term's translation or its
 variants. Decisions are ``keep``, ``exclude`` or ``merge`` into another term,
-each with a reason and optionally a triage code.
+each with a reason and optionally a triage code, which gives the decision its
+category (:mod:`cartolex.lexicon.categories`): ``never`` for a term never a
+keyword in any field (it may spare other projects the question), ``here`` for
+one not informative in this field only.
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ from typing import Any
 
 import numpy as np
 
+from ..lexicon.categories import ACCEPTED, CATEGORIES, REJECTED, category_of
 from .bundle import CODES, DECISIONS
 from .session import Session
 
@@ -178,12 +183,24 @@ class TriageSession(Session):
         *,
         target: str = "",
         code: str = "",
+        category: str = "",
     ) -> None:
-        """Decide one candidate: ``keep``, ``exclude``, or ``merge`` into *target*."""
+        """Decide one candidate: ``keep``, ``exclude``, or ``merge`` into *target*.
+
+        *category* defaults to the code's; a kept or merged term takes an accepted
+        category (``concept``, ``method``, ``object``, ``place``, ``field``), an
+        excluded one ``never`` or ``here``.
+        """
         if decision not in DECISIONS:
             raise ValueError(f"decision is one of {', '.join(DECISIONS)}")
         if code and code not in CODES:
             raise ValueError(f"code is one of {', '.join(CODES)}")
+        category = category or category_of(code)
+        if category and category not in CATEGORIES:
+            raise ValueError(f"category is one of {', '.join(CATEGORIES)}")
+        allowed = REJECTED if decision == "exclude" else ACCEPTED
+        if category and category not in allowed:
+            raise ValueError(f"a {decision} takes a category among {', '.join(allowed)}")
         if decision == "merge" and not target.strip():
             raise ValueError("a merge names the term it goes into")
         if not str(reason or "").strip():
@@ -195,6 +212,7 @@ class TriageSession(Session):
             "decision": decision,
             "target": target.strip() if decision == "merge" else "",
             "code": code,
+            "category": category,
             "reason": str(reason).strip()[:2000],
         }
 
@@ -203,7 +221,9 @@ class TriageSession(Session):
         self.decide(term, lang, "keep", reason, code=code)
 
     def exclude(self, term: str, lang: str | None, reason: str, *, code: str = "G") -> None:
-        """Exclude a candidate (a name, admin wording, too generic, a broken piece)."""
+        """Exclude a candidate (a name, not informative here, admin wording, too generic, a
+        broken piece). ``K``, ``G`` and ``F`` say it is never a keyword in any field: give
+        them only when sure, else ``H``."""
         self.decide(term, lang, "exclude", reason, code=code)
 
     def merge(
@@ -222,6 +242,7 @@ class TriageSession(Session):
         """Counts of the decisions (by decision, code and band); the truth's scores if any."""
         by = Counter(d["decision"] for d in self.decisions.values())
         codes = Counter(d["code"] for d in self.decisions.values() if d["code"])
+        categories = Counter(d["category"] for d in self.decisions.values() if d["category"])
         band_of = {(it["term"], it["lang"]): it["band"] for it in self.items}
         by_band = Counter(f"{band_of[k]}→{d['decision']}" for k, d in self.decisions.items())
         out: dict[str, Any] = {
@@ -230,6 +251,7 @@ class TriageSession(Session):
             "undecided": len(self.items) - len(self.decisions),
             "decisions": dict(by),
             "codes": dict(codes),
+            "categories": dict(categories),
             "bands": dict(by_band),
         }
         if self.truth is not None:
@@ -282,7 +304,7 @@ class TriageSession(Session):
 
     def decide_many(self, rows: Iterable[Mapping[str, Any]]) -> int:
         """Several decisions at once: rows with ``term``, ``lang``, ``decision``, ``reason``
-        and optionally ``target`` and ``code``. Returns how many were recorded."""
+        and optionally ``target``, ``code`` and ``category``. Returns how many were recorded."""
         n = 0
         for r in rows:
             self.decide(
@@ -292,6 +314,7 @@ class TriageSession(Session):
                 r["reason"],
                 target=r.get("target", "") or "",
                 code=r.get("code", "") or "",
+                category=r.get("category", "") or "",
             )
             n += 1
         return n

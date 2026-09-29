@@ -31,7 +31,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -480,6 +480,7 @@ def propose_tree(
     display_languages: Sequence[str] = ("fr", "en"),
     forms: Mapping[str, Mapping[str, str]] | None = None,
     run: str | None = None,
+    preferred: Collection[str] = (),
 ) -> dict[str, Any]:
     """The proposal document (``cartolex-themes/1``) of groups on every level.
 
@@ -489,7 +490,8 @@ def propose_tree(
     on its level; siblings are ordered by it. A node is named in each language
     after the most used keyword (the highest *scores*) that has a form in that
     language in *forms* (``{language: {keyword: form}}``, see
-    :func:`cartolex.lexicon.labels.node_names`), and siblings' names are kept
+    :func:`cartolex.lexicon.labels.node_names`; on a tie, a keyword of
+    *preferred*: a concept or an object of study), and siblings' names are kept
     distinct. Keywords sit on the finest level, without attribution; a
     keyword in no group is set aside. ``based_on`` records *run* and the
     vocabulary's fingerprint. The document is in the canonical form.
@@ -512,7 +514,8 @@ def propose_tree(
     names: list[list[dict[str, str]]] = []
     for group in levels:
         mine = [
-            node_names(r, terms, scores, forms or {}, langs, reference_language) for r in group.rows
+            node_names(r, terms, scores, forms or {}, langs, reference_language, preferred)
+            for r in group.rows
         ]
         siblings: dict[int, list[int]] = {}
         for p in range(len(group.rows)):
@@ -582,6 +585,7 @@ def draft_themes(
             reference_language=settings.reference_language,
             display_languages=settings.display_languages,
             run=run,
+            categories_json=paths.keyword_categories_json,
         )
 
 
@@ -596,11 +600,16 @@ def write_theme_draft(
     reference_language: str = "en",
     display_languages: Sequence[str] = ("fr", "en"),
     run: str | None = None,
+    categories_json: Path | None = None,
 ) -> dict[str, Any]:
-    """Write the proposal tree from explicit files (see :func:`draft_themes`)."""
+    """Write the proposal tree from explicit files (see :func:`draft_themes`).
+
+    *categories_json* holds the keywords' categories (lower-case term → category):
+    a node's name prefers a concept or an object of study on a tie of use."""
     from cartolex.atlas.hierarchy import level_groups
     from cartolex.atlas.model_files import load_embeddings, load_lexical_data
 
+    from .categories import NAMING_PREFERRED
     from .labels import keyword_forms
     from .subfields import _load_term_cluster_labels, _require_lexical_models
 
@@ -611,6 +620,9 @@ def write_theme_draft(
     labels = _load_term_cluster_labels(term_clusters_csv, terms)
     scores = np.asarray(data.X.sum(axis=0)).ravel()
     levels = level_groups(emb.Z_terms, labels, list(level_sizes))
+    categories: dict[str, str] = {}
+    if categories_json is not None and categories_json.is_file():
+        categories = json.loads(categories_json.read_text(encoding="utf-8"))
     doc = propose_tree(
         levels,
         terms,
@@ -619,6 +631,7 @@ def write_theme_draft(
         display_languages=display_languages,
         forms=keyword_forms(pairs_csv, terms, display_languages, reference_language),
         run=run,
+        preferred={t for t in terms if categories.get(t.strip().lower()) in NAMING_PREFERRED},
     )
     draft_json_out.parent.mkdir(parents=True, exist_ok=True)
     draft_json_out.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", "utf-8")

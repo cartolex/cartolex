@@ -87,10 +87,13 @@ def _run(ctx: RunContext) -> tuple[set[str], set[str], list[str]]:
     return concepts, vocabulary, messages
 
 
-def test_the_lexicon_bands_are_the_bands_the_triage_judges() -> None:
+def test_the_triage_judges_every_band_but_the_rejected_one() -> None:
+    from cartolex.lexicon.scoring import AI_BANDS
+
     assert LEXICON_BANDS == ("kept", "check")
-    assert set(LEXICON_BANDS) < set(BANDS)
-    assert _load_global_terms.__defaults__[-1] is LEXICON_BANDS
+    assert set(LEXICON_BANDS) < set(AI_BANDS) < set(BANDS)
+    assert set(BANDS) - set(AI_BANDS) == {"rejected"}
+    assert _load_global_terms.__defaults__[-1] is AI_BANDS
 
 
 def test_without_ai_the_set_aside_band_does_not_reach_the_vocabulary(tmp_path) -> None:

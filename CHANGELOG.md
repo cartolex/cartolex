@@ -215,6 +215,34 @@ nothing in the engine names a particular deployment, source or procedure.
   and recall of the lexicon without AI; on them no gold term is lost, and
   the English candidates holding a French closed word fall from 1,047 to 18
   on L (`keywords.extract`, stage version 4; the parse cache is unchanged).
+- **Keyword categories and the rejection lists.** Every AI route answers a
+  category with each code (`cartolex.lexicon.categories`): an accepted keyword
+  is a `concept`, `method`, `object`, `place` (new code P) or `field` (D); a
+  rejected candidate is `never` a keyword in any field (K, G, F, given only when
+  sure) or not informative `here` (N, and the new H). The typed triage prompt,
+  the handoff's (version 4) and the copilot's decisions carry them; older
+  answers read the same way, and the AI cache keys are unchanged (the per-term
+  answers also store the category). `decisions/keywords.csv` gains an optional
+  `category` column. `never` answers enter a per-machine rejection cache
+  (`<data dir>/rejects/<lang>.jsonl`, `cartolex-rejects/1`, with the route, the
+  day and a fingerprint of the project), beside cartolex's shipped list
+  (`cartolex/_data/rejects/<lang>.json`, empty for now; `cartolex rejects export`
+  builds one from a cache for the maintainers to review). At extraction, the
+  candidates they name go to a fourth band, `rejected` (« rejected by
+  cartolex's list », « rejected by your earlier projects »): never sent to an
+  AI, never in the lexicon; a project's own answers never reject its own
+  candidates, and a person's decision wins and takes the term out of the cache
+  (put back). Every AI route now judges every other candidate, set aside
+  included, so a rule's set-aside can be rescued; the answers already paid for
+  are reused, and the estimate counts the new ones only. The Keywords screen
+  gains the Rejected automatically tab, a category column and filter; the
+  map filters and colours keywords by category; a theme's name prefers a
+  concept or an object on a tie of use; the settings (Words) show both lists,
+  empty the cache and switch them off per project (`keywords.extract` parameter
+  `rejects`). Stage versions: `keywords.extract` 5, `keywords.triage` 3,
+  `keywords.build` 3 (it writes `categories.json`). On the S demo worlds, after
+  the AI triage of seed 0 (1,447 `never` answers), 608 of the 2,542 candidates
+  of seed 1 are rejected automatically: the AI judges 1,934.
 - **Demo bodies.** `generate(..., bodies=True)` (`--bodies`) gives every work
   a long, repetitive body with generic filler (introduction, methods,
   results, discussion, captions) in its language, from a random stream of its

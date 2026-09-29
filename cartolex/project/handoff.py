@@ -30,6 +30,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from ..lexicon.categories import ACCEPT_CODES as _ACCEPT
+from ..lexicon.categories import CODES as _CODES
+from ..lexicon.categories import REJECT_CODES as _REJECT
+from ..lexicon.categories import category_of
+
 __all__ = [
     "ACCEPT_CODES",
     "ANSWER_FORMAT",
@@ -61,16 +66,8 @@ CHARS_PER_TOKEN = 4.0
 #: A cautious count, for lists full of numbers, punctuation and accented words.
 CAUTIOUS_CHARS_PER_TOKEN = 3.0
 
-#: The triage codes and what each says about a term.
-CODES = {
-    "C": "a concept, phenomenon, process, property or theory",
-    "M": "a method, technique, instrument, model or kind of data",
-    "O": "an object of study",
-    "N": "a name: a person, a particular place, an institution, a project, a journal",
-    "K": "administrative, career or project-management wording",
-    "G": "too generic to be a keyword on its own",
-    "F": "a broken piece, not a term",
-}
+#: The triage codes and what each says about a term (:mod:`cartolex.lexicon.categories`).
+CODES = {code: meaning for code, (_, meaning) in _CODES.items()}
 
 
 def tokens(text: str) -> int:
@@ -105,8 +102,13 @@ class Verdict:
     def accept(self) -> bool:
         return self.code in ACCEPT_CODES
 
+    @property
+    def category(self) -> str:
+        """The code's category (:mod:`cartolex.lexicon.categories`)."""
+        return category_of(self.code)
 
-_LINE = re.compile(r"^\s*(?:(\d+)\.\s*)?([CMONGKF])\s+(?:([a-z]{2})\s+)?(.+?)\s*$")
+
+_LINE = re.compile(r"^\s*(?:(\d+)\.\s*)?([CMOPDNGKFH])\s+(?:([a-z]{2})\s+)?(.+?)\s*$")
 
 
 #: Format of ``bundle.json``, the machine-readable half of a handoff part.
@@ -115,10 +117,13 @@ HANDOFF_FORMAT = "cartolex-handoff/1"
 #: measure of an object is a keyword; F is only for broken pieces. 3: a single
 #: everyday word is G unless a term of art; a term of another language takes
 #: the English term of the list that names the same thing as its English form.
-PROMPT_VERSION = 3
+#: 4: the codes P (a place or setting) and D (a field), H (not informative in
+#: this field), and K, G and F only when sure (they feed the rejection cache).
+#: Answers to earlier versions read the same way: their codes are a subset.
+PROMPT_VERSION = 4
 #: The codes of the answer (the engine's triage codes).
-ACCEPT_CODES = ("C", "M", "O")
-REJECT_CODES = ("N", "K", "G", "F")
+ACCEPT_CODES = _ACCEPT
+REJECT_CODES = _REJECT
 LANGUAGE_NAMES = {"en": "English", "fr": "French", "pt": "Portuguese"}
 
 PROMPT = """\
@@ -134,16 +139,24 @@ For each term, decide whether it is a good keyword of this field: a term a
 researcher of the field would use to name a subject, a method or an object of
 their work. Accept it with one of these codes:
   C  a concept, phenomenon, process, property or theory
-  M  a method, technique, instrument, model or kind of data
-  O  an object of study: a material, an organism, a system, an environment
+  M  a method, technique, instrument, model or data source
+  O  an object of study: a material, an organism, a system
+  P  a kind of place or setting studied as such: an environment, a habitat,
+     a type of site (not a particular named place)
+  D  the name of a discipline or field
 or reject it with one of these:
   N  a name: a person, a particular place, an institution, a project, a journal
+  H  a real term, but not informative in this field: too common among its
+     researchers to tell them apart, or outside its scope
   K  administrative, career or project-management wording
   G  too generic to be a keyword on its own: it could be said of any field or
      study. A single everyday word (shape, weight, poids) is G, unless it is a
      term of art of the field (entropy, in physics)
   F  a broken piece, not a term: a phrase cut out of a longer one, words split
      across a phrase boundary, or debris of a sentence
+K, G and F say the term is never a keyword, in any field: give them only when
+you are sure. When a term could be a keyword in another field, or you are
+unsure, give H.
 
 A phrase that joins a process, a property or a measure to an object of the
 field (the growth of a cell, the stiffness of a material, the rate of a
@@ -164,12 +177,12 @@ itself as a keyword of this field. Terms from neighbouring disciplines are
 welcome when they name a real concept, method or object.
 
 Answer with exactly one line per term, in the order of the list, and nothing
-else. For an accepted term (C, M, O):
+else. For an accepted term (C, M, O, P, D):
   <number> | <code> | <term as listed> | <English form>
 where the English form is the usual English name of what the term names, in
 lower case except proper nouns and acronyms; leave it out when it is the term
-itself (most English terms). For a rejected term (N, K, G, F), stop after the
-term:
+itself (most English terms). For a rejected term (N, H, K, G, F), stop after
+the term:
   <number> | <code> | <term as listed>
 
 For example, with terms from another field:
@@ -185,6 +198,9 @@ For example, with terms from another field:
   10 | G | shape
   11 | C | entropy
   12 | C | transition de phase | phase transition
+  13 | P | tidal flat
+  14 | D | biophysique | biophysics
+  15 | H | cell
 
 Read and judge every term yourself; do not write or run a program to decide.
 Give the whole answer as plain text in one code block, or as a downloadable
@@ -197,12 +213,13 @@ ANSWER_FORMAT = """\
 The expected answer: one line per term of terms.txt, in order, numbered as in
 the list, fields separated by a vertical bar.
 
-  accepted (C, M, O):  <number> | <code> | <term as listed> | <English form>
-  rejected (N, K, G, F):  <number> | <code> | <term as listed>
+  accepted (C, M, O, P, D):  <number> | <code> | <term as listed> | <English form>
+  rejected (N, H, K, G, F):  <number> | <code> | <term as listed>
 
 The English form is left out when it is the term itself. Codes: C concept,
-M method, O object of study (accepted); N name, K administrative wording,
-G too generic, F broken piece of a phrase (rejected).
+M method, O object of study, P place or setting, D field (accepted); N name,
+H not informative in this field, K administrative wording, G too generic,
+F broken piece of a phrase (rejected; K, G and F only when sure).
 
 Example:
   1 | C | phase transition

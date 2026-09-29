@@ -171,7 +171,8 @@ _TRIAGE_GUIDE = """\
 ## What you have
 
 - `session.items` — the candidates: `term`, `lang`, `band` (`kept`: the
-  extraction kept it; `check`: it asks for a judgement), `reason` (why the
+  extraction kept it; `check`: it asks for a judgement; `aside`: a rule set it
+  aside, rescue it if it is a keyword), `reason` (why the
   extraction put it there), `people` and `texts` (how many use it), `forms`
   (other spellings), `inside` (longer phrases it sits in), `current` (the
   curator's decision so far, if any) and, if the curator asked for them,
@@ -182,10 +183,14 @@ _TRIAGE_GUIDE = """\
 
 ## Decisions
 
-- **keep** (codes `C` concept, `M` method, `O` object of study): a term a
-  researcher of the field would use to name a subject, a method or an object of their work.
-- **exclude** (codes `N` name, `K` administrative wording, `G` too generic,
-  `F` broken piece): a single everyday word is `G` unless a term of art of the field.
+- **keep** (codes `C` concept, `M` method or data source, `O` object of study,
+  `P` a kind of place or setting, `D` a field's name): a term a researcher of the
+  field would use to name a subject, a method or an object of their work.
+- **exclude** (codes `N` name, `H` a real term not informative in this field,
+  `K` administrative wording, `G` too generic, `F` broken piece): a single
+  everyday word is `G` unless a term of art of the field. `K`, `G` and `F` say
+  the term is never a keyword in any field (category `never`: it can spare other
+  projects the question); give them only when sure, else `H`.
 - **merge** into another term: a French or Portuguese term into the English term
   of the list that names the same thing, or a variant into its usual spelling.
 
@@ -198,7 +203,8 @@ evidence, not a verdict. A term left undecided keeps the curator's current state
 
 1. `print(session.summary())`; look at `session.table("check")`.
 2. Judge the To check band first, then look over the Kept band for names,
-   generic words and pieces the extraction kept.
+   generic words and pieces the extraction kept, and the Set aside band for
+   keywords a rule set aside.
 3. Find merges: `session.pairs()`, `session.neighbours(...)`.
 4. **Checkpoint 1**: before applying one rule of your own to many terms at once,
    show the curator a sample and ask.

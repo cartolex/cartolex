@@ -2,14 +2,15 @@
 /**
  * The atlas page's controls: what the map shows (one checkbox per kind, with
  * its symbol and how many it shows), points or regions, the organisations'
- * level, the people's filters (from their own columns), the period and the
- * button that clears every filter, the period included.
+ * level, the people's filters (from their own columns), the keywords'
+ * categories and colour, the period and the button that clears every filter,
+ * the period included.
  */
 import { html } from '../../core/preact.js';
 import { formatNumber, locale, t } from '../../core/i18n.js';
 import { Button, Checkbox, MapSymbol, MenuButton, Select } from '../../components/index.js';
 import { KINDS, SHAPE_OF, filterGroups, filtered } from './state.js';
-import { levelLabel, periodOf } from './model.js';
+import { KEYWORD_CATEGORIES, levelLabel, periodOf } from './model.js';
 
 /** A group of buttons of which one is pressed. */
 export function Segmented({ label, options, value, onChange, class: cls = '' }) {
@@ -73,6 +74,27 @@ function Filters({ index, state, onChange }) {
   </div>`;
 }
 
+/** The keywords' categories shown (none chosen: every one), and their colour: theme or category. */
+function KeywordCategories({ index, state, onChange }) {
+  const counts = index.categoryCounts || {};
+  const known = KEYWORD_CATEGORIES.filter((c) => counts[c]);
+  if (!state.show.includes('keywords') || !known.some((c) => c !== 'none')) return null;
+  const chosen = new Set(state.kc || []);
+  const items = known.map((c) => ({ id: c, kind: 'checkbox', checked: chosen.has(c),
+    label: t('map.filter.value', { value: t(`keywords.category.${c}`), count: counts[c] }) }));
+  return html`<div class="cx-atlas-filters" role="group" aria-label=${t('map.categories')}>
+    <${MenuButton} size="s" variant=${chosen.size ? 'primary' : 'secondary'}
+      label=${chosen.size ? t('map.categories.chosen', { count: chosen.size }) : t('map.categories')}
+      items=${items}
+      onSelect=${(item) => onChange({ kc: chosen.has(item.id) ? [...chosen].filter((c) => c !== item.id)
+        : [...chosen, item.id] })} />
+    <${Segmented} label=${t('map.categories.colour')} value=${state.kcol}
+      options=${[{ value: 'theme', label: t('map.categories.by_theme') },
+        { value: 'category', label: t('map.categories.by_category') }]}
+      onChange=${(kcol) => onChange({ kcol })} />
+  </div>`;
+}
+
 /** Two sliders, the first and the last year; the period filters texts and time windows. */
 function Period({ index, state, onChange }) {
   const period = periodOf(index, state);
@@ -121,9 +143,10 @@ export function Controls({ index, state, counts, texts, onChange }) {
           onChange=${(e) => onChange({ org: e.currentTarget.value === orgLevels[0].id ? '' : e.currentTarget.value })} />
       </label>` : null}
       <${Filters} index=${index} state=${state} onChange=${onChange} />
+      ${world ? null : html`<${KeywordCategories} index=${index} state=${state} onChange=${onChange} />`}
       <${Period} index=${index} state=${state} onChange=${onChange} />
       <${Button} size="s" variant="ghost" icon="undo" disabled=${!filtered(state)}
-        onClick=${() => onChange({ filters: [], from: null, to: null })}>${t('map.reset')}<//>
+        onClick=${() => onChange({ filters: [], kc: [], from: null, to: null })}>${t('map.reset')}<//>
     </div>
   </div>`;
 }

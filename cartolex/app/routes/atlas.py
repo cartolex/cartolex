@@ -171,6 +171,8 @@ def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
 
     # Keywords: their place on the map and on the tree.
     placed = {r["term"]: r for r in _rows(applyf / "theme_keywords.csv")}
+    # Their categories (concept, method, object, place, field), when an AI or a person gave one.
+    categories = _json(layout.stage("keywords.build") / "categories.json")
     keywords = []
     for r in _rows(mapf / "umap_terms_clustered.csv") or _rows(mapf / "umap_terms.csv"):
         w = placed.get(r["term"]) or {}
@@ -184,6 +186,7 @@ def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
                 "counts_to": int(w["counts_to"]) if w.get("counts_to") else 0,
                 "weight": _num(w.get("weight"), SHARE_DIGITS),
                 "share": _num(w.get("share"), SHARE_DIGITS),
+                "category": categories.get(r["term"].strip().lower()) or None,
             }
         )
 

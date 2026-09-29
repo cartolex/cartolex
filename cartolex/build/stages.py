@@ -551,8 +551,9 @@ STAGES = Registry(
             # simpler bands, no common-modifier rule); version 3: an elided word
             # the tokenizer leaves attached (Portuguese d'água) is a word of its own;
             # version 4: stop words, closed words of another language and evenly
-            # spread single words are set aside
-            version=4,
+            # spread single words are set aside; version 5: the rejection lists' candidates
+            # go to the rejected band (cartolex's list, the machine's cache)
+            version=5,
             decisions=("decisions/stopwords.json",),
             project=("languages", "identity.language_models"),
             params=(
@@ -579,6 +580,13 @@ STAGES = Registry(
                     minimum=0.01,
                     maximum=1.0,
                 ),
+                ParamSpec(
+                    "rejects",
+                    "bool",
+                    "candidates on cartolex's list of rejections, or that an AI rejected in an "
+                    "earlier project on this computer, are rejected automatically",
+                    default=True,
+                ),
             ),
             checks=(
                 CrossCheck(
@@ -598,8 +606,9 @@ STAGES = Registry(
             "AI clean-up",
             upstream=("keywords.extract",),
             # version 2: only the kept and to-check bands are judged; the prompt's
-            # third version (process of an object, everyday words, English forms)
-            version=2,
+            # third version (process of an object, everyday words, English forms);
+            # version 3: every band but the rejected one is judged, with categories
+            version=3,
             decisions=("decisions/prompts/triage_typed_system.txt",),
             project=(
                 "identity.domain_title",
@@ -613,8 +622,9 @@ STAGES = Registry(
             checks=(CrossCheck("an AI provider is set", (), (), _ai_configured),),
             consent_note=(
                 "sends keyword strings, never texts or people, with the domain title and "
-                "description, to the AI provider set in project.json; it is billed by that "
-                "provider, and answers already paid for are reused from cache/ai/"
+                "description, to the AI provider set in project.json: every candidate but "
+                "those rejected automatically; it is billed by that provider, and answers "
+                "already paid for are reused from cache/ai/"
             ),
             cost=CostModel("people", 10.0, 0.5, 550.0, 0.0),
             run=_no_ai_key,
@@ -624,8 +634,9 @@ STAGES = Registry(
             "build the vocabulary",
             upstream=("keywords.extract", "keywords.triage"),
             # version 2: without the AI clean-up, the set-aside band does not
-            # reach the vocabulary either (an explicit keep still wins)
-            version=2,
+            # reach the vocabulary either (an explicit keep still wins); version 3:
+            # the keywords' categories (categories.json)
+            version=3,
             decisions=("decisions/keywords.csv",),
             project=("languages",),
             params=(
