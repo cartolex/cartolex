@@ -24,7 +24,7 @@ function proposedText(it) {
 }
 
 /** The review of one proposal: each answered term, chosen or not (every one by default). */
-function Review({ proposal, chosen, setChosen }) {
+export function Review({ proposal, chosen, setChosen }) {
   const read = proposal.read || {};
   const columns = [
     { id: 'term', label: t('keywords.col.term'), width: 'minmax(10rem, 2fr)' },
@@ -38,6 +38,10 @@ function Review({ proposal, chosen, setChosen }) {
     { id: 'current', label: t('keywords.ai.current'), width: '8rem',
       render: (it) => (it.current ? t(`keywords.decision.${it.current}`) : '—') },
   ];
+  // A copilot's decisions each give their reason.
+  if (proposal.items.some((it) => it.reason)) {
+    columns.splice(4, 0, { id: 'reason', label: t('keywords.col.reason'), width: 'minmax(10rem, 2fr)' });
+  }
   const all = proposal.items.map(itemKey);
   return html`<div class="cx-kw-review">
     <p class="cx-handoff__lead">${t('keywords.ai.review.lead', { n: proposal.answered,

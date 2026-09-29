@@ -641,6 +641,15 @@ accepted operations on the tree, and applies them through
 unreadable lines have a `problem`: `unknown_action`, `missing_fields`,
 `unknown_node`, `unknown_keyword`, `bad_levels`, `empty_name` or `same_node`.
 
+### The AI copilot
+
+The copilot's bundle is a zip an assistant able to run code works from on its
+own; its result comes back as one file. Its format, the kit and the routes
+(`/api/themes/copilot/…`, `/api/keywords/copilot/…`) are in {doc}`copilot`.
+An imported themes result is reviewed like a theme handoff's answer; a triage
+result is a keyword proposal (`GET /api/handoff/proposals/{id}` and its
+`accept` take the ids of both).
+
 ### Errors of the theme editor
 
 | code | status | message | next |
@@ -650,6 +659,7 @@ unreadable lines have a `problem`: `unknown_action`, `missing_fields`,
 | `theme_handoff_empty` | 404 | the tree holds no keyword to send | — |
 | `no_space` | 409 | the keywords have no space yet: build the themes first | `build` |
 | `invalid_theme_bundle` | 422 | this is not a theme bundle of cartolex: {detail} | `fix-input` |
+| `invalid_copilot_result` | 422 | this is not a copilot result of cartolex: {detail} | `fix-input` |
 
 **Keeping over an unanswered proposal, and the versions' names.** When a
 new grouping of the same vocabulary waits for an answer

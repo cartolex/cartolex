@@ -1683,6 +1683,67 @@ a.cx-button:hover {
   outline-offset: 4px;
 }
 
+/* ── AI copilot (shares the handoff's layout) ─────────────────────────────── */
+.cx-handoff__file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cx-space-3);
+}
+
+.cx-copilot__note {
+  max-width: var(--cx-text-width);
+  padding: var(--cx-space-2) var(--cx-space-3);
+  border-left: 3px solid var(--cx-rule);
+  color: var(--cx-text-muted);
+}
+
+.cx-copilot__problem {
+  display: flex;
+  align-items: center;
+  gap: var(--cx-space-2);
+  color: var(--cx-warning);
+}
+
+.cx-copilot__outcome summary {
+  cursor: pointer;
+  width: fit-content;
+}
+
+.cx-copilot__measures {
+  margin-top: var(--cx-space-2);
+  border-collapse: collapse;
+  font-size: var(--cx-text-s);
+}
+
+.cx-copilot__measures caption {
+  text-align: left;
+  padding-bottom: var(--cx-space-1);
+  color: var(--cx-text-muted);
+}
+
+.cx-copilot__measures th,
+.cx-copilot__measures td {
+  padding: var(--cx-space-1) var(--cx-space-3);
+  border-bottom: var(--cx-rule-width) solid var(--cx-rule);
+  text-align: left;
+}
+
+.cx-copilot__measures td {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.cx-copilot__notes-title {
+  margin-top: var(--cx-space-3);
+  font-size: var(--cx-text-m);
+}
+
+.cx-copilot__notes {
+  max-width: var(--cx-text-width);
+  white-space: pre-wrap;
+}
+
 /* ── TreeView ─────────────────────────────────────────────────────────────── */
 
 .cx-tree {

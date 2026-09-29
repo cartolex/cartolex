@@ -77,6 +77,17 @@ See `docs/dev/engine.md`.
 | `map_merge`, `reconcile`, `map_metrics` | Merging several fitted maps into one (multi-cohort reconciliation + quality metrics) |
 | `diagnostics`, `types` | Diagnostics and shared dataclasses |
 
+### `cartolex.copilot` — the AI copilot's kit
+
+The half of cartolex an assistant that runs code uses on a copilot bundle,
+offline, with numpy, pandas, SciPy, scikit-learn and matplotlib only: reading
+the bundle (`bundle`, the formats `cartolex-copilot/1` and
+`cartolex-copilot-result/1`), the theme tree's operations on plain documents
+(`ops`), the measures (`measures`), the pictures (`pictures`), and the two
+sessions (`themes`, `triage`). It calls the engine's grouping, layouts and
+measures, and is held to the engine's layering rules. The bundle is assembled
+by `cartolex.project.copilot`; see `docs/dev/copilot.md`.
+
 ### `cartolex.project`, `cartolex.build` and `cartolex.app` — projects, builds, the app
 
 `cartolex.project` reads and writes the project format (`docs/format/`),

@@ -4,7 +4,7 @@
  * three bands, Kept, To check and Set aside (the band in the address,
  * `?band=`), with the counting unit and the languages in the head, a warning
  * when languages would split the themes, the history of the decisions, and
- * the AI filtering by handoff or by API. Opening it reads one list page.
+ * the AI filtering by handoff, by API or with a copilot. Opening it reads one list page.
  */
 import { html, useState } from '../../core/preact.js';
 import { formatNumber, t } from '../../core/i18n.js';
@@ -17,6 +17,7 @@ import { KeywordList } from './list.js';
 import { HistoryDrawer, MergeDialog } from './dialogs.js';
 import { KeywordHandoffDialog } from './handoff.js';
 import { ApiDialog } from './api.js';
+import { KeywordCopilotDialog } from './copilot.js';
 
 function bandOf(query) {
   const band = query && query.get('band');
@@ -64,6 +65,7 @@ export function KeywordsScreen() {
   const aiItems = [
     { id: 'handoff', label: t('keywords.ai.by_handoff') },
     { id: 'api', label: t('keywords.ai.by_api') },
+    { id: 'copilot', label: t('keywords.ai.by_copilot') },
   ];
   const closeDialog = () => setDialog(null);
   const finished = (message) => {
@@ -102,6 +104,8 @@ export function KeywordsScreen() {
     ${dialog && dialog.kind === 'history' ? html`<${HistoryDrawer} ctx=${ctx} version=${version}
       onClose=${closeDialog} onChanged=${bump} toast=${toast} />` : null}
     ${dialog && dialog.kind === 'handoff' ? html`<${KeywordHandoffDialog} ctx=${ctx}
+      onClose=${closeDialog} onDone=${finished} />` : null}
+    ${dialog && dialog.kind === 'copilot' ? html`<${KeywordCopilotDialog} ctx=${ctx}
       onClose=${closeDialog} onDone=${finished} />` : null}
     ${dialog && dialog.kind === 'api' ? html`<${ApiDialog} ctx=${ctx} onClose=${closeDialog}
       onStarted=${(job) => {

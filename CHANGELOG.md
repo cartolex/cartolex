@@ -505,3 +505,16 @@ nothing in the engine names a particular deployment, source or procedure.
   a rename refused by a reader is retried there, corpus indexes store
   POSIX paths, the command's output never fails on a character its encoding
   lacks, and text files are checked out with LF line endings everywhere.
+- **The AI copilot.** A third route of AI help, for an assistant that runs
+  code: the theme editor (More › AI copilot) and the Keywords screen (AI menu)
+  export one self-sufficient zip (`cartolex-copilot/1`: a guide, anonymised data
+  — keywords, their vectors, people as numbered rows in a random order, never a
+  name, identifier, organisation or text — and cartolex's engine as a wheel that
+  a stdlib-only `bootstrap.py` unpacks offline). The kit, `cartolex.copilot`,
+  re-groups, lays out, draws (map, treemap), measures (coherence, margins,
+  borderline, stability, the lab's scores where a truth exists) and records each
+  change with its reason; it stops at two checkpoints for the curator. Its
+  `result.json` (`cartolex-copilot-result/1`) imports as the proposal the curator
+  already reviews: theme operations applied and saved as a version, or keyword
+  decisions to accept. `cartolex.lexicon` loads its public names on first use,
+  so a light module of it no longer loads the extraction.

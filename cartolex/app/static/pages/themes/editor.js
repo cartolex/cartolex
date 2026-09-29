@@ -23,6 +23,7 @@ import { CentrePane } from './centre.js';
 import { SidePanel } from './panel.js';
 import { VersionsDrawer } from './versions.js';
 import { ThemeHandoffDialog } from './handoff.js';
+import { ThemeCopilotDialog } from './copilot.js';
 import { OperationDialog } from './operations.js';
 import { createUi, installActions, refusal } from './actions.js';
 import { createFit } from './fit.js';
@@ -58,6 +59,7 @@ export function ThemesEditor() {
   const [dialog, setDialog] = useState(null);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [handoff, setHandoff] = useState(null); // {resume}
+  const [copilot, setCopilot] = useState(null); // {resume}
   const [leave, setLeave] = useState(null);
   const [applyJob, setApplyJob] = useState(null);
   const [applyError, setApplyError] = useState(null);
@@ -277,8 +279,9 @@ export function ThemesEditor() {
   };
 
   // ── AI proposals ──
-  const acceptedOps = (proposal, accepted) => proposal.items.filter((_, i) => accepted.has(i)).map((it) => it.op);
-  const previewProposal = async (proposal, accepted) => {
+  const acceptedOps = (proposal, accepted) => proposal.items.filter((_, i) => accepted.has(i))
+    .flatMap((it) => it.ops || [it.op]);
+  const previewProposal = async (proposal, accepted, source = 'handoff') => {
     const result = await ctx.api.post('/api/themes/ops', { tree: editor.tree.value, ops: acceptedOps(proposal, accepted), lenient: true });
     if (!result.ok) {
       toast({ kind: 'error', title: t('themes.ai.failed'), message: refusal(result.error) });
@@ -286,7 +289,8 @@ export function ThemesEditor() {
     }
     const refused = result.data.steps.filter((s) => s.refused).length;
     setHandoff(null);
-    editor.preview.value = { tree: result.data.tree, proposal, accepted, refused };
+    setCopilot(null);
+    editor.preview.value = { tree: result.data.tree, proposal, accepted, refused, source };
   };
   const applyProposal = async (proposal, accepted) => {
     const ops = acceptedOps(proposal, accepted);
@@ -299,6 +303,13 @@ export function ThemesEditor() {
       toast({ kind: 'success', title: t('themes.ai.applied', { count: ops.length - refused }),
         message: refused ? t('themes.ai.applied_refused', { count: refused }) : undefined });
     } else toast({ kind: 'error', title: t('themes.ai.failed'), message: refusal(result.error) });
+    return result;
+  };
+  // A copilot's accepted changes are saved at once, as a version of their own.
+  const applyCopilot = async (proposal, accepted) => {
+    const result = await applyProposal(proposal, accepted);
+    setCopilot(null);
+    if (result && result.ok && result.changed) await save({ quiet: true });
   };
 
   // ── rendering ──
@@ -346,6 +357,7 @@ export function ThemesEditor() {
   const moreMenu = [
     { id: 'versions', label: t('themes.more.versions') },
     { id: 'ai', label: t('themes.more.ai') },
+    { id: 'copilot', label: t('themes.more.copilot') },
     { id: 'new-top', label: t('themes.more.new_top', { level: levelName(tree, 1, lang) }) },
     { kind: 'separator', id: 'sep' },
     { id: 'discard', label: t('themes.more.discard'), danger: true, disabled: !dirty },
@@ -356,6 +368,7 @@ export function ThemesEditor() {
     else if (item.id === 'remove-level') setDialog({ kind: 'remove-level' });
     else if (item.id === 'versions') setVersionsOpen(true);
     else if (item.id === 'ai') setHandoff({});
+    else if (item.id === 'copilot') setCopilot({});
     else if (item.id === 'new-top') ui.create(null);
     else if (item.id === 'discard') setDialog({ kind: 'discard' });
   };
@@ -373,10 +386,14 @@ export function ThemesEditor() {
   }
   if (preview) {
     banners.push(html`<${Banner} key="preview" icon="info" actions=${html`
-      <${Button} size="s" variant="primary" onClick=${() => applyProposal(preview.proposal, preview.accepted)}>
-        ${t('themes.ai.apply', { count: preview.accepted.size })}<//>
+      <${Button} size="s" variant="primary" onClick=${() => (preview.source === 'copilot'
+        ? applyCopilot(preview.proposal, preview.accepted) : applyProposal(preview.proposal, preview.accepted))}>
+        ${preview.source === 'copilot' ? t('copilot.apply_save', { count: preview.accepted.size })
+          : t('themes.ai.apply', { count: preview.accepted.size })}<//>
       <${Button} size="s" onClick=${() => {
-        setHandoff({ resume: { proposal: preview.proposal, accepted: preview.accepted } });
+        const resume = { resume: { proposal: preview.proposal, accepted: preview.accepted } };
+        if (preview.source === 'copilot') setCopilot(resume);
+        else setHandoff(resume);
         editor.preview.value = null;
       }}>${t('themes.preview.back')}<//>
       <${Button} size="s" variant="ghost" onClick=${() => {
@@ -511,6 +528,9 @@ export function ThemesEditor() {
       onOpenVersion=${openVersion} onCompare=${(v) => compareVersion(v)} onRestore=${restoreVersion} />
     ${handoff ? html`<${ThemeHandoffDialog} open api=${ctx.api} editor=${editor} resume=${handoff.resume || null}
       onClose=${() => setHandoff(null)} onPreview=${previewProposal} onApply=${applyProposal} />` : null}
+    ${copilot ? html`<${ThemeCopilotDialog} api=${ctx.api} editor=${editor} resume=${copilot.resume || null}
+      onClose=${() => setCopilot(null)} onPreview=${(p, a) => previewProposal(p, a, 'copilot')}
+      onApply=${applyCopilot} />` : null}
     <${ConfirmDialog} open=${Boolean(leave)} title=${t('themes.leave.title')} confirmLabel=${t('themes.leave.confirm')}
       cancelLabel=${t('leave.stay')} onAnswer=${(yes) => {
         const answer = leave;

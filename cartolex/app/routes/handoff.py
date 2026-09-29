@@ -30,7 +30,7 @@ CONTAINS = (
 )
 NEVER = ("texts", "people's names or identifiers", "your decisions", "keys")
 MAX_TERMS = 20_000
-ProposalId = Annotated[str, PathParam(pattern=r"^\d{8}T\d{6}Z-handoff(-\d+)?$")]
+ProposalId = Annotated[str, PathParam(pattern=r"^\d{8}T\d{6}Z-(handoff|copilot-triage)(-\d+)?$")]
 
 
 class TermRef(BaseModel):
@@ -53,15 +53,12 @@ class ExportBody(BaseModel):
     max_tokens: Annotated[int, Field(ge=2_000, le=1_000_000)] = 24_000
 
 
-def _export(request: Request, body: ExportBody, ctx: Any) -> dict[str, Any]:
+def bundle_items(
+    request: Request, body: ExportBody, ctx: Any
+) -> tuple[list[Any], str, int, int, dict[tuple[str, str], dict[str, str]]]:
+    """The terms a bundle sends, with their evidence: ``(items, run, people, texts, decisions)``."""
     from cartolex.build.records import read_record
-    from cartolex.project.handoff import (
-        BundleItem,
-        cautious_tokens,
-        group_items,
-        part_files,
-        part_record,
-    )
+    from cartolex.project.handoff import BundleItem
 
     runtime = runtime_of(request)
     rows, run_id = extracted(runtime, ctx)
@@ -102,6 +99,13 @@ def _export(request: Request, body: ExportBody, ctx: Any) -> dict[str, Any]:
         )
         if len(items) >= body.limit:
             break
+    return items, run_id, n_people, n_texts, decisions
+
+
+def _export(request: Request, body: ExportBody, ctx: Any) -> dict[str, Any]:
+    from cartolex.project.handoff import cautious_tokens, group_items, part_files, part_record
+
+    items, run_id, n_people, n_texts, _ = bundle_items(request, body, ctx)
     identity = ctx.project.config.identity
     common = {"domain": identity.domain_title, "description": identity.domain_description}
     users: dict = {}
@@ -183,6 +187,10 @@ def _ai_folder(ctx: Any) -> Path:
 def _proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
     from cartolex.project.handoff import CODES, items_of, parse_answer
 
+    if "-copilot-" in proposal_id:
+        from .copilot import triage_proposal
+
+        return triage_proposal(ctx, proposal_id)
     folder = _ai_folder(ctx)
     answer = folder / f"{proposal_id}.txt"
     sent = folder / f"{proposal_id}.bundle.json"
@@ -310,7 +318,7 @@ def accept(
                 "language": i["language"],
                 "decision": i["proposed"],
                 "target": i["target"],
-                "reason": f"AI: {i['meaning']}"
+                "reason": f"AI: {i.get('reason') or i['meaning']}"[:500]
                 + (
                     f"; English form: {i['english']}" if i["english"] not in ("", i["term"]) else ""
                 ),

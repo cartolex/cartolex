@@ -44,6 +44,7 @@ dev/layouts
 dev/ui
 dev/site
 dev/themes-editor
+dev/copilot
 dev/usability-g3
 dev/collection
 ```
