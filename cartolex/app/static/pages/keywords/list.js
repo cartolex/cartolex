@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 /**
- * The keyword list of one band: search, filters (language, route, decision),
+ * The keyword list of one band: search, filters (language, category, route, decision),
  * a virtualised table paged on the server (every candidate: its reason, its
  * usage in people and texts, its language and forms, the route that decided
  * it), range selection, and the bulk actions: keep, exclude, merge, restore,
- * for the rows selected or for every row the filters keep.
+ * for the rows selected or for every row the filters keep. In the band rejected
+ * automatically, keeping is « put back »: the term leaves this computer's
+ * rejection cache too.
  */
 import { html, useEffect, useMemo, useState } from '../../core/preact.js';
 import { formatNumber, t } from '../../core/i18n.js';
@@ -13,7 +15,7 @@ import {
 } from '../../components/index.js';
 import { usePaged } from '../people/common.js';
 import {
-  BandMark, ROUTES, RouteMark, decide, keyOf, reasonText, refsOf, restore,
+  BandMark, CATEGORIES, CategoryMark, ROUTES, RouteMark, decide, keyOf, reasonText, refsOf, restore,
 } from './common.js';
 
 const DECISIONS = ['none', 'keep', 'exclude', 'merge'];
@@ -36,6 +38,7 @@ function Filters({ filters, setFilters, data }) {
   const languages = (data && data.corpus_languages) || [];
   const byLang = (data && data.languages) || {};
   const routes = (data && data.routes) || {};
+  const categories = (data && data.categories) || {};
   return html`<div class="cx-corpus-filters" role="group" aria-label=${t('keywords.filters')}>
     <label class="cx-corpus-filters__search"><span class="cx-visually-hidden">${t('keywords.search')}</span>
       <${Input} type="search" value=${filters.q} placeholder=${t('keywords.search')}
@@ -45,6 +48,10 @@ function Filters({ filters, setFilters, data }) {
       <${Select} aria-label=${t('keywords.col.language')} value=${filters.lang} onChange=${set('lang')}
         options=${[option('', t('keywords.filter.any_language')),
           ...languages.map((l) => option(l, l, byLang[l] || 0))]} /></label>` : null}
+    <label class="cx-corpus-filters__select"><span class="cx-visually-hidden">${t('keywords.col.category')}</span>
+      <${Select} aria-label=${t('keywords.col.category')} value=${filters.category} onChange=${set('category')}
+        options=${[option('', t('keywords.filter.any_category')),
+          ...[...CATEGORIES, 'none'].map((c) => option(c, t(`keywords.category.${c}`), categories[c] || 0))]} /></label>
     <label class="cx-corpus-filters__select"><span class="cx-visually-hidden">${t('keywords.col.route')}</span>
       <${Select} aria-label=${t('keywords.col.route')} value=${filters.route} onChange=${set('route')}
         options=${[option('', t('keywords.filter.any_route')),
@@ -67,7 +74,8 @@ function Filters({ filters, setFilters, data }) {
  * @param {Function} props.toast
  */
 export function KeywordList({ ctx, band, version, onData, onChanged, onMerge, toast }) {
-  const [filters, setFilters] = useState({ q: '', lang: '', route: '', decision: '' });
+  const blank = { q: '', lang: '', route: '', decision: '', category: '' };
+  const [filters, setFilters] = useState(blank);
   const [sort, setSort] = useState({ column: 'score', direction: 'descending' });
   const [selection, setSelection] = useState(new Set());
   const [busy, setBusy] = useState(false);
@@ -77,7 +85,7 @@ export function KeywordList({ ctx, band, version, onData, onChanged, onMerge, to
 
   const query = {
     band, q: q || undefined, lang: filters.lang || undefined, route: filters.route || undefined,
-    decision: filters.decision || undefined,
+    decision: filters.decision || undefined, category: filters.category || undefined,
     sort: `${sort.direction === 'descending' ? '-' : ''}${SORTS[sort.column] || 'score'}`,
     $v: version,
   };
@@ -93,7 +101,9 @@ export function KeywordList({ ctx, band, version, onData, onChanged, onMerge, to
     return map;
   }, [list.rows]);
   const selected = [...selection].filter((k) => !k.startsWith('@'));
-  const filtered = Boolean(q || filters.lang || filters.route || filters.decision);
+  const filtered = Boolean(q || filters.lang || filters.route || filters.decision || filters.category);
+  // In the band rejected automatically, keeping a term puts it back.
+  const keepLabel = band === 'rejected' ? t('keywords.action.put_back') : t('keywords.action.keep');
 
   const done = async (result, message) => {
     setBusy(false);
@@ -121,7 +131,7 @@ export function KeywordList({ ctx, band, version, onData, onChanged, onMerge, to
     if (all) {
       const result = await ctx.api.post('/api/keywords/decisions/where', {
         where: { band, lang: filters.lang || null, route: filters.route || null,
-          decision: filters.decision || null, q: q || '' },
+          decision: filters.decision || null, category: filters.category || null, q: q || '' },
         decision: kind,
       }, { ifMatch: version });
       done(result, (d) => t(`keywords.done.${kind}`, { n: d.decided }));
@@ -138,10 +148,12 @@ export function KeywordList({ ctx, band, version, onData, onChanged, onMerge, to
         ? html` <span class="cx-corpus-muted" title=${row.forms.join(' · ')}>${t('keywords.forms', { n: row.forms.length - 1 })}</span>` : null}` },
     { id: 'language', label: t('keywords.col.language'), sortable: true, width: '5rem',
       render: (row) => html`<code>${row.language}</code>` },
-    { id: 'band', label: t('keywords.col.band'), width: '8rem',
+    { id: 'band', label: t('keywords.col.band'), width: '12.5rem',
       render: (row) => html`<${BandMark} band=${row.band} />` },
     { id: 'reason', label: t('keywords.col.reason'), width: 'minmax(12rem, 2fr)',
       render: (row) => html`<span class="cx-kw-reason">${reasonText(row)}</span>` },
+    { id: 'category', label: t('keywords.col.category'), width: '7rem',
+      render: (row) => html`<${CategoryMark} category=${row.category} />` },
     { id: 'people', label: t('keywords.col.people'), sortable: true, numeric: true, width: '6rem' },
     { id: 'texts', label: t('keywords.col.texts'), sortable: true, numeric: true, width: '6rem' },
     { id: 'route', label: t('keywords.col.route'), width: '9rem',
@@ -151,7 +163,7 @@ export function KeywordList({ ctx, band, version, onData, onChanged, onMerge, to
   ];
 
   const rowMenu = (keys) => [
-    { id: 'keep', label: t('keywords.action.keep') },
+    { id: 'keep', label: keepLabel },
     { id: 'exclude', label: t('keywords.action.exclude') },
     { id: 'merge', label: t('keywords.action.merge'), disabled: !keys.length },
     { kind: 'separator', id: 'sep' },
@@ -171,17 +183,17 @@ export function KeywordList({ ctx, band, version, onData, onChanged, onMerge, to
       <span class="cx-corpus-bulk__count" aria-live="polite">${selected.length
         ? t('keywords.selected', { n: selected.length }) : t('keywords.total', { n: list.total })}</span>
       ${selected.length ? html`
-        <${Button} size="s" icon="check" onClick=${() => act('keep', selected)}>${t('keywords.action.keep')}<//>
+        <${Button} size="s" icon="check" onClick=${() => act('keep', selected)}>${keepLabel}<//>
         <${Button} size="s" icon="cross" onClick=${() => act('exclude', selected)}>${t('keywords.action.exclude')}<//>
         <${Button} size="s" onClick=${() => merge(selected)}>${t('keywords.action.merge')}<//>
         ${canRestore ? html`<${Button} size="s" variant="ghost" icon="undo"
           onClick=${() => act('restore', selected)}>${t('keywords.action.restore')}<//>` : null}` : null}
       ${filtered && !selected.length && list.total ? html`<${MenuButton} size="s"
         label=${t('keywords.action.all', { n: list.total })}
-        items=${[{ id: 'keep', label: t('keywords.action.keep') }, { id: 'exclude', label: t('keywords.action.exclude') }]}
+        items=${[{ id: 'keep', label: keepLabel }, { id: 'exclude', label: t('keywords.action.exclude') }]}
         onSelect=${(item) => act(item.id, [], { all: true })} />` : null}
       ${filtered ? html`<${Button} size="s" variant="ghost" icon="close"
-        onClick=${() => setFilters({ q: '', lang: '', route: '', decision: '' })}>${t('keywords.filter.clear')}<//>` : null}
+        onClick=${() => setFilters(blank)}>${t('keywords.filter.clear')}<//>` : null}
       ${busy ? html`<span class="cx-spinner" aria-hidden="true"></span>` : null}
     </div>
     ${error ? html`<${ErrorCard} error=${error} compact onDismiss=${() => setError(null)}
@@ -196,6 +208,6 @@ export function KeywordList({ ctx, band, version, onData, onChanged, onMerge, to
             action=${{ label: t('keywords.empty.build'), href: '/build?scope=keywords' }} />`
         : html`<${EmptyState} icon="search" title=${t('keywords.empty.empty_no_match')}
             action=${{ label: t('keywords.filter.clear'),
-              onClick: () => setFilters({ q: '', lang: '', route: '', decision: '' }) }} />`} />
+              onClick: () => setFilters(blank) }} />`} />
   </div>`;
 }

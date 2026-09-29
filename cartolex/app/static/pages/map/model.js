@@ -11,6 +11,10 @@ import { filterGroups } from './state.js';
 /** Palette index of what no top-level theme holds (the last colour). */
 export const NEUTRAL = 12;
 /** The palette of the map: one token per hue family, then a neutral grey. */
+/** The keywords' categories an AI or a person gave, and their colour (a palette index). */
+export const CATEGORY_HUE = { concept: 0, method: 2, object: 4, place: 6, field: 8 };
+export const KEYWORD_CATEGORIES = [...Object.keys(CATEGORY_HUE), 'none'];
+
 export const PALETTE = [...Array.from({ length: 12 }, (_, i) => `--cx-hue-${i + 1}`), '--cx-text-muted'];
 
 /** The id and value of the largest entry of `{id: share}`. */
@@ -62,6 +66,9 @@ export function indexAtlas(atlas) {
 
   const keywords = atlas.keywords || [];
   const byTerm = new Map(keywords.map((k, i) => [k.term, i]));
+  // How many keywords of each category (« none »: no category known).
+  const categoryCounts = {};
+  for (const k of keywords) categoryCounts[k.category || 'none'] = (categoryCounts[k.category || 'none'] || 0) + 1;
 
   // Organisations: their current members (on the map) and the mean of their members' shares.
   const orgs = atlas.organisations || [];
@@ -112,7 +119,7 @@ export function indexAtlas(atlas) {
   return {
     atlas, nodes, children, tops, topOf, hue, colourOf,
     people, extra, byPerson, personTop,
-    keywords, byTerm,
+    keywords, byTerm, categoryCounts,
     orgs, byOrg, members, orgShares, orgTop,
     windows,
     projected: (atlas.overlays || []).filter((o) => o.x !== null && o.y !== null),

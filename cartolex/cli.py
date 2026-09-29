@@ -132,7 +132,7 @@ def _build(args: argparse.Namespace) -> int:
     import threading
 
     from cartolex.build import build, plan
-    from cartolex.build.engine import AIAccess, engine_registry
+    from cartolex.build.engine import AIAccess, EngineOptions, engine_registry
     from cartolex.project import Project
 
     targets = args.only or None
@@ -143,7 +143,10 @@ def _build(args: argparse.Namespace) -> int:
     project = Project.open(args.folder, write=True)
     for note in project.recovered:
         print(note)
-    registry = engine_registry(AIAccess(api_key=os.environ.get("MISTRAL_API_KEY") or None))
+    registry = engine_registry(
+        AIAccess(api_key=os.environ.get("MISTRAL_API_KEY") or None),
+        EngineOptions(rejects_folder=_data_dir(args) / "rejects"),
+    )
     cancel = threading.Event()
 
     def on_interrupt(signum: int, frame: object) -> None:
@@ -170,6 +173,68 @@ def _build(args: argparse.Namespace) -> int:
     if result.outcome == "cancelled":
         return 130
     return 0 if result.outcome == "succeeded" and not result.refused else 1
+
+
+def _data_dir(args: argparse.Namespace) -> Path:
+    """The app's own folder on this computer (``--data-dir``, else the default one)."""
+    from cartolex.app.server import default_data_dir
+
+    return Path(args.data_dir) if getattr(args, "data_dir", None) else default_data_dir()
+
+
+def _rejects(args: argparse.Namespace) -> int:
+    """``cartolex rejects``: the machine's rejection cache, and a shipped list made from it."""
+    import json
+
+    from cartolex.lexicon.rejects import FORMAT, MachineRejects, export_list
+
+    machine = MachineRejects(_data_dir(args) / "rejects")
+    if args.action == "show":
+        counts = machine.counts()
+        print(f"{machine.folder}: " + (", ".join(f"{k} {v}" for k, v in counts.items()) or "empty"))
+        return 0
+    if args.action == "clear":
+        print(f"{machine.clear(args.language)} terms removed from {machine.folder}")
+        return 0
+    folders = args.projects
+    if not folders:  # the projects this computer's app opened lately
+        recent = _data_dir(args) / "recent.json"
+        doc = json.loads(recent.read_text(encoding="utf-8")) if recent.is_file() else {}
+        folders = [Path(p["path"]) for p in doc.get("projects", []) if Path(p["path"]).is_dir()]
+    names = _project_names(folders)
+    lists = export_list(machine, min_projects=args.min_projects, names=names)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    for lang, terms in lists.items():
+        doc = {"format": FORMAT, "language": lang, "terms": terms}
+        (out / f"{lang}.json").write_text(
+            json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        print(f"{out / f'{lang}.json'}: {len(terms)} terms")
+    print("review every term before copying a list into cartolex/_data/rejects/")
+    return 0
+
+
+def _project_names(folders: Sequence[Path]) -> list[str]:
+    """The people's and organisations' names of the projects in *folders*."""
+    import pyarrow.parquet as pq
+
+    from cartolex.project import Project
+
+    names: list[str] = []
+    for folder in folders:
+        layout = Project.open(folder).layout
+        for table, columns in (
+            ("people", ("first_name", "last_name")),
+            ("organisations", ("name", "acronym")),
+        ):
+            path = layout.table(table)
+            if not path.exists():
+                continue
+            have = [c for c in columns if c in pq.read_schema(path).names]
+            data = pq.read_table(path, columns=have).to_pydict()
+            names += [str(v) for c in have for v in data[c] if v]
+    return names
 
 
 def _value(text: str) -> object:
@@ -494,7 +559,30 @@ def _parser(extensions: Sequence[Extension] = ()) -> argparse.ArgumentParser:
     bd.add_argument("--only", nargs="+", metavar="STAGE", help="these stages and what they need")
     bd.add_argument("--force", nargs="+", metavar="STAGE", help="run these even if up to date")
     bd.add_argument("--yes", action="store_true", help="accept the stages that ask consent")
+    bd.add_argument("--data-dir", type=Path, help="the app's own folder, with the rejection cache")
     bd.set_defaults(run=_build)
+
+    rj = sub.add_parser("rejects", help="the terms rejected automatically on this computer")
+    rsub = rj.add_subparsers(dest="action", required=True)
+    rshow = rsub.add_parser("show", help="how many terms the cache holds, per language")
+    rclear = rsub.add_parser("clear", help="empty the cache (of one language)")
+    rclear.add_argument("--language", help="only this language")
+    rexport = rsub.add_parser(
+        "export", help="a list to ship, from the cache: never answers seen in several projects"
+    )
+    rexport.add_argument("--min-projects", type=int, default=2, help="seen in this many projects")
+    rexport.add_argument("--out", default="rejects-export", help="the folder to write into")
+    rexport.add_argument(
+        "--projects",
+        nargs="+",
+        type=Path,
+        metavar="FOLDER",
+        help="projects whose people's and organisations' names are left out (default: the "
+        "projects the app opened lately)",
+    )
+    for p in (rshow, rclear, rexport):
+        p.add_argument("--data-dir", type=Path, help="the app's own folder")
+        p.set_defaults(run=_rejects)
 
     pa = sub.add_parser("params", help="the effective parameters and where they come from")
     pa.add_argument("folder", type=Path)

@@ -61,9 +61,9 @@ scores three times its weight, a phrase of three words five times, because a
 precise phrase names more than a single word. The score orders the
 candidates; it does not decide their band.
 
-## 4. Three bands, each with its reason
+## 4. Four bands, each with its reason
 
-Every candidate falls in one of three bands. The reason is shown next to it,
+Every candidate falls in one of four bands. The reason is shown next to it,
 and any candidate can be moved to another band by hand.
 
 **Kept** — a keyword unless someone says otherwise.
@@ -99,27 +99,50 @@ several words is not always a keyword (`study area`, `recent decades`).
   `résultats`, `objetivo`). A word of the field gathers in the texts of the
   people who work on its subject and stays to check.
 
+**Rejected automatically** — never judged again, restorable in one click (*put
+back*).
+
+- *rejected by cartolex's list*: a phrase that is never a keyword, in any
+  field (`further work`, `et al`), on the list cartolex ships;
+- *rejected by your earlier projects*: an AI answered, in another project on
+  this computer, that the phrase is never a keyword in any field.
+
+A project's own answers never reject its own candidates, and a candidate you
+decided on is never rejected in your project. Putting a candidate back keeps it
+and takes it out of this computer's list. The settings (Words) show both lists,
+empty this computer's, and switch them off for a project.
+
 **What reaches the lexicon.** Without the AI clean-up, the kept and to-check
-candidates reach the lexicon, and those set aside do not. With it, only the
-candidates the AI accepts do (see below): it never sees those set aside, so
-they do not reach the lexicon either. In both cases a candidate someone keeps
+candidates reach the lexicon, and those set aside or rejected automatically do
+not. With it, only the candidates the AI accepts do (see below): it never sees
+those rejected automatically, so they do not reach the lexicon either. In both cases a candidate someone keeps
 by hand (a *keep* in `decisions/keywords.csv`) reaches the lexicon whatever
 its band, and one someone excludes does not; every candidate, set aside or
 not, stays in the candidate tables with its band and its reason.
 
 ## 5. What the AI sees
 
-The AI clean-up is optional. It judges the **kept** and **to-check**
-candidates, never those set aside: a phrase never seen outside a longer one
-adds nothing the longer one does not say. When it runs, only the terms it
-accepts reach the lexicon.
+The AI clean-up is optional. It judges every candidate but those rejected
+automatically: the **kept**, **to-check** and **set-aside** ones, so that a
+keyword a rule set aside can be rescued. Its answers are kept: at each run only
+new candidates cost a call. When it runs, only the terms it accepts reach the
+lexicon.
 
 It sees the candidate phrases, in batches, with the title of the field and
 the short description the project's owner wrote — no text, and nothing about
-who uses a phrase. It answers, for each candidate, whether it names a
-concept, a method or an object of the field, or why it is not a keyword (a
-name, an administrative phrase, a word too general, a broken piece of a
-phrase), and gives its English form so that the languages meet on the map:
+who uses a phrase. It answers, for each candidate, what it names — a
+**concept** (a process, a phenomenon, a property, a theory), a **method** (a
+technique, an instrument, a model, a data source), an **object** of study, a
+**place** or setting (a kind of environment, not a named place) or a **field**
+(a discipline's name) — or why it is not a keyword: **never** a keyword, in any
+field (a function word, a broken piece, boilerplate, a generic word of academic
+writing: given only when the AI is sure), or not informative **here**, in this
+field only (a name, a term too common among the field's researchers). This
+category is kept with each decision: the Keywords list shows and filters it,
+the map can colour and filter its keywords by it, and a theme's name prefers a
+concept or an object when two keywords are used as much. A *never* answer
+enters this computer's list of rejections, for your next projects. It gives
+each accepted term its English form so that the languages meet on the map:
 `évolution du trait de côte` and `shoreline evolution` get the same English
 form, and become one keyword. A phrase that joins a process or a property to
 an object of the field (`sediment transport`, `régime alimentaire des

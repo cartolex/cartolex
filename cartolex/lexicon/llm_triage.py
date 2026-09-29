@@ -3,7 +3,7 @@
 
 This module:
   1. Loads the hard-filtered global keyword list (``ctx.paths.global_terms_csv``):
-     the candidates of the kept and to-check bands, never the set-aside band
+     every candidate but the rejected band (the rejection lists' terms)
   2. Runs the typed single-pass Mistral triage (deterministic prefilter →
      one typed LLM classification pass → deterministic post-check), with the
      domain's title and the project owner's description of it as context.
@@ -24,7 +24,7 @@ import pandas as pd
 from .lexical_filters import is_malformed_term
 from .llm_filter import save_decisions
 from .mistral_client import load_api_key
-from .scoring import LEXICON_BANDS
+from .scoring import AI_BANDS
 from .stopwords_config import packaged_lists
 from .text_utils import tokenize
 from .triage_typed import build_typed_prompt, load_typed_template, run_typed_triage
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 def _load_global_terms(
     path: Path,
     min_score: float = 0.0,
-    bands: tuple[str, ...] = LEXICON_BANDS,
+    bands: tuple[str, ...] = AI_BANDS,
 ) -> tuple[list[str], pd.DataFrame]:
     """Load the term list of the merged candidate table, with a safety net.
 
@@ -51,9 +51,10 @@ def _load_global_terms(
     bands : tuple of str
         Keep only the candidates of these bands (``band`` column of the
         extraction; a table without it, from an older run, is kept whole).
-        By default the bands that can reach the lexicon
-        (:data:`~cartolex.lexicon.scoring.LEXICON_BANDS`): the set-aside band
-        (fragments of a longer candidate) is never sent.
+        By default the bands an AI judges
+        (:data:`~cartolex.lexicon.scoring.AI_BANDS`): every candidate but the
+        ``rejected`` band (the rejection lists' terms), so that a candidate a
+        rule set aside can be rescued.
 
     The safety net drops what is never a term whatever the extraction:
     blank cells, numbers and malformed strings (web addresses, encoding

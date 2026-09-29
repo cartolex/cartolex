@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 /**
  * The keywords screen (`/keywords`): every candidate of the extraction in
- * three bands, Kept, To check and Set aside (the band in the address,
- * `?band=`), with the counting unit and the languages in the head, a warning
+ * its band, Kept, To check, Set aside and Rejected automatically (the band in
+ * the address, `?band=`), with the counting unit and the languages in the head, a warning
  * when languages would split the themes, the history of the decisions, and
  * the AI filtering by handoff, by API or with a copilot. Opening it reads one list page.
  */
@@ -79,7 +79,7 @@ export function KeywordsScreen() {
       <div>
         <h1 class="cx-page__title" tabindex="-1">${t('nav.keywords')}</h1>
         ${data && data.run ? html`<p class="cx-corpus__summary">${t('keywords.summary', {
-          n: (counts.kept || 0) + (counts.check || 0) + (counts.aside || 0),
+          n: (counts.kept || 0) + (counts.check || 0) + (counts.aside || 0) + (counts.rejected || 0),
           unit: t(`keywords.unit.${data.counting_unit || 'person'}`),
           languages: languages.join(', ') })}</p>` : null}
       </div>

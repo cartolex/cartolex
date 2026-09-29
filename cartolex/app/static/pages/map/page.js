@@ -17,7 +17,7 @@ import {
   Button, EmptyState, ErrorCard, IconButton, MapFrame, MapSymbol,
 } from '../../components/index.js';
 import { useJobEnd } from '../people/common.js';
-import { indexAtlas, matching, themeName } from './model.js';
+import { CATEGORY_HUE, indexAtlas, matching, themeName } from './model.js';
 import { MAX_REGIONS, mapScene, worldScene } from './scene.js';
 import { SHAPE_OF, readState, writeState } from './state.js';
 import { Controls, Segmented } from './controls.js';
@@ -73,7 +73,8 @@ function HoverCard({ sel, index, texts }) {
     ${detail ? html`<span class="cx-atlas-card__detail">${detail}</span>` : null}`;
 }
 
-/** The permanent legend: one symbol per kind shown, one colour per top-level theme. */
+/** The permanent legend: one symbol per kind shown, one colour per top-level theme, and the
+ * keywords' colours when they are coloured by category. */
 function Legend({ index, state, counts, onSelect }) {
   const kinds = Object.keys(counts);
   return html`<details class="cx-atlas-legend" open>
@@ -91,6 +92,13 @@ function Legend({ index, state, counts, onSelect }) {
             aria-hidden="true"></span><span class="cx-atlas-legend__name">${themeName(index, id, locale.value)}</span>
         </button></li>`)}
     </ul>
+    ${state.kcol === 'category' && kinds.includes('keywords') ? html`
+      <p class="cx-atlas-legend__lead">${t('map.categories.legend')}</p>
+      <ul class="cx-atlas-legend__themes" aria-label=${t('map.categories.legend')}>
+        ${Object.entries(CATEGORY_HUE).map(([c, hue]) => html`<li key=${c} class="cx-atlas-legend__theme">
+          <span class="cx-atlas-legend__chip" style=${{ '--cx-chip': `var(--cx-hue-${hue + 1})` }}
+            aria-hidden="true"></span><span class="cx-atlas-legend__name">${t(`keywords.category.${c}`)}</span></li>`)}
+      </ul>` : null}
   </details>`;
 }
 

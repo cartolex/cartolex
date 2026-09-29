@@ -20,8 +20,9 @@ The result is one JSON document, ``result/result.json``:
   operations in the JSON form of ``POST /api/themes/ops``, applied in order;
   ``tree``, the tree they give; ``measures`` before and after;
 - ``triage``: ``decisions``, each ``{"term", "language", "decision", "target",
-  "code", "reason"}`` (``keep``, ``exclude``, or ``merge`` into ``target``);
-  ``measures``;
+  "code", "category", "reason"}`` (``keep``, ``exclude``, or ``merge`` into
+  ``target``; the category, :mod:`cartolex.lexicon.categories`, follows the
+  code when absent); ``measures``;
 
 and ``notes`` for the curator. :func:`check_result` lists what is wrong with a
 result; the kit writes only results it passes, the application reads only those.
@@ -35,6 +36,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from ..lexicon.categories import CATEGORIES
+from ..lexicon.categories import CODES as _CODES
 from .ops import OP_KINDS
 
 __all__ = [
@@ -73,16 +76,8 @@ CHANGE_KINDS = (
 )
 #: The decisions of a triage result.
 DECISIONS = ("keep", "exclude", "merge")
-#: The triage codes (those of the keyword handoff).
-CODES = {
-    "C": "a concept, phenomenon, process, property or theory",
-    "M": "a method, technique, instrument, model or kind of data",
-    "O": "an object of study",
-    "N": "a name: a person, a particular place, an institution, a project, a journal",
-    "K": "administrative, career or project-management wording",
-    "G": "too generic to be a keyword on its own",
-    "F": "a broken piece, not a term",
-}
+#: The triage codes (those of the keyword handoff), and the categories they give.
+CODES = {code: meaning for code, (_, meaning) in _CODES.items()}
 MAX_CHANGES = 2_000
 MAX_OPS = 5_000
 MAX_DECISIONS = 50_000
@@ -170,6 +165,8 @@ def check_result(doc: Any, *, task: str | None = None) -> list[str]:
                 problems.append(f"decision {i}: a merge names its target")
             if d.get("code") not in (None, "", *CODES):
                 problems.append(f"decision {i}: code is one of {', '.join(CODES)}")
+            if d.get("category") not in (None, "", *CATEGORIES):
+                problems.append(f"decision {i}: category is one of {', '.join(CATEGORIES)}")
             if not _text(d.get("reason", ""), 2_000):
                 problems.append(f"decision {i}: reason is text")
             if len(problems) > 50:

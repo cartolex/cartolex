@@ -334,6 +334,9 @@ ERRORS: dict[str, ErrorKind] = {
     # keywords, themes, the AI handoff
     "not_a_corpus_language": ErrorKind(422, "{language} is not a corpus language", "fix-input"),
     "merge_target_missing": ErrorKind(422, "merge {term} into another keyword", "fix-input"),
+    "keyword_category_mismatch": ErrorKind(
+        422, "{term}: a {decision} takes a category among {allowed}", "fix-input"
+    ),
     "no_decision": ErrorKind(404, "none of these keywords has a decision", "reload"),
     "invalid_tree": ErrorKind(422, "the tree is not valid: {detail}", "reload"),
     "theme_refused": ErrorKind(422, "the change was refused: {detail}", "fix-input"),
@@ -354,6 +357,9 @@ ERRORS: dict[str, ErrorKind] = {
         409, "on a hosted service the keys are set by whoever runs it", "none"
     ),
     "stopword_both": ErrorKind(422, "a word is both added and removed: {words}", "fix-input"),
+    "rejects_hosted": ErrorKind(
+        409, "on a hosted service there is no rejection cache of this computer", "none"
+    ),
     "prompt_not_found": ErrorKind(404, "there is no prompt {name} to change", "reload"),
     "prompt_invalid": ErrorKind(422, "the prompt cannot be read: {detail}", "fix-input"),
     "prompt_placeholder": ErrorKind(

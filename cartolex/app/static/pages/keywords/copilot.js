@@ -14,7 +14,7 @@ import { Button, Checkbox, Dialog, ErrorCard, Stepper } from '../../components/i
 import { COPILOT_STEPS, CopilotExport, CopilotImport, CopilotOutcome, stepState } from '../copilot/parts.js';
 import { Review } from './handoff.js';
 
-const SCOPES = ['both', 'check'];
+const SCOPES = ['all', 'both', 'check'];
 const itemKey = (it) => `${it.language}\u0000${it.term}`;
 
 /**
@@ -25,7 +25,7 @@ const itemKey = (it) => `${it.language}\u0000${it.term}`;
  */
 export function KeywordCopilotDialog({ ctx, onClose, onDone }) {
   const [step, setStep] = useState('export');
-  const [scope, setScope] = useState('both');
+  const [scope, setScope] = useState('all');
   const [lines, setLines] = useState(false);
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState(null);

@@ -97,6 +97,12 @@ class EnginePaths:
     parse_cache_dir: Path
     raw_terms_csv: PathPattern  # per corpus language
     global_terms_csv: Path
+    #: The rejection snapshot (``cartolex-rejects/1``, see cartolex.lexicon.rejects): the
+    #: candidates the extraction sets in the ``rejected`` band; absent, none.
+    rejects_json: Path
+    #: The categories of the keywords (lower-case term → category), from the AI's answers
+    #: and the decisions (see cartolex.lexicon.categories); absent, none known.
+    keyword_categories_json: Path
     #: Who uses each candidate (person indices of the extraction), for grouping handoffs.
     term_people_npz: Path
     refined_terms_csv: Path
@@ -187,6 +193,8 @@ class EnginePaths:
             parse_cache_dir=auto / "parse_cache",
             raw_terms_csv=PathPattern(auto, "raw_keywords_{}.csv"),
             global_terms_csv=auto / "keywords_global.csv",
+            rejects_json=auto / "rejects.json",
+            keyword_categories_json=auto / "keyword_categories.json",
             term_people_npz=auto / "term_people.npz",
             refined_terms_csv=auto / "keywords_global_refined.csv",
             refined_terms_lang_csv=PathPattern(auto, "keywords_global_refined_{}.csv"),

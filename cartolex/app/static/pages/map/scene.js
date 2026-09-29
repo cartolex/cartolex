@@ -11,7 +11,9 @@
  * address, on a graticule.
  */
 import { convexHull } from '../../components/index.js';
-import { PALETTE, NEUTRAL, matching, orgName, periodOf, themeName, under } from './model.js';
+import {
+  CATEGORY_HUE, PALETTE, NEUTRAL, matching, orgName, periodOf, themeName, under,
+} from './model.js';
 import { SHAPE_OF } from './state.js';
 
 /** The most regions of people or texts drawn at once. */
@@ -219,16 +221,20 @@ export function mapScene(index, state, { texts = null, sets = new Map(), locale 
     layers.push(L);
   }
 
-  // Keywords: coloured by their top-level theme, the heaviest first as the zoom grows.
+  // Keywords: coloured by their top-level theme (or their category), the heaviest first as
+  // the zoom grows; only the categories chosen, when some are.
   if (show.has('keywords')) {
     const ks = index.keywords;
     const L = layer('keywords', ks.length);
+    const kinds = new Set(state.kc || []);
+    const byCategory = state.kcol === 'category';
     let k = 0;
     for (let i = 0; i < ks.length; i += 1) {
       if (ks[i].x === null || ks[i].y === null) continue;
+      if (kinds.size && !kinds.has(ks[i].category || 'none')) continue;
       L.x[k] = ks[i].x;
       L.y[k] = ks[i].y;
-      L.color[k] = index.colourOf(ks[i].node);
+      L.color[k] = byCategory ? (CATEGORY_HUE[ks[i].category] ?? NEUTRAL) : index.colourOf(ks[i].node);
       L.ref[k] = i;
       if (lit.keywords.has(i)) {
         L.highlight[k] = 1;

@@ -1,22 +1,32 @@
 // SPDX-License-Identifier: MIT
 /**
- * What the keywords screen's modules share: the three bands and their shapes,
- * the routes that decide a keyword (you, an AI in a browser, an AI by API),
- * a keyword's reason in words, and the decisions' requests.
+ * What the keywords screen's modules share: the bands and their shapes (the
+ * last one, rejected automatically, holds what the rejection lists banned),
+ * the categories, the routes that decide a keyword (you, an AI in a browser,
+ * an AI by API), a keyword's reason in words, and the decisions' requests.
  */
 import { html } from '../../core/preact.js';
 import { has, t } from '../../core/i18n.js';
 import { Icon } from '../../components/index.js';
 
-export const BANDS = ['kept', 'check', 'aside'];
+export const BANDS = ['kept', 'check', 'aside', 'rejected'];
 export const ROUTES = ['person', 'ai-handoff', 'ai-copilot', 'ai-api', 'extraction'];
-/** A band's shape: a check (kept), a dash (to check), a cross (set aside). */
-const BAND_ICON = { kept: 'check', check: 'dash', aside: 'cross' };
+/** What an accepted keyword names, and why a rejected one is not a keyword. */
+export const CATEGORIES = ['concept', 'method', 'object', 'place', 'field', 'never', 'here'];
+/** A band's shape: a check (kept), a dash (to check), a cross (set aside), a barred circle
+ * (rejected automatically). */
+const BAND_ICON = { kept: 'check', check: 'dash', aside: 'cross', rejected: 'error' };
 
 /** A band: its shape and its word. */
 export function BandMark({ band }) {
   return html`<span class=${`cx-kw-band cx-kw-band--${band}`}>
     <${Icon} name=${BAND_ICON[band] || 'dash'} /><span>${t(`keywords.band.${band}`)}</span></span>`;
+}
+
+/** A keyword's category, in a word (a dash when none is known). */
+export function CategoryMark({ category }) {
+  if (!category) return html`<span class="cx-corpus-muted">—</span>`;
+  return html`<span class=${`cx-kw-category cx-kw-category--${category}`}>${t(`keywords.category.${category}`)}</span>`;
 }
 
 /** The route that decided a keyword, in a few words. */

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 /**
- * AI filtering by API: cartolex sends the kept and to-check keywords to the
- * provider set in the project, with the key saved in the settings. Before it
+ * AI filtering by API: cartolex sends every keyword but those rejected
+ * automatically to the provider set in the project, with the key saved in the settings. Before it
  * runs, the dialog says what leaves the computer, what never does, and an
  * estimate of the calls and tokens (an upper bound: answers already paid for
  * are reused); it runs only after the person consents, as a build job
@@ -58,6 +58,7 @@ export function ApiDialog({ ctx, onClose, onStarted }) {
           <h3 id=${`${uid}-sends`} class="cx-handoff__box-title"><${Icon} name="check" />${t('keywords.api.sends')}</h3>
           <ul class="cx-handoff__list">
             <li>${t('keywords.api.sends.terms', { n: e.terms })}</li>
+            ${e.answered ? html`<li>${t('keywords.api.sends.answered', { n: e.answered, new: e.new })}</li>` : null}
             <li>${t('handoff.export.contains.field')}</li>
           </ul>
         </section>
@@ -70,11 +71,13 @@ export function ApiDialog({ ctx, onClose, onStarted }) {
         </section>
       </div>
       <dl class="cx-kw-estimate" aria-label=${t('keywords.api.estimate')}>
+        <div><dt>${t('keywords.api.new_terms')}</dt><dd>${formatNumber(e.new)}</dd></div>
         <div><dt>${t('keywords.api.calls')}</dt><dd>${formatNumber(e.calls)}</dd></div>
         <div><dt>${t('keywords.api.tokens_in')}</dt><dd>${formatNumber(e.tokens_in)}</dd></div>
         <div><dt>${t('keywords.api.tokens_out')}</dt><dd>${formatNumber(e.tokens_out)}</dd></div>
       </dl>
       <p class="cx-corpus-muted">${t('keywords.api.upper_bound')}</p>
+      ${e.rejected ? html`<p class="cx-corpus-muted">${t('keywords.api.rejected', { n: e.rejected })}</p>` : null}
       ${info.last ? html`<p class="cx-corpus-muted">${t('keywords.api.last', {
         at: formatDate(info.last.at, 'datetime', 'short'), accepted: info.last.accepted || 0,
         rejected: info.last.rejected || 0 })}</p>` : null}

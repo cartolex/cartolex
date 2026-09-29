@@ -21,24 +21,29 @@ corpus (:class:`TextUnit`: a person's text, its organisation and its parts).
    the term.
 5. **Bands.** Each kept candidate falls in one band, with a reason code:
 
-   ===========  =====================================================
-   ``kept``     ``multiword``: a phrase of two content words or more
-   ``check``    ``single-word``; ``common-modifier: <word>`` (its edge
-                adjective is used by many people; off by default);
-                ``below-threshold`` (off by default)
-   ``aside``    ``stop-word`` (one word among the language's stop
-                words, or a closed word of another language in text of
-                that language); ``stop-word-edge: <word>`` (a phrase that
-                starts or ends with a closed word of another language);
-                ``even-spread`` (one word used by many people, as evenly
-                as words scattered at random); ``part-of: <term>`` (never
-                seen outside that longer candidate); ``low-score`` (the
-                least specific tail, off by default); ``name:
-                person|place`` (when names are known)
-   ===========  =====================================================
+   ============  =====================================================
+   ``kept``      ``multiword``: a phrase of two content words or more
+   ``check``     ``single-word``; ``common-modifier: <word>`` (its edge
+                 adjective is used by many people; off by default);
+                 ``below-threshold`` (off by default)
+   ``aside``     ``stop-word`` (one word among the language's stop
+                 words, or a closed word of another language in text of
+                 that language); ``stop-word-edge: <word>`` (a phrase that
+                 starts or ends with a closed word of another language);
+                 ``even-spread`` (one word used by many people, as evenly
+                 as words scattered at random); ``part-of: <term>`` (never
+                 seen outside that longer candidate); ``low-score`` (the
+                 least specific tail, off by default); ``name:
+                 person|place`` (when names are known)
+   ``rejected``  ``rejected-list`` (on cartolex's list of rejections) or
+                 ``rejected-earlier`` (rejected by an AI in an earlier
+                 project): set by the extraction from a rejection
+                 snapshot (:mod:`cartolex.lexicon.rejects`), after scoring
+   ============  =====================================================
 
    Only the ``kept`` and ``check`` bands (:data:`LEXICON_BANDS`) can reach the
-   lexicon; the ``aside`` band stays in the raw tables with its reason.
+   lexicon without the AI; the AI judges the ``aside`` band too
+   (:data:`AI_BANDS`), never the ``rejected`` one.
 
 The scores reproduce the historical scoring: people, raw frequency, equal
 parts, α = 2. The other choices are switches of the lexicon lab
@@ -74,6 +79,7 @@ from .text_utils import length_bonus, term_words
 __all__ = [
     "BANDS",
     "COUNTING_UNITS",
+    "AI_BANDS",
     "LEXICON_BANDS",
     "RAW_COLUMNS",
     "VOTES",
@@ -89,12 +95,14 @@ __all__ = [
 COUNTING_UNITS = ("person", "text", "organisation")
 #: How a text votes for a candidate it holds.
 VOTES = ("frequency", "presence", "sublinear")
-#: The three bands, in display order.
-BANDS = ("kept", "check", "aside")
+#: The bands, in display order.
+BANDS = ("kept", "check", "aside", "rejected")
 #: The bands that can reach the lexicon: the AI clean-up judges them, and the
 #: consolidation keeps nothing of the others (the set-aside band) unless a
 #: person keeps it explicitly.
 LEXICON_BANDS = ("kept", "check")
+#: The bands an AI judges: every candidate but those the rejection lists banned.
+AI_BANDS = ("kept", "check", "aside")
 #: Columns of a raw keyword table (``raw_keywords_<lang>.csv``).
 RAW_COLUMNS = ["term", "score", "len", "score_len", "forms", "people", "texts", "band", "reason"]
 #: Separator of the surface forms in the ``forms`` column.

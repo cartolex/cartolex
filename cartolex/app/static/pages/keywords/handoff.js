@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 /**
- * AI filtering in a browser (a handoff): export the kept and to-check
- * keywords in parts for a chat assistant the person already uses (the terms
+ * AI filtering in a browser (a handoff): export the keywords an AI judges
+ * (kept, to check and set aside by default; never those rejected
+ * automatically, nor those an AI already answered) in parts for a chat assistant the person already uses (the terms
  * the same people use, a term and its translation, sit in the same part),
  * paste its answer back, review the proposal term by term, and accept all
  * of it or some. Nothing reaches the decisions before « Accept ».
@@ -14,7 +15,7 @@ import {
 } from '../../components/index.js';
 
 const STEPS = ['export', 'import', 'review'];
-const SCOPES = { both: ['kept', 'check'], check: ['check'] };
+const SCOPES = { all: ['kept', 'check', 'aside'], both: ['kept', 'check'], check: ['check'] };
 const itemKey = (it) => `${it.language}\u0000${it.term}`;
 
 /** A proposal's decision in words: keep, exclude, or merge into its English form. */
@@ -35,12 +36,14 @@ export function Review({ proposal, chosen, setChosen }) {
         <${Icon} name=${it.proposed === 'exclude' ? 'cross' : 'check'} />${proposedText(it)}</span>` },
     { id: 'code', label: t('keywords.ai.code'), width: 'minmax(9rem, 1.5fr)',
       render: (it) => (has(`keywords.ai.code.${it.code}`) ? t(`keywords.ai.code.${it.code}`) : it.code) },
+    { id: 'category', label: t('keywords.col.category'), width: '7rem',
+      render: (it) => (it.category ? t(`keywords.category.${it.category}`) : '—') },
     { id: 'current', label: t('keywords.ai.current'), width: '8rem',
       render: (it) => (it.current ? t(`keywords.decision.${it.current}`) : '—') },
   ];
   // A copilot's decisions each give their reason.
   if (proposal.items.some((it) => it.reason)) {
-    columns.splice(4, 0, { id: 'reason', label: t('keywords.col.reason'), width: 'minmax(10rem, 2fr)' });
+    columns.splice(5, 0, { id: 'reason', label: t('keywords.col.reason'), width: 'minmax(10rem, 2fr)' });
   }
   const all = proposal.items.map(itemKey);
   return html`<div class="cx-kw-review">
@@ -68,7 +71,7 @@ export function Review({ proposal, chosen, setChosen }) {
  */
 export function KeywordHandoffDialog({ ctx, onClose, onDone }) {
   const [step, setStep] = useState('export');
-  const [scope, setScope] = useState('both');
+  const [scope, setScope] = useState('all');
   const [exported, setExported] = useState(null);
   const [error, setError] = useState(null);
   const [part, setPart] = useState(0);

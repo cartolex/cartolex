@@ -12,7 +12,7 @@ decisions/
   organisations.csv     levels, parents, merges, names, set by people
   affiliations.csv      affiliations added or removed by people
   params.json           the parameters people set
-  keywords.csv          keep, exclude, merge
+  keywords.csv          keep, exclude, merge, and each keyword's category
   themes.json           the theme tree, keyed by keyword text
   maps.json             map versions, the pinned one
   snowball.csv          collaborators proposed, round by round, and what was decided
@@ -107,9 +107,43 @@ An unknown step or parameter, or a value below its smallest (1, and 2 for
 | `reason` | why, in words |
 | `source` | `person`, `ai-handoff`, `ai-copilot` or `ai-api` |
 | `decided_at` | UTC time |
+| `category` | optional (added within version 1, written only when a row fills it): what a kept or merged keyword names, `concept`, `method` (techniques, instruments, models, data sources), `object`, `place` (a kind of place or setting) or `field` (a discipline's name); why an excluded one is not a keyword, `never` (never informative in any field) or `here` (not informative in this field only) |
 
 A proposal imported from an AI (by handoff or by API) is kept as it came in
 `history/ai/`, and only the changes someone accepts reach `keywords.csv`.
+
+### Rejected automatically: `cartolex-rejects/1`
+
+Some candidates are never keywords, in any field. Two lists name them, and the
+extraction puts the candidates they name in the `rejected` band (never judged
+by an AI, never in the lexicon):
+
+- **cartolex's list**, shipped with the package in
+  `cartolex/_data/rejects/<lang>.json`:
+  `{"format": "cartolex-rejects/1", "language": "en", "terms": ["…"]}`;
+- **this computer's cache**, in the app's own folder
+  (`<data dir>/rejects/<lang>.jsonl`, never in a project): a first line
+  `{"format": "cartolex-rejects/1", "language": "en"}`, then one JSON object per
+  term and project: `term`, `language`, `route` (`ai-api`, `ai-handoff`,
+  `ai-copilot`), `date` (UTC day), `project` (a fingerprint of the project,
+  never its name). An AI's `never` answers enter it: every one by API, and the
+  accepted exclusions of a handoff or a copilot.
+
+A project's own answers never reject its own candidates: only other projects'
+do. A person's decision on a term wins: the term is not rejected in that
+project, and a keep or a merge (a *put back*) takes it out of the cache. The
+`rejects` parameter of `keywords.extract` (`params.json`) switches both lists
+off for a project. The extraction records what it applied in its results
+(`derived/keywords.extract/rejects.json`: per language, each term and its
+origin, `list` or `earlier`).
+
+`cartolex rejects export [--min-projects 2] [--out folder] [--projects …]` makes
+a list to ship from the cache: the terms seen in at least that many projects,
+without any that looks like a proper name (a capital letter, a digit) or holds a
+word of a person's or an organisation's name in the user's projects (the
+projects given, else those the app opened lately). The maintainers review every
+term before adding a list to the package; the vocabulary scan
+(`tools/vocab_scan.py`) covers it like every file of the repository.
 
 ## `themes.json`: the theme tree
 

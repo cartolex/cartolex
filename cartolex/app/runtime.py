@@ -105,11 +105,18 @@ class Runtime:
 
         #: The keys saved on this computer (none on a hosted service).
         self.keys = MachineKeys(settings.data_dir if not settings.hosted else None)
+        #: The rejection cache of this computer (none on a hosted service, or without a folder).
+        self.rejects_folder = (
+            Path(settings.data_dir) / "rejects"
+            if settings.data_dir is not None and not settings.hosted
+            else None
+        )
         base = settings.registry or engine_registry(
             self.ai_access,
             EngineOptions(
                 prompt_dir=extensions.prompt_dir,
                 stopword_overlay=extensions.stopword_overlay or None,
+                rejects_folder=self.rejects_folder,
             ),
         )
         self.registry: Registry = extensions.registry(base)

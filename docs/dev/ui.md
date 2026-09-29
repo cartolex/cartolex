@@ -325,12 +325,13 @@ The keywords screen (`pages/keywords.js`, route `/keywords`) loads
 `pages/keywords/page.js`: the three bands as tabs (`?band=kept|check|aside`)
 with their counts, the counting unit and the languages in the head, the
 warning when languages would split the themes; one band's list
-(`list.js`: search over the terms and their forms, language, route and
-decision filters, range selection, keep, exclude, merge and undo for the rows
+(`list.js`: the bands Kept, To check, Set aside and Rejected automatically,
+where keeping is « put back »; search over the terms and their forms, language,
+category, route and decision filters, a category column, range selection, keep, exclude, merge and undo for the rows
 selected or for every row the filters keep, the route that decided each
 keyword); the merge dialog and the history of the decisions (`dialogs.js`);
-the AI filtering in a browser (`handoff.js`: export the kept and to-check
-keywords in parts, paste an answer, review it term by term and accept all or
+the AI filtering in a browser (`handoff.js`: export the keywords an AI judges,
+kept, to check and set aside by default, in parts, paste an answer, review it term by term and accept all or
 some) and by API (`api.js`: what is sent, the estimate of calls and tokens,
 consent, a build job). Opening it reads one page of the list.
 

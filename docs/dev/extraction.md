@@ -224,13 +224,18 @@ The rules are checked in the order `stop-word`, `stop-word-edge`,
 candidate is kept (a phrase of two content words or more), to check (one
 content word) or set aside (a stop word, a phrase with another language's
 word at an edge, a fragment of a longer candidate, an evenly spread word).
-Only the kept and to-check bands can reach the lexicon
-(`scoring.LEXICON_BANDS`, the one constant the triage and the consolidation
-share); the set-aside band stays in the raw tables with its reason. The AI
-clean-up judges those two bands and never sees the set-aside band; with its
-decisions, the consolidation keeps only accepted terms (its acceptance
-gate), so a set-aside candidate reaches the lexicon only if the same concept
-is accepted under another form. Without the AI clean-up, the consolidation's
+After scoring, the candidates of the rejection snapshot
+(`EnginePaths.rejects_json`, `cartolex.lexicon.rejects`: cartolex's list and
+the machine's cache, see {doc}`../format/decisions`) go to a fourth band,
+`rejected`, with the reason `rejected-list` or `rejected-earlier`; a candidate
+matches when its shown form or one of its other forms is listed.
+Only the kept and to-check bands can reach the lexicon without the AI
+(`scoring.LEXICON_BANDS`); the set-aside and rejected bands stay in the raw
+tables with their reason. The AI clean-up judges every band but the rejected
+one (`scoring.AI_BANDS`), so that a candidate a rule set aside can be rescued;
+with its decisions, the consolidation keeps only accepted terms (its
+acceptance gate), so a rejected candidate reaches the lexicon only if the same
+concept is accepted under another form. Without the AI clean-up, the consolidation's
 band gate (`consolidation.band_allowed_concepts`) keeps a concept only when
 one of its raw terms is in the kept or to-check band, so the set-aside band
 does not reach the lexicon either. Either way an explicit keep wins: the

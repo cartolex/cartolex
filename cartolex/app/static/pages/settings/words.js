@@ -1,6 +1,7 @@
 /**
  * Stop words (words that are never keywords, per language: added to or
- * removed from cartolex's lists) and the prompts the AI clean-up sends (the
+ * removed from cartolex's lists), the candidates rejected automatically
+ * (rejects.js) and the prompts the AI clean-up sends (the
  * packaged text, or the project's own).
  */
 
@@ -8,6 +9,7 @@ import { html, useEffect, useState } from '../../core/preact.js';
 import { t } from '../../core/i18n.js';
 import { Button, FormField, Textarea } from '../../components/index.js';
 import { Block, State, languageLabel, refusal, useResource } from './common.js';
+import { RejectsBlock } from './rejects.js';
 
 const lines = (text) => text.split(/[\n,]/).map((w) => w.trim()).filter(Boolean);
 
@@ -55,6 +57,7 @@ export function WordsSection({ ctx, app }) {
         <div class="cx-settings__actions"><${Button} variant="primary" onClick=${save}>${t('common.save')}<//></div>
         <p class="cx-settings__muted">${t('settings.words.build')}</p>` : null}
     <//>
+    <${RejectsBlock} ctx=${ctx} app=${app} />
   </div>`;
 }
 

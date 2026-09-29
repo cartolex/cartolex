@@ -66,6 +66,7 @@ MESSAGES: dict[str, MessageKind] = {
     "empty_no_identity_in_state": MessageKind("nobody is in this state", "See everyone", "none"),
     "empty_handoff": MessageKind("no term to send in this band", "Close", "none"),
     "empty_no_proposals": MessageKind("no AI answers imported yet", "Export terms", "none"),
+    "empty_no_rejects": MessageKind("no term rejected by an AI on this computer yet", "", "none"),
     "empty_no_decisions": MessageKind(
         "no decision yet: keep, exclude or merge keywords in the list", "Close", "none"
     ),

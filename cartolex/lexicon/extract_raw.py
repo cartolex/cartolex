@@ -9,7 +9,9 @@ scored by :mod:`cartolex.lexicon.scoring`: a window on the people who use
 them (``min_df`` people at least, ``max_df`` of them at most), a TF-IDF whose
 documents are the counting unit (``KeywordsConfig.counting_unit``: a person
 by default), summed, times the length bonus; each kept candidate falls in a
-band (kept, to check, set aside) with a reason.
+band (kept, to check, set aside) with a reason, and a candidate of the
+rejection snapshot (``paths.rejects_json``, :mod:`cartolex.lexicon.rejects`)
+in the ``rejected`` band.
 
 Output per language (``paths.raw_terms_csv(lang)``): ``term`` (the candidate's
 most frequent surface form), ``score``, ``len`` (words of the term),
@@ -46,6 +48,7 @@ from .lexicon_store import (
 )
 from .noun_phrases import TextAnalysis, analyse
 from .parse_cache import ParseCache, text_key
+from .rejects import read_snapshot
 from .scoring import (
     FORMS_SEPARATOR,
     RAW_COLUMNS,
@@ -263,6 +266,38 @@ def score_language(
     return scored
 
 
+def reject_band(table: pd.DataFrame, rejected: Mapping[str, str]) -> pd.DataFrame:
+    """*table* with the candidates of *rejected* (lower-case term → ``list`` or ``earlier``)
+    in the ``rejected`` band, their reason ``rejected-list`` or ``rejected-earlier``.
+
+    A candidate is rejected when its shown form, or one of its other forms, is listed.
+    """
+    if table.empty or not rejected:
+        return table
+
+    def found(row: tuple[str, str]) -> str | None:
+        term, forms = row
+        for form in [term, *str(forms or "").split(FORMS_SEPARATOR)]:
+            hit = rejected.get(" ".join(str(form).split()).casefold())
+            if hit:
+                return hit
+        return None
+
+    forms = table["forms"] if "forms" in table.columns else pd.Series("", index=table.index)
+    origin = pd.Series(
+        [found(r) for r in zip(table["term"].astype(str), forms.fillna(""), strict=True)],
+        index=table.index,
+        dtype=object,
+    )
+    hit = origin.notna()
+    if not hit.any():
+        return table
+    table = table.copy()
+    table.loc[hit, "band"] = "rejected"
+    table.loc[hit, "reason"] = "rejected-" + origin[hit].astype(str)
+    return table
+
+
 def language_units(
     lang: str,
     people: Sequence[PersonTexts],
@@ -403,6 +438,8 @@ def _extract(ctx: RunContext, progress_callback: ProgressCallback | None) -> Non
     blacklist = load_manual_blacklist(paths.manual_blacklist_csv) | (
         load_canonical_decision_blacklist(paths.canonical_decisions_json)
     )
+    # The rejection lists' terms: the rejected band (never judged, never in the lexicon).
+    rejects = read_snapshot(paths.rejects_json)
 
     n_langs = max(len(cfg.corpus_languages), 1)
     global_parts: list[pd.DataFrame] = []
@@ -437,7 +474,7 @@ def _extract(ctx: RunContext, progress_callback: ProgressCallback | None) -> Non
             # none once the stage is over.
             language_models.release(lang)
         scored = score_language(lang, units, len(people), cfg, blacklist=blacklist)
-        df_lang = scored.table
+        df_lang = reject_band(scored.table, rejects.get(lang, {}))
         df_lang.to_csv(out_path, index=False)
         users[lang] = scored.people_of
         log(lo + span, f"Saved {len(df_lang)} {lang.upper()} candidate terms to {out_path}")

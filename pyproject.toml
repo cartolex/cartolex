@@ -115,7 +115,7 @@ include = ["cartolex*"]
 # The engine's own runtime data (stop-word lists, prompt templates) lives in
 # the package, so a wheel, a zip or a checkout all carry it.
 [tool.setuptools.package-data]
-"cartolex._data" = ["stopwords/*.json", "prompts/*.txt", "prompts/*.md"]
+"cartolex._data" = ["stopwords/*.json", "prompts/*.txt", "prompts/*.md", "rejects/*.json"]
 "cartolex.project.schemas" = ["*.schema.json"]
 "cartolex.app" = ["static/**/*"]
 "cartolex.site" = ["assets/*", "i18n/*.json"]

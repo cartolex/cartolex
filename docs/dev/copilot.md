@@ -95,7 +95,11 @@ F1 for themes, precision and recall for triage.
 ```
 
 A triage result has `decisions` instead: `{term, language, decision (keep,
-exclude, merge), target, code, reason}`. `cartolex.copilot.bundle.check_result`
+exclude, merge), target, code, category, reason}`. The category
+(`cartolex.lexicon.categories`) follows the code when it is left out: `concept`,
+`method`, `object`, `place` or `field` for a kept or merged term, `never` (never
+a keyword in any field: an accepted one enters the machine's rejection cache) or
+`here` (not informative in this field) for an excluded one. `cartolex.copilot.bundle.check_result`
 lists what is wrong with one; the kit writes only results it passes, the app
 reads only those (`invalid_copilot_result`).
 
@@ -107,9 +111,9 @@ reads only those (`invalid_copilot_result`).
 | `POST /api/themes/copilot/export {tree, language}` | the themes bundle (a zip) of the tree being edited, unsaved edits included (default: the saved tree, else the grouping's proposal); `language` is the curator's |
 | `POST /api/themes/copilot/import {result}` | keeps the result in `decisions/history/ai/<time>-copilot-themes.json`, and gives each change as a proposal item (`verb`, `kind`, `ops`, `reason`, `refused` when it cannot apply after the changes before it), `applicable`, `matches`, `measures`, `notes`; the first answers freeze the identity |
 | `GET /api/themes/copilot/proposals/{id}` | one of them, read again |
-| `GET /api/keywords/copilot/summary?scope=&usage_lines=` | the same for triage (`scope`: `both`, Kept and To check, or `check`) |
+| `GET /api/keywords/copilot/summary?scope=&usage_lines=` | the same for triage (`scope`: `all`, the default, Kept, To check and Set aside, never the candidates rejected automatically; `both`, Kept and To check; or `check`) |
 | `GET /api/keywords/copilot/export?scope=&usage_lines=&language=` | the triage bundle |
-| `POST /api/keywords/copilot/import {result}` | keeps the result in `decisions/history/ai/<time>-copilot-triage.json` and gives a keyword proposal (the shape of `GET /api/handoff/proposals/{id}`, each item with its `reason`), accepted with `POST /api/handoff/proposals/{id}/accept` (source `ai-copilot`, its own route in the Keywords list; reason « AI: » and the assistant's) |
+| `POST /api/keywords/copilot/import {result}` | keeps the result in `decisions/history/ai/<time>-copilot-triage.json` and gives a keyword proposal (the shape of `GET /api/handoff/proposals/{id}`, each item with its `reason` and its `category`), accepted with `POST /api/handoff/proposals/{id}/accept` (source `ai-copilot`, its own route in the Keywords list; reason « AI: » and the assistant's) |
 
 The theme editor reviews the changes like a handoff's (accept or reject each,
 preview on the tree), applies the accepted ones through `POST /api/themes/ops`

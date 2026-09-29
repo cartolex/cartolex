@@ -25,6 +25,17 @@
   font-size: var(--cx-text-s);
 }
 
+/* A category in a word; the rejected ones muted. */
+.cx-kw-category {
+  font-size: var(--cx-text-s);
+  white-space: nowrap;
+}
+
+.cx-kw-category--never,
+.cx-kw-category--here {
+  color: var(--cx-text-muted);
+}
+
 .cx-kw-route {
   display: inline-flex;
   align-items: center;

@@ -39,12 +39,15 @@ class TermRef(BaseModel):
 
 
 class ExportBody(BaseModel):
-    """The terms to send: a band (``check`` by default), or a list; parts of at most
+    """The terms to send: a band, several, or a list (by default every band an AI judges:
+    kept, to check and set aside, never those rejected automatically); parts of at most
     *max_tokens* (a chat assistant reads a limited amount at once)."""
 
-    band: Literal["kept", "check", "aside"] | None = "check"
+    band: Literal["kept", "check", "aside"] | None = None
     #: Several bands at once (``["kept", "check"]``); replaces *band* when given.
     bands: Annotated[list[Literal["kept", "check", "aside"]], Field(max_length=3)] | None = None
+    #: Leave out the terms an AI already answered (a handoff or a copilot's accepted answer).
+    skip_answered: bool = True
     #: Keep the terms the same people use in the same part (a term and its translation).
     group: bool = True
     terms: Annotated[list[TermRef], Field(max_length=MAX_TERMS)] | None = None
@@ -58,7 +61,10 @@ def bundle_items(
 ) -> tuple[list[Any], str, int, int, dict[tuple[str, str], dict[str, str]]]:
     """The terms a bundle sends, with their evidence: ``(items, run, people, texts, decisions)``."""
     from cartolex.build.records import read_record
+    from cartolex.lexicon.scoring import AI_BANDS
     from cartolex.project.handoff import BundleItem
+
+    from .keywords import AI_SOURCES
 
     runtime = runtime_of(request)
     rows, run_id = extracted(runtime, ctx)
@@ -69,16 +75,18 @@ def bundle_items(
     corpus = read_record(ctx.layout, "corpus.assemble")
     counts = corpus.measures.counts if corpus else {}
     n_people, n_texts = max(1, counts.get("people", 0)), counts.get("texts", 0)
+    bands = body.bands or ([body.band] if body.band is not None else list(AI_BANDS))
     items = []
     for row in sorted(rows, key=lambda r: -r["score_len"]):
-        view = _effective(row, decisions.get((row["term"], row["language"])))
+        decision = decisions.get((row["term"], row["language"]))
+        view = _effective(row, decision)
         key = (row["term"], row["language"])
         if wanted is not None:
             if key not in wanted and (row["term"], "") not in wanted:
                 continue
-        elif body.bands and view["band"] not in body.bands:
+        elif row["band"] not in AI_BANDS or view["band"] not in bands:
             continue
-        elif not body.bands and body.band is not None and view["band"] != body.band:
+        elif body.skip_answered and decision is not None and decision["source"] in AI_SOURCES:
             continue
         if body.lang and row["language"] != body.lang:
             continue
@@ -185,6 +193,7 @@ def _ai_folder(ctx: Any) -> Path:
 
 
 def _proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
+    from cartolex.lexicon.categories import category_of
     from cartolex.project.handoff import CODES, items_of, parse_answer
 
     if "-copilot-" in proposal_id:
@@ -210,6 +219,7 @@ def _proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
                 "term": item.term,
                 "language": item.lang,
                 "code": v.code,
+                "category": category_of(v.code),
                 "meaning": CODES.get(v.code, ""),
                 "english": v.canonical,
                 # An accepted term whose English form is another term joins it (its
@@ -313,6 +323,7 @@ def accept(
             raise ApiError.of("nothing_chosen")
         rows, _ = _decisions(ctx)
         now = decided_now()
+        source = "ai-copilot" if "-copilot-" in proposal_id else "ai-handoff"
         for i in items:
             rows[(i["term"], i["language"])] = {
                 "term": i["term"],
@@ -323,13 +334,32 @@ def accept(
                 + (
                     f"; English form: {i['english']}" if i["english"] not in ("", i["term"]) else ""
                 ),
-                "source": "ai-copilot" if "-copilot-" in proposal_id else "ai-handoff",
+                "source": source,
                 "decided_at": now,
+                "category": i.get("category") or "",
             }
         fp = _write(ctx, rows, expected, f"accept {len(items)} AI answers")
         ctx.project.freeze_identity("first AI answers")
+        feed_rejects(request, ctx, items, source)
     response.headers["ETag"] = etag_of(fp)
     return {"accepted": len(items), "version": version_of(fp)}
+
+
+def feed_rejects(request: Request, ctx: Any, items: list[dict[str, Any]], route: str) -> int:
+    """Put the accepted ``never`` exclusions into the machine's rejection cache."""
+    from cartolex.build.engine import project_fingerprint
+
+    from .keywords import machine_rejects
+
+    machine = machine_rejects(runtime_of(request))
+    rows = [
+        {"term": i["term"], "language": i["language"]}
+        for i in items
+        if i.get("category") == "never" and i["proposed"] == "exclude" and i["language"]
+    ]
+    if machine is None or not rows:
+        return 0
+    return machine.add(rows, route=route, project=project_fingerprint(ctx.project))
 
 
 @routes.get("/api/keywords/ai", action="keywords.read")
@@ -337,7 +367,10 @@ def ai_routes(request: Request, ctx: ProjectDep) -> dict[str, Any]:
     """The two routes of the AI filtering: by handoff (no key; the proposals imported so far)
     and by API (whether a key and a provider are set, what it sends, and an estimate of the
     calls and tokens of a run), with what the last run by API decided."""
-    from cartolex.lexicon.triage_typed import load_typed_template
+
+    from cartolex.lexicon.llm_filter import TermDecisionCache
+    from cartolex.lexicon.scoring import AI_BANDS
+    from cartolex.lexicon.triage_typed import _TYPED_CACHE_PHASE, load_typed_template
     from cartolex.project.handoff import tokens
 
     from .build import AI_BATCH
@@ -345,9 +378,18 @@ def ai_routes(request: Request, ctx: ProjectDep) -> dict[str, Any]:
 
     runtime = runtime_of(request)
     rows, run_id = extracted(runtime, ctx)
-    # The API route judges the kept and to-check candidates, one per distinct term.
-    terms = sorted({r["term"] for r in rows if r["band"] in ("kept", "check")})
-    calls = -(-len(terms) // AI_BATCH)
+    # The API route judges every candidate but those rejected automatically, one per
+    # distinct term; the answers already paid for (cache/ai/) cost nothing.
+    terms = sorted({r["term"] for r in rows if r["band"] in AI_BANDS})
+    config = ctx.project.config
+    known = 0
+    if config.identity.ai is not None:
+        cache = TermDecisionCache(ctx.layout.cache_ai / "triage_term_cache.json")
+        title, model = config.identity.domain_title, config.identity.ai.model
+        known = sum(1 for t in terms if cache.get(_TYPED_CACHE_PHASE, t, title, model))
+    new_terms = len(terms) - known
+    calls = -(-new_terms // AI_BATCH)
+    rejected = sum(1 for r in rows if r["band"] == "rejected")
     try:
         template = load_typed_template(
             ctx.layout.root / "decisions/prompts/triage_typed_system.txt"
@@ -355,8 +397,9 @@ def ai_routes(request: Request, ctx: ProjectDep) -> dict[str, Any]:
         system = tokens(template.text)
     except Exception:  # an unreadable override: the build says why; the estimate goes on
         system = 1500
-    tokens_in = calls * system + sum(tokens(t) + 4 for t in terms)
-    tokens_out = len(terms) * 10
+    share = new_terms / max(len(terms), 1)
+    tokens_in = calls * system + int(share * sum(tokens(t) + 4 for t in terms))
+    tokens_out = new_terms * 10
     identity = ctx.project.config.identity.ai
     ai = runtime.ai_access()
     key = bool(ai is not None and (ai.api_key or ai.client_factory))
@@ -376,6 +419,9 @@ def ai_routes(request: Request, ctx: ProjectDep) -> dict[str, Any]:
             "never": list(NEVER),
             "estimate": {
                 "terms": len(terms),
+                "new": new_terms,
+                "answered": known,
+                "rejected": rejected,
                 "calls": calls,
                 "tokens_in": tokens_in,
                 "tokens_out": tokens_out,

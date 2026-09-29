@@ -83,10 +83,17 @@ class EngineOptions:
     of each project's ``decisions/stopwords.json``. Both are the host's code,
     like cartolex's packaged lists: changing them does not by itself make a
     result out of date (force the stages that read them).
+
+    *rejects_folder* is the machine's rejection cache
+    (:class:`cartolex.lexicon.rejects.MachineRejects`): the extraction rejects
+    the terms other projects' AI answers put there, and the AI clean-up by API
+    adds its ``never`` answers. ``None``: cartolex's list only. Like the other
+    options, a change of the cache makes no result out of date.
     """
 
     prompt_dir: Path | None = None
     stopword_overlay: Mapping[str, Mapping[str, Sequence[str]]] | None = None
+    rejects_folder: Path | None = None
 
 
 #: The options of the stage running in this context (set around a runner's call).
@@ -332,18 +339,83 @@ def run_corpus(ctx: StageContext) -> dict[str, int]:
     }
 
 
+def project_fingerprint(project: Project) -> str:
+    """A project's fingerprint in the rejection cache: never its name, the same at every build."""
+    import hashlib
+
+    config = project.config
+    seed = f"{config.name}\0{config.created.at.isoformat()}\0{config.created.by}"
+    return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:16]
+
+
+def _machine_rejects() -> Any:
+    from ..lexicon.rejects import MachineRejects
+
+    options = _OPTIONS.get() or EngineOptions()
+    return None if options.rejects_folder is None else MachineRejects(options.rejects_folder)
+
+
+def person_decided(project: Project) -> dict[str, list[str]]:
+    """The terms a person decided on in ``decisions/keywords.csv``, per language (``""``: all)."""
+    from ..project.tables import read_decision_csv
+
+    out: dict[str, list[str]] = {}
+    for r in read_decision_csv(project.layout.keywords_csv, "keywords"):
+        if r["source"] == "person":
+            out.setdefault(r["language"], []).append(r["term"])
+    return out
+
+
 def run_extract(ctx: StageContext) -> dict[str, int]:
-    """``keywords.extract``: candidates per corpus language (the engine's extraction)."""
+    """``keywords.extract``: candidates per corpus language (the engine's extraction).
+
+    It first writes the rejection snapshot (``rejects.json``): cartolex's list and
+    the machine's cache, minus the terms a person decided on (none when the
+    ``rejects`` parameter is false).
+    """
     from ..lexicon import run_pipeline_stage_1
+    from ..lexicon.rejects import snapshot
+    from ..project.files import atomic_write_bytes, json_bytes
 
     rctx = run_context(ctx, _settings(ctx))
+    snap = snapshot(
+        rctx.settings.corpus_languages,
+        _machine_rejects(),
+        project=project_fingerprint(ctx.project),
+        exempt=person_decided(ctx.project),
+        enabled=bool(ctx.params.get("rejects", True)),
+    )
+    atomic_write_bytes(rctx.paths.rejects_json, json_bytes(snap))
     _engine_call(ctx, lambda: run_pipeline_stage_1(rctx))
     counts = {
         f"candidates_{lang}": _rows(rctx.paths.raw_terms_csv(lang))
         for lang in rctx.settings.corpus_languages
     }
     counts["candidates"] = _rows(rctx.paths.global_terms_csv)
+    counts["rejected"] = _band_rows(rctx.paths.global_terms_csv, "rejected")
     return counts
+
+
+def _band_rows(path: Path, band: str) -> int:
+    with open(path, encoding="utf-8", newline="") as fh:
+        return sum(1 for r in csv.DictReader(fh) if r.get("band") == band)
+
+
+def feed_rejects(ctx: StageContext, rctx: RunContext) -> int:
+    """Put the AI's ``never`` answers by API into the machine's cache; returns how many are new."""
+    machine = _machine_rejects()
+    path = rctx.paths.triage_decisions_json
+    if machine is None or not path.exists():
+        return 0
+    typed = json.loads(path.read_text(encoding="utf-8")).get("typed") or {}
+    with open(rctx.paths.global_terms_csv, encoding="utf-8", newline="") as fh:
+        lang_of = {r["term"]: r.get("lang", "") for r in csv.DictReader(fh)}
+    rows = [
+        {"term": t, "language": lang_of[t]}
+        for t, d in typed.items()
+        if isinstance(d, dict) and d.get("category") == "never" and lang_of.get(t)
+    ]
+    return machine.add(rows, route="ai-api", project=project_fingerprint(ctx.project))
 
 
 def triage_runner(
@@ -381,6 +453,7 @@ def triage_runner(
         )
         if result is None:
             raise RuntimeError("the AI clean-up did not run")
+        feed_rejects(ctx, rctx)
         return {
             "accepted": len(result.get("accepted", [])),
             "rejected": len(result.get("rejected", [])),
@@ -389,12 +462,47 @@ def triage_runner(
     return run_triage
 
 
-def _keyword_decisions(ctx: StageContext) -> None:
-    """``decisions/keywords.csv`` as the engine's exclusion, keep and merge files."""
+def keyword_categories(
+    rows: Sequence[Mapping[str, str]], typed: Mapping[str, Any]
+) -> dict[str, str]:
+    """Each keyword's category (lower-case term → category): the AI's verdicts by API
+    (*typed*, for the term and its English form), then the decisions' categories
+    (*rows* of ``keywords.csv``, for the term and a merge's target), which win."""
+    from ..lexicon.categories import CATEGORIES, category_of
+
+    out: dict[str, str] = {}
+    for term, d in typed.items():
+        if not isinstance(d, Mapping):
+            continue
+        category = str(d.get("category") or category_of(str(d.get("verdict") or "")))
+        if category in CATEGORIES:
+            out[str(term).strip().lower()] = category
+            if d.get("canonical_en"):
+                out.setdefault(str(d["canonical_en"]).strip().lower(), category)
+    for r in rows:
+        category = r.get("category") or ""
+        if category in CATEGORIES:
+            out[r["term"].strip().lower()] = category
+            if r["decision"] == "merge" and r["target"].strip():
+                out[r["target"].strip().lower()] = category
+    return dict(sorted(out.items()))
+
+
+def _keyword_decisions(ctx: StageContext, rctx: RunContext | None = None) -> None:
+    """``decisions/keywords.csv`` as the engine's exclusion, keep and merge files, and the
+    keywords' categories (``categories.json``, with the AI's verdicts by API)."""
     from ..project.files import atomic_write_bytes, json_bytes
     from ..project.tables import read_decision_csv
 
     rows = read_decision_csv(ctx.layout.keywords_csv, "keywords")
+    if rctx is not None:
+        verdicts = rctx.paths.triage_decisions_json
+        typed: dict[str, Any] = {}
+        if verdicts.exists():
+            typed = json.loads(verdicts.read_text(encoding="utf-8")).get("typed") or {}
+        found = keyword_categories(rows, typed)
+        if found:
+            atomic_write_bytes(rctx.paths.keyword_categories_json, json_bytes(found))
     if not rows:
         return
     by = {
@@ -425,8 +533,8 @@ def run_build(ctx: StageContext) -> dict[str, int]:
     from ..lexicon import run_pipeline_stage_3
     from ..lexicon.io_helpers import build_researcher_index
 
-    _keyword_decisions(ctx)
     rctx = run_context(ctx, _settings(ctx), hi=0.9)
+    _keyword_decisions(ctx, rctx)
     _engine_call(ctx, lambda: run_pipeline_stage_3(rctx))
     roster = rctx.paths.roster_csv
     before = roster.read_bytes() if roster.exists() else b""
