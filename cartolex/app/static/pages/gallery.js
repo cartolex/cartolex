@@ -14,18 +14,18 @@ import { autonym, formatNumber, locale, t } from '../core/i18n.js';
 import { definePage, usePageTitle } from '../core/page.js';
 import { THEMES } from '../core/stores/prefs.js';
 import {
-  ActivityDrawer, ActivityIndicator, AiHandoffDialog, Button, Card, Checkbox, ConfirmDialog,
+  ActivityDrawer, ActivityIndicator, Button, Card, Checkbox, ConfirmDialog,
   ContextMenuArea, Dialog, Drawer, EmptyState, ErrorCard, FormField, Help, ICON_NAMES, Icon,
   IconButton, Input, MapFrame, Menu, MenuButton, ProgressBar, STATES, Select, StageTracker, StatusDot,
   StatusPill, Stepper, Table, Tabs, Textarea, Toaster, Tooltip, TreeView, Treemap, createToaster,
 } from '../components/index.js';
 import {
-  ERRORS, HANDOFF_ANSWER, HANDOFF_BUNDLE, HANDOFF_PROMPT, JOBS, STAGES, THEME_TREE, checkAnswer,
+  ERRORS, JOBS, STAGES, THEME_TREE,
   mapPoints, tableRows,
 } from './gallery-data.js';
 
 const SECTIONS = ['tokens', 'button', 'card', 'status', 'tracker', 'stepper', 'tabs', 'table',
-  'menu', 'dialog', 'toast', 'form', 'empty', 'error', 'progress', 'tooltip', 'handoff',
+  'menu', 'dialog', 'toast', 'form', 'empty', 'error', 'progress', 'tooltip',
   'tree', 'treemap', 'map', 'activity', 'icons'];
 
 function Section({ id, children }) {
@@ -486,27 +486,6 @@ function Tooltips() {
   <//>`;
 }
 
-function Handoff({ ctx }) {
-  const [open, setOpen] = useState(null);
-  const file = { name: 'handoff-keywords.json', content: JSON.stringify(HANDOFF_BUNDLE, null, 1) };
-  const onImport = async () => {
-    ctx.app.toaster.show({ kind: 'success', title: t('gallery.handoff.imported') });
-  };
-  const checked = checkAnswer(HANDOFF_ANSWER);
-  return html`<${Section} id="handoff">
-    <div class="cx-gallery__row">
-      <${Button} icon="download" onClick=${() => setOpen('export')}>${t('gallery.handoff.open')}<//>
-      <${Button} onClick=${() => setOpen('import')}>${t('gallery.handoff.open_import')}<//>
-      <${Button} onClick=${() => setOpen('review')}>${t('gallery.handoff.open_review')}<//>
-    </div>
-    ${open ? html`<${AiHandoffDialog} open=${true} key=${open} onClose=${() => setOpen(null)}
-      bundle=${HANDOFF_BUNDLE} file=${file} prompt=${HANDOFF_PROMPT}
-      initialStep=${open} initialAnswer=${open === 'export' ? '' : HANDOFF_ANSWER}
-      initialChecked=${open === 'review' ? checked : null}
-      onCheck=${async (text) => checkAnswer(text)} onImport=${onImport} />` : null}
-  <//>`;
-}
-
 function fakeJobs(list) {
   const jobs = signal(list);
   const dismissed = signal([]);
@@ -675,7 +654,6 @@ function Gallery({ ctx }) {
     <${Errors} />
     <${Progress} />
     <${Tooltips} />
-    <${Handoff} ctx=${ctx} />
     <${TreeDemo} />
     <${TreemapDemo} />
     <${MapDemo} />

@@ -1,6 +1,6 @@
 /**
  * The project: its name, its field's title and the description the AI reads
- * as its context. Once the first AI answers are in, the identity is frozen:
+ * as its context, and the curator's notes for the AI copilot (`curation.js`). Once the first AI answers are in, the identity is frozen:
  * changing the title (or the AI model, or a language's model) means answers
  * already paid for are not reused; the change is asked for again with what it
  * costs.
@@ -10,6 +10,7 @@ import { html, useEffect, useState } from '../../core/preact.js';
 import { t } from '../../core/i18n.js';
 import { Button, ConfirmDialog, FormField, Input, Textarea } from '../../components/index.js';
 import { Block, State, refusal, useResource } from './common.js';
+import { CurationBlock } from './curation.js';
 
 export function ProjectSection({ ctx, app }) {
   const settings = useResource(ctx.api, '/api/settings');
@@ -83,6 +84,7 @@ export function ProjectSection({ ctx, app }) {
         </div>
       </form>` : null}
     <//>
+    <${CurationBlock} ctx=${ctx} app=${app} />
     <${ConfirmDialog} open=${Boolean(confirm)} title=${t('settings.project.confirm.title')}
       confirmLabel=${t('settings.project.confirm.yes')} cancelLabel=${t('common.cancel')}
       onAnswer=${(yes) => {

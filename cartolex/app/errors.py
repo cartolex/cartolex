@@ -331,7 +331,7 @@ ERRORS: dict[str, ErrorKind] = {
     "archive_corrupt": ErrorKind(
         422, "a member of the archive is larger than it says", "fix-input"
     ),
-    # keywords, themes, the AI handoff
+    # keywords, themes, the AI copilot
     "not_a_corpus_language": ErrorKind(422, "{language} is not a corpus language", "fix-input"),
     "merge_target_missing": ErrorKind(422, "merge {term} into another keyword", "fix-input"),
     "keyword_category_mismatch": ErrorKind(
@@ -342,8 +342,7 @@ ERRORS: dict[str, ErrorKind] = {
     "theme_refused": ErrorKind(422, "the change was refused: {detail}", "fix-input"),
     "theme_step_refused": ErrorKind(422, "step {step} ({op}) was refused: {detail}", "fix-input"),
     "no_keywords": ErrorKind(409, "build the keywords first", "build"),
-    "handoff_empty": ErrorKind(404, "no term to send in this band"),
-    "invalid_bundle": ErrorKind(422, "the bundle is not valid: {detail}", "fix-input"),
+    "triage_empty": ErrorKind(404, "no term to send in this band"),
     "proposal_not_found": ErrorKind(404, "there is no proposal {proposal}", "reload"),
     "nothing_chosen": ErrorKind(422, "choose the terms to accept", "fix-input"),
     "no_proposal": ErrorKind(
@@ -367,10 +366,7 @@ ERRORS: dict[str, ErrorKind] = {
     ),
     "not_a_backup": ErrorKind(422, "this file is not a backup of a cartolex project", "fix-input"),
     "no_space": ErrorKind(409, "the keywords have no space yet: build the themes first", "build"),
-    "theme_handoff_empty": ErrorKind(404, "the tree holds no keyword to send", "none"),
-    "invalid_theme_bundle": ErrorKind(
-        422, "this is not a theme bundle of cartolex: {detail}", "fix-input"
-    ),
+    "themes_empty": ErrorKind(404, "the tree holds no keyword to send", "none"),
     "invalid_copilot_result": ErrorKind(
         422, "this is not a copilot result of cartolex: {detail}", "fix-input"
     ),

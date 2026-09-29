@@ -6,7 +6,7 @@ import { html } from '../../core/preact.js';
 import { t } from '../../core/i18n.js';
 import { Card } from '../../components/index.js';
 
-const ITEMS = ['ai_api', 'ai_handoff', 'collection', 'keys', 'project', 'diagnostic'];
+const ITEMS = ['ai_api', 'ai_copilot', 'collection', 'keys', 'project', 'diagnostic'];
 
 export function PrivacySection() {
   return html`<div class="cx-settings__grid">

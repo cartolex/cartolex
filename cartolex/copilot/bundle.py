@@ -23,10 +23,18 @@ The result is one JSON document, ``result/result.json``:
   "code", "category", "confidence", "reason"}`` (``keep``, ``exclude``, or
   ``merge`` into ``target``; the category, :mod:`cartolex.lexicon.categories`,
   follows the code when absent; the confidence is ``sure`` or ``unsure``,
-  ``unsure`` when absent); ``measures``;
+  ``unsure`` when absent); ``measures``; ``partial`` (true while candidates
+  are left: the work goes on in another session) and, for a part, ``part``
+  and ``parts``;
 
-and ``notes`` for the curator. :func:`check_result` lists what is wrong with a
-result; the kit writes only results it passes, the application reads only those.
+and, for both, ``rules`` (the curator's standing rules, sentences the next
+bundle carries), ``notes`` for the curator and, for triage, ``coverage`` (what
+the kit counted: per band, decided by group, term by term, without reading,
+read and undecided, never shown) and ``caveats`` (what the result does not
+cover). A group decision's reason covers its members: each decision carries its
+``group`` and ``by`` (``group`` or ``term``). :func:`check_result` lists what is
+wrong with a result; the kit writes only results it passes, the application
+reads only those.
 """
 
 from __future__ import annotations
@@ -84,6 +92,8 @@ CODES = {code: meaning for code, (_, meaning) in _CODES.items()}
 MAX_CHANGES = 2_000
 MAX_OPS = 5_000
 MAX_DECISIONS = 50_000
+#: The curator's standing rules a result may carry back.
+MAX_RULES = 50
 
 
 def file_hash(data: bytes) -> str:
@@ -122,6 +132,16 @@ def check_result(doc: Any, *, task: str | None = None) -> list[str]:
         problems.append("bundle (the id of the bundle it answers) is missing")
     if not _text(doc.get("notes", ""), 20_000):
         problems.append("notes is text of at most 20 000 characters")
+    rules = doc.get("rules", [])
+    if (
+        not isinstance(rules, list)
+        or len(rules) > MAX_RULES
+        or not all(_text(r, 300) for r in rules)
+    ):
+        problems.append(f"rules is a list of at most {MAX_RULES} sentences")
+    for key in ("coverage", "caveats"):
+        if doc.get(key) is not None and not isinstance(doc.get(key), Mapping):
+            problems.append(f"{key} is a JSON object")
     if kind == "themes":
         changes = doc.get("changes")
         if not isinstance(changes, list) or len(changes) > MAX_CHANGES:
@@ -150,6 +170,8 @@ def check_result(doc: Any, *, task: str | None = None) -> list[str]:
         if doc.get("tree") is not None and not isinstance(doc.get("tree"), Mapping):
             problems.append("tree is the tree the changes give, as a JSON object")
     elif kind == "triage":
+        if not isinstance(doc.get("partial", False), bool):
+            problems.append("partial is true or false")
         decisions = doc.get("decisions")
         if not isinstance(decisions, list) or len(decisions) > MAX_DECISIONS:
             problems.append(f"decisions is a list of at most {MAX_DECISIONS}")

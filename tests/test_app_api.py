@@ -312,7 +312,7 @@ def test_share_sources_and_empty_results(client):
         body = client.get(url).json()
         assert body["empty"]["next"]["action"] in ("build", "none"), url
     assert client.get("/api/themes").json()["empty"]["next"]["action"] == "build"
-    assert client.post("/api/handoff/export", json={}).status_code == 409
+    assert client.get("/api/keywords/copilot/summary").status_code == 409
 
 
 def test_preferences_are_kept_per_person_outside_the_project(client, tmp_path):

@@ -1,7 +1,8 @@
 /**
- * The AI: by handoff (copy the terms to a chat assistant, paste its answer
- * back: no key, nothing sent by cartolex) or by API (cartolex calls the
- * provider with a key). A key belongs to this computer, never to a project.
+ * The AI: with a copilot (a bundle for an assistant that runs code, its
+ * result imported back: no key, nothing sent by cartolex) or by API (cartolex
+ * calls the provider with a key). A key belongs to this computer, never to a
+ * project.
  */
 
 import { html, useState } from '../../core/preact.js';
@@ -64,7 +65,7 @@ export function AiSection({ ctx, app, open }) {
   return html`<div class="cx-settings__grid">
     <${Block} title=${t('settings.ai.ways')}>
       <dl class="cx-settings__facts">
-        <div><dt>${t('settings.ai.handoff')}</dt><dd>${t('settings.ai.handoff_text')}</dd></div>
+        <div><dt>${t('settings.ai.copilot')}</dt><dd>${t('settings.ai.copilot_text')}</dd></div>
         <div><dt>${t('settings.ai.api')}</dt><dd>${t('settings.ai.api_text')}</dd></div>
       </dl>
       <p class="cx-settings__note">${t('settings.ai.sends')}</p>

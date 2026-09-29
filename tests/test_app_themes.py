@@ -329,23 +329,12 @@ def test_a_tree_of_another_vocabulary_is_rebased_on_demand(depths, client_for, t
     assert again.status_code == 200 and again.json()["written"] is False
 
 
-def test_the_theme_handoff_exports_the_tree_and_reads_an_answer(depths, client_for, tmp_path):
+def test_a_theme_answer_imported_by_an_earlier_version_is_still_read(depths, client_for, tmp_path):
     root = _copy(depths[2], tmp_path)
     client = client_for(root)
     tree = client.get("/api/themes").json()["tree"]
-    exported = client.post("/api/themes/handoff/export", json={"top": 8}).json()
-    [part] = exported["parts"]
-    assert "people's names or identifiers" in exported["never"]
-    text = part["files"]["tree.txt"]
+    assert client.post("/api/themes/handoff/export", json={}).status_code in (404, 405)
     tops = [n for n in tree["nodes"] if n["parent"] is None]
-    assert all(f"[{n['id']}]" in text for n in tree["nodes"])
-    assert "Coastal and marine systems" in text and "Context for the assistant" in text
-    names = [p["name"] for p in client.get("/api/atlas").json()["people"]]
-    ids = [p["person_id"] for p in client.get("/api/atlas").json()["people"]]
-    for content in part["files"].values():
-        assert not any(n in content for n in names) and not any(i in content for i in ids)
-    zipped = client.post("/api/themes/handoff/export.zip", json={})
-    assert zipped.status_code == 200 and zipped.content[:2] == b"PK"
     first, second = tops[0]["id"], tops[1]["id"]
     topic = next(n["id"] for n in tree["nodes"] if n["parent"] == first)
     keyword = next(k for k, n in tree["keywords"].items() if n == topic)
@@ -358,29 +347,21 @@ def test_the_theme_handoff_exports_the_tree_and_reads_an_answer(depths, client_f
             "Thanks!",
         ]
     )
-    imported = client.post(
-        "/api/themes/handoff/import", json={"bundle": part["bundle"], "answer": answer}
-    )
-    assert imported.status_code == 200, imported.text
-    proposal = imported.json()
+    ai = root / "decisions" / "history" / "ai"
+    ai.mkdir(parents=True, exist_ok=True)
+    stamp = "20260101T000000Z-themes"
+    record = {"format": "cartolex-themes-handoff/1", "tree": tree, "language": "en"}
+    (ai / f"{stamp}.bundle.json").write_text(json.dumps(record), encoding="utf-8")
+    (ai / f"{stamp}.txt").write_text(answer, encoding="utf-8")
+    listed = client.get("/api/themes/handoff/proposals").json()["items"]
+    assert [p["id"] for p in listed] == [stamp]
+    proposal = client.get(f"/api/themes/handoff/proposals/{stamp}").json()
     assert [i["verb"] for i in proposal["items"]] == ["RENAME", "MOVE", "MERGE"]
     assert proposal["items"][2]["refused"] and proposal["applicable"] == 2
     assert [u["problem"] for u in proposal["unreadable"]] == ["unknown_keyword"]
-    assert proposal["ignored"] == 1
-    listed = client.get("/api/themes/handoff/proposals").json()["items"]
-    assert [p["id"] for p in listed] == [proposal["id"]]
-    again = client.get(f"/api/themes/handoff/proposals/{proposal['id']}").json()
-    assert again["items"] == proposal["items"]
-    ai = root / "decisions" / "history" / "ai"
-    assert (ai / f"{proposal['id']}.txt").read_text(encoding="utf-8") == answer
-    assert client.get("/api/settings").json()["identity"]["frozen"] is True
     ops = [i["op"] for i in proposal["items"] if not i["refused"]]
     applied = client.post("/api/themes/ops", json={"tree": tree, "ops": ops}).json()
     assert applied["tree"]["keywords"][keyword] == second
-    bad = client.post(
-        "/api/themes/handoff/import", json={"bundle": {"format": "x"}, "answer": "1 | MOVE"}
-    )
-    assert bad.status_code == 422 and bad.json()["error"]["code"] == "invalid_theme_bundle"
 
 
 def test_borderline_keywords_and_suggested_places_follow_the_tree_sent(depths, client_for):

@@ -106,16 +106,6 @@
   gap: var(--cx-space-2);
 }
 
-.cx-kw-part {
-  padding: var(--cx-space-2) 0;
-  border-top: var(--cx-rule-width) solid var(--cx-rule);
-}
-
-.cx-kw-part__title {
-  margin: 0 0 var(--cx-space-2);
-  font-weight: var(--cx-weight-medium);
-}
-
 .cx-kw-estimate {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));

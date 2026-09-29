@@ -30,7 +30,6 @@ INTERACTIVE = [
     "error",
     "progress",
     "tooltip",
-    "handoff",
     "activity",
 ]
 
@@ -380,29 +379,6 @@ def test_progress_bar_never_goes_back(gallery):
     page.keyboard.press("Tab")
     page.keyboard.press("Enter")  # « Go back 30 % »
     expect(bar).to_have_attribute("aria-valuenow", "55")
-
-
-def test_ai_handoff_from_export_to_import(gallery):
-    page = gallery.page
-    opener = page.get_by_role("button", name="Export for an assistant")
-    opener.focus()
-    page.keyboard.press("Enter")
-    dialog = page.get_by_role("dialog", name="Ask an AI assistant")
-    dialog.wait_for()
-    expect(dialog).to_contain_text("never contains")
-    tab_until(gallery, lambda a: a["text"] == "I have the answer")
-    page.keyboard.press("Enter")
-    assert gallery.active()["tag"] == "textarea"
-    page.keyboard.type("C en sediment transport=sediment transport\nG dune erosion")
-    tab_until(gallery, lambda a: a["text"] == "Check the answer")
-    page.keyboard.press("Enter")
-    page.wait_for_function("() => document.activeElement.classList.contains('cx-handoff')")
-    expect(dialog).to_contain_text("2 of the 12 terms have an answer.")
-    tab_until(gallery, lambda a: a["text"] == "Import these decisions")
-    page.keyboard.press("Enter")
-    dialog.wait_for(state="hidden")
-    assert gallery.active()["text"] == "Export for an assistant"
-    expect(page.locator(".cx-toast__title").last).to_contain_text("The decisions are imported")
 
 
 def test_activity_indicator_and_drawer(gallery):

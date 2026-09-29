@@ -59,14 +59,14 @@ export function ApiDialog({ ctx, onClose, onStarted }) {
           <ul class="cx-handoff__list">
             <li>${t('keywords.api.sends.terms', { n: e.terms })}</li>
             ${e.answered ? html`<li>${t('keywords.api.sends.answered', { n: e.answered, new: e.new })}</li>` : null}
-            <li>${t('handoff.export.contains.field')}</li>
+            <li>${t('keywords.api.sends.field')}</li>
           </ul>
         </section>
         <section class="cx-handoff__box" aria-labelledby=${`${uid}-never`}>
-          <h3 id=${`${uid}-never`} class="cx-handoff__box-title"><${Icon} name="cross" />${t('handoff.export.never')}</h3>
+          <h3 id=${`${uid}-never`} class="cx-handoff__box-title"><${Icon} name="cross" />${t('copilot.never')}</h3>
           <ul class="cx-handoff__list">
-            <li>${t('handoff.export.never.texts')}</li>
-            <li>${t('handoff.export.never.people')}</li>
+            <li>${t('keywords.api.never.texts')}</li>
+            <li>${t('copilot.never.people')}</li>
           </ul>
         </section>
       </div>

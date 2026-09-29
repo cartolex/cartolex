@@ -17,6 +17,7 @@ decisions/
   maps.json             map versions, the pinned one
   snowball.csv          collaborators proposed, round by round, and what was decided
   stopwords.json        additions to and removals from the function-word lists
+  curation-notes.md     the curator's notes and standing rules for the AI copilot
   prompts/              prompt overrides, one file per prompt
   history/              every earlier version
 ```
@@ -109,8 +110,30 @@ An unknown step or parameter, or a value below its smallest (1, and 2 for
 | `decided_at` | UTC time |
 | `category` | optional (added within version 1, written only when a row fills it): what a kept or merged keyword names, `concept`, `method` (techniques, instruments, models, data sources), `object`, `place` (a kind of place or setting) or `field` (a discipline's name); why an excluded one is not a keyword, `never` (never informative in any field) or `here` (not informative in this field only) |
 
-A proposal imported from an AI (by handoff or by API) is kept as it came in
-`history/ai/`, and only the changes someone accepts reach `keywords.csv`.
+A proposal imported from an AI (a copilot's result, or, from an earlier
+version, an answer to a handoff) is kept as it came in `history/ai/`, and only
+the changes someone accepts reach `keywords.csv`.
+
+### The curator's notes for the AI copilot: `curation-notes.md`
+
+A Markdown file the curator writes (Settings › Project, or either copilot
+dialog): teams, keywords that belong together or apart, standing context.
+Under the heading `## Standing rules for the AI copilot`, one line per rule
+agreed with a copilot, with the task it is for:
+
+```text
+Two teams work on the same coast: keep their waves and tides together.
+
+## Standing rules for the AI copilot
+
+- triage: research discourse is always excluded, sure
+- themes: never merge the two policy themes
+```
+
+Every copilot bundle carries the notes and its task's rules, as context for
+the assistant (never instructions); importing a result adds the new rules it
+brought. It is written like every decision file (the version read, the
+history); a line under the heading that is not a rule is kept in the notes.
 
 ### Rejected automatically: `cartolex-rejects/1`
 

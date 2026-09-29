@@ -1,21 +1,16 @@
 # SPDX-License-Identifier: MIT
-"""The theme handoff: the parts a person gives an assistant, and its answer read back."""
+"""Answers to a theme handoff an earlier version imported: still read back into operations."""
 
 from __future__ import annotations
-
-import json
 
 import pytest
 
 from cartolex.project.models import ThemesFile
 from cartolex.project.themes import create_node, new_tree, rebase, set_aside
 from cartolex.project.themes_handoff import (
-    HANDOFF_FORMAT,
     PROBLEMS,
     answer_line,
-    bundle_parts,
     parse_answer,
-    part_files,
     tree_of,
 )
 
@@ -44,81 +39,6 @@ def _tree() -> ThemesFile:
     }
     tree = rebase(tree, list(places), places).tree
     return set_aside(tree, ["further work"], "too general").tree
-
-
-USAGE = {
-    "storm surge model": [9, 1.2],
-    "tide gauge": [4, 0.5],
-    "coastal flooding": [7, 0.9],
-    "beach erosion": [6, 0.8],
-    "érosion des plages": [3, 0.3],
-    "cliff retreat": [2, 0.2],
-    "stock assessment": [8, 1.1],
-    "hake recruitment": [5, 0.6],
-    "extreme events": [11, 1.5],
-    "further work": [12, 1.0],
-}
-
-
-def _part(**kw):
-    return bundle_parts(
-        _tree(), USAGE, domain="Coastal systems", description="An invented field.", **kw
-    )
-
-
-def test_a_small_tree_is_one_part_with_its_outline_keywords_and_tray():
-    [part] = _part()
-    text = part["files"]["tree.txt"]
-    assert part["parts"] == 1 and part["nodes"] == 5 and part["keywords"] == 9
-    assert "[n1] Coastal hazards — Theme, 7 keywords" in text
-    assert "  [n3] Storm surge — Topic, 3 keywords" in text
-    assert "storm surge model (9); coastal flooding (7); tide gauge (4)" in text
-    assert "keywords on it: extreme events (11)" in text
-    assert "Set aside (1 keyword;" in text and "further work (12) — too general" in text
-    assert "Context for the assistant" in text and "An invented field." in text
-    prompt = part["files"]["prompt.txt"]
-    assert "2 levels (Theme › Topic, from the top)" in prompt
-    assert "<number> | MERGE | <node id> | <node id it goes into> | <reason>" in prompt
-    assert "levels above only (1 to 1)" in prompt and "<levels, 0 to 1>" in prompt
-    record = part["bundle"]
-    assert record["format"] == HANDOFF_FORMAT and tree_of(record) == _tree()
-    files = part_files(part)
-    assert set(files) == {"prompt.txt", "tree.txt", "expected-answer.txt", "bundle.json"}
-    assert json.loads(files["bundle.json"])["tree"] == record["tree"]
-
-
-def test_a_one_level_tree_asks_only_for_counting_nowhere():
-    tree = new_tree(depth=1)
-    tree = create_node(tree, None, {"en": "Hazards"}).tree
-    tree = rebase(tree, ["storm surge model"], {"storm surge model": "n1"}).tree
-    [part] = bundle_parts(tree, {}, domain="d", description="")
-    prompt = part["files"]["prompt.txt"]
-    assert "count its usage nowhere (0)" in prompt and "<levels: 0>" in prompt
-    assert "1 to 0" not in prompt
-
-
-def test_a_part_never_holds_people_or_texts():
-    [part] = _part()
-    for text in part["files"].values():
-        assert "person_id" not in text and "p0001" not in text
-
-
-def test_a_large_tree_is_cut_by_top_level_nodes_under_the_budget():
-    parts = _part(max_tokens=4_000, top=3)
-    assert len(parts) == 1  # small enough
-    big = new_tree(depth=1)
-    for i in range(40):
-        big = create_node(big, None, {"en": f"theme {i}"}).tree
-    vocabulary = {f"keyword {i} of a long list of words": f"n{1 + i % 40}" for i in range(2400)}
-    big = rebase(big, list(vocabulary), vocabulary).tree
-    usage = {k: [3, 0.1] for k in vocabulary}
-    parts = bundle_parts(big, usage, domain="d", description="", max_tokens=6_000, top=20)
-    assert len(parts) > 1 and all(p["tokens"] <= 6_000 for p in parts)
-    assert sum(p["nodes"] for p in parts) == 40
-    # every part shows the whole outline; the tray only in the first
-    for p in parts:
-        assert p["files"]["tree.txt"].count("[n") == 40
-        assert f"(part {p['part']} of {len(parts)})" in p["files"]["prompt.txt"]
 
 
 def test_an_answer_becomes_operations_in_the_api_form():

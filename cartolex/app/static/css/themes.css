@@ -886,6 +886,16 @@
   gap: var(--cx-space-2);
 }
 
+.cx-themes-ai__sets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-1);
+}
+
+.cx-themes-ai__sets [aria-pressed="true"] {
+  background: var(--cx-surface-alt);
+}
+
 .cx-themes-ai__count {
   margin-left: auto;
   color: var(--cx-text-muted);
@@ -933,20 +943,6 @@
   display: flex;
   gap: var(--cx-space-1);
   color: var(--cx-warning);
-}
-
-.cx-themes-ai__part {
-  display: grid;
-  gap: var(--cx-space-2);
-  padding: var(--cx-space-2) 0;
-  border-top: var(--cx-rule-width) solid var(--cx-rule);
-}
-
-.cx-themes-ai__part-title {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--cx-space-2);
-  font-weight: var(--cx-weight-medium);
 }
 
 .cx-themes-ai__unreadable ul {

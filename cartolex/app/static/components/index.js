@@ -7,7 +7,6 @@
 export {
   ActivityDrawer, ActivityIndicator, jobHeadline, jobResultSummary, jobTitle,
 } from './activity.js';
-export { AiHandoffDialog } from './ai-handoff.js';
 export { Button, IconButton } from './button.js';
 export { Card } from './card.js';
 export { ConfirmDialog, Dialog, Drawer } from './dialog.js';

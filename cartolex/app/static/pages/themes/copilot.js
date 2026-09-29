@@ -1,21 +1,25 @@
 // SPDX-License-Identifier: MIT
 /**
- * The AI copilot of the theme tree: download a bundle an assistant that runs
- * code works from on its own (the tree being edited, unsaved edits included,
- * its vectors and the kit),
- * bring back its `result.json`, review each change with its reason (accept or
- * reject, preview on the tree), then apply the accepted ones as ordinary
- * operations and save them as a version.
+ * Curate with AI (the theme editor's header): download a bundle an assistant
+ * that runs code works from on its own (the tree being edited, unsaved edits
+ * included, its levels and measures, its vectors, the curator's standing
+ * rules and the kit), bring back its `result.json` (or open a result imported
+ * before), review each change with its reason (accept or reject, preview on
+ * the tree), then apply the accepted ones as ordinary operations and save them
+ * as a version.
  */
 import { html, useEffect, useState } from '../../core/preact.js';
 import { formatNumber, locale, t } from '../../core/i18n.js';
 import { downloadFile } from '../../core/dom.js';
 import { Button, Dialog, Stepper } from '../../components/index.js';
-import { COPILOT_STEPS, CopilotExport, CopilotImport, CopilotOutcome, stepState } from '../copilot/parts.js';
-import { ProposalList } from './handoff.js';
+import {
+  COPILOT_STEPS, CopilotExport, CopilotImport, CopilotOutcome, CurationNotes, EarlierResults, stepState,
+} from '../copilot/parts.js';
+import { ProposalList } from './proposal.js';
 import { lang2 } from './model.js';
 
-const CONTAINS = ['tree', 'keywords', 'people', 'field', 'kit'].map((k) => `copilot.themes.contains.${k}`);
+const CONTAINS = ['tree', 'keywords', 'people', 'texts', 'rules', 'field', 'kit']
+  .map((k) => `copilot.themes.contains.${k}`);
 const NEVER = ['texts', 'people', 'named', 'keys'].map((k) => `copilot.never.${k}`);
 
 /** The changes that apply, all chosen at first. */
@@ -56,18 +60,25 @@ export function ThemeCopilotDialog({ api, editor, onClose, onPreview, onApply, r
     if (r.ok && r.data && r.data.blob) downloadFile('copilot-themes.zip', r.data.blob, 'application/zip');
     else setError(r.error);
   };
-  const read = async (result) => {
+  const show = (data) => {
+    setProposal(data);
+    setAccepted(applicable(data));
+    setStep('review');
+  };
+  const read = async ([result]) => {
     setBusy(true);
     setError(null);
     const r = await api.post('/api/themes/copilot/import', { result });
     setBusy(false);
-    if (!r.ok) {
-      setError(r.error);
-      return;
-    }
-    setProposal(r.data);
-    setAccepted(applicable(r.data));
-    setStep('review');
+    if (r.ok) show(r.data);
+    else setError(r.error);
+  };
+  const open = async (id) => {
+    setError(null);
+    const kind = id.includes('-copilot-') ? 'copilot' : 'handoff';
+    const r = await api.get(`/api/themes/${kind}/proposals/${encodeURIComponent(id)}`);
+    if (r.ok) show(r.data);
+    else setError(r.error);
   };
 
   let body;
@@ -79,12 +90,14 @@ export function ThemeCopilotDialog({ api, editor, onClose, onPreview, onApply, r
     body = html`<${CopilotExport} lead=${t('copilot.themes.lead')} contains=${CONTAINS} never=${NEVER}
       counts=${counts} error=${error} onDownload=${summary ? download : null} busy=${making}>
       <p class="cx-copilot__note" role="note">${t('copilot.themes.current')}</p>
+      <${CurationNotes} api=${api} />
     <//>`;
     footer = html`<${Button} variant="ghost" onClick=${() => onClose('close')}>${t('common.cancel')}<//>
       <${Button} variant="primary" iconAfter="chevron-right" disabled=${!summary}
         onClick=${() => setStep('import')}>${t('copilot.next')}<//>`;
   } else if (step === 'import') {
-    body = html`<${CopilotImport} onRead=${read} busy=${busy} error=${error} />`;
+    body = html`<${CopilotImport} onRead=${read} busy=${busy} error=${error} />
+      <${EarlierResults} api=${api} url="/api/themes/handoff/proposals" onOpen=${open} />`;
     footer = html`<${Button} variant="ghost" icon="chevron-left" onClick=${() => setStep('export')}>${t('common.back')}<//>`;
   } else {
     body = proposal ? html`<p class="cx-handoff__lead">${t('themes.ai.review.lead', {
@@ -103,7 +116,7 @@ export function ThemeCopilotDialog({ api, editor, onClose, onPreview, onApply, r
 
   return html`<${Dialog} open=${true} onClose=${onClose} size="l" title=${t('copilot.themes.title')}
     description=${t('copilot.themes.description')} footer=${footer}>
-    <${Stepper} label=${t('handoff.steps')} steps=${COPILOT_STEPS.map((id) => ({
+    <${Stepper} label=${t('copilot.steps')} steps=${COPILOT_STEPS.map((id) => ({
       id, label: t(`copilot.step.${id}`), state: stepState(step, id) }))}
       onSelect=${(id) => {
         if (id !== 'review' || proposal) setStep(id);

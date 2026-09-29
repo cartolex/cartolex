@@ -49,8 +49,9 @@ THEMES_CONTAINS = (
     "the theme tree (node ids, names, levels), the set-aside keywords and why, and the grouping's proposal",
     "the keywords, how many people use each, and their vectors in the keywords' space",
     "the comb's suggestions: the keywords whose texts support a higher node, or no theme",
+    "which keywords each text uses, texts as numbered rows in a random order (never a text)",
     "each person's usage of the keywords and vector, as numbered rows in a random order",
-    "the field's title and description, as the assistant's context",
+    "the field's title and description, your curation notes and standing rules, as the assistant's context",
     "the cartolex kit (a wheel) and its guide",
 )
 THEMES_NEVER = (
@@ -64,7 +65,7 @@ TRIAGE_CONTAINS = (
     "for each: how many people and texts use it, its other spellings, the longer phrases it sits in",
     "who uses which candidate, people as numbered columns in a random order",
     "your decisions so far on these candidates",
-    "the field's title and description, as the assistant's context",
+    "the field's title and description, your curation notes and standing rules, as the assistant's context",
     "the cartolex kit (a wheel) and its guide",
 )
 TRIAGE_USAGE = "a few short lines of text around each candidate, names and identifiers masked"
@@ -284,6 +285,7 @@ def _finish(
     counts: Mapping[str, Any],
     contains: Sequence[str],
     never: Sequence[str],
+    parts: int = 1,
 ) -> tuple[bytes, dict[str, Any]]:
     from cartolex.copilot import guide
     from cartolex.copilot.bundle import FORMAT, file_hash
@@ -298,6 +300,7 @@ def _finish(
     manifest = {
         "format": FORMAT,
         "task": task,
+        "parts": int(parts),
         "id": secrets.token_hex(8),
         "made_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "cartolex": _version(),
@@ -307,12 +310,15 @@ def _finish(
         "contains": list(contains),
         "never": list(never),
     }
-    files["README_FIRST.md"] = guide.readme(task, manifest).encode("utf-8")
-    files["GUIDE.md"] = guide.guide(task).encode("utf-8")
+    files["README_FIRST.md"] = guide.readme(task, manifest, context).encode("utf-8")
+    files["GUIDE.md"] = guide.guide(task, manifest, context).encode("utf-8")
+    if task == "triage":
+        files["TRIAGE_RULES.md"] = guide.triage_rules(context).encode("utf-8")
     files["PRIVACY.md"] = guide.privacy(contains, never).encode("utf-8")
     manifest["files"] = {name: file_hash(b) for name, b in sorted(files.items())}
     files["bundle.json"] = _json(manifest)
-    order = ["README_FIRST.md", "GUIDE.md", "PRIVACY.md", "bundle.json"]
+    order = ["README_FIRST.md", "GUIDE.md", "TRIAGE_RULES.md", "PRIVACY.md", "bundle.json"]
+    order = [k for k in order if k in files]
     ordered = {k: files[k] for k in order} | {
         k: v for k, v in sorted(files.items()) if k not in order
     }
@@ -340,6 +346,7 @@ def themes_bundle(
     curator_language: str,
     mask: NameMask,
     levels: tuple[float, Sequence[Any]] | None = None,
+    texts: Any = None,
 ) -> tuple[bytes, dict[str, Any]]:
     """The bundle of a theme tree: its zip and manifest.
 
@@ -347,8 +354,10 @@ def themes_bundle(
     matrix) and *U* (the usage), in the rows of *Z_terms*; the rows of *X*,
     *U* and *Z_people* are the people, shuffled here. *levels* (θ and the
     :class:`cartolex.lexicon.theme_comb.LevelSuggestion` of the tree) go into
-    ``baseline/levels.json``: the comb read on the tree, from the texts (which
-    stay home).
+    ``baseline/levels.json``: the comb read on the tree. *texts* (texts ×
+    *terms*, which keywords each text uses) goes into ``data/text_keywords.npz``,
+    its rows shuffled and binary: the kit reads the comb again on the tree it
+    changes; no text, no identifier.
     """
     from scipy import sparse
 
@@ -389,6 +398,11 @@ def themes_bundle(
     }
     if proposal is not None:
         data["data/draft.json"] = _json(proposal)
+    if texts is not None:
+        D = sparse.csr_matrix(texts)[:, keep]
+        D = D[np.random.default_rng(secrets.randbits(64)).permutation(D.shape[0])]
+        D = (D > 0).astype(np.float32)
+        data["data/text_keywords.npz"] = _npz(**_csr_arrays("D", D))
     Zt32 = Zt.astype(np.float32).astype(float)
     base = {"tree": measures.summary(work, kept_terms, Zt32)}
     if proposal is not None:
@@ -443,6 +457,7 @@ def triage_bundle(
     curator_language: str,
     mask: NameMask,
     usage: Mapping[tuple[str, str], Sequence[str]] | None = None,
+    parts: int = 1,
 ) -> tuple[bytes, dict[str, Any]]:
     """The bundle of candidate keywords: its zip and manifest.
 
@@ -450,7 +465,9 @@ def triage_bundle(
     ``texts``, ``specificity``, ``forms``, ``inside`` and ``current`` (the
     decision so far); *users* maps (term, language) to the indices of the people
     who use it (the extraction's ``term_people.npz``), shuffled here. *usage*
-    (optional, already masked) gives each candidate's usage lines.
+    (optional, already masked) gives each candidate's usage lines. *parts*: how many
+    parts the kit cuts the candidates into, by theme (one conversation each). The
+    curator's standing rules travel in *context* (``standing_rules``).
     """
     from scipy import sparse
 
@@ -497,6 +514,7 @@ def triage_bundle(
         counts=counts,
         contains=contains,
         never=never,
+        parts=max(1, int(parts)),
     )
 
 

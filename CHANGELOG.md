@@ -566,3 +566,23 @@ nothing in the engine names a particular deployment, source or procedure.
   already reviews: theme operations applied and saved as a version, or keyword
   decisions to accept. `cartolex.lexicon` loads its public names on first use,
   so a light module of it no longer loads the extraction.
+- **The copilot, round 2; the handoff retired.** Two obvious entry points:
+  « Triage with AI » (a copilot, or by API) on the Keywords screen and
+  « Curate with AI » in the theme editor's header. The prompt-and-paste handoff
+  is gone from the interface, the API (`/api/handoff/export`, `…/import`,
+  `/api/themes/handoff/export`, `…/import`), the catalogues and the lab's tools;
+  the answers it imported stay readable. The triage kit sorts the candidates
+  (junk patterns, formulas kept whole, a paper's own phrases, families by head
+  word, theme groups, twins found by their words: `pairs()` no longer scores
+  every pair of rare terms 1.0), shows each group once and decides a group in a
+  line; nothing is decided by omission. A ledger counts what was truly read and
+  decided (the result's `coverage` and `caveats`), every step is kept on disk
+  (`resume()`, `load()`), a bundle can be cut into parts and several results
+  merge on import. The guides start with the field as the curator described it,
+  carry the curator's curation notes and standing rules (`decisions/curation-notes.md`, editable in Settings › Project and both dialogs), estimate the
+  tokens, fit one conversation or helpers in parallel, and end each checkpoint
+  with a question. A restructuring larger than one request comes back as its
+  tree, put in place as one step; the review accepts a whole kind of change, or
+  the changes that share a reason, at once. The themes kit counts the people
+  behind each node, reads the comb on the current tree and suggests only other
+  nodes; its views are short unless `detail=True`.

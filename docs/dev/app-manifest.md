@@ -32,7 +32,7 @@ is the contract between the app and any interface built on it.
 | `locales` | the interface languages, the default one, and for each language the catalogues to merge, in order: cartolex's, then each extension's |
 | `nav` | the pages, sorted by `order`: `id`, `label` (a catalogue key), `route` (a history route the server answers with the shell), `module` (the ES module that renders the page), `order`, `placement` (`main`, `settings` or `hidden`). cartolex's own pages are overview, people, keywords, themes, map, share (main) and settings. A page whose module file is missing gets `/static/pages/placeholder.js`, and the app logs a warning once |
 | `modules` | the extensions' ES modules the shell imports before the first route |
-| `capabilities` | what this app can do: `collection` (texts can be collected), `ai_api` (a key for the AI clean-up by API was given), `ai_handoff` (the AI clean-up by handoff), `hosted`; extensions add flags of their own |
+| `capabilities` | what this app can do: `collection` (texts can be collected), `ai_api` (a key for the AI clean-up by API was given), `ai_handoff` (the AI clean-up outside the app, by the copilot's bundle; the name is kept from the retired handoff), `hosted`; extensions add flags of their own |
 | `project` | the project the requests work on: `open`, its `id` (the key of cached state in the browser) and `name` |
 | `security` | the header state-changing requests carry (`X-Cartolex-CSRF`) and the name of the cookie holding its value, which carries the app instance's id so two apps on two loopback ports never share it |
 

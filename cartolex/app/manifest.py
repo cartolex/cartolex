@@ -93,7 +93,9 @@ class Capabilities(BaseModel):
 
     collection: bool = Field(description="collecting texts from bibliographic services")
     ai_api: bool = Field(description="the AI clean-up by API (a key was given)")
-    ai_handoff: bool = Field(description="the AI clean-up by handoff (export, then import)")
+    ai_handoff: bool = Field(
+        description="the AI clean-up outside the app: the copilot bundle (export, then import)"
+    )
     hosted: bool = Field(description="a hosted service (many projects, a host's sign-in)")
 
 

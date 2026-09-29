@@ -755,87 +755,9 @@ def apply(request: Request, ctx: ProjectDep) -> JSONResponse:
     return JSONResponse(body, status_code=202)
 
 
-# ── AI curation by handoff ───────────────────────────────────────────────────
+# ── AI curation by handoff, as an earlier version imported it (read only) ─────
 
-#: What a theme bundle holds, and what it never holds (shown before the export).
-HANDOFF_CONTAINS = (
-    "the tree: node ids, names and levels",
-    "each node's most used keywords, with how many people use each",
-    "the set-aside keywords and why",
-    "the field's title and description, as the assistant's context",
-)
-HANDOFF_NEVER = ("texts", "people's names or identifiers", "keys")
 ThemeProposalId = Annotated[str, PathParam(pattern=r"^\d{8}T\d{6}Z-themes(-\d+)?$")]
-
-
-class ThemeExportBody(BaseModel):
-    """The tree to send (the one being edited; default: the saved tree, else the proposal),
-    how many keywords per node, and the size of each part."""
-
-    tree: dict[str, Any] | None = None
-    top: Annotated[int, Field(ge=3, le=50)] = 20
-    max_tokens: Annotated[int, Field(ge=4_000, le=1_000_000)] = 24_000
-
-
-def _theme_export(request: Request, body: ThemeExportBody, ctx: Any) -> dict[str, Any]:
-    from cartolex.project.themes_handoff import bundle_parts
-    from cartolex.project.themes_versions import read_themes
-
-    runtime = runtime_of(request)
-    if body.tree is not None:
-        tree: ThemesFile | None = _parse_tree(body.tree)
-    else:
-        tree = read_themes(ctx.project)[0] or _draft(runtime, ctx)
-    if tree is None or not (tree.keywords or tree.set_aside):
-        raise ApiError.of("theme_handoff_empty")
-    usage_map, _, run = _usage(runtime, ctx)
-    config = ctx.project.config
-    parts = bundle_parts(
-        tree,
-        usage_map,
-        domain=config.identity.domain_title,
-        description=config.identity.domain_description,
-        language=config.languages.reference,
-        max_tokens=body.max_tokens,
-        top=body.top,
-        meta={"space_run": run},
-    )
-    return {
-        "parts": parts,
-        "nodes": len(tree.nodes),
-        "keywords": len(tree.keywords),
-        "contains": list(HANDOFF_CONTAINS),
-        "never": list(HANDOFF_NEVER),
-    }
-
-
-@routes.post("/api/themes/handoff/export", action="themes.read")
-def theme_export(request: Request, body: ThemeExportBody, ctx: ProjectDep) -> dict[str, Any]:
-    """The parts of a theme handoff: the prompt to paste, the tree to attach, the answer's
-    format and ``bundle.json`` for each; what they contain and what they never contain."""
-    return _theme_export(request, body, ctx)
-
-
-@routes.post("/api/themes/handoff/export.zip", action="themes.read")
-def theme_export_zip(request: Request, body: ThemeExportBody, ctx: ProjectDep) -> Response:
-    """The same parts as a zip: one folder per part, with ``bundle.json`` beside its texts."""
-    from cartolex.project.handoff import part_zip
-    from cartolex.project.themes_handoff import part_files
-
-    out = _theme_export(request, body, ctx)
-    data = part_zip({p["name"]: part_files(p) for p in out["parts"]})
-    return Response(
-        data,
-        media_type="application/zip",
-        headers={"Content-Disposition": 'attachment; filename="themes-handoff.zip"'},
-    )
-
-
-class ThemeImportBody(BaseModel):
-    """The part that was sent (its ``bundle.json``), and the answer as it came back."""
-
-    bundle: dict[str, Any]
-    answer: Annotated[str, Field(min_length=1, max_length=5_000_000)]
 
 
 def _theme_proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
@@ -860,44 +782,15 @@ def _theme_proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
     }
 
 
-@routes.post("/api/themes/handoff/import", action="themes.write")
-def theme_import(body: ThemeImportBody, ctx: ProjectDep) -> dict[str, Any]:
-    """Keep the answer as it came (``decisions/history/ai/``) and read it into proposed operations.
-
-    Nothing changes in the tree: the editor shows the proposal, and the
-    operations someone accepts go through ``POST /api/themes/ops`` like any
-    other edit. The first AI answers freeze the project's identity.
-    """
-    from cartolex.project.files import atomic_write_bytes, json_bytes, utc_stamp
-    from cartolex.project.themes_handoff import tree_of
-
-    try:
-        tree_of(body.bundle)
-    except (KeyError, TypeError, ValueError) as exc:
-        raise ApiError.of("invalid_theme_bundle", detail=str(exc)[:300]) from exc
-    folder = ctx.layout.history / "ai"
-    with ctx.handle.mutex:
-        base = f"{utc_stamp()}-themes"
-        proposal_id, n = base, 1
-        while (folder / f"{proposal_id}.txt").exists():
-            n += 1
-            proposal_id = f"{base}-{n}"
-        atomic_write_bytes(folder / f"{proposal_id}.bundle.json", json_bytes(body.bundle))
-        atomic_write_bytes(folder / f"{proposal_id}.txt", body.answer.encode("utf-8"))
-        proposal = _theme_proposal(ctx, proposal_id)
-        if proposal["items"]:
-            ctx.project.freeze_identity("first AI answers")
-    return proposal
-
-
 @routes.get("/api/themes/handoff/proposals", action="themes.read")
 def theme_proposals(ctx: ProjectDep) -> dict[str, Any]:
-    """The theme proposals imported so far, the newest first."""
+    """The theme results imported so far, the newest first: the copilot's (read with
+    ``GET /api/themes/copilot/proposals/{id}``) and the answers to a theme handoff an
+    earlier version imported (read here)."""
     folder = ctx.layout.history / "ai"
-    names = (
-        (p.name[: -len(".txt")] for p in folder.glob("*-themes*.txt")) if folder.is_dir() else ()
-    )
-    ids = sorted((i for i in names if re.match(r"^\d{8}T\d{6}Z-themes(-\d+)?$", i)), reverse=True)
+    names = {p.name.split(".", 1)[0] for p in folder.iterdir()} if folder.is_dir() else set()
+    pattern = r"^\d{8}T\d{6}Z-(themes|copilot-themes)(-\d+)?$"
+    ids = sorted((i for i in names if re.match(pattern, i)), reverse=True)
     return {
         "items": [{"id": i, "at": i[:16]} for i in ids],
         "total": len(ids),

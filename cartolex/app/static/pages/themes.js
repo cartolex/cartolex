@@ -9,7 +9,8 @@
  * - `panel.js`: the side panel;
  * - `dialogs.js`, `operations.js`: the dialogs, and those of the operations;
  * - `actions.js`: selection, operations and menus, shared by every panel;
- * - `versions.js`, `handoff.js`: the versions and the AI handoff;
+ * - `versions.js`: the versions;
+ * - `copilot.js`, `proposal.js`: curating with an AI copilot, and the review of its changes;
  * - `editor.js`: the page, which puts them together.
  *
  * Static modules are cached after the first load; the budget of a navigation
