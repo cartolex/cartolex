@@ -67,13 +67,54 @@ def _decisions(ctx: Any) -> tuple[dict[tuple[str, str], dict[str, str]], str | N
     return {(r["term"], r["language"]): r for r in rows}, fingerprint(ctx.layout.keywords_csv)
 
 
-def _effective(row: dict[str, Any], decision: dict[str, str] | None) -> dict[str, Any]:
-    out = {**row, "extracted_band": row["band"], "decision": None}
+def api_verdicts(runtime: Any, ctx: Any) -> tuple[dict[str, dict[str, str]], Any]:
+    """The AI clean-up's verdicts by API (``keywords.triage``), by lower-case term; its record."""
+    import json
+
+    from cartolex.build.records import read_record
+
+    record = read_record(ctx.layout, "keywords.triage")
+    if record is None:
+        return {}, None
+    path = ctx.layout.stage("keywords.triage") / "llm_decisions.json"
+
+    def load() -> dict[str, dict[str, str]]:
+        try:
+            typed = json.loads(path.read_text(encoding="utf-8")).get("typed", {})
+        except (OSError, ValueError):
+            return {}
+        return {str(t).casefold(): d for t, d in typed.items() if isinstance(d, dict)}
+
+    return runtime.table_cache.get(("triage", ctx.id, record.run_id), load), record
+
+
+#: Which route decided a keyword: you, an AI in a browser (handoff), an AI by API, or
+#: nobody yet (the extraction's band).
+ROUTES = ("person", "ai-handoff", "ai-api", "extraction")
+
+
+def _effective(
+    row: dict[str, Any], decision: dict[str, str] | None, verdict: dict[str, str] | None = None
+) -> dict[str, Any]:
+    from cartolex.project.handoff import ACCEPT_CODES, CODES
+
+    out = {**row, "extracted_band": row["band"], "decision": None, "ai": None}
+    if verdict is not None:
+        code = str(verdict.get("verdict", ""))
+        out["ai"] = {"route": "api", "code": code, "english": verdict.get("canonical_en") or ""}
     if decision is None:
+        if verdict is not None and out["ai"]["code"] in CODES:
+            code = out["ai"]["code"]
+            out["band"] = "kept" if code in ACCEPT_CODES else "aside"
+            out["reason"] = f"AI: {CODES[code]}"
+            out["route"] = "ai-api"
+        else:
+            out["route"] = "extraction"
         return out
     out["decision"] = {
         k: decision[k] for k in ("decision", "target", "reason", "source", "decided_at")
     }
+    out["route"] = "ai-handoff" if decision["source"] == "ai-handoff" else "person"
     why = decision["reason"] or "by you"
     if decision["decision"] == "keep":
         out["band"], out["reason"] = "kept", f"kept: {why}"
@@ -82,6 +123,85 @@ def _effective(row: dict[str, Any], decision: dict[str, str] | None) -> dict[str
     else:
         out["band"], out["reason"] = "aside", f"merged into {decision['target']}"
     return out
+
+
+def languages_split(ctx: Any, decisions: dict, triage: Any) -> dict[str, Any] | None:
+    """Several corpus languages and no AI clean-up (by API or by handoff): a warning."""
+    from .overview import item
+
+    langs = list(ctx.project.config.languages.corpus)
+    if len(langs) < 2 or triage is not None:
+        return None
+    if any(d.get("source") == "ai-handoff" for d in decisions.values()):
+        return None
+    return item("health_languages_split", level="warning", languages=langs)
+
+
+class Where(BaseModel):
+    """The list's filters, for a change applied to every keyword they keep."""
+
+    band: Band | None = None
+    lang: Annotated[str | None, Field(pattern=r"^[a-z]{2}$")] = None
+    decision: Literal["keep", "exclude", "merge", "none"] | None = None
+    route: Literal["person", "ai-handoff", "ai-api", "extraction"] | None = None
+    q: Annotated[str, Field(max_length=300)] = ""
+
+
+def keyword_view(runtime: Any, ctx: Any, where: Where) -> dict[str, Any]:
+    """Every candidate with its effective band and route, the counts, and those *where* keeps."""
+    rows, run_id = extracted(runtime, ctx)
+    decisions, fp = _decisions(ctx)
+    verdicts, triage = api_verdicts(runtime, ctx)
+    matched: set[tuple[str, str]] = set()
+    view = []
+    counts: dict[str, int] = {"kept": 0, "check": 0, "aside": 0}
+    routes_: dict[str, int] = dict.fromkeys(ROUTES, 0)
+    by_lang: dict[str, int] = {}
+    for row in rows:
+        key = (row["term"], row["language"])
+        d = decisions.get(key) or decisions.get((row["term"], ""))
+        if d is not None:
+            matched.add((d["term"], d["language"]))
+        item = _effective(row, d, verdicts.get(row["term"].casefold()))
+        counts[item["band"]] = counts.get(item["band"], 0) + 1
+        routes_[item["route"]] += 1
+        by_lang[item["language"]] = by_lang.get(item["language"], 0) + 1
+        view.append(item)
+    orphans = [
+        {"term": t, "language": lang_, "decision": d["decision"]}
+        for (t, lang_), d in sorted(decisions.items())
+        if (t, lang_) not in matched
+    ]
+    q = where.q.strip().casefold()
+
+    def hit(v: dict[str, Any]) -> bool:
+        return q in v["term"].casefold() or any(q in f.casefold() for f in v["forms"])
+
+    items = [
+        v
+        for v in view
+        if (where.band is None or v["band"] == where.band)
+        and (where.lang is None or v["language"] == where.lang)
+        and (where.route is None or v["route"] == where.route)
+        and (
+            where.decision is None
+            or (where.decision == "none" and v["decision"] is None)
+            or (v["decision"] is not None and v["decision"]["decision"] == where.decision)
+        )
+        and (not q or hit(v))
+    ]
+    return {
+        "rows": rows,
+        "run": run_id,
+        "decisions": decisions,
+        "fp": fp,
+        "triage": triage,
+        "counts": counts,
+        "routes": routes_,
+        "languages": by_lang,
+        "orphans": orphans,
+        "items": items,
+    }
 
 
 @routes.get("/api/keywords", action="keywords.read")
@@ -93,45 +213,37 @@ def list_keywords(
     band: Annotated[Band | None, Query()] = None,
     lang: Annotated[str | None, Query(pattern=r"^[a-z]{2}$")] = None,
     decision: Annotated[Literal["keep", "exclude", "merge", "none"] | None, Query()] = None,
+    route: Annotated[
+        Literal["person", "ai-handoff", "ai-api", "extraction"] | None, Query()
+    ] = None,
 ) -> dict[str, Any]:
     """The candidates in their three bands (kept, to check, set aside) with the reason of each,
-    your decisions applied; paged, sorted and filtered here."""
+    your decisions and the AI's verdicts by API applied, and the route that decided each;
+    paged, sorted and filtered here."""
     runtime = runtime_of(request)
-    rows, run_id = extracted(runtime, ctx)
-    decisions, fp = _decisions(ctx)
+    v = keyword_view(
+        runtime, ctx, Where(band=band, lang=lang, decision=decision, route=route, q=params.q)
+    )
+    run_id, decisions, fp, triage = v["run"], v["decisions"], v["fp"], v["triage"]
+    counts, routes_, by_lang, orphans, items = (
+        v["counts"],
+        v["routes"],
+        v["languages"],
+        v["orphans"],
+        v["items"],
+    )
     response.headers["ETag"] = etag_of(fp)
-    matched: set[tuple[str, str]] = set()
-    view = []
-    counts: dict[str, int] = {"kept": 0, "check": 0, "aside": 0}
-    for row in rows:
-        key = (row["term"], row["language"])
-        d = decisions.get(key) or decisions.get((row["term"], ""))
-        if d is not None:
-            matched.add((d["term"], d["language"]))
-        item = _effective(row, d)
-        counts[item["band"]] = counts.get(item["band"], 0) + 1
-        view.append(item)
-    orphans = [
-        {"term": t, "language": lang_, "decision": d["decision"]}
-        for (t, lang_), d in sorted(decisions.items())
-        if (t, lang_) not in matched
-    ]
-    items = [
-        v
-        for v in view
-        if (band is None or v["band"] == band)
-        and (lang is None or v["language"] == lang)
-        and (
-            decision is None
-            or (decision == "none" and v["decision"] is None)
-            or (v["decision"] is not None and v["decision"]["decision"] == decision)
-        )
-        and (not params.q or params.q in v["term"].casefold())
-    ]
     if run_id is None:
         nothing = empty("empty_no_keywords")
     else:
         nothing = empty("empty_no_match")
+    record = None
+    if run_id is not None:
+        from cartolex.build.records import read_record
+
+        record = read_record(ctx.layout, "keywords.extract")
+    param = record.parameters.get("counting_unit") if record else None
+    unit = str(getattr(param, "value", param) or "person") if record else None
     return page(
         items,
         params,
@@ -140,17 +252,65 @@ def list_keywords(
             "term": lambda v: v["term"].casefold(),
             "people": lambda v: v["people"],
             "texts": lambda v: v["texts"],
+            "language": lambda v: (v["language"], -v["score_len"]),
         },
         default_sort="-score",
-        filters={"band": band, "lang": lang, "decision": decision, "q": params.q},
+        filters={"band": band, "lang": lang, "decision": decision, "route": route, "q": params.q},
         empty=nothing,
         extra={
             "counts": counts,
+            "routes": routes_,
+            "languages": by_lang,
+            "corpus_languages": list(ctx.project.config.languages.corpus),
+            "counting_unit": unit,
+            "triage": None
+            if triage is None
+            else {"run": triage.run_id, "at": triage.finished_at, **triage.measures.counts},
+            "warning": languages_split(ctx, decisions, triage) if run_id else None,
             "run": run_id,
             "orphans": orphans[:50],
             "orphan_count": len(orphans),
             "version": version_of(fp),
         },
+    )
+
+
+@routes.get("/api/keywords/decisions", action="keywords.read")
+def list_decisions(
+    response: Response,
+    ctx: ProjectDep,
+    params: ListDep,
+    decision: Annotated[Literal["keep", "exclude", "merge"] | None, Query()] = None,
+    source: Annotated[str | None, Query(pattern=r"^[a-z-]{1,40}$")] = None,
+) -> dict[str, Any]:
+    """Your decisions (``keywords.csv``), the latest first: the history of the curation, each
+    one restorable (``POST /api/keywords/restore``)."""
+    decisions, fp = _decisions(ctx)
+    response.headers["ETag"] = etag_of(fp)
+    counts: dict[str, int] = {}
+    for d in decisions.values():
+        counts[d["decision"]] = counts.get(d["decision"], 0) + 1
+    items = [
+        {
+            k: d[k]
+            for k in ("term", "language", "decision", "target", "reason", "source", "decided_at")
+        }
+        for d in decisions.values()
+        if (decision is None or d["decision"] == decision)
+        and (source is None or d["source"] == source)
+        and (not params.q or params.q in d["term"].casefold())
+    ]
+    return page(
+        items,
+        params,
+        sorts={
+            "decided_at": lambda v: (v["decided_at"], v["term"]),
+            "term": lambda v: v["term"].casefold(),
+        },
+        default_sort="-decided_at",
+        filters={"decision": decision, "source": source, "q": params.q},
+        empty=empty("empty_no_decisions"),
+        extra={"counts": counts, "version": version_of(fp)},
     )
 
 
@@ -240,3 +400,42 @@ def restore(
         fp = _write(ctx, rows, expected, f"restore {len(gone)} keywords")
     response.headers["ETag"] = etag_of(fp)
     return {"restored": len(gone), "version": version_of(fp)}
+
+
+class WhereBody(BaseModel):
+    """Keep or exclude every keyword the list's filters keep (at most :data:`MAX_DECISIONS`)."""
+
+    where: Where
+    decision: Literal["keep", "exclude"]
+    reason: Annotated[str, Field(max_length=500)] = ""
+
+
+@routes.post("/api/keywords/decisions/where", action="keywords.write")
+def decide_where(
+    request: Request, response: Response, body: WhereBody, ctx: ProjectDep
+) -> dict[str, Any]:
+    """Keep or exclude every keyword the filters keep (send ``If-Match``)."""
+    expected = expected_version(request)
+    now = decided_now()
+    with ctx.handle.mutex:
+        check_version(ctx.layout.keywords_csv, expected)
+        items = keyword_view(runtime_of(request), ctx, body.where)["items"]
+        if not items:
+            raise ApiError.of("nothing_chosen")
+        if len(items) > MAX_DECISIONS:
+            raise ApiError.of("too_many_decisions", n=len(items), max=MAX_DECISIONS)
+        rows, _ = _decisions(ctx)
+        for v in items:
+            rows[(v["term"], v["language"])] = {
+                "term": v["term"],
+                "language": v["language"],
+                "decision": body.decision,
+                "target": "",
+                "reason": body.reason,
+                "source": "person",
+                "decided_at": now,
+            }
+        fp = _write(ctx, rows, expected, f"{body.decision} {len(items)} keywords")
+        ctx.project.freeze_identity("first curation decision")
+    response.headers["ETag"] = etag_of(fp)
+    return {"decided": len(items), "version": version_of(fp)}

@@ -183,6 +183,8 @@ class ScoredCandidates:
     n_people: int
     n_texts: int
     n_documents: int
+    #: The people (their indices among the *n_people*) who use each term of the table.
+    people_of: dict[str, np.ndarray] = field(default_factory=dict)
 
     @property
     def empty(self) -> bool:
@@ -440,7 +442,16 @@ def score_units(
     df = df.sort_values(["score_len", "term"], ascending=[False, True], kind="mergesort")
     # Two keys practically never share their most frequent form; keep one if they do.
     df = df.drop_duplicates(subset="term", keep="first").reset_index(drop=True)
-    return ScoredCandidates(lang, df[RAW_COLUMNS], candidates, n_people, len(text_ids), U.shape[0])
+    by_column = X_people.tocsc()
+    people_of = {}
+    for c in sorted(rows_out, key=lambda c: (-c.score_len, c.term)):  # the table's order
+        col = vocabulary[c.key]
+        people_of.setdefault(
+            c.term, by_column.indices[by_column.indptr[col] : by_column.indptr[col + 1]]
+        )
+    return ScoredCandidates(
+        lang, df[RAW_COLUMNS], candidates, n_people, len(text_ids), U.shape[0], people_of
+    )
 
 
 def _assign_bands(

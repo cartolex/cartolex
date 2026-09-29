@@ -15,19 +15,21 @@ Output per language (``paths.raw_terms_csv(lang)``): ``term`` (the candidate's
 most frequent surface form), ``score``, ``len`` (words of the term),
 ``score_len``, ``forms`` (every surface form, most frequent first, separated
 by ``|``), ``people`` and ``texts`` (how many use it), ``band`` and ``reason``,
-sorted by ``score_len``; and the merged list (``paths.global_terms_csv``).
+sorted by ``score_len``; the merged list (``paths.global_terms_csv``); and who
+uses each candidate, as indices of people (``paths.term_people_npz``).
 """
 
 from __future__ import annotations
 
 import logging
 import multiprocessing
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from itertools import repeat
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 
 from . import language_models
@@ -300,6 +302,47 @@ def language_units(
     ]
 
 
+def write_term_people(
+    path: Path, users: Mapping[str, Mapping[str, np.ndarray]], n_people: int
+) -> None:
+    """Who uses each candidate: for every language and term, the indices of its people.
+
+    Indices only (the order of the extraction's people), never a name: a handoff
+    groups the terms that the same people use (a term and its translation) with it.
+    """
+    langs, terms, lengths, chunks = [], [], [], []
+    for lang, of in users.items():
+        for term, idx in of.items():
+            langs.append(lang)
+            terms.append(term)
+            lengths.append(len(idx))
+            chunks.append(np.asarray(idx, dtype=np.int32))
+    indptr = np.concatenate([[0], np.cumsum(lengths, dtype=np.int64)])
+    indices = np.concatenate(chunks) if chunks else np.zeros(0, dtype=np.int32)
+    with open(path, "wb") as fh:
+        np.savez_compressed(
+            fh,
+            langs=np.asarray(langs, dtype=str),
+            terms=np.asarray(terms, dtype=str),
+            indptr=indptr,
+            indices=indices,
+            n_people=np.asarray([n_people]),
+        )
+
+
+def read_term_people(path: Path) -> tuple[dict[tuple[str, str], np.ndarray], int]:
+    """(term, language) → the indices of its people, and the number of people (empty if none)."""
+    if not Path(path).is_file():
+        return {}, 0
+    with np.load(path, allow_pickle=False) as z:
+        indptr, indices = z["indptr"], z["indices"]
+        out = {
+            (str(t), str(lang)): indices[indptr[i] : indptr[i + 1]]
+            for i, (lang, t) in enumerate(zip(z["langs"], z["terms"], strict=True))
+        }
+        return out, int(z["n_people"][0])
+
+
 # ── The stage ───────────────────────────────────────────────────────────────
 
 
@@ -363,6 +406,7 @@ def _extract(ctx: RunContext, progress_callback: ProgressCallback | None) -> Non
 
     n_langs = max(len(cfg.corpus_languages), 1)
     global_parts: list[pd.DataFrame] = []
+    users: dict[str, Mapping[str, np.ndarray]] = {}
     for i, lang in enumerate(cfg.corpus_languages):
         lo = 25 + int(65 * i / n_langs)
         span = int(65 / n_langs)
@@ -392,8 +436,10 @@ def _extract(ctx: RunContext, progress_callback: ProgressCallback | None) -> Non
             # A model holds a few hundred MB: only one is loaded at a time, and
             # none once the stage is over.
             language_models.release(lang)
-        df_lang = score_language(lang, units, len(people), cfg, blacklist=blacklist).table
+        scored = score_language(lang, units, len(people), cfg, blacklist=blacklist)
+        df_lang = scored.table
         df_lang.to_csv(out_path, index=False)
+        users[lang] = scored.people_of
         log(lo + span, f"Saved {len(df_lang)} {lang.upper()} candidate terms to {out_path}")
         g = df_lang[["term", "score", "len", "score_len", "band", "reason"]].copy()
         g["lang"] = lang
@@ -416,5 +462,6 @@ def _extract(ctx: RunContext, progress_callback: ProgressCallback | None) -> Non
         .reset_index(drop=True)
     )
     df_global.to_csv(paths.global_terms_csv, index=False)
+    write_term_people(paths.term_people_npz, users, len(people))
     log(95, f"Saved {len(df_global)} deduplicated terms to {paths.global_terms_csv}")
     log(100, "Done.")

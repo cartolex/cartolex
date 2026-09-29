@@ -101,3 +101,29 @@ def test_parts_fit_and_carry_everything() -> None:
     assert handoff.items_of(record) == parts[0]
     with pytest.raises(ValueError, match="handoff part"):
         handoff.items_of({"format": "other", "items": []})
+
+
+def test_parts_keep_the_terms_the_same_people_use_together() -> None:
+    import numpy as np
+
+    # Two communities of 20 people; each term, and its French twin, is used by one of them.
+    # The items come one language after the other, as the best scored first may.
+    items, users = [], {}
+    for lang, word in (("en", "subject"), ("fr", "sujet")):
+        for k in range(60):
+            term = f"{word} {k}"
+            items.append(handoff.BundleItem(term, lang, "kept", "multiword", 5, 5, 0.5, [], []))
+            users[(term, lang)] = (np.arange(8) + k) % 20 + 20 * (k % 2)
+    common = {"domain": "d", "description": "", "n_people": 40, "n_texts": 80}
+    plain = handoff.split_items(items, max_tokens=2_000, **common)
+    grouped = handoff.group_items(items, users, max_tokens=2_000, **common)
+    assert len(grouped) == len(plain) > 1
+    assert sorted(it.term for p in grouped for it in p) == sorted(it.term for it in items)
+
+    def together(parts) -> int:
+        where = {(it.term, it.lang): i for i, p in enumerate(parts) for it in p}
+        return sum(where[(f"subject {k}", "en")] == where[(f"sujet {k}", "fr")] for k in range(60))
+
+    assert together(grouped) > together(plain)
+    # without users, the plain parts
+    assert handoff.group_items(items, {}, max_tokens=2_000, **common) == plain

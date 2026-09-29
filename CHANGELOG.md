@@ -465,6 +465,24 @@ nothing in the engine names a particular deployment, source or procedure.
   `GET|POST /api/map/bases`, `DELETE /api/map/bases/{id}`; `GET /api/atlas`
   adds the organisations, the people's columns and the years, and takes
   `base` (`docs/dev/api.md`).
+- **The keywords screen.** `/keywords` lists every candidate in three bands
+  (kept, to check, set aside) with its reason, its people and texts, its
+  language and forms, and the route that decided it (you, an AI in a browser,
+  an AI by API, or the extraction); search, filters, range selection, keep,
+  exclude, merge and undo for the rows selected or for every row the filters
+  keep; the history of the decisions, each one restorable; the counting unit
+  in the head, and a warning when several languages have no AI filtering yet.
+  The AI filtering goes by handoff (the kept and to-check keywords in parts,
+  the answer reviewed term by term, all or some accepted; an accepted term
+  whose English form is another term is merged into it) or by API (what is
+  sent, an estimate of the calls and tokens, consent, a build job of
+  `keywords.triage`, whose verdicts the list then shows). The parts of a
+  handoff keep the terms the same people use together (`group_items`; the
+  extraction now writes `term_people.npz`, people's indices only): on the L
+  demo world, kept and to check, 40 % of the French–English twins share a part
+  instead of 14 % (10 parts; 49 % instead of 25 % with 5). New routes:
+  `GET /api/keywords/decisions`, `POST /api/keywords/decisions/where`,
+  `GET /api/keywords/ai`, `POST /api/keywords/ai/run` (`docs/dev/api.md`).
 - **Theme names in each language.** The proposal names a node, in each
   language, after its most used keyword that has a form in that language (its
   own, or one the consolidation pairs attest), else after the most used

@@ -291,8 +291,7 @@ extension), `GET /api/project/state`, `GET /api/jobs` and
 `POST /api/jobs/<id>/cancel` (`tests/fixtures/ui/`), the shell for every other
 path, and the app's Content-Security-Policy on every answer.
 
-The core pages' modules (`pages/keywords.js`,
-`share.js`) are placeholders until their screens are built;
+The core page module `pages/share.js` is a placeholder until its screen is built;
 the overview (`pages/overview.js`: `overview/page.js`, `cards.js`,
 `preview.js`) and the build (`pages/build.js`, a page placed `hidden`:
 `build/page.js`, `preflight.js`, `run.js`, `words.js`) are built. The overview
@@ -321,6 +320,19 @@ treemap and map panels (`treemap.js`, `map.js`, `centre.js`), the side panel
 the AI handoff (`handoff.js`), over the tree's model (`model.js`,
 `labels.js`). Static modules cost nothing after the first load (they are
 cached), so the budget of a navigation counts API calls only.
+
+The keywords screen (`pages/keywords.js`, route `/keywords`) loads
+`pages/keywords/page.js`: the three bands as tabs (`?band=kept|check|aside`)
+with their counts, the counting unit and the languages in the head, the
+warning when languages would split the themes; one band's list
+(`list.js`: search over the terms and their forms, language, route and
+decision filters, range selection, keep, exclude, merge and undo for the rows
+selected or for every row the filters keep, the route that decided each
+keyword); the merge dialog and the history of the decisions (`dialogs.js`);
+the AI filtering in a browser (`handoff.js`: export the kept and to-check
+keywords in parts, paste an answer, review it term by term and accept all or
+some) and by API (`api.js`: what is sent, the estimate of calls and tokens,
+consent, a build job). Opening it reads one page of the list.
 
 The corpus screen (`pages/people.js`, route `/people`) loads
 `pages/people/page.js`: the tabs People (`people-tab.js`), Identities

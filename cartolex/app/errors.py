@@ -279,6 +279,18 @@ ERRORS: dict[str, ErrorKind] = {
         "this collection sends data to {hosts}: read what leaves the computer, then confirm",
         "confirm",
     ),
+    "too_many_decisions": ErrorKind(
+        422, "{n} keywords at once is more than {max}: narrow the filters", "fix-input"
+    ),
+    "ai_api_not_ready": ErrorKind(
+        409,
+        "the AI filtering by API needs a key (Settings, AI) and a provider in the project",
+        "settings",
+        "Open the settings",
+    ),
+    "ai_consent_needed": ErrorKind(
+        409, "the AI filtering by API sends keywords to {provider}: confirm first", "confirm"
+    ),
     "organisation_not_found": ErrorKind(404, "there is no organisation {org}", "reload"),
     "text_not_found": ErrorKind(404, "there is no text {text}", "reload"),
     "no_institution_proposal": ErrorKind(
