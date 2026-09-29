@@ -15,7 +15,7 @@ import { formatNumber, formatPercent, has, t } from '../../core/i18n.js';
 import {
   Button, EmptyState, ErrorCard, Input, Select, Table,
 } from '../../components/index.js';
-import { personName, usePaged } from './common.js';
+import { coded, personName, usePaged } from './common.js';
 
 const FINDERS = ['openalex', 'hal', 'scielo'];
 
@@ -46,10 +46,11 @@ function Candidate({ candidate, number, picked, onPick }) {
     <div class="cx-corpus-cand__body">
       ${candidate.record ? html`<code class="cx-corpus-cand__record">${candidate.record}</code>`
         : html`<p class="cx-corpus-muted">${t('corpus.identities.no_record')}</p>`}
-      ${candidate.detail ? html`<p class="cx-corpus-cand__detail">${candidate.detail}</p>` : null}
+      ${candidate.detail ? html`<p class="cx-corpus-cand__detail">${coded('corpus.detail',
+        { code: candidate.detail_code, params: candidate.detail_params, message: candidate.detail })}</p>` : null}
       ${candidate.evidence && candidate.evidence.length ? html`<ul class="cx-corpus-cand__evidence"
         aria-label=${t('corpus.identities.evidence')}>
-        ${candidate.evidence.map((e, i) => html`<li key=${i}>${e.text}${typeof e.points === 'number'
+        ${candidate.evidence.map((e, i) => html`<li key=${i}>${coded('corpus.evidence', { ...e, message: e.text })}${typeof e.points === 'number'
           ? html` <span class="cx-corpus-muted">${t('corpus.identities.points', { points: e.points.toFixed(2) })}</span>` : null}</li>`)}</ul>` : null}
     </div>
   </li>`;

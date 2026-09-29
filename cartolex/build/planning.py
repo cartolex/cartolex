@@ -227,6 +227,10 @@ def _mb(value: float) -> str:
     return f"{value / 1024:.1f} GB" if value >= 1024 else f"{value:.0f} MB"
 
 
+#: Why an opt-in stage a build did not get consent for is skipped.
+NO_CONSENT_SKIP = "skipped: no consent for this build; the stages after it run without it"
+
+
 def plan(
     project: Project,
     targets: Iterable[str] | None = None,
@@ -235,6 +239,7 @@ def plan(
     force: Iterable[str] = (),
     budget_mb: float | None = None,
     year: int | None = None,
+    off: Iterable[str] = (),
 ) -> BuildPlan:
     """What a build of *targets* (every stage by default) would run, keep and skip.
 
@@ -246,14 +251,16 @@ def plan(
     upstream stage of this build will report again waits for the run. Raises
     :class:`BuildBusy` when a job runs a stage the build would run, and
     :class:`~cartolex.build.params.ParamsError` when ``params.json`` does not
-    fit the stages.
+    fit the stages. The opt-in stages in *off* are skipped, as if switched off
+    (a build does so with the ones its consent was refused for).
     """
     registry = registry or STAGES
     forced = set(force)
     for s in forced:
         registry[s]
     wanted = _wanted(registry, targets)
-    view = _View.read(project, registry, year)
+    off = frozenset(off)
+    view = _View.read(project, registry, year, off)
     statuses: dict[str, StageStatus] = {}
     for stage in registry:
         statuses[stage.id] = _status_of(view, stage, statuses)
@@ -273,7 +280,8 @@ def plan(
             continue
         st = statuses[stage.id]
         if st.state is StageState.SKIPPED:
-            items.append(PlanItem(stage.id, stage.name, "skip", st.state, (st.skip_reason or "",)))
+            why = NO_CONSENT_SKIP if stage.id in off and stage.opt_in else st.skip_reason or ""
+            items.append(PlanItem(stage.id, stage.name, "skip", st.state, (why,)))
             continue
         upstream_runs = [u for u in stage.upstream if u in runs]
         must = st.state in (StageState.NEVER_BUILT, StageState.NEEDS_UPDATE, StageState.FAILED)

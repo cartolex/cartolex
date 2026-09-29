@@ -25,9 +25,38 @@ import { CollectDialog } from './collect.js';
 
 const TABS = ['people', 'identities', 'organisations', 'texts', 'collaborators', 'coverage'];
 
+/**
+ * Where a new project's starting point lands (`?start=`): the tab to show and the
+ * dialog to open. `list` (or `people`) opens the import of a list of people;
+ * `institutions` and `collaborators` open their tabs.
+ */
+const STARTS = {
+  list: { tab: 'people', importing: 'list' },
+  people: { tab: 'people', importing: 'list' },
+  institutions: { tab: 'organisations' },
+  collaborators: { tab: 'collaborators' },
+};
+
+function startOf(query) {
+  const start = query && query.get('start');
+  return Object.hasOwn(STARTS, start || '') ? STARTS[start] : null;
+}
+
 function tabOf(query) {
+  const start = startOf(query);
+  if (start) return start.tab;
   const tab = query && query.get('tab');
   return TABS.includes(tab) ? tab : 'people';
+}
+
+/** The address without its `start`, so a reload does not open the dialog again. */
+function dropStart(tab) {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has('start')) return;
+  url.searchParams.delete('start');
+  if (tab === 'people') url.searchParams.delete('tab');
+  else url.searchParams.set('tab', tab);
+  window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
 }
 
 /** The corpus screen's content. */
@@ -40,12 +69,16 @@ export function CorpusScreen() {
   const [version, setVersion] = useState(0);
   const [summary, setSummary] = useState(null);
   const [sheet, setSheet] = useState(null);
-  const [importing, setImporting] = useState(null); // {mode, person}
+  const [importing, setImporting] = useState(() => {
+    const start = startOf(ctx.query);
+    return start && start.importing ? { mode: start.importing, person: null } : null;
+  }); // {mode, person}
   const [collecting, setCollecting] = useState(null); // {action, options}
   const [peopleFilter, setPeopleFilter] = useState(null); // a filter set from another tab
   const [watched, setWatched] = useState(null);
   const toast = (item) => app.toaster.show(item);
   const bump = () => setVersion((v) => v + 1);
+  useEffect(() => dropStart(tab), []);
 
   const setTab = (id) => {
     setTabState(id);

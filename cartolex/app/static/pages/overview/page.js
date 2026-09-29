@@ -14,6 +14,7 @@ import { runtime } from '../../core/runtime.js';
 import {
   Button, Card, EmptyState, ErrorCard, Slot, StageTracker, StatusPill,
 } from '../../components/index.js';
+import { ImportDialog } from '../people/import.js';
 import { Health, NextStep, Shares } from './cards.js';
 import { MapPreview } from './preview.js';
 
@@ -24,6 +25,24 @@ export function Overview({ ctx }) {
   const [view, setView] = useState(null);
   const [error, setError] = useState(null);
   const info = app.manifest.project || { open: false };
+  // A new project that starts from a folder of documents or a corpus (`?start=`)
+  // opens that import at once; the address loses `start`, so a reload does not.
+  const [importing, setImporting] = useState(() => {
+    const start = ctx.query && ctx.query.get('start');
+    return info.open && (start === 'folder' || start === 'corpus') ? start : null;
+  });
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has('start')) return;
+    url.searchParams.delete('start');
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+  }, []);
+  const imported = (job) => {
+    jobs.refresh();
+    app.toaster.show({ kind: 'info', title: t('corpus.job.started'), message: t('corpus.job.follow'),
+      action: { label: t('activity.title'), onClick: () => runtime.openActivity() } });
+    return job;
+  };
   const load = () => ctx.api.get('/api/overview').then((r) => {
     if (r.ok) {
       setView(r.data);
@@ -82,5 +101,7 @@ export function Overview({ ctx }) {
       </div>
       <${Slot} slots=${app.registries.slots} name="overview.cards" class="cx-grid__slot" />
     </div>
+    ${importing ? html`<${ImportDialog} ctx=${ctx} mode=${importing} person=${null}
+      onStarted=${imported} onClose=${() => setImporting(null)} />` : null}
   </div>`;
 }

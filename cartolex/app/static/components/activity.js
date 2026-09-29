@@ -33,6 +33,20 @@ function areaOf(job) {
   return has(key) ? t(key) : area;
 }
 
+/** A job's title: its code's words (`job.title.<code>`), else its words, else its kind. */
+export function jobTitle(job) {
+  const key = job.title_code ? `job.title.${job.title_code}` : '';
+  if (key && has(key)) return t(key, job.title_params || {});
+  return job.title || kindWord(job, 'noun');
+}
+
+/** A job's result in one line: its code's words (`job.summary.<code>`), else its words. */
+export function jobResultSummary(result) {
+  if (!result) return '';
+  const key = result.summary_code ? `job.summary.${result.summary_code}` : '';
+  return key && has(key) ? t(key, result.summary_params || {}) : result.summary || '';
+}
+
 /** The indicator's words for a job: « Building · keywords 45 % », « Build failed ». */
 export function jobHeadline(job) {
   if (job.state === 'failed' || job.state === 'interrupted') {
@@ -65,7 +79,7 @@ export function ActivityIndicator({ jobs, onOpen, buttonRef }) {
 function JobItem({ job, jobs }) {
   const p = job.progress || {};
   const running = job.state === 'running' || job.state === 'queued' || job.state === 'cancelling';
-  const title = job.title || kindWord(job, 'noun');
+  const title = jobTitle(job);
   // The API gives a job's error as the error shape, or as a sentence.
   const error = !job.error ? null : typeof job.error === 'string'
     ? errorFromResponse({ error: { code: `job_${job.state}`, message: job.error } })
@@ -90,7 +104,7 @@ function JobItem({ job, jobs }) {
     </div>` : null}
     ${job.state === 'succeeded' ? html`<div class="cx-job__result">
       <p class="cx-job__meta">${t('job.finished_at', { time: formatDate(job.finished_at, 'time', 'short') })}
-        ${job.result && job.result.summary ? html`${' · '}${job.result.summary}` : null}</p>
+        ${jobResultSummary(job.result) ? html`${' · '}${jobResultSummary(job.result)}` : null}</p>
       <div class="cx-job__actions">
         ${job.result && job.result.link ? html`<a class="cx-link" href=${job.result.link}>
           ${t('job.open_result')}</a>` : null}

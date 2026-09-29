@@ -105,7 +105,7 @@ be applied again to another tree (below).
   smallest margin first), each with the other node and its margin; a
   « Compare at » choice compares every keyword at one level (through its
   node's ancestor there) instead of its own node's. Its keys: A keeps a
-  keyword here (`set_review` reviewed: it leaves the list), O moves it to the
+  keyword here (`set_review` kept: reviewed, and it leaves the list; a review in the « To check » queue leaves it listed), O moves it to the
   other node (`move_keywords`), S sets it aside, J and K move; the same
   actions are in its context menu.
 - **Suggested places**: a keyword set aside or « to check » shows its three

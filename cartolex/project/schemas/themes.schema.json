@@ -210,7 +210,8 @@
       "additionalProperties": {
         "enum": [
           "to_check",
-          "reviewed"
+          "reviewed",
+          "kept"
         ],
         "type": "string"
       },

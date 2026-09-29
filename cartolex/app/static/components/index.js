@@ -4,7 +4,9 @@
  * page that uses components adds no request when it opens; extensions get it
  * as `api.components`.
  */
-export { ActivityDrawer, ActivityIndicator, jobHeadline } from './activity.js';
+export {
+  ActivityDrawer, ActivityIndicator, jobHeadline, jobResultSummary, jobTitle,
+} from './activity.js';
 export { AiHandoffDialog } from './ai-handoff.js';
 export { Button, IconButton } from './button.js';
 export { Card } from './card.js';

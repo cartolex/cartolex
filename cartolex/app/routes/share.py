@@ -47,7 +47,12 @@ def start(request: Request, ctx: ProjectDep) -> JSONResponse:
 
     try:
         info = runtime.jobs.submit(
-            project=ctx.id, jobs_dir=ctx.layout.jobs, kind="site", work=work, title="build the site"
+            project=ctx.id,
+            jobs_dir=ctx.layout.jobs,
+            kind="site",
+            work=work,
+            title="build the site",
+            title_code="build_site",
         )
     except JobConflict as exc:
         raise busy_error(exc.running) from exc

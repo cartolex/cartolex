@@ -6,7 +6,8 @@
  * read the tree being edited, so they follow every change; they are asked
  * only when shown, a moment after the last change.
  *
- * Borderline keys: A keeps a keyword here (marks it reviewed), O moves it to
+ * Borderline keys: A keeps a keyword here (review state `kept`: reviewed, and
+ * left out of this list; a review in a rebase's queue does not hide it), O moves it to
  * the other node, S sets it aside, J and K go to the next and the previous.
  * Suggested places: 1, 2 or 3 in the tray or the queue puts the keyword there.
  */
@@ -202,7 +203,7 @@ export function BorderlinePane({ editor, ui }) {
     const after = nextOf(item.keyword);
     if (what === 'keep') {
       after();
-      ui.runOrToast([{ op: 'set_review', keywords: [item.keyword], state: 'reviewed' }]);
+      ui.runOrToast([{ op: 'set_review', keywords: [item.keyword], state: 'kept' }]);
     } else if (what === 'other') {
       after();
       ui.runOrToast([{ op: 'move_keywords', keywords: [item.keyword], node_id: item.other }]);

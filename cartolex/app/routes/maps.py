@@ -93,7 +93,7 @@ def change_versions(
         from .build import start_build_job
 
         view["job"] = start_build_job(
-            runtime_of(request), ctx, ["map.layout"], title="draw the map"
+            runtime_of(request), ctx, ["map.layout"], title="draw the map", title_code="draw_map"
         )["job"]
     response.headers["ETag"] = etag_of(view["version"])
     return view

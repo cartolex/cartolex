@@ -124,6 +124,8 @@ def plan_json(the_plan: Any, registry: Any, ctx: Any = None) -> dict[str, Any]:
                     "name": i.name,
                     "network": stage.network,
                     "paid": stage.paid,
+                    # without consent, an opt-in stage is skipped and the later stages run
+                    "skipped_without": stage.opt_in,
                     "note": stage.consent_note,
                     "estimate": _estimate(i.estimate),
                     "ai_calls_max": ai_calls(ctx, the_plan, i.stage) if stage.paid else None,
@@ -170,6 +172,7 @@ def start_build_job(
     allow_over_budget: bool = False,
     consent: list[str] = (),  # type: ignore[assignment]
     title: str = "build",
+    title_code: str = "build",
 ) -> dict[str, Any]:
     """Submit a build of *targets* as a job; 409 when a job runs on the project."""
     from cartolex.build import build
@@ -215,7 +218,12 @@ def start_build_job(
 
     try:
         info = runtime.jobs.submit(
-            project=ctx.id, jobs_dir=ctx.layout.jobs, kind="build", work=work, title=title
+            project=ctx.id,
+            jobs_dir=ctx.layout.jobs,
+            kind="build",
+            work=work,
+            title=title,
+            title_code=title_code,
         )
     except JobConflict as exc:
         raise busy_error(exc.running) from exc

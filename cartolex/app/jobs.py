@@ -80,6 +80,10 @@ class JobInfo:
     result: dict[str, Any] | None = None
     error: str | None = None
     group: str = "work"
+    #: The title as a code of the interface's catalogues (``job.title.<code>``) and
+    #: its parameters; ``title`` stays the English words.
+    title_code: str = ""
+    title_params: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -88,6 +92,8 @@ class JobInfo:
             "project": self.project,
             "state": self.state,
             "title": self.title,
+            "title_code": self.title_code,
+            "title_params": dict(self.title_params or {}),
             "submitted_at": self.submitted_at,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
@@ -164,6 +170,8 @@ class JobRunner(Protocol):
         work: Work,
         title: str = "",
         group: str = "work",
+        title_code: str = "",
+        title_params: Mapping[str, Any] | None = None,
     ) -> JobInfo: ...
 
     def status(self, job_id: str) -> JobInfo | None: ...
@@ -207,6 +215,8 @@ class LocalJobRunner:
         work: Work,
         title: str = "",
         group: str = "work",
+        title_code: str = "",
+        title_params: Mapping[str, Any] | None = None,
     ) -> JobInfo:
         with self._lock:
             if self._closed:
@@ -223,6 +233,8 @@ class LocalJobRunner:
                 title=title,
                 submitted_at=_stamp(),
                 group=group,
+                title_code=title_code,
+                title_params=dict(title_params or {}),
             )
             job = _Job(info)
             self._jobs[job_id] = job
@@ -238,6 +250,8 @@ class LocalJobRunner:
             "job",
             job=job_id,
             kind=kind,
+            title_code=title_code,
+            title_params=dict(title_params or {}),
             pid=os.getpid(),
             host=host_digest(),
             boot=boot_id(),
@@ -428,6 +442,8 @@ def read_job_logs(jobs_dir: Path, project: str, *, limit: int = 20) -> list[JobI
                 kind=kind,
                 project=project,
                 state=state if state in JOB_STATES else "failed",
+                title_code=str(head.get("title_code") or "") if head else "",
+                title_params=dict(head.get("title_params") or {}) if head else {},
                 submitted_at=start or "",
                 started_at=start,
                 finished_at=finished,

@@ -248,7 +248,7 @@ def test_borderline_keywords_and_suggested_places_by_the_keyboard(editor):
     t = tree(ui)
     listed = api(ui, "POST", "/api/themes/borderline", {"tree": t, "limit": 3})["data"]["items"]
     first, second = listed[0], listed[1]
-    # O moves the first to the other node; A keeps the next one here (marked reviewed)
+    # O moves the first to the other node; A keeps the next one here (marked kept)
     border.locator("[role=treeitem]").first.click()
     page.keyboard.press("o")
     wait_status(ui, "1 unsaved change")
@@ -269,7 +269,7 @@ def test_borderline_keywords_and_suggested_places_by_the_keyboard(editor):
     page.wait_for_function(f"() => ({DRAFT})?.past.length === 3")
     draft = page.evaluate(f"() => ({DRAFT}).tree")
     aside = [k for k in draft["set_aside"] if k not in t["set_aside"]]
-    assert len(aside) == 1
+    assert len(aside) == 1 and draft["review"][second["keyword"]] == "kept"
     places = api(ui, "POST", "/api/themes/suggestions", {"tree": draft})["data"]["suggestions"]
     page.get_by_role("tab", name=re.compile("^Set aside")).click()
     tray = page.get_by_role("tree", name="Keywords set aside")

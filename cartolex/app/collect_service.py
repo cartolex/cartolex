@@ -205,11 +205,11 @@ class ServiceCollection(BaseCollection):
                 hosts.append(
                     self._host_json(entry["service"], 0, list(entry["sends"]), purpose=None)
                 )
-        notes = [{"code": "note_text", "params": {"text": n}, "message": n} for n in base.notes]
+        notes = [dict(n) for n in base.coded_notes]
         if self.local:  # nothing is paid to services on this computer
             for h in hosts:
                 h["cost_usd"] = None
-            notes = [n for n in notes if "budget" not in n["message"]]
+            notes = [n for n in notes if not n["code"].startswith("note_openalex_budget")]
             notes.insert(
                 0,
                 {
@@ -438,6 +438,8 @@ class ServiceCollection(BaseCollection):
         out["summary"] = (
             f"{out['people']} searched, {out['with_candidates']} with candidate records"
         )
+        out["summary_code"] = "identify"
+        out["summary_params"] = {"n": out["people"], "found": out["with_candidates"]}
         return out
 
     def _run_harvest(
@@ -493,6 +495,8 @@ class ServiceCollection(BaseCollection):
             out["abstracts"] = _improved(improved)
             done.append("improve")
         out["summary"] = f"{out['people']} people, {out['texts']} texts received"
+        out["summary_code"] = "harvest"
+        out["summary_params"] = {"n": out["people"], "texts": out["texts"]}
         return out
 
     def _run_institutions(
@@ -509,6 +513,8 @@ class ServiceCollection(BaseCollection):
                 "search": opts["search"],
                 "institutions": found,
                 "summary": f"{len(found)} institution(s)",
+                "summary_code": "institutions_found",
+                "summary_params": {"n": len(found)},
             }
         years = tuple(opts["years"]) if opts.get("years") else None
         proposal = propose_people(
@@ -523,6 +529,8 @@ class ServiceCollection(BaseCollection):
             "proposed": len(proposal.people),
             "works": proposal.works,
             "summary": f"{len(proposal.people)} people proposed",
+            "summary_code": "people_proposed",
+            "summary_params": {"n": len(proposal.people)},
         }
 
     def _run_collaborators(
@@ -547,6 +555,8 @@ class ServiceCollection(BaseCollection):
             "rounds": len(report.rounds),
             "cut": bool(report.cut),
             "summary": f"{len(report.collaborators)} collaborators proposed",
+            "summary_code": "collaborators_proposed",
+            "summary_params": {"n": len(report.collaborators)},
         }
 
     def _run_retry(
@@ -557,7 +567,12 @@ class ServiceCollection(BaseCollection):
         reports = retry_failed(project, client(0, 1, "retry"), people=opts.get("people") or None)
         done.append("retry")
         retried = sorted(k for k in reports if k != "not retried")
-        return {"retried": retried, "summary": f"retried: {', '.join(retried) or 'nothing'}"}
+        return {
+            "retried": retried,
+            "summary": f"retried: {', '.join(retried) or 'nothing'}",
+            "summary_code": "retried" if retried else "retried_nothing",
+            "summary_params": {"items": retried},
+        }
 
     # ── the identity queue ──
     def queue(self, project: Project) -> dict[str, list[dict[str, Any]]]:
@@ -582,7 +597,10 @@ class ServiceCollection(BaseCollection):
                         "name": c.get("name") or "",
                         "score": c.get("score"),
                         "evidence": c.get("evidence") or [],
+                        "evidence_codes": c.get("evidence_codes") or [],
                         "detail": c.get("detail") or "",
+                        "detail_code": c.get("detail_code") or "",
+                        "detail_params": c.get("detail_params") or {},
                     }
                 )
             cands.sort(key=lambda c: (c["record"] is None, -(c["score"] or 0)))

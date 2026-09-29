@@ -54,7 +54,7 @@ version.
 | `delete_node(tree, id)` | removes an empty node | the node holds nodes or keywords |
 | `set_aside(tree, keywords, reason="")` | sets placed keywords aside, recording where each came from and why; for a keyword already set aside, changes the reason | a keyword is unknown |
 | `put_back(tree, keywords, id=None)` | places set-aside keywords on `id` (any level), or where each came from | a keyword is not set aside; its origin is gone and no target is given |
-| `set_review(tree, keywords, state)` | `to_check`, `reviewed` or `None` | unknown state or keyword |
+| `set_review(tree, keywords, state)` | `to_check`, `reviewed`, `kept` (kept from the borderline list) or `None` | unknown state or keyword |
 | `set_attribution(tree, keywords, levels)` | how many levels, from the top, placed keywords count toward: `None` (down to their node's level), `0` (none) or `1` up to their node's level − 1 (see below) | a keyword is set aside or unknown; `levels` not below a keyword's node level |
 | `prune_empty(tree)` | removes every node with no keyword in its subtree, as every save does | — |
 | `insert_level(tree, at, root_names=None)` | adds a level (see below) | the tree has 4 levels already |

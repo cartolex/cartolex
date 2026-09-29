@@ -385,11 +385,11 @@ def test_a_stage_that_asks_consent_runs_only_with_it(tmp_path):
         job = client.post("/api/build", json={"dry_run": False, "scope": ["keywords"]}).json()[
             "job"
         ]
-        refused = client.wait_job(job["id"])
-        assert refused["result"]["refused"] == {
-            "keywords.triage": "no consent",
-            "keywords.build": "depends on keywords.triage, which does not run",
-        }
+        skipped = client.wait_job(job["id"])  # without consent the AI clean-up is skipped
+        assert skipped["result"]["refused"] == {}
+        assert skipped["result"]["ran"][-1] == "keywords.build"
+        assert "keywords.triage" not in skipped["result"]["ran"]
+        assert dry["consent"][0]["skipped_without"] is True
         job = client.post(
             "/api/build",
             json={"dry_run": False, "scope": ["keywords"], "consent": ["keywords.triage"]},

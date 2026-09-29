@@ -392,7 +392,7 @@ def person_sheet(project: Project, person_id: str, *, good: int | None = None) -
         used[tables.texts[tid]["source"]] += 1
         for provider in tables.providers.get(tid, ()):
             provided[provider] += 1
-    discarded: list[dict[str, str]] = []
+    discarded: list[dict[str, Any]] = []
     confirmed = set(cov.records)
     for slot in (s.id for s in project.config.slots):
         for run in read_runs(project.layout, slot, "resolve"):
@@ -405,6 +405,12 @@ def person_sheet(project: Project, person_id: str, *, good: int | None = None) -
                             {
                                 "what": f"{cand['record']} ({cand['name']}, score {cand['score']})",
                                 "why": "a candidate record not confirmed",
+                                "code": "discarded_candidate",
+                                "params": {
+                                    "record": cand["record"],
+                                    "name": cand["name"],
+                                    "score": cand["score"],
+                                },
                             }
                         )
         for kind, what in (("hal_candidates", "HAL"), ("scielo_candidates", "SciELO")):
@@ -420,6 +426,8 @@ def person_sheet(project: Project, person_id: str, *, good: int | None = None) -
                         {
                             "what": f"{what}: {shown}" + (f" ({record})" if record else ""),
                             "why": "found by the name only; confirm its record to collect it",
+                            "code": "discarded_name_only",
+                            "params": {"source": what, "name": shown, "record": record or ""},
                         }
                     )
     for tid in sorted(_all_texts(project, person_id)):
@@ -429,6 +437,8 @@ def person_sheet(project: Project, person_id: str, *, good: int | None = None) -
                 {
                     "what": f"{tid} ({text['title'][:60]})",
                     "why": "a preprint read through its published version",
+                    "code": "discarded_preprint",
+                    "params": {"text_id": tid, "title": text["title"][:60]},
                 }
             )
     attempts = [

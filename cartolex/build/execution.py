@@ -463,6 +463,7 @@ def _run_stage(
     report: Callable[[float, str], None],
     cancel: threading.Event | None,
     probe: Callable[[str], None],
+    off: frozenset[str] = frozenset(),
 ) -> RunRecord:
     layout = project.layout
     probe(f"stage:start:{stage.id}")
@@ -473,7 +474,7 @@ def _run_stage(
             prepared = stage.prepare(project)
         except Exception as exc:
             failure = f"{type(exc).__name__}: {exc}"
-    view = _View.read(project, registry, year)
+    view = _View.read(project, registry, year, off)
     inputs = run_inputs(view, stage)
     started = _now()
     run_id = new_run_id(started)
@@ -593,8 +594,9 @@ def build(
     The project must be open for writing. *allow_over_budget* lets stages
     (all, or the named ones) run although their estimate exceeds the memory
     budget. *consent* is asked, before anything runs, for each stage that
-    reaches the network or costs money; without a callback those stages are
-    refused. *progress* receives :class:`Progress` events, at least every
+    reaches the network or costs money; without a callback, or without a yes,
+    an opt-in stage is skipped as if switched off (the stages after it run
+    without it) and any other such stage is refused. *progress* receives :class:`Progress` events, at least every
     *heartbeat_s* seconds (at most ten). *cancel* stops the build at the next
     chunk or stage. *probe*, for tests, is called with the name of each step.
     *job_id* names the job's log, ``logs/jobs/<job id>.jsonl`` (default: a new
@@ -613,6 +615,28 @@ def build(
     the_plan = plan(
         project, targets, registry=registry, force=force, budget_mb=budget_mb, year=year
     )
+    # Consent is asked once per stage, before anything runs. An opt-in stage without
+    # it is skipped, as if switched off: the stages after it run without it.
+    answers: dict[str, bool] = {}
+    for item in the_plan.items:
+        too_large = item.over_budget and not _allowed_over(allow_over_budget, item.stage)
+        if item.action == "run" and item.needs_consent and item.refusal is None and not too_large:
+            stage = registry[item.stage]
+            request = ConsentRequest(
+                stage.id, stage.name, stage.network, stage.paid, stage.consent_note, item.estimate
+            )
+            answers[item.stage] = consent is not None and bool(consent(request))
+    off = frozenset(s for s, yes in answers.items() if not yes and registry[s].opt_in)
+    if off:
+        the_plan = plan(
+            project,
+            targets,
+            registry=registry,
+            force=force,
+            budget_mb=budget_mb,
+            year=year,
+            off=off,
+        )
 
     refused: dict[str, str] = {}
     runnable: list[PlanItem] = []
@@ -628,15 +652,8 @@ def build(
             refused[item.stage] = own
         elif inherited is not None:
             refused[item.stage] = f"depends on {inherited}, which does not run"
-        elif item.needs_consent:
-            stage = registry[item.stage]
-            request = ConsentRequest(
-                stage.id, stage.name, stage.network, stage.paid, stage.consent_note, item.estimate
-            )
-            if consent is None or not consent(request):
-                refused[item.stage] = "no consent"
-            else:
-                runnable.append(item)
+        elif item.needs_consent and not answers.get(item.stage, False):
+            refused[item.stage] = "no consent"
         else:
             runnable.append(item)
 
@@ -681,6 +698,7 @@ def build(
                     registry,
                     stage,
                     year=year,
+                    off=off,
                     report=report,
                     cancel=cancel,
                     probe=probe,

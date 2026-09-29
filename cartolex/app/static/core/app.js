@@ -23,7 +23,7 @@ import { createJobsStore } from './stores/jobs.js';
 import { createPrefs, applyTheme } from './stores/prefs.js';
 import { createProjectStore } from './stores/project.js';
 import { createRegistries } from './registries.js';
-import { ErrorCard, createToaster } from '../components/index.js';
+import { ErrorCard, createToaster, jobTitle } from '../components/index.js';
 import { NotFoundPage } from '../pages/not-found.js';
 
 export const MANIFEST_URL = '/api/app/manifest';
@@ -119,9 +119,9 @@ export async function boot(root) {
     onFinished: (job) => {
       project.refresh();
       if (job.state === 'succeeded') {
-        toaster.show({ kind: 'success', title: t('job.toast.succeeded', { title: job.title || t(`job.noun.${job.kind}`) }) });
+        toaster.show({ kind: 'success', title: t('job.toast.succeeded', { title: jobTitle(job) }) });
       } else if (job.state === 'failed' || job.state === 'interrupted') {
-        toaster.show({ kind: 'error', id: `job-${job.id}`, title: t('job.toast.failed', { title: job.title || t(`job.noun.${job.kind}`) }) });
+        toaster.show({ kind: 'error', id: `job-${job.id}`, title: t('job.toast.failed', { title: jobTitle(job) }) });
       }
     },
   });

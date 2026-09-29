@@ -83,6 +83,14 @@ class CollectionPlan:
     never_sent: tuple[str, ...] = NEVER_SENT
     stored: tuple[str, ...] = STORED
     notes: list[str] = field(default_factory=list)
+    #: The notes as codes and parameters for an interface's catalogues, in the order
+    #: of :attr:`notes` (``{"code", "params", "message"}``, ``message`` the English).
+    coded_notes: list[dict[str, Any]] = field(default_factory=list)
+
+    def note(self, code: str, message: str, **params: Any) -> None:
+        """Add a note, in words and as a code with its parameters."""
+        self.notes.append(message)
+        self.coded_notes.append({"code": code, "params": params, "message": message})
 
     def to_json(self) -> dict[str, Any]:
         return asdict(self)
@@ -187,7 +195,7 @@ def plan_collection(
     def add(service: str, kind: str, n: int = 1) -> None:
         counts[service][kind] = counts[service].get(kind, 0) + n
 
-    notes: list[str] = []
+    notes: list[tuple[str, str, dict[str, Any]]] = []  # (code, words, params)
     n_people = 0
     if action == "coverage":
         from .coverage import person_coverage
@@ -204,9 +212,14 @@ def plan_collection(
                     counts[h.service][f"{finder}"] = counts[h.service].get(finder, 0) + h.requests
                     sends[h.service] = tuple(dict.fromkeys(sends.get(h.service, ()) + h.sends))
             else:
-                notes.append(f"{len(pids)} failure(s) of {finder} are retried by its own command")
+                notes.append((
+                    "note_retry_own",
+                    f"{len(pids)} failure(s) of {finder} are retried by its own command",
+                    {"n": len(pids), "finder": finder},
+                ))  # fmt: skip
         if not failed:
-            notes.append("nobody's collection failed: nothing to retry")
+            notes.append(("note_nothing_to_retry", "nobody's collection failed: nothing to retry",
+                          {}))  # fmt: skip
     elif action == "institutions":
         n_people = 0
         if search:
@@ -219,7 +232,13 @@ def plan_collection(
             add("openalex", "list", 2)  # the units below them, and the works signed there
             purposes["openalex"] = PURPOSES["institutions"]
             sends["openalex"] = SENDS[("institutions", "openalex")]
-            notes.append("the works signed at a large institution take one request per 100 works")
+            notes.append(
+                (
+                    "note_large_institution",
+                    "the works signed at a large institution take one request per 100 works",
+                    {},
+                )
+            )
     elif action == "collaborators":
         if seeds is None:
             from .snowball import _seed_people
@@ -260,9 +279,11 @@ def plan_collection(
     plan = CollectionPlan(action=action, people=n_people)
     if snapshot is not None and counts["openalex"]:
         counts["openalex"] = {}
-        notes.append(
-            f"OpenAlex is read from the snapshot {snapshot} on this computer: nothing is sent to it"
-        )
+        notes.append((
+            "note_snapshot",
+            f"OpenAlex is read from the snapshot {snapshot} on this computer: nothing is sent to it",
+            {"snapshot": str(snapshot)},
+        ))  # fmt: skip
     for name in ("openalex", "orcid"):
         n = sum(counts[name].values())
         if not n:
@@ -296,14 +317,19 @@ def plan_collection(
         ]
         days = max(1, math.ceil(openalex.cost_usd / budget))
         if days > 1:
-            plan.notes.append(
+            keyed = bool(settings.api_key("openalex"))
+            plan.note(
+                "note_openalex_budget_key" if keyed else "note_openalex_budget",
                 f"OpenAlex gives a daily budget of ${budget:.2f} "
-                + ("with your key" if settings.api_key("openalex") else "without a key")
+                + ("with your key" if keyed else "without a key")
                 + f": this collection needs about {days} days of it"
-                + ("" if settings.api_key("openalex") else ", or a free API key")
-                + "; from a national size up, read the snapshot instead (collect snapshot)"
+                + ("" if keyed else ", or a free API key")
+                + "; from a national size up, read the snapshot instead (collect snapshot)",
+                usd=budget,
+                days=days,
             )
-    plan.notes += notes
+    for code, words, params in notes:
+        plan.note(code, words, **params)
     return plan
 
 

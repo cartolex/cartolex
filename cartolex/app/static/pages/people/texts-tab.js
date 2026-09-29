@@ -12,6 +12,13 @@ import { usePaged } from './common.js';
 
 const CONTENT = ['title', 'abstract', 'full'];
 
+/** A merge rule's words (`corpus.rule.<rule>`; `link:<scheme>` names its scheme). */
+function ruleLabel(rule) {
+  const [base, scheme] = String(rule || '').split(':');
+  const key = `corpus.rule.${base}`;
+  return has(key) ? t(key, { scheme: scheme || '' }) : rule;
+}
+
 function providerLabel(p) {
   return has(`corpus.provider.${p}`) ? t(`corpus.provider.${p}`) : p;
 }
@@ -55,7 +62,7 @@ function TextDrawer({ ctx, textId, onClose, openSheet, onOpen }) {
       </section>`)}
       ${text.merges.length ? html`<section><h3 class="cx-corpus-h3">${t('corpus.texts.merged', { n: text.merges.length })}</h3>
         <ul class="cx-corpus-list">${text.merges.map((m, i) => html`<li key=${i}>
-          ${t('corpus.texts.merge', { rule: m.rule, n: (m.merged || []).length })}
+          ${t('corpus.texts.merge', { rule: ruleLabel(m.rule), n: (m.merged || []).length })}
           <span class="cx-corpus-muted"> ${m.evidence}</span></li>`)}</ul></section>` : null}
       ${text.versions.length || text.version_of ? html`<section><h3 class="cx-corpus-h3">${t('corpus.texts.versions')}</h3>
         <ul class="cx-corpus-links">
