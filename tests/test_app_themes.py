@@ -406,3 +406,59 @@ def test_borderline_keywords_and_suggested_places_follow_the_tree_sent(depths, c
     assert list(found) == [first] and len(found[first]) == 3
     assert found[first][0]["node"] in set(aside["keywords"].values())
     assert found[first][0]["score"] >= found[first][2]["score"]
+
+
+def test_the_atlas_page_reads_organisations_texts_regions_and_bases(built, client_for, tmp_path):
+    client = client_for(_copy(built, tmp_path))
+    atlas = client.get("/api/atlas").json()
+    # organisations at every level, each count saying what it counts; the people's filters
+    levels = [lv["id"] for lv in atlas["organisation_levels"]]
+    assert levels[:2] == ["lab", "institution"]
+    orgs = {o["id"]: o for o in atlas["organisations"]}
+    placed = [o for o in orgs.values() if o["x"] is not None]
+    assert placed and all(o["members"] >= 1 and o["members_ever"] >= o["members"] for o in placed)
+    lab = next(o for o in placed if o["level"] == "lab")
+    parent = orgs[lab["parents"][0]]
+    assert parent["members"] >= lab["members"]  # an institution counts the people of its labs
+    assert atlas["columns"] and all(len(c["values"]) > 1 for c in atlas["columns"])
+    extra = atlas["people_extra"]
+    assert all(
+        pid in extra for pid in (p["person_id"] for p in atlas["people"] if p["x"] is not None)
+    )
+    assert atlas["years"]["min"] < atlas["years"]["max"]
+    # texts placed by the keywords of their title and abstract (columnar)
+    texts = client.get("/api/atlas/texts").json()
+    assert texts["available"] and len(texts["id"]) > 100 and texts["unplaced"] == 0
+    assert sum(1 for by in texts["by"] if by == 0) > len(texts["id"]) // 2
+    kws = atlas["keywords"]
+    i = texts["by"].index(0)
+    xs = [kws[k]["x"] for k in texts["terms"][i]]
+    assert texts["x"][i] == pytest.approx(sum(xs) / len(xs), abs=1e-3)
+    # the keywords a region spans: a person's, an organisation's members'
+    pid = next(p["person_id"] for p in atlas["people"] if p["person_id"])
+    regions = client.get("/api/atlas/regions", params={"kind": "person", "ids": pid}).json()
+    assert 3 <= len(regions["keywords"][pid]) <= 40
+    org = client.get("/api/atlas/regions", params={"kind": "organisation", "ids": lab["id"]}).json()
+    assert len(org["keywords"][lab["id"]]) >= 3
+    # another project's map as a base: its copy, then this project placed on it
+    other = tmp_path / "other"
+    shutil.copytree(built, other)
+    bases = client.get("/api/map/bases")
+    added = client.post(
+        "/api/map/bases", json={"folder": str(other)}, headers={"If-Match": etag(bases)}
+    )
+    assert added.status_code == 200, added.text
+    base_id = added.json()["added"]
+    assert (tmp_path / "copy" / "sources" / "bases" / base_id / "base_map.json").is_file()
+    on_base = client.get("/api/atlas", params={"base": base_id}).json()
+    assert on_base["base"]["shared_keywords"] == sum(1 for k in kws if k["x"] is not None)
+    assert on_base["base"]["people"] and not on_base["trajectories"]
+    assert sum(1 for p in on_base["people"] if p["x"] is not None) >= 30
+    refused = client.post(
+        "/api/map/bases", json={"folder": str(tmp_path / "copy")}, headers={"If-Match": etag(added)}
+    )
+    assert refused.json()["error"]["code"] == "base_same_project"
+    assert (
+        client.get("/api/atlas", params={"base": "nope"}).json()["error"]["code"]
+        == "base_not_found"
+    )
