@@ -63,6 +63,22 @@ FAMILIES: dict[str, list[Variant]] = {
         _v("names", "not recognised (default)"),
         _v("names", "people and places set aside", names=True),
     ],
+    "stop words": [
+        _v("stop words", "set aside (default)"),
+        _v("stop words", "off", bands=replace(BASE.bands, stop_words=False)),
+        _v(
+            "stop words",
+            "off, even spread off too (the rules before)",
+            bands=replace(BASE.bands, stop_words=False, even_spread=None),
+        ),
+    ],
+    "even spread": [
+        _v("even spread", "a fifth of the people, 90 % of random (default)"),
+        _v("even spread", "off", bands=replace(BASE.bands, even_spread=None)),
+        _v("even spread", "80 % of random", bands=replace(BASE.bands, even_spread=0.8)),
+        _v("even spread", "as random", bands=replace(BASE.bands, even_spread=1.0)),
+        _v("even spread", "a tenth of the people", bands=replace(BASE.bands, even_people=0.1)),
+    ],
     "common modifiers": [
         _v("common modifiers", "off (default)"),
         _v("common modifiers", "to check, 20 %", bands=replace(BASE.bands, generic_spread=0.2)),

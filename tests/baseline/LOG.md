@@ -79,3 +79,16 @@ Each entry says when the stored baseline (`tests/baseline/`) was rewritten, why,
 - Reason: Theme names in each language: every node of the draft is named, in each language, after its most used keyword that has a form there (its own language, or one the consolidation pairs attest), else after the reference-language form of the most used keyword that has one. The demo vocabulary is in English (the AI clean-up's canonical forms), so the English labels do not move; the French labels of the concepts and subfields do (a subfield's French label no longer repeats its English one), and the applied document follows. Nothing else changes.
 - Engine: 1.0.0.dev0, source fingerprint `5bc3ecae79036f6c`
 - L: against the previous baseline, 12 stages: 10 identical, 2 different (draft, apply)
+
+## 2026-09-29 — S, merge
+
+- Reason: Stop words and evenly spread single words are set aside: a single word among the language's spaCy stop words or closed words, a closed word of another language in a paragraph read as that language (two different ones among its phrases; there they also cut phrases), a phrase starting or ending with another language's closed word, and a single word used by at least a fifth of the people as evenly as a randomly scattered word. The raw tables change in band and reason, and the English candidates of paragraphs read as French change; the triage sees fewer candidates, and every later stage follows.
+- Engine: 1.0.0.dev0, source fingerprint `e2a5bef153603723`
+- S: against the previous baseline, 12 stages: 10 identical, 2 different (extract, triage)
+- merge: against the previous baseline, 1 stage: 1 identical
+
+## 2026-09-29 — L
+
+- Reason: Stop words and evenly spread single words are set aside: a single word among the language's spaCy stop words or closed words, a closed word of another language in a paragraph read as that language (two different ones among its phrases; there they also cut phrases), a phrase starting or ending with another language's closed word, and a single word used by at least a fifth of the people as evenly as a randomly scattered word. The raw tables change in band and reason, and the English candidates of paragraphs read as French change; the triage sees fewer candidates, and every later stage follows.
+- Engine: 1.0.0.dev0, source fingerprint `e2a5bef153603723`
+- L: against the previous baseline, 12 stages: 10 identical, 2 different (extract, triage)

@@ -549,8 +549,10 @@ STAGES = Registry(
             upstream=("corpus.assemble",),
             # version 2: the lexicon lab's defaults (no English "of" complement,
             # simpler bands, no common-modifier rule); version 3: an elided word
-            # the tokenizer leaves attached (Portuguese d'água) is a word of its own
-            version=3,
+            # the tokenizer leaves attached (Portuguese d'água) is a word of its own;
+            # version 4: stop words, closed words of another language and evenly
+            # spread single words are set aside
+            version=4,
             decisions=("decisions/stopwords.json",),
             project=("languages", "identity.language_models"),
             params=(

@@ -1,0 +1,31 @@
+{
+  "_about": "Closed-class words of each language (articles, prepositions, conjunctions, pronouns, forms of 'to be' and 'to have'), for keyword extraction (cartolex.lexicon.noun_phrases.closed_words). A tagger for another language may take them for nouns when text in this language reaches its stream: a paragraph whose phrases hold two different closed words of another language is read as that language, and there these words break phrases; a phrase that starts or ends with one is set aside. Only a word written in lower case or in capitals counts: a capitalised one begins a name (La Niña). Never a content word, and no word that is a common content word or a chemical symbol in another of these languages (car, son, os, an, au, ce, ni, se, na, al, be, it, est, el, sem, tem): the lists are filters, not keywords.",
+  "en": [
+    "and", "are", "been", "but", "by", "from", "had", "has", "have", "into",
+    "is", "its", "nor", "of", "than", "that", "the", "their", "them", "there",
+    "these", "they", "this", "those", "to", "was", "were", "what", "when", "where",
+    "which", "while", "who", "whom", "with"
+  ],
+  "fr": [
+    "afin", "ainsi", "alors", "aussi", "aux", "avec", "c'", "cela", "celle", "celles",
+    "celui", "ces", "cet", "cette", "ceux", "chez", "comme", "c’", "d'", "dans",
+    "de", "des", "donc", "dont", "du", "d’", "elle", "elles", "entre", "et",
+    "il", "ils", "j'", "je", "j’", "l'", "la", "le", "les", "leur",
+    "leurs", "lors", "l’", "mais", "n'", "nos", "notre", "nous", "n’", "ont",
+    "ou", "où", "par", "pas", "pour", "qu'", "que", "qui", "quoi", "qu’",
+    "s'", "sans", "sont", "sous", "sur", "s’", "un", "une", "vers", "vous",
+    "été", "être"
+  ],
+  "pt": [
+    "ao", "aos", "aquela", "aquele", "com", "como", "das", "de", "do", "dos",
+    "ela", "elas", "ele", "eles", "entre", "essa", "esse", "esta", "foi", "foram",
+    "isso", "isto", "mais", "nas", "num", "numa", "não", "ou", "para", "pela",
+    "pelas", "pelo", "pelos", "por", "que", "sobre", "sua", "suas", "são", "também",
+    "um", "uma", "à", "às", "é"
+  ],
+  "es": [
+    "como", "con", "de", "del", "ella", "ellos", "en", "entre", "esta", "fue",
+    "la", "las", "los", "para", "pero", "por", "que", "sobre", "sus", "también",
+    "una", "unos"
+  ]
+}

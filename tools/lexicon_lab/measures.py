@@ -17,6 +17,8 @@ côte`` and ``trait côte`` match, whatever the pipeline or the gold writes.
   procedure.
 - **AI load**: the terms to check (a judge sees them); the candidates set
   aside and kept are not sent.
+- **Lexicon without AI**: the kept and to-check bands together, as the
+  consolidation takes them when no AI clean-up runs.
 """
 
 from __future__ import annotations
@@ -129,6 +131,7 @@ def evaluate(table, matcher: Matcher, gold: Gold) -> dict:
     kept = {k for k, b in zip(keys, bands, strict=True) if b == "kept" and k}
     accepted = {k for k, g, b in zip(keys, is_gold, bands, strict=True) if b == "check" and g}
     final = kept | accepted
+    lexicon = {k for k, b in zip(keys, bands, strict=True) if b in ("kept", "check") and k}
     return {
         "candidates": len(terms),
         "kept": bands.count("kept"),
@@ -143,6 +146,9 @@ def evaluate(table, matcher: Matcher, gold: Gold) -> dict:
         "reachable_found": len(set(keys) & gold.shared),
         "shared": len(gold.shared),
         "kept_keys": len(kept),
+        "lexicon": len(lexicon),
+        "lexicon_gold": sum(1 for k in lexicon if k in gold.all),
+        "lexicon_found": len(lexicon & gold.shared),
     }
 
 
@@ -175,6 +181,9 @@ COUNTS = (
     "reachable_found",
     "shared",
     "kept_keys",
+    "lexicon",
+    "lexicon_gold",
+    "lexicon_found",
 )
 
 
@@ -187,7 +196,11 @@ def summed(rows: Iterable[Mapping[str, int]]) -> dict[str, int]:
 
 
 def ratios(c: Mapping[str, int]) -> dict[str, float]:
-    """Precision (final lexicon, kept band, candidate list), recall, its ceiling, F1, AI load."""
+    """Precision (final lexicon, kept band, candidate list), recall, its ceiling, F1, AI load.
+
+    ``precision_lexicon`` and ``recall_lexicon`` are those of the lexicon
+    without AI (the kept and to-check bands).
+    """
     precision = c["final_gold"] / c["final"] if c["final"] else 0.0
     recall = c["found"] / c["shared"] if c["shared"] else 0.0
     return {
@@ -198,6 +211,8 @@ def ratios(c: Mapping[str, int]) -> dict[str, float]:
         "recall_ceiling": c["reachable_found"] / c["shared"] if c["shared"] else 0.0,
         "f1": 2 * precision * recall / (precision + recall) if precision + recall else 0.0,
         "ai_load": float(c["check"]),
+        "precision_lexicon": c["lexicon_gold"] / c["lexicon"] if c["lexicon"] else 0.0,
+        "recall_lexicon": c["lexicon_found"] / c["shared"] if c["shared"] else 0.0,
     }
 
 

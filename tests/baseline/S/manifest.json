@@ -360,7 +360,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 2516,
-    "sha256": "71b0381058b1a968fa783ea5706dddea7f7ba148d76d4c24be92bbf25196f661"
+    "sha256": "0424c4db06c7f4607a214cd320ea79ac2fa8bea665aecc91471246a5178933b1"
    },
    "terms_fr": {
     "columns": [
@@ -392,7 +392,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 1467,
-    "sha256": "e20748a45dfbaad0133245382590518f162b8cdf8f316bbb523c162a6295b0f0"
+    "sha256": "da69fb04e877bf01a6ef06740dfc8a8178f0af679891b605b3a8a2f7a45d1a15"
    },
    "terms_merged": {
     "columns": [
@@ -420,7 +420,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 3931,
-    "sha256": "2797ef59cb2dd607913812859453cfd3f2ad13b743132394820892aae60ceb33"
+    "sha256": "ac3a6236a3b38f3c45455c58bfe60ee1034fab3735c7bf3a1e5f36c3eb700ba5"
    }
   },
   "group": {
@@ -731,22 +731,22 @@
    "batch_cache": {
     "file": "triage/batch_cache.json.gz",
     "kind": "json",
-    "sha256": "426a62dbf30d6447f1bd81a6662248a08980fd2ec9b2f779dda6d8dfa64ed593"
+    "sha256": "3b448aec726fc12b7481241cdbc75ea152f6dfef13ad8447c31cb3502461a43c"
    },
    "calls": {
     "file": "triage/calls.json",
     "kind": "json",
-    "sha256": "bc02871bb2ff413fa3d1c836204a7be0524853c63b548b17c7a0a70565bbae66"
+    "sha256": "b51294d0c952e0f79abe3b61bdc5d0cd3a83d6b3923c2be7df58570e9137a4d7"
    },
    "decisions": {
     "file": "triage/decisions.json.gz",
     "kind": "json",
-    "sha256": "146b719c08b437fd273ed73da95d6745b05e841ab0a2ba57f4e94d7d51711bb9"
+    "sha256": "3c1b65c0f9cfb5caf111ed69b9eab5c7217a82553c38302247b065a79094eb58"
    },
    "term_cache": {
     "file": "triage/term_cache.json.gz",
     "kind": "json",
-    "sha256": "c4d47d048163c22c304eb16d33bd87bb35320816ed9f1825c96a03c2461592f9"
+    "sha256": "bea86cfbb4bfe0a8bb48f4c585b6b73f05064d972203e99cc926b9415a9c6ab3"
    },
    "translations": {
     "file": "triage/translations.json",
@@ -757,10 +757,10 @@
  },
  "baseline": {
   "date": "2026-09-29",
-  "reason": "Theme names in each language: every node of the draft is named, in each language, after its most used keyword that has a form there (its own language, or one the consolidation pairs attest), else after the reference-language form of the most used keyword that has one. The demo vocabulary is in English (the AI clean-up's canonical forms), so the English labels do not move; the French labels of the concepts and subfields do (a subfield's French label no longer repeats its English one), and the applied document follows. Nothing else changes."
+  "reason": "Stop words and evenly spread single words are set aside: a single word among the language's spaCy stop words or closed words, a closed word of another language in a paragraph read as that language (two different ones among its phrases; there they also cut phrases), a phrase starting or ending with another language's closed word, and a single word used by at least a fifth of the people as evenly as a randomly scattered word. The raw tables change in band and reason, and the English candidates of paragraphs read as French change; the triage sees fewer candidates, and every later stage follows."
  },
  "environment": {
-  "engine_fingerprint": "5bc3ecae79036f6c890f83f38d98cabd25ef9c96c47045bbc8a8afe04c603cba",
+  "engine_fingerprint": "e2a5bef153603723fcf934ebd6ae9d8f4bf60e19ea59b6fd2506eeb02aea7d64",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {

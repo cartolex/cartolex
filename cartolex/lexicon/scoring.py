@@ -26,10 +26,15 @@ corpus (:class:`TextUnit`: a person's text, its organisation and its parts).
    ``check``    ``single-word``; ``common-modifier: <word>`` (its edge
                 adjective is used by many people; off by default);
                 ``below-threshold`` (off by default)
-   ``aside``    ``part-of: <term>`` (never seen outside that longer
-                candidate); ``low-score`` (the least specific tail, off
-                by default); ``name: person|place`` (when names are
-                known)
+   ``aside``    ``stop-word`` (one word among the language's stop
+                words, or a closed word of another language in text of
+                that language); ``stop-word-edge: <word>`` (a phrase that
+                starts or ends with a closed word of another language);
+                ``even-spread`` (one word used by many people, as evenly
+                as words scattered at random); ``part-of: <term>`` (never
+                seen outside that longer candidate); ``low-score`` (the
+                least specific tail, off by default); ``name:
+                person|place`` (when names are known)
    ===========  =====================================================
 
    Only the ``kept`` and ``check`` bands (:data:`LEXICON_BANDS`) can reach the
@@ -53,7 +58,17 @@ from scipy import sparse
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 
 from .lexical_filters import is_malformed_term
-from .noun_phrases import TextAnalysis, _Keyer, language_patterns, lemma_table, spans
+from .noun_phrases import (
+    FOREIGN_CLASS,
+    TextAnalysis,
+    _Keyer,
+    closed_form,
+    foreign_words,
+    language_patterns,
+    lemma_table,
+    spans,
+    stop_words,
+)
 from .text_utils import length_bonus, term_words
 
 __all__ = [
@@ -100,7 +115,14 @@ class BandRules:
     people makes a phrase common (to check; off by default, a switch of the
     lexicon lab). ``name_share``: a candidate this
     often inside a recognised name of a person or a place is set aside (only
-    when names are known). The defaults are the lexicon lab's.
+    when names are known). ``stop_words``: stop words and closed words of
+    other languages are set aside (``stop-word``, ``stop-word-edge``).
+    ``even_spread`` and ``even_people``: a single word used by at least
+    ``even_people`` of the people who have texts in the language, and by at
+    least ``even_spread`` times as many people as its occurrences would reach
+    if they were scattered at random over the texts (in proportion to each
+    person's text volume), is spread evenly: set aside (``even-spread``;
+    ``None`` turns it off). The defaults are the lexicon lab's.
     """
 
     fragment_share: float | None = 1.0
@@ -108,6 +130,9 @@ class BandRules:
     keep_share: float = 1.0
     generic_spread: float | None = None
     name_share: float = 0.5
+    stop_words: bool = True
+    even_spread: float | None = 0.9
+    even_people: float = 0.2
 
 
 @dataclass(frozen=True)
@@ -171,6 +196,10 @@ class Candidate:
     percentile: float = 0.0
     name_share: float = 0.0
     name_kind: str = ""
+    #: People who use it, as a share of the people with texts in the language.
+    people_share: float = 0.0
+    #: People who use it over the people its occurrences would reach at random.
+    spread: float = 0.0
 
 
 @dataclass
@@ -262,10 +291,11 @@ def score_units(
         return _empty(lang, n_people, len(text_ids))
 
     # Occurrences of each analysis, computed once (a shared text is analysed once).
+    foreign = foreign_words(lang) if opts.bands.stop_words else frozenset()
     found: dict[int, list] = {}
     for a in analyses:
         if id(a) not in found:
-            found[id(a)] = spans(a, lp, lemmas, keyer=keyer)
+            found[id(a)] = spans(a, lp, lemmas, keyer=keyer, foreign=foreign)
 
     # Per person-text: counts per part (the window and the votes), surfaces.
     person_counts: list[Counter[str]] = [Counter() for _ in range(n_people)]
@@ -424,6 +454,7 @@ def score_units(
     for c, sl, n in zip(rows_out, scores_len, lens, strict=True):
         c.score_len = float(sl)
         c.words = int(n)
+    _spread(rows_out, vocabulary, X_people, person_counts, opts.bands.even_people)
     _assign_bands(lang, rows_out, candidates, person_counts, opts.bands)
 
     df = pd.DataFrame(
@@ -454,6 +485,58 @@ def score_units(
     )
 
 
+def _spread(
+    rows: Sequence[Candidate],
+    vocabulary: Mapping[str, int],
+    X_people: sparse.spmatrix,
+    person_counts: Sequence[Counter[str]],
+    floor: float,
+) -> None:
+    """Each single word's share of people, and its spread when that share reaches *floor*.
+
+    See :class:`BandRules`. A word with ``n`` occurrences scattered at random over the texts reaches
+    person ``i`` with probability ``1 − exp(−n·vᵢ)``, ``vᵢ`` being the person's
+    share of all candidate occurrences of the language; the spread is the
+    number of people who use the word over the sum of these probabilities
+    (about 1 for a word used like any other, well below 1 for a word
+    gathered in a few people's texts).
+    """
+    volume = np.asarray([sum(c.values()) for c in person_counts], dtype=float)
+    volume = volume[volume > 0]
+    if volume.size == 0:
+        return
+    share = volume / volume.sum()
+    by_column = X_people.tocsc()
+    for c in rows:
+        if c.content_words >= 2:
+            continue
+        c.people_share = c.people / volume.size
+        if c.people_share < floor:
+            continue
+        col = vocabulary[c.key]
+        n = float(by_column.data[by_column.indptr[col] : by_column.indptr[col + 1]].sum())
+        expected = float(np.sum(1.0 - np.exp(-n * share)))
+        c.spread = c.people / expected if expected > 0 else 0.0
+
+
+def _stop_edge(term: str, closed: frozenset[str]) -> str | None:
+    """The closed word *term* starts or ends with, if any (see :func:`closed_form`).
+
+    A closed word before a capitalised word is a name's particle (``de Vries
+    model``), not an edge.
+    """
+    words = term.split()
+    if len(words) < 2:
+        return None
+    first, second = words[0], words[1]
+    particle = second[:1].isupper() and not second.isupper()
+    if not particle and closed_form(first) in closed:
+        return first
+    if closed_form(words[-1]) in closed:
+        return words[-1]
+    return None
+
+
 def _assign_bands(
     lang: str,
     rows: list[Candidate],
@@ -469,6 +552,16 @@ def _assign_bands(
     for counts in person_counts:
         word_people.update({w for key in counts for w in key.split(" ")})
     edge_first = lang == "en"  # the modifier comes first in English, last in French and Portuguese
+    stops: frozenset[str] = frozenset()
+    edges: dict[str, str] = {}
+    if rules.stop_words:
+        stops = stop_words(lang)
+        closed = foreign_words(lang)
+        for c in rows:
+            if c.content_words >= 2:
+                word = _stop_edge(c.term, closed)
+                if word is not None:
+                    edges[c.key] = word
     for c, p in zip(rows, pct, strict=True):
         c.percentile = float(p)
         container = (
@@ -476,20 +569,38 @@ def _assign_bands(
                 (
                     k
                     for k, n in c.containers
-                    if k in candidates and n >= rules.fragment_share * max(c.occurrences, 1)
+                    if k in candidates
+                    and k not in edges
+                    and n >= rules.fragment_share * max(c.occurrences, 1)
                 ),
                 None,
             )
             if rules.fragment_share is not None
             else None
         )
-        if container is not None:
+        single = c.content_words < 2
+        if (
+            rules.stop_words
+            and single
+            and (c.classes == FOREIGN_CLASS or c.key in stops or c.term.lower() in stops)
+        ):
+            c.band, c.reason = "aside", "stop-word"
+        elif c.key in edges:
+            c.band, c.reason = "aside", f"stop-word-edge: {edges[c.key]}"
+        elif container is not None:
             c.band, c.reason = "aside", f"part-of: {candidates[container].term}"
         elif c.name_kind and c.name_share >= rules.name_share:
             c.band, c.reason = "aside", f"name: {c.name_kind}"
         elif p < rules.drop_share:
             c.band, c.reason = "aside", "low-score"
-        elif c.content_words < 2:
+        elif (
+            single
+            and rules.even_spread is not None
+            and c.people_share >= rules.even_people
+            and c.spread >= rules.even_spread
+        ):
+            c.band, c.reason = "aside", "even-spread"
+        elif single:
             c.band, c.reason = "check", "single-word"
         else:
             edge = (c.classes[0] if edge_first else c.classes[-1]) if c.classes else ""

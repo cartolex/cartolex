@@ -116,6 +116,62 @@ pronouns and citation abbreviations a tagger may mark as adjectives or nouns
 `vários`, `cada`; `et al.`). Verbs, adverbs, articles and conjunctions are
 already outside the patterns. The lists hold no content word.
 
+### Text in another language, and stop words
+
+A paragraph reaches one language's stream by language detection, which a
+mixed paragraph or a title in capitals can fool; the stream's tagger then
+takes the other language's articles and prepositions for nouns (`des`,
+`la`, `LE`, `UN` as English nouns). Three rules of the scoring deal with it
+(`noun_phrases.spans` and `scoring.BandRules.stop_words`); none changes what
+a parse records, so the parse cache stays valid:
+
+- **Closed words.** `cartolex/_data/stopwords/closed_words.json` lists, for
+  English, French, Portuguese and Spanish, the articles, prepositions,
+  conjunctions, pronouns and forms of *to be* and *to have*. A stream's
+  *foreign words* (`noun_phrases.foreign_words`) are the closed words of
+  every other language, less its own closed words, function words and
+  pattern prepositions and articles (`de` is French, Portuguese and
+  Spanish). Only a word written in lower case or in capitals counts
+  (`noun_phrases.closed_form`): a capitalised one begins a name (`La Niña`,
+  `El Niño`); a word the tokenizer left whole after an elision counts as the
+  elided word (`qu'une` is `qu'`). The lists leave out words that are
+  content words or chemical symbols in another of the languages (`car`,
+  `son`, `os`, `an`, `au`, `ni`, `se`, `el`, `sem`, `tem`).
+- **Foreign reading.** A paragraph whose word units of phrases hold at least
+  `FOREIGN_READING` (2) different foreign words is read as another
+  language's text: each foreign word cuts the phrase it is in, and is an
+  occurrence of its own, of class `F`, when it alone matches the pattern.
+  One foreign word is not enough: `de Vries`, `La Niña` or `El Niño` in an
+  English paragraph change nothing.
+- **Bands.** A single-word candidate is set aside as `stop-word` when it is
+  mostly of class `F`, or when its key or shown form is among the stream
+  language's stop words (`noun_phrases.stop_words`: spaCy's list for the
+  language, with the function and closed words). spaCy's lists hold words
+  that are content words inside a phrase (`nível do mar`, `bottom water`,
+  `front de mer`), so they only judge single words, and only the stream's
+  own language (the French list holds `car` and `bat`). A phrase that
+  starts or ends with a foreign word is set aside as `stop-word-edge:
+  <word>`, and a phrase set aside so never makes another a fragment
+  (`part-of`). The stream's own closed words are not edges: its tagger
+  decides them (`croissance des vers`).
+
+### Evenly spread single words
+
+Generic words of scientific writing (`study`, `approach`, `étude`,
+`objectif`, `resultados`) are used by many people and spread over them like
+any word; a word of the field gathers in the texts of the people who work
+on its subject. The scoring measures it (`scoring._spread`): a single word
+with `n` occurrences scattered at random over the texts would reach person
+`i` with probability `1 − exp(−n·vᵢ)`, `vᵢ` being the person's share of all
+candidate occurrences of the language. Its *spread* is the number of people
+who use it over the sum of these probabilities: about 1 for a word used
+like any other, well below for a gathered word. A single word used by at
+least `even_people` (a fifth) of the people who have texts in the language,
+with a spread of at least `even_spread` (0.9), is set aside as
+`even-spread`. The floor keeps out rare words, whose spread says nothing: a
+word used once by each of a few people is spread like a random one. The
+thresholds come from the lexicon lab ({doc}`lexicon-lab`).
+
 ## Scores
 
 The scoring (`cartolex/lexicon/scoring.py`) works on the analysed texts, each
@@ -155,14 +211,19 @@ interface turns into words:
 | `check` | `single-word` | one content word |
 | `check` | `common-modifier: <word>` | the adjective at the phrase's edge (first in English, last in French and Portuguese) appears in the candidates of at least `generic_spread` of the people (`recent approach`); off by default |
 | `check` | `below-threshold` | a multi-word phrase outside the best `keep_share` of the candidates (off: every one is kept) |
+| `aside` | `stop-word` | one word: a stop word of the language, or a closed word of another language in text of that language (see [above](#text-in-another-language-and-stop-words)) |
+| `aside` | `stop-word-edge: <word>` | a phrase that starts or ends with a closed word of another language (`LE LITTORAL` in English) |
 | `aside` | `part-of: <term>` | every occurrence sits inside one and the same longer candidate (`vector machine` in `support vector machine`) |
 | `aside` | `low-score` | the least specific `drop_share` of the candidates, by `score_len` (off) |
 | `aside` | `name: person\|place` | mostly inside a recognised name of a person or a place (only when names are recognised; the engine does not recognise them) |
+| `aside` | `even-spread` | one word used by at least a fifth of the people, spread over them like a random word (see [above](#evenly-spread-single-words)) |
 
-The rules are checked in the order `part-of`, `name`, `low-score`, then
-`single-word`, `common-modifier`, `below-threshold`, `multiword`. With the
-defaults, a candidate is kept (a phrase of two content words or more), to
-check (one content word) or set aside (a fragment of a longer candidate).
+The rules are checked in the order `stop-word`, `stop-word-edge`,
+`part-of`, `name`, `low-score`, then `even-spread`, `single-word`,
+`common-modifier`, `below-threshold`, `multiword`. With the defaults, a
+candidate is kept (a phrase of two content words or more), to check (one
+content word) or set aside (a stop word, a phrase with another language's
+word at an edge, a fragment of a longer candidate, an evenly spread word).
 Only the kept and to-check bands can reach the lexicon
 (`scoring.LEXICON_BANDS`, the one constant the triage and the consolidation
 share); the set-aside band stays in the raw tables with its reason. The AI
