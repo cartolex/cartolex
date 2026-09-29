@@ -174,8 +174,17 @@ report as it is.
 `POST /api/projects/close`, `GET /api/projects/recent` (locally);
 `GET /api/projects` (hosted: the projects the principal may open);
 `POST /api/projects {folder | id, name, domain_title, domain_description,
-languages, reference}` creates a project, with the extensions' slots,
-projected sets and identity, and opens it.
+languages, reference, display, start}` creates a project, with the extensions' slots,
+projected sets and identity, and opens it; `display` defaults to the reference
+and the corpus languages; `start` (`people`, `institutions`, `collaborators`,
+`folder`, `corpus`) is where it starts from: a folder or a corpus adds a slot of
+that kind, and the answer's `next` is the page to go to.
+`GET /api/projects/defaults` gives the suggested folder (`~/cartolex-projects`,
+locally), the starting points and the languages; `POST /api/projects/demo
+{folder}` (locally) creates the demo project (the S demo world: an invented
+community of coastal and marine sciences, in English and French) in an empty or
+new folder (default `~/cartolex-projects/demo`) and opens it; it still needs a
+build.
 
 **State and building**
 

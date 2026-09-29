@@ -44,7 +44,7 @@ def copy_project(built: Path, target: Path) -> Path:
 class AppServer:
     """The app on a project, served by uvicorn in a thread on a free loopback port."""
 
-    def __init__(self, project: Path, data_dir: Path) -> None:
+    def __init__(self, project: Path | None, data_dir: Path) -> None:
         import uvicorn
 
         from cartolex.app import AppSettings, create_app

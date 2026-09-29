@@ -22,7 +22,8 @@ function Overview({ ctx }) {
   if (!info.open) {
     return html`<div class="cx-page">
       <h1 class="cx-page__title">${t('nav.overview')}</h1>
-      <${EmptyState} icon="file" level=${2} title=${t('overview.no_project.title')}>
+      <${EmptyState} icon="file" level=${2} title=${t('overview.no_project.title')}
+        action=${{ label: t('start.open_or_create'), href: '/start' }}>
         ${t('overview.no_project.text')}
       <//>
     </div>`;

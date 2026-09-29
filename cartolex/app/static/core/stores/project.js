@@ -65,6 +65,8 @@ export function createProjectStore({ api, projectId, storage = safeStorage() }) 
   let pending = null;
   /** Read the state from the server; concurrent calls share one request. */
   const refresh = () => {
+    // No project open: there is no state to read (the start screen opens one).
+    if (!projectId) return Promise.resolve({ ok: false, kind: 'no-project' });
     if (pending) return pending;
     loading.value = true;
     pending = api.get('/api/project/state').then((result) => {

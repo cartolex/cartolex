@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
-"""The settings on the real app (the S demo world): one keyboard-and-mouse scenario over the
-sections, and the review screenshots."""
+"""The settings on the real app (the S demo world): one scenario over the sections; the start
+screen on an app with no project: a new project from a folder of texts; the review screenshots."""
 
 from __future__ import annotations
 
@@ -91,3 +91,63 @@ def test_screenshots_of_the_settings(demo_s, app_for, open_app, pytestconfig):
             ui.page.wait_for_timeout(200)
             ui.page.screenshot(path=str(out / f"{sid}-{theme}-{locale}.png"), full_page=True)
         ui.page.context.close()
+
+
+@pytest.fixture()
+def no_project(tmp_path, open_app, monkeypatch):
+    """The app with no project open, new projects suggested under a fresh home folder."""
+    from app_harness import AppServer
+
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    server = AppServer(None, tmp_path / "app")
+    yield server
+    server.stop()
+
+
+def test_a_new_project_from_the_start_screen(no_project, open_app, tmp_path):
+    ui = open_app(no_project)
+    page = ui.page
+    ui.navigate("/start")
+    page.get_by_role("heading", name="No project opened yet").wait_for()
+    before = ui.token()
+    page.get_by_role("button", name="Create a project").click()
+    ui.wait_ready(before)
+    page.get_by_role("radio", name=re.compile("^A folder of texts")).check()
+    page.get_by_role("textbox", name=re.compile("^Name")).fill("Reef ecology")
+    page.get_by_role("textbox", name=re.compile("^The field")).fill("Coral reef ecology")
+    page.get_by_label("Description: the AI's context").fill("Reefs and their fishes.")
+    folder = page.get_by_role("textbox", name=re.compile("^Folder"))
+    assert folder.input_value() == str(tmp_path / "home" / "cartolex-projects" / "reef-ecology")
+    page.get_by_role("button", name="Create the project").click()
+    page.wait_for_url(re.compile(r"/\?start=folder$"))
+    ui.wait_ready(0)
+    assert (tmp_path / "home" / "cartolex-projects" / "reef-ecology" / "project.json").exists()
+    ui.navigate("/start")
+    page.get_by_role("button", name="Open Reef ecology").wait_for()
+    assert page.get_by_text("Continue with this project").is_visible()
+
+
+@pytest.mark.slow
+def test_screenshots_of_the_start_screen(tmp_path, open_app, pytestconfig, monkeypatch):
+    target = pytestconfig.getoption("--ui-screenshots")
+    if not target:
+        pytest.skip("pass --ui-screenshots DIR to write the screenshots")
+    from pathlib import Path
+
+    from app_harness import AppServer
+
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    out = Path(target) / "start"
+    out.mkdir(parents=True, exist_ok=True)
+    for theme, locale in (("light", "en"), ("dark", "en"), ("light", "fr")):
+        server = AppServer(None, tmp_path / f"app-{theme}-{locale}")
+        try:
+            ui = open_app(server, theme=theme, locale=locale)
+            for name, path in (("start", "/start"), ("new", "/start?new=1")):
+                ui.navigate(path)
+                ui.page.wait_for_function("() => !document.querySelector('[aria-busy=true]')")
+                ui.page.wait_for_timeout(200)
+                ui.page.screenshot(path=str(out / f"{name}-{theme}-{locale}.png"), full_page=True)
+            ui.page.context.close()
+        finally:
+            server.stop()

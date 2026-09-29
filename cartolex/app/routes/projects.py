@@ -3,8 +3,9 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import Request
 from pydantic import BaseModel, Field
@@ -21,6 +22,17 @@ routes = Routes(tags=["projects"])
 Language = Annotated[str, Field(pattern=r"^[a-z]{2}$")]
 
 
+#: Where a new project starts from, and the page the interface goes to next.
+START_POINTS = {
+    "people": "/people?start=people",
+    "institutions": "/people?start=institutions",
+    "collaborators": "/people?start=collaborators",
+    "folder": "/?start=folder",
+    "corpus": "/?start=corpus",
+}
+StartPoint = Literal["people", "institutions", "collaborators", "folder", "corpus"]
+
+
 class OpenBody(BaseModel):
     path: Annotated[str, Field(min_length=1, max_length=4096)]
 
@@ -35,6 +47,9 @@ class CreateBody(BaseModel):
     domain_description: Annotated[str, Field(max_length=4000)] = ""
     languages: Annotated[list[Language], Field(min_length=1, max_length=8)] = ["en"]
     reference: Language = "en"
+    display: Annotated[list[Language], Field(min_length=1, max_length=8)] | None = None
+    #: Where the project starts from; a folder or a corpus adds a slot of that kind.
+    start: StartPoint | None = None
 
 
 def _local(request: Request) -> LocalProjects:
@@ -122,7 +137,8 @@ def create_project(request: Request, body: CreateBody) -> dict[str, Any]:
     runtime = runtime_of(request)
     principal = principal_of(request)
     combined = runtime.extensions
-    missing = sorted({x for x in [*body.languages, body.reference] if x not in LANGUAGES})
+    display = body.display or list(dict.fromkeys([body.reference, *body.languages]))
+    missing = sorted({x for x in [*body.languages, body.reference, *display] if x not in LANGUAGES})
     if missing:
         raise ApiError.of("no_language_pack", languages=missing, available=list(LANGUAGES))
     identity: dict[str, Any] = {
@@ -144,6 +160,8 @@ def create_project(request: Request, body: CreateBody) -> dict[str, Any]:
     slots = [s for e in combined.extensions for s in e.corpus_slots] or [
         Slot(id="collected", kind="collection", fit=True, trajectory=True)
     ]
+    if body.start in ("folder", "corpus") and not any(s.kind == body.start for s in slots):
+        slots.append(Slot(id="texts" if body.start == "folder" else "corpus", kind=body.start))
     host = runtime.projects
     if isinstance(host, HostedProjects):
         if not body.id:
@@ -172,6 +190,8 @@ def create_project(request: Request, body: CreateBody) -> dict[str, Any]:
         overlays = [o for e in combined.extensions for o in e.overlay_sets]
         ai = identity.get("ai")
         changes: dict[str, Any] = {}
+        if display != list(project.config.languages.display):
+            changes["languages"] = project.config.languages.model_copy(update={"display": display})
         if overlays:
             changes["overlays"] = overlays
         if ai:
@@ -186,8 +206,55 @@ def create_project(request: Request, body: CreateBody) -> dict[str, Any]:
     except BaseException:
         project.close()
         raise
+    nxt = START_POINTS.get(body.start or "", "/")
     if isinstance(host, HostedProjects):
         handle = host.adopt(body.id or "", project)
-        return _describe(handle, local=False)
+        return {**_describe(handle, local=False), "next": nxt}
     handle = host.adopt(project)  # type: ignore[union-attr]
-    return _describe(handle, local=True)
+    return {**_describe(handle, local=True), "next": nxt}
+
+
+def _suggested_root() -> Path:
+    """Where new projects go by default: ``~/cartolex-projects``."""
+    return Path.home() / "cartolex-projects"
+
+
+@routes.get("/api/projects/defaults", action="projects.read", resource="app")
+def defaults(request: Request) -> dict[str, Any]:
+    """What the new project form starts from: the suggested folder, the starting points, the
+    languages a project may use."""
+    from cartolex.project.models import LANGUAGES
+
+    hosted = runtime_of(request).settings.hosted
+    return {
+        "hosted": hosted,
+        "folder": None if hosted else str(_suggested_root()),
+        "separator": os.sep,
+        "start_points": [*START_POINTS, "demo"],
+        "languages": list(LANGUAGES),
+    }
+
+
+class DemoBody(BaseModel):
+    """The folder of the demo project (locally; default: ``<suggested folder>/demo``)."""
+
+    folder: Annotated[str | None, Field(max_length=4096)] = None
+
+
+@routes.post("/api/projects/demo", action="projects.create", resource="app", status_code=201)
+def create_demo(request: Request, body: DemoBody) -> dict[str, Any]:
+    """Create the demo project (the small invented world, in English and French) and open it;
+    it still needs a build."""
+    from cartolex.demo import generate
+    from cartolex.demo.project import write_project
+
+    host = _local(request)
+    _busy(request)
+    folder = Path(body.folder).expanduser() if body.folder else _suggested_root() / "demo"
+    if not folder.is_absolute():
+        raise ApiError.of("project_folder_relative", path=str(folder))
+    if folder.exists() and any(folder.iterdir()):
+        raise ApiError.of("project_exists", path=str(folder))
+    project = write_project(generate("S", 0), folder, name="Demo: coastal and marine systems")
+    handle = host.adopt(project)
+    return {**_describe(handle, local=True), "next": "/"}

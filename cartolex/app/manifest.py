@@ -139,6 +139,7 @@ CORE_NAV: tuple[tuple[str, int, str], ...] = (
     ("map", 50, "main"),
     ("share", 60, "main"),
     ("settings", 90, "settings"),
+    ("start", 95, "settings"),
 )
 
 DEFAULT_LOGO = "/static/brand/logo.svg"
