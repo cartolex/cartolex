@@ -4,7 +4,7 @@
    "applied": {
     "file": "apply/applied.json.gz",
     "kind": "json",
-    "sha256": "65ebc58b176c38f6aa21e6e9a2a3fdb9e40ea434ad73aa032e2a4fbd683283e3"
+    "sha256": "a7405a270af5f8ee3841774be437d938246b5e0b7b4804517c086c29470e86e3"
    },
    "lexicon_weights": {
     "columns": [
@@ -326,7 +326,7 @@
    "draft": {
     "file": "draft/draft.json.gz",
     "kind": "json",
-    "sha256": "53ad1d2e965a5eb7f4366a083583a2562d1fb1812ff6ae5f63f2d6262cc588ca"
+    "sha256": "e763b1d268b4de9acad76e17707352b3e50489da11990c1d818a22a3d6009b90"
    }
   },
   "extract": {
@@ -756,11 +756,11 @@
   }
  },
  "baseline": {
-  "date": "2026-09-28",
-  "reason": "The owner's lexicon decisions (gate G2): the common-modifier band rule is off, so phrases with a widespread edge adjective are kept instead of to check; the AI clean-up judges the kept and to-check bands only, never the set-aside band, with the third version of its prompt. The raw tables change in band and reason only; the triage sees fewer candidates, and every later stage follows."
+  "date": "2026-09-29",
+  "reason": "Theme names in each language: every node of the draft is named, in each language, after its most used keyword that has a form there (its own language, or one the consolidation pairs attest), else after the reference-language form of the most used keyword that has one. The demo vocabulary is in English (the AI clean-up's canonical forms), so the English labels do not move; the French labels of the concepts and subfields do (a subfield's French label no longer repeats its English one), and the applied document follows. Nothing else changes."
  },
  "environment": {
-  "engine_fingerprint": "a6b20ae5783613e196b3b5a647d88aded12885f3b6a598b6d7e8d006a3cbb47c",
+  "engine_fingerprint": "5bc3ecae79036f6c890f83f38d98cabd25ef9c96c47045bbc8a8afe04c603cba",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {

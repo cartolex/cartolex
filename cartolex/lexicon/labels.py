@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -49,6 +49,108 @@ def load_label_map(pairs_csv: Path, lang: str) -> dict[str, str]:
         label = str(row[side]).strip() if side in df.columns and pd.notna(row.get(side)) else ""
         out[concept] = label or concept
     return out
+
+
+def keyword_forms(
+    pairs_csv: Path | None,
+    terms: Sequence[str],
+    languages: Sequence[str],
+    reference_language: str,
+) -> dict[str, dict[str, str]]:
+    """Each keyword's form in each of *languages* where it has one: ``{language: {keyword: form}}``.
+
+    The consolidation pairs attest a form in a language when ``term_<lang>``
+    is not blank and ``score_<lang>`` is positive (any non-blank term in a file
+    without scores). A keyword's own language is that of the attested form it
+    is written as (the same text ignoring case, else the same words ignoring
+    number); a keyword written as none of them (a canonical form of the AI
+    clean-up, or one without pairs) is in the reference language. In the
+    reference language a keyword of that language is its own form; otherwise,
+    and in every other language, its form is the attested one.
+    """
+    from cartolex.lexicon.canonicalization import canonical_singular
+
+    langs = list(dict.fromkeys([reference_language, *languages]))
+    attested: dict[str, dict[str, str]] = {}
+    if pairs_csv is not None and Path(pairs_csv).exists():
+        df = pd.read_csv(pairs_csv)
+        for lang in langs if "concept" in df.columns else ():
+            if f"term_{lang}" not in df.columns:
+                continue
+            side = df[f"term_{lang}"].fillna("").astype(str).str.strip()
+            ok = side != ""
+            if f"score_{lang}" in df.columns:
+                ok &= pd.to_numeric(df[f"score_{lang}"], errors="coerce").fillna(0.0) > 0
+            for concept, form in zip(df.loc[ok, "concept"].astype(str), side[ok], strict=True):
+                attested.setdefault(concept, {})[lang] = form
+    forms: dict[str, dict[str, str]] = {lang: {} for lang in langs}
+    for term in map(str, terms):
+        sides = attested.get(term, {})
+        own = [lang for lang, form in sides.items() if form.casefold() == term.casefold()]
+        if not own and sides:
+            key = canonical_singular(term)
+            own = [lang for lang, form in sides.items() if canonical_singular(form) == key]
+        for lang in langs:
+            if lang == reference_language and (not own or lang in own):
+                forms[lang][term] = term
+            elif lang in sides:
+                forms[lang][term] = sides[lang]
+    return forms
+
+
+def node_names(
+    rows: Sequence[int],
+    terms: Sequence[str],
+    scores: Sequence[float],
+    forms: Mapping[str, Mapping[str, str]],
+    languages: Sequence[str],
+    reference_language: str,
+) -> dict[str, str]:
+    """A node's name in each of *languages*, from the rows of its keywords (in the node's order).
+
+    In each language: the form (:func:`keyword_forms`) of the most used keyword
+    (highest *scores*, the first in *rows* on a tie) that has one there; when
+    none has one, the reference-language form of the most used keyword that has
+    one; else the most used keyword itself. Without a map for the reference
+    language every keyword is its own form there. Blank names are left out.
+    """
+    ranked = [str(terms[r]) for r in sorted(rows, key=lambda r: -float(scores[r]))]
+    if not ranked:
+        return {}
+
+    def first(lang: str) -> str | None:
+        found = forms.get(lang)
+        if found is None:
+            return ranked[0] if lang == reference_language else None
+        return next((found[t] for t in ranked if found.get(t)), None)
+
+    out: dict[str, str] = {}
+    for lang in languages:
+        name = (first(lang) or first(reference_language) or ranked[0]).strip()
+        if name:
+            out[lang] = name
+    return out
+
+
+def distinct_names(names: Sequence[dict[str, str]], top_terms: Sequence[Sequence[str]]) -> None:
+    """Make sibling names distinct in each language, in place.
+
+    A name that repeats an earlier sibling's in its language (ignoring case)
+    takes the first of its node's *top_terms* it does not contain, in brackets
+    (« wave climate (swell) »), then a number while it still repeats one.
+    """
+    seen: dict[str, set[str]] = {}
+    for own, tops in zip(names, top_terms, strict=True):
+        for lang, name in list(own.items()):
+            taken = seen.setdefault(lang, set())
+            if name.casefold() in taken:
+                extra = next((t for t in tops if t.casefold() not in name.casefold()), "")
+                suffix = extra or "2"
+                new, n = f"{name} ({suffix})", 2
+                while new.casefold() in taken:
+                    new, n = f"{name} ({suffix} {n})", n + 1
+                own[lang] = name = new
+            taken.add(name.casefold())
 
 
 def relabel_terms(df: pd.DataFrame, term_col: str, label_map: dict[str, str]) -> pd.DataFrame:

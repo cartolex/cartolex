@@ -663,7 +663,9 @@ STAGES = Registry(
         Stage(
             "themes.group",
             "group keywords into topics and themes",
-            version=2,  # 2: the levels of the depth asked for, and the proposal tree
+            # version 2: the levels of the depth asked for, and the proposal tree;
+            # version 3: each name in a language from a keyword with a form in it
+            version=3,
             upstream=("themes.space",),
             params=(
                 ParamSpec(

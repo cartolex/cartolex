@@ -422,3 +422,9 @@ nothing in the engine names a particular deployment, source or procedure.
   `themes_draft.json`, so projects of depth 1, 3 or 4 get their map and their
   tree. See `docs/dev/themes-editor.md`; `docs/dev/usability-g3.md` holds the
   materials of the usability test.
+- **Theme names in each language.** The proposal names a node, in each
+  language, after its most used keyword that has a form in that language (its
+  own, or one the consolidation pairs attest), else after the most used
+  keyword's reference-language form: a French keyword no longer names a theme
+  in English. The two-level draft follows the same rule. `themes.group` is at
+  version 3.

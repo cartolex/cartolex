@@ -8,7 +8,8 @@ by their text), without importing the project package:
 - :func:`draft_themes` (the grouping stage) writes the machine proposal: the
   finest level is the term clustering, each coarser level a Ward cut of the
   centroids of the level below (:func:`cartolex.atlas.hierarchy.level_groups`),
-  every node named after its dominant keyword;
+  every node named, in each language, after its most used keyword that has a
+  form in that language;
 - :class:`EngineTree` reads a tree over the rows of the lexical data: each
   keyword's node and how many levels, from the top, its usage counts toward
   (its node's level, lowered by its attribution; ``0``: nowhere);
@@ -477,7 +478,7 @@ def propose_tree(
     *,
     reference_language: str = "en",
     display_languages: Sequence[str] = ("fr", "en"),
-    label_maps: Mapping[str, Mapping[str, str]] | None = None,
+    forms: Mapping[str, Mapping[str, str]] | None = None,
     run: str | None = None,
 ) -> dict[str, Any]:
     """The proposal document (``cartolex-themes/1``) of groups on every level.
@@ -485,59 +486,40 @@ def propose_tree(
     *levels* are :class:`cartolex.atlas.hierarchy.LevelGroups`, from the top.
     Node ids are ``s<k>`` on the top level, ``c<k>`` on the finest and
     ``m<l>-<k>`` on a level ``l`` between them, ``k`` being the group's position
-    on its level; siblings are ordered by it. A node is named after its dominant
-    keyword (the highest *scores*, first in the order of its rows) in the
-    reference language, and in each other display language after that
-    keyword's form in *label_maps* (``{language: {keyword: form}}``), else the
-    keyword itself. Keywords sit on the finest level, without attribution; a
+    on its level; siblings are ordered by it. A node is named in each language
+    after the most used keyword (the highest *scores*) that has a form in that
+    language in *forms* (``{language: {keyword: form}}``, see
+    :func:`cartolex.lexicon.labels.node_names`), and siblings' names are kept
+    distinct. Keywords sit on the finest level, without attribution; a
     keyword in no group is set aside. ``based_on`` records *run* and the
     vocabulary's fingerprint. The document is in the canonical form.
     """
+    from .labels import distinct_names, node_names
+
     depth = len(levels)
     if not 1 <= depth <= MAX_DEPTH:
         raise ValueError(f"a theme tree has 1 to {MAX_DEPTH} levels, not {depth}")
     scores = np.asarray(scores, dtype=float)
-    maps = label_maps or {}
     langs = [
         lang for lang in LANGUAGES if lang == reference_language or lang in tuple(display_languages)
     ]
     prefix = _node_ids(depth)
 
-    def dominant(rows: np.ndarray) -> str:
-        rows = np.asarray(rows)
-        return terms[int(rows[int(np.argmax(scores[rows]))])]
-
     def top_terms(rows: np.ndarray, cap: int = TOP_KEYWORDS) -> list[str]:
         order = np.asarray(rows)[np.argsort(scores[np.asarray(rows)])[::-1]]
         return [terms[i] for i in order[:cap]]
 
-    def names_of(label: str) -> dict[str, str]:
-        out = {}
-        for lang in langs:
-            name = label if lang == reference_language else maps.get(lang, {}).get(label, label)
-            if str(name).strip():
-                out[lang] = str(name).strip()
-        return out
-
     names: list[list[dict[str, str]]] = []
     for group in levels:
-        names.append([names_of(dominant(r)) if len(r) else {} for r in group.rows])
-    # distinct names on the top level (a dominant keyword is unique; its case may not be)
-    seen: set[str] = set()
-    for k, rows in enumerate(levels[0].rows):
-        label = names[0][k].get(reference_language, "")
-        if label.casefold() in seen:
-            extra = next((t for t in top_terms(rows) if t.casefold() not in label.casefold()), "")
-            suffix = extra or "2"
-            new = f"{label} ({suffix})"
-            n = 2
-            while new.casefold() in seen:
-                new = f"{label} ({suffix} {n})"
-                n += 1
-            tail = new[len(label) :]
-            names[0][k] = {lang: name + tail for lang, name in names[0][k].items()}
-            label = new
-        seen.add(label.casefold())
+        mine = [
+            node_names(r, terms, scores, forms or {}, langs, reference_language) for r in group.rows
+        ]
+        siblings: dict[int, list[int]] = {}
+        for p in range(len(group.rows)):
+            siblings.setdefault(-1 if group.parent is None else int(group.parent[p]), []).append(p)
+        for members in siblings.values():
+            distinct_names([mine[p] for p in members], [top_terms(group.rows[p]) for p in members])
+        names.append(mine)
 
     nodes: list[dict[str, Any]] = []
 
@@ -619,7 +601,7 @@ def write_theme_draft(
     from cartolex.atlas.hierarchy import level_groups
     from cartolex.atlas.model_files import load_embeddings, load_lexical_data
 
-    from .labels import load_label_map
+    from .labels import keyword_forms
     from .subfields import _load_term_cluster_labels, _require_lexical_models
 
     _require_lexical_models(lexical_data_json, embeddings_json)
@@ -629,18 +611,13 @@ def write_theme_draft(
     labels = _load_term_cluster_labels(term_clusters_csv, terms)
     scores = np.asarray(data.X.sum(axis=0)).ravel()
     levels = level_groups(emb.Z_terms, labels, list(level_sizes))
-    maps = {}
-    if pairs_csv is not None and Path(pairs_csv).exists():
-        for lang in display_languages:
-            if lang != reference_language:
-                maps[lang] = load_label_map(Path(pairs_csv), lang)
     doc = propose_tree(
         levels,
         terms,
         scores,
         reference_language=reference_language,
         display_languages=display_languages,
-        label_maps=maps,
+        forms=keyword_forms(pairs_csv, terms, display_languages, reference_language),
         run=run,
     )
     draft_json_out.parent.mkdir(parents=True, exist_ok=True)

@@ -680,34 +680,25 @@ def _other_display_languages(
 
 
 def _enforce_label_distinctness(h: dict[str, Any]) -> None:
-    """Guarantee distinct subfield labels (in place).
+    """Make sibling labels distinct (in place): the subfields, and each subfield's concepts.
 
-    Independent per-subfield LLM calls (and dominant-keyword seeds) can collide; this
-    deterministic post-condition disambiguates a duplicate subfield by appending a
-    distinguishing top-term (``Complex Fluid Dynamics (granular)``). Idempotent.
+    In each language (``label`` and every ``label_<lang>``), a label that
+    repeats a sibling's takes a distinguishing top term
+    (``Complex Fluid Dynamics (granular)``), as
+    :func:`cartolex.lexicon.labels.distinct_names` does for the theme tree. Idempotent.
     """
+    from cartolex.lexicon.labels import distinct_names
 
-    def _disambiguate(label: str, label_fr: str, top_terms: list[str], seen: set[str]):
-        if label.casefold() not in seen:
-            return label, label_fr
-        extra = next((t for t in top_terms if t.casefold() not in label.casefold()), "")
-        suffix = extra or "2"
-        new, new_fr, n = f"{label} ({suffix})", f"{label_fr} ({suffix})", 2
-        while new.casefold() in seen:
-            new, new_fr = f"{label} ({suffix} {n})", f"{label_fr} ({suffix} {n})"
-            n += 1
-        return new, new_fr
+    def dedupe(nodes: list[dict[str, Any]]) -> None:
+        names = [{k: str(v) for k, v in d.items() if k.split("_")[0] == "label"} for d in nodes]
+        distinct_names(names, [d.get("top_terms", []) for d in nodes])
+        for d, own in zip(nodes, names, strict=True):
+            d.update(own)
 
-    seen: set[str] = set()
+    by_cid = {c["id"]: c for c in h.get("concepts", [])}
+    dedupe(h.get("subfields", []))
     for s in h.get("subfields", []):
-        label, label_fr = _disambiguate(
-            s.get("label", ""),
-            s.get("label_fr", "") or s.get("label", ""),
-            s.get("top_terms", []),
-            seen,
-        )
-        s["label"], s["label_fr"] = label, label_fr
-        seen.add(label.casefold())
+        dedupe([by_cid[c] for c in s.get("concept_ids", []) if c in by_cid])
 
 
 def _load_term_cluster_labels(term_clusters_csv: Path, terms: list[str]) -> np.ndarray:
@@ -781,30 +772,42 @@ def _assemble_draft(
 ) -> tuple[list[SubfieldEntry], list[dict[str, Any]]]:
     """Turn a :func:`build_hierarchy` result into the draft's (subfields, concepts) lists.
 
-    Recomputes generality, disambiguates colliding subfield labels, stamps the persistent
-    colour scheme (one hue per subfield, one shade per concept) and fills the other display
-    languages' ``label_<lang>``: the French side comes from the consolidation pairs CSV when
-    the label is a corpus term, any other language falls back to the reference label. Pure
-    and deterministic — the same hierarchy always yields the same draft.
+    Recomputes generality, names every node in each display language as the
+    theme tree does (:func:`cartolex.lexicon.labels.node_names`, the forms from
+    the consolidation pairs CSV): ``label`` in the reference language,
+    ``label_<lang>`` in the others; disambiguates colliding sibling labels and
+    stamps the persistent colour scheme (one hue per subfield, one shade per
+    concept). Pure and deterministic — the same hierarchy always yields the
+    same draft.
     """
     from sklearn.preprocessing import normalize
 
-    from cartolex.lexicon.labels import load_label_map
-
-    fr_map = load_label_map(pairs_csv, "fr") if pairs_csv and Path(pairs_csv).exists() else {}
-
-    def fr_of(label: str) -> str:
-        return fr_map.get(label, label)
-
-    def _display_labels(d: dict[str, Any]) -> dict[str, str]:
-        out: dict[str, str] = {}
-        for lang in _other_display_languages(display_languages, reference_language):
-            fallback = fr_of(d["label"]) if lang == "fr" else d["label"]
-            out[f"label_{lang}"] = d.get(f"label_{lang}") or fallback
-        return out
+    from cartolex.lexicon.labels import keyword_forms, node_names
 
     if not h["concepts"]:
         return [], []
+    terms = [str(t) for t in data.terms]
+    scores = np.asarray(data.X.sum(axis=0)).ravel()
+    others = _other_display_languages(display_languages, reference_language)
+    langs = [reference_language, *others]
+    forms = keyword_forms(pairs_csv, terms, langs, reference_language)
+    by_cid = {c["id"]: c for c in h["concepts"]}
+
+    def name(node: dict[str, Any], rows: list[int]) -> None:
+        names = node_names(rows, terms, scores, forms, langs, reference_language)
+        node["label"] = names.get(reference_language, node["label"])
+        for lang in others:
+            node[f"label_{lang}"] = names.get(lang) or node["label"]
+
+    for c in h["concepts"]:
+        name(c, c["term_indices"])
+    for s in h["subfields"]:
+        rows = [t for cid in s["concept_ids"] if cid in by_cid for t in by_cid[cid]["term_indices"]]
+        name(s, rows)
+
+    def _display_labels(d: dict[str, Any]) -> dict[str, str]:
+        return {f"label_{lang}": d[f"label_{lang}"] for lang in others}
+
     Zn = normalize(np.asarray(emb.Z_terms, dtype=float))
     _recompute_generality(h, Zn)
     _enforce_label_distinctness(h)

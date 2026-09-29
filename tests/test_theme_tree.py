@@ -12,6 +12,7 @@ from __future__ import annotations
 import random
 
 import numpy as np
+import pandas as pd
 import pytest
 from scipy import sparse
 from themes_random import random_tree
@@ -263,7 +264,7 @@ def test_the_proposal_is_a_canonical_tree_of_the_project(depth):
         terms,
         rng.random(n),
         display_languages=("fr", "en", "pt"),
-        label_maps={"fr": {terms[0]: "mot 0"}},
+        forms={"fr": {terms[0]: "mot 0"}},
         run="themes.group/x",
     )
     tree = ThemesFile.model_validate(doc)
@@ -276,6 +277,33 @@ def test_the_proposal_is_a_canonical_tree_of_the_project(depth):
         lv = node_level(tree, node.id)
         assert node.id.startswith(prefix.get(lv, f"m{lv}-"))
         assert {"en", "fr", "pt"} == set(node.names)
+
+
+def test_a_node_is_named_after_its_most_used_keyword_with_a_form_in_each_language(tmp_path):
+    """The form in the language first, then the reference form, then any keyword."""
+    from cartolex.atlas.hierarchy import LevelGroups
+    from cartolex.lexicon.labels import keyword_forms
+
+    terms = ["prairie humide", "wet meadow", "grain size", "sediment budget", "vasière"]
+    sides = [*terms[:3], "bilan sédimentaire", "vasière"]  # « sediment budget »: a canonical form
+    pd.DataFrame(
+        {
+            "concept": terms,
+            **{"term_fr": sides, "score_fr": [4.0, 0.0, 0.0, 2.0, 1.0]},
+            **{"term_en": sides, "score_en": [0.0, 1.0, 3.0, 0.0, 0.0]},
+        }
+    ).to_csv(tmp_path / "pairs.csv", index=False)
+    forms = keyword_forms(tmp_path / "pairs.csv", terms, ("fr", "en"), "en")
+    groups = [np.array([0, 1]), np.array([2]), np.array([3]), np.array([4])]
+    doc = propose_tree(
+        [LevelGroups(tuple(groups))], terms, np.array([5.0, 1, 3, 2, 4]), forms=forms
+    )
+    assert [n["names"] for n in doc["nodes"]] == [
+        {"en": "wet meadow", "fr": "prairie humide"},  # the French keyword is used most
+        {"en": "grain size", "fr": "grain size"},  # no French form: the reference one
+        {"en": "sediment budget", "fr": "bilan sédimentaire"},
+        {"en": "vasière", "fr": "vasière"},  # no English form at all: the keyword
+    ]
 
 
 def test_two_levels_are_the_hierarchys_cut():

@@ -40,18 +40,19 @@ not hold.
 3. **Nodes.** Ids: `s<k>` on the top level, `c<k>` on the finest, `m<l>-<k>`
    on a level `l` between them, `k` being the group's position on its level
    (at depth 2: the subfield and concept ids). Siblings are ordered by it.
-   Names: the dominant keyword (highest summed score) of the node's keywords
-   in the reference language, and in each other display language that
-   keyword's form from the consolidation pairs.
+   Names, in each display language: the form of the node's most used keyword
+   (highest summed score) that has one there (its own language, or a form the
+   consolidation pairs attest), else the reference-language form of the most
+   used keyword that has one, else the most used keyword; siblings' names are
+   kept distinct in each language (`cartolex.lexicon.labels.node_names`).
 4. **Keywords** sit on the finest level (at depth 1 on the only level), with no
    attribution; nothing is set aside.
 
 The stage writes `themes_draft.json` at every depth, `based_on` its run and the
 vocabulary, and, at depth 2, the two-level `subfields_draft.json` too,
 unchanged. At depth 2 the proposal is the two-level draft read as a tree
-(`from_curated`), except that a theme's French name is the French form of its
-keyword where the draft repeats the English one (a test checks this). The level
-sizes come from `theme_levels(...)`.
+(`from_curated`), names included (a test checks this). The level sizes come
+from `theme_levels(...)`.
 
 ## `themes.apply`: the weights
 

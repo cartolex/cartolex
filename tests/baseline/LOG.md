@@ -66,3 +66,16 @@ Each entry says when the stored baseline (`tests/baseline/`) was rewritten, why,
 - Reason: The owner's lexicon decisions (gate G2): the common-modifier band rule is off, so phrases with a widespread edge adjective are kept instead of to check; the AI clean-up judges the kept and to-check bands only, never the set-aside band, with the third version of its prompt. The raw tables change in band and reason only; the triage sees fewer candidates, and every later stage follows.
 - Engine: 1.0.0.dev0, source fingerprint `a6b20ae5783613e1`
 - L: against the previous baseline, 12 stages: 1 identical, 6 within tolerance, 5 different (build, space, layout, trajectories, projection)
+
+## 2026-09-29 — S, merge
+
+- Reason: Theme names in each language: every node of the draft is named, in each language, after its most used keyword that has a form there (its own language, or one the consolidation pairs attest), else after the reference-language form of the most used keyword that has one. The demo vocabulary is in English (the AI clean-up's canonical forms), so the English labels do not move; the French labels of the concepts and subfields do (a subfield's French label no longer repeats its English one), and the applied document follows. Nothing else changes.
+- Engine: 1.0.0.dev0, source fingerprint `5bc3ecae79036f6c`
+- S: against the previous baseline, 12 stages: 10 identical, 2 different (draft, apply)
+- merge: against the previous baseline, 1 stage: 1 identical
+
+## 2026-09-29 — L
+
+- Reason: Theme names in each language: every node of the draft is named, in each language, after its most used keyword that has a form there (its own language, or one the consolidation pairs attest), else after the reference-language form of the most used keyword that has one. The demo vocabulary is in English (the AI clean-up's canonical forms), so the English labels do not move; the French labels of the concepts and subfields do (a subfield's French label no longer repeats its English one), and the applied document follows. Nothing else changes.
+- Engine: 1.0.0.dev0, source fingerprint `5bc3ecae79036f6c`
+- L: against the previous baseline, 12 stages: 10 identical, 2 different (draft, apply)

@@ -165,15 +165,13 @@ def test_at_depth_2_the_generic_tables_equal_the_two_level_outputs(two_levels):
     _same_numbers(two_levels, "themes.apply")
     _same_numbers(two_levels, "map.layout")
     derived = two_levels / "derived"
-    # the proposal is the two-level draft read as a tree (themes named in French too)
+    # the proposal is the two-level draft read as a tree, names included
     terms, _ = _vocabulary(derived / "themes.space")
     draft = from_curated(_json(derived / "themes.group" / "subfields_draft.json"), terms).tree
     proposal = ThemesFile.model_validate(_json(derived / "themes.group" / "themes_draft.json"))
     assert draft.keywords == proposal.keywords and draft.levels == proposal.levels
     for a, b in zip(draft.nodes, proposal.nodes, strict=True):
-        assert (a.id, a.parent, a.order, a.names["en"]) == (b.id, b.parent, b.order, b.names["en"])
-        if a.parent is not None:
-            assert a.names == b.names
+        assert (a.id, a.parent, a.order, a.names) == (b.id, b.parent, b.order, b.names)
     # each person's shares are the two-level attribution of their keywords
     data = load_lexical_data(derived / "themes.space" / "models" / "lexical_data.json")
     legacy = _json(derived / "themes.apply" / "subfields.json")

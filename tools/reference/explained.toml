@@ -83,7 +83,7 @@ reference = "S"
 stage = "draft"
 upstream = "group"
 step = "2a1"
-reason = "The subfield draft is made from other term groups (see group). Its instructions text also names stages in words (step 1d)."
+reason = "The subfield draft is made from other term groups (see group). Its instructions text also names stages in words (step 1d). Every node is named, in each language, after its most used keyword that has a form there, else after the reference-language form of the most used keyword that has one, so the French labels change and a subfield's no longer repeats its English one (theme names in each language)."
 
 [[difference]]
 reference = "S"
@@ -177,7 +177,7 @@ reference = "L"
 stage = "draft"
 upstream = "group"
 step = "2a1"
-reason = "The subfield draft is made from other term groups (see group). Its instructions text also names stages in words (step 1d)."
+reason = "The subfield draft is made from other term groups (see group). Its instructions text also names stages in words (step 1d). Every node is named, in each language, after its most used keyword that has a form there, else after the reference-language form of the most used keyword that has one, so the French labels change and a subfield's no longer repeats its English one (theme names in each language)."
 
 [[difference]]
 reference = "L"
