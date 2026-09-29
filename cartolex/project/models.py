@@ -457,7 +457,7 @@ class ThemesFile(_Model):
     keywords: dict[str, str] = Field(default_factory=dict)
     attribution: dict[str, Attribution] = Field(default_factory=dict)
     set_aside: dict[str, SetAside] = Field(default_factory=dict)
-    review: dict[str, Literal["to_check", "reviewed"]] = Field(default_factory=dict)
+    review: dict[str, Literal["to_check", "reviewed", "kept"]] = Field(default_factory=dict)
     based_on: ThemesBasis = Field(default_factory=ThemesBasis)
     saved: ThemesSaved | None = None
 

@@ -153,7 +153,7 @@ def test_the_plan_says_why_in_words(env):
 # ── consent and budget ───────────────────────────────────────────────────────
 
 
-def test_consent_is_asked_before_anything_runs_and_a_refusal_holds(env):
+def test_consent_is_asked_before_anything_runs_and_a_refusal_skips_the_stage(env):
     env.enable_triage()
     asked = []
 
@@ -166,16 +166,16 @@ def test_consent_is_asked_before_anything_runs_and_a_refusal_holds(env):
     assert not anything_ran
     assert request.stage == "keywords.triage" and request.paid and request.network
     assert "keyword strings" in str(request)
-    assert result.outcome == "succeeded"
-    assert result.ran_ids == ("corpus.assemble", "keywords.extract")
-    assert result.refused == {
-        "keywords.triage": "no consent",
-        "keywords.build": "depends on keywords.triage, which does not run",
-        "themes.group": "depends on keywords.triage, which does not run",
-    }
-    assert "no consent" in result.summary()
-    assert env.states()["keywords.triage"] is StageState.NEVER_BUILT
-    assert env.build().refused["keywords.triage"] == "no consent"  # no callback: no consent
+    # the opt-in AI clean-up is skipped, as when switched off: the later stages run
+    assert result.outcome == "succeeded" and result.refused == {}
+    assert result.ran_ids == (
+        "corpus.assemble", "keywords.extract", "keywords.build", "themes.group",
+    )  # fmt: skip
+    assert "keywords.triage" in result.plan.to_skip
+    assert "no consent" in result.plan.item("keywords.triage").reasons[0]
+    assert env.states()["keywords.triage"] is StageState.NEVER_BUILT  # asked again next time
+    again = env.build()  # no callback: no consent, skipped again, nothing else to run
+    assert again.ran_ids == () and "keywords.triage" in again.plan.to_skip
 
 
 def test_a_stage_over_the_memory_budget_is_refused_unless_allowed(env):

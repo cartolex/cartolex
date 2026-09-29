@@ -387,14 +387,17 @@ def test_borderline_keywords_and_suggested_places_follow_the_tree_sent(depths, c
     margins = [i["margin"] for i in items]
     assert margins == sorted(margins) and items[0]["other"] != items[0]["node"]
     first = items[0]["keyword"]
-    # « keep here » marks it reviewed: it leaves the list
-    kept = client.post(
-        "/api/themes/ops",
-        json={
-            "tree": tree,
-            "ops": [{"op": "set_review", "keywords": [first], "state": "reviewed"}],
-        },
-    ).json()["tree"]
+
+    # a review from a rebase's queue does not hide it; « keep here » (kept) does
+    def review(state: str) -> dict:
+        return client.post(
+            "/api/themes/ops",
+            json={"tree": tree, "ops": [{"op": "set_review", "keywords": [first], "state": state}]},
+        ).json()["tree"]
+
+    elsewhere = client.post("/api/themes/borderline", json={"tree": review("reviewed")}).json()
+    assert elsewhere["total"] == listed["total"]
+    kept = review("kept")
     again = client.post("/api/themes/borderline", json={"tree": kept, "limit": 500}).json()
     assert again["total"] == listed["total"] - 1
     assert first not in {i["keyword"] for i in again["items"]}

@@ -28,6 +28,7 @@ const PATTERNS = [
   [/^put back (\d+) keywords?$/, (m) => ['themes.op.put_back', { count: Number(m[1]) }]],
   [/^mark (\d+) keywords? to check$/, (m) => ['themes.op.to_check', { count: Number(m[1]) }]],
   [/^mark (\d+) keywords? reviewed$/, (m) => ['themes.op.reviewed', { count: Number(m[1]) }]],
+  [/^mark (\d+) keywords? kept$/, (m) => ['themes.op.kept', { count: Number(m[1]) }]],
   [/^clear the review of (\d+) keywords?$/, (m) => ['themes.op.review_cleared', { count: Number(m[1]) }]],
   [/^count (\d+) keywords? at their node's level$/, (m) => ['themes.op.count_default', { count: Number(m[1]) }]],
   [/^count (\d+) keywords? nowhere$/, (m) => ['themes.op.count_nowhere', { count: Number(m[1]) }]],

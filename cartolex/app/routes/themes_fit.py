@@ -64,7 +64,8 @@ def borderline(request: Request, body: BorderlineBody, ctx: ProjectDep) -> dict[
     ``level``, ``other`` (the nearest other node there), ``own`` and ``near``
     (cosines to the two centroids, the keyword left out of its own) and
     ``margin`` (``own − near``; negative: nearer the other node). Keywords
-    marked reviewed (« keep here ») are left out unless ``reviewed``. Sorts:
+    kept here from this list (review state ``kept``) are left out unless
+    ``reviewed``; a review made elsewhere (the queue of a rebase) does not hide one. Sorts:
     ``margin`` (default), ``keyword``, ``own``, ``near``; ``q`` filters on the
     keyword's text.
     """
@@ -87,7 +88,7 @@ def borderline(request: Request, body: BorderlineBody, ctx: ProjectDep) -> dict[
             "review": review.get(b.keyword),
         }
         for b in measure(doc, terms, Z, level=body.level)
-        if (body.reviewed or review.get(b.keyword) != "reviewed")
+        if (body.reviewed or review.get(b.keyword) != "kept")
         and (not params.q or params.q in b.keyword.casefold())
     ]
     return page(

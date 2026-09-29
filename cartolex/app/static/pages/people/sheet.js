@@ -9,7 +9,9 @@
 import { html, useEffect, useState } from '../../core/preact.js';
 import { formatNumber, has, t } from '../../core/i18n.js';
 import { Button, Drawer, ErrorCard } from '../../components/index.js';
-import { CoverageState, Fact, IdentityState, personName, roleLabel } from './common.js';
+import {
+  CoverageState, Fact, IdentityState, coded, personName, roleLabel,
+} from './common.js';
 
 function finderLabel(finder) {
   return has(`corpus.finder.${finder}`) ? t(`corpus.finder.${finder}`) : finder;
@@ -92,7 +94,8 @@ export function PersonSheet({ ctx, personId, onClose, bump, toast, openCollect, 
       </section>` : null}
       ${sheet && sheet.discarded.length ? html`<section><h3 class="cx-corpus-h3">${t('corpus.sheet.discarded', { n: sheet.discarded.length })}</h3>
         <ul class="cx-corpus-list">${sheet.discarded.slice(0, 50).map((d, i) => html`<li key=${i}>
-          ${d.what} <span class="cx-corpus-muted">— ${d.why}</span></li>`)}</ul></section>` : null}
+          ${coded('corpus.discarded_what', { code: d.code, params: d.params, message: d.what })}
+          <span class="cx-corpus-muted"> — ${coded('corpus.discarded_why', { code: d.code, params: d.params, message: d.why })}</span></li>`)}</ul></section>` : null}
       ${sheet && sheet.attempts.length ? html`<section><h3 class="cx-corpus-h3">${t('corpus.sheet.attempts')}</h3>
         <ul class="cx-corpus-list">${sheet.attempts.map((a) => html`<li key=${a.finder}>
           ${a.ok ? t('corpus.sheet.attempt_ok', { finder: finderLabel(a.finder) })

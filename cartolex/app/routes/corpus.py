@@ -383,6 +383,8 @@ async def import_documents(request: Request, ctx: ProjectDep) -> JSONResponse:
             "refusals": [f"{where}: {why}" for where, why in report.refused[:50]],
             "duplicates": len(report.duplicates),
             "summary": f"{report.texts} text(s), {report.people_created} person(s) created",
+            "summary_code": "imported",
+            "summary_params": {"texts": report.texts, "people": report.people_created},
         }
 
     try:
@@ -392,6 +394,7 @@ async def import_documents(request: Request, ctx: ProjectDep) -> JSONResponse:
             kind="import",
             work=work,
             title=f"import a {kind}",
+            title_code=f"import_{kind}",
         )
     except JobConflict as exc:
         shutil.rmtree(staging, ignore_errors=True)

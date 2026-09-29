@@ -80,8 +80,10 @@ __all__ = [
 
 MAX_DEPTH = 4
 
-#: The review states of a keyword (absent: nothing to check).
-REVIEW_STATES = ("to_check", "reviewed")
+#: The review states of a keyword (absent: nothing to check). ``kept`` is a review
+#: made in the borderline list (« keep here »): it hides the keyword there, where a
+#: ``reviewed`` from the queue of a rebase does not.
+REVIEW_STATES = ("to_check", "reviewed", "kept")
 
 #: The place of a set-aside keyword in a :class:`Change` (never a valid node id).
 SET_ASIDE = "(set aside)"
@@ -744,7 +746,8 @@ def put_back(tree: ThemesFile, keywords: Iterable[str] | str, node_id: str | Non
 
 
 def set_review(tree: ThemesFile, keywords: Iterable[str] | str, state: str | None) -> Edit:
-    """Set the review state of keywords: ``"to_check"``, ``"reviewed"``, or ``None`` (none)."""
+    """Set the review state of keywords: ``"to_check"``, ``"reviewed"``, ``"kept"`` (kept
+    at their node from the borderline list), or ``None`` (none)."""
     if state is not None and state not in REVIEW_STATES:
         raise ThemeEditError(f"unknown review state {state!r}; known: {list(REVIEW_STATES)}")
     work = _Work(tree)

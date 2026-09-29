@@ -282,9 +282,14 @@ measured for the whole process.
 and runs exactly its `run` items, one at a time, in order:
 
 - **Consent.** Before anything runs, `consent(ConsentRequest)` is called for
-  each stage that reaches the network or costs money; without a callback, or on
-  a refusal, that stage and everything downstream of it do not run
-  (`BuildResult.refused` says why); the rest runs.
+  each stage that reaches the network or costs money, once. Without a callback,
+  or on a refusal, an opt-in stage (the AI clean-up) is skipped for this build
+  as if it were switched off: the plan is made again without it
+  (`plan(..., off=...)`), it is listed with the skipped stages, and the stages
+  after it run without it, as they do when it is off; `params.json` does not
+  change, so the next build asks again. Any other such stage, and everything
+  downstream of it, does not run (`BuildResult.refused` says why); the rest
+  runs.
 - **Progress.** `progress(Progress)` receives « phase k of n » events: the
   stage, its plain name, how far the stage is, how far the whole build is
   (weighted by the estimates) and a message. Neither fraction ever goes back,

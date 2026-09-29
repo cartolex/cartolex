@@ -113,7 +113,7 @@ class PutBack(BaseModel):
 class SetReview(BaseModel):
     op: Literal["set_review"]
     keywords: Keywords
-    state: Literal["to_check", "reviewed"] | None = None
+    state: Literal["to_check", "reviewed", "kept"] | None = None
 
 
 class SetAttribution(BaseModel):
@@ -747,7 +747,9 @@ def apply(request: Request, ctx: ProjectDep) -> JSONResponse:
     runtime = runtime_of(request)
     kept = _keep_on_apply(runtime, ctx)
     targets = [t for t in APPLY_TARGETS if t in runtime.registry]
-    body = start_build_job(runtime, ctx, targets, title="apply the themes")
+    body = start_build_job(
+        runtime, ctx, targets, title="apply the themes", title_code="apply_themes"
+    )
     if kept is not None:
         body = {**body, "kept": kept}
     return JSONResponse(body, status_code=202)

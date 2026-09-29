@@ -243,7 +243,7 @@ export function installActions({ editor, ui, setDialog, toast }) {
       );
     }
     if (checking.length) items.push({ id: 'accept', label: t('themes.action.accept'), disabled: ro });
-    else if (terms.some((k) => (tree.review || {})[k] === 'reviewed')) {
+    else if (terms.some((k) => ['reviewed', 'kept'].includes((tree.review || {})[k]))) {
       items.push({ id: 'uncheck', label: t('themes.action.to_check'), disabled: ro });
     }
     if (placed.length === 1 && terms.length === 1) {

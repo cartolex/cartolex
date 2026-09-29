@@ -99,6 +99,7 @@ def start(request: Request, ctx: ProjectDep, body: CollectOptions | None = None)
             kind="collection",
             work=work,
             title=f"collect: {summary.get('action', action)}",
+            title_code=f"collect_{summary.get('action', action)}",
         )
     except JobConflict as exc:
         raise busy_error(exc.running) from exc
@@ -135,19 +136,31 @@ def cancel(request: Request, ctx: ProjectDep) -> dict[str, Any]:
 # ── the identity queue ────────────────────────────────────────────────────────
 
 
+def _demo_evidence(key: str, value: Any) -> dict[str, Any]:
+    """A piece of the demo services' evidence as a code (``corpus.evidence.demo_<key>``)."""
+    return {"code": f"demo_{key}", "params": {"value": value if value is not True else ""}}
+
+
 def normalised(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Candidates in one shape, best first, the single clear match flagged."""
     out = []
     for c in candidates:
         evidence = c.get("evidence") or []
+        codes = list(c.get("evidence_codes") or [])
         if isinstance(evidence, dict):
-            evidence = [f"{k}: {v}" for k, v in evidence.items() if v not in (None, "", False)]
+            shown = [(k, v) for k, v in evidence.items() if v not in (None, "", False)]
+            evidence = [f"{k}: {v}" for k, v in shown]
+            codes = [_demo_evidence(k, v) for k, v in shown]
         evidence = [
             {"text": str(e[0]), "points": e[1]}
             if isinstance(e, list | tuple) and len(e) == 2
             else {"text": str(e), "points": None}
             for e in evidence
         ]
+        if len(codes) == len(evidence):  # older records have the words only
+            for e, code in zip(evidence, codes, strict=True):
+                e["code"] = code.get("code") or ""
+                e["params"] = dict(code.get("params") or {})
         out.append(
             {
                 "finder": c.get("finder") or "demo",
@@ -156,6 +169,8 @@ def normalised(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "score": c.get("score"),
                 "evidence": evidence,
                 "detail": c.get("detail") or "",
+                "detail_code": c.get("detail_code") or "",
+                "detail_params": dict(c.get("detail_params") or {}),
                 "clear": c.get("clear"),
             }
         )

@@ -146,7 +146,7 @@ level: a keyword on a higher node is broader than every node below it.
 | `keywords` | each placed keyword and the node it is on, at any level |
 | `attribution` | for a placed keyword that does not count at its node's level: how many levels, from the top, its usage counts toward (see below) |
 | `set_aside` | each keyword set aside: `from`, the node it was set aside from (`null` when it never had a place), `reason`, and the `attribution` it had, if any |
-| `review` | `to_check` for a keyword a rebase added, `reviewed` once someone checked it; a keyword with nothing to check is absent |
+| `review` | `to_check` for a keyword a rebase added, `reviewed` once someone checked it, `kept` once someone kept it at its node from the borderline list (a review too, and the only one that leaves it out of that list); a keyword with nothing to check is absent |
 | `based_on` | the run and the vocabulary the tree was built or last rebased on |
 | `saved` | when this version was saved, and the action that saved it |
 

@@ -34,7 +34,7 @@ piece of evidence gave its score.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -79,6 +79,38 @@ THRESHOLD = 0.8
 MAX_STATED = 3
 MAX_CANDIDATES = 10
 
+#: The pieces of evidence a candidate's score is made of, as codes with their English
+#: words (an interface words them from its catalogues, ``corpus.evidence.<code>``).
+EVIDENCE_CODES = {
+    "name_same": "name: same name",
+    "name_compound": "name: one part of a compound surname",
+    "name_initial": "name: the first name as an initial",
+    "name_other_first_names": "name: the same name with other first names",
+    "name_same_surname": "name: the same surname, another first name",
+    "name_other": "name: another name",
+    "same_orcid": "the same ORCID",
+    "other_orcid": "another ORCID",
+    "listed_id": "the identifier in the list",
+    "stated_institution": "stated institution on the record ({first}–{last})",
+    "related_institution": "an institution the stated one belongs to, or part of it",
+    "similar_institution": "an institution with a similar name",
+    "no_works": "no works",
+}
+#: :func:`~cartolex.collect.names.name_similarity`'s reasons → evidence codes.
+NAME_REASONS = {
+    "same name": "name_same",
+    "one part of a compound surname": "name_compound",
+    "the first name as an initial": "name_initial",
+    "the same name with other first names": "name_other_first_names",
+    "the same surname, another first name": "name_same_surname",
+    "another name": "name_other",
+}
+
+
+def evidence_words(code: str, params: Mapping[str, Any] | None = None) -> str:
+    """The English words of a piece of evidence."""
+    return EVIDENCE_CODES.get(code, code).format(**(params or {}))
+
 
 @dataclass
 class Candidate:
@@ -96,6 +128,9 @@ class Candidate:
     found_by: list[str] = field(default_factory=list)
     score: float = 0.0
     evidence: list[tuple[str, float]] = field(default_factory=list)
+    #: The evidence as codes for an interface's catalogues, in the order of
+    #: :attr:`evidence`: ``{"code", "params"}`` (see :data:`EVIDENCE_CODES`).
+    evidence_codes: list[dict[str, Any]] = field(default_factory=list)
 
     def describe(self) -> str:
         years = f"{self.first_year}–{self.last_year}" if self.first_year is not None else "no year"
@@ -308,12 +343,18 @@ def _score(
     stated_names: list[str],
 ) -> None:
     points: list[tuple[str, float]] = []
+    codes: list[dict[str, Any]] = []
+
+    def add(code: str, points_: float, **params: Any) -> None:
+        points.append((evidence_words(code, params), points_))
+        codes.append({"code": code, "params": params})
+
     similarity, why = name_similarity(names, cand.name, cand.alternatives)
-    points.append((f"name: {why}", round(0.6 * similarity, 3)))
+    add(NAME_REASONS.get(why, "name_other"), round(0.6 * similarity, 3))
     if orcid and cand.orcid:
-        points.append(("the same ORCID", 0.4) if cand.orcid == orcid else ("another ORCID", -0.5))
+        add("same_orcid", 0.4) if cand.orcid == orcid else add("other_orcid", -0.5)
     if cand.record in known:
-        points.append(("the identifier in the list", 0.4))
+        add("listed_id", 0.4)
     held = {i["id"]: i for i in cand.institutions if i["id"]}
     lineages = {x for i in cand.institutions for x in i["lineage"]}
     same = [held[i] for i in held if i in stated_ids]
@@ -322,16 +363,16 @@ def _score(
     ]
     if same:
         inst = same[0]
-        points.append(
-            (f"stated institution on the record ({inst['first_year']}–{inst['last_year']})", 0.25)
-        )
+        first, last = inst["first_year"] or "—", inst["last_year"] or "—"
+        add("stated_institution", 0.25, first=first, last=last)
     elif near or (lineages & set(stated_ids)):
-        points.append(("an institution the stated one belongs to, or part of it", 0.2))
+        add("related_institution", 0.2)
     elif any(_overlap(i["name"], s) >= 0.5 for i in cand.institutions for s in stated_names):
-        points.append(("an institution with a similar name", 0.15))
+        add("similar_institution", 0.15)
     if cand.works == 0:
-        points.append(("no works", -0.2))
+        add("no_works", -0.2)
     cand.evidence = points
+    cand.evidence_codes = codes
     cand.score = round(max(0.0, min(1.0, sum(p for _, p in points))), 3)
 
 
@@ -600,7 +641,14 @@ def _queue_entries(kind: str, rec: dict[str, Any]) -> list[dict[str, Any]]:
                 "name": c["name"],
                 "score": c["score"],
                 "evidence": c.get("evidence") or [],
+                "evidence_codes": c.get("evidence_codes") or [],
                 "detail": f"{c['works']} works, {c['first_year']}–{c['last_year']}",
+                "detail_code": "openalex_record",
+                "detail_params": {
+                    "works": c["works"],
+                    "first": c["first_year"] or "—",
+                    "last": c["last_year"] or "—",
+                },
             }
             for c in rec.get("candidates") or []
         ]
@@ -614,6 +662,11 @@ def _queue_entries(kind: str, rec: dict[str, Any]) -> list[dict[str, Any]]:
                 "evidence": [],
                 "detail": f"{len(rec.get('works') or [])} deposit(s); "
                 + ", ".join((rec.get("structures") or [])[:3]),
+                "detail_code": "hal_form",
+                "detail_params": {
+                    "n": len(rec.get("works") or []),
+                    "structures": list((rec.get("structures") or [])[:3]),
+                },
             }
         ]
     return [

@@ -13,6 +13,7 @@ from cartolex.collect.resolve import (
     confirm,
     confirm_none,
     confirm_pasted,
+    evidence_words,
     parse_record,
     resolve,
 )
@@ -252,6 +253,10 @@ def test_candidates_show_their_evidence(resolved) -> None:
     assert inst["name"] and inst["first_year"] <= inst["last_year"]
     assert cand.score == pytest.approx(max(0.0, min(1.0, sum(p for _, p in cand.evidence))))
     assert "score:" in cand.describe()
+    # each piece of evidence also comes as a code with its parameters, for the interface
+    assert [evidence_words(c["code"], c["params"]) for c in cand.evidence_codes] == [
+        why for why, _ in cand.evidence
+    ]
 
 
 def test_an_orcid_in_the_list_counts(resolved) -> None:

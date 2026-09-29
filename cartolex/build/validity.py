@@ -11,6 +11,7 @@ parameter, a part of ``project.json``, or an upstream stage.
 from __future__ import annotations
 
 import datetime as _dt
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Literal
@@ -210,9 +211,24 @@ class _View:
     code: str = field(default_factory=code_fingerprint)
 
     @classmethod
-    def read(cls, project: Project, registry: Registry, year: int | None) -> _View:
+    def read(
+        cls,
+        project: Project,
+        registry: Registry,
+        year: int | None,
+        off: Iterable[str] = (),
+    ) -> _View:
+        """Read the project once; the opt-in stages in *off* count as switched off
+        (a build whose consent they did not get skips them, without changing
+        ``params.json``)."""
         layout = project.layout
         params = load_params(project, registry)
+        off = [s for s in off if s in registry and registry[s].opt_in]
+        if off:
+            stages = {k: dict(v) for k, v in params.stages.items()}
+            for s in off:
+                stages.setdefault(s, {})["enabled"] = False
+            params = params.model_copy(update={"stages": stages})
         records = {s.id: read_record(layout, s.id) for s in registry}
         return cls(
             project=project,

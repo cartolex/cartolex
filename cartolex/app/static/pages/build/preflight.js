@@ -22,11 +22,17 @@ function why(item, known) {
   return out;
 }
 
-/** The plan's items as tracker rows: the action is the state's word, the cost its note. */
-export function planRows(plan, stages) {
+/**
+ * The plan's items as tracker rows: the action is the state's word, the cost its note.
+ * The stages in *declined* (opt-in, consent not given) are shown skipped.
+ */
+export function planRows(plan, stages, declined = new Set()) {
   return plan.items.map((item) => {
     const known = stages.get(item.stage);
     const base = { id: item.stage, name: item.name };
+    if (declined.has(item.stage)) {
+      return { ...base, state: 'skipped', stateText: t('build.action.skip'), note: t('build.consent.skipped') };
+    }
     if (item.action === 'keep') return { ...base, state: 'up_to_date', stateText: t('build.action.keep') };
     if (item.action === 'skip') {
       return { ...base, state: 'skipped', stateText: t('build.action.skip'),
@@ -56,7 +62,7 @@ function Consent({ request, checked, onChange }) {
       ${request.paid ? html`<li>${request.ai_calls_max
         ? t('build.consent.calls', { n: request.ai_calls_max }) : t('build.consent.calls_unknown')}</li>` : null}
       <li>${t('build.consent.time', { time: formatSeconds(e.seconds) })}</li>
-      <li>${t('build.consent.without')}</li>
+      <li>${t(request.skipped_without ? 'build.consent.without_skip' : 'build.consent.without')}</li>
     </ul>
   </div>`;
 }
@@ -78,7 +84,10 @@ export function Preflight({ plan, stages, starting, error, onStart, onClose }) {
         action=${{ label: t('build.back'), onClick: onClose }}>${t('build.pre.nothing.text')}<//>
     <//>`;
   }
-  const runs = toRun.length + (override ? large.length : 0);
+  // A stage skipped for want of consent does not count among those that run.
+  const declined = new Set(plan.consent.filter((c) => c.skipped_without && !consent.has(c.stage))
+    .map((c) => c.stage));
+  const runs = toRun.length - declined.size + (override ? large.length : 0);
   const toggle = (id, on) => {
     const next = new Set(consent);
     if (on) next.add(id); else next.delete(id);
@@ -87,7 +96,8 @@ export function Preflight({ plan, stages, starting, error, onStart, onClose }) {
   return html`<div class="cx-build-pre">
     <${Card} level=${2} title=${t('build.pre.title')} class="cx-build-pre__plan">
       <p class="cx-build-pre__lead">${t('build.pre.lead', {
-        run: toRun.length, keep: (plan.to_keep || []).length, skip: (plan.to_skip || []).length })}</p>
+        run: toRun.length - declined.size, keep: (plan.to_keep || []).length,
+        skip: (plan.to_skip || []).length + declined.size })}</p>
       <dl class="cx-build-cost">
         <div><dt>${t('build.pre.time')}</dt><dd>${formatSeconds(est.seconds)}</dd></div>
         <div><dt>${t('build.pre.memory')}</dt><dd>${formatMb(est.peak_memory_mb)}</dd></div>
@@ -95,7 +105,7 @@ export function Preflight({ plan, stages, starting, error, onStart, onClose }) {
         <div><dt>${t('build.pre.ai')}</dt><dd>${plan.consent.some((c) => c.paid)
           ? t('build.pre.ai_asks') : t('build.pre.ai_none')}</dd></div>
       </dl>
-      <${StageTracker} stages=${planRows(plan, stages)} label=${t('build.pre.stages')} />
+      <${StageTracker} stages=${planRows(plan, stages, declined)} label=${t('build.pre.stages')} />
     <//>
     ${large.length ? html`<div class="cx-build-refusal" role="note">
       <${Icon} name="warning" /><div>
