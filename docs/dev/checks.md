@@ -122,3 +122,8 @@ says so. The list is never committed.
 `CARTOLEX_VENVS_FROZEN=1` uses the environments in `.venvs/` as they are, without
 refreshing them: for several checkouts sharing one set of environments, where a
 refresh by one check would pull packages from under another.
+
+The browser budgets that depend on the machine's load (the map's frame rate, the theme
+editor's time to ready on L) are strict in CI or with `CARTOLEX_STRICT_BUDGETS=1`;
+otherwise they are measured and reported with a generous bound, since other work on a
+shared machine slows every frame.

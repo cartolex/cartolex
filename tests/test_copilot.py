@@ -162,7 +162,7 @@ def _sandbox(tmp: Path) -> Path:
             class Blocker:
                 def find_spec(self, name, path=None, target=None):
                     if name.split(".")[0] in BLOCKED:
-                        raise ImportError(f"{{name}} is not in the sandbox")
+                        raise ModuleNotFoundError(f"No module named {{name!r}}", name=name)
                     return None
             sys.meta_path.insert(0, Blocker())
             def refuse(*args, **kwargs):
