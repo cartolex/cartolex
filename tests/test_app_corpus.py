@@ -144,3 +144,42 @@ def test_collecting_from_the_services_end_to_end(client, services):
     assert changed.status_code == 200 and changed.json()["changed"] == len(
         client.get("/api/people?coverage=no_data&limit=500").json()["items"]
     )
+
+
+def test_documents_of_one_person_come_in_as_a_job(client, services):
+    proposal = client.post(
+        "/api/people/import", json={"text": "Tavelin, Ada\nOrrin, Bram\n"}
+    ).json()
+    client.post(
+        f"/api/people/import/{proposal['import_id']}/confirm",
+        json={"mapping": proposal["mapping"]},
+        headers={"If-Match": etag(client.get("/api/people"))},
+    )
+    person = client.get("/api/people?q=tavelin").json()["items"][0]
+    archive = _zip_of({"notes/tide-gauges.txt": "Tide gauges along the coast."})
+    started = client.post(
+        "/api/people/import/documents",
+        files={"file": ("docs.zip", archive)},
+        data={"kind": "folder", "person_id": person["person_id"]},
+    )
+    assert started.status_code == 202, started.text
+    done = client.wait_job(started.json()["job"]["id"])
+    assert done["state"] == "succeeded" and done["result"]["texts"] == 1
+    sheet = client.get(f"/api/people/{person['person_id']}/sheet").json()
+    assert [t["content"] for t in sheet["texts"]] == ["full"]
+    refused = client.post(
+        "/api/people/import/documents",
+        files={"file": ("empty.zip", _zip_of({"readme.csv": "a,b\n"}))},
+        data={"kind": "folder"},
+    )
+    assert refused.status_code == 422 and refused.json()["error"]["code"] == "documents_missing"
+
+
+def _zip_of(files: dict[str, str]) -> bytes:
+    import zipfile
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as zf:
+        for name, text in files.items():
+            zf.writestr(name, text)
+    return out.getvalue()
