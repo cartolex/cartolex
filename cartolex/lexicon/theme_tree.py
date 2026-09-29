@@ -60,6 +60,7 @@ __all__ = [
     "apply_theme_files",
     "apply_themes",
     "apply_tree",
+    "comb_calibration",
     "default_level_names",
     "draft_themes",
     "held_usage",
@@ -826,6 +827,51 @@ def write_theme_draft(
         draft_json_out,
     )
     return doc
+
+
+def comb_calibration(
+    *,
+    lexical_data_json: Path,
+    embeddings_json: Path,
+    term_clusters_csv: Path,
+    text_keywords_npz: Path,
+    level_sizes: Sequence[int],
+) -> dict[str, Any] | None:
+    """The comb's calibration as the grouping ran it, read again from its files.
+
+    The levels are cut again from the term clustering (as :func:`write_theme_draft`
+    cuts them) and the texts × keywords the comb read are those it stored; the
+    answer is :func:`cartolex.lexicon.theme_comb.calibration_curve`'s. ``None``
+    when the comb did not run (no stored texts) or the files do not match.
+    """
+    from cartolex.atlas.hierarchy import level_groups
+    from cartolex.atlas.model_files import load_embeddings, load_lexical_data
+
+    from . import theme_comb as tc
+    from .subfields import _load_term_cluster_labels
+
+    if not Path(text_keywords_npz).exists():
+        return None
+    data = load_lexical_data(lexical_data_json)
+    emb = load_embeddings(embeddings_json)
+    terms = [str(t) for t in data.terms]
+    D = tc.load_text_keywords(Path(text_keywords_npz))
+    if D.shape[1] != len(terms):
+        return None
+    labels = _load_term_cluster_labels(term_clusters_csv, terms)
+    levels = level_groups(emb.Z_terms, labels, list(level_sizes))
+    finest = np.full(len(terms), -1, dtype=np.int64)
+    for p, rows in enumerate(levels[-1].rows):
+        finest[np.asarray(rows, dtype=np.int64)] = p
+    P, n = tc.keyword_spread(D, finest, len(levels[-1].rows))
+    curve = tc.calibration_curve(P, n, finest, tc.level_maps(levels))
+    return {
+        **curve,
+        "texts": int(D.shape[0]),
+        "min_texts": tc.MIN_TEXTS,
+        "default_theta": tc.DEFAULT_THETA,
+        "nodes": [len(lv.rows) for lv in levels],
+    }
 
 
 def _comb(

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 /**
- * The build page (`/build`, `?scope=map,themes`): the pre-flight sheet, then
- * the tracker of the job it starts, then its result.
+ * The build page (`/build`, `?scope=map,themes`, and `&force=themes.space` to run
+ * stages again even when they are up to date, « rebuild from here »): the
+ * pre-flight sheet, then the tracker of the job it starts, then its result.
  *
  * On arrival it reads the last build (`GET /api/build`): a running one is
  * followed at once; otherwise the dry run (`POST /api/build`) gives the sheet.
@@ -17,8 +18,8 @@ import { Preflight } from './preflight.js';
 import { Result, Running, isActive, trackerRows } from './run.js';
 import { resultSentence } from './words.js';
 
-function scopeOf(query) {
-  const raw = query && query.get('scope');
+function scopeOf(query, name = 'scope') {
+  const raw = query && query.get(name);
   const list = raw ? raw.split(',').map((s) => s.trim()).filter((s) => /^[a-z][a-z._-]{0,63}$/.test(s)) : [];
   return list.length ? list : null;
 }
@@ -33,6 +34,7 @@ export function BuildPage() {
   const { jobs, project } = ctx.app.stores;
   usePageTitle(t('build.title'));
   const scope = scopeOf(ctx.query);
+  const force = scopeOf(ctx.query, 'force') || [];
   const [plan, setPlan] = useState(null);
   const [tracker, setTracker] = useState(null);
   const [error, setError] = useState(null);
@@ -42,7 +44,7 @@ export function BuildPage() {
 
   const loadPlan = async () => {
     setPlan(null);
-    const r = await ctx.api.post('/api/build', { scope, dry_run: true });
+    const r = await ctx.api.post('/api/build', { scope, dry_run: true, options: { force } });
     if (r.ok) setPlan(r.data);
     else setError(r.error);
   };
@@ -75,7 +77,7 @@ export function BuildPage() {
     setStarting(true);
     setStartError(null);
     const r = await ctx.api.post('/api/build', { scope, dry_run: false, consent,
-      options: { allow_over_budget: allowOverBudget } });
+      options: { allow_over_budget: allowOverBudget, force } });
     setStarting(false);
     if (!r.ok) {
       setStartError(r.error);

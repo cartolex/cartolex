@@ -139,6 +139,7 @@ CORE_NAV: tuple[tuple[str, int, str], ...] = (
     ("themes", 40, "main"),
     ("map", 50, "main"),
     ("share", 60, "main"),
+    ("method", 85, "settings"),
     ("settings", 90, "settings"),
     ("start", 95, "settings"),
 )

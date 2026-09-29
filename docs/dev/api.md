@@ -200,10 +200,12 @@ build.
 
 | route | what it does |
 | --- | --- |
-| `GET /api/params` | per stage, each parameter's effective value, origin (`default`, `rule` with the rule, `params.json`), limits, the value of its last run and whether it changed since; the validation messages; the sizes the rules use |
+| `GET /api/params` | per stage, each parameter's effective value, origin (`default`, `rule` with the rule, `params.json`), limits, the value it would have without `params.json` (`default_value`, and `differs`), the value of its last run and whether it changed since; the validation messages; the sizes the rules use |
 | `PUT /api/params {seed, pinned_year, stages}` | replace `decisions/params.json` (`If-Match`); refused values: 422 with every reason |
 | `GET /api/map/versions` | the versions, newest first, and the pinned one |
-| `POST /api/map/versions {action: pin | try | discard, version, seed, method, note, build}` | pin a version, try another layout (a new version beside the pinned one, with another seed or `method`: `umap`, `tsne` when openTSNE is installed, `tree`), discard a version nobody pinned; `build: true` also redraws the map. `GET` gives `methods` and the default rule (`default_method`: t-SNE from `tsne_from_people` mapped people) |
+| `POST /api/map/versions {action: pin | try | discard, version, seed, method, params, note, build}` | pin a version, try another layout (a new version beside the pinned one, with another seed or `method`: `umap`, `tsne` when openTSNE is installed, `tree`, and layout `params` set over the pinned version's for the same method, else over the method's defaults; a parameter the method does not take: 422 `layout_param_unknown`), discard a version nobody pinned; `build: true` also redraws the map. `GET` gives `methods` and the default rule (`default_method`: t-SNE from `tsne_from_people` mapped people) |
+| `GET /api/method/{step}` | the method screen's diagnostic of a step, read from its stages' outputs and cached by their runs (`step`, `stages`, `runs`, and `empty` before the stage ran): `texts` (people, texts, characters, mapped people), `keywords` (the candidates by band, reason and language, a histogram of their scores by band on a log scale, the vocabulary against `max_keywords`, the scoring's settings this version fixes, `fixed`), `space` (the variance each dimension explains, and the share of each person's 10 nearest people by TF-IDF kept by the first dimensions, on a sample of at most 800), `grouping` (per level: groups, keywords, keywords per group; too broad; the outline of the top two levels; Ward's `dendrogram` of the top-level themes; the comb's `calibration`: for each θ of its grid the keywords per level and per group, the too broad and the balance error, and the θ kept), `layout` (the pinned version, the nearest people the map keeps, the layout's measures, the parameters each method offers, the previews computed on this space) |
+| `POST /api/method/layout/preview {method, seed, params}` | a layout of a sample of the people (at most 800) with a method and its parameters, beside the map on the same people, each with the nearest people it keeps: 200 `{preview}` when it was computed on the current space, else 202 `{job}` (a job of the group `preview`, beside builds); send the same request once the job ends. `tsne` without openTSNE: 422 `layout_method_unavailable`; before the space (or, for `tree`, the applied themes): 409 `preview_needs_build` |
 | `GET /api/map/bases` | the base maps: other projects' maps copied into this one (`sources/bases/<id>/base_map.json`: the places of their keywords and people, without names, and their top-level themes) |
 | `POST /api/map/bases {folder, id}`, `DELETE /api/map/bases/{id}` | copy another project's map (locally; `If-Match` of `project.json`) and add it to `project.json`'s `bases`, or remove one; refused: `base_no_map`, `base_same_project`, `base_in_use`, `bases_hosted` |
 
@@ -395,6 +397,9 @@ catalogues give each code its text in every interface language.
 | `map_version_missing` | 422 | name the version to {action} | `action` | `fix-input` |
 | `map_version_pinned` | 409 | {version} is pinned: pin another version before discarding it | `version` | `fix-input` |
 | `no_pinned_version` | 409 | there is no pinned map version to start from: build the map first | — | `build` |
+| `layout_param_unknown` | 422 | the {method} layout takes no parameter {param}; it takes: {known} | `method`, `param`, `known` | `fix-input` |
+| `layout_method_unavailable` | 422 | the {method} layout is not installed on this computer | `method` | `fix-input` |
+| `preview_needs_build` | 409 | this preview needs {stage} built first | `stage` | `build` |
 | `base_not_found` | 404 | there is no base map {base} | `base` | `reload` |
 | `base_no_map` | 422 | {path} holds no project with a map: build its map there first | `path` | `fix-input` |
 | `base_same_project` | 422 | a project's own map cannot be its base: choose another project | — | `fix-input` |
@@ -481,6 +486,9 @@ the English `message` the same way; an empty result also names its next action.
 | `empty_no_borderline` | no keyword sits near the border between two nodes | — | `none` |
 | `empty_no_texts` | the grouping did not read the texts: build the themes with the comb | — | `none` |
 | `empty_no_levels` | every keyword sits on the level its texts support, or you kept it there | — | `none` |
+| `empty_no_corpus` | the texts are not gathered yet: build the corpus | — | `build` |
+| `empty_no_space` | the keywords are not placed in a space yet: build the themes | — | `build` |
+| `empty_no_grouping` | the keywords are not grouped yet: build the themes | — | `build` |
 | `empty_no_map` | no map yet: build the map | — | `build` |
 | `empty_no_map_versions` | no map yet: the first build draws one and pins it | — | `build` |
 | `empty_up_to_date` | everything is up to date | — | `none` |

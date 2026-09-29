@@ -45,11 +45,9 @@ def test_the_sections_of_the_settings(settings):
     page.get_by_text(re.compile(r"saved on this computer \(…5678\)")).wait_for()
     assert page.get_by_text("The AI clean-up can run by API.").is_visible()
     assert "sk-demo-key" not in page.content()
-    # the build options and every parameter with its origin
+    # the build options; every other parameter is on the method screen
     section(ui, "Sizes and build options")
-    page.get_by_role("button", name="Show every parameter").click()
-    page.get_by_role("heading", name=re.compile("place keywords in a common space")).wait_for()
-    assert page.get_by_text(re.compile(r"by a rule: 20 up to 2 000 people")).count() >= 1
+    page.get_by_role("link", name="open the method").wait_for()
     # stop words, one per line
     section(ui, "Stop words")
     page.get_by_label("Never keywords").first.fill("coast\nshore")

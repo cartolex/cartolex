@@ -373,6 +373,23 @@ stale, open, download as one zip) and figures, tables and files
 a build or an export is a job followed through the jobs poller (see
 {doc}`site`).
 
+The method screen (`pages/method.js`, route `/method`, in the header's
+settings menu) loads `pages/method/screen.js`: the steps of the build in
+pipeline order (texts, keywords, space, grouping, layout), each with the
+shape of its stages' state, one step at a time (`/method?step=<id>`). A step
+shows its parameters (`params.js`, shared with the settings' build options:
+value, origin, limits, a mark when a value differs from its default and when
+the last build used another, back to default, saved with `If-Match`), what
+the step produced (`texts.js`, `keywords.js`, `space.js`, `grouping.js`,
+`layout.js`, from `GET /api/method/<step>`) and « rebuild from here », the
+pre-flight sheet with that stage forced (`/build?force=<stage>`). The figures
+(`charts.js`: stacked bars, lines with marks, a dendrogram) are SVG drawn
+from the numbers, each an image with a name and a caption, its numbers
+folded under it. The layout step previews a method on a sample of the people
+beside the map (a job the first time, then cached) and can turn it into a
+map version, pinned and drawn. Opening a step reads `GET /api/params` and its
+diagnostic (the keywords step also one page of `GET /api/keywords`).
+
 ### The map, from the app and from the offline site
 
 The MapFrame (`components/map-frame.js`) is a thin Preact wrapper around four
