@@ -133,6 +133,8 @@ class LLMError(RuntimeError):
         A 200 whose body could not be parsed as expected.
     ``cancelled``
         The caller asked the run to stop (see :class:`LLMCancelled`).
+    ``missing_package``
+        The optional ``mistralai`` package is not installed (the ``llm`` extra).
     ``unknown``
         Anything unrecognised — treated as non-retryable on purpose.
     """
@@ -427,7 +429,14 @@ class MistralClient:
             if self.client_factory is not None:
                 Mistral = self.client_factory  # noqa: N806 - called like the SDK's class
             else:
-                from mistralai import Mistral
+                try:
+                    from mistralai import Mistral
+                except ImportError as exc:
+                    raise LLMError(
+                        "missing_package",
+                        "the AI clean-up by API needs the optional mistralai package: "
+                        "pip install 'cartolex[llm]'",
+                    ) from exc
 
             self._client = Mistral(
                 api_key=self.api_key,

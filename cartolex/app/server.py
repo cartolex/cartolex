@@ -43,7 +43,12 @@ def default_data_dir(name: str = "cartolex") -> Path:
 def _bind(host: str, port: int) -> socket.socket:
     family = socket.AF_INET6 if ":" in host else socket.AF_INET
     sock = socket.socket(family, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if sys.platform == "win32":  # pragma: no cover - exercised on Windows only
+        # There SO_REUSEADDR would let another program bind the same port and take
+        # connections meant for the app; this option forbids it instead.
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    else:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind((host, port))
     sock.listen(128)
     sock.set_inheritable(True)

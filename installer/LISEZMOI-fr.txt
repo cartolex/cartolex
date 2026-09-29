@@ -1,0 +1,113 @@
+cartolex - installation sur votre ordinateur
+============================================
+
+cartolex dresse la carte d'un domaine de recherche à partir des textes des
+personnes qui y travaillent. Ce dossier l'installe pour vous, sans droits
+d'administrateur. L'installateur télécharge environ 1 Go (cartolex, les
+bibliothèques dont il a besoin et les modèles de langue pour l'anglais, le
+français et le portugais) : utilisez une bonne connexion. Comptez quelques
+minutes.
+
+Tout est rangé dans un seul dossier de votre dossier personnel, nommé
+« cartolex » : le programme, son Python, les téléchargements et le journal de
+l'installation (install.log). Vos projets sont rangés ailleurs, là où vous
+choisissez de les créer.
+
+Pour mettre cartolex à jour, téléchargez le kit plus récent et lancez son
+installateur : il met l'installation à jour sur place. Vos projets ne sont pas
+touchés.
+
+
+macOS
+-----
+
+1. Double-cliquez sur le fichier zip pour le décompresser, puis ouvrez le
+   dossier.
+2. Faites un clic droit (ou Contrôle-clic) sur « Install cartolex.command » et
+   choisissez Ouvrir. macOS indique qu'il ne peut pas vérifier le développeur :
+   choisissez de nouveau Ouvrir. (La première fois, un simple double-clic ne
+   montre qu'un avertissement ; clic droit > Ouvrir permet de passer. Sur un
+   macOS récent, s'il n'y a pas de bouton Ouvrir : Réglages Système >
+   Confidentialité et sécurité, puis « Ouvrir quand même » à côté du message
+   sur l'installateur.)
+3. Une fenêtre Terminal montre l'avancement. Quand elle affiche « Done »,
+   appuyez sur Entrée.
+4. Un fichier « cartolex.command » se trouve maintenant sur votre bureau.
+   Double-cliquez dessus pour ouvrir cartolex dans votre navigateur. Laissez
+   sa fenêtre Terminal ouverte pendant que vous travaillez ; fermez-la pour
+   arrêter cartolex.
+
+
+Windows
+-------
+
+1. Faites un clic droit sur le fichier zip, choisissez « Extraire tout... »,
+   puis ouvrez le dossier. (Lancer l'installateur depuis l'intérieur du zip,
+   sans l'extraire, ne fonctionne pas.)
+2. Double-cliquez sur « Install cartolex.bat ». Windows peut afficher
+   « Windows a protégé votre ordinateur » : cliquez sur « Informations
+   complémentaires », puis sur « Exécuter quand même ».
+3. Une fenêtre montre l'avancement. Quand elle affiche « Done », appuyez sur
+   une touche pour la fermer.
+4. Un raccourci « cartolex » se trouve maintenant sur votre bureau et dans le
+   menu Démarrer. Il ouvre cartolex dans votre navigateur. Laissez sa fenêtre
+   noire ouverte pendant que vous travaillez ; fermez-la pour arrêter
+   cartolex.
+
+Si l'installateur indique qu'il n'y a pas de Python sur cet ordinateur :
+installez Python depuis https://www.python.org/downloads/ (cochez « Add
+python.exe to PATH » sur le premier écran), puis relancez « Install
+cartolex.bat ».
+
+
+Linux
+-----
+
+1. Décompressez le fichier zip et ouvrez un terminal dans le dossier.
+2. Rendez l'installateur exécutable, puis lancez-le :
+       chmod +x install-cartolex.sh
+       ./install-cartolex.sh
+3. cartolex se trouve maintenant dans le menu des applications (et sur le
+   bureau si votre bureau affiche des fichiers). Il ouvre cartolex dans votre
+   navigateur. Vous pouvez aussi lancer ~/cartolex/env/bin/cartolex dans un
+   terminal.
+
+Sur Debian ou Ubuntu, si l'installateur le demande : sudo apt install python3-venv
+
+
+Quand le réseau bloque l'installateur
+-------------------------------------
+
+L'installateur essaie trois voies l'une après l'autre : avec uv (un
+installateur Python qu'il télécharge depuis astral.sh), puis avec uv en se
+fiant aux certificats de votre ordinateur (ce qui règle la plupart des réseaux
+qui inspectent les connexions sécurisées), puis avec le Python déjà installé
+sur votre ordinateur. Le journal indique quelle voie a fonctionné, et pourquoi
+les autres n'ont pas abouti.
+
+Si les trois échouent :
+- Derrière un proxy, indiquez-le avant de lancer l'installateur. Dans un
+  terminal (macOS, Linux) : export HTTPS_PROXY=http://proxy.example.org:8080
+  puis lancez l'installateur depuis ce terminal. Sous Windows, dans une
+  invite de commandes : set HTTPS_PROXY=http://proxy.example.org:8080
+  puis lancez « Install cartolex.bat » depuis cette invite. Demandez
+  l'adresse du proxy à votre service informatique.
+- Installez Python 3.10 ou plus récent depuis
+  https://www.python.org/downloads/ et relancez l'installateur : cette voie
+  n'a besoin ni de uv ni d'astral.sh.
+- Demandez à votre service informatique d'autoriser ces adresses : pypi.org,
+  files.pythonhosted.org (les paquets Python), github.com et
+  objects.githubusercontent.com (les modèles de langue), astral.sh (uv).
+- Ou essayez depuis un autre réseau (chez vous, par exemple) : une fois
+  installé, cartolex fonctionne sur n'importe quel réseau.
+
+Quand vous demandez de l'aide, joignez le fichier install.log du dossier
+« cartolex » de votre dossier personnel.
+
+
+Désinstaller cartolex
+---------------------
+
+Supprimez le dossier « cartolex » de votre dossier personnel, et le raccourci
+cartolex (sur le bureau, dans le menu Démarrer ou dans le menu des
+applications). Vos projets sont ailleurs et restent en place.

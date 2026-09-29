@@ -26,7 +26,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
-from .files import atomic_write_bytes
+from .files import atomic_write_bytes, replace_path
 
 __all__ = [
     "DECISION_TABLES",
@@ -243,7 +243,7 @@ def write_source_table(path: Path, name: str, table: pa.Table) -> None:
         pq.write_table(ordered, tmp, compression="zstd", row_group_size=64_000)
         with open(tmp, "rb") as fh:
             os.fsync(fh.fileno())
-        os.replace(tmp, path)
+        replace_path(tmp, path)
     except BaseException:
         with contextlib.suppress(FileNotFoundError):
             os.unlink(tmp)

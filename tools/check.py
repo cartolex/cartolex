@@ -73,7 +73,7 @@ def ensure_venv(python: str, extras: str = "dev") -> Path:
     venv = VENVS / f"py{python}"
     stamp = venv / ".cartolex-stamp"
     want = f"{_file_hash(ROOT / 'pyproject.toml')}:{_file_hash(MODELS)}:{extras}"
-    if stamp.is_file() and stamp.read_text() == want:
+    if stamp.is_file() and stamp.read_text(encoding="utf-8") == want:
         return venv
     subprocess.run(
         ["uv", "venv", "--quiet", "--allow-existing", "--python", python, str(venv)],
@@ -89,7 +89,7 @@ def ensure_venv(python: str, extras: str = "dev") -> Path:
         cwd=ROOT,
         check=True,
     )
-    stamp.write_text(want)
+    stamp.write_text(want, encoding="utf-8")
     return venv
 
 
@@ -101,7 +101,9 @@ def bin_of(venv: Path, name: str) -> str:
 def run(cmd: list[str], log: Path, env: dict | None = None) -> tuple[int, str]:
     """Run *cmd* from the repository root, save its output to *log*, return code and tail."""
     log.parent.mkdir(parents=True, exist_ok=True)
-    proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, env=env)
+    proc = subprocess.run(
+        cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env
+    )
     output = proc.stdout + proc.stderr
     log.write_text(output, encoding="utf-8")
     tail = [line for line in output.strip().splitlines() if line.strip()]
@@ -181,6 +183,8 @@ def ensure_browser_tools(venv: Path) -> str | None:
         cwd=ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if proc.returncode != 0:
         return "Playwright could not be installed (" + (proc.stderr.strip()[-200:] or "uv") + ")"
@@ -318,7 +322,9 @@ def check_tests(pythons: list[str], jobs: int, heavy: str | None = None) -> Resu
             running.append((py, proc, log))
         py, proc, log = running.pop(0)
         rc = proc.wait()
-        lines = [x for x in log.read_text(encoding="utf-8").splitlines() if x.strip()]
+        lines = [
+            x for x in log.read_text(encoding="utf-8", errors="replace").splitlines() if x.strip()
+        ]
         parts[py] = f"{py}: {lines[-1].strip('= ') if lines else 'no output'}"
         ok &= rc == 0
     summary = " · ".join(parts[py] for py in pythons)
@@ -377,6 +383,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--only", nargs="+", choices=ALL_CHECKS, help="run only these checks")
     args = parser.parse_args(argv)
 
+    # Every tool this script starts reads and writes UTF-8, whatever the system's code page
+    # (Windows): their logs are read back as UTF-8.
+    os.environ.setdefault("PYTHONUTF8", "1")
     if shutil.which("uv") is None:
         print("check: uv is required (https://docs.astral.sh/uv/)", file=sys.stderr)
         return 2
@@ -389,7 +398,10 @@ def main(argv: list[str] | None = None) -> int:
     wanted = args.only or list(ALL_CHECKS)
 
     results: list[Result] = []
-    dev = ensure_venv(cfg.get("tests", {}).get("quick", "3.12"))
+    # The quick Python's environment runs lint, the demo worlds of vocab, js and browser;
+    # it is made only when one of them runs (CI jobs ask for one check each).
+    needs_dev = {"lint", "vocab", "js", "browser"} & set(wanted)
+    dev = ensure_venv(cfg.get("tests", {}).get("quick", "3.12")) if needs_dev else Path()
     for name in wanted:
         if name == "lint":
             results.append(check_lint(dev))

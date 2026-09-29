@@ -37,7 +37,7 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from cartolex.project.files import atomic_write_bytes
+from cartolex.project.files import atomic_write_bytes, replace_path
 from cartolex.project.layout import ProjectLayout
 
 __all__ = ["DIGESTERS", "INDEX_FORMAT", "DigestCache", "digest_record"]
@@ -149,7 +149,7 @@ def _write_digest(raw_path: str, kind: str, out_path: str) -> tuple[int, list[st
                 slim = digester(rec)
                 if slim is not None:
                     gz.write(json.dumps(slim, ensure_ascii=False, separators=(",", ":")) + "\n")
-        os.replace(tmp, out)
+        replace_path(tmp, out)
     except BaseException:
         with contextlib.suppress(FileNotFoundError):
             os.unlink(tmp)

@@ -316,7 +316,7 @@ def _run_pipeline_core(
 
     # Also check canon decisions (concepts rejected)
     if paths.canonical_decisions_json.exists():
-        decisions = json.loads(paths.canonical_decisions_json.read_text())
+        decisions = json.loads(paths.canonical_decisions_json.read_text(encoding="utf-8"))
         rejected = set(decisions.get("rejected", []))
         full_blacklist |= rejected
 

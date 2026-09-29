@@ -1,0 +1,11 @@
+# The source distribution: the package, its metadata and the files a reader of the
+# archive needs. Development material (tests, tools, docs, deployment) stays in the
+# repository; the wheel is built from this archive and holds the package only.
+include README.md LICENSE CHANGELOG.md CITATION.cff codemeta.json
+prune tests
+prune tools
+prune docs
+prune deploy
+prune installer
+prune examples
+global-exclude __pycache__ *.py[cod] .DS_Store

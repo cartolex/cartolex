@@ -14,6 +14,7 @@ properties made that possible, and each is pinned here:
 
 from __future__ import annotations
 
+import sys
 import threading
 import time
 import types
@@ -124,6 +125,13 @@ class TestClientPolicy:
         monkeypatch.setattr("mistralai.Mistral", FakeMistral)
         MistralClient(api_key="k", timeout_s=42.0)._get_client()
         assert seen["timeout_ms"] == 42_000
+
+    def test_without_the_sdk_the_error_names_the_extra_to_install(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "mistralai", None)  # as if it were not installed
+        with pytest.raises(LLMError) as excinfo:
+            MistralClient(api_key="k")._get_client()
+        assert excinfo.value.kind == "missing_package"
+        assert "cartolex[llm]" in str(excinfo.value)
 
     def test_auth_failure_raises_a_typed_error_at_once(self, monkeypatch):
         client, calls = _stub_client(monkeypatch, [_SDKish(401)])

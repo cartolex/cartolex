@@ -1,0 +1,12 @@
+# Text files are checked out with LF line endings on every system (Windows included):
+# vendored files are checked against their hashes and tests compare bytes.
+* text=auto eol=lf
+*.gz binary
+*.npy binary
+*.npz binary
+*.parquet binary
+*.png binary
+*.pdf binary
+*.whl binary
+# The Windows launcher keeps the line endings cmd.exe expects.
+*.bat text eol=crlf

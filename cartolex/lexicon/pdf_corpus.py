@@ -208,7 +208,7 @@ def build_pdf_corpus(
                 "source": label or "",
                 # Store path relative to the index CSV's parent (project root) so that
                 # the index is portable and does not embed machine-specific absolute paths.
-                "txt_path": str(txt_path.relative_to(index_csv.parent)),
+                "txt_path": txt_path.relative_to(index_csv.parent).as_posix(),
             }
         )
 

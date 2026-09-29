@@ -7,6 +7,7 @@ keywords, themes and a two-dimensional atlas, with an offline site to share it.
 :caption: Guides
 :maxdepth: 1
 
+install
 demo
 collection
 privacy

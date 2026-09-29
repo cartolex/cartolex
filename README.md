@@ -13,7 +13,7 @@ in the corpus index. It consumes only the *corpus contract* below, whatever prod
 
 - `cartolex.lexicon` — extraction (noun phrases found with spaCy in English, French
   and Portuguese, TF-IDF, length bonus), optional LLM
-  triage (Mistral, term strings only), canonical consolidation and scoring, the
+  triage (Mistral, term strings only, the `llm` extra), canonical consolidation and scoring, the
   subfield hierarchy (deterministic draft, curated by hand), positioning of new
   documents, corpus/index helpers.
 - `cartolex.atlas` — SVD reduction, Ward clustering (cosine, SVD space), a UMAP 2-D
@@ -45,6 +45,7 @@ from that contract.
 
 | Document | What it covers |
 |---|---|
+| [docs/install.md](docs/install.md) | Installing cartolex and its language models, the optional extras, the first run, troubleshooting |
 | [INTEGRATION.md](INTEGRATION.md) | Stage-by-stage guide for driving the full feature set from your own (e.g. FastAPI) application |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Module map, data flow, and the workspace artifact inventory |
 | [`examples/synthetic_cohort.py`](examples/synthetic_cohort.py) | Runnable, fully offline end-to-end walkthrough |

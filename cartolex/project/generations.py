@@ -34,7 +34,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from .files import _fsync_dir, atomic_write_bytes, json_bytes
+from .files import _fsync_dir, atomic_write_bytes, json_bytes, replace_path
 from .layout import ProjectLayout
 from .models import STAGE_IDS
 
@@ -106,7 +106,7 @@ def clear_staging_files(folder: Path) -> None:
 
 def _rename(src: Path, dst: Path) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
-    os.replace(src, dst)
+    replace_path(src, dst)
     _fsync_dir(dst.parent)
     if src.parent != dst.parent:
         _fsync_dir(src.parent)

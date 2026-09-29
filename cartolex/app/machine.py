@@ -18,6 +18,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from cartolex.project.files import replace_path
+
 __all__ = ["KEY_SERVICES", "MachineKeys"]
 
 #: The services a key can be saved for, and the environment variable that wins over it.
@@ -77,4 +79,4 @@ class MachineKeys:
             fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 json.dump(data, fh, indent=2)
-            os.replace(tmp, self.path)
+            replace_path(tmp, self.path)

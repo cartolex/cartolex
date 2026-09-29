@@ -37,7 +37,7 @@ from typing import Any
 
 import pyarrow as pa
 
-from cartolex.project.files import atomic_write_bytes
+from cartolex.project.files import atomic_write_bytes, replace_path
 from cartolex.project.layout import SOURCE_TABLES, ProjectLayout
 from cartolex.project.models import ProjectFile
 from cartolex.project.tables import (
@@ -159,7 +159,7 @@ class RawWriter:
                         out.write(line)
                 out.flush()
                 os.fsync(out.fileno())
-            os.replace(tmp, self.path)
+            replace_path(tmp, self.path)
         except BaseException:
             Path(tmp).unlink(missing_ok=True)
             raise

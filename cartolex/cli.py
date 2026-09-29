@@ -558,12 +558,28 @@ def _parser(extensions: Sequence[Extension] = ()) -> argparse.ArgumentParser:
     return parser
 
 
+def _tolerant_output() -> None:
+    """Print any text, even where the output's encoding lacks some characters.
+
+    A Windows console or a redirected output may use a legacy code page: a name
+    or a term outside it is written as an escape instead of stopping the command.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        encoding = (getattr(stream, "encoding", None) or "").lower().replace("-", "")
+        if encoding != "utf8" and hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(errors="backslashreplace")
+            except (AttributeError, ValueError, OSError):
+                pass
+
+
 def main(argv: list[str] | None = None, *, extensions: Sequence[Extension] = ()) -> int:
     """Entry point of the ``cartolex`` command; returns the exit status.
 
     A host application passes its *extensions*: their command verbs are added,
     and ``cartolex app`` / ``cartolex api`` run the app with them.
     """
+    _tolerant_output()
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv:
         argv = ["app"]

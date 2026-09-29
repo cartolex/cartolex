@@ -489,3 +489,19 @@ nothing in the engine names a particular deployment, source or procedure.
   keyword's reference-language form: a French keyword no longer names a theme
   in English. The two-level draft follows the same rule. `themes.group` is at
   version 3.
+- **Packaging.** The Mistral SDK is an optional extra, `cartolex[llm]`, next
+  to `tsne`; without it the AI clean-up by API says which extra to install. The
+  wheel and the source archive are checked for missing and stray files
+  (`tools/package_check.py`), fresh installs on Python 3.10 and 3.14 are
+  measured by `tools/install_check.py`, and two hand-started GitHub workflows
+  run the checks on Linux, macOS and Windows and build the archives.
+  `docs/install.md` is the user's installation guide.
+- **An installer kit.** `tools/installer_zip.py` builds a small zip of
+  launchers (macOS, Windows, Linux) that install a pinned release, its
+  language models and a shortcut into one folder of the user's home, through
+  uv, uv with the system's certificates, or the system's Python, with guides
+  in English, French and Portuguese.
+- **Windows and macOS.** The local server refuses to share its port on Windows,
+  a rename refused by a reader is retried there, corpus indexes store
+  POSIX paths, the command's output never fails on a character its encoding
+  lacks, and text files are checked out with LF line endings everywhere.

@@ -58,7 +58,7 @@ IMPORT_NAMES = {
     "umap-learn": "umap",
 }
 #: Optional extras whose distributions the engine may import (inside the function using them).
-ENGINE_EXTRAS = ("tsne",)
+ENGINE_EXTRAS = ("tsne", "llm")
 
 
 def _declared_imports() -> set[str]:
