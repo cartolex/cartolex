@@ -121,6 +121,7 @@ leaves the check to the run.
 | `corpus.assemble` | `recency_years` | 5 | 0–200; 0 keeps every year |
 | `keywords.extract` | `counting_unit` | person | person, text, organisation |
 | `keywords.extract` | `min_people` | 3 | ≥ 1, and no more than the people whose texts build the lexicon |
+| `keywords.extract` | `min_texts` | 3 | ≥ 1, and no more than the texts that build the lexicon: a candidate must occur in this many distinct texts (one co-authored text is one text's evidence, however many people signed it) |
 | `keywords.extract` | `max_share` | 0.6 | 0.01–1 |
 | `keywords.extract` | `rejects` | true | true, false: candidates on cartolex's list of rejections or in the machine's cache go to the `rejected` band |
 | `keywords.triage` | `enabled` | false | true, false |
@@ -362,7 +363,7 @@ made with.
 | `corpus.assemble.parts`, `.provider_priority` | `assemble_corpus(parts=…, provider_priority=…)`; `parts` is a list, or the rule's parts by slot kind |
 | `corpus.assemble.recency_years` | `KeywordsConfig.kw_recency_years` |
 | the `year` | `RunContext.now_year` |
-| `keywords.extract.min_people`, `.max_share`, `.counting_unit` | `KeywordsConfig.min_df`, `.max_df`, `.counting_unit` |
+| `keywords.extract.min_people`, `.min_texts`, `.max_share`, `.counting_unit` | `KeywordsConfig.min_df`, `.min_texts`, `.max_df`, `.counting_unit` |
 | `keywords.extract.rejects` | the rejection snapshot the runner writes (`EnginePaths.rejects_json`): cartolex's list and the machine's cache (`EngineOptions.rejects_folder`), minus the terms a person decided on; empty when false |
 | `keywords.build.max_keywords` | `KeywordsConfig.global_top_n` |
 | `themes.space.dimensions` | `run_svd(svd_n_components=…)` |

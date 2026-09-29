@@ -6,7 +6,8 @@ the language's model (:mod:`cartolex.lexicon.language_models`); the noun
 phrases found by the language's patterns (:mod:`cartolex.lexicon.noun_phrases`),
 nested spans included and grouped by lemma, are the candidates. They are
 scored by :mod:`cartolex.lexicon.scoring`: a window on the people who use
-them (``min_df`` people at least, ``max_df`` of them at most), a TF-IDF whose
+them (``min_df`` people at least, ``max_df`` of them at most, and
+``min_texts`` distinct texts at least), a TF-IDF whose
 documents are the counting unit (``KeywordsConfig.counting_unit``: a person
 by default), summed, times the length bonus; each kept candidate falls in a
 band (kept, to check, set aside) with a reason, and a candidate of the
@@ -251,6 +252,7 @@ def score_language(
         min_df=cfg.min_df,
         max_df=cfg.max_df,
         max_features=cfg.max_features,
+        min_texts=cfg.min_texts,
         options=options if options is not None else options_of(cfg),
         blacklist=blacklist,
     )

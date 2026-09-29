@@ -40,6 +40,18 @@ The special cases, each given to a different cohort person (:attr:`Bibliography.
 ``diacritics`` the list writes the name with accents, the index without;
 ``moved``     works before a given year state an earlier, outside institution;
 ``none``      no record and no registry entry at all.
+
+**Duplicate texts**, as a real index holds them (:attr:`Bibliography.duplicates`,
+kind → index work ids, the original first), each on a different article whose
+authors all have a record:
+
+``twin-doi``    the same article under a second DOI, dated a year later (an issue's
+                year after the online one);
+``conference``  a conference version of an article (a year earlier, its own DOI),
+                and a preprint of it (a year earlier again, a repository DOI).
+
+The collection keeps them apart (their DOIs differ; the preprint is linked to the
+conference version it meets); the corpus reads the article once.
 """
 
 from __future__ import annotations
@@ -56,6 +68,7 @@ from ..vocabulary import DRIVERS, METHODS, SETTINGS, THEME_BY_ID, THEMES, Theme
 
 __all__ = [
     "BIBLIO_VERSION",
+    "DUPLICATE_KINDS",
     "Authorship",
     "AuthorRecord",
     "Bibliography",
@@ -71,6 +84,8 @@ __all__ = [
 ]
 
 BIBLIO_VERSION = "1"
+#: The kinds of duplicate texts the index holds (see the module docstring).
+DUPLICATE_KINDS = ("twin-doi", "conference")
 SPECIALS = ("mixed", "split", "trap", "homonym", "compound", "diacritics", "moved", "none")
 #: Share of cohort groups whose works cite their lab-level record rather than the institution.
 CITED_LAB_SHARE = 0.3
@@ -254,6 +269,8 @@ class Bibliography:
     #: The lab-level record with two parents, and the large collaboration's work id.
     joint_lab: str | None = None
     consortium: str | None = None
+    #: Duplicate texts by kind: the original index work first, then its copies.
+    duplicates: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
     def record_ids(self, person_id: str) -> tuple[str, ...]:
         """The author records the index has for a world person (the mixed one included)."""
@@ -773,6 +790,70 @@ def build_bibliography(world: DemoWorld, seed: int = 0) -> Bibliography:
             record_works[a.author_id].append(work.id)
             if a.person_id is None:
                 b.authors[a.author_id] = AuthorRecord(a.author_id, a.name, (), None, None, ())
+
+    # ── duplicate texts (a stream of their own, after every other work) ──
+    rng = _rng(world, seed, "duplicates")
+    taken = {pid for pid in (chosen.get("split"), chosen.get("mixed")) if pid}
+    plain = sorted(
+        (
+            w
+            for w in b.works.values()
+            if w.world_work
+            and w.type == "article"
+            and w.source_type == "journal"
+            and w.doi
+            and w.year >= 2014
+            and len(b.index_of.get(w.world_work, ())) == 1
+            and all(a.author_id and a.person_id not in taken for a in w.authorships)
+        ),
+        key=lambda w: w.id,
+    )
+    for n, (kind, original) in enumerate(
+        zip(DUPLICATE_KINDS, rng.sample(plain, min(len(DUPLICATE_KINDS), len(plain))), strict=False)
+    ):
+        base = f"10.5555/cartolex-biblio.{world.size.lower()}.duplicate.{n + 1}"
+        if kind == "twin-doi":
+            # The issue's year after the online one: a year apart, as a finder's key
+            # would otherwise join the two records into one text.
+            year = original.year + 1
+            copies = [
+                replace(
+                    original,
+                    id=ids.make("W"),
+                    doi=f"{base}.twin",
+                    year=year,
+                    date=f"{year}-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}",
+                )
+            ]
+        else:
+            year = original.year - 1
+            copies = [
+                replace(
+                    original,
+                    id=ids.make("W"),
+                    doi=f"{base}.conference",
+                    year=year,
+                    date=f"{year}-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}",
+                    source_type="conference",
+                    venue=rng.choice(nm.PROCEEDINGS_EN),
+                ),
+                replace(
+                    original,
+                    id=ids.make("W"),
+                    doi=f"{base}.preprint",
+                    year=year - 1,
+                    date=f"{year - 1}-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}",
+                    type="preprint",
+                    source_type="repository",
+                    venue=nm.PREPRINT_SERVER,
+                ),
+            ]
+        for copy in copies:
+            b.works[copy.id] = copy
+            b.index_of[original.world_work].append(copy.id)
+            for a in copy.authorships:
+                record_works[a.author_id].append(copy.id)
+        b.duplicates[kind] = (original.id, *(c.id for c in copies))
 
     # ── author records ──
     for p in world.people:

@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import shutil
 from pathlib import Path
@@ -122,7 +123,9 @@ def test_the_depth_rule_gives_one_level_on_the_s_world(built, tmp_path):
 @pytest.mark.models("en", "fr")
 @pytest.mark.parametrize("depth", [3, 4])
 def test_deeper_trees_build_end_to_end(built, tmp_path, depth):
-    root = _copy(built, tmp_path, f"themes.group.depth={depth}")
+    # four levels on the S world's few hundred keywords need smaller groups to grow
+    more = ("themes.group.keywords_per_group=8",) if depth == 4 else ()
+    root = _copy(built, tmp_path, f"themes.group.depth={depth}", *more)
     _check_depth(root, depth)
     _check_bundle(root, tmp_path, depth)
 
@@ -329,6 +332,15 @@ def test_trajectories_taken_by_chunks_of_people_equal_one_pass(built, tmp_path, 
     themes = pd.read_parquet(folder / "trajectory_themes.parquet")
     monkeypatch.setattr(driver, "TRAJECTORY_CHUNK", 4)  # ten chunks of people on the S world
     assert cli(["build", str(root), "--force", "map.trajectories"]) == 0
-    for name, data in before.items():
-        assert (folder / name).read_bytes() == data, name
+    # The points' coordinates are one matrix product per chunk: the product of fewer rows can
+    # round the last digit otherwise (the linear algebra library's blocking), so they are
+    # equal to 1e-12; the windows and the theme shares are identical.
+    assert (folder / "trajectory_windows.json").read_bytes() == before["trajectory_windows.json"]
+    pd.testing.assert_frame_equal(
+        pd.read_csv(folder / "umap_trajectories.csv"),
+        pd.read_csv(io.BytesIO(before["umap_trajectories.csv"])),
+        check_exact=False,
+        rtol=1e-12,
+        atol=1e-12,
+    )
     pd.testing.assert_frame_equal(pd.read_parquet(folder / "trajectory_themes.parquet"), themes)

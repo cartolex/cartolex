@@ -4,7 +4,7 @@
    "applied": {
     "file": "apply/applied.json.gz",
     "kind": "json",
-    "sha256": "59d4b8e6a80932881bfb96f271852cfa91311f724e5cff0730e2523da4160ee6"
+    "sha256": "c1734a8c9f9e19220d2e25af3be9b1df9c137c55f902565b123e562df7319293"
    },
    "lexicon_weights": {
     "columns": [
@@ -29,8 +29,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 490,
-    "sha256": "a4c731a1959414ac873d809bae858fcaa6f9819d4586bf574f95d6b16e4ed915"
+    "rows": 132,
+    "sha256": "55583e78f43d417e7f553bb05165442b75f6aa3b8696305ecfb079de2577b792"
    },
    "person_weights": {
     "columns": [
@@ -50,8 +50,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 327,
-    "sha256": "87f72b31e7781192464d06d052690dd6abae00988b55dafeb43965ba315187b6"
+    "rows": 377,
+    "sha256": "974fcd54259f588e55dd91ab70eefa9360d38c77b165ce0cd6c860462e33c3ab"
    },
    "returned_matches_file": {
     "file": "apply/returned_matches_file.json",
@@ -69,14 +69,14 @@
      "alias": "str",
      "canonical": "str"
     },
-    "file": "build/aliases.csv.gz",
+    "file": "build/aliases.csv",
     "keys": [
      "alias"
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 947,
-    "sha256": "e21dadcb3b2974bb8d03c89283296c780b64dfef36537b865dedf63b2ec25a2f"
+    "rows": 135,
+    "sha256": "dca7ea479abbc441ad3c2e8459da9fe8f11fc60dd218732024d5058d99756146"
    },
    "domain_terms": {
     "columns": [
@@ -97,8 +97,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 200,
-    "sha256": "336979ec9ce575062f8da0a832e33437664229eae7d0039414f17b8d7c12ffc2"
+    "rows": 132,
+    "sha256": "2d25eff6df656c71a031b4ba66414bc463cc9b39e61b2dd9e46c8a48ca87aa63"
    },
    "group_terms": {
     "columns": [
@@ -122,8 +122,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 300,
-    "sha256": "55983796374e5116e004a7f84d6224b8fb99771a0727e41ca84bb6ecffd063b1"
+    "rows": 201,
+    "sha256": "96418b61b432ce4ea379de62950df7a88ee169677b66f033afe04b39847b38c9"
    },
    "pairs": {
     "columns": [
@@ -142,14 +142,14 @@
      "term_fr": "str",
      "total_score": "float"
     },
-    "file": "build/pairs.csv.gz",
+    "file": "build/pairs.csv",
     "keys": [
      "concept"
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 901,
-    "sha256": "06e443b474ce01d869d808c36d926ccded4901e2702ad8ad2e20420985409ac7"
+    "rows": 132,
+    "sha256": "ac2c60a3838c5c47cfe5d01af1915c8519bc4c76085fabde4b4f0d0d3fe0409f"
    },
    "person_terms": {
     "columns": [
@@ -175,8 +175,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 1065,
-    "sha256": "a98ba3f345013bcfd4ba4e5421946f190c4b11ae563b50d9345d6828d12b8f6b"
+    "rows": 663,
+    "sha256": "6efcae02513564cc1158be508db63ebe0b70a076ab69439a5d464b253b25ca86"
    },
    "refined": {
     "columns": [
@@ -193,30 +193,30 @@
      "score": "float",
      "term": "str"
     },
-    "file": "build/refined.csv.gz",
+    "file": "build/refined.csv",
     "keys": [
      "concept",
      "term"
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 901,
-    "sha256": "b276e3abf22e1781f5d27f75e7b622c21377f8d153d334990399693947866838"
+    "rows": 132,
+    "sha256": "0f643faa95831619869c827dd1d77058498ead84a5d982b557f7faf14bdb9fcc"
    },
    "refined_en": {
     "kind": "hash",
     "of": "table",
-    "sha256": "2f466006828284ff25f49f9d5d9f5d86a0408695f094153b19fd28e40cb29cc0"
+    "sha256": "db7d475ba27affdedcecbbabaaffb677b403996183368893e78ed14e70edefee"
    },
    "refined_fr": {
     "kind": "hash",
     "of": "table",
-    "sha256": "bd12bfb23efa87b16b394094d42c4a2567199b85a42739233e69e0938f560b9b"
+    "sha256": "ae94a0f0ff3c2a6382d8268f66932c1d497db408c6f0411656c85dfb83579a92"
    },
    "settings": {
     "file": "build/settings.json",
     "kind": "json",
-    "sha256": "28baf06416dc09670bf16e3296a6efbfba302742e9268563566b99ea7ac9bcf1"
+    "sha256": "275649148e5b9ba8297cbd87b8a6d4149f9a2c1a121cb199972dc4e0644f9ffa"
    },
    "vectorizer": {
     "columns": [
@@ -227,14 +227,14 @@
      "idf": "float",
      "term": "str"
     },
-    "file": "build/vectorizer.csv.gz",
+    "file": "build/vectorizer.csv",
     "keys": [
      "term"
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 947,
-    "sha256": "73a0255a5a16cc1f19fd9ea8c3cc6f99f5f820ea9f03a7e2766e30c031669dd5"
+    "rows": 135,
+    "sha256": "4961b64642bd4228ec7ac4b3a1710cc803e0929f69d943865392bcbc08fec35d"
    }
   },
   "bundle": {
@@ -253,8 +253,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 38,
-    "sha256": "fb6b1f959773294bcefdbdb261bc24a7da661295f27e544fa340aeadd1cb6215"
+    "rows": 37,
+    "sha256": "b5c134de1f46bc6e87d4fb806bc9a8266606aa548105ea88b417da2a014ecf70"
    },
    "entity_terms": {
     "columns": [
@@ -276,13 +276,13 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 1065,
-    "sha256": "358e591c4d2a49d66a93319ab821b213fc73601daab74ed3a85180c76cc1b88e"
+    "rows": 663,
+    "sha256": "a81953cd664581beb4a8616eccb9b975d1311d075b49a4f1de034dfa0d223896"
    },
    "meta": {
     "file": "bundle/meta.json",
     "kind": "json",
-    "sha256": "89431de95d40d5847755c740587dba4863e606d6fbc87c1d19dffc419b2a4c28"
+    "sha256": "8e6105e590f841d57805d81cbc0a1c7f8de4bdfa924d6ddf70765e50779b4861"
    },
    "round_trip": {
     "file": "bundle/round_trip.json",
@@ -292,7 +292,7 @@
    "taxonomy": {
     "file": "bundle/taxonomy.json",
     "kind": "json",
-    "sha256": "d6bc3d3e4524993a3ead4cf65685aa3c55525cac307cd36d427795b172a2ad63"
+    "sha256": "3603737931c53443eabaa635c8953614477a133b909eeefab96c588ee7cd06a3"
    },
    "vocabulary": {
     "columns": [
@@ -313,20 +313,20 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 490,
-    "sha256": "b748d546c882dadd6b5f151bf3191af6d1d56610d582c4474be071ef2fc78463"
+    "rows": 132,
+    "sha256": "ebea5155dc7794975592e68356b5e045fb53ec787a9c9c4943cb64e313d4a8d7"
    },
    "zip": {
     "file": "bundle/zip.json",
     "kind": "json",
-    "sha256": "7b9be0101da6f58378f516cf1f5a09f2f5a037d46126cfaff6cb5109758bc4df"
+    "sha256": "9b9166a2d4ec5348aea3bbb0178de36f5f687ba0a6cbfe3ce8b16f20f6184de6"
    }
   },
   "draft": {
    "draft": {
     "file": "draft/draft.json.gz",
     "kind": "json",
-    "sha256": "55f97671d9ee743d5b6e7b129fc2c6f87dc08e5f1b209c4aed8cf34e7266988f"
+    "sha256": "10bfa7f3e1910fd770eb4db278d27fc96373519240d797e85332b870b505eab3"
    }
   },
   "extract": {
@@ -359,8 +359,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 2516,
-    "sha256": "0424c4db06c7f4607a214cd320ea79ac2fa8bea665aecc91471246a5178933b1"
+    "rows": 956,
+    "sha256": "50931febfa3a7f3e6fdf7c0ee0f71ee6a5f0c8bdde23602ce4646b1231df830f"
    },
    "terms_fr": {
     "columns": [
@@ -391,8 +391,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 1467,
-    "sha256": "da69fb04e877bf01a6ef06740dfc8a8178f0af679891b605b3a8a2f7a45d1a15"
+    "rows": 466,
+    "sha256": "a7199d8989f96a29c34a96a18873d499b79a6429b89aa70820b4cecd8eec4a5e"
    },
    "terms_merged": {
     "columns": [
@@ -419,8 +419,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 3931,
-    "sha256": "ac3a6236a3b38f3c45455c58bfe60ee1034fab3735c7bf3a1e5f36c3eb700ba5"
+    "rows": 1391,
+    "sha256": "7288bafc89ce8a9017280f35b1aa9c5b69fb4b2832d399c579a17f2df0ab9827"
    }
   },
   "group": {
@@ -441,27 +441,27 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 150,
-    "sha256": "3439df818c4b491a33f83662761d0a9713d93fd1b3e8d8c7dad8dfcaa436f1ba"
+    "rows": 131,
+    "sha256": "4cfa3e75b316f768008ee502753ca72b04a1d5f786cd19e90e1b4ea2f9d0d58a"
    },
    "proto_subfields": {
     "file": "group/proto_subfields.json",
     "kind": "json",
-    "sha256": "c886e41b943d744d57fbe75255c9c93dab060492448b622db246bd0bdda79b76"
+    "sha256": "9fb03c4cd744eeda66ba9b0dad56b2e52d8e7d778fdd7ae78614bb339814cea2"
    },
    "term_labels": {
-    "count": 490,
+    "count": 132,
     "file": "group/term_labels.json",
     "kind": "labels",
-    "sha256": "0c719143b24a24c59e6e51ee4440666d6529261452157e423bdc45e853301c8c"
+    "sha256": "d5ce2eae6d107b1aa816551cb62e5e900a95802f43c4be1e055148e6410a8359"
    },
    "term_scores": {
     "file": "group/term_scores.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "564f8d32b52da00b8b39e081e224029aaf320bca0b98a6758db7e8c20c360001",
+    "sha256": "bef6b4fb4fa7f126909e29b5c5385e9870d01c35cd4b606f6e310b15039d7978",
     "shape": [
-     490
+     132
     ],
     "stored_dtype": "float64"
    }
@@ -470,12 +470,12 @@
    "clustered_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "dda85d3d479fe2c5ba66e1410ebd632b1a5af3ff6495ad7e65e871414514d67f"
+    "sha256": "232a7a0aa07c69ba4ac26c2a2ff3c35a1700e78c9c8d6ca46e53eb890843da9c"
    },
    "diagnostics": {
     "file": "layout/diagnostics.json",
     "kind": "json",
-    "sha256": "de0660841cbccf667c1c505647d15e4abcb277319cd3fb2c6a6b968305724736"
+    "sha256": "4f41ce81b59c04876c9375bd2f6aa8487a94cef658a3bf15429f85bfab0fc4b7"
    },
    "groups": {
     "columns": [
@@ -507,20 +507,20 @@
     "kind": "table",
     "ordered": true,
     "rows": 6,
-    "sha256": "2cdaa33763c23803fedaa55ba95d3a12f1e0e104ef25fdf5574c495858c9766e"
+    "sha256": "75d4396a26a2a504ccb729f016078072212bf3a6d1796a511fc7afb839915eb1"
    },
    "person_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "36b06488485e59714908feb4dd80e1d9578c911c23028a0f73660ccfe76fbc04"
+    "sha256": "f07ecfe0f1d2b7b405d0823e515ee0ebdbf6232e7ece9efea94dbe905e210c2c"
    },
    "person_xy": {
     "file": "layout/person_xy.npy",
     "kind": "array",
     "role": "layout",
-    "sha256": "218c3b37f3e65b034602e6722d0e4e0b31668e4188965d22e6b8c9308789884c",
+    "sha256": "ccabad85b11bbbe1785ffb019ad0003072757d719635d9f333812d92fc0c7d15",
     "shape": [
-     38,
+     37,
      2
     ],
     "stored_dtype": "float64"
@@ -528,15 +528,15 @@
    "term_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "d82cece3ffe53f6477a0a1d2e56c78334e1fd0171a7875d216fafad7dce52de2"
+    "sha256": "0543ad6c3797f5a8d72dba964c2510d1ce02b28b528e9ce29b1e79fe564723de"
    },
    "term_xy": {
     "file": "layout/term_xy.npy",
     "kind": "array",
     "role": "layout",
-    "sha256": "07cd8e7541c92f1ecd96d13fe5c9ebeee1f383151652f46b962b71137933fc2d",
+    "sha256": "d8d5c7f84fc1fc002d635e1c3d3d17ec6acb729dc2fbe7abc1456ef0049fcead",
     "shape": [
-     490,
+     132,
      2
     ],
     "stored_dtype": "float64"
@@ -547,7 +547,7 @@
     "file": "projection/applicants_coords.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "b203e1feb85ef1006a923e33e11ed7291b9a6ea2de90102418df366df1d02f1e",
+    "sha256": "5ba95ab5a7771e2e6e7149c18ac25c7de1c6cad88104a7b5b57b74f2d747e212",
     "shape": [
      4,
      20
@@ -557,7 +557,7 @@
    "applicants_details": {
     "file": "projection/applicants_details.json",
     "kind": "json",
-    "sha256": "28c091bdc33797a0fd4fb68255d6c5cc660f18a39d49d30a5b154e5eb468c782"
+    "sha256": "632b3999477e7c455d7e0cc84919a833bed21dff939d49a6a69c883c83e237bf"
    },
    "applicants_items": {
     "count": 4,
@@ -569,7 +569,7 @@
     "file": "projection/applicants_xy.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "90c9b2dd48a056c0ed419db16c3b8c86f7f163552af72550247bfe1d0511659b",
+    "sha256": "e20f0d9d61404661117806ead55b3282f984eded9f5b8d344d31fe86a35b7f05",
     "shape": [
      4,
      2
@@ -607,7 +607,7 @@
     "file": "space/explained_variance_ratio.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "8f70ac3f707bed96d3d76543166867667f989afab5e02cc272fa60a15155b090",
+    "sha256": "283bc45304d6a235067fed98023b15783bdaa7f97a3a350fe1323da38de48efb",
     "shape": [
      20
     ],
@@ -626,23 +626,23 @@
      "score": "float",
      "tf": "float"
     },
-    "file": "space/matrix.csv.gz",
+    "file": "space/matrix.csv",
     "keys": [
      "row",
      "col"
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 1065,
-    "sha256": "7f1182818611eacf6f9a3233c949f35fed605f663b3415c9c9160fbf9dced9eb"
+    "rows": 663,
+    "sha256": "11b3f47165b232d4d5244a973306e355e03bb619c4072d1ee31620fbc6e2508b"
    },
    "person_coords": {
     "file": "space/person_coords.npy",
     "kind": "array",
     "role": "embedding",
-    "sha256": "d080afea3d8c32dcface687e6844177a199d844577e1d88106e9e484c0699b7c",
+    "sha256": "c0c6c4fd3a7af13bbc460a8fae512ddb5f112895dd233373df11c2178e0ab395",
     "shape": [
-     38,
+     37,
      20
     ],
     "stored_dtype": "float64"
@@ -650,31 +650,31 @@
    "person_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "eaa87707976b781bb1aadb6bf562cde69acf18238d1f4f3e3076fcb3032b0176"
+    "sha256": "ac3a18124fbf390f7225fc36430b1f8b80b6a3baf87c37a195c2e9fb395a8155"
    },
    "persons": {
-    "count": 38,
+    "count": 37,
     "file": "space/persons.json",
     "kind": "strings",
-    "sha256": "83d7557980b55d0d370603bb1860fc0907a3e939452ec855487abcadd6c121da"
+    "sha256": "61778a857119a50b7e0ff69c7978ff448413c3a734650314e0c23d395849e353"
    },
    "singular_values": {
     "file": "space/singular_values.npy",
     "kind": "array",
     "role": "spectrum",
-    "sha256": "ad611426b689b408c2ed6b28779e4e2c5d907d3895c5f8b61c9e377c3b64aabe",
+    "sha256": "3898d1e3090815ba1d9ae7a437d7583608a52028515e141f650be8946844b8f3",
     "shape": [
      20
     ],
     "stored_dtype": "float64"
    },
    "term_coords": {
-    "file": "space/term_coords.npy.gz",
+    "file": "space/term_coords.npy",
     "kind": "array",
     "role": "embedding",
-    "sha256": "e02509edc54d8ba07a3a38974b0ed5f7790a991768268ea60d9557a6dcf6477f",
+    "sha256": "1f8e3efefb76a5c07303cb94d0ead3b4bf72a410002ba8abe038a5851e21d7aa",
     "shape": [
-     490,
+     132,
      20
     ],
     "stored_dtype": "float64"
@@ -682,13 +682,13 @@
    "term_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "ae798a1cd66a12397f8159bff4dfb9c7520be0b0697df27bc5cc575f2f7b73bb"
+    "sha256": "597a76ba9b31750dc79eb1310913693ca8c1e96fa8b8e52627db0e9c16e21f19"
    },
    "terms": {
-    "count": 490,
+    "count": 132,
     "file": "space/terms.json",
     "kind": "strings",
-    "sha256": "55bb22de74f4f50297e8989e53ec81b852aa86177b6b7b2137ecf910e4b3a5f5"
+    "sha256": "eb7d88aa39378d6aa3fc7db39d8638028475f5a8431572a663b6c966da64ccdd"
    }
   },
   "trajectories": {
@@ -711,7 +711,7 @@
      "umap_x": "float",
      "umap_y": "float"
     },
-    "file": "trajectories/points.csv.gz",
+    "file": "trajectories/points.csv",
     "keys": [
      "person",
      "bin_start"
@@ -719,48 +719,48 @@
     "kind": "table",
     "ordered": false,
     "rows": 140,
-    "sha256": "9edc0180567e452bdfda728eddf676a0ab412f93b5680d08d072237e83fbf5d0"
+    "sha256": "03f465392731a3269ed158a1e7b67995c637c93eac56eeb51031569284100fad"
    },
    "windows": {
     "file": "trajectories/windows.json.gz",
     "kind": "json",
-    "sha256": "f2090c0c88893d28fb01e30b35e9078344578caef1e0e9a337ef9f018e579030"
+    "sha256": "6004cd7defcc2b80c60f89638afc231a621dea334d7028dc6d5b2a906ddcea32"
    }
   },
   "triage": {
    "batch_cache": {
-    "file": "triage/batch_cache.json.gz",
+    "file": "triage/batch_cache.json",
     "kind": "json",
-    "sha256": "457e04fd7c9baf5c79d61b163ca3abeb572c3d6c86b693c4c45e68093c148f88"
+    "sha256": "8e8b8123cf31090e5a89afc2d3cdb7f92a21e17b85cc1bde7947a51297b83ef5"
    },
    "calls": {
     "file": "triage/calls.json",
     "kind": "json",
-    "sha256": "2a8ac775b75a575fe275d7797bb9920e727f54655fbfe1b65afc344bccd666fe"
+    "sha256": "733844db698f84e468005c4a5f0aae069a360263eac5ad135f8e6162ca518728"
    },
    "decisions": {
     "file": "triage/decisions.json.gz",
     "kind": "json",
-    "sha256": "6f300ce2930fe7b053fa1e6db939146b8cbd577bea25ce07bdbc8d8afe19dd96"
+    "sha256": "4441768431f00582e0e8169aef93fece7378ee0d82def39c6ef91a9423d4ce10"
    },
    "term_cache": {
     "file": "triage/term_cache.json.gz",
     "kind": "json",
-    "sha256": "ffa3ddc5a2a7b440f19e5ae4e6f3413b063aae58963d6a3079d6e32f6768a085"
+    "sha256": "21b9f0f18877cdbfa349bd6b266c3d7be3cc7852e37b447fc33fe86f722f7781"
    },
    "translations": {
     "file": "triage/translations.json",
     "kind": "json",
-    "sha256": "1bd14a076b12f1a90756b3651be082bce674ba27b496dbb0187ef702dce9dc98"
+    "sha256": "67fa5f01b84ef4feb41dbf23645740ef90a9179d2607bec92af8297fff4725a5"
    }
   }
  },
  "baseline": {
   "date": "2026-09-29",
-  "reason": "Keyword categories and the rejection lists: the AI triage judges every band but the rejected one (the set-aside band too, so a rule's set-aside can be rescued), with the codes P, D and H added and a category stored in each per-term answer. The extraction's tables are unchanged (the shipped rejection lists are empty and the reference run has no machine cache); the triage sees more candidates and accepts some set-aside ones, and every later stage follows; a theme's name prefers a concept or an object on a tie of use."
+  "reason": "Candidates from three texts, a work read once: a keyword candidate must also occur in at least 3 distinct texts (keywords.extract.min_texts, default 3), so phrases of one or two co-authored texts leave the extraction and every later stage follows; the S world then keeps fewer keywords than the default 150 topics, so the reference groups them into one topic fewer than its keywords (the same in both modes; L keeps 150); corpus.assemble reads one text per work (no duplicate in the demo worlds, so the corpus is unchanged)."
  },
  "environment": {
-  "engine_fingerprint": "c1107b902d974b0a40372c35fd65bd400bb958cec0b9ccd54df3b53072a34742",
+  "engine_fingerprint": "e28138d8ba9e6056f9ccb75c4ea0445a8adf06efcdc5b3076e200100d9651dca",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {

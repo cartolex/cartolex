@@ -4,15 +4,15 @@
    "anchor_meta": {
     "file": "merge/anchor_meta.json.gz",
     "kind": "json",
-    "sha256": "3ec1969c30dd2621d86019ac8a08fd5c4227dd883f579a555f34753bfc96e5eb"
+    "sha256": "1fc4db62be5b8d65237ea84527ee33159621f173b0a6f5904f7f7146e54ff5a2"
    },
    "anchors": {
     "file": "merge/anchors.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "8195a678b3203b0fd12bd114994043821e45b7811018d43b1c90864157000e36",
+    "sha256": "dc3d99db7d3a6e5971ebe390b1f12317c67867e2ddcfb4c62a5eb1eb6ca8249a",
     "shape": [
-     300,
+     281,
      20
     ],
     "stored_dtype": "float64"
@@ -21,10 +21,10 @@
     "file": "merge/concept_weights.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "8a55cea09e3220036c5f98862ab1e1d288eb5bec0946597ad67816203f736b1d",
+    "sha256": "e77cde81e85a353998dc1be3843a3006dee3be06d52cb8309c0c9975600d08e1",
     "shape": [
-     77,
-     300
+     76,
+     281
     ],
     "stored_dtype": "float32"
    },
@@ -32,44 +32,44 @@
     "file": "merge/cross_domain_mass.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "5e9740526ac1a2fb58149543bd3d151cd8b4965958768c18c2a6e5e9415b2ec9",
+    "sha256": "b57ddec050b784941fb250f552e61d0f6a900afeb310c259a49347a7dcce9fc6",
     "shape": [
-     77
+     76
     ],
     "stored_dtype": "float64"
    },
    "decisions": {
     "file": "merge/decisions.json",
     "kind": "json",
-    "sha256": "04f3032c54144478f1687824c1548c1655f4fd8be0266cb73631d250c2f5fa13"
+    "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
    },
    "entropy": {
     "file": "merge/entropy.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "3078a4dfaa132333c04ba9a8cca6bfa97e25f599b7a574765715584eaf421515",
+    "sha256": "1e1cf6894216e817175fe96e1fd8525b4e7886d16661c51e5c9e07b39b46ed87",
     "shape": [
-     77
+     76
     ],
     "stored_dtype": "float64"
    },
    "metrics": {
     "file": "merge/metrics.json",
     "kind": "json",
-    "sha256": "7aa8027c905a1c5419d7cbe3e0f97b8f559395dd96cc5b1b2d6550e9d09ce244"
+    "sha256": "626c068c7db9259f25e184a8bf9508bee32592325f2fd1bc4544e8261cd496b6"
    },
    "naive_table": {
     "file": "merge/naive_table.json.gz",
     "kind": "json",
-    "sha256": "5219926b5474960e1db36898ccc71a2c3c3ebdb0075765c354a4e27c50675ba4"
+    "sha256": "af864e651fd721dda71cfac264914e0eacd3b6b9d37bd888568dcceb005992bf"
    },
    "person_coords": {
     "file": "merge/person_coords.npy",
     "kind": "array",
     "role": "embedding",
-    "sha256": "dc44726581e0f16519a05e06f1e04144391e38cf37412250453c9ed83dadbd72",
+    "sha256": "637b99b6547c46b1953f48cda50cc2b595c56ff323bc25409658299668fa3575",
     "shape": [
-     77,
+     76,
      20
     ],
     "stored_dtype": "float64"
@@ -92,8 +92,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 2153,
-    "sha256": "5e5352717717c5963fa68fd6695dd1ab31aeb26df6b746dd89222b8703bcb31e"
+    "rows": 1441,
+    "sha256": "d5fbece32c39a8b9dcba0bee3b7bd1e1811aea95581d3db32b84c2f4cf22c2d8"
    },
    "rows": {
     "columns": [
@@ -112,31 +112,31 @@
     ],
     "kind": "table",
     "ordered": true,
-    "rows": 77,
-    "sha256": "b121e15f9be74aa33bdaee5bd17fe1c37b2eb3f91fe95921d1751887dcb063b4"
+    "rows": 76,
+    "sha256": "3214941e1b799e35940d564e018bda6e4c137a19a56eb012fc8253a458dce5cc"
    },
    "sense_coords": {
     "file": "merge/sense_coords.npy.gz",
     "kind": "array",
     "role": "embedding",
-    "sha256": "824a97d915328f7d530991e5e6d8ef56aa9310a2e19a13f91e699c276ed0ea55",
+    "sha256": "d15e8c9e324af12e7cf43777f998f69d7f0bb10eb822694f65d9fda9be9e54ee",
     "shape": [
-     910,
+     287,
      20
     ],
     "stored_dtype": "float64"
    },
    "senses": {
-    "count": 910,
+    "count": 287,
     "file": "merge/senses.json",
     "kind": "strings",
-    "sha256": "4983be93fb760de7c6aff799f95f235de9a8d994079ce6c224a6096e624b0519"
+    "sha256": "925067cbfc7cdb1a41cd6bebcfe0f345b0b4547c2c26326106e4cf756d0a4bc3"
    },
    "singular_values": {
     "file": "merge/singular_values.npy",
     "kind": "array",
     "role": "spectrum",
-    "sha256": "cecba4b1229d1fbdfadf5a8ccca16f1ed344c586dd794fc3c276eb41c0720287",
+    "sha256": "dbb133686be1329d29f4104760ee090b6c6b218ca496e56c56bdabef68376753",
     "shape": [
      20
     ],
@@ -145,21 +145,21 @@
    "table": {
     "file": "merge/table.json.gz",
     "kind": "json",
-    "sha256": "b3ff1745cfae8c1d7feaa718d18eb99ab74edc391d600f599db8f5a3a332a28c"
+    "sha256": "d572fd586644a394a76243c39a5b93dda00b0696aa7f6fabf6393a8bd02f2c86"
    },
    "table_first_pass": {
     "file": "merge/table_first_pass.json.gz",
     "kind": "json",
-    "sha256": "2356856b3961572e6801febebd8a476bab0e84ee821d4e1658da59fc7e13c3ca"
+    "sha256": "d572fd586644a394a76243c39a5b93dda00b0696aa7f6fabf6393a8bd02f2c86"
    },
    "weights_macro": {
     "file": "merge/weights_macro.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "16c1308002e02e80df97789f036f66e8d721519a73ab4dc164e40c4d7ae3ad6a",
+    "sha256": "8d69eaaf63f88d879480e6a06b348501ae7c9f20c8a4751e0390ef1fb04903d0",
     "shape": [
-     77,
-     910
+     76,
+     287
     ],
     "stored_dtype": "float32"
    },
@@ -167,10 +167,10 @@
     "file": "merge/weights_pooled.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "df1b2cbe7a3e6b712109c5ccda001d0914502697a975da071bfa024aa5219302",
+    "sha256": "4e3c59777a0b2a06ce2258c03c99bbde766563ff1fa20ff171d4de02a7d69007",
     "shape": [
-     77,
-     910
+     76,
+     287
     ],
     "stored_dtype": "float32"
    }
@@ -178,10 +178,10 @@
  },
  "baseline": {
   "date": "2026-09-29",
-  "reason": "Keyword categories and the rejection lists: the AI triage judges every band but the rejected one (the set-aside band too, so a rule's set-aside can be rescued), with the codes P, D and H added and a category stored in each per-term answer. The extraction's tables are unchanged (the shipped rejection lists are empty and the reference run has no machine cache); the triage sees more candidates and accepts some set-aside ones, and every later stage follows; a theme's name prefers a concept or an object on a tie of use."
+  "reason": "Candidates from three texts, a work read once: a keyword candidate must also occur in at least 3 distinct texts (keywords.extract.min_texts, default 3), so phrases of one or two co-authored texts leave the extraction and every later stage follows; the S world then keeps fewer keywords than the default 150 topics, so the reference groups them into one topic fewer than its keywords (the same in both modes; L keeps 150); corpus.assemble reads one text per work (no duplicate in the demo worlds, so the corpus is unchanged)."
  },
  "environment": {
-  "engine_fingerprint": "c1107b902d974b0a40372c35fd65bd400bb958cec0b9ccd54df3b53072a34742",
+  "engine_fingerprint": "e28138d8ba9e6056f9ccb75c4ea0445a8adf06efcdc5b3076e200100d9651dca",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {
@@ -227,13 +227,13 @@
   "cohorts": [
    {
     "bundle": {
-     "entities": "fb6b1f959773294bcefdbdb261bc24a7da661295f27e544fa340aeadd1cb6215",
-     "entity_terms": "358e591c4d2a49d66a93319ab821b213fc73601daab74ed3a85180c76cc1b88e",
-     "meta": "89431de95d40d5847755c740587dba4863e606d6fbc87c1d19dffc419b2a4c28",
+     "entities": "b5c134de1f46bc6e87d4fb806bc9a8266606aa548105ea88b417da2a014ecf70",
+     "entity_terms": "a81953cd664581beb4a8616eccb9b975d1311d075b49a4f1de034dfa0d223896",
+     "meta": "8e6105e590f841d57805d81cbc0a1c7f8de4bdfa924d6ddf70765e50779b4861",
      "round_trip": "dcf25b6dab889b23bbb35a08fcb976ca4d3e85ab72fb3cba9167564c800beb84",
-     "taxonomy": "d6bc3d3e4524993a3ead4cf65685aa3c55525cac307cd36d427795b172a2ad63",
-     "vocabulary": "b748d546c882dadd6b5f151bf3191af6d1d56610d582c4474be071ef2fc78463",
-     "zip": "7b9be0101da6f58378f516cf1f5a09f2f5a037d46126cfaff6cb5109758bc4df"
+     "taxonomy": "3603737931c53443eabaa635c8953614477a133b909eeefab96c588ee7cd06a3",
+     "vocabulary": "ebea5155dc7794975592e68356b5e045fb53ec787a9c9c4943cb64e313d4a8d7",
+     "zip": "9b9166a2d4ec5348aea3bbb0178de36f5f687ba0a6cbfe3ce8b16f20f6184de6"
     },
     "domain_id": "a",
     "truth_sha256": "db5e4195056421cfcd019c0b96b8c03877231c66502551fef476c256de7f9fbf",
@@ -242,12 +242,12 @@
    {
     "bundle": {
      "entities": "b3eb93c98c3ffcb823c0cc3c2b2d0566a6d25cad5070082169d1f942e6dd17e9",
-     "entity_terms": "5b4890e1ca35b07470109deab81717a4fbf3e81c0c0103424261045dea728a24",
-     "meta": "ff9ab9ab1c9f88379411205f78cf68f9590a1b00fc4e43227b46cbd7140f0523",
+     "entity_terms": "8a22bcdf32bb51d355f4ca1d880c36ae30424145ad1cc73ccfce206b1a983cd6",
+     "meta": "a73ca1ad1219b02d06247174f7cbb87998962aad66b308ce79819a15111dcdd2",
      "round_trip": "dcf25b6dab889b23bbb35a08fcb976ca4d3e85ab72fb3cba9167564c800beb84",
-     "taxonomy": "27c02ea1a214092723c167ce4be571264ba73bb5b4c24f8f4ebf30075eccdca5",
-     "vocabulary": "70e685d03fb2985e4e30f666b65e261da2d3e795de152a867f91048c4ab416ff",
-     "zip": "a7ff075f6fbf587641535a6d9ccf06a2301f161221b45e4a88c79f09290b4f78"
+     "taxonomy": "6253fbf8d42aa201865fd976a78a18b583b623c5971c0fc03bb687b9b4e45126",
+     "vocabulary": "95092aa49beeab02ef98b41a15e09994aeb9030d2282101e0a401830200180a0",
+     "zip": "5921a0d72f657b4750df17c49d0eac321288a5634072f9ae40d51d84ef9cd8b9"
     },
     "domain_id": "b",
     "truth_sha256": "5779bec6c1d1e8bf368a7e5cd73186eb7418739ff157beccb771c2466d90327e",

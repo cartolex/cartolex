@@ -4,7 +4,7 @@
    "applied": {
     "file": "apply/applied.json.gz",
     "kind": "json",
-    "sha256": "98937c4b2e6add47ee8df79b32eb9e0b169fd2cd592945554d9aa47fa911b617"
+    "sha256": "60956810fd75b9a4b6dfceda8b419360c6c0f82b090a7a6b3a6061fd4d6aa6e1"
    },
    "lexicon_weights": {
     "columns": [
@@ -29,8 +29,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 3072,
-    "sha256": "06a63938251b2d71e81008471cf4451f5a72ac4a2d471046f26cc11483113f50"
+    "rows": 2652,
+    "sha256": "cc6cd2c65dbf97ad4bd8514e1e987a6a3ca22b250d1759f3d6a47e1a16f2fc52"
    },
    "person_weights": {
     "columns": [
@@ -50,8 +50,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 3086,
-    "sha256": "945c28b939eaeda27f887543d36a77c7395c0e2e81b97015501c4b9531ebc797"
+    "rows": 3117,
+    "sha256": "2a641461032e5f2b6c66896dae3ee5a84279a153e3bbaf4cd6350390297dd2b5"
    },
    "returned_matches_file": {
     "file": "apply/returned_matches_file.json",
@@ -75,8 +75,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 5344,
-    "sha256": "1c402d755d2d481a19db2e87f0dff93ede73923db7c17a8e1e58f1b0a03eab55"
+    "rows": 3411,
+    "sha256": "d051a940fc447c349bc91b4004dead51fdfc382aacdde486d2fea364b400e5e2"
    },
    "domain_terms": {
     "columns": [
@@ -98,7 +98,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 200,
-    "sha256": "4194fecc2de4285937f37cce07611b945f1ff978fdb0e9d70f6e0c9ee9d7dd68"
+    "sha256": "e649487a17170a86f7cf7ed5f86077af8855c7e903aab715792240e70ac80360"
    },
    "group_terms": {
     "columns": [
@@ -123,7 +123,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 1500,
-    "sha256": "d9c7e9acdd147bb4df4c977a82ade1e2899d05bfcf59239da901ec0c60478e9a"
+    "sha256": "ca970f1db0ce792d76b165efec682303567136d334312a612ede8191b6c43722"
    },
    "pairs": {
     "columns": [
@@ -148,8 +148,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 4386,
-    "sha256": "b6de11dd8c39df878fce8ea7ae355e611fe1d506f8cb57bbb8786ecb084a59e0"
+    "rows": 3141,
+    "sha256": "fa8dc654410ade5991bc08b601c10f89f202e3e44b4ae33730eb4c9e6d56124c"
    },
    "person_terms": {
     "columns": [
@@ -175,8 +175,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 9637,
-    "sha256": "ab832f950e769e41e624ea9a7bcbe87e7e986ebb0d1453f509c9cdfd898b68a5"
+    "rows": 9531,
+    "sha256": "0a8e6e5fdc941c502838f651d1884172e1eadcff36e96647a50409bf2fc2b9b9"
    },
    "refined": {
     "columns": [
@@ -200,23 +200,23 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 4386,
-    "sha256": "5d60fe4661c2dbb64b5d69cc83c1d37cd168bc08792960d1af889603e4826eae"
+    "rows": 3141,
+    "sha256": "e7743b17d83bbb8a5d40dbdfb74ff72206963981180604f1b721e50896178c16"
    },
    "refined_en": {
     "kind": "hash",
     "of": "table",
-    "sha256": "01ed3bf2302059d8e2cf8878562874f619865ec2d7e363313f59237f78f90c97"
+    "sha256": "1e374b14ab9d7197a7af6971576c436e66891b288c240791bddbb258d603f2fe"
    },
    "refined_fr": {
     "kind": "hash",
     "of": "table",
-    "sha256": "57168b7f8ddfa981c0f38274634c95961e8fdc2ab64baeae03a63ba28045bea5"
+    "sha256": "11326ba1cedd827a1ddbcda579c82a2b38014b50f64c10a9d5c86d1b5d707af9"
    },
    "settings": {
     "file": "build/settings.json",
     "kind": "json",
-    "sha256": "28baf06416dc09670bf16e3296a6efbfba302742e9268563566b99ea7ac9bcf1"
+    "sha256": "275649148e5b9ba8297cbd87b8a6d4149f9a2c1a121cb199972dc4e0644f9ffa"
    },
    "vectorizer": {
     "columns": [
@@ -233,8 +233,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 5344,
-    "sha256": "00718909ada6855e46bb0e3609aaf7879353f22828eda278445e140c4f649f19"
+    "rows": 3411,
+    "sha256": "5215b5b84cfcff1c3b43fcc7356539ba6490a610ecbf7653fa91af07adc217bd"
    }
   },
   "bundle": {
@@ -276,13 +276,13 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 9637,
-    "sha256": "69ef36f38d57976a3b44376e61f6514dca219715d75d206e7569e3eb4acadd36"
+    "rows": 9531,
+    "sha256": "60ee7a7fc344e9624768098a3d24ac2ad670a2fa42483175da7f024e8a509e77"
    },
    "meta": {
     "file": "bundle/meta.json",
     "kind": "json",
-    "sha256": "366aa0ac91078e156367e10ea2b078b0a5799c2b8130bc545183e0642e082627"
+    "sha256": "181e7cc9241bc6d65f4a03fb2735a9178cd14a614445b0af9913e4e10033d44f"
    },
    "round_trip": {
     "file": "bundle/round_trip.json",
@@ -292,7 +292,7 @@
    "taxonomy": {
     "file": "bundle/taxonomy.json.gz",
     "kind": "json",
-    "sha256": "9194fbfecd8bfad9f0cb35803aa3cca6511cbf21e8a70601c23c93488872f174"
+    "sha256": "80adb924843dcf10f337d86c52a310cf0a3eb135e676d368cd13b252314fe0cf"
    },
    "vocabulary": {
     "columns": [
@@ -313,20 +313,20 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 3072,
-    "sha256": "1b10a482b90acb58dab030077ebcccdec5d2bc431e6ce54cfdfb019e3cbf6908"
+    "rows": 2652,
+    "sha256": "04247639fd9fdeda4cfe066d6515837be4a9784b30a8034a072aad9c807d84c4"
    },
    "zip": {
     "file": "bundle/zip.json",
     "kind": "json",
-    "sha256": "8672071544c396273635cb82fdea15215c6beda1155feaddd0c72cfbf88aec1c"
+    "sha256": "5a9eee5eefdaab9a25742a7c8a44b59ae31421addc1db34870bca777f2a81899"
    }
   },
   "draft": {
    "draft": {
     "file": "draft/draft.json.gz",
     "kind": "json",
-    "sha256": "1f1448d9ae8355ffa5b6622d4b128cd0e8ad73a02475deb6ff4db25fd463a261"
+    "sha256": "26da3ffe0c8380f6a0e2f56063c90e02895fd3b67eea8d291476330af4a5cf4f"
    }
   },
   "extract": {
@@ -359,8 +359,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 9260,
-    "sha256": "cc8079dbfe965be575206877a1bbfabc284497e4da1a445c107d4b5849c9d921"
+    "rows": 7021,
+    "sha256": "bb474803a1d40ab56e57ef21c779afbe320987fc21a2fe76006300a6cae1ff01"
    },
    "terms_fr": {
     "columns": [
@@ -391,8 +391,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 6042,
-    "sha256": "16da676401d1f4102e230cf1118cefb73af86b0f69515052f7dcfc60b46653c7"
+    "rows": 2248,
+    "sha256": "5808f58765c478e1e34247e7850cd8dcf4c0c850bc7c449ae3dd6e7e3c12266e"
    },
    "terms_merged": {
     "columns": [
@@ -419,8 +419,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 15182,
-    "sha256": "7e811f6162dfdc71619bab0f573229a81f1e7d2bedc640495427a8cd3e86cc7e"
+    "rows": 9178,
+    "sha256": "d85b16d12854076bf7bde674b54f73cbcd45ce35999d6225ed5a13cebd709f73"
    }
   },
   "group": {
@@ -442,26 +442,26 @@
     "kind": "table",
     "ordered": false,
     "rows": 150,
-    "sha256": "7456801adf23b21d23a1ff8dbece8760f40101eeb3116298cd795920220ed671"
+    "sha256": "b33618c1b2f3700b43dfb8a5942745563bbd56f4ba4ad31bb82fab0fdaff7d6a"
    },
    "proto_subfields": {
     "file": "group/proto_subfields.json",
     "kind": "json",
-    "sha256": "f7f2bcc6fbb6d62101e0dd979ca44ee58fac524303b775c0d1c705ef2ab6a890"
+    "sha256": "b81a6b53353b5cc90f445ef391fe9bd8c3e9e2333b820ce8fba27de88e2f4f93"
    },
    "term_labels": {
-    "count": 3072,
+    "count": 2652,
     "file": "group/term_labels.json",
     "kind": "labels",
-    "sha256": "c3c52cea55d824c2f4214a9a181253215d749b168f739a0a88d5542ac10edf22"
+    "sha256": "dd8ed741a4744db205251af9d87614ce1717e9d2fe55e2cef5ec536e13ca863a"
    },
    "term_scores": {
     "file": "group/term_scores.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "a40eafdb56466af64a63c7b22e30a1c22304f6a1f20baae28370c3614d1c2140",
+    "sha256": "89536180c6f2cb4a8d5180c4c8ee20577d23a6b7d09728cb326cba84c50067ed",
     "shape": [
-     3072
+     2652
     ],
     "stored_dtype": "float64"
    }
@@ -470,12 +470,12 @@
    "clustered_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "2937ba8bdee787346e996f70342a53596600488f7f1220e0c9b28d578835b447"
+    "sha256": "cdfc2214e6b7b4c9a4275038b276dce12263016340aaeb345742ce849e392d71"
    },
    "diagnostics": {
     "file": "layout/diagnostics.json",
     "kind": "json",
-    "sha256": "10c01b676556e343991b5d5be715cb5c8801d1a6dbc90d5286842c7a01e6764f"
+    "sha256": "169a058e8eb36a6654d2f0e9032a1b2a86eef2964afebc52cc40b07e492f39c4"
    },
    "groups": {
     "columns": [
@@ -507,18 +507,18 @@
     "kind": "table",
     "ordered": true,
     "rows": 30,
-    "sha256": "9328baec73dcfbdbd7f8e1d33e204e27f2b949c47b94405f1a0c11bf36bed2d2"
+    "sha256": "ccba08c278fe265cf3fee2eaafe8c09ae8d08f6d7c49fe2d8f9d924da9f2b475"
    },
    "person_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "b5441b592a936e4a832e44679ddc6e3762150ceaa73b05da8b8011df2337036d"
+    "sha256": "854fd29ca8ca32617c71d0957e723d89be820a052fe9da73b0ae4436e7dfea2d"
    },
    "person_xy": {
     "file": "layout/person_xy.npy",
     "kind": "array",
     "role": "layout",
-    "sha256": "e46f06d2a038502d70e37a80bdb20b329c860d5f862b0e6be4a3ae99326052fc",
+    "sha256": "62d6886f75d01c3cc9640c4d97aaf76bce6ad2d21044541033559da5408915c1",
     "shape": [
      343,
      2
@@ -528,15 +528,15 @@
    "term_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "1eb369ed59e476fefe6735808d8d111913ffee196a4b88892b345a8dce5e9b0a"
+    "sha256": "dcff5ab60d7abeccacd64e5f96158906e4b13d6b61604211518db4938dd35cc9"
    },
    "term_xy": {
     "file": "layout/term_xy.npy.gz",
     "kind": "array",
     "role": "layout",
-    "sha256": "66ed2bfe23602058f86c2dae3637cb71f2925d10225857de6d2138fca4cec263",
+    "sha256": "419e0425d8f270036fa70c6b2cd4a6161c9a355b657fad8d73ff0ff0542e5269",
     "shape": [
-     3072,
+     2652,
      2
     ],
     "stored_dtype": "float64"
@@ -547,7 +547,7 @@
     "file": "projection/applicants_coords.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "ba57ace137de0249981797e13694a8dfea30fbcfd8c2da63c0d5a70b27a4451f",
+    "sha256": "5cd36494dba6b2bda7af34857e01c58226c7d2e3d72ef1c32b0fce7943dc38d4",
     "shape": [
      35,
      20
@@ -557,7 +557,7 @@
    "applicants_details": {
     "file": "projection/applicants_details.json.gz",
     "kind": "json",
-    "sha256": "29c2dbf885d4f96a03c1b7d5eea065d254693ad9689f6f20244853e1285286d3"
+    "sha256": "52ed191b9af2e35aa19a31d5f479a3c54a9a605fa68809b7e5e38b6a61decfbf"
    },
    "applicants_items": {
     "count": 35,
@@ -569,7 +569,7 @@
     "file": "projection/applicants_xy.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "76019339f7c8a9a192b85f44cffd4db6c4c5351ef64a822223cd965c2ab2e242",
+    "sha256": "d5a1695a6fde8430085738f5c91a6ccadb0349220ac0b0e8312a8e385c895276",
     "shape": [
      35,
      2
@@ -607,7 +607,7 @@
     "file": "space/explained_variance_ratio.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "ee4df716cd88cda7b3e41777ccad0938b94591617f4493a159c8f7bb69be7675",
+    "sha256": "7374d6a686cbb1866db26b491039c4478f3baa98413613c1d844ffca48d79b40",
     "shape": [
      20
     ],
@@ -633,14 +633,14 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 9637,
-    "sha256": "98207090d9b1d05b164cc432eaa009c719ba19f33c1513ecf9989df363da84d8"
+    "rows": 9531,
+    "sha256": "4fc5e82d4cfa8e219d4ae66535e23c6101386dfe0cfa5a984b92137bff11d848"
    },
    "person_coords": {
     "file": "space/person_coords.npy.gz",
     "kind": "array",
     "role": "embedding",
-    "sha256": "cc01f48f58c16ad9d29f6490951631af56dfbd597ba3bf621837f0c173c97834",
+    "sha256": "b0e302a4e174c54e103efd67b7ba1ea438241d36e68bc764bdd78f1f7d77e210",
     "shape": [
      343,
      20
@@ -650,7 +650,7 @@
    "person_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "17f7d0cb9dc746c50a07cebdd669cd29ee3c4efd247310806484d4da16274808"
+    "sha256": "eb311ecc88df63830abb40b57c086196b90b7dbc016be4d6a2543129de16302c"
    },
    "persons": {
     "count": 343,
@@ -662,7 +662,7 @@
     "file": "space/singular_values.npy",
     "kind": "array",
     "role": "spectrum",
-    "sha256": "71b327a9fc6e9f01e3ead9dd927468b8d50b17b88449b5add0bbc525ca46148d",
+    "sha256": "83972facf07b3f90d9999c3b0a242a510fe9a70ecd9bb6b6f4323b2893b9f1c2",
     "shape": [
      20
     ],
@@ -672,9 +672,9 @@
     "file": "space/term_coords.npy.gz",
     "kind": "array",
     "role": "embedding",
-    "sha256": "c5aeda95ab9064a42ad731eb7821cf5e74002ed39f276684673d461ff95fd1de",
+    "sha256": "4e18b10b7cb6499c9ee6ad6e964a5a31a8f84b8758fa19b4b4d066ceb4a3cf14",
     "shape": [
-     3072,
+     2652,
      20
     ],
     "stored_dtype": "float32"
@@ -682,13 +682,13 @@
    "term_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "c959d7aaf6d31a6efdc95bb939acfe91f3c8ebd6ad3292775a8c5489f4378013"
+    "sha256": "cb8926bd4a9b0cc91dde9c3558440f7862d639e000b0b01e6bf8558d90ca475e"
    },
    "terms": {
-    "count": 3072,
+    "count": 2652,
     "file": "space/terms.json.gz",
     "kind": "strings",
-    "sha256": "6e8816b117a04b43f344c621453f02fd3999a523f62a6583b8ce7d54cf439f50"
+    "sha256": "8f55d3eafd6087b71263bd07b957177e829b6b793c807aa9304bb832720016d6"
    }
   },
   "trajectories": {
@@ -719,48 +719,48 @@
     "kind": "table",
     "ordered": false,
     "rows": 1253,
-    "sha256": "f77399dbb61d9b974bcc9acbcdd168d8e3a87918a98a5ccebb8fc3c3553e2eb8"
+    "sha256": "83328a2fd3f87c237dd9b4ce6528a661072068be9e44ca24adea99e9f670150c"
    },
    "windows": {
     "file": "trajectories/windows.json.gz",
     "kind": "json",
-    "sha256": "25a8033e75263652810dcb6429d3076b239809fa4bf7052fe08aa8adc1c5d0d2"
+    "sha256": "f44cf25343a3c431df7da8d43382f64788081689195b96c19cf6481ae3b8e949"
    }
   },
   "triage": {
    "batch_cache": {
     "file": "triage/batch_cache.json.gz",
     "kind": "json",
-    "sha256": "229f5b56d6cff849e2e7e51d79ac1a4b4cb7a3590432bc1b0ca3036ce3eef606"
+    "sha256": "8cb462f7f02a024ddc18790bdf8f73c388b3c1c155ad3e0b6471462cd9e2975b"
    },
    "calls": {
     "file": "triage/calls.json",
     "kind": "json",
-    "sha256": "6d796b92565164cd2540fac3920216f0176e9faa46345d9625ae6a60c754bb07"
+    "sha256": "77039ee8ba9d4ade018561e633694d38d757a5fa05c06d5a68a9a6675c7cb491"
    },
    "decisions": {
     "file": "triage/decisions.json.gz",
     "kind": "json",
-    "sha256": "fed45664c19861b8bae5e72212a7565f8571dd5467bc9664597cd618d726b29d"
+    "sha256": "de4ffe271ffa2c88f13ed987620f4b71b6fe48eab4505afbb59d27b398fc6716"
    },
    "term_cache": {
     "file": "triage/term_cache.json.gz",
     "kind": "json",
-    "sha256": "f0d5a2a2a9c34c9de3c7fd63afd5d9d1dcc666f6504c9f0506db13900e71592c"
+    "sha256": "5fe21a5275134a5508e51ae1780c2a3a4bdd7b2a31c654185281d1a5973085fd"
    },
    "translations": {
-    "file": "triage/translations.json.gz",
+    "file": "triage/translations.json",
     "kind": "json",
-    "sha256": "7dded6f7362e4e6d2dd0054b3da198cf651aaa5c76892ca8af90124147e6eda8"
+    "sha256": "7a3bbb8809541b87b605afef97f5868c39375a4d3347e4b3ab92dcb541a57bde"
    }
   }
  },
  "baseline": {
   "date": "2026-09-29",
-  "reason": "Keyword categories and the rejection lists (step 7): the AI judges every band but the rejected one, candidates on the rejection lists go to a new rejected band, keywords.build writes categories.json and theme names prefer a concept or an object on a tie."
+  "reason": "Candidates from three texts, a work read once: a keyword candidate must also occur in at least 3 distinct texts (keywords.extract.min_texts, default 3), so phrases of one or two co-authored texts leave the extraction and every later stage follows; the S world then keeps fewer keywords than the default 150 topics, so the reference groups them into one topic fewer than its keywords (the same in both modes; L keeps 150); corpus.assemble reads one text per work (no duplicate in the demo worlds, so the corpus is unchanged)."
  },
  "environment": {
-  "engine_fingerprint": "c1107b902d974b0a40372c35fd65bd400bb958cec0b9ccd54df3b53072a34742",
+  "engine_fingerprint": "e28138d8ba9e6056f9ccb75c4ea0445a8adf06efcdc5b3076e200100d9651dca",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {

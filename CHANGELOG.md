@@ -553,6 +553,17 @@ nothing in the engine names a particular deployment, source or procedure.
   a rename refused by a reader is retried there, corpus indexes store
   POSIX paths, the command's output never fails on a character its encoding
   lacks, and text files are checked out with LF line endings everywhere.
+- **Candidates from three texts, a work read once.** A keyword candidate must
+  occur in at least `min_texts` distinct texts (3 by default), beside the
+  `min_people` people: a phrase of one co-authored text is one text's
+  evidence (`keywords.extract` version 6). `corpus.assemble` (version 4) reads
+  one text per work: texts of a slot with the same normalised title, years at
+  most one apart and an author in common are one work, read as its version of
+  record; the tables keep every record, and the stage counts the
+  `duplicate_texts` it read once (also on the Texts tab, `GET /api/texts`
+  `counts.duplicates` and each copy's `copy_of`). A preprint that meets an
+  article and its conference version is linked to the article. The demo's
+  bibliographic layer holds such duplicates.
 - **The AI copilot.** A third route of AI help, for an assistant that runs
   code: the theme editor (More › AI copilot) and the Keywords screen (AI menu)
   export one self-sufficient zip (`cartolex-copilot/1`: a guide, anonymised data

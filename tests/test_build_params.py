@@ -94,8 +94,9 @@ def test_cartolex_stages_declare_every_stage_in_order():
 def test_the_parameter_set_stays_small():
     """Every parameter earns its place: a new one is a decision, not a habit."""
     count = sum(len(s.params) for s in STAGES)
-    # 17: themes.group.comb, off in the reference run (the workspace run has no comb)
-    assert count <= 17, f"{count} parameters: justify each new one"
+    # 17: themes.group.comb, off in the reference run (the workspace run has no comb);
+    # 18: keywords.extract.min_texts, the owner's floor of distinct texts beside min_people
+    assert count <= 18, f"{count} parameters: justify each new one"
 
 
 def test_a_registry_refuses_what_does_not_fit():
@@ -254,6 +255,7 @@ def test_a_rule_waits_for_its_sizes():
             "would not grow",
         ),
         ("keywords.extract", {"min_people": 9}, ProjectSizes(people=4), "only 4 people"),
+        ("keywords.extract", {"min_texts": 9}, ProjectSizes(texts=4), "only 4 texts"),
     ],
 )
 def test_cross_checks_refuse_impossible_values(stage, set_, sizes, message):

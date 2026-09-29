@@ -68,6 +68,7 @@ Every stage folder holds the record of the run that produced it:
   "code": {"version": "1.0.0", "fingerprint": "sha256:…", "stage_version": 1},
   "parameters": {
     "min_people": {"value": 3, "from": "default"},
+    "min_texts": {"value": 3, "from": "default"},
     "counting_unit": {"value": "person", "from": "params.json"}
   },
   "inputs": [

@@ -1317,6 +1317,7 @@
   "corpus.texts.rank": "rang {n}",
   "corpus.texts.from": "De {provider}",
   "corpus.texts.part": "{part} ({language}) · {chars} caractères",
+  "corpus.texts.duplicates": "{n, plural, one {# texte en double compté une fois : la même œuvre sous une autre notice (même titre, années à un an près au plus, un auteur en commun)} other {# textes en double comptés une fois : la même œuvre sous une autre notice (même titre, années à un an près au plus, un auteur en commun)}}",
   "corpus.texts.merged": "{n, plural, one {# fusion} other {# fusions}}",
   "corpus.texts.merge": "{n, plural, =0 {réunie par une clé commune} one {# fiche fusionnée} other {# fiches fusionnées}} par {rule}",
   "corpus.texts.versions": "Versions",

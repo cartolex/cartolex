@@ -14,11 +14,16 @@ by three rules, tried in this order:
 
 A merge is refused when the two sides carry different DOIs, or (for the third
 rule) document types that cannot be the same work (a thesis and an article).
-A **preprint** and a **published version** (article, communication, chapter
-or report) that meet by the third rule, or that a provider links (the
-published DOI arXiv or bioRxiv gives), are **not merged**: they stay two
-texts, the preprint's ``version_of`` naming the published one, and the build
-reads only the published version (see ``docs/format/sources.md``).
+A **preprint** and a **published version** (article, review, communication,
+proceedings, chapter or report) that meet by the third rule, or that a
+provider links (the published DOI arXiv or bioRxiv gives), are **not merged**:
+they stay two texts, the preprint's ``version_of`` naming the published one,
+and the build reads only the published version (see
+``docs/format/sources.md``). A preprint that meets several published texts by
+the third rule (an article and its conference version) is linked to the
+version of record among them (:data:`~cartolex.project.corpus.VERSION_RANK`:
+an article before a review, a chapter, a conference version); it stays
+unlinked when two of them rank the same.
 
 Fields are filled one by one: each takes the value of the highest-priority
 finder that has one (:data:`FINDER_PRIORITY`, a parameter), ties going to
@@ -43,6 +48,7 @@ from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
 
+from cartolex.project.corpus import version_rank
 from cartolex.project.files import atomic_write_bytes
 from cartolex.project.layout import ProjectLayout
 
@@ -82,7 +88,9 @@ MERGE_LOG_FORMAT = "cartolex-merges/1"
 MIN_TITLE_WORDS = 3
 MAX_YEAR_GAP = 1
 #: Types a preprint can become: a preprint meeting one of these is its earlier version.
-PUBLISHED_TYPES = frozenset({"article", "communication", "chapter", "report"})
+PUBLISHED_TYPES = frozenset(
+    {"article", "review", "communication", "proceedings", "chapter", "report"}
+)
 #: Types that can name the same work although they differ (a paper typed as an article
 #: by one finder and as a communication by another).
 _COMPATIBLE = (frozenset({"article", "communication", "chapter", "other"}),)
@@ -404,9 +412,10 @@ def _versions(
     for pre, pubs in sorted(candidates.items()):
         if pre in chosen:
             continue
-        if len(pubs) == 1:
-            ((pub, (rule, evidence)),) = pubs.items()
-            chosen[pre] = (pub, rule, evidence)
+        best = _version_of_record(pubs, texts)
+        if best is not None:
+            rule, evidence = pubs[best]
+            chosen[pre] = (best, rule, evidence)
         else:
             slot = texts[pre]["slot"]
             result.refused.append(
@@ -422,6 +431,19 @@ def _versions(
             continue  # never a loop
         texts[pre]["version_of"] = pub
         result.versions.append(VersionLink(texts[pre]["slot"], pre, pub, rule, evidence))
+
+
+def _version_of_record(
+    pubs: Mapping[str, Any], texts: Mapping[str, Mapping[str, Any]]
+) -> str | None:
+    """The one published text of *pubs* that ranks first as the version of record, or ``None``
+    when two rank the same (see :data:`~cartolex.project.corpus.VERSION_RANK`)."""
+    if len(pubs) == 1:
+        return next(iter(pubs))
+    ranked = sorted((version_rank(texts[p]["doc_type"]), p) for p in pubs)
+    if ranked[0][0] == ranked[1][0]:
+        return None
+    return ranked[0][1]
 
 
 def _dois(records: Iterable[WorkRecord]) -> set[str]:

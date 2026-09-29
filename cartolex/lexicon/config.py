@@ -150,6 +150,9 @@ class KeywordsConfig:
     min_df: int = 3  # absolute count — must be int, NOT float
     max_df: float = 0.6  # share of people
     max_features: int = 1_000_000
+    # ... and found in at least min_texts distinct texts (a phrase of a single
+    # co-authored text is one text's evidence, however many people signed it).
+    min_texts: int = 3
     # What a TF-IDF document is when candidates are scored: "person" (a
     # person's texts together, each person weighs the same), "text" (each
     # text weighs the same; a text two people wrote counts once) or

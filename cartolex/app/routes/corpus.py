@@ -202,9 +202,15 @@ def list_texts(
     person: Annotated[str | None, Query(max_length=64)] = None,
 ) -> dict[str, Any]:
     """Texts with their parts per provider; filters ``slot``, ``year``, ``language``,
-    ``content`` (what the richest part is), ``provider``, ``person``; counts per content."""
+    ``content`` (what the richest part is), ``provider``, ``person``; counts per content
+    and provider, and the ``duplicates``: copies of a work the corpus reads once (each
+    copy's ``copy_of`` names the text read)."""
     rows = texts(ctx.project, runtime_of(request).table_cache)
-    counts: dict[str, dict[str, int]] = {"content": {}, "provider": {}}
+    counts: dict[str, Any] = {
+        "content": {},
+        "provider": {},
+        "duplicates": sum(1 for t in rows if t["copy_of"]),
+    }
     for t in rows:
         counts["content"][t["content"]] = counts["content"].get(t["content"], 0) + 1
         for p in t["providers"]:

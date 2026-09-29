@@ -319,10 +319,10 @@ def test_the_handoff_test_is_written_and_scored(tmp_path: Path, monkeypatch) -> 
     monkeypatch.setattr(analyses, "CACHE", tmp_path / "lab-cache")
     out = tmp_path / "handoff-test"
     manifest = handoff_bundles.write_handoff_test(
-        out, size="XS", seed=0, project=tmp_path / "project", max_tokens=6_000
+        out, size="XS", seed=0, project=tmp_path / "project", max_tokens=2_500
     )
     kept = manifest["bundles"]["kept-tocheck"]
-    assert len(kept["parts"]) > 1 and all(p["cautious_tokens"] <= 6_000 for p in kept["parts"])
+    assert len(kept["parts"]) > 1 and all(p["cautious_tokens"] <= 2_500 for p in kept["parts"])
     assert len(manifest["bundles"]["tocheck"]["parts"]) == 1
     readme = (out / "README.md").read_text(encoding="utf-8")
     assert "claude.ai" in readme and "score_handoff.py" in readme
@@ -352,7 +352,7 @@ def test_the_handoff_test_is_written_and_scored(tmp_path: Path, monkeypatch) -> 
     # A second set under a suffix leaves the first one, and its answer, as they are.
     before = (part.folder / "answer.txt").read_bytes()
     again = handoff_bundles.write_handoff_test(
-        out, size="XS", seed=0, project=tmp_path / "project", max_tokens=6_000, suffix="-v2"
+        out, size="XS", seed=0, project=tmp_path / "project", max_tokens=2_500, suffix="-v2"
     )
     assert set(again["bundles"]) == {"tocheck", "kept-tocheck", "tocheck-v2", "kept-tocheck-v2"}
     assert (part.folder / "answer.txt").read_bytes() == before
@@ -364,7 +364,7 @@ def test_the_handoff_test_is_written_and_scored(tmp_path: Path, monkeypatch) -> 
     assert only["bundles"]["kept-tocheck-v2"]["judges"]["answers"] is None
     with pytest.raises(SystemExit):  # the answered set is never overwritten
         handoff_bundles.write_handoff_test(
-            out, size="XS", seed=0, project=tmp_path / "project", max_tokens=6_000
+            out, size="XS", seed=0, project=tmp_path / "project", max_tokens=2_500
         )
 
 

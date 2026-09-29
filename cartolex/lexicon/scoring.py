@@ -6,7 +6,9 @@ corpus (:class:`TextUnit`: a person's text, its organisation and its parts).
 
 1. **Window.** A candidate is kept when at least ``min_df`` people use it and
    at most ``max_df`` of them (a share); ``max_features`` keeps the most
-   frequent. The window always counts people.
+   frequent. The window counts people; a candidate must also occur in at
+   least ``min_texts`` distinct texts (a phrase of one co-authored text is
+   used by all its authors, but is one text's evidence).
 2. **Vote.** Each text votes for the candidates it holds: the number of
    occurrences (``frequency``), one vote (``presence``) or ``1 + ln n``
    (``sublinear``). A text's parts (title, abstract, body…) can weigh
@@ -273,6 +275,7 @@ def score_units(
     min_df: int = 3,
     max_df: float = 0.6,
     max_features: int | None = 1_000_000,
+    min_texts: int = 1,
     options: ScoringOptions | None = None,
     blacklist: Collection[str] = frozenset(),
     names: Mapping[int, Mapping[str, str]] | None = None,
@@ -280,7 +283,9 @@ def score_units(
     """Score the candidates of one language (see the module docstring).
 
     *units* are the texts of the *n_people* people (a person without a text in
-    this language still counts in the window's shares). *blacklist* holds the
+    this language still counts in the window's shares). A candidate found in
+    fewer than *min_texts* distinct texts is left out (1: no such floor; the
+    build's default is 3, :attr:`KeywordsConfig.min_texts`). *blacklist* holds the
     project's own rejections: a candidate whose shown form, or one of its
     words, is listed is left out, as are malformed strings. *names* optionally
     maps an analysis (by ``id``) to the lower-case surfaces of the names of
@@ -431,6 +436,8 @@ def score_units(
         ranked = sorted(surfaces[key].items(), key=lambda kv: (-kv[1], kv[0]))
         term = ranked[0][0]
         if is_malformed_term(term) or _blocked(term, blacklist):
+            continue
+        if n_texts.get(key, 0) < min_texts:
             continue
         cls = min(classes.get(key, Counter({"": 1})).items(), key=lambda kv: (-kv[1], kv[0]))[0]
         occ = max(n_occ.get(key, 0), 1)

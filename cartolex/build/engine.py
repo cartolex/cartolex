@@ -171,6 +171,7 @@ def keywords_settings(
     *,
     recency_years: int | None = None,
     min_people: int | None = None,
+    min_texts: int | None = None,
     max_share: float | None = None,
     max_keywords: int | None = None,
     counting_unit: str | None = None,
@@ -203,6 +204,7 @@ def keywords_settings(
     for field, value in (
         ("kw_recency_years", recency_years),
         ("min_df", min_people),
+        ("min_texts", min_texts),
         ("max_df", max_share),
         ("global_top_n", max_keywords),
         ("counting_unit", counting_unit),
@@ -268,6 +270,7 @@ def _settings(ctx: StageContext, **more: Any) -> KeywordsConfig:
         ctx.project.config,
         recency_years=_param(ctx, "corpus.assemble", "recency_years"),
         min_people=_param(ctx, "keywords.extract", "min_people"),
+        min_texts=_param(ctx, "keywords.extract", "min_texts"),
         max_share=_param(ctx, "keywords.extract", "max_share"),
         max_keywords=_param(ctx, "keywords.build", "max_keywords"),
         counting_unit=_param(ctx, "keywords.extract", "counting_unit"),
@@ -308,7 +311,7 @@ def run_corpus(ctx: StageContext) -> dict[str, int]:
 
     config = ctx.project.config
     ctx.progress(0.0, "gathering the texts")
-    assemble_corpus(
+    summary = assemble_corpus(
         ctx.layout,
         config,
         ctx.out,
@@ -336,6 +339,7 @@ def run_corpus(ctx: StageContext) -> dict[str, int]:
         "mapped_units": len(people),
         "texts": texts,
         "characters": characters,
+        "duplicate_texts": summary.duplicate_texts,
     }
 
 

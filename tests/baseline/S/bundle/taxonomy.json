@@ -2,1237 +2,94 @@
  "concepts": [
   {
    "id": 0,
-   "label": "surface buoy maintenance",
-   "subfield_id": 8,
+   "label": "seaside town perceptions",
+   "subfield_id": 0,
    "terms": [
-    "density current entrainment",
-    "mixed layer intensity",
-    "near-inertial wave observations",
-    "surface buoy maintenance"
+    "seaside town perceptions"
    ]
   },
   {
    "id": 1,
-   "label": "cross-shelf flow vorticity",
-   "subfield_id": 10,
-   "terms": [
-    "cross-shelf flow vorticity"
-   ]
-  },
-  {
-   "id": 2,
-   "label": "altimetry product downscaling",
-   "subfield_id": 8,
-   "terms": [
-    "altimetry product downscaling",
-    "beach groundwater",
-    "berm sediment supply",
-    "bottom current variability",
-    "chenier evolution",
-    "cold pool energetics",
-    "dune morphology",
-    "eddy seasonal cycle",
-    "glacial isostatic adjustment",
-    "hf radar deployment",
-    "thermocline forcing mechanisms"
-   ]
-  },
-  {
-   "id": 3,
-   "label": "extreme rainfall impacts",
-   "subfield_id": 8,
-   "terms": [
-    "beach erosion",
-    "extreme rainfall impacts",
-    "high tide flood trends",
-    "lidar uncertainty",
-    "radar current map gap filling",
-    "tsunami trends"
-   ]
-  },
-  {
-   "id": 4,
-   "label": "tidal jet seasonal cycle",
-   "subfield_id": 8,
-   "terms": [
-    "autonomous underwater vehicles",
-    "coastal erosion hazard",
-    "coastal road adaptation",
-    "drinking water supply damage",
-    "flood defence failure",
-    "front energetics",
-    "plankton biodiversity",
-    "sonar data quality",
-    "storm surge intensity",
-    "tidal jet seasonal cycle",
-    "tsunami return levels"
-   ]
-  },
-  {
-   "id": 5,
-   "label": "radar backscatter",
-   "subfield_id": 8,
-   "terms": [
-    "eddy transport",
-    "ekman layer variability",
-    "inherent optical properties",
-    "radar backscatter",
-    "sea surface salinity",
-    "sea surface temperature",
-    "tidal energy dissipation",
-    "wind-driven circulation"
-   ]
-  },
-  {
-   "id": 6,
-   "label": "marina flood risk",
-   "subfield_id": 8,
-   "terms": [
-    "coastal railway exposure",
-    "coastal road damage",
-    "coastal village insurance",
-    "cross-shelf flow dissipation",
-    "dissolved inorganic carbon distribution",
-    "marina flood risk",
-    "nitrite uptake",
-    "radiolarian diversity",
-    "radiometer maintenance",
-    "silicic acid fluxes",
-    "swash zone roughness",
-    "thermocline seasonal cycle",
-    "tidal eddy dissipation"
-   ]
-  },
-  {
-   "id": 7,
-   "label": "tidal resonance",
-   "subfield_id": 8,
-   "terms": [
-    "eddy variability",
-    "tidal resonance",
-    "topographic steering"
-   ]
-  },
-  {
-   "id": 8,
-   "label": "tidal rectification",
-   "subfield_id": 8,
-   "terms": [
-    "tidal rectification"
-   ]
-  },
-  {
-   "id": 9,
-   "label": "sandflat carbon storage",
-   "subfield_id": 11,
-   "terms": [
-    "brackish lagoon sedimentation",
-    "coastal wetland biodiversity",
-    "delta plain sedimentation",
-    "freshwater marsh ecology",
-    "sandflat carbon storage"
-   ]
-  },
-  {
-   "id": 10,
-   "label": "estuarine water quality",
-   "subfield_id": 11,
-   "terms": [
-    "delta subsidence",
-    "estuarine water quality",
-    "silver nanoparticle bioaccumulation"
-   ]
-  },
-  {
-   "id": 11,
-   "label": "freshwater marsh vegetation",
-   "subfield_id": 11,
-   "terms": [
-    "coastal lagoons",
-    "coastal pond ecology",
-    "delta plain biodiversity",
-    "delta plain biogeochemistry",
-    "fish embryo immunotoxicity",
-    "floodplain mapping",
-    "freshwater marsh hydrodynamics",
-    "freshwater marsh morphology",
-    "freshwater marsh vegetation",
-    "nutrient retention"
-   ]
-  },
-  {
-   "id": 12,
-   "label": "sinking particle flux",
-   "subfield_id": 9,
-   "terms": [
-    "mysid diversity",
-    "sinking particle flux"
-   ]
-  },
-  {
-   "id": 13,
-   "label": "uv filter sources",
-   "subfield_id": 7,
-   "terms": [
-    "carbamazepine bioavailability",
-    "microplastic fibre bioaccumulation",
-    "nickel monitoring",
-    "oyster larvae neurotoxicity",
-    "uv filter sources"
-   ]
-  },
-  {
-   "id": 14,
-   "label": "brominated compound exposure",
-   "subfield_id": 7,
-   "terms": [
-    "brominated compound exposure",
-    "copper toxicity"
-   ]
-  },
-  {
-   "id": 15,
-   "label": "hydrocarbon degradation",
-   "subfield_id": 7,
-   "terms": [
-    "hydrocarbon degradation"
-   ]
-  },
-  {
-   "id": 16,
-   "label": "organic nitrogen cycling",
-   "subfield_id": 9,
-   "terms": [
-    "organic nitrogen cycling",
-    "urea limitation"
-   ]
-  },
-  {
-   "id": 17,
-   "label": "phosphorus dynamics",
-   "subfield_id": 9,
-   "terms": [
-    "phosphorus dynamics"
-   ]
-  },
-  {
-   "id": 18,
-   "label": "salp grazing losses",
-   "subfield_id": 9,
-   "terms": [
-    "salp grazing losses"
-   ]
-  },
-  {
-   "id": 19,
-   "label": "pharmaceutical residues",
-   "subfield_id": 7,
-   "terms": [
-    "microplastic ingestion",
-    "pharmaceutical residues",
-    "picoeukaryote biomass",
-    "wastewater discharges"
-   ]
-  },
-  {
-   "id": 20,
-   "label": "urea measurements",
-   "subfield_id": 7,
-   "terms": [
-    "prochlorococcus respiration",
-    "urea measurements"
-   ]
-  },
-  {
-   "id": 21,
-   "label": "thermal discharges",
-   "subfield_id": 7,
-   "terms": [
-    "alexandrium biomass",
-    "arsenic exposure",
-    "carbon export",
-    "lead toxicity",
-    "thermal discharges"
-   ]
-  },
-  {
-   "id": 22,
-   "label": "sediment contamination",
-   "subfield_id": 7,
-   "terms": [
-    "sediment contamination"
-   ]
-  },
-  {
-   "id": 23,
-   "label": "phthalate bioavailability",
-   "subfield_id": 7,
-   "terms": [
-    "antibiotic bioaccumulation",
-    "antibiotic bioavailability",
-    "cryptophyte diversity",
-    "diatom time series",
-    "pfos exposure",
-    "phthalate bioavailability"
-   ]
-  },
-  {
-   "id": 24,
-   "label": "contaminant fate modelling",
-   "subfield_id": 7,
-   "terms": [
-    "carbonate chemistry",
-    "contaminant fate modelling",
-    "litter drift modelling",
-    "urea uptake"
-   ]
-  },
-  {
-   "id": 25,
-   "label": "plastic additives",
-   "subfield_id": 7,
-   "terms": [
-    "antibiotic toxicity",
-    "glyphosate toxicity",
-    "plastic additives",
-    "plastic weathering",
-    "sewage outfalls"
-   ]
-  },
-  {
-   "id": 26,
-   "label": "tributyltin degradation",
-   "subfield_id": 7,
-   "terms": [
-    "tributyltin degradation"
-   ]
-  },
-  {
-   "id": 27,
-   "label": "planktonic foraminifera",
-   "subfield_id": 6,
-   "terms": [
-    "coastal dune sequence stratigraphy",
-    "coastal peat records",
-    "deep-sea core palaeoecology",
-    "deep-sea core records",
-    "foraminiferal ooze palaeoecology",
-    "planktonic foraminifera"
-   ]
-  },
-  {
-   "id": 28,
-   "label": "coral climate archives",
-   "subfield_id": 6,
-   "terms": [
-    "coral climate archives",
-    "deep-water circulation trends",
-    "dust deposition reconstruction",
-    "gulf heat budget",
-    "ostracod stable isotopes",
-    "varved sediments"
-   ]
-  },
-  {
-   "id": 29,
-   "label": "foraminifera records",
-   "subfield_id": 6,
-   "terms": [
-    "foraminifera records"
-   ]
-  },
-  {
-   "id": 30,
-   "label": "chironomid stable isotopes",
-   "subfield_id": 6,
-   "terms": [
-    "chironomid stable isotopes",
-    "coastal barrier evolution",
-    "deep-sea coral geochemistry",
-    "foraminifera chronology",
-    "fossil reef palaeoecology"
-   ]
-  },
-  {
-   "id": 31,
-   "label": "sediment flux trends",
-   "subfield_id": 6,
-   "terms": [
-    "deep-sea core chronology",
-    "deep-water circulation proxy records",
-    "deep-water circulation reconstruction",
-    "diatom frustule preservation",
-    "dinoflagellate cysts",
-    "lagoon sediment chronology",
-    "lagoon sediment palaeoecology",
-    "midden palaeoecology",
-    "ocean oxygenation reconstruction",
-    "sediment flux trends",
-    "shell middens"
-   ]
-  },
-  {
-   "id": 32,
-   "label": "carbonate sand grain size",
-   "subfield_id": 6,
-   "terms": [
-    "bottom current transport",
-    "carbonate sand grain size",
-    "coastal eutrophication",
-    "dune slack resilience",
-    "foraminiferal ooze chronology",
-    "front seasonal cycle",
-    "magnesium-calcium thermometry",
-    "phytodetritus aggregation",
-    "sediment drift palaeoecology"
-   ]
-  },
-  {
-   "id": 33,
-   "label": "monsoon intensity variability",
-   "subfield_id": 6,
-   "terms": [
-    "lagoon sediment records",
-    "monsoon intensity variability"
-   ]
-  },
-  {
-   "id": 34,
-   "label": "coastal peat chronology",
-   "subfield_id": 6,
-   "terms": [
-    "chironomid preservation",
-    "coastal peat chronology"
-   ]
-  },
-  {
-   "id": 35,
-   "label": "internal wave persistence",
-   "subfield_id": 6,
-   "terms": [
-    "internal wave persistence"
-   ]
-  },
-  {
-   "id": 36,
-   "label": "diatom frustule stable isotopes",
-   "subfield_id": 6,
-   "terms": [
-    "diatom frustule stable isotopes",
-    "ocean oxygenation trends",
-    "paleostorm records",
-    "submerged landscapes"
-   ]
-  },
-  {
-   "id": 37,
-   "label": "diatom frustule abundance changes",
-   "subfield_id": 6,
-   "terms": [
-    "diatom frustule abundance changes"
-   ]
-  },
-  {
-   "id": 38,
-   "label": "turbulent kinetic energy",
-   "subfield_id": 6,
-   "terms": [
-    "turbulent kinetic energy"
-   ]
-  },
-  {
-   "id": 39,
-   "label": "organic matter remineralisation",
-   "subfield_id": 6,
-   "terms": [
-    "organic matter remineralisation",
-    "skeletonema seasonal succession"
-   ]
-  },
-  {
-   "id": 40,
-   "label": "testate amoeba transfer functions",
-   "subfield_id": 6,
-   "terms": [
-    "bottom water temperature trends",
-    "coastal dune sequence palaeoecology",
-    "estuarine core palaeoecology",
-    "foraminifera palaeoecology",
-    "fossil beach chronology",
-    "lagoon sediment stratigraphy",
-    "marine pollen records",
-    "mollusc shell stratigraphy",
-    "past storminess trends",
-    "testate amoeba transfer functions"
-   ]
-  },
-  {
-   "id": 41,
-   "label": "pteropod abundance",
-   "subfield_id": 6,
-   "terms": [
-    "pteropod abundance"
-   ]
-  },
-  {
-   "id": 42,
-   "label": "deep-sea core stratigraphy",
-   "subfield_id": 6,
-   "terms": [
-    "appendicularian respiration",
-    "deep-sea core stratigraphy",
-    "estuarine core stratigraphy",
-    "glacial runoff trends",
-    "sea ice extent trends",
-    "submerged forest records"
-   ]
-  },
-  {
-   "id": 43,
-   "label": "salt marsh core records",
-   "subfield_id": 6,
-   "terms": [
-    "lipid biomarkers",
-    "mollusc shell records",
-    "salt marsh core records"
-   ]
-  },
-  {
-   "id": 44,
-   "label": "abrupt climate events",
-   "subfield_id": 6,
-   "terms": [
-    "abrupt climate events",
-    "enso variability"
-   ]
-  },
-  {
-   "id": 45,
-   "label": "tephra layer records",
-   "subfield_id": 6,
-   "terms": [
-    "dust deposition variability",
-    "fossil beach stratigraphy",
-    "sediment drift records",
-    "tephra layer records"
-   ]
-  },
-  {
-   "id": 46,
-   "label": "maerl bed fragmentation",
-   "subfield_id": 4,
-   "terms": [
-    "bivalve thermal tolerance",
-    "cephalopod reproduction",
-    "harbour seal reproduction",
-    "holothurian tagging",
-    "maerl bed fragmentation",
-    "mussel beds",
-    "porpoise abundance",
-    "sea star diet",
-    "seahorse monitoring",
-    "shrimp behaviour",
-    "turf algae cover"
-   ]
-  },
-  {
-   "id": 47,
-   "label": "sea turtle thermal tolerance",
-   "subfield_id": 4,
-   "terms": [
-    "coral resilience",
-    "coral restoration",
-    "dolphin feeding ecology",
-    "octopus growth",
-    "sea turtle thermal tolerance",
-    "sea urchin thermal tolerance"
-   ]
-  },
-  {
-   "id": 48,
-   "label": "estuarine beach water quality",
-   "subfield_id": 4,
-   "terms": [
-    "delta residence time",
-    "estuarine beach biogeochemistry",
-    "estuarine beach water quality",
-    "estuary mouth ecology",
-    "lagoon oxygen levels",
-    "oyster basin regulation",
-    "reed bed biogeochemistry",
-    "sedge zonation",
-    "tidal creek ecology",
-    "tidal freshwater marshes",
-    "wetland loss"
-   ]
-  },
-  {
-   "id": 49,
-   "label": "oyster basin access rights",
-   "subfield_id": 4,
-   "terms": [
-    "oyster basin access rights"
-   ]
-  },
-  {
-   "id": 50,
-   "label": "mussel mortality",
-   "subfield_id": 5,
-   "terms": [
-    "anchovy spatial distribution",
-    "aquaculture carrying capacity",
-    "barnacle monitoring",
-    "cephalopod feeding ecology",
-    "coastal forest social uses",
-    "gannet colony size",
-    "grey seal thermal tolerance",
-    "holothurian feeding ecology",
-    "limpet physiology",
-    "maerl bed decline",
-    "mussel mortality",
-    "seabird abundance",
-    "turf algae decline",
-    "wild coast use conflicts"
-   ]
-  },
-  {
-   "id": 51,
-   "label": "norway lobster exploitation status",
-   "subfield_id": 5,
-   "terms": [
-    "norway lobster exploitation status"
-   ]
-  },
-  {
-   "id": 52,
-   "label": "property rights regimes",
-   "subfield_id": 5,
-   "terms": [
-    "property rights regimes"
-   ]
-  },
-  {
-   "id": 53,
-   "label": "mooring concession compensation schemes",
-   "subfield_id": 5,
-   "terms": [
-    "mackerel discards",
-    "mooring concession compensation schemes"
-   ]
-  },
-  {
-   "id": 54,
-   "label": "salt marsh valuation",
-   "subfield_id": 5,
-   "terms": [
-    "salt marsh valuation"
-   ]
-  },
-  {
-   "id": 55,
-   "label": "maritime law",
-   "subfield_id": 5,
-   "terms": [
-    "maritime law"
-   ]
-  },
-  {
-   "id": 56,
-   "label": "sea bathing heritage",
-   "subfield_id": 5,
-   "terms": [
-    "sea bathing heritage"
-   ]
-  },
-  {
-   "id": 57,
-   "label": "coastal village exposure",
-   "subfield_id": 5,
-   "terms": [
-    "blue mussel mortality",
-    "coastal housing protection",
-    "coastal village exposure",
-    "hake recruitment",
-    "hake size structure",
-    "sea bass tagging",
-    "sea cucumber welfare"
-   ]
-  },
-  {
-   "id": 58,
-   "label": "coastal hospital insurance",
-   "subfield_id": 5,
-   "terms": [
-    "coastal hospital insurance"
-   ]
-  },
-  {
-   "id": 59,
-   "label": "skate maturity",
-   "subfield_id": 5,
-   "terms": [
-    "sardine growth",
-    "skate maturity"
-   ]
-  },
-  {
-   "id": 60,
-   "label": "otter trawl selectivity",
-   "subfield_id": 5,
-   "terms": [
-    "coastal housing insurance",
-    "otter trawl selectivity",
-    "tuna growth"
-   ]
-  },
-  {
-   "id": 61,
-   "label": "longline catchability",
-   "subfield_id": 5,
-   "terms": [
-    "longline catchability"
-   ]
-  },
-  {
-   "id": 62,
-   "label": "harbour seal recruitment",
-   "subfield_id": 5,
-   "terms": [
-    "harbour seal recruitment"
-   ]
-  },
-  {
-   "id": 63,
-   "label": "coral reef resilience",
-   "subfield_id": 3,
-   "terms": [
-    "coral reef resilience",
-    "holothurian behaviour"
-   ]
-  },
-  {
-   "id": 64,
-   "label": "maerl bed mapping",
-   "subfield_id": 3,
-   "terms": [
-    "cephalopod tagging",
-    "epibenthic megafauna",
-    "maerl bed mapping"
-   ]
-  },
-  {
-   "id": 65,
-   "label": "thermal tolerance",
-   "subfield_id": 3,
-   "terms": [
-    "thermal tolerance"
-   ]
-  },
-  {
-   "id": 66,
-   "label": "sea urchin habitat use",
-   "subfield_id": 3,
-   "terms": [
-    "albacore size structure",
-    "gilthead sea bream welfare",
-    "nursery grounds",
-    "sea urchin habitat use"
-   ]
-  },
-  {
-   "id": 67,
-   "label": "tuna maturity",
-   "subfield_id": 3,
-   "terms": [
-    "tuna maturity"
-   ]
-  },
-  {
-   "id": 68,
-   "label": "european eel biomass",
-   "subfield_id": 3,
-   "terms": [
-    "european eel biomass"
-   ]
-  },
-  {
-   "id": 69,
-   "label": "john dory landings",
-   "subfield_id": 3,
-   "terms": [
-    "john dory landings"
-   ]
-  },
-  {
-   "id": 70,
-   "label": "cephalopod habitat use",
-   "subfield_id": 3,
-   "terms": [
-    "beam trawl selectivity",
-    "cephalopod habitat use"
-   ]
-  },
-  {
-   "id": 71,
-   "label": "tube worm distribution",
-   "subfield_id": 3,
-   "terms": [
-    "cuttlefish mortality",
-    "tube worm distribution"
-   ]
-  },
-  {
-   "id": 72,
-   "label": "management strategy evaluation",
-   "subfield_id": 3,
-   "terms": [
-    "cephalopod growth",
-    "management strategy evaluation",
-    "whiting landings"
-   ]
-  },
-  {
-   "id": 73,
-   "label": "ocean warming impacts",
-   "subfield_id": 3,
-   "terms": [
-    "ocean warming impacts",
-    "seagrass meadows",
-    "tube worm reproduction"
-   ]
-  },
-  {
-   "id": 74,
-   "label": "coral cover",
-   "subfield_id": 3,
-   "terms": [
-    "coral cover",
-    "seagrass decline"
-   ]
-  },
-  {
-   "id": 75,
-   "label": "shelf sea exchange flow",
-   "subfield_id": 9,
-   "terms": [
-    "chaetoceros abundance",
-    "cobalt limitation",
-    "cryptophyte grazing losses",
-    "marine viruses",
-    "nitrate limitation",
-    "shelf sea exchange flow",
-    "synechococcus vertical distribution",
-    "total alkalinity",
-    "undercurrent energetics",
-    "undercurrent seasonal cycle",
-    "urea budget"
-   ]
-  },
-  {
-   "id": 76,
-   "label": "bottom boundary layer dynamics",
-   "subfield_id": 9,
-   "terms": [
-    "bottom boundary layer dynamics",
-    "eddy dynamics"
-   ]
-  },
-  {
-   "id": 77,
-   "label": "surface current forcing mechanisms",
-   "subfield_id": 9,
-   "terms": [
-    "cobalt budget",
-    "surface current forcing mechanisms"
-   ]
-  },
-  {
-   "id": 78,
-   "label": "nonlinear tidal constituents",
-   "subfield_id": 9,
-   "terms": [
-    "cold pool transport",
-    "dissolved inorganic carbon budget",
-    "nonlinear tidal constituents"
-   ]
-  },
-  {
-   "id": 79,
-   "label": "tidal asymmetry",
-   "subfield_id": 9,
-   "terms": [
-    "tidal asymmetry"
-   ]
-  },
-  {
-   "id": 80,
-   "label": "river plume dynamics",
-   "subfield_id": 9,
-   "terms": [
-    "river plume dynamics"
-   ]
-  },
-  {
-   "id": 81,
-   "label": "front vertical structure",
-   "subfield_id": 11,
-   "terms": [
-    "delta progradation",
-    "front vertical structure",
-    "grain size distribution",
-    "longshore sediment flux",
-    "shelf sediment sorting"
-   ]
-  },
-  {
-   "id": 82,
-   "label": "barrier island sediment budget",
-   "subfield_id": 11,
-   "terms": [
-    "aeolian sand mineralogy",
-    "barrier island sediment budget",
-    "embayed beaches",
-    "pocket beach monitoring",
-    "pocket beach resilience",
-    "pocket beach volume changes",
-    "tombolo dynamics",
-    "tombolo morphology"
-   ]
-  },
-  {
-   "id": 83,
-   "label": "tern reproduction",
-   "subfield_id": 11,
-   "terms": [
-    "tern reproduction"
-   ]
-  },
-  {
-   "id": 84,
-   "label": "tidal inlet vertical structure",
-   "subfield_id": 10,
-   "terms": [
-    "eddy persistence",
-    "langmuir circulation",
-    "tidal inlet vertical structure"
-   ]
-  },
-  {
-   "id": 85,
-   "label": "slope currents",
-   "subfield_id": 10,
-   "terms": [
-    "slope currents"
-   ]
-  },
-  {
-   "id": 86,
-   "label": "internal wave variability",
-   "subfield_id": 10,
-   "terms": [
-    "internal wave variability",
-    "upwelling persistence"
-   ]
-  },
-  {
-   "id": 87,
-   "label": "mixed layer persistence",
-   "subfield_id": 10,
-   "terms": [
-    "bottom current energetics",
-    "front intensity",
-    "front transport",
-    "internal wave vertical structure",
-    "mixed layer persistence",
-    "submesoscale fronts",
-    "thermohaline circulation",
-    "tidal currents"
-   ]
-  },
-  {
-   "id": 88,
-   "label": "grey seal distribution",
-   "subfield_id": 11,
-   "terms": [
-    "amphipod distribution",
-    "barnacle abundance",
-    "gastropod recruitment",
-    "grey seal distribution",
-    "grey seal physiology",
-    "octopus abundance",
-    "species richness",
-    "whale growth",
-    "whale physiology"
-   ]
-  },
-  {
-   "id": 89,
-   "label": "cephalopod thermal tolerance",
-   "subfield_id": 11,
-   "terms": [
-    "cephalopod thermal tolerance",
-    "cuttlefish abundance"
-   ]
-  },
-  {
-   "id": 90,
-   "label": "lagoon carbon storage",
-   "subfield_id": 11,
-   "terms": [
-    "backbarrier marsh restoration",
-    "brackish lagoon carbon storage",
-    "delta plain restoration",
-    "lagoon carbon storage",
-    "lagoon morphology",
-    "lagoon water quality",
-    "salt wedge dynamics"
-   ]
-  },
-  {
-   "id": 91,
-   "label": "blue carbon ecosystems",
-   "subfield_id": 11,
-   "terms": [
-    "blue carbon ecosystems"
-   ]
-  },
-  {
-   "id": 92,
-   "label": "marsh creek morphology",
-   "subfield_id": 11,
-   "terms": [
-    "marsh creek morphology"
-   ]
-  },
-  {
-   "id": 93,
-   "label": "mooring area social uses",
-   "subfield_id": 1,
-   "terms": [
-    "commons management",
-    "lighthouse heritage",
-    "mooring area social uses",
-    "shellfish farming access rights",
-    "stakeholder participation"
-   ]
-  },
-  {
-   "id": 94,
-   "label": "mooring concession zoning",
-   "subfield_id": 1,
-   "terms": [
-    "denitrification rates",
-    "mooring concession zoning"
-   ]
-  },
-  {
-   "id": 95,
-   "label": "shoreline access",
-   "subfield_id": 1,
-   "terms": [
-    "local ecological knowledge",
-    "seaside town perceptions",
-    "shoreline access"
-   ]
-  },
-  {
-   "id": 96,
-   "label": "policy instruments",
-   "subfield_id": 1,
-   "terms": [
-    "policy instruments"
-   ]
-  },
-  {
-   "id": 97,
-   "label": "marine park access rights",
-   "subfield_id": 1,
-   "terms": [
-    "adaptive governance",
-    "coastal wetland planning",
-    "deliberative democracy",
-    "dune system perceptions",
-    "hake biomass",
-    "marine park access rights",
-    "shellfish farming perceptions",
-    "shellfish farming planning"
-   ]
-  },
-  {
-   "id": 98,
-   "label": "public maritime domain compensation schemes",
-   "subfield_id": 1,
-   "terms": [
-    "public maritime domain compensation schemes"
-   ]
-  },
-  {
-   "id": 99,
-   "label": "harbour valuation",
+   "label": "tourist beach planning",
    "subfield_id": 0,
    "terms": [
-    "coastal wetland management",
-    "estuary use conflicts",
-    "harbour valuation"
-   ]
-  },
-  {
-   "id": 100,
-   "label": "aeolian sand transport",
-   "subfield_id": 0,
-   "terms": [
-    "aeolian sand transport",
-    "spit elongation"
-   ]
-  },
-  {
-   "id": 101,
-   "label": "sediment connectivity",
-   "subfield_id": 0,
-   "terms": [
-    "sediment connectivity"
-   ]
-  },
-  {
-   "id": 102,
-   "label": "wild coast governance",
-   "subfield_id": 0,
-   "terms": [
-    "policy mobilities",
-    "wild coast governance"
-   ]
-  },
-  {
-   "id": 103,
-   "label": "oyster basin perceptions",
-   "subfield_id": 0,
-   "terms": [
-    "oyster basin perceptions"
-   ]
-  },
-  {
-   "id": 104,
-   "label": "wild coast regulation",
-   "subfield_id": 0,
-   "terms": [
-    "wild coast regulation"
-   ]
-  },
-  {
-   "id": 105,
-   "label": "disaster memory",
-   "subfield_id": 0,
-   "terms": [
-    "beach regulation",
-    "disaster memory"
-   ]
-  },
-  {
-   "id": 106,
-   "label": "coastal setback enforcement",
-   "subfield_id": 0,
-   "terms": [
-    "coastal setback enforcement"
-   ]
-  },
-  {
-   "id": 107,
-   "label": "fisheries governance",
-   "subfield_id": 1,
-   "terms": [
-    "fisheries governance"
-   ]
-  },
-  {
-   "id": 108,
-   "label": "marine park planning",
-   "subfield_id": 1,
-   "terms": [
-    "marine park planning"
-   ]
-  },
-  {
-   "id": 109,
-   "label": "coastal risk perception",
-   "subfield_id": 0,
-   "terms": [
-    "coastal risk perception"
-   ]
-  },
-  {
-   "id": 110,
-   "label": "coastal forest valuation",
-   "subfield_id": 1,
-   "terms": [
-    "coastal forest valuation",
-    "island regulation",
-    "naval dockyard history",
     "tourist beach planning"
    ]
   },
   {
-   "id": 111,
+   "id": 2,
+   "label": "wild coast management",
+   "subfield_id": 0,
+   "terms": [
+    "wild coast management"
+   ]
+  },
+  {
+   "id": 3,
    "label": "estuary social uses",
-   "subfield_id": 1,
+   "subfield_id": 0,
    "terms": [
-    "estuary social uses",
-    "tourist beach access rights"
+    "estuary social uses"
    ]
   },
   {
-   "id": 112,
-   "label": "tidal mixing fronts",
-   "subfield_id": 1,
+   "id": 4,
+   "label": "naval dockyard history",
+   "subfield_id": 0,
    "terms": [
-    "tidal mixing fronts"
+    "naval dockyard history"
    ]
   },
   {
-   "id": 113,
+   "id": 5,
    "label": "fishing village history",
-   "subfield_id": 1,
+   "subfield_id": 0,
    "terms": [
     "fishing village history"
    ]
   },
   {
-   "id": 114,
-   "label": "mooring area perceptions",
-   "subfield_id": 1,
+   "id": 6,
+   "label": "coastal wetland planning",
+   "subfield_id": 0,
    "terms": [
-    "mooring area perceptions"
+    "coastal wetland planning"
    ]
   },
   {
-   "id": 115,
-   "label": "shipwreck representations",
-   "subfield_id": 1,
+   "id": 7,
+   "label": "mooring concession zoning",
+   "subfield_id": 0,
    "terms": [
-    "shipwreck representations"
+    "mooring concession zoning"
    ]
   },
   {
-   "id": 116,
-   "label": "protected coastline regulation",
-   "subfield_id": 1,
+   "id": 8,
+   "label": "sea bathing representations",
+   "subfield_id": 0,
    "terms": [
-    "dune system access rights",
-    "protected coastline regulation",
-    "river mouth governance",
-    "salt marsh regulation"
+    "sea bathing representations"
    ]
   },
   {
-   "id": 117,
-   "label": "integrated coastal zone management",
-   "subfield_id": 1,
+   "id": 9,
+   "label": "shipwreck memory",
+   "subfield_id": 0,
    "terms": [
-    "integrated coastal zone management",
-    "shelf current persistence"
+    "shipwreck memory"
    ]
   },
   {
-   "id": 118,
+   "id": 10,
+   "label": "beach access rights",
+   "subfield_id": 0,
+   "terms": [
+    "beach access rights"
+   ]
+  },
+  {
+   "id": 11,
    "label": "science-policy interface",
    "subfield_id": 0,
    "terms": [
@@ -1240,304 +97,956 @@
    ]
   },
   {
-   "id": 119,
-   "label": "harbour district heritage",
+   "id": 12,
+   "label": "disaster memory",
    "subfield_id": 0,
    "terms": [
-    "harbour district heritage",
-    "ocean literacy",
-    "shellfish aquaculture"
+    "disaster memory"
    ]
   },
   {
-   "id": 120,
-   "label": "shelf sea dynamics",
+   "id": 13,
+   "label": "wild coast governance",
    "subfield_id": 0,
    "terms": [
-    "shelf sea dynamics"
+    "wild coast governance"
    ]
   },
   {
-   "id": 121,
-   "label": "pacific oyster growth performance",
+   "id": 14,
+   "label": "coastal setback enforcement",
    "subfield_id": 0,
    "terms": [
-    "beach access rights",
-    "pacific oyster growth performance"
+    "coastal setback enforcement"
    ]
   },
   {
-   "id": 122,
-   "label": "sand bank sediment budget",
+   "id": 15,
+   "label": "coastal setback legal status",
    "subfield_id": 0,
    "terms": [
-    "anchovy exploitation status",
-    "brown crab recruitment",
-    "sand bank sediment budget"
+    "coastal setback legal status"
    ]
   },
   {
-   "id": 123,
-   "label": "beach ridge plain morphology",
+   "id": 16,
+   "label": "harbour access rights",
    "subfield_id": 0,
    "terms": [
-    "beach ridge plain morphology",
-    "common cuttlefish catch"
+    "harbour access rights"
    ]
   },
   {
-   "id": 124,
+   "id": 17,
+   "label": "public maritime domain compensation schemes",
+   "subfield_id": 0,
+   "terms": [
+    "public maritime domain compensation schemes"
+   ]
+  },
+  {
+   "id": 18,
+   "label": "harbour valuation",
+   "subfield_id": 0,
+   "terms": [
+    "harbour valuation"
+   ]
+  },
+  {
+   "id": 19,
+   "label": "shoreline access",
+   "subfield_id": 0,
+   "terms": [
+    "shoreline access"
+   ]
+  },
+  {
+   "id": 20,
+   "label": "stakeholder participation",
+   "subfield_id": 0,
+   "terms": [
+    "stakeholder participation"
+   ]
+  },
+  {
+   "id": 21,
+   "label": "aquaculture lease public inquiry",
+   "subfield_id": 0,
+   "terms": [
+    "aquaculture lease public inquiry"
+   ]
+  },
+  {
+   "id": 22,
+   "label": "local ecological knowledge",
+   "subfield_id": 0,
+   "terms": [
+    "local ecological knowledge"
+   ]
+  },
+  {
+   "id": 23,
+   "label": "deliberative democracy",
+   "subfield_id": 0,
+   "terms": [
+    "deliberative democracy"
+   ]
+  },
+  {
+   "id": 24,
+   "label": "hake biomass",
+   "subfield_id": 0,
+   "terms": [
+    "hake biomass"
+   ]
+  },
+  {
+   "id": 25,
+   "label": "policy instruments",
+   "subfield_id": 0,
+   "terms": [
+    "policy instruments"
+   ]
+  },
+  {
+   "id": 26,
+   "label": "front vertical structure",
+   "subfield_id": 1,
+   "terms": [
+    "front vertical structure"
+   ]
+  },
+  {
+   "id": 27,
+   "label": "sediment budget",
+   "subfield_id": 1,
+   "terms": [
+    "sediment budget"
+   ]
+  },
+  {
+   "id": 28,
    "label": "pot fishery bycatch rates",
-   "subfield_id": 0,
+   "subfield_id": 1,
    "terms": [
-    "pollack landings",
     "pot fishery bycatch rates"
    ]
   },
   {
-   "id": 125,
-   "label": "marine reserve regulation",
+   "id": 29,
+   "label": "shellfish aquaculture",
    "subfield_id": 1,
    "terms": [
-    "coastal commune regulation",
-    "dune system stakeholder mapping",
-    "estuary governance",
-    "marine reserve regulation",
-    "offshore island use conflicts",
-    "planned relocation",
-    "protected coastline use conflicts",
-    "seaside town use conflicts"
+    "shellfish aquaculture"
    ]
   },
   {
-   "id": 126,
-   "label": "harbour district representations",
+   "id": 30,
+   "label": "fisheries governance",
    "subfield_id": 1,
    "terms": [
-    "harbour district representations"
+    "fisheries governance"
    ]
   },
   {
-   "id": 127,
+   "id": 31,
+   "label": "mooring area planning",
+   "subfield_id": 1,
+   "terms": [
+    "mooring area planning"
+   ]
+  },
+  {
+   "id": 32,
+   "label": "beach valuation",
+   "subfield_id": 1,
+   "terms": [
+    "beach valuation"
+   ]
+  },
+  {
+   "id": 33,
+   "label": "crab recruitment",
+   "subfield_id": 1,
+   "terms": [
+    "crab recruitment"
+   ]
+  },
+  {
+   "id": 34,
+   "label": "foraminifera palaeoecology",
+   "subfield_id": 2,
+   "terms": [
+    "foraminifera palaeoecology"
+   ]
+  },
+  {
+   "id": 35,
+   "label": "sea ice extent trends",
+   "subfield_id": 2,
+   "terms": [
+    "sea ice extent trends"
+   ]
+  },
+  {
+   "id": 36,
+   "label": "estuarine core stratigraphy",
+   "subfield_id": 2,
+   "terms": [
+    "estuarine core stratigraphy"
+   ]
+  },
+  {
+   "id": 37,
+   "label": "submerged forest records",
+   "subfield_id": 2,
+   "terms": [
+    "submerged forest records"
+   ]
+  },
+  {
+   "id": 38,
+   "label": "abrupt climate events",
+   "subfield_id": 2,
+   "terms": [
+    "abrupt climate events"
+   ]
+  },
+  {
+   "id": 39,
+   "label": "diatom frustule abundance changes",
+   "subfield_id": 2,
+   "terms": [
+    "diatom frustule abundance changes"
+   ]
+  },
+  {
+   "id": 40,
+   "label": "chironomid preservation",
+   "subfield_id": 2,
+   "terms": [
+    "chironomid preservation"
+   ]
+  },
+  {
+   "id": 41,
+   "label": "contourite drifts",
+   "subfield_id": 2,
+   "terms": [
+    "contourite drifts"
+   ]
+  },
+  {
+   "id": 42,
+   "label": "diatom frustule stable isotopes",
+   "subfield_id": 2,
+   "terms": [
+    "diatom frustule stable isotopes"
+   ]
+  },
+  {
+   "id": 43,
+   "label": "monsoon intensity variability",
+   "subfield_id": 2,
+   "terms": [
+    "monsoon intensity variability"
+   ]
+  },
+  {
+   "id": 44,
+   "label": "internal wave persistence",
+   "subfield_id": 2,
+   "terms": [
+    "internal wave persistence"
+   ]
+  },
+  {
+   "id": 45,
+   "label": "chironomid stable isotopes",
+   "subfield_id": 2,
+   "terms": [
+    "chironomid stable isotopes"
+   ]
+  },
+  {
+   "id": 46,
+   "label": "shell middens",
+   "subfield_id": 2,
+   "terms": [
+    "shell middens"
+   ]
+  },
+  {
+   "id": 47,
+   "label": "deep-water circulation trends",
+   "subfield_id": 2,
+   "terms": [
+    "deep-water circulation trends"
+   ]
+  },
+  {
+   "id": 48,
+   "label": "diatom frustule preservation",
+   "subfield_id": 2,
+   "terms": [
+    "diatom frustule preservation"
+   ]
+  },
+  {
+   "id": 49,
+   "label": "coastal dune sequence stratigraphy",
+   "subfield_id": 2,
+   "terms": [
+    "coastal dune sequence stratigraphy"
+   ]
+  },
+  {
+   "id": 50,
+   "label": "enso variability",
+   "subfield_id": 2,
+   "terms": [
+    "enso variability"
+   ]
+  },
+  {
+   "id": 51,
+   "label": "coral climate archives",
+   "subfield_id": 2,
+   "terms": [
+    "coral climate archives"
+   ]
+  },
+  {
+   "id": 52,
+   "label": "planktonic foraminifera",
+   "subfield_id": 2,
+   "terms": [
+    "planktonic foraminifera"
+   ]
+  },
+  {
+   "id": 53,
+   "label": "barrier evolution",
+   "subfield_id": 2,
+   "terms": [
+    "barrier evolution"
+   ]
+  },
+  {
+   "id": 54,
+   "label": "brominated compound exposure",
+   "subfield_id": 3,
+   "terms": [
+    "brominated compound exposure"
+   ]
+  },
+  {
+   "id": 55,
+   "label": "hydrocarbon bioaccumulation",
+   "subfield_id": 3,
+   "terms": [
+    "hydrocarbon bioaccumulation"
+   ]
+  },
+  {
+   "id": 56,
+   "label": "fish embryo immunotoxicity",
+   "subfield_id": 3,
+   "terms": [
+    "fish embryo immunotoxicity"
+   ]
+  },
+  {
+   "id": 57,
+   "label": "sediment contamination",
+   "subfield_id": 3,
+   "terms": [
+    "sediment contamination"
+   ]
+  },
+  {
+   "id": 58,
+   "label": "oyster larvae neurotoxicity",
+   "subfield_id": 3,
+   "terms": [
+    "oyster larvae neurotoxicity"
+   ]
+  },
+  {
+   "id": 59,
+   "label": "silver nanoparticle exposure",
+   "subfield_id": 3,
+   "terms": [
+    "silver nanoparticle exposure"
+   ]
+  },
+  {
+   "id": 60,
+   "label": "copper toxicity",
+   "subfield_id": 3,
+   "terms": [
+    "copper toxicity"
+   ]
+  },
+  {
+   "id": 61,
+   "label": "thermal discharges",
+   "subfield_id": 3,
+   "terms": [
+    "thermal discharges"
+   ]
+  },
+  {
+   "id": 62,
+   "label": "microplastic ingestion",
+   "subfield_id": 3,
+   "terms": [
+    "microplastic ingestion"
+   ]
+  },
+  {
+   "id": 63,
+   "label": "urea measurements",
+   "subfield_id": 3,
+   "terms": [
+    "urea measurements"
+   ]
+  },
+  {
+   "id": 64,
+   "label": "sinking particle flux",
+   "subfield_id": 3,
+   "terms": [
+    "sinking particle flux"
+   ]
+  },
+  {
+   "id": 65,
+   "label": "copepod growth rates",
+   "subfield_id": 3,
+   "terms": [
+    "copepod growth rates"
+   ]
+  },
+  {
+   "id": 66,
+   "label": "dissolved inorganic carbon distribution",
+   "subfield_id": 3,
+   "terms": [
+    "dissolved inorganic carbon distribution"
+   ]
+  },
+  {
+   "id": 67,
+   "label": "antibiotic bioaccumulation",
+   "subfield_id": 3,
+   "terms": [
+    "antibiotic bioaccumulation"
+   ]
+  },
+  {
+   "id": 68,
+   "label": "contaminant fate modelling",
+   "subfield_id": 3,
+   "terms": [
+    "contaminant fate modelling"
+   ]
+  },
+  {
+   "id": 69,
+   "label": "hydrocarbon degradation",
+   "subfield_id": 3,
+   "terms": [
+    "hydrocarbon degradation"
+   ]
+  },
+  {
+   "id": 70,
+   "label": "freshwater marsh morphology",
+   "subfield_id": 4,
+   "terms": [
+    "freshwater marsh morphology"
+   ]
+  },
+  {
+   "id": 71,
+   "label": "freshwater marsh vegetation",
+   "subfield_id": 4,
+   "terms": [
+    "freshwater marsh vegetation"
+   ]
+  },
+  {
+   "id": 72,
+   "label": "estuarine water quality",
+   "subfield_id": 4,
+   "terms": [
+    "estuarine water quality"
+   ]
+  },
+  {
+   "id": 73,
+   "label": "floodplain mapping",
+   "subfield_id": 4,
+   "terms": [
+    "floodplain mapping"
+   ]
+  },
+  {
+   "id": 74,
+   "label": "delta plain biogeochemistry",
+   "subfield_id": 4,
+   "terms": [
+    "delta plain biogeochemistry"
+   ]
+  },
+  {
+   "id": 75,
+   "label": "nutrient retention",
+   "subfield_id": 4,
+   "terms": [
+    "nutrient retention"
+   ]
+  },
+  {
+   "id": 76,
+   "label": "blue carbon ecosystems",
+   "subfield_id": 4,
+   "terms": [
+    "blue carbon ecosystems"
+   ]
+  },
+  {
+   "id": 77,
+   "label": "internal wave vertical structure",
+   "subfield_id": 5,
+   "terms": [
+    "internal wave vertical structure"
+   ]
+  },
+  {
+   "id": 78,
+   "label": "mixed layer persistence",
+   "subfield_id": 5,
+   "terms": [
+    "mixed layer persistence"
+   ]
+  },
+  {
+   "id": 79,
+   "label": "front transport",
+   "subfield_id": 5,
+   "terms": [
+    "front transport"
+   ]
+  },
+  {
+   "id": 80,
+   "label": "tidal currents",
+   "subfield_id": 5,
+   "terms": [
+    "tidal currents"
+   ]
+  },
+  {
+   "id": 81,
+   "label": "eddy variability",
+   "subfield_id": 6,
+   "terms": [
+    "eddy variability"
+   ]
+  },
+  {
+   "id": 82,
+   "label": "topographic steering",
+   "subfield_id": 6,
+   "terms": [
+    "topographic steering"
+   ]
+  },
+  {
+   "id": 83,
+   "label": "sea surface salinity",
+   "subfield_id": 6,
+   "terms": [
+    "sea surface salinity"
+   ]
+  },
+  {
+   "id": 84,
+   "label": "tidal eddy dissipation",
+   "subfield_id": 6,
+   "terms": [
+    "tidal eddy dissipation"
+   ]
+  },
+  {
+   "id": 85,
+   "label": "radar backscatter",
+   "subfield_id": 6,
+   "terms": [
+    "radar backscatter",
+    "sea surface temperature"
+   ]
+  },
+  {
+   "id": 86,
+   "label": "inherent optical properties",
+   "subfield_id": 6,
+   "terms": [
+    "inherent optical properties"
+   ]
+  },
+  {
+   "id": 87,
+   "label": "front forcing mechanisms",
+   "subfield_id": 7,
+   "terms": [
+    "front forcing mechanisms"
+   ]
+  },
+  {
+   "id": 88,
+   "label": "tidal rectification",
+   "subfield_id": 7,
+   "terms": [
+    "tidal rectification"
+   ]
+  },
+  {
+   "id": 89,
+   "label": "cross-shelf flow dissipation",
+   "subfield_id": 7,
+   "terms": [
+    "cross-shelf flow dissipation"
+   ]
+  },
+  {
+   "id": 90,
+   "label": "tidal resonance",
+   "subfield_id": 7,
+   "terms": [
+    "tidal resonance"
+   ]
+  },
+  {
+   "id": 91,
+   "label": "cold pool transport",
+   "subfield_id": 7,
+   "terms": [
+    "cold pool transport"
+   ]
+  },
+  {
+   "id": 92,
+   "label": "nonlinear tidal constituents",
+   "subfield_id": 7,
+   "terms": [
+    "nonlinear tidal constituents"
+   ]
+  },
+  {
+   "id": 93,
+   "label": "tidal asymmetry",
+   "subfield_id": 7,
+   "terms": [
+    "tidal asymmetry"
+   ]
+  },
+  {
+   "id": 94,
+   "label": "shelf sea heat budget",
+   "subfield_id": 7,
+   "terms": [
+    "shelf sea heat budget"
+   ]
+  },
+  {
+   "id": 95,
+   "label": "slope currents",
+   "subfield_id": 7,
+   "terms": [
+    "slope currents"
+   ]
+  },
+  {
+   "id": 96,
+   "label": "mussel mortality",
+   "subfield_id": 8,
+   "terms": [
+    "mussel mortality"
+   ]
+  },
+  {
+   "id": 97,
+   "label": "skate maturity",
+   "subfield_id": 8,
+   "terms": [
+    "skate maturity"
+   ]
+  },
+  {
+   "id": 98,
+   "label": "norway lobster exploitation status",
+   "subfield_id": 8,
+   "terms": [
+    "norway lobster exploitation status"
+   ]
+  },
+  {
+   "id": 99,
+   "label": "oyster farming memory",
+   "subfield_id": 8,
+   "terms": [
+    "oyster farming memory"
+   ]
+  },
+  {
+   "id": 100,
+   "label": "sea bathing heritage",
+   "subfield_id": 8,
+   "terms": [
+    "sea bathing heritage"
+   ]
+  },
+  {
+   "id": 101,
+   "label": "maritime law",
+   "subfield_id": 8,
+   "terms": [
+    "maritime law"
+   ]
+  },
+  {
+   "id": 102,
+   "label": "oyster basin regulation",
+   "subfield_id": 8,
+   "terms": [
+    "oyster basin regulation"
+   ]
+  },
+  {
+   "id": 103,
+   "label": "cephalopod reproduction",
+   "subfield_id": 9,
+   "terms": [
+    "cephalopod reproduction"
+   ]
+  },
+  {
+   "id": 104,
+   "label": "maerl bed fragmentation",
+   "subfield_id": 9,
+   "terms": [
+    "maerl bed fragmentation"
+   ]
+  },
+  {
+   "id": 105,
+   "label": "cephalopod growth",
+   "subfield_id": 9,
+   "terms": [
+    "cephalopod growth"
+   ]
+  },
+  {
+   "id": 106,
+   "label": "thermal tolerance",
+   "subfield_id": 9,
+   "terms": [
+    "thermal tolerance"
+   ]
+  },
+  {
+   "id": 107,
+   "label": "ocean warming impacts",
+   "subfield_id": 9,
+   "terms": [
+    "ocean warming impacts"
+   ]
+  },
+  {
+   "id": 108,
+   "label": "seagrass decline",
+   "subfield_id": 9,
+   "terms": [
+    "seagrass decline"
+   ]
+  },
+  {
+   "id": 109,
+   "label": "coral cover",
+   "subfield_id": 9,
+   "terms": [
+    "coral cover"
+   ]
+  },
+  {
+   "id": 110,
+   "label": "beam trawl selectivity",
+   "subfield_id": 9,
+   "terms": [
+    "beam trawl selectivity"
+   ]
+  },
+  {
+   "id": 111,
+   "label": "coastal tourism",
+   "subfield_id": 10,
+   "terms": [
+    "coastal tourism"
+   ]
+  },
+  {
+   "id": 112,
    "label": "land-use conflicts",
-   "subfield_id": 1,
+   "subfield_id": 10,
    "terms": [
     "land-use conflicts"
    ]
   },
   {
-   "id": 128,
+   "id": 113,
+   "label": "coastal path valuation",
+   "subfield_id": 10,
+   "terms": [
+    "coastal path valuation"
+   ]
+  },
+  {
+   "id": 114,
+   "label": "estuary governance",
+   "subfield_id": 10,
+   "terms": [
+    "estuary governance"
+   ]
+  },
+  {
+   "id": 115,
+   "label": "planned relocation",
+   "subfield_id": 10,
+   "terms": [
+    "planned relocation"
+   ]
+  },
+  {
+   "id": 116,
    "label": "territorial identity",
-   "subfield_id": 1,
+   "subfield_id": 10,
    "terms": [
     "territorial identity"
    ]
   },
   {
-   "id": 129,
-   "label": "seaside town regulation",
-   "subfield_id": 1,
+   "id": 117,
+   "label": "artificial light pollution",
+   "subfield_id": 10,
    "terms": [
-    "seaside town regulation",
-    "wild coast management"
+    "artificial light pollution"
    ]
   },
   {
-   "id": 130,
-   "label": "estuary planning",
-   "subfield_id": 1,
+   "id": 118,
+   "label": "gillnet seabed contact",
+   "subfield_id": 11,
    "terms": [
-    "estuary planning"
+    "gillnet seabed contact"
    ]
   },
   {
-   "id": 131,
-   "label": "coastal commune governance",
-   "subfield_id": 1,
-   "terms": [
-    "coastal commune governance",
-    "fishing village representations",
-    "marine park valuation",
-    "marine reserve planning",
-    "mooring concession legal status",
-    "offshore island planning",
-    "oyster basin stakeholder mapping",
-    "public maritime domain public inquiry",
-    "sea cucumber selective breeding",
-    "spider crab recruitment"
-   ]
-  },
-  {
-   "id": 132,
-   "label": "marine reserve management",
-   "subfield_id": 4,
-   "terms": [
-    "marine reserve management"
-   ]
-  },
-  {
-   "id": 133,
-   "label": "salt marsh governance",
-   "subfield_id": 4,
-   "terms": [
-    "salt marsh governance"
-   ]
-  },
-  {
-   "id": 134,
-   "label": "norway lobster discards",
-   "subfield_id": 2,
-   "terms": [
-    "gillnet seabed contact",
-    "norway lobster discards",
-    "squid catch"
-   ]
-  },
-  {
-   "id": 135,
-   "label": "norway lobster landings",
-   "subfield_id": 2,
-   "terms": [
-    "monkfish diet",
-    "norway lobster landings",
-    "skate discards",
-    "skate recruitment"
-   ]
-  },
-  {
-   "id": 136,
-   "label": "john dory discards",
-   "subfield_id": 2,
-   "terms": [
-    "john dory discards"
-   ]
-  },
-  {
-   "id": 137,
-   "label": "sea-level rise",
-   "subfield_id": 2,
-   "terms": [
-    "beam trawl fuel efficiency",
-    "breakwater maintenance costs",
-    "coastal flood intensity",
-    "coastal railway resilience",
-    "coastal railway vulnerability",
-    "port infrastructure flood risk",
-    "sea-level rise"
-   ]
-  },
-  {
-   "id": 138,
-   "label": "coastal railway vulnerability assessment",
-   "subfield_id": 2,
-   "terms": [
-    "coastal railway vulnerability assessment"
-   ]
-  },
-  {
-   "id": 139,
-   "label": "coastal resilience",
-   "subfield_id": 2,
-   "terms": [
-    "coastal resilience"
-   ]
-  },
-  {
-   "id": 140,
-   "label": "brown crab exploitation status",
-   "subfield_id": 2,
-   "terms": [
-    "brown crab exploitation status",
-    "heritage site flood risk",
-    "tuna discards"
-   ]
-  },
-  {
-   "id": 141,
+   "id": 119,
    "label": "tuna diet",
-   "subfield_id": 2,
+   "subfield_id": 11,
    "terms": [
-    "fishing mortality",
     "tuna diet"
    ]
   },
   {
-   "id": 142,
+   "id": 120,
+   "label": "common cuttlefish catch",
+   "subfield_id": 11,
+   "terms": [
+    "common cuttlefish catch"
+   ]
+  },
+  {
+   "id": 121,
+   "label": "john dory landings",
+   "subfield_id": 11,
+   "terms": [
+    "john dory landings"
+   ]
+  },
+  {
+   "id": 122,
    "label": "tuna size structure",
-   "subfield_id": 2,
+   "subfield_id": 11,
    "terms": [
     "tuna size structure"
    ]
   },
   {
-   "id": 143,
-   "label": "rubble mound design standards",
-   "subfield_id": 2,
+   "id": 123,
+   "label": "coastal flood intensity",
+   "subfield_id": 11,
    "terms": [
-    "bay valuation",
-    "hazard zoning",
-    "industrial zone resilience",
-    "maritime heritage",
-    "post-storm recovery",
-    "protected coastline perceptions",
-    "rubble mound design standards"
+    "coastal flood intensity"
    ]
   },
   {
-   "id": 144,
-   "label": "grazed salt marsh insurance",
-   "subfield_id": 2,
+   "id": 124,
+   "label": "wave climate",
+   "subfield_id": 11,
    "terms": [
-    "coastal farmland resilience",
-    "grazed salt marsh insurance",
-    "tourist resort protection",
-    "tsunami forecasting"
-   ]
-  },
-  {
-   "id": 145,
-   "label": "saltwater intrusion",
-   "subfield_id": 2,
-   "terms": [
-    "erosion hotspots",
-    "saltwater intrusion",
     "wave climate"
    ]
   },
   {
-   "id": 146,
-   "label": "storm trends",
-   "subfield_id": 2,
+   "id": 125,
+   "label": "port infrastructure flood risk",
+   "subfield_id": 11,
    "terms": [
-    "bayesian stock models",
-    "coastal railway damage assessment",
+    "port infrastructure flood risk"
+   ]
+  },
+  {
+   "id": 126,
+   "label": "sea-level rise",
+   "subfield_id": 11,
+   "terms": [
+    "sea-level rise"
+   ]
+  },
+  {
+   "id": 127,
+   "label": "storm trends",
+   "subfield_id": 11,
+   "terms": [
     "storm trends"
    ]
   },
   {
-   "id": 147,
-   "label": "tourist resort damage",
-   "subfield_id": 2,
+   "id": 128,
+   "label": "coastal risk perception",
+   "subfield_id": 11,
    "terms": [
-    "compound event hindcast",
-    "storm surge trends",
+    "coastal risk perception"
+   ]
+  },
+  {
+   "id": 129,
+   "label": "tourist resort damage",
+   "subfield_id": 11,
+   "terms": [
     "tourist resort damage"
    ]
   },
   {
-   "id": 148,
-   "label": "river flood impacts",
-   "subfield_id": 2,
+   "id": 130,
+   "label": "storm surge return levels",
+   "subfield_id": 11,
    "terms": [
-    "river flood impacts"
-   ]
-  },
-  {
-   "id": 149,
-   "label": "silicate depletion",
-   "subfield_id": 2,
-   "terms": [
-    "silicate depletion"
+    "storm surge return levels"
    ]
   }
  ],
@@ -1545,51 +1054,51 @@
  "subfields": [
   {
    "id": 0,
-   "label": "wild coast regulation"
+   "label": "fishing village history"
   },
   {
    "id": 1,
-   "label": "harbour district representations"
+   "label": "pot fishery bycatch rates"
   },
   {
    "id": 2,
-   "label": "tourist resort damage"
-  },
-  {
-   "id": 3,
-   "label": "thermal tolerance"
-  },
-  {
-   "id": 4,
-   "label": "maerl bed fragmentation"
-  },
-  {
-   "id": 5,
-   "label": "sea bathing heritage"
-  },
-  {
-   "id": 6,
    "label": "monsoon intensity variability"
   },
   {
-   "id": 7,
-   "label": "thermal discharges"
+   "id": 3,
+   "label": "contaminant fate modelling"
   },
   {
-   "id": 8,
+   "id": 4,
+   "label": "estuarine water quality"
+  },
+  {
+   "id": 5,
+   "label": "mixed layer persistence"
+  },
+  {
+   "id": 6,
    "label": "radar backscatter"
   },
   {
+   "id": 7,
+   "label": "slope currents"
+  },
+  {
+   "id": 8,
+   "label": "norway lobster exploitation status"
+  },
+  {
    "id": 9,
-   "label": "surface current forcing mechanisms"
+   "label": "maerl bed fragmentation"
   },
   {
    "id": 10,
-   "label": "tidal inlet vertical structure"
+   "label": "territorial identity"
   },
   {
    "id": 11,
-   "label": "estuarine water quality"
+   "label": "tourist resort damage"
   }
  ]
 }

@@ -94,8 +94,18 @@ def expected_corpus(
                 works = [w for w in bib.works.values() if w.doi in dois]
             reach[pid] += [w for w in works if years is None or years[0] <= w.year <= years[1]]
 
+    # A duplicate copy the index holds (bib.duplicates) is a text of its own.
+    copies = {c for group in bib.duplicates.values() for c in group[1:]}
+
     def identity(w) -> str:
-        return w.world_work or w.id
+        return w.id if w.id in copies else (w.world_work or w.id)
+
+    def doc_type(w) -> str:
+        if w.id in copies:
+            if w.type == "preprint":
+                return "preprint"
+            return "communication" if w.source_type == "conference" else "article"
+        return DOC_TYPES[world_works[w.world_work].doc_type] if w.world_work else "article"
 
     first = {}  # the index work that stands for each text: the one with a DOI first
     for works in reach.values():
@@ -104,7 +114,7 @@ def expected_corpus(
     texts, parts, authorships = set(), set(), set()
     stated: dict[tuple[str, str], list[int]] = {}
     for key, w in first.items():
-        doc = DOC_TYPES[world_works[w.world_work].doc_type] if w.world_work else "article"
+        doc = doc_type(w)
         texts.add((w.doi, w.title, w.year, doc, len(w.authorships)))
         abstract = " ".join(w.abstract.split())
         parts.add((w.title, "title", w.language, w.title))

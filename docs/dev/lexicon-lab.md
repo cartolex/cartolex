@@ -23,7 +23,8 @@ Each corpus is parsed once, with the engine's own code and parse cache; every
 variant then scores **the same analyses** with
 `cartolex.lexicon.scoring.score_units`, changing **one choice at a time**
 around the defaults (a *family*). The window is the engine's default: a
-candidate is used by at least 3 people and at most 60 % of them. The choices
+candidate is used by at least 3 people and at most 60 % of them, and occurs
+in at least 3 distinct texts. The choices
 are switches of `ScoringOptions` and `BandRules`; only the counting unit is a
 setting (`KeywordsConfig.counting_unit`, the build's
 `keywords.extract.counting_unit`).

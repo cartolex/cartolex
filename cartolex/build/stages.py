@@ -442,6 +442,12 @@ def _min_people_fit(values: Mapping[str, Any], sizes: ProjectSizes, _: ProjectFi
     return None
 
 
+def _min_texts_fit(values: Mapping[str, Any], sizes: ProjectSizes, _: ProjectFile) -> str | None:
+    if values["min_texts"] > (sizes.texts or 0):
+        return f"min_texts is {values['min_texts']}, but only {sizes.texts} texts build the lexicon"
+    return None
+
+
 def _ai_configured(_: Mapping[str, Any], __: ProjectSizes, config: ProjectFile) -> str | None:
     if config.identity.ai is None:
         return "the AI clean-up needs a provider and a model in project.json (identity.ai)"
@@ -490,8 +496,8 @@ STAGES = Registry(
             project=("languages", "slots", "levels", "overlays"),
             # version 2: projected sets kept in folders of their own are gathered too;
             # version 3: people's attributes in the index, the parts and the document types
-            # by slot kind
-            version=3,
+            # by slot kind; version 4: one text per work (duplicate texts read once)
+            version=4,
             extra_inputs=_overlay_tables,
             params=(
                 ParamSpec(
@@ -552,8 +558,9 @@ STAGES = Registry(
             # the tokenizer leaves attached (Portuguese d'água) is a word of its own;
             # version 4: stop words, closed words of another language and evenly
             # spread single words are set aside; version 5: the rejection lists' candidates
-            # go to the rejected band (cartolex's list, the machine's cache)
-            version=5,
+            # go to the rejected band (cartolex's list, the machine's cache); version 6:
+            # a candidate must also occur in min_texts distinct texts (3 by default)
+            version=6,
             decisions=("decisions/stopwords.json",),
             project=("languages", "identity.language_models"),
             params=(
@@ -569,6 +576,14 @@ STAGES = Registry(
                     "min_people",
                     "int",
                     "a candidate is kept only if at least this many people use it",
+                    default=3,
+                    minimum=1,
+                ),
+                ParamSpec(
+                    "min_texts",
+                    "int",
+                    "a candidate is kept only if it occurs in at least this many distinct "
+                    "texts (a phrase of one co-authored text is one text's evidence)",
                     default=3,
                     minimum=1,
                 ),
@@ -594,6 +609,12 @@ STAGES = Registry(
                     ("min_people",),
                     ("people",),
                     _min_people_fit,
+                ),
+                CrossCheck(
+                    "no more texts required than the lexicon has",
+                    ("min_texts",),
+                    ("texts",),
+                    _min_texts_fit,
                 ),
             ),
             cost=CostModel(

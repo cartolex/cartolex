@@ -317,3 +317,15 @@ def test_a_stop_word_of_the_language_and_an_evenly_spread_word() -> None:
     # Used once by everyone: spread like a random word. Gathered in three people: to check.
     assert tuple(bands.loc["estudo"])[-2:] == ("aside", "even-spread")
     assert tuple(bands.loc["maré"])[-2:] == ("check", "single-word")
+
+
+def test_a_phrase_of_one_co_authored_text_is_not_a_candidate() -> None:
+    # Three people signed one text holding "coral reef"; "tide gauge" is in three texts.
+    units = [unit(p, "shared", ("full", text("coral/N reef/N", TG))) for p in range(3)]
+    units += [unit(p, f"own{p}", ("full", text(TG))) for p in range(1, 3)]
+    loose = set(score_units("en", units, 3, min_df=3, max_df=1.0).table["term"])
+    strict = score_units("en", units, 3, min_df=3, max_df=1.0, min_texts=3).table
+    assert {"coral reef", "tide gauge"} <= loose
+    assert "tide gauge" in set(strict["term"])
+    assert not {"coral reef", "coral", "reef"} & set(strict["term"])
+    assert KeywordsConfig().min_texts == 3
