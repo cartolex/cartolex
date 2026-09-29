@@ -12,6 +12,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import shutil
 from pathlib import Path
@@ -318,6 +320,51 @@ def test_the_legacy_bundle_version_is_kept_without_a_tree(two_levels):
 
 
 @pytest.mark.models("en", "fr")
+def _parsed(data: bytes, name: str):
+    """A CSV as rows of cells, a JSON file as its value."""
+    text = data.decode("utf-8")
+    if name.endswith(".json"):
+        return json.loads(text)
+    return list(csv.reader(io.StringIO(text)))
+
+
+def _float(value):
+    """*value* as a float when it is a floating-point number, else None (integers stay exact)."""
+    if isinstance(value, float):
+        return value
+    if isinstance(value, str) and any(c in value for c in ".eE"):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _assert_same_up_to_float_noise(got: bytes, want: bytes, name: str, rtol: float = 1e-10) -> None:
+    """Equal files, except that numbers may differ in their last bits (block arithmetic).
+
+    Every non-numeric field must match exactly; the bound is the one the block code's own
+    tests use.
+    """
+
+    def same(a, b, where: str) -> None:
+        x, y = _float(a), _float(b)
+        if a != b and x is not None and y is not None:
+            assert np.isclose(x, y, rtol=rtol, atol=0.0, equal_nan=True), (name, where, a, b)
+        elif isinstance(a, dict) and isinstance(b, dict):
+            assert list(a) == list(b), (name, where)
+            for key in a:
+                same(a[key], b[key], f"{where}/{key}")
+        elif isinstance(a, list) and isinstance(b, list):
+            assert len(a) == len(b), (name, where)
+            for i, (u, v) in enumerate(zip(a, b, strict=True)):
+                same(u, v, f"{where}[{i}]")
+        else:
+            assert a == b, (name, where, a, b)
+
+    same(_parsed(got, name), _parsed(want, name), "")
+
+
 def test_trajectories_taken_by_chunks_of_people_equal_one_pass(built, tmp_path, monkeypatch):
     from cartolex.atlas import driver
 
@@ -330,5 +377,5 @@ def test_trajectories_taken_by_chunks_of_people_equal_one_pass(built, tmp_path, 
     monkeypatch.setattr(driver, "TRAJECTORY_CHUNK", 4)  # ten chunks of people on the S world
     assert cli(["build", str(root), "--force", "map.trajectories"]) == 0
     for name, data in before.items():
-        assert (folder / name).read_bytes() == data, name
+        _assert_same_up_to_float_noise((folder / name).read_bytes(), data, name)
     pd.testing.assert_frame_equal(pd.read_parquet(folder / "trajectory_themes.parquet"), themes)
