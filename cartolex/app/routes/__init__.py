@@ -13,10 +13,12 @@ from . import (
     handoff,
     jobs,
     keywords,
+    machine,
     maps,
     me,
     params,
     people,
+    project_tools,
     projects,
     settings,
     share,
@@ -49,6 +51,8 @@ ROUTERS: list[APIRouter] = [
         atlas,
         share,
         settings,
+        project_tools,
+        machine,
         handoff,
     )
 ]

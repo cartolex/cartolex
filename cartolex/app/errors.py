@@ -301,6 +301,17 @@ ERRORS: dict[str, ErrorKind] = {
     "proposal_changed": ErrorKind(
         409, "a newer proposal ({run}) replaced the one you saw: look at it first", "reload"
     ),
+    # settings
+    "keys_hosted": ErrorKind(
+        409, "on a hosted service the keys are set by whoever runs it", "none"
+    ),
+    "stopword_both": ErrorKind(422, "a word is both added and removed: {words}", "fix-input"),
+    "prompt_not_found": ErrorKind(404, "there is no prompt {name} to change", "reload"),
+    "prompt_invalid": ErrorKind(422, "the prompt cannot be read: {detail}", "fix-input"),
+    "prompt_placeholder": ErrorKind(
+        422, "the prompt uses placeholders the AI clean-up does not fill: {unknown}", "fix-input"
+    ),
+    "not_a_backup": ErrorKind(422, "this file is not a backup of a cartolex project", "fix-input"),
     "no_space": ErrorKind(409, "the keywords have no space yet: build the themes first", "build"),
     "theme_handoff_empty": ErrorKind(404, "the tree holds no keyword to send", "none"),
     "invalid_theme_bundle": ErrorKind(

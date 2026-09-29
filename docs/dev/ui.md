@@ -292,7 +292,7 @@ extension), `GET /api/project/state`, `GET /api/jobs` and
 path, and the app's Content-Security-Policy on every answer.
 
 The core pages' modules (`pages/people.js`, `keywords.js`, `map.js`,
-`share.js`, `settings.js`) are placeholders until their screens are built;
+`share.js`) are placeholders until their screens are built;
 pages placed in `settings` are listed in the header's settings menu. The
 themes screen (`pages/themes.js`, {doc}`themes-editor`) is built. A screen
 is split into modules of a few hundred lines each, under a folder named after

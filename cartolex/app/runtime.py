@@ -62,6 +62,19 @@ class Cache:
 class Runtime:
     """Everything one app holds while it runs."""
 
+    def ai_access(self) -> Any:
+        """How the build reaches the AI provider now: the launch's access, else a key saved here."""
+        if self.settings.ai_access is not None:
+            return self.settings.ai_access
+        if self.settings.hosted:
+            return None
+        key = self.keys.get("mistral")
+        if not key:
+            return None
+        from cartolex.build.engine import AIAccess
+
+        return AIAccess(api_key=key)
+
     def __init__(self, settings: AppSettings, extensions: Combined) -> None:
         from cartolex.build.engine import EngineOptions, engine_registry
 
@@ -88,8 +101,12 @@ class Runtime:
         self.jobs: JobRunner = settings.job_runner or LocalJobRunner()
         self.collection: CollectionService = settings.collection or UnavailableCollection()
         self.site_builder: SiteBuilder = settings.site_builder or StubSiteBuilder()
+        from .machine import MachineKeys
+
+        #: The keys saved on this computer (none on a hosted service).
+        self.keys = MachineKeys(settings.data_dir if not settings.hosted else None)
         base = settings.registry or engine_registry(
-            settings.ai_access,
+            self.ai_access,
             EngineOptions(
                 prompt_dir=extensions.prompt_dir,
                 stopword_overlay=extensions.stopword_overlay or None,

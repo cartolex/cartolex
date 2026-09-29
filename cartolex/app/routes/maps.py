@@ -24,7 +24,7 @@ class VersionAction(BaseModel):
     action: Literal["pin", "try", "discard"]
     version: Annotated[str | None, Field(pattern=r"^[A-Za-z0-9_-]{1,32}$")] = None
     seed: Annotated[int | None, Field(ge=0, lt=2**32)] = None
-    method: Literal["umap"] | None = None
+    method: Literal["umap", "tsne", "tree"] | None = None
     note: Annotated[str, Field(max_length=500)] = ""
     build: bool = False
 
@@ -34,7 +34,13 @@ def _view(ctx: Any) -> dict[str, Any]:
 
     maps, fp = read_maps(ctx.layout)
     versions = [{**v.model_dump(mode="json"), "pinned": v.id == maps.pinned} for v in maps.versions]
+    from cartolex.atlas.reducers import opentsne_available
+    from cartolex.build.engine import TSNE_FROM_PEOPLE
+
+    tsne = opentsne_available()
     return {
+        "methods": ["umap", "tsne", "tree"] if tsne else ["umap", "tree"],
+        "default_method": {"tsne_from_people": TSNE_FROM_PEOPLE, "tsne_available": tsne},
         "pinned": maps.pinned,
         "versions": versions[::-1],
         "version": version_of(fp),

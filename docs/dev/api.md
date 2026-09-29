@@ -193,7 +193,7 @@ projected sets and identity, and opens it.
 | `GET /api/params` | per stage, each parameter's effective value, origin (`default`, `rule` with the rule, `params.json`), limits, the value of its last run and whether it changed since; the validation messages; the sizes the rules use |
 | `PUT /api/params {seed, pinned_year, stages}` | replace `decisions/params.json` (`If-Match`); refused values: 422 with every reason |
 | `GET /api/map/versions` | the versions, newest first, and the pinned one |
-| `POST /api/map/versions {action: pin | try | discard, version, seed, note, build}` | pin a version, try another layout (a new version beside the pinned one), discard a version nobody pinned; `build: true` also redraws the map |
+| `POST /api/map/versions {action: pin | try | discard, version, seed, method, note, build}` | pin a version, try another layout (a new version beside the pinned one, with another seed or `method`: `umap`, `tsne` when openTSNE is installed, `tree`), discard a version nobody pinned; `build: true` also redraws the map. `GET` gives `methods` and the default rule (`default_method`: t-SNE from `tsne_from_people` mapped people) |
 
 **Snapshots**: `GET /api/snapshots` (each decision file's versions and each
 stage's current and previous generation), `GET /api/snapshots?file=themes.json`,
@@ -237,6 +237,12 @@ version, so it can be undone too).
 | --- | --- |
 | `GET /api/share`, `POST /api/share/builds` | the site builds in `outputs/sites/`; building a site comes in a later version (501 until then) |
 | `GET /api/settings`, `PUT /api/settings` | languages, language models, the AI identity (with what changing a frozen one costs: 409 `identity_frozen` unless `confirm_identity_change`), slots, projected sets, levels, data sources |
+| `GET /api/settings/stopwords`, `PUT /api/settings/stopwords {add, remove}` | the words added to and removed from the lists of words that are never keywords, per language (`decisions/stopwords.json`, `If-Match`); a word both added and removed: `stopword_both` |
+| `GET /api/settings/prompts`, `PUT /api/settings/prompts/{name} {text}` | the prompts a project may replace (the packaged text, the project's own in `decisions/prompts/<name>.txt`, the placeholders); `text: null` goes back to the packaged one (the project's is kept in the history); a placeholder the packaged text lacks: `prompt_placeholder` (`If-Match`) |
+| `GET /api/settings/backup` | a zip of `project.json` and `decisions/` with its history, and `backup.json` (`cartolex-backup/1`); texts, caches and built results are left out |
+| `POST /api/settings/restore` | a backup (multipart `file`): its decision files replace the project's, each current version kept in its history first; `project.json` stays; `not_a_backup` otherwise |
+| `POST /api/settings/reset {what: built}` | remove the built results (every stage is then never built); decisions, texts and caches stay; 409 `busy` while a job runs |
+| `GET /api/machine`, `PUT /api/machine/keys {service, key}` | this computer: the keys saved on it (`mistral`, `openalex`; whether set, from the environment or saved, the last four characters; never shown whole, never in a project: `<data dir>/keys.json`, readable by its owner only; an environment variable wins), whether the AI clean-up can run by API, OpenAlex's daily budget with and without a key, the processors, the memory available and the build's memory budget; `key: null` removes a key; refused on a hosted service (`keys_hosted`) |
 | `POST /api/handoff/export {band, terms, lang, limit, max_tokens}` | the parts of a handoff (`cartolex.project.handoff`): for each, the prompt to paste, the terms to attach and the answer's format, its `bundle.json` (`cartolex-handoff/1`, sent back with the answer), and what they contain and never contain; parts stay under `max_tokens` (a chat assistant reads a limited amount at once) |
 | `POST /api/handoff/export.zip` | the same parts as a zip, one folder per part |
 | `POST /api/handoff/import {bundle, answer}` | keep the answer as it came in `decisions/history/ai/` (with the part it answers) and propose a decision per answered term, with what could not be read (lines ignored, renumbered, unmatched); the first answers freeze the identity |
@@ -318,6 +324,12 @@ catalogues give each code its text in every interface language.
 | `job_not_found` | 404 | there is no job {job} | `job` | `reload` |
 | `job_ended` | 409 | the job has already ended ({state}) | `state` | `none` |
 | `job_elsewhere` | 409 | this job runs in another process; stop it there | — | `none` |
+| `keys_hosted` | 409 | on a hosted service the keys are set by whoever runs it | — | `none` |
+| `stopword_both` | 422 | a word is both added and removed: {words} | `words` | `fix-input` |
+| `prompt_not_found` | 404 | there is no prompt {name} to change | `name` | `reload` |
+| `prompt_invalid` | 422 | the prompt cannot be read: {detail} | `detail` | `fix-input` |
+| `prompt_placeholder` | 422 | the prompt uses placeholders the AI clean-up does not fill: {unknown} | `unknown`, `allowed` | `fix-input` |
+| `not_a_backup` | 422 | this file is not a backup of a cartolex project | — | `fix-input` |
 | `map_version_not_found` | 404 | there is no map version {version} | `version` | `reload` |
 | `map_version_missing` | 422 | name the version to {action} | `action` | `fix-input` |
 | `map_version_pinned` | 409 | {version} is pinned: pin another version before discarding it | `version` | `fix-input` |
