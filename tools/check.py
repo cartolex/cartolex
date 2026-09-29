@@ -71,6 +71,10 @@ def ensure_venv(python: str, extras: str = "dev") -> Path:
     installed from their pinned wheels, checked against their hashes.
     """
     venv = VENVS / f"py{python}"
+    if os.environ.get("CARTOLEX_VENVS_FROZEN") and (venv / "pyvenv.cfg").is_file():
+        # Environments shared by several checkouts: use them as they are (the tree under
+        # test comes first on the path), never reinstall while another check runs.
+        return venv
     stamp = venv / ".cartolex-stamp"
     want = f"{_file_hash(ROOT / 'pyproject.toml')}:{_file_hash(MODELS)}:{extras}"
     if stamp.is_file() and stamp.read_text(encoding="utf-8") == want:

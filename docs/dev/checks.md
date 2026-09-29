@@ -118,3 +118,7 @@ The vocabulary scan's list is a repository secret, `CARTOLEX_DENYLIST`, that
 holds the list's text; the workflow writes it to a temporary file and points
 `$CARTOLEX_DENYLIST` at it. Without the secret the scan is skipped and the run
 says so. The list is never committed.
+
+`CARTOLEX_VENVS_FROZEN=1` uses the environments in `.venvs/` as they are, without
+refreshing them: for several checkouts sharing one set of environments, where a
+refresh by one check would pull packages from under another.
