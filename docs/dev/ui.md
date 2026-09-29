@@ -291,7 +291,7 @@ extension), `GET /api/project/state`, `GET /api/jobs` and
 `POST /api/jobs/<id>/cancel` (`tests/fixtures/ui/`), the shell for every other
 path, and the app's Content-Security-Policy on every answer.
 
-The core pages' modules (`pages/people.js`, `keywords.js`, `map.js`,
+The core pages' modules (`pages/keywords.js`, `map.js`,
 `share.js`, `settings.js`) are placeholders until their screens are built;
 pages placed in `settings` are listed in the header's settings menu. The
 themes screen (`pages/themes.js`, {doc}`themes-editor`) is built. A screen
@@ -303,7 +303,22 @@ treemap and map panels (`treemap.js`, `map.js`, `centre.js`), the side panel
 `dialogs.js`), the draft store (`store.js`), the versions (`versions.js`) and
 the AI handoff (`handoff.js`), over the tree's model (`model.js`,
 `labels.js`). Static modules cost nothing after the first load (they are
-cached), so the budget of a navigation counts API calls only. The fixture
+cached), so the budget of a navigation counts API calls only.
+
+The corpus screen (`pages/people.js`, route `/people`) loads
+`pages/people/page.js`: the tabs People (`people-tab.js`), Identities
+(`identities.js`, the queue, keyboard first), Organisations (`orgs-tab.js`,
+with the people of institutions), Texts (`texts-tab.js`), Collaborators
+(`collaborators-tab.js`) and Coverage (`coverage-tab.js`); a person's sheet
+(`sheet.js`); the import and collect dialogs (`import.js`, `collect.js`, whose
+`Notice` shows what leaves the computer); and `common.js`. Its lists are paged
+on the server: `usePaged(ctx, path, query, keyOf)` gives the Table a row per
+item of the list, placeholders until their page is read, and reads the pages
+the Table says are in view (`onRange`); a query key starting with `$` (a
+version) restarts the list without being sent. The Table takes
+`onRange({first, last})` (the rows in view), `onActiveChange(row)` (the
+active row, for a panel beside the list), rows marked `$pending` (shown as
+placeholders) and `size="fill"` (its container's height). The fixture
 server answers the themes screen with a small tree
 (`tests/fixtures/ui/themes.example.json`).
 
@@ -340,6 +355,10 @@ console error, an uncaught exception or a CSP violation fails a test:
 - the shell's behaviour: start order, cached status dots, routing and focus,
   guards, late answers dropped, the extension API, the API client, the
   Activity drawer;
+- the corpus screen on the real app and the demo services
+  (`tests/browser/test_corpus.py`, world XS): what leaves the computer before
+  a collection, the collection as a job, the identity queue with the keyboard,
+  the clear matches in bulk, a person's sheet, axe;
 - the theme editor on the real app (`tests/browser/test_theme_editor.py`, with
   `app_harness.py`): the S demo world built as a project once per session,
   then each scenario on a fresh copy served by the app on a free loopback port

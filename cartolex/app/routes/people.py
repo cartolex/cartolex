@@ -10,7 +10,7 @@ from fastapi import Query, Request, Response
 from pydantic import BaseModel, Field
 
 from ..collection import new_import_id
-from ..deps import ListDep, ProjectDep, page
+from ..deps import ListDep, ProjectDep
 from ..errors import ApiError
 from ..etags import check_version, etag_of, expected_version, version_of
 from ..messages import empty
@@ -29,8 +29,17 @@ def _name(p: dict[str, Any]) -> str:
     return f"{p['last_name']} {p['first_name']}".casefold()
 
 
-#: The most values a column's facet lists (a column with more is filtered by text only).
-MAX_FACET_VALUES = 50
+#: The people list's sorts.
+SORTS = {
+    "name": _name,
+    "role": lambda p: p["role"],
+    "identity": lambda p: p["identity"],
+    "texts": lambda p: p["coverage"].get("texts", 0),
+    "unit": lambda p: p["unit"].casefold(),
+    "state": lambda p: ("failed", "no_data", "thin", "good", "").index(p["state"]),
+}
+
+
 CoverageFilter = Literal["good", "thin", "none", "failed", "no_data"]
 
 
@@ -46,21 +55,15 @@ class PeopleFilter(BaseModel):
     columns: Annotated[dict[str, str], Field(max_length=20)] = {}
 
 
-def _filtered(
-    people: list[dict[str, Any]], states: dict[str, dict[str, Any]], f: PeopleFilter
-) -> list[dict[str, Any]]:
+def _filtered(people: list[dict[str, Any]], f: PeopleFilter) -> list[dict[str, Any]]:
     q = (f.q or "").strip().casefold()
-
-    def state_of(p: dict[str, Any]) -> str:
-        return (states.get(p["person_id"]) or {}).get("state", "")
-
     return [
         p
         for p in people
         if (f.role is None or p["role"] == f.role)
         and (f.identity is None or p["identity"] == f.identity)
         and (f.set is None or p["set"] == f.set)
-        and (f.coverage is None or _coverage_is(p, state_of(p), f.coverage))
+        and (f.coverage is None or _coverage_is(p, p["state"], f.coverage))
         and (f.source is None or p["source"] == f.source)
         and all(p["columns"].get(k, "") == v for k, v in f.columns.items())
         and (not q or q in _name(p) or q in p["unit"].casefold())
@@ -74,26 +77,6 @@ def _coverage_is(p: dict[str, Any], state: str, wanted: str) -> bool:
     if wanted == "none":
         return p["coverage"]["class"] == "none"
     return state == wanted if state else p["coverage"]["class"] == wanted
-
-
-def _facets(people: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Each extra column of the people (from their lists): its values and how many have each."""
-    values: dict[str, dict[str, int]] = {}
-    for p in people:
-        for key, value in p["columns"].items():
-            values.setdefault(key, {})
-            values[key][value] = values[key].get(value, 0) + 1
-    out = []
-    for key in sorted(values):
-        counted = sorted(values[key].items(), key=lambda kv: (-kv[1], kv[0]))
-        out.append(
-            {
-                "column": key,
-                "values": [{"value": v, "count": n} for v, n in counted[:MAX_FACET_VALUES]],
-                "distinct": len(counted),
-            }
-        )
-    return out
 
 
 @routes.get("/api/people", action="people.read")
@@ -116,26 +99,10 @@ def list_people(
     that value (repeat it for several). The answer's ``facets`` list each extra column's
     values, for filters built from the people's own columns.
     """
-    from ..corpus_view import coverage_states
+    from ..corpus_view import ordered, people_view
 
-    runtime = runtime_of(request)
-    people, fp = read_people(ctx.project, runtime.table_cache)
-    states = coverage_states(ctx.project, runtime.table_cache) if people else {}
-    counts: dict[str, dict[str, int]] = {"role": {}, "identity": {}, "coverage": {}, "state": {}}
-    for p in people:
-        st = states.get(p["person_id"])
-        p["state"] = st["state"] if st else ""
-        p["cause"] = (
-            {"code": st["cause"], "message": st["cause_text"]} if st and st["cause"] else None
-        )
-        for key, value in (
-            ("role", p["role"]),
-            ("identity", p["identity"]),
-            ("coverage", p["coverage"]["class"]),
-            ("state", p["state"]),
-        ):
-            if value:
-                counts[key][value] = counts[key].get(value, 0) + 1
+    view = people_view(ctx.project, runtime_of(request).table_cache)
+    people, fp = view["people"], view["fp"]
     columns: dict[str, str] = {}
     for item in col or []:
         key, sep, value = item.partition(":")
@@ -151,33 +118,40 @@ def list_people(
         q=params.q,
         columns=columns,
     )
-    rows = _filtered(people, states, wanted)
+    sort = params.sort or "name"
+    name = sort.lstrip("-")
+    if name not in SORTS:
+        raise ApiError.of("invalid_sort", sort=name, sorts=sorted(SORTS))
+    rows = _filtered(ordered(view, name, SORTS[name], sort.startswith("-")), wanted)
     response.headers["ETag"] = etag_of(fp)
-    nothing = empty("empty_no_people") if not people else empty("empty_no_match")
-    return page(
-        rows,
-        params,
-        sorts={
-            "name": _name,
-            "role": lambda p: p["role"],
-            "identity": lambda p: p["identity"],
-            "texts": lambda p: p["coverage"].get("texts", 0),
-            "unit": lambda p: p["unit"].casefold(),
-            "state": lambda p: ("failed", "no_data", "thin", "good", "").index(p["state"]),
+    return {
+        "items": rows[params.offset : params.offset + params.limit],
+        "total": len(rows),
+        "offset": params.offset,
+        "limit": params.limit,
+        "sort": sort,
+        "sorts": sorted(SORTS),
+        "filters": {
+            k: v
+            for k, v in {
+                "role": role,
+                "identity": identity,
+                "set": set,
+                "coverage": coverage,
+                "source": source,
+                "col": col,
+                "q": params.q,
+            }.items()
+            if v not in (None, "", [])
         },
-        default_sort="name",
-        filters={
-            "role": role,
-            "identity": identity,
-            "set": set,
-            "coverage": coverage,
-            "source": source,
-            "col": col,
-            "q": params.q,
-        },
-        empty=nothing,
-        extra={"counts": counts, "facets": _facets(people), "version": version_of(fp)},
-    )
+        "empty": None
+        if rows
+        else (empty("empty_no_people") if not people else empty("empty_no_match")),
+        "counts": view["counts"],
+        "facets": view["facets"],
+        "sets": [o.id for o in ctx.project.config.overlays],
+        "version": version_of(fp),
+    }
 
 
 class PeopleEdit(BaseModel):
@@ -226,11 +200,10 @@ def edit_people(
         check_version(ctx.layout.people_csv, expected)
         ids = list(body.person_ids)
         if body.where is not None:
-            from ..corpus_view import coverage_states
+            from ..corpus_view import people_view
 
-            people, _ = read_people(ctx.project, runtime_of(request).table_cache)
-            states = coverage_states(ctx.project, runtime_of(request).table_cache)
-            ids = [p["person_id"] for p in _filtered(people, states, body.where)]
+            view = people_view(ctx.project, runtime_of(request).table_cache)
+            ids = [p["person_id"] for p in _filtered(view["people"], body.where)]
         if not ids:
             raise ApiError.of("nothing_to_change")
         _known(request, ctx, ids)

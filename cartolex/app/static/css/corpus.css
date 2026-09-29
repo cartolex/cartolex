@@ -1,0 +1,592 @@
+/* SPDX-License-Identifier: MIT */
+/*
+ * The corpus screen (pages/people/): a head, the tabs, and a list that fills
+ * the window under them; the identity queue's two panes; the sheets and the
+ * dialogs. Colours, sizes and durations come from tokens.css only.
+ */
+
+.cx-main:has(> .cx-outlet > .cx-corpus) {
+  max-width: none;
+  padding: var(--cx-space-4) var(--cx-space-5) var(--cx-space-4);
+}
+
+.cx-corpus {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cx-space-3);
+  height: calc(100vh - var(--cx-header-height) - 2 * var(--cx-space-4));
+  min-height: 36rem;
+}
+
+.cx-corpus__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--cx-space-3) var(--cx-space-5);
+}
+
+.cx-corpus__head .cx-page__title {
+  font-size: var(--cx-text-2xl);
+}
+
+.cx-corpus__summary,
+.cx-corpus-muted {
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}
+
+.cx-corpus__summary {
+  margin: var(--cx-space-1) 0 0;
+}
+
+.cx-corpus__actions,
+.cx-corpus-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cx-space-2);
+}
+
+.cx-corpus__note,
+.cx-corpus-note {
+  margin: 0;
+  padding: var(--cx-space-2) var(--cx-space-3);
+  border-left: 3px solid var(--cx-border-strong);
+  background: var(--cx-surface-alt);
+  font-size: var(--cx-text-s);
+}
+
+/* The tabs fill what is left; the selected panel holds one list that fills it. */
+.cx-corpus__tabs {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.cx-corpus__tabs > .cx-tabs__list {
+  flex: 0 0 auto;
+}
+
+.cx-corpus__tabs > .cx-tabs__panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: var(--cx-space-3);
+}
+
+.cx-corpus-tab {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--cx-space-3);
+  min-height: 0;
+}
+
+.cx-corpus-tab > .cx-table--fill {
+  flex: 1 1 auto;
+}
+
+.cx-corpus-tab--scroll {
+  overflow: auto;
+}
+
+/* Filters and the bulk bar. */
+.cx-corpus-filters,
+.cx-corpus-bulk,
+.cx-corpus-runinfo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cx-space-2) var(--cx-space-3);
+}
+
+.cx-corpus-filters__search {
+  flex: 1 1 14rem;
+  max-width: 24rem;
+}
+
+.cx-corpus-filters__search .cx-input {
+  width: 100%;
+}
+
+.cx-corpus-filters__select .cx-select {
+  min-width: 10rem;
+}
+
+.cx-corpus-bulk {
+  min-height: var(--cx-control-height);
+  font-size: var(--cx-text-s);
+}
+
+.cx-corpus-bulk__count {
+  font-variant-numeric: tabular-nums;
+}
+
+.cx-corpus-runinfo p {
+  margin: 0;
+}
+
+.cx-corpus-keys {
+  margin: 0 0 0 auto;
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-xs);
+}
+
+.cx-corpus-name {
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-corpus-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--cx-space-2);
+  border: var(--cx-rule-width) solid var(--cx-border-strong);
+  border-radius: var(--cx-radius-pill);
+  font-size: var(--cx-text-xs);
+  white-space: nowrap;
+}
+
+.cx-corpus-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.cx-corpus-kbd {
+  display: inline-block;
+  min-width: 1.4em;
+  padding: 0 var(--cx-space-1);
+  border: var(--cx-rule-width) solid var(--cx-border);
+  border-bottom-width: 2px;
+  border-radius: var(--cx-radius-s);
+  font-family: var(--cx-font-mono);
+  font-size: var(--cx-text-xs);
+  text-align: center;
+}
+
+.cx-corpus-warning {
+  padding: var(--cx-space-2) var(--cx-space-3);
+  border-left: 3px solid var(--cx-warning);
+  background: var(--cx-warning-surface);
+}
+
+.cx-corpus-warning__word {
+  font-weight: var(--cx-weight-bold);
+}
+
+/* The identity queue: the list on the left, the person's candidates on the right. */
+.cx-corpus-split {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: minmax(18rem, 2fr) minmax(22rem, 3fr);
+  gap: var(--cx-space-4);
+  min-height: 0;
+}
+
+.cx-corpus-split__list {
+  display: flex;
+  min-height: 0;
+}
+
+.cx-corpus-split__list > .cx-table {
+  flex: 1 1 auto;
+}
+
+.cx-corpus-split__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cx-space-3);
+  min-height: 0;
+  padding: var(--cx-space-3) var(--cx-space-4);
+  overflow: auto;
+  border: var(--cx-rule-width) solid var(--cx-rule);
+  border-radius: var(--cx-radius-m);
+  background: var(--cx-surface);
+}
+
+.cx-corpus-panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--cx-space-1) var(--cx-space-3);
+}
+
+.cx-corpus-panel__head p {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+.cx-corpus-panel__title {
+  margin: 0;
+  font-size: var(--cx-text-l);
+}
+
+.cx-corpus-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-2);
+}
+
+.cx-corpus-cands {
+  display: grid;
+  gap: var(--cx-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cx-corpus-cand {
+  border: var(--cx-rule-width) solid var(--cx-border);
+  border-radius: var(--cx-radius-m);
+}
+
+.cx-corpus-cand.is-picked {
+  border-color: var(--cx-text);
+  box-shadow: inset 3px 0 0 var(--cx-text);
+}
+
+.cx-corpus-cand__pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cx-space-2);
+  width: 100%;
+  padding: var(--cx-space-2) var(--cx-space-3);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.cx-corpus-cand__pick:disabled {
+  cursor: default;
+}
+
+.cx-corpus-cand.is-unusable {
+  border-style: dashed;
+}
+
+.cx-corpus-cand__name {
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-corpus-cand__finder,
+.cx-corpus-cand__score {
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+  font-variant-numeric: tabular-nums;
+}
+
+.cx-corpus-cand__body {
+  padding: 0 var(--cx-space-3) var(--cx-space-2) calc(var(--cx-space-3) + 1.8em);
+  font-size: var(--cx-text-s);
+}
+
+.cx-corpus-cand__body p {
+  margin: var(--cx-space-1) 0;
+}
+
+.cx-corpus-cand__record {
+  font-size: var(--cx-text-xs);
+}
+
+.cx-corpus-cand__evidence {
+  margin: var(--cx-space-1) 0 0;
+  padding-left: var(--cx-space-4);
+}
+
+.cx-corpus-paste__row {
+  display: flex;
+  gap: var(--cx-space-2);
+}
+
+.cx-corpus-paste__row .cx-input {
+  flex: 1 1 auto;
+}
+
+.cx-corpus-paste__row .cx-button {
+  white-space: nowrap;
+}
+
+/* Sheets and drawers. */
+.cx-corpus-sheet {
+  display: grid;
+  gap: var(--cx-space-4);
+}
+
+.cx-corpus-sheet section {
+  display: grid;
+  gap: var(--cx-space-2);
+}
+
+.cx-corpus-h3 {
+  margin: 0;
+  font-size: var(--cx-text-m);
+  font-weight: var(--cx-weight-bold);
+}
+
+.cx-corpus-verdict {
+  display: grid;
+  gap: var(--cx-space-1);
+  padding: var(--cx-space-3);
+  border: var(--cx-rule-width) solid var(--cx-border);
+  border-radius: var(--cx-radius-m);
+  background: var(--cx-surface-alt);
+}
+
+.cx-corpus-verdict p {
+  margin: 0;
+}
+
+.cx-corpus-verdict--failed {
+  border-left: 3px solid var(--cx-danger);
+}
+
+.cx-corpus-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--cx-space-1) var(--cx-space-4);
+  margin: 0;
+}
+
+.cx-corpus-fact {
+  display: contents;
+}
+
+.cx-corpus-fact dt {
+  color: var(--cx-text-muted);
+}
+
+.cx-corpus-fact dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.cx-corpus-list,
+.cx-corpus-links,
+.cx-corpus-causes,
+.cx-corpus-checks,
+.cx-corpus-dups,
+.cx-corpus-bars {
+  display: grid;
+  gap: var(--cx-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cx-corpus-links {
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+}
+
+.cx-corpus-texts li {
+  display: flex;
+  gap: var(--cx-space-2);
+}
+
+.cx-corpus-texts__year {
+  flex: 0 0 3rem;
+  color: var(--cx-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cx-corpus-simple {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--cx-text-s);
+}
+
+.cx-corpus-simple th,
+.cx-corpus-simple td {
+  padding: var(--cx-space-1) var(--cx-space-2);
+  border-bottom: var(--cx-rule-width) solid var(--cx-rule);
+  text-align: start;
+  vertical-align: top;
+}
+
+.cx-corpus-simple thead th {
+  background: var(--cx-surface-alt);
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-corpus-part summary {
+  cursor: pointer;
+}
+
+.cx-corpus-part__text {
+  margin: var(--cx-space-2) 0 0;
+  white-space: pre-line;
+  font-size: var(--cx-text-s);
+}
+
+/* The richest content of a text, by shape: a dash, a half square, a full square. */
+.cx-corpus-content {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cx-space-1);
+}
+
+.cx-corpus-content__shape {
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 1.5px solid var(--cx-text);
+}
+
+.cx-corpus-content--title .cx-corpus-content__shape {
+  height: 0;
+  border-width: 1.5px 0 0;
+}
+
+.cx-corpus-content--abstract .cx-corpus-content__shape {
+  background: linear-gradient(90deg, var(--cx-text) 50%, transparent 50%);
+}
+
+.cx-corpus-content--full .cx-corpus-content__shape {
+  background: var(--cx-text);
+}
+
+/* Coverage. */
+.cx-corpus-states {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--cx-space-3);
+}
+
+.cx-corpus-stat {
+  display: grid;
+  justify-items: start;
+  gap: var(--cx-space-1);
+  padding: var(--cx-space-3);
+  border: var(--cx-rule-width) solid var(--cx-border);
+  border-radius: var(--cx-radius-m);
+  background: var(--cx-surface);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.cx-corpus-stat:hover {
+  background: var(--cx-surface-alt);
+}
+
+.cx-corpus-stat__n {
+  font-size: var(--cx-text-2xl);
+  font-variant-numeric: tabular-nums;
+}
+
+.cx-corpus-causes li {
+  display: flex;
+  gap: var(--cx-space-3);
+}
+
+.cx-corpus-causes__n {
+  flex: 0 0 4rem;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.cx-corpus-two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--cx-space-3);
+}
+
+.cx-corpus-bars li {
+  display: grid;
+  grid-template-columns: 5rem 1fr 11rem;
+  align-items: center;
+  gap: var(--cx-space-2);
+  font-size: var(--cx-text-s);
+}
+
+.cx-corpus-bars__n {
+  color: var(--cx-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cx-corpus-bar {
+  display: block;
+  height: 0.6rem;
+  border-radius: var(--cx-radius-s);
+  background: var(--cx-surface-alt);
+  overflow: hidden;
+}
+
+.cx-corpus-bar__fill {
+  display: block;
+  width: calc(var(--cx-share, 0) * 100%);
+  height: 100%;
+  background: var(--cx-text-muted);
+}
+
+/* Dialogs: the notice of what leaves the computer, the mapping, results. */
+.cx-corpus-notice {
+  display: grid;
+  gap: var(--cx-space-2);
+}
+
+.cx-corpus-notice p {
+  margin: 0;
+}
+
+.cx-corpus-consent {
+  margin-top: var(--cx-space-3);
+}
+
+.cx-corpus-form {
+  display: grid;
+  gap: var(--cx-space-3);
+}
+
+.cx-corpus-form p {
+  margin: 0;
+}
+
+.cx-corpus-mapping th[scope='row'] {
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-corpus-refused {
+  color: var(--cx-text-muted);
+  font-style: italic;
+}
+
+.cx-corpus-file {
+  padding: var(--cx-space-1);
+}
+
+.cx-corpus-dups li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cx-space-2);
+}
+
+.cx-corpus-card {
+  flex: 0 0 auto;
+}
+
+.cx-corpus-fieldset {
+  display: grid;
+  gap: var(--cx-space-2);
+  margin: var(--cx-space-3) 0 0;
+  border: var(--cx-rule-width) solid var(--cx-rule);
+  border-radius: var(--cx-radius-m);
+}
+
+.cx-corpus-proposal {
+  display: grid;
+  gap: var(--cx-space-2);
+  margin-top: var(--cx-space-3);
+}
+
+@media (max-width: 60rem) {
+  .cx-corpus-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(14rem, 1fr) auto;
+  }
+}

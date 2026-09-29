@@ -18,6 +18,8 @@ from cartolex.project import Project
 from cartolex.project.tables import read_source_table
 
 __all__ = [
+    "ordered",
+    "people_view",
     "coverage_states",
     "organisation_detail",
     "organisations",
@@ -29,6 +31,8 @@ __all__ = [
 
 #: How much of a part's content a text's detail shows.
 PREVIEW_CHARS = 1200
+#: The most values a column's facet lists.
+MAX_FACET_VALUES = 50
 
 
 def stamp(project: Project) -> tuple[Any, ...]:
@@ -82,6 +86,78 @@ def coverage_states(project: Project, cache: Any = None) -> dict[str, dict[str, 
         }
 
     return _cached(cache, ("coverage-states", stamp(project)), compute)
+
+
+def _facets(people: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each extra column of the people (from their lists): its values and how many have each."""
+    values: dict[str, dict[str, int]] = {}
+    for p in people:
+        for key, value in p["columns"].items():
+            column = values.setdefault(key, {})
+            column[value] = column.get(value, 0) + 1
+    out = []
+    for key in sorted(values):
+        counted = sorted(values[key].items(), key=lambda kv: (-kv[1], kv[0]))
+        out.append(
+            {
+                "column": key,
+                "values": [{"value": v, "count": n} for v, n in counted[:MAX_FACET_VALUES]],
+                "distinct": len(counted),
+            }
+        )
+    return out
+
+
+def people_view(project: Project, cache: Any = None) -> dict[str, Any]:
+    """Every person (the tables joined with the decisions, their coverage state and first
+    blocking cause), ``people.csv``'s fingerprint, the counts per role, identity, class and
+    state, and the facets of the extra columns; computed once per version of what it reads.
+    The rows are shared: read them, never change them."""
+    from .people_io import read_people
+
+    def compute() -> dict[str, Any]:
+        people, fp = read_people(project, cache)
+        states = coverage_states(project, cache) if people else {}
+        counts: dict[str, dict[str, int]] = {
+            "role": {}, "identity": {}, "coverage": {}, "state": {}
+        }  # fmt: skip
+        for p in people:
+            st = states.get(p["person_id"])
+            p["state"] = st["state"] if st else ""
+            p["cause"] = (
+                {"code": st["cause"], "message": st["cause_text"]} if st and st["cause"] else None
+            )
+            for key, value in (
+                ("role", p["role"]),
+                ("identity", p["identity"]),
+                ("coverage", p["coverage"]["class"]),
+                ("state", p["state"]),
+            ):
+                if value:
+                    counts[key][value] = counts[key].get(value, 0) + 1
+        return {
+            "people": people,
+            "fp": fp,
+            "counts": counts,
+            "facets": _facets(people),
+            "orders": {},
+        }
+
+    return _cached(cache, ("people-view", stamp(project)), compute)
+
+
+def ordered(view: dict[str, Any], name: str, key: Any, descending: bool) -> list[dict[str, Any]]:
+    """The view's people sorted by *key* (kept with the view, so a list is sorted once)."""
+    orders = view["orders"]
+    if name not in orders:
+
+        def safe(item: dict[str, Any]) -> tuple[int, Any]:
+            value = key(item)
+            return (1, 0) if value is None else (0, value)
+
+        orders[name] = sorted(view["people"], key=safe)
+    rows = orders[name]
+    return rows[::-1] if descending else rows
 
 
 def _names(project: Project) -> dict[str, str]:

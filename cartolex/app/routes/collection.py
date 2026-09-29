@@ -142,13 +142,19 @@ def normalised(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
         evidence = c.get("evidence") or []
         if isinstance(evidence, dict):
             evidence = [f"{k}: {v}" for k, v in evidence.items() if v not in (None, "", False)]
+        evidence = [
+            {"text": str(e[0]), "points": e[1]}
+            if isinstance(e, list | tuple) and len(e) == 2
+            else {"text": str(e), "points": None}
+            for e in evidence
+        ]
         out.append(
             {
                 "finder": c.get("finder") or "demo",
                 "record": c.get("record"),
                 "name": c.get("name") or "",
                 "score": c.get("score"),
-                "evidence": list(evidence),
+                "evidence": evidence,
                 "detail": c.get("detail") or "",
                 "clear": c.get("clear"),
             }
@@ -177,8 +183,11 @@ def identities(
 ) -> dict[str, Any]:
     """The identity queue: each person to check, with every finder's candidate records and
     their evidence; ``clear`` keeps the people with (or without) a single clear match."""
+    from ..corpus_view import people_view
+
     runtime = runtime_of(request)
-    people, fp = read_people(ctx.project, runtime.table_cache)
+    view = people_view(ctx.project, runtime.table_cache)
+    people, fp = view["people"], view["fp"]
     rows = [
         p
         for p in people

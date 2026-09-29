@@ -313,6 +313,48 @@ only: `--retry` collects again for the people who failed, and them only),
 **add documents** (`--add-documents p000017 reports/`, a folder of that
 person's documents) and **exclude** (`--exclude p000017`).
 
+## In the app: the corpus screen
+
+The app's **People** screen (`/people`) does all of this without the command
+line. Its tabs:
+
+- **People**: everyone, with their role (mapped, context, projected), identity
+  (to check, confirmed, no record) and coverage state; filters by role,
+  identity, coverage and by the columns of your own list (a list's extra
+  columns become filters); change the role of the people selected, or of every
+  person the filters keep.
+- **Identities**: the queue of the people whose identity waits, with the
+  candidate records of every finder (OpenAlex with the ORCID registry as
+  evidence, HAL, SciELO), their score and evidence. The keyboard does it all:
+  ↑ ↓ a person, 1–9 a candidate, N none of these, ⏎ confirm; each decision is
+  saved at once. « Accept the clear matches » confirms, in one go, the people
+  with a single candidate and a high score.
+- **Organisations**: levels, parents, units and people, each affiliation with
+  its years; below, the people of institutions (search an institution by its
+  name, choose it, read its people, then take them).
+- **Texts**: each text with its richest part (title only, abstract, full
+  text), the providers of its parts, the records merged into it and its
+  preprints.
+- **Collaborators**: the co-authors found round by round, with their joint
+  texts, fit and path, the cap and whether a round was cut; decide on one or
+  many.
+- **Coverage**: good, thin, failed and no data, the first blocking causes, the
+  states by organisation, the texts by year and by language; retry what
+  failed, exclude the people without data.
+
+**Import** takes a list (CSV or pasted; each column's reading is proposed and
+editable, e-mail columns are refused), a folder of documents or a corpus (a
+zip), and proposes the possible duplicates. **Collect** runs identities,
+harvest, institutions, collaborators or a retry: it always shows first what
+leaves the computer (each host, why, what it receives, about how many
+requests and their cost, what never leaves), and starts only once you have
+read it; the collection then runs in the background, with its progress and a
+Stop button in the Activity drawer. A person's **sheet** (⏎ on a row) says why
+their profile is what it is, and offers retry, add documents and exclude.
+
+`cartolex app --services demo --world S:0` runs the app against the demo
+services of a demo world, on your computer.
+
 ## Trying it offline
 
 The demo services answer like OpenAlex and the ORCID registry, on your own

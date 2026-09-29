@@ -206,7 +206,10 @@ class ServiceCollection(BaseCollection):
                     self._host_json(entry["service"], 0, list(entry["sends"]), purpose=None)
                 )
         notes = [{"code": "note_text", "params": {"text": n}, "message": n} for n in base.notes]
-        if self.local:
+        if self.local:  # nothing is paid to services on this computer
+            for h in hosts:
+                h["cost_usd"] = None
+            notes = [n for n in notes if "budget" not in n["message"]]
             notes.insert(
                 0,
                 {
@@ -572,14 +575,13 @@ class ServiceCollection(BaseCollection):
         for entry in identity_queue(project):
             cands = []
             for c in entry["candidates"]:
-                evidence = c.get("evidence") or []
                 cands.append(
                     {
                         "finder": c["finder"],
                         "record": c.get("record"),
                         "name": c.get("name") or "",
                         "score": c.get("score"),
-                        "evidence": evidence,
+                        "evidence": c.get("evidence") or [],
                         "detail": c.get("detail") or "",
                     }
                 )

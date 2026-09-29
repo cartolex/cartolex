@@ -1348,6 +1348,18 @@ a.cx-button:hover {
   height: 28rem;
 }
 
+/* A table that takes its container's height (a screen's main list). */
+.cx-table--fill {
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+  height: 100%;
+}
+
+.cx-table--fill .cx-table__scroller {
+  height: 100%;
+  min-height: 12rem;
+}
+
 .cx-table.is-empty .cx-table__scroller {
   height: auto;
 }

@@ -48,8 +48,10 @@ def coverage(
     from cartolex.collect.decisions import collect_params
     from cartolex.collect.providers import coverage as slot_coverage
 
+    from ..corpus_view import people_view
+
     runtime = runtime_of(request)
-    people, _ = read_people(ctx.project, runtime.table_cache)
+    people = people_view(ctx.project, runtime.table_cache)["people"]
     states = coverage_states(ctx.project, runtime.table_cache)
     classes: dict[str, int] = {"good": 0, "thin": 0, "none": 0}
     by_state: dict[str, int] = dict.fromkeys(STATES, 0)

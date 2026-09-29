@@ -406,7 +406,7 @@ class DemoCollection(BaseCollection):
             )
         control.progress({"fraction": 1.0, "message": "done"})
         control.event("collected", people=len(matches), texts=len(texts))
-        return {"people": len(matches), "texts": len(texts), "slot": slot.id}
+        return {"action": "collect", "people": len(matches), "texts": len(texts), "slot": slot.id}
 
     def candidates(
         self, project: Project, person_ids: Sequence[str]

@@ -1,0 +1,144 @@
+# SPDX-License-Identifier: MIT
+"""The corpus screen on the real app and the demo services (world XS, on this computer).
+
+One scenario: the people imported, « what leaves the computer » before a
+collection (Start waits for the consent), the collection as a job, the
+identity queue decided with the keyboard (↓, 1, ⏎, N), the clear matches
+accepted in bulk, a person's sheet saying why their profile is empty; axe on
+the screen.
+"""
+
+from __future__ import annotations
+
+import csv
+import io
+import time
+
+import pytest
+from test_accessibility import blocking, run_axe
+
+REAL_ROW = ".cx-table__row:not(.cx-table__row--head):not(.cx-table__row--skeleton)"
+
+
+@pytest.fixture(scope="module")
+def services():
+    from cartolex.demo import generate
+    from cartolex.demo.services import DemoServices
+
+    with DemoServices(generate("XS", 0)) as svc:
+        yield svc
+
+
+@pytest.fixture()
+def corpus_app(tmp_path, services):
+    """The app on a project holding the demo list, collecting from the demo services."""
+    from app_harness import AppServer
+
+    from cartolex.app.collect_service import ServiceCollection
+    from cartolex.collect import local_settings
+    from cartolex.collect.people_import import import_people
+    from cartolex.project import Project
+    from cartolex.project.models import Level
+
+    project = Project.init(
+        tmp_path / "project", name="Coast", domain_title="Coastal systems",
+        corpus_languages=("en", "fr"),
+    )  # fmt: skip
+    levels = [Level(id="lab", names={"en": "Lab"}), Level(id="institution", names={"en": "Inst"})]
+    project.save_config(project.config.model_copy(update={"levels": levels}), action="levels")
+    rows = services.bibliography.people_rows()
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=list(rows[0]))
+    writer.writeheader()
+    writer.writerows(rows)
+    import_people(project, out.getvalue())
+    project.close()
+    collection = ServiceCollection(local_settings(services.endpoints()), local=True)
+    server = AppServer(tmp_path / "project", tmp_path / "app", collection=collection)
+    yield server
+    server.stop()
+
+
+def _get(ui, path: str) -> dict:
+    return ui.page.evaluate("async (p) => (await fetch(p)).json()", path)
+
+
+def _wait_jobs(ui, timeout: float = 60) -> dict:
+    deadline = time.monotonic() + timeout
+    while True:
+        jobs = _get(ui, "/api/jobs")["jobs"]
+        if jobs and jobs[0]["state"] not in ("queued", "running", "cancelling"):
+            return jobs[0]
+        assert time.monotonic() < deadline, jobs
+        time.sleep(0.1)
+
+
+def _count(ui, identity: str) -> int:
+    return _get(ui, f"/api/people?identity={identity}&limit=1")["total"]
+
+
+def _until(test, timeout: float = 10) -> None:
+    deadline = time.monotonic() + timeout
+    while not test():
+        assert time.monotonic() < deadline, "timed out"
+        time.sleep(0.05)
+
+
+def test_collect_identities_by_keyboard_and_a_sheet_that_says_why(corpus_app, open_app, axe_source):
+    ui = open_app(corpus_app, bypass_csp=True)
+    page = ui.page
+    ui.navigate("/people")
+    page.locator(f".cx-corpus {REAL_ROW}").first.wait_for()
+
+    # ── what leaves the computer comes first; Start waits for the consent ──
+    page.get_by_role("button", name="Collect").click()
+    page.get_by_role("menuitem", name="Find identities").click()
+    page.get_by_role("button", name="What leaves the computer").click()
+    notice = page.locator(".cx-corpus-notice")
+    notice.wait_for()
+    assert "OpenAlex" in notice.inner_text() and "HAL" in notice.inner_text()
+    assert "never leaves" in notice.inner_text()
+    start = page.get_by_role("button", name="Start")
+    assert start.is_disabled()
+    page.get_by_label("I have read what leaves the computer").check()
+    start.click()
+    assert _wait_jobs(ui)["state"] == "succeeded"
+
+    # ── the queue, by the keyboard: ↓ a person, 1 a candidate, ⏎ confirm, N none ──
+    page.get_by_role("tab", name="Identities").click()
+    queue = page.locator(".cx-corpus-queue")
+    queue.locator(REAL_ROW).first.wait_for()
+    before = _count(ui, "pending")
+    queue.locator(".cx-table__scroller").focus()
+    page.keyboard.press("ArrowDown")
+    queue.locator(".cx-corpus-panel__head").wait_for()
+    assert queue.locator(".cx-corpus-cand").count() >= 1
+    page.keyboard.press("1")
+    assert queue.locator(".cx-corpus-cand.is-picked").count() == 1
+    page.keyboard.press("Enter")
+    _until(lambda: _count(ui, "pending") == before - 1)
+    # the next person comes up; N says none of the candidates is them
+    queue.locator(".cx-corpus-panel__head").wait_for()
+    page.keyboard.press("n")
+    _until(lambda: _count(ui, "none") == 1)
+    assert _count(ui, "pending") == before - 2 and _count(ui, "confirmed") == 1
+    violations = blocking(run_axe(ui, axe_source))
+    assert violations == [], "\n".join(violations)
+
+    # ── the single clear matches in bulk ──
+    accept = page.get_by_role("button", name="Accept the")
+    accept.click()
+    _until(lambda: _count(ui, "confirmed") > 1)
+
+    # ── a person without a usable profile has a sheet saying why ──
+    page.get_by_role("tab", name="People").click()
+    page.get_by_label("Coverage", exact=True).select_option("no_data")
+    rows = page.locator(f".cx-corpus {REAL_ROW}")
+    rows.first.wait_for()
+    page.locator(".cx-corpus .cx-table__scroller").focus()
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("Enter")
+    sheet = page.locator(".cx-corpus-sheet")
+    sheet.wait_for()
+    assert "First blocking cause" in sheet.inner_text()
+    assert "No data" in sheet.inner_text()

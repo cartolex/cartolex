@@ -81,13 +81,17 @@ function useControlled(value, onChange, initial) {
  * @param {object} [props.error] an error model: shown instead of the rows
  * @param {any} [props.empty] shown when there are no rows (an EmptyState)
  * @param {number} [props.rowHeight] pixels
- * @param {'s'|'m'|'l'} [props.size] the viewport's height
+ * @param {'s'|'m'|'l'|'fill'} [props.size] the viewport's height ('fill': its container's)
+ * @param {(range: {first: number, last: number}) => void} [props.onRange] the rows in view
+ *   changed (a list paged on the server fetches them); rows not fetched yet are
+ *   `{$pending: true}` and shown as placeholders
+ * @param {(row: object|null) => void} [props.onActiveChange] the active row changed
  */
 export function Table({
   columns, rows, rowKey = (row) => row.id, label, sort: sortProp, onSortChange,
   defaultSort = null, sortMode = 'client', selection: selectionProp, onSelectionChange,
   onActivate, rowMenu, onRowMenu, loading = false, error = null, onRetry, empty,
-  rowHeight = 36, overscan = 6, size = 'm', class: cls = '',
+  rowHeight = 36, overscan = 6, size = 'm', class: cls = '', onRange, onActiveChange,
 }) {
   const id = useUid('cx-grid');
   const scroller = useRef(null);
@@ -152,6 +156,15 @@ export function Table({
   const last = Math.min(n - 1, Math.ceil((view.top + bodyHeight()) / rowHeight) + overscan);
   const activeIndex = activeKey === null ? -1 : index.has(activeKey) ? index.get(activeKey) : -1;
   if (activeIndex >= 0) lastActiveIndex.current = activeIndex;
+
+  // Tell a paged list which rows are in view, and the page which row is active.
+  useEffect(() => {
+    if (onRange && !loading && n) onRange({ first, last });
+  }, [first, last, n, loading]);
+  const activeRow = activeIndex >= 0 ? display[activeIndex] : null;
+  useEffect(() => {
+    if (onActiveChange) onActiveChange(activeRow);
+  }, [activeKey, activeRow]);
 
   // After each render, remember which row anchors the view (the active row when in
   // view, else the top row) and where: the next change of rows puts it back there.
@@ -357,7 +370,8 @@ export function Table({
         onContextMenu=${(e) => onRowMenuEvent(e, i)}>
         ${columns.map((c) => html`<div role="gridcell" key=${c.id}
           class=${`cx-table__cell ${c.align === 'end' || c.numeric ? 'cx-table__cell--end' : ''}`}>
-          ${c.render ? c.render(row) : c.numeric ? formatNumber(row[c.id]) : row[c.id]}
+          ${row.$pending ? html`<span class="cx-skeleton__line" aria-hidden="true"></span>`
+            : c.render ? c.render(row) : c.numeric ? formatNumber(row[c.id]) : row[c.id]}
         </div>`)}
       </div>`);
     }

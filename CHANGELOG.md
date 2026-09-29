@@ -422,6 +422,28 @@ nothing in the engine names a particular deployment, source or procedure.
   `themes_draft.json`, so projects of depth 1, 3 or 4 get their map and their
   tree. See `docs/dev/themes-editor.md`; `docs/dev/usability-g3.md` holds the
   materials of the usability test.
+- **The corpus screen.** The People screen (`/people`) holds who is in the
+  map and what was collected for them, in tabs: people (roles, identity,
+  coverage state, filters built from a list's own columns, a role changed for
+  the rows selected or for all the filters keep), the identity queue (every
+  finder's candidates with their evidence and score; ↑ ↓, 1–9, N, ⏎; the
+  single clear matches accepted in bulk), organisations (levels, parents,
+  affiliations with their years, the people of institutions to take),
+  texts (parts per provider, merges, preprints), collaborators (rounds, cap,
+  decisions) and coverage (good, thin, failed, no data by organisation, year
+  and language; retry, exclude). A person's sheet says the first blocking
+  cause, the sources used and discarded, the texts and the affiliations.
+  Imports take a list (one field per column, proposed and editable; e-mail
+  columns refused), a folder of documents or a corpus, and propose the
+  duplicates. Collecting always shows what leaves the computer first and
+  starts only on consent (`consent_needed`, 409 without it); it runs as a job
+  in the Activity drawer. `ServiceCollection` (`cartolex.app.collect_service`)
+  wires the finders of `cartolex.collect` into the app (identify, harvest,
+  institutions, collaborators, retry); `cartolex app --services demo` runs it
+  on the demo services. The lists are paged on the server and the Table reads
+  the pages in view (10⁵ people). New routes: organisations, texts, a
+  person's sheet, duplicates, collaborators, the institutions' proposal,
+  documents and corpora imported as a job (`docs/dev/api.md`).
 - **Theme names in each language.** The proposal names a node, in each
   language, after its most used keyword that has a form in that language (its
   own, or one the consolidation pairs attest), else after the most used
