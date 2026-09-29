@@ -129,7 +129,9 @@ def test_the_atlas_reads_the_theme_files_of_any_depth(depths, client_for, depth)
     assert themes["tree"]["depth"] == depth and themes["tree"]["keywords"] == draft["keywords"]
     assert themes["tree"]["based_on"] == draft["based_on"]
     usage = client.get("/api/themes/usage").json()
-    assert set(usage["terms"]) == set(draft["keywords"]) and usage["people"] >= 30
+    # the keywords the comb set aside as too broad are used too
+    assert set(usage["terms"]) == set(draft["keywords"]) | set(draft["set_aside"])
+    assert usage["people"] >= 30
     assert all(people >= 1 and weight > 0 for people, weight in usage["terms"].values())
 
 
@@ -406,7 +408,7 @@ def test_borderline_keywords_and_suggested_places_follow_the_tree_sent(depths, c
         "/api/themes/ops", json={"tree": kept, "ops": [{"op": "set_aside", "keywords": [first]}]}
     ).json()["tree"]
     found = client.post("/api/themes/suggestions", json={"tree": aside}).json()["suggestions"]
-    assert list(found) == [first] and len(found[first]) == 3
+    assert first in found and len(found[first]) == 3  # beside the ones set aside as too broad
     assert found[first][0]["node"] in set(aside["keywords"].values())
     assert found[first][0]["score"] >= found[first][2]["score"]
 

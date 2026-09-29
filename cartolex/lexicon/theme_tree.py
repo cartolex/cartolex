@@ -49,6 +49,7 @@ __all__ = [
     "APPLIED_FORMAT",
     "CHUNK_BYTES",
     "LANGUAGES",
+    "TOO_BROAD",
     "TOP_KEYWORDS",
     "TREE_FORMAT",
     "AppliedThemes",
@@ -81,6 +82,11 @@ MAX_DEPTH = 4
 TOP_KEYWORDS = 15
 #: The memory a chunk of keyword columns made dense may take.
 CHUNK_BYTES = 64 * 2**20
+#: A combed node is named after a keyword of its own only when at least this share of
+#: the keyword's use (against its siblings') falls in the node.
+OWN_NAME_FLOOR = 0.5
+#: Why the comb sets a keyword aside: its texts spread over every theme.
+TOO_BROAD = "too broad for any theme"
 #: The languages a tree names its nodes and levels in (the project's).
 LANGUAGES = ("en", "fr", "pt")
 
@@ -471,6 +477,83 @@ def _node_ids(depth: int) -> list[str]:
     return ["s", *[f"m{lv}-" for lv in range(2, depth)], "c"]
 
 
+def _names_by_level(
+    levels: Sequence[Any],
+    terms: Sequence[str],
+    scores: np.ndarray,
+    forms: Mapping[str, Mapping[str, str]],
+    langs: Sequence[str],
+    reference_language: str,
+) -> list[list[dict[str, str]]]:
+    """Each group's names, level by level: its most used keyword with a form in each language."""
+    from .labels import distinct_names, node_names
+
+    def top_terms(rows: np.ndarray, cap: int = TOP_KEYWORDS) -> list[str]:
+        order = np.asarray(rows)[np.argsort(scores[np.asarray(rows)])[::-1]]
+        return [terms[i] for i in order[:cap]]
+
+    names: list[list[dict[str, str]]] = []
+    for group in levels:
+        mine = [node_names(r, terms, scores, forms, langs, reference_language) for r in group.rows]
+        siblings: dict[int, list[int]] = {}
+        for p in range(len(group.rows)):
+            siblings.setdefault(-1 if group.parent is None else int(group.parent[p]), []).append(p)
+        for members in siblings.values():
+            distinct_names([mine[p] for p in members], [top_terms(group.rows[p]) for p in members])
+        names.append(mine)
+    return names
+
+
+def _combed_names(
+    skeleton: Sequence[tuple[int, int, int]],
+    own: Sequence[list[int]],
+    below: Sequence[list[int]],
+    finest_under: Sequence[np.ndarray],
+    terms: Sequence[str],
+    scores: np.ndarray,
+    forms: Mapping[str, Mapping[str, str]],
+    langs: Sequence[str],
+    reference_language: str,
+    spread: np.ndarray | None,
+    own_floor: float,
+) -> list[dict[str, str]]:
+    """The names of a combed tree (:func:`cartolex.lexicon.labels.tree_names`), siblings distinct."""
+    from .labels import distinct_names, tree_names
+
+    siblings: dict[int, list[int]] = {}
+    for j, (_, _, parent) in enumerate(skeleton):
+        siblings.setdefault(parent, []).append(j)
+    distinctive = None
+    if spread is not None:
+        use = np.asarray(spread, dtype=float)
+
+        def distinctive(j: int, rows: list[int]) -> np.ndarray:
+            mine = use[np.ix_(rows, finest_under[j])].sum(axis=1)
+            cols = np.concatenate([finest_under[i] for i in siblings[skeleton[j][2]]])
+            around = use[np.ix_(rows, cols)].sum(axis=1)
+            return np.divide(mine, around, out=np.zeros_like(mine), where=around > 0)
+
+    names = tree_names(
+        [parent for _, _, parent in skeleton],
+        own,
+        below,
+        terms,
+        scores,
+        forms,
+        langs,
+        reference_language,
+        distinctive=distinctive,
+        own_floor=own_floor if spread is not None else 0.0,
+    )
+
+    def top_terms(rows: list[int], cap: int = TOP_KEYWORDS) -> list[str]:
+        return [terms[i] for i in sorted(rows, key=lambda r: (-scores[r], r))[:cap]]
+
+    for members in siblings.values():
+        distinct_names([names[j] for j in members], [top_terms(below[j]) for j in members])
+    return names
+
+
 def propose_tree(
     levels: Sequence[Any],
     terms: Sequence[str],
@@ -480,22 +563,40 @@ def propose_tree(
     display_languages: Sequence[str] = ("fr", "en"),
     forms: Mapping[str, Mapping[str, str]] | None = None,
     run: str | None = None,
+    placement: tuple[np.ndarray, np.ndarray] | None = None,
+    spread: np.ndarray | None = None,
+    own_floor: float = OWN_NAME_FLOOR,
 ) -> dict[str, Any]:
     """The proposal document (``cartolex-themes/1``) of groups on every level.
 
     *levels* are :class:`cartolex.atlas.hierarchy.LevelGroups`, from the top.
     Node ids are ``s<k>`` on the top level, ``c<k>`` on the finest and
     ``m<l>-<k>`` on a level ``l`` between them, ``k`` being the group's position
-    on its level; siblings are ordered by it. A node is named in each language
-    after the most used keyword (the highest *scores*) that has a form in that
-    language in *forms* (``{language: {keyword: form}}``, see
-    :func:`cartolex.lexicon.labels.node_names`), and siblings' names are kept
-    distinct. Keywords sit on the finest level, without attribution; a
-    keyword in no group is set aside. ``based_on`` records *run* and the
+    on its level; siblings are ordered by it.
+
+    Keywords sit on the finest level, without attribution, unless
+    *placement* (``(level, position)`` per keyword row, as
+    :class:`cartolex.lexicon.theme_comb.Combed` gives them) puts them on a node
+    of another level; level ``0`` sets a keyword aside as too broad for any
+    theme. A keyword in no group is set aside.
+
+    Names, in each language, from the forms in *forms*
+    (``{language: {keyword: form}}``, see
+    :func:`cartolex.lexicon.labels.node_names`):
+
+    - without *placement*, each node after the most used keyword (the highest
+      *scores*) it holds, on it or under it, that has a form in the language;
+    - with *placement* (a combed tree), from the top down
+      (:func:`cartolex.lexicon.labels.tree_names`): after the most used
+      keyword of its own, among those of which at least *own_floor* of the use
+      falls in the node rather than in its siblings (with *spread*, the
+      keywords' use over the finest nodes); a node without one takes the
+      keyword of its subtree most distinctive of it against its siblings. A
+      node never takes a keyword or a name of its ancestors (no « X › X »).
+
+    Siblings' names are kept distinct. ``based_on`` records *run* and the
     vocabulary's fingerprint. The document is in the canonical form.
     """
-    from .labels import distinct_names, node_names
-
     depth = len(levels)
     if not 1 <= depth <= MAX_DEPTH:
         raise ValueError(f"a theme tree has 1 to {MAX_DEPTH} levels, not {depth}")
@@ -504,48 +605,89 @@ def propose_tree(
         lang for lang in LANGUAGES if lang == reference_language or lang in tuple(display_languages)
     ]
     prefix = _node_ids(depth)
+    # each group's position on every level above it, and each row's finest group
+    up: list[list[np.ndarray]] = []
+    for lv in range(depth):
+        n = len(levels[lv].rows)
+        chain = [np.arange(n)]
+        for above in range(lv, 0, -1):
+            chain.insert(0, np.asarray(levels[above].parent, dtype=np.int64)[chain[0]])
+        up.append(chain)  # up[lv][a]: the position on level a of each group of level lv
+    finest = np.full(len(terms), -1, dtype=np.int64)
+    for p, rows in enumerate(levels[-1].rows):
+        finest[np.asarray(rows, dtype=np.int64)] = p
+    if placement is None:
+        at_level = np.where(finest >= 0, depth, -1)
+        at_node = finest.copy()
+    else:
+        at_level = np.asarray(placement[0], dtype=np.int64)
+        at_node = np.asarray(placement[1], dtype=np.int64)
 
-    def top_terms(rows: np.ndarray, cap: int = TOP_KEYWORDS) -> list[str]:
-        order = np.asarray(rows)[np.argsort(scores[np.asarray(rows)])[::-1]]
-        return [terms[i] for i in order[:cap]]
+    # the nodes, parents before children (depth first)
+    skeleton: list[tuple[int, int, int]] = []  # (level index, position, parent node index)
 
-    names: list[list[dict[str, str]]] = []
-    for group in levels:
-        mine = [
-            node_names(r, terms, scores, forms or {}, langs, reference_language) for r in group.rows
-        ]
-        siblings: dict[int, list[int]] = {}
-        for p in range(len(group.rows)):
-            siblings.setdefault(-1 if group.parent is None else int(group.parent[p]), []).append(p)
-        for members in siblings.values():
-            distinct_names([mine[p] for p in members], [top_terms(group.rows[p]) for p in members])
-        names.append(mine)
-
-    nodes: list[dict[str, Any]] = []
-
-    def walk(lv: int, parent_pos: int | None, parent_id: str | None) -> None:
+    def walk(lv: int, parent_pos: int | None, parent_index: int) -> None:
         group = levels[lv]
         members = (
             list(range(len(group.rows)))
             if parent_pos is None
-            else [p for p in range(len(group.rows)) if int(group.parent[p]) == parent_pos]
+            else [q for q in range(len(group.rows)) if int(group.parent[q]) == parent_pos]
         )
-        for order, p in enumerate(members, start=1):
-            nid = f"{prefix[lv]}{p}"
-            nodes.append({"id": nid, "parent": parent_id, "names": names[lv][p], "order": order})
+        for q in members:
+            skeleton.append((lv, q, parent_index))
             if lv + 1 < depth:
-                walk(lv + 1, p, nid)
+                walk(lv + 1, q, len(skeleton) - 1)
 
-    walk(0, None, None)
+    walk(0, None, -1)
+    index_of = {(lv, q): j for j, (lv, q, _) in enumerate(skeleton)}
+    own: list[list[int]] = [[] for _ in skeleton]
+    below: list[list[int]] = [[] for _ in skeleton]
+    for r in np.flatnonzero(at_level >= 1).tolist():
+        lv = int(at_level[r]) - 1
+        own[index_of[(lv, int(at_node[r]))]].append(r)
+        for a in range(lv + 1):
+            below[index_of[(a, int(up[lv][a][at_node[r]]))]].append(r)
+    finest_under = [np.flatnonzero(up[depth - 1][lv] == q) for (lv, q, _) in skeleton]
+
+    if placement is None:
+        names = _names_by_level(levels, terms, scores, forms or {}, langs, reference_language)
+        names = [dict(names[lv][q]) for (lv, q, _) in skeleton]
+    else:
+        names = _combed_names(
+            skeleton,
+            own,
+            below,
+            finest_under,
+            terms,
+            scores,
+            forms or {},
+            langs,
+            reference_language,
+            spread,
+            own_floor,
+        )
+
+    nodes: list[dict[str, Any]] = []
+    order_of: dict[int, int] = {}
+    for j, (lv, q, parent) in enumerate(skeleton):
+        order_of[parent] = order_of.get(parent, 0) + 1
+        nodes.append(
+            {
+                "id": f"{prefix[lv]}{q}",
+                "parent": None if parent < 0 else nodes[parent]["id"],
+                "names": names[j],
+                "order": order_of[parent],
+            }
+        )
     keywords: dict[str, str] = {}
-    for p, rows in enumerate(levels[-1].rows):
-        for r in np.asarray(rows).tolist():
-            keywords[terms[int(r)]] = f"{prefix[-1]}{p}"
-    aside = {
-        t: {"from": None, "reason": "in no group of the grouping"}
-        for t in terms
-        if t not in keywords
-    }
+    aside: dict[str, dict[str, Any]] = {}
+    for r, t in enumerate(terms):
+        if at_level[r] >= 1:
+            keywords[t] = f"{prefix[int(at_level[r]) - 1]}{int(at_node[r])}"
+        elif at_level[r] == 0:
+            aside[t] = {"from": None, "reason": TOO_BROAD}
+        else:
+            aside[t] = {"from": None, "reason": "in no group of the grouping"}
     return {
         "format": TREE_FORMAT,
         "depth": depth,
@@ -561,16 +703,30 @@ def propose_tree(
 
 
 def draft_themes(
-    ctx: RunContext, *, level_sizes: Sequence[int], run: str | None = None
+    ctx: RunContext,
+    *,
+    level_sizes: Sequence[int],
+    run: str | None = None,
+    comb: bool = False,
 ) -> dict[str, Any]:
     """Grouping stage: write the proposal tree (``ctx.paths.themes_draft_json``) and return it.
 
     Needs the term clustering (``ctx.paths.terms_clustered_csv``, its groups
     are the finest level) and the SVD. *level_sizes* are the groups per level,
     from the top; the coarser levels are cut from the finest. *run* names the
-    run in the tree's ``based_on``.
+    run in the tree's ``based_on``. With *comb*, the texts of the corpus place
+    each keyword on its level (:mod:`cartolex.lexicon.theme_comb`).
     """
+    from .io_helpers import slot_indexes
+
     paths, settings = ctx.paths, ctx.settings
+    texts = None
+    if comb:
+        texts = {
+            "index_csvs": [index for _, index, _ in slot_indexes(ctx)],
+            "vectorizer_json": paths.vectorizer_json,
+            "aliases_csv": paths.term_aliases_csv,
+        }
     with ctx.threads.applied():
         return write_theme_draft(
             lexical_data_json=paths.lexical_data_json,
@@ -582,6 +738,7 @@ def draft_themes(
             reference_language=settings.reference_language,
             display_languages=settings.display_languages,
             run=run,
+            texts=texts,
         )
 
 
@@ -596,8 +753,13 @@ def write_theme_draft(
     reference_language: str = "en",
     display_languages: Sequence[str] = ("fr", "en"),
     run: str | None = None,
+    texts: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Write the proposal tree from explicit files (see :func:`draft_themes`)."""
+    """Write the proposal tree from explicit files (see :func:`draft_themes`).
+
+    *texts* (``index_csvs``, ``vectorizer_json``, ``aliases_csv``): the corpus
+    the comb reads; ``None``: keywords on the finest level.
+    """
     from cartolex.atlas.hierarchy import level_groups
     from cartolex.atlas.model_files import load_embeddings, load_lexical_data
 
@@ -611,6 +773,11 @@ def write_theme_draft(
     labels = _load_term_cluster_labels(term_clusters_csv, terms)
     scores = np.asarray(data.X.sum(axis=0)).ravel()
     levels = level_groups(emb.Z_terms, labels, list(level_sizes))
+    placement = spread = None
+    if texts is not None:
+        combed = _comb(levels, terms, texts)
+        if combed is not None:
+            placement, spread = combed
     doc = propose_tree(
         levels,
         terms,
@@ -619,6 +786,8 @@ def write_theme_draft(
         display_languages=display_languages,
         forms=keyword_forms(pairs_csv, terms, display_languages, reference_language),
         run=run,
+        placement=placement,
+        spread=spread,
     )
     draft_json_out.parent.mkdir(parents=True, exist_ok=True)
     draft_json_out.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", "utf-8")
@@ -629,6 +798,47 @@ def write_theme_draft(
         draft_json_out,
     )
     return doc
+
+
+def _comb(
+    levels: Sequence[Any], terms: Sequence[str], texts: Mapping[str, Any]
+) -> tuple[tuple[np.ndarray, np.ndarray], np.ndarray] | None:
+    """The comb's placement of every keyword row and the keywords' spread (``None``: not combed)."""
+    from . import theme_comb as tc
+
+    n_finest = len(levels[-1].rows)
+    if len(terms) * n_finest > tc.MAX_CELLS:
+        logger.warning(
+            "Themes: %d keywords × %d topics is too large to comb; keywords stay on the topics.",
+            len(terms),
+            n_finest,
+        )
+        return None
+    if not (Path(texts["vectorizer_json"]).exists() and Path(texts["aliases_csv"]).exists()):
+        logger.warning(
+            "Themes: the vocabulary's vectorizer is missing; keywords stay on the topics."
+        )
+        return None
+    D = tc.corpus_texts(
+        texts["index_csvs"],
+        vectorizer_json=Path(texts["vectorizer_json"]),
+        aliases_csv=Path(texts["aliases_csv"]),
+        terms=terms,
+    )
+    finest = np.full(len(terms), -1, dtype=np.int64)
+    for p, rows in enumerate(levels[-1].rows):
+        finest[np.asarray(rows, dtype=np.int64)] = p
+    P, n = tc.keyword_spread(D, finest, n_finest)
+    combed = tc.calibrate(P, n, finest, tc.level_maps(levels))
+    counts = combed.counts(len(levels))
+    logger.info(
+        "Themes: combed %d texts at θ %.3f: keywords per level %s, %d too broad for any theme.",
+        D.shape[0],
+        combed.theta,
+        " › ".join(str(counts[lv]) for lv in range(1, len(levels) + 1)),
+        counts[0],
+    )
+    return (combed.level, combed.node), P
 
 
 # ── applying a tree ──────────────────────────────────────────────────────────

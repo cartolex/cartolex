@@ -40,19 +40,163 @@ not hold.
 3. **Nodes.** Ids: `s<k>` on the top level, `c<k>` on the finest, `m<l>-<k>`
    on a level `l` between them, `k` being the group's position on its level
    (at depth 2: the subfield and concept ids). Siblings are ordered by it.
-   Names, in each display language: the form of the node's most used keyword
-   (highest summed score) that has one there (its own language, or a form the
-   consolidation pairs attest), else the reference-language form of the most
-   used keyword that has one, else the most used keyword; siblings' names are
-   kept distinct in each language (`cartolex.lexicon.labels.node_names`).
-4. **Keywords** sit on the finest level (at depth 1 on the only level), with no
-   attribution; nothing is set aside.
+4. **Keywords.** With the stage's `comb` (the default), each keyword sits on
+   the level its texts support, and the keywords too broad for any theme are
+   set aside (« too broad for any theme »): see *Combing* below. Without it,
+   every keyword sits on the finest level (at depth 1 on the only level), with
+   no attribution, and nothing is set aside.
+5. **Names**, in each display language, from the forms a keyword has there
+   (its own language, or a form the consolidation pairs attest), else its
+   reference-language form, else the keyword
+   (`cartolex.lexicon.labels.node_names`):
+   - combed: from the top down, a node takes the most used keyword (highest
+     summed score) of its own, among those of which at least half the use
+     falls in the node rather than in its siblings; a node without one takes
+     the keyword of its subtree most distinctive of it (its score times that
+     share). A node never takes a keyword an ancestor is named after, nor a
+     name an ancestor has in that language: no « X › X »
+     (`cartolex.lexicon.labels.tree_names`);
+   - not combed: the most used keyword the node holds, on it or under it.
+
+   Siblings' names are kept distinct in each language.
 
 The stage writes `themes_draft.json` at every depth, `based_on` its run and the
 vocabulary, and, at depth 2, the two-level `subfields_draft.json` too,
-unchanged. At depth 2 the proposal is the two-level draft read as a tree
-(`from_curated`), names included (a test checks this). The level sizes come
-from `theme_levels(...)`.
+unchanged. At depth 2 and without the comb, the proposal is the two-level draft
+read as a tree (`from_curated`), names included (a test checks this); the
+reference run turns the comb off, as the workspace run it mirrors has none.
+The level sizes come from `theme_levels(...)`.
+
+## Combing: each keyword on its level
+
+The grouping puts every keyword on a topic. A keyword used across themes (a
+method, a driver of change, a word of the whole field) then counts toward
+one of them. The comb (`cartolex.lexicon.theme_comb`) reads the texts
+instead. The unit is the text, not the person: a person working on two themes
+does not make their keywords look broad.
+
+1. **The texts.** Each text of the corpus indexes, once (a text signed by
+   several people is read once), is read with the vocabulary's vectorizer and
+   its forms folded onto the keywords, as the trajectories read them:
+   texts × keywords, 1 where the text uses the keyword.
+2. **Where a text sits, without the keyword.** For a keyword, each text using
+   it is placed by its *other* keywords: their shares on the finest nodes
+   (each text one unit; a text with no other placed keyword gives nothing).
+   The keyword's **spread** is the sum over its texts.
+3. **Its place.** From the finest level up, on each level the node with the
+   most of the spread; the keyword goes to the first such node whose share
+   reaches θ. The share is read *relative* to what any keyword gives the
+   node: `(s − b) / (1 − b)`, `b` being the node's share of every keyword's
+   spread together, so that one θ means the same on a level of 3 nodes and
+   on one of 150 (a keyword spread like the texts scores 0, one wholly on the
+   node 1). No top-level node reaching θ: **too broad for any theme**, set
+   aside. A keyword with fewer than 5 texts of evidence keeps its topic.
+4. **θ, calibrated.** The owner's target: about as many keywords per node on
+   every level, so that the few top-level nodes hold few keywords. The θ kept
+   is the one of 0.100, 0.125, …, 0.250 whose levels come closest (the sum,
+   over the levels above the finest, of the absolute log ratio of their
+   keywords per node to the finest level's); at depth 1, where nothing can
+   be balanced, 0.2. The band is what the measures below support: above
+   0.25 the small world loses specific keywords, below 0.1 it keeps the
+   broad ones.
+
+The comb holds the keywords × topics spread in memory; above 5·10⁷ cells
+(10 000 keywords on 5 000 topics) the proposal is not combed and says so.
+
+**Measures** (`python tools/theme_comb_study.py comb FOLDER --sizes …` on the
+demo worlds built to `themes.group`; trees cut at the given sizes; the texts'
+themes are the demo's truth). A keyword is *broad* when its texts (5 or more)
+have no main theme holding half of them, *specific* when one holds 80 %.
+Broad P / R: the precision and recall of placing broad keywords above the
+level of the themes (or aside); specific kept: the share of specific
+keywords left at or below the themes, in their theme (the node's theme being
+that of most of its specific keywords). Fixed θ is the absolute share, the
+same on every level; calibrated is the engine's rule.
+
+| world, sizes | θ | per level (top first) · too broad | keywords per node | broad P · R | specific in their theme (before) |
+| --- | --- | --- | --- | --- | --- |
+| S (226 texts), 12 › 25 | fixed 0.3 | 25 · 498 · 18 | 2.1 · 19.9 | 0.94 · 0.39 | 0.93 (0.89) |
+| | fixed 0.5 | 38 · 451 · 52 | 3.2 · 18.0 | 0.77 · 0.89 | 0.79 (0.89) |
+| | calibrated 0.25 | 19 · 500 · 22 | 1.6 · 20.0 | 0.95 · 0.50 | 0.93 (0.89) |
+| L (2 137 texts), 12 | fixed 0.3 | 3 118 · 119 | 260 | 0.82 · 0.79 | 0.97 (0.67) |
+| | calibrated 0.2 (depth 1) | 3 139 · 98 | 262 | 0.88 · 0.76 | 0.97 (0.67) |
+| L, 12 › 150 | fixed 0.2 | 571 · 2 635 · 31 | 47.6 · 17.6 | 1.00 · 0.31 | 0.96 (0.82) |
+| | fixed 0.3 | 1 497 · 1 623 · 117 | 124.8 · 10.8 | 0.91 · 0.79 | 0.90 (0.82) |
+| | fixed 0.5 | 1 155 · 1 404 · 678 | 96.2 · 9.4 | 0.19 · 0.97 | 0.59 (0.82) |
+| | calibrated 0.15 | 306 · 2 868 · 63 | 25.5 · 19.1 | 1.00 · 0.60 | 0.97 (0.82) |
+| L, 3 › 12 › 150 | fixed 0.3 | 117 · 1 497 · 1 623 · 0 | 39.0 · 124.8 · 10.8 | 0.91 · 0.79 | 0.91 (0.82) |
+| | calibrated 0.15 | 45 · 306 · 2 868 · 18 | 15.0 · 25.5 · 19.1 | 1.00 · 0.60 | 0.97 (0.82) |
+| L, 3 › 12 › 40 › 150 | fixed 0.3 | 104 · 417 · 1 093 · 1 623 · 0 | 34.7 · 34.8 · 27.3 · 10.8 | 0.86 · 0.70 | 0.94 (0.82) |
+| | calibrated 0.225 | 30 · 110 · 880 · 2 149 · 68 | 10.0 · 9.2 · 22.0 · 14.3 | 0.91 · 0.74 | 0.97 (0.82) |
+
+By kind of term of the demo truth (L, 12 › 150, calibrated): of 24 methods,
+22 leave the topics (18 set aside; the 2 of the social sciences, used by
+one group of themes only, stay); both drivers go up to a theme; of 26 terms of
+several themes, 14 leave the topics; of 2 283 terms of one theme, 138 go up to
+their theme's node and none is set aside.
+
+In short: an absolute θ cannot serve every level (on 150 topics a text's
+other keywords spread over the theme's many topics, so 0.3 sends 84 % of the
+specific keywords up; on 12 themes 0.5 sets aside hundreds of specific ones),
+while the relative share at the calibrated θ keeps the specific keywords
+(none set aside, 97 % in their theme where the grouping had 82 %: the comb
+also moves keywords sideways to the node their texts are in), sets aside or
+lifts most broad ones with a precision of 0.9 to 1, and gives the levels
+about as many keywords per node. Its recall of broad keywords (0.5 to 0.75)
+is the price of that balance; a fixed relative 0.2 catches more (0.66 to 0.78)
+at a slightly lower precision.
+
+## Structure suggestions: measured, not shipped
+
+Two signals were tried for suggesting changes to a tree
+(`tools/theme_comb_study.py structure`, `tools/theme_structure.py`),
+calibrated by cutting the L world's keywords at too few groups (6, where
+nodes hold two themes: splits to find) and too many (24, 36: merges to find),
+and at the right number (12: nothing to find). Truth: a pair of siblings
+should merge when most of the specific keywords of both are of one theme; a
+node should split when its second theme holds 30 % of its specific keywords.
+
+- **Merges.** Per pair of siblings: centroid closeness, the texts' overlap
+  (the texts' shares on both nodes, the smaller summed, over the smaller
+  node's), mixing (keywords nearer the other node) and size. The overlap is
+  the only useful signal: average precision 0.57 at 24 groups, 0.56 at 36
+  (base rate 0.06 and 0.08); flagging overlap ≥ 0.4 finds 51 to 59 % of the
+  merges at a precision of 0.62 to 0.66, and flags 3 pairs on the right tree
+  and 3 on the too-coarse one. On the S world (226 texts) the average
+  precision falls to 0.41.
+- **Splits.** Ward's cut of a node's keywords in two against the same cut on
+  Gaussian keywords of the node's spread (the gain in standard deviations),
+  the conductance of the best cut of the keywords' co-use graph, and the
+  share of texts using only one half. None separates: at 6 groups the true
+  splits and the others have the same gains (medians 5.5 and 5.6 standard
+  deviations), and on the right tree 10 of 12 nodes pass a gain of 2.
+
+The split signals are noise; the merge overlap is a fair ranking but a
+suggestion list built on it would be wrong about one time in three and
+already speaks on a right tree. Neither is in the editor nor in the copilot
+bundle.
+
+## Names: measured
+
+(`tools/theme_comb_study.py names`; L world; names repeating an ancestor's
+name in a language; the share of names whose keyword is broad by its texts;
+the share of theme-level nodes named after a keyword of the node's theme.)
+
+| sizes | rule | « X › X » | named after a broad keyword | theme-level names of the node's theme |
+| --- | --- | --- | --- | --- |
+| 12 › 150 | before (the subtree's most used) | 24 | 13 of 128 | 6 of 12 |
+| | combed, own most used | 0 | 2 of 29 | 9 of 11 |
+| | combed, own most used holding half its use (engine) | 0 | 0 of 26 | 10 of 10 |
+| 3 › 12 › 150 | before | 30 | 13 of 131 | 6 of 12 |
+| | combed, own most used | 0 | 4 of 32 | 9 of 11 |
+| | combed, engine | 0 | 3 of 30 | 10 of 11 |
+
+On the S world (12 › 25) the repeats go from 24 to 0 and the theme-level
+names of their node's theme from 3 of 4 to 4 of 4. Without the half-use
+floor, nodes of the S world took words of the whole field (« articles »,
+« jeu de données »); the floor removes some of them, not all (« articles »
+stays): setting such words aside is the AI clean-up's work. Another rule can come in at
+`tree_names`: a tie-break by category would rank the candidates there.
 
 ## `themes.apply`: the weights
 

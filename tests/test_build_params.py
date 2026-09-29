@@ -214,6 +214,7 @@ def test_effective_values_say_where_they_come_from():
         "top_groups": (12, "params.json", None),
         "keywords_per_group": (20, "default", None),
         "level_sizes": (None, "default", None),
+        "comb": (True, "default", None),
     }
     fake = make_registry(Controls(log=None))["themes.group"]  # a stage that uses the seed
     seeded = resolve_params(fake, params, sizes, year=YEAR)

@@ -13,10 +13,11 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import pandas as pd
 
 if TYPE_CHECKING:
@@ -130,6 +131,100 @@ def node_names(
         if name:
             out[lang] = name
     return out
+
+
+def tree_names(
+    parents: Sequence[int],
+    own: Sequence[Sequence[int]],
+    below: Sequence[Sequence[int]],
+    terms: Sequence[str],
+    scores: Sequence[float],
+    forms: Mapping[str, Mapping[str, str]],
+    languages: Sequence[str],
+    reference_language: str,
+    *,
+    distinctive: Callable[[int, list[int]], Sequence[float]] | None = None,
+    own_floor: float = 0.0,
+) -> list[dict[str, str]]:
+    """Every node's names, from the top down, each level avoiding what the levels above took.
+
+    *parents* gives each node's parent index (``-1`` on top), parents before
+    children; *own* the rows of the keywords on each node, *below* those on it
+    or under it. A node is named after its most used keyword of its own (the
+    highest *scores*); a node without keywords of its own after the keyword of
+    its subtree most distinctive of it against its siblings: its score times
+    ``distinctive(node, rows)`` (the share of the keyword's use that falls in
+    the node rather than in its siblings; without it, the score alone). The
+    display-language rule is :func:`node_names`'s. A keyword an ancestor is
+    named after is not taken again, nor a name an ancestor has in that
+    language (no « X › X »). Siblings' names are kept distinct afterwards
+    (:func:`distinct_names`).
+    """
+    scores = np.asarray(scores, dtype=float)
+    names: list[dict[str, str]] = [{} for _ in parents]
+    claimed: list[set[int]] = [set() for _ in parents]
+    taken: list[dict[str, set[str]]] = [{} for _ in parents]
+    for j, p in enumerate(parents):
+        up_rows = claimed[p] if p >= 0 else set()
+        up_names = taken[p] if p >= 0 else {}
+        rows = [int(r) for r in own[j] if int(r) not in up_rows]
+        if rows and distinctive is not None and own_floor > 0:
+            share = np.asarray(distinctive(j, rows), dtype=float)
+            rows = [r for r, d in zip(rows, share, strict=True) if d >= own_floor]
+        weight = scores[rows] if rows else np.zeros(0)
+        if not rows:
+            rows = [int(r) for r in below[j] if int(r) not in up_rows]
+            weight = scores[rows] if rows else np.zeros(0)
+            if rows and distinctive is not None:
+                weight = weight * np.asarray(distinctive(j, rows), dtype=float)
+        if not rows:  # every keyword was taken above: the subtree's, even so
+            rows = [int(r) for r in (below[j] or own[j])]
+            weight = scores[rows] if rows else np.zeros(0)
+        order = [rows[i] for i in np.lexsort((np.arange(len(rows)), -np.asarray(weight)))]
+        mine: dict[str, str] = {}
+        used: set[int] = set()
+        for lang in languages:
+            pick = _first_form(
+                order, terms, forms, lang, reference_language, up_names.get(lang, set())
+            )
+            if pick is None:
+                pick = _first_form(order, terms, forms, lang, reference_language, set())
+            if pick is not None:
+                used.add(pick[0])
+                mine[lang] = pick[1]
+        names[j] = mine
+        claimed[j] = set(up_rows) | used
+        taken[j] = {lang: set(up_names.get(lang, set())) for lang in languages}
+        for lang, name in mine.items():
+            taken[j][lang].add(name.casefold())
+    return names
+
+
+def _first_form(
+    order: Sequence[int],
+    terms: Sequence[str],
+    forms: Mapping[str, Mapping[str, str]],
+    lang: str,
+    reference_language: str,
+    skip: set[str],
+) -> tuple[int, str] | None:
+    """The first keyword of *order* with a form in *lang* (else in the reference
+    language, else the keyword itself) whose name is not in *skip*: its row and name."""
+
+    def form(r: int, language: str | None) -> str:
+        if language is None:
+            return str(terms[r])
+        found = forms.get(language)
+        if found is None:
+            return str(terms[r]) if language == reference_language else ""
+        return found.get(str(terms[r])) or ""
+
+    for language in (lang, reference_language, None):
+        for r in order:
+            name = form(r, language).strip()
+            if name and name.casefold() not in skip:
+                return r, name
+    return None
 
 
 def distinct_names(names: Sequence[dict[str, str]], top_terms: Sequence[Sequence[str]]) -> None:
