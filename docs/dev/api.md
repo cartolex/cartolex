@@ -260,7 +260,13 @@ version, so it can be undone too).
 
 | route | what it does |
 | --- | --- |
-| `GET /api/share`, `POST /api/share/builds` | the site builds in `outputs/sites/`; building a site comes in a later version (501 until then) |
+| `GET /api/share` | the site builds in `outputs/sites/` (paged: `offset`, `limit`), the newest first, each with `latest`, `stale` (what it was built from changed since: the runs it reads, the tables, a decision file), its options and counts; `exports` (the files in `outputs/exports/`); `available` |
+| `GET /api/share/plan?names=&texts=&title=&language=` | the privacy summary of a build with these options (people named or pseudonymised, organisations, keywords, themes, texts carried, full texts kept out) and the checks before publishing, each `{code, level, params, fix}`: `blocker` (`no_map`), `question` (`names_unanswered`), `warning` (`names_shown`, `abstracts_included`, `map_stale`, `themes_untranslated`, `themes_technical`, `themes_empty`, `title_generic`), `info` (`full_texts_kept`); `ready` |
+| `POST /api/share/builds {names, texts, title, language}` | build the offline site (a job, 202): `names` (`names` or `pseudonyms`) is required for a people atlas (422 `names_question`); `texts` is `none` (the default), `titles` or `abstracts` |
+| `GET /api/share/builds/<id>/site/<path>`, `GET /api/share/builds/<id>/zip` | a build's files (to open it in the browser), and the build as one zip whose README comes first |
+| `GET /api/share/figures/map?format=png\|svg&width=&height=&theme=` | the map as an image of the size asked, light or dark (people never named) |
+| `GET /api/share/tables/themes.csv` | the theme tree as CSV |
+| `POST /api/share/exports {kind}`, `GET /api/share/exports/<name>` | write the map bundle (`map_bundle`) or the project as one zip without its caches (`project`) into `outputs/exports/` (a job, dated names), and download it |
 | `GET /api/settings`, `PUT /api/settings` | languages, language models, the AI identity (with what changing a frozen one costs: 409 `identity_frozen` unless `confirm_identity_change`), slots, projected sets, levels, data sources |
 | `GET /api/settings/stopwords`, `PUT /api/settings/stopwords {add, remove}` | the words added to and removed from the lists of words that are never keywords, per language (`decisions/stopwords.json`, `If-Match`); a word both added and removed: `stopword_both` |
 | `GET /api/settings/prompts`, `PUT /api/settings/prompts/{name} {text}` | the prompts a project may replace (the packaged text, the project's own in `decisions/prompts/<name>.txt`, the placeholders); `text: null` goes back to the packaged one (the project's is kept in the history); a placeholder the packaged text lacks: `prompt_placeholder` (`If-Match`) |
@@ -320,8 +326,10 @@ collaborators, the institutions' proposal) read the project's tables and raw
 records (`cartolex.app.corpus_view`), whatever the service; each list is
 computed once per version of what it reads and kept in the app's cache.
 
-The site builder is a `SiteBuilder` protocol (`cartolex.app.share`) with a
-stand-in that lists earlier builds.
+The site builder is a `SiteBuilder` protocol (`cartolex.app.share`):
+`builds`, `folder`, `build`. The default is cartolex's own
+(`cartolex.site.OfflineSiteBuilder`, {doc}`site`); `StubSiteBuilder` lists
+earlier builds and refuses new ones, for a host that shares elsewhere.
 
 ## Error codes
 
@@ -448,6 +456,10 @@ catalogues give each code its text in every interface language.
 | `proposal_not_found` | 404 | there is no proposal {proposal} | `proposal` | `reload` |
 | `nothing_chosen` | 422 | choose the terms to accept | — | `fix-input` |
 | `not_available` | 501 | building the offline site is not available in this version | — | `none` |
+| `no_map_to_share` | 409 | there is no map to share yet: build the map first | — | `build` |
+| `names_question` | 422 | say whether the site shows people's names or pseudonyms | — | `fix-input` |
+| `site_not_found` | 404 | there is no site build {build} | `build` | `reload` |
+| `export_not_found` | 404 | there is no exported file {name} | `name` | `reload` |
 
 ## Message codes
 

@@ -1,0 +1,167 @@
+# SPDX-License-Identifier: MIT
+"""The offline site: what it carries (never a name when pseudonymised, never a private part),
+builds that never overwrite each other and go stale, and the share routes."""
+
+from __future__ import annotations
+
+import io
+import json
+import re
+import shutil
+import zipfile
+from datetime import datetime, timezone
+from pathlib import Path
+
+import pytest
+from _app_helpers import TOKEN, Client
+
+from cartolex.app import AppSettings, create_app
+from cartolex.project.project import Project
+from cartolex.project.tables import PRIVATE_PARTS, read_source_table
+from cartolex.site.builder import (
+    APP_TOKENS,
+    ASSETS,
+    CATALOGUES,
+    SiteOptions,
+    build_site,
+    list_builds,
+)
+
+pytestmark = pytest.mark.models("en", "fr")
+
+SITE = Path(__file__).resolve().parents[1] / "cartolex" / "site"
+
+
+@pytest.fixture(scope="module")
+def built(tmp_path_factory) -> Path:
+    """The XS demo world, written as a project and built once for the module."""
+    from cartolex.cli import main as cli
+    from cartolex.demo import generate
+    from cartolex.demo.project import write_project
+
+    root = tmp_path_factory.mktemp("site") / "xs"
+    write_project(generate("XS", 0), root).close()
+    assert cli(["params", str(root), "--set", "pinned_year=2026"]) == 0
+    assert cli(["build", str(root)]) == 0
+    return root
+
+
+@pytest.fixture()
+def project(built, tmp_path):
+    root = shutil.copytree(built, tmp_path / "p", ignore=shutil.ignore_patterns(".lock"))
+    p = Project.open(root)
+    yield p
+    p.close()
+
+
+def _site_text(folder: Path) -> str:
+    return "\n".join(p.read_text(encoding="utf-8") for p in folder.rglob("*") if p.is_file())
+
+
+def _people_names(project: Project) -> list[str]:
+    table = read_source_table(project.layout.table("people"), "people")
+    return sorted({n for n in table.column("last_name").to_pylist() if n and len(n) > 3})
+
+
+def test_a_pseudonymous_site_carries_no_name_and_no_text(project):
+    record = build_site(project, SiteOptions(names=False))
+    folder = project.layout.outputs / "sites" / record["id"]
+    text = _site_text(folder)
+    names = _people_names(project)
+    assert names and not [n for n in names if n in text]
+    assert not (folder / "data" / "texts.js").exists() and record["counts"]["texts"] == 0
+    readme = (folder / "README.txt").read_text(encoding="utf-8")
+    assert readme.startswith("UNZIP THE WHOLE FOLDER FIRST")
+    page = (folder / "index.html").read_text(encoding="utf-8")
+    assert not re.search(r"<script(?![^>]*\bsrc=)", page) and "style=" not in page
+    assert "cx-missing" in page  # shown until the scripts start
+    core = (folder / "data" / "core.js").read_text(encoding="utf-8")
+    assert '"names":false' in core and "person_id" not in core
+
+
+def test_titles_and_abstracts_never_carry_a_private_part(project):
+    parts = read_source_table(project.layout.table("text_parts"), "text_parts").to_pylist()
+    private = [p["content"][:60] for p in parts if p["part"] in PRIVATE_PARTS and p["content"]]
+    record = build_site(project, SiteOptions(names=True, texts="abstracts"))
+    folder = project.layout.outputs / "sites" / record["id"]
+    text = _site_text(folder)
+    assert record["counts"]["texts"] > 0
+    assert not [c for c in private if c in text]
+    assert any(n in text for n in _people_names(project))  # names were asked for
+
+
+def test_builds_are_never_overwritten_and_go_stale(project):
+    at = datetime(2026, 3, 1, 12, 0, tzinfo=timezone.utc)
+    first = build_site(project, SiteOptions(names=False), now=at)["id"]
+    second = build_site(project, SiteOptions(names=False), now=at)["id"]
+    assert second == f"{first}-2"
+    builds = list_builds(project)
+    assert [b["id"] for b in builds] == [second, first]
+    assert [b["latest"] for b in builds] == [True, False]
+    assert not any(b["stale"] for b in builds)
+    params = project.layout.params_json
+    doc = json.loads(params.read_text(encoding="utf-8"))
+    doc["seed"] = 7
+    params.write_text(json.dumps(doc), encoding="utf-8")
+    assert all(b["stale"] for b in list_builds(project))
+
+
+def test_the_share_routes(built, tmp_path):
+    root = shutil.copytree(built, tmp_path / "p", ignore=shutil.ignore_patterns(".lock"))
+    app = create_app(AppSettings(project=root, launch_token=TOKEN, data_dir=tmp_path / "data",
+                                 build_year=2026))  # fmt: skip
+    try:
+        client = Client(app)
+        plan = client.get("/api/share/plan").json()
+        assert not plan["ready"] and plan["summary"]["people"] > 0
+        assert "names_unanswered" in {c["code"] for c in plan["checks"]}
+        refused = client.post("/api/share/builds", json={})
+        assert refused.status_code == 422 and refused.json()["error"]["code"] == "names_question"
+        started = client.post("/api/share/builds", json={"names": "pseudonyms", "language": "fr"})
+        assert started.status_code == 202
+        assert client.wait_job(started.json()["job"]["id"])["state"] == "succeeded"
+        share = client.get("/api/share").json()
+        (item,) = share["items"]
+        assert item["latest"] and not item["stale"] and item["names"] is False
+        page = client.get(f"/api/share/builds/{item['id']}/site/index.html")
+        assert page.status_code == 200 and 'lang="fr"' in page.text
+        assert client.get(f"/api/share/builds/{item['id']}/site/../project.json").status_code == 404
+        zipped = zipfile.ZipFile(
+            io.BytesIO(client.get(f"/api/share/builds/{item['id']}/zip").content)
+        )
+        assert zipped.namelist()[0].endswith("/README.txt")
+        state = {a["id"]: a["state"] for a in client.get("/api/project/state").json()["areas"]}
+        assert state["share"] == "up_to_date"
+        png = client.get("/api/share/figures/map", params={"width": 400, "height": 300})
+        assert png.content.startswith(b"\x89PNG")
+        svg = client.get("/api/share/figures/map", params={"format": "svg", "theme": "dark"})
+        assert b"<svg" in svg.content
+        csv_text = client.get("/api/share/tables/themes.csv").text
+        assert csv_text.startswith("id,level,parent,name_")
+        job = client.post("/api/share/exports", json={"kind": "project"}).json()["job"]
+        assert client.wait_job(job["id"])["state"] == "succeeded"
+        (export,) = client.get("/api/share").json()["exports"]
+        names = zipfile.ZipFile(
+            io.BytesIO(client.get(f"/api/share/exports/{export['name']}").content)
+        ).namelist()
+        assert "p/project.json" in names and not [
+            n for n in names if n.startswith(("p/cache/", "p/outputs/exports/"))
+        ]
+    finally:
+        app.state.cartolex.shutdown()
+
+
+def test_the_site_keeps_the_apps_tokens_and_complete_catalogues():
+    assert (ASSETS / "tokens.css").read_text(encoding="utf-8") == APP_TOKENS.read_text(
+        encoding="utf-8"
+    ), "cartolex/site/assets/tokens.css drifted from the app's: copy it again"
+    catalogues = {
+        code: json.loads((CATALOGUES / f"{code}.json").read_text(encoding="utf-8"))
+        for code in ("en", "fr", "pt-BR")
+    }
+    keys = set(catalogues["en"])
+    assert all(set(c) == keys for c in catalogues.values())
+    source = "\n".join(p.read_text(encoding="utf-8") for p in ASSETS.glob("*.js"))
+    used = set(re.findall(r"\bt\('([\w.-]+)'", source))
+    used |= {f"{k}.other" for k in re.findall(r"\btn\('([\w.-]+)'", source)}
+    assert used and used <= keys, sorted(used - keys)

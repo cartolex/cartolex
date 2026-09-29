@@ -429,12 +429,31 @@ function graticule(step) {
   return { id: 'graticule', x: Float32Array.from(x), y: Float32Array.from(y), color: '--cx-border', alpha: 0.35, width: 1 };
 }
 
+/** The land's outline (rings of `[lon0, lat0, lon1, lat1…]`) as line segments, kept per rings. */
+const outlines = new WeakMap();
+function outline(rings) {
+  if (!rings) return null;
+  if (!outlines.has(rings)) {
+    const x = [];
+    const y = [];
+    for (const ring of rings) {
+      for (let k = 0; k + 3 < ring.length; k += 2) {
+        x.push(ring[k], ring[k + 2]);
+        y.push(ring[k + 1], ring[k + 3]);
+      }
+    }
+    outlines.set(rings, { id: 'land', x: Float32Array.from(x), y: Float32Array.from(y), color: '--cx-border', alpha: 0.8, width: 1 });
+  }
+  return outlines.get(rings);
+}
+
 /**
  * The world view: organisations of the level at their address (longitude,
- * latitude; an equirectangular projection) on a graticule, sized alike,
- * coloured by the top-level theme of their members.
+ * latitude; an equirectangular projection) on a graticule and the outline of
+ * the land (*land*: its rings, when read), sized alike, coloured by the
+ * top-level theme of their members.
  */
-export function worldScene(index, state) {
+export function worldScene(index, state, land = null) {
   const orgLevel = state.org || (index.levels[0] && index.levels[0].id) || '';
   const list = [];
   index.orgs.forEach((o, i) => {
@@ -479,7 +498,8 @@ export function worldScene(index, state) {
   const [y0, y1] = list.length ? pad(ymin, ymax, 12) : [-90, 90];
   const span = Math.max(x1 - x0, y1 - y0);
   return {
-    scene: { layers: [L], regions: [], lines: [graticule(span > 120 ? 30 : span > 40 ? 10 : 5)], labels,
+    scene: { layers: [L], regions: [], labels,
+      lines: [graticule(span > 120 ? 30 : span > 40 ? 10 : 5), ...(land ? [outline(land)] : [])],
       bounds: { xmin: Math.max(-180, x0), xmax: Math.min(180, x1), ymin: Math.max(-90, y0), ymax: Math.min(90, y1) } },
     counts: { organisations: { shown: list.length, total: index.orgs.filter((o) => o.level === orgLevel).length } },
     notes: [],

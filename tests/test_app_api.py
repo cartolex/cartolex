@@ -296,9 +296,9 @@ def test_snapshots_list_read_and_restore(client):
 
 def test_share_sources_and_empty_results(client):
     share = client.get("/api/share").json()
-    assert share["available"] is False and share["empty"]["message"].startswith("no site")
-    refused = client.post("/api/share/builds")
-    assert refused.status_code == 501 and refused.json()["error"]["code"] == "not_available"
+    assert share["available"] is True and share["empty"]["message"].startswith("no site")
+    refused = client.post("/api/share/builds", json={"names": "pseudonyms"})
+    assert refused.status_code == 409 and refused.json()["error"]["code"] == "no_map_to_share"
     slots = client.get("/api/sources").json()["slots"]
     assert [(s["id"], s["kind"], s["files"]) for s in slots] == [
         ("collected", "collection", 0),

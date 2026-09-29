@@ -107,6 +107,7 @@ export function AtlasScreen() {
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [watched, setWatched] = useState(null);
   const [tick, setTick] = useState(0);
+  const [land, setLand] = useState(null);
   const frame = useRef(null);
   const asked = useRef(new Set());
 
@@ -174,11 +175,18 @@ export function AtlasScreen() {
     if (job.state === 'succeeded') setTick((n) => n + 1);
   });
 
+  // The outline of the land under the world view: a static file (Natural Earth, public domain).
+  useEffect(() => {
+    if (state.view !== 'world' || land) return;
+    ctx.keep(fetch('/static/data/world-land-110m.json').then((r) => (r.ok ? r.json() : null)).catch(() => null))
+      .then((doc) => { if (doc && Array.isArray(doc.rings)) setLand(doc.rings); });
+  }, [state.view]);
+
   const built = useMemo(() => {
     if (!index) return null;
-    return state.view === 'world' ? worldScene(index, state)
+    return state.view === 'world' ? worldScene(index, state, land)
       : mapScene(index, state, { texts, sets, locale: locale.value });
-  }, [index, state, texts, sets, locale.value]);
+  }, [index, state, texts, sets, locale.value, land]);
 
   const select = (sel, { centre = false } = {}) => {
     setState({ sel });

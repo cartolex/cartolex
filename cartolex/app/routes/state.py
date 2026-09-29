@@ -127,7 +127,14 @@ def project_state(request: Request, ctx: ProjectDep) -> dict[str, Any]:
         }
         if area_id == "share":
             builds = runtime.site_builder.builds(ctx.project)
-            entry["state"] = "up_to_date" if builds else "never_built"
+            latest = next((b for b in builds if b.get("latest")), builds[0] if builds else None)
+            entry["state"] = (
+                "never_built"
+                if latest is None
+                else "needs_update"
+                if latest.get("stale")
+                else "up_to_date"
+            )
             entry["items"] = builds[:1]
         else:
             entry["state"] = summary(own)

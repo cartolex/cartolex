@@ -79,7 +79,7 @@ class Runtime:
         from cartolex.build.engine import EngineOptions, engine_registry
 
         from .collection import UnavailableCollection
-        from .share import StubSiteBuilder
+        from .share import default_site_builder
 
         self.settings = settings
         self.extensions = extensions
@@ -100,7 +100,7 @@ class Runtime:
         )
         self.jobs: JobRunner = settings.job_runner or LocalJobRunner()
         self.collection: CollectionService = settings.collection or UnavailableCollection()
-        self.site_builder: SiteBuilder = settings.site_builder or StubSiteBuilder()
+        self.site_builder: SiteBuilder = settings.site_builder or default_site_builder()
         from .machine import MachineKeys
 
         #: The keys saved on this computer (none on a hosted service).

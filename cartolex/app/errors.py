@@ -367,6 +367,12 @@ ERRORS: dict[str, ErrorKind] = {
     ),
     # sharing
     "not_available": ErrorKind(501, "building the offline site is not available in this version"),
+    "no_map_to_share": ErrorKind(409, "there is no map to share yet: build the map first", "build"),
+    "names_question": ErrorKind(
+        422, "say whether the site shows people's names or pseudonyms", "fix-input"
+    ),
+    "site_not_found": ErrorKind(404, "there is no site build {build}", "reload"),
+    "export_not_found": ErrorKind(404, "there is no exported file {name}", "reload"),
 }
 
 

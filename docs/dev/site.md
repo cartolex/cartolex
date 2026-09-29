@@ -1,0 +1,117 @@
+# The offline site and the Share screen
+
+`cartolex.site` builds the **offline site** of a project: a folder that opens
+in any browser from the computer (`file://`), with no server, no network and no
+web font, to send to the people the map is about. The Share screen (`/share`)
+builds it, lists the builds, and makes figures, tables and files.
+
+## A build
+
+`build_site(project, SiteOptions(names, texts, title, language))` writes
+`outputs/sites/<date>_<time>/` (a second build in the same second gets `-2`):
+
+```text
+index.html     the one page: no inline script or style; it first shows
+               « unzip the whole folder first », which the scripts remove
+README.txt     starts with « UNZIP THE WHOLE FOLDER FIRST », then what the site holds
+site.json      the build's record: options, counts, sizes, the inputs' fingerprint
+assets/        tokens.css (the app's, copied), site.css, site.js, map.js,
+               i18n.js (en, fr, pt-BR), world.js (when organisations have an address)
+data/          core.js (every page), details.js (person, organisation and theme
+               pages), texts.js (only when texts are asked for)
+```
+
+The build is written under a hidden name and renamed when complete, so it is
+never half-written and never replaces another; `outputs/sites/latest` names
+the newest. `site.json` keeps a **fingerprint** of what the build read (the
+runs of the stages, the tables, every decision file and `project.json`); a
+build whose fingerprint differs from the project's now is **stale**, and the
+share area of the project state is then « needs update ».
+
+A page opened from `file://` cannot load ES modules or read a JSON file, so
+everything is a classic script: the data files set `window.CX_SITE.<part>`,
+and `assets/map.js` is the app's own map modules (`MAP_MODULES`) and the
+treemap's layout (`components/treemap-layout.js`) turned into one script by
+`cartolex.app.static_files.classic_script` (`window.CartolexMap`). The site's
+own scripts (`cartolex/site/assets/*.js`, joined into `assets/site.js`) put
+what they share on `window.CxSite`.
+
+## What it holds
+
+`cartolex.site.data.gather` reads the atlas bundle (`GET /api/atlas`'s
+`build_bundle` and `map_extras`) and adds, per person, the themes of each level,
+the keywords, the organisations and the **real nearest neighbours** (the
+closest people by cosine similarity in the space the map is drawn from,
+`themes.space/pca_individuals.csv`, computed by blocks of rows); per
+organisation its themes, keywords and members; per theme its people and
+organisations (a share of at least a fifth) and keywords.
+
+- **Names** are shown only when the build says so; a site of people asks at
+  each build (the API refuses a build without the answer, 422
+  `names_question`). With pseudonyms the site holds no name, and people get
+  site ids (`s1`, `s2`…) in a shuffled order. Organisations are always named.
+- **Texts**: none by default; `titles`, or `abstracts` (titles and abstracts),
+  read through `shareable_parts()`, so a full text never goes in.
+- Never a project id, an identifier, or the extra columns of the people's lists.
+
+`cartolex.site.checks.plan` gives the privacy summary and the checks before
+publishing: `no_map` (blocks), `names_unanswered` (to answer), `names_shown`,
+`abstracts_included`, `map_stale`, `themes_untranslated` (the same name in
+every display language), `themes_technical`, `themes_empty`, `title_generic`
+(to look at), `full_texts_kept` (good to know); each with the fix the screen
+offers (build the map, open the themes, change a field).
+
+## The pages
+
+Home (search a person, an organisation, a keyword or a theme; arrows move
+through the results), Map (the MapFrame's controller: permanent legend, one
+symbol per kind, hover card, labels of the selection and with the zoom, lines
+from a selected person to their real nearest neighbours, the plain caveat
+about distances, the world view over the Natural Earth outline), Themes (a
+treemap drill-down with the sub-themes as a list too, a small map, keywords,
+people, organisations), a page per person and per organisation (position,
+themes, keywords, closest people, texts when carried; « Print this page »),
+Index (people, organisations and keywords as searchable, paginated lists) and
+Method (what distances mean, in plain words; what the site holds). Routes are
+in the fragment (`#/person/s3`); an unknown one says « Not found ».
+
+The site speaks English, French and Portuguese (Brazil)
+(`cartolex/site/i18n/`); the build chooses the one it opens in, and the reader
+can switch. The theme follows the system unless the reader chooses light or
+dark. It reflows down to 390 px, and prints without the navigation and the
+controls, the site's notice heading every page and folded details open.
+
+## Figures, tables and files
+
+`cartolex.site.exports`: `map_figure` (the map as PNG or SVG at a size in
+pixels, light or dark, drawn with matplotlib and the app's tokens; people are
+never named), `theme_table` (the tree as CSV), `write_map_bundle` (the
+portable map bundle, `map_bundle/3`) and `write_project_zip` (the project
+folder without `cache/`, the staging area, the lock and earlier exports), the
+last two as jobs writing dated files into `outputs/exports/`.
+
+## Measures
+
+Measured once on the L demo world (329 people on the map, 35 placed, 48
+organisations, 2 955 keywords, 163 themes), Chromium, from `file://`:
+
+| | without texts | with titles |
+| --- | --- | --- |
+| size | 0.79 MB | 1.32 MB |
+| build | 2.5 s | 0.8 s (the bundle read) |
+| home ready | 0.14 s | |
+| opened on the map, first frame drawn | 0.3–0.4 s | |
+| a person's page (details read) | 0.16 s | |
+
+`data/core.js` is 0.20 MB and `data/details.js` 0.38 MB; the map's and the
+site's scripts together about 0.11 MB, the world outline 0.05 MB.
+
+## Checks
+
+`tests/test_site.py` (the XS world): a pseudonymous site holds no name and no
+text; titles and abstracts never carry a private part; builds never overwrite
+each other and go stale after a decision changes; the share routes; the
+site's tokens equal the app's and its catalogues are complete.
+`tests/browser/test_offline_site.py` opens a built site from `file://` in Chromium with
+every request refused (and in Firefox when a build of it is installed), and
+checks the message a page shows without its files.

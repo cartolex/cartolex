@@ -291,7 +291,7 @@ extension), `GET /api/project/state`, `GET /api/jobs` and
 `POST /api/jobs/<id>/cancel` (`tests/fixtures/ui/`), the shell for every other
 path, and the app's Content-Security-Policy on every answer.
 
-The core page module `pages/share.js` is a placeholder until its screen is built;
+Every core page is built;
 the overview (`pages/overview.js`: `overview/page.js`, `cards.js`,
 `preview.js`) and the build (`pages/build.js`, a page placed `hidden`:
 `build/page.js`, `preflight.js`, `run.js`, `words.js`) are built. The overview
@@ -363,6 +363,15 @@ Its state is in the address (`state.js`: `show`, `as`, `org`, `from`, `to`,
 reload. Opening it reads `GET /api/atlas` only; the texts and the keywords of
 people and organisations are read when they are shown.
 
+The share screen (`pages/share.js`, route `/share`) loads
+`pages/share/page.js`: building the offline site (`site.js`: the name
+question, the texts, the title and language, the privacy summary and the
+checks before publishing, each with its fix), the builds (`builds.js`: latest,
+stale, open, download as one zip) and figures, tables and files
+(`exports.js`). Opening it reads `GET /api/share` and `GET /api/share/plan`;
+a build or an export is a job followed through the jobs poller (see
+{doc}`site`).
+
 ### The map, from the app and from the offline site
 
 The MapFrame (`components/map-frame.js`) is a thin Preact wrapper around four
@@ -379,7 +388,11 @@ and the page's colour tokens. `cartolex.app.static_files.classic_script(paths,
 name)` turns them, in the order of `MAP_MODULES`, into one classic script
 that sets `window[name]`; served over HTTP the site can load them as modules.
 WebGL is tried once per page on a canvas of its own, since a canvas that gave
-a WebGL context cannot give a 2D one.
+a WebGL context cannot give a 2D one. The treemap's layout
+(`components/treemap-layout.js`) follows the same rules, so the site's themes
+use it too. The world view draws the outline of the land
+(`static/data/world-land-110m.json`, Natural Earth, public domain; see its
+README).
 
 ## Checks
 
