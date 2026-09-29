@@ -25,6 +25,7 @@ import { VersionsDrawer } from './versions.js';
 import { ThemeHandoffDialog } from './handoff.js';
 import { OperationDialog } from './operations.js';
 import { createUi, installActions, refusal } from './actions.js';
+import { createFit } from './fit.js';
 
 function Banner({ tone = 'info', icon, children, actions }) {
   return html`<div class=${`cx-themes-banner cx-themes-banner--${tone}`} role="status">
@@ -47,7 +48,11 @@ export function ThemesEditor() {
   const editor = useMemo(() => createEditor({
     api: ctx.api, projectId, announce: (text) => setAnnouncement(text),
   }), []);
-  const ui = useMemo(() => createUi(editor), []);
+  const ui = useMemo(() => {
+    const u = createUi(editor);
+    u.fit = createFit({ api: ctx.api });
+    return u;
+  }, []);
   const [atlas, setAtlas] = useState(null);
   const [atlasError, setAtlasError] = useState(null);
   const [dialog, setDialog] = useState(null);

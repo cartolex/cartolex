@@ -9,6 +9,7 @@ import { t } from '../../core/i18n.js';
 import { EmptyState, TreeView } from '../../components/index.js';
 import { nodePath } from './dialogs.js';
 import { KeywordRow } from './rows.js';
+import { firstPlace, suggestionKey } from './fit.js';
 
 /** The queue's keys on its active row; true when the key was one of them. */
 export function reviewKey(event, row, { editor, ui }) {
@@ -31,6 +32,9 @@ export function reviewKey(event, row, { editor, ui }) {
     ui.setAside([row.term], { review: true, after: next });
   } else if (key === 'j' || key === 'k') {
     go(list[at + (key === 'j' ? 1 : -1)]);
+  } else if (/^[1-3]$/.test(key)) {
+    next();
+    return suggestionKey(event, row.term, ui);
   } else {
     return false;
   }
@@ -57,8 +61,12 @@ export function ReviewQueue({ editor, ui }) {
       onOpen=${(row) => ui.open(row)}
       onKeyCommand=${(event, row) => reviewKey(event, row, { editor, ui })}
       rowMenu=${(keys) => ui.menuFor(keys)} onRowMenu=${(item, keys) => ui.onMenu(item, keys)}
-      renderRow=${(row) => html`<${KeywordRow} index=${index} term=${row.term}
-        detail=${t('themes.check.place', { place: place(row.term) })} />`}
+      renderRow=${(row) => {
+        const best = firstPlace(index, ui, row.term);
+        const proposed = t('themes.check.place', { place: place(row.term) });
+        return html`<${KeywordRow} index=${index} term=${row.term}
+          detail=${best ? `${proposed} · ${best}` : proposed} />`;
+      }}
       empty=${html`<${EmptyState} icon="check" title=${t('themes.check.empty')}>
         ${t('themes.check.empty.text')}<//>`} />
   </div>`;

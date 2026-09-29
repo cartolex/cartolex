@@ -4,12 +4,13 @@
  * queue a rebase fills.
  */
 
-import { html, useMemo, useState } from '../../core/preact.js';
+import { html, useEffect, useMemo, useState } from '../../core/preact.js';
 import { formatNumber, locale, t } from '../../core/i18n.js';
 import { Button, EmptyState, IconButton, Input, Tabs, TreeView } from '../../components/index.js';
 import { lang2, nodeName, pathOf, search, searchIndex } from './model.js';
 import { KeywordRow, NodeRow } from './rows.js';
 import { ReviewQueue } from './review.js';
+import { BorderlinePane, firstPlace, suggestionKey } from './fit.js';
 
 /** The rows of the outline: nodes, and the keywords of the nodes that are open. */
 export function outlineRows(index, open, found, lang) {
@@ -82,6 +83,11 @@ export function OutlinePane({ editor, ui }) {
     [index, open, found, lang]);
   if (found) ui.lastSearchMs = performance.now() - started;
 
+  // The suggested places are asked only while the tray or the queue is shown.
+  const suggesting = ui.leftTab.value === 'aside' || ui.leftTab.value === 'check';
+  useEffect(() => (suggesting ? ui.fit.wantSuggestions(editor.tree.value) : undefined),
+    [suggesting, editor.tree.value]);
+
   if (!index) return null;
   const toggle = (row, expand) => {
     if (row.kind !== 'node') return;
@@ -119,12 +125,15 @@ export function OutlinePane({ editor, ui }) {
     activeKey=${ui.active.value} onActiveChange=${(key) => ui.setActive(key)}
     selection=${ui.treeSel.value} onSelectionChange=${(keys) => ui.select(keys)}
     onOpen=${(row) => ui.open(row)} onDelete=${() => {}}
+    onKeyCommand=${(event, row) => suggestionKey(event, row && row.term, ui)}
     rowMenu=${(keys) => ui.menuFor(keys)} onRowMenu=${(item, keys) => ui.onMenu(item, keys)}
     dragData=${editor.readOnly.value ? null : (keys) => ui.dragFor(keys)}
     renderRow=${(row) => {
       const entry = index.tree.set_aside[row.term] || {};
+      const place = firstPlace(index, ui, row.term);
+      const reason = entry.reason || t('themes.aside.no_reason');
       return html`<${KeywordRow} index=${index} term=${row.term}
-        detail=${entry.reason || t('themes.aside.no_reason')} />`;
+        detail=${place ? `${reason} · ${place}` : reason} />`;
     }}
     empty=${html`<${EmptyState} icon="check" title=${t('themes.aside.empty')}>
       ${t('themes.aside.empty.text')}<//>`} />`;
@@ -179,8 +188,10 @@ export function OutlinePane({ editor, ui }) {
         { id: 'outline', label: t('themes.tab.outline') },
         { id: 'aside', label: t('themes.tab.aside'), count: formatNumber(asideCount) },
         { id: 'check', label: t('themes.tab.check'), count: formatNumber(checkCount) },
+        { id: 'border', label: t('themes.tab.border') },
       ]}
-      panel=${(id) => (id === 'aside' ? aside
-        : id === 'check' ? html`<${ReviewQueue} editor=${editor} ui=${ui} />` : outline)} />
+      panel=${(id) => (id === 'aside' ? html`<p class="cx-themes-check__help">${t('themes.suggest.keys')}</p>${aside}`
+        : id === 'check' ? html`<${ReviewQueue} editor=${editor} ui=${ui} />`
+          : id === 'border' ? html`<${BorderlinePane} editor=${editor} ui=${ui} />` : outline)} />
   </section>`;
 }

@@ -301,6 +301,7 @@ ERRORS: dict[str, ErrorKind] = {
     "proposal_changed": ErrorKind(
         409, "a newer proposal ({run}) replaced the one you saw: look at it first", "reload"
     ),
+    "no_space": ErrorKind(409, "the keywords have no space yet: build the themes first", "build"),
     "theme_handoff_empty": ErrorKind(404, "the tree holds no keyword to send", "none"),
     "invalid_theme_bundle": ErrorKind(
         422, "this is not a theme bundle of cartolex: {detail}", "fix-input"

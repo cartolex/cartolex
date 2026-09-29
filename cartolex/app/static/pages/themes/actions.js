@@ -7,6 +7,7 @@
 
 import { batch, computed, signal } from '../../core/preact.js';
 import { locale, t } from '../../core/i18n.js';
+import { placeOps } from './fit.js';
 import { dropOperation, isEmpty, lang2, levelName, mergeTargets, nodeParents, pathOf } from './model.js';
 
 /** A refused operation or request, in words. */
@@ -30,7 +31,7 @@ export function createUi(editor) {
     if (person.value) return { kind: 'person', id: person.value };
     const keys = [...treeSel.value];
     const nodes = keys.filter((k) => k.startsWith('n:'));
-    const terms = keys.filter((k) => /^[kac]:/.test(k)).map((k) => k.slice(2));
+    const terms = keys.filter((k) => /^[kacb]:/.test(k)).map((k) => k.slice(2));
     if (nodes.length === 1 && !terms.length) return { kind: 'node', id: nodes[0].slice(2) };
     if (terms.length) return { kind: 'keywords', terms };
     const a = active.value;
@@ -138,7 +139,7 @@ export function installActions({ editor, ui, setDialog, toast }) {
     if (outcome !== true) toast({ kind: 'warning', title: t('themes.refused.title'), message: outcome || '' });
     return outcome;
   };
-  const keysToTerms = (keys) => keys.filter((k) => /^[kac]:/.test(k)).map((k) => k.slice(2));
+  const keysToTerms = (keys) => keys.filter((k) => /^[kacb]:/.test(k)).map((k) => k.slice(2));
   const idle = () => !editor.readOnly.value;
 
   ui.rename = (id) => idle() && setDialog({ kind: 'rename', id });
@@ -163,6 +164,10 @@ export function installActions({ editor, ui, setDialog, toast }) {
     runOrToast([{ op: 'put_back', keywords: terms }]);
   };
   ui.putBackInto = (terms) => idle() && setDialog({ kind: 'put-back-into', terms });
+  ui.placeAt = (term, node) => {
+    if (idle()) runOrToast(placeOps(editor.index.value.tree, term, node));
+  };
+  ui.runOrToast = runOrToast;
   ui.accept = (terms) => runOrToast([{ op: 'set_review', keywords: terms, state: 'reviewed' }]);
   ui.deleteNode = (id) => {
     if (!isEmpty(editor.index.value, id)) {

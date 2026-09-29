@@ -383,6 +383,7 @@ the English `message` the same way; an empty result also names its next action.
 | `empty_no_keywords` | no keywords yet: build the keywords first | — | `build` |
 | `empty_no_themes` | no themes yet: build the themes to get a first draft | — | `build` |
 | `empty_tree_never_saved` | the tree was never saved | — | `none` |
+| `empty_no_borderline` | no keyword sits near the border between two nodes | — | `none` |
 | `empty_no_map` | no map yet: build the map | — | `build` |
 | `empty_no_map_versions` | no map yet: the first build draws one and pins it | — | `build` |
 | `empty_up_to_date` | everything is up to date | — | `none` |
@@ -459,6 +460,8 @@ only, so a project of depth 1, 3 or 4 gets its map like one of depth 2.
 | `GET /api/themes/draft` | the grouping's latest proposal, whatever tree is saved: `{run, tree}` (`no_proposal` before the first grouping) |
 | `GET /api/themes/usage` | each keyword of the current vocabulary: `{term: [people, weight]}` (how many people use it; the sum of its share of each person's usage), `people` counted; `ETag` by the space's run |
 | `POST /api/themes/ops` | `{tree, ops, lenient}`: the operations applied in order; each step is `{op, description}`, or with `lenient` a refused step is skipped and reported as `{op, refused}` |
+| `POST /api/themes/borderline` | `{tree, level, reviewed, offset, limit, sort, q}`: the placed keywords of the tree sent, paged, smallest margin first: `keyword`, `node` (its node at the level compared: `level`, else its own node's), `other` (the nearest other node of that level), `own` and `near` (cosines to the two nodes' centroids in the space, the keyword left out of its own) and `margin` (`own − near`; negative: nearer the other node); `negative` counts those. Keywords marked `reviewed` (« keep here ») are left out unless `reviewed`. `no_space` before the space is built; the measure is in `cartolex.lexicon.theme_fit` |
+| `POST /api/themes/suggestions` | `{tree, keywords, top, scope}`: for each keyword (default: the set-aside ones and those « to check », `scope` `aside`, `check` or `both`), the `top` nodes (at most 10, default 3) holding keywords whose centroid is nearest: `{suggestions: {keyword: [{node, score}]}}`, *score* the cosine |
 | `POST /api/themes/compare` | `{before, after, limit}`: every difference (`cartolex.project.themes.compare`), with `total` and `counts` by kind |
 | `POST /api/themes/rebase` | rebases the saved tree onto the current vocabulary now, as an apply does first (send `If-Match`): `{written, notes, version, to_check, tree}` |
 | `POST /api/themes/proposal` | `{decision: adopt \| keep, run}` (send `If-Match`): agree once on a new grouping of the same vocabulary; `adopt` saves the proposal, `keep` records that the tree was kept over it (`based_on.run`); `proposal_changed` when a newer proposal replaced `run` |
@@ -513,6 +516,7 @@ unreadable lines have a `problem`: `unknown_action`, `missing_fields`,
 | `no_proposal` | 404 | the grouping has proposed no tree yet: build the themes first | `build` |
 | `proposal_changed` | 409 | a newer proposal ({run}) replaced the one you saw: look at it first | `reload` |
 | `theme_handoff_empty` | 404 | the tree holds no keyword to send | — |
+| `no_space` | 409 | the keywords have no space yet: build the themes first | `build` |
 | `invalid_theme_bundle` | 422 | this is not a theme bundle of cartolex: {detail} | `fix-input` |
 
 **Keeping over an unanswered proposal, and the versions' names.** When a

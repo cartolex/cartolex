@@ -24,6 +24,7 @@ from . import (
     sources,
     state,
     themes,
+    themes_fit,
 )
 
 #: Every router of the app, in the order they are mounted (the interface's files come last).
@@ -44,6 +45,7 @@ ROUTERS: list[APIRouter] = [
         sources,
         keywords,
         themes,
+        themes_fit,
         atlas,
         share,
         settings,

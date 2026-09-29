@@ -8,6 +8,7 @@ import { formatNumber, locale, t } from '../../core/i18n.js';
 import { Button, MenuButton } from '../../components/index.js';
 import { lang2, levelName, nodeName, pathOf } from './model.js';
 import { languageName, shortShare } from './labels.js';
+import { SuggestedPlaces } from './fit.js';
 
 function Path({ index, id, ui }) {
   const lang = lang2(locale.value);
@@ -175,6 +176,7 @@ function KeywordsPanel({ editor, ui, terms }) {
         <${Fact} label=${t('themes.panel.aside.from')}>${entry.from && index.nodes.has(entry.from)
           ? nodeName(index.nodes.get(entry.from), lang) : t('themes.panel.aside.from.none')}<//>` : null}
     </dl>
+    ${single && (aside.length || checking.length) ? html`<${SuggestedPlaces} editor=${editor} ui=${ui} term=${single} />` : null}
     ${terms.length > 1 ? html`<ul class="cx-themes-panel__keywords">
       ${terms.slice(0, 60).map((term) => html`<li key=${term}>
         <button type="button" class="cx-themes-panel__keyword" onClick=${() => ui.openKeyword(term)}>
