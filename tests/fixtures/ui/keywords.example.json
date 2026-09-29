@@ -127,6 +127,7 @@
   "routes": {
    "person": 0,
    "ai-handoff": 0,
+   "ai-copilot": 0,
    "ai-api": 0,
    "extraction": 6
   },

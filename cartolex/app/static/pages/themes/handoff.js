@@ -34,9 +34,26 @@ export function operationText(op, index) {
     case 'set_attribution':
       return op.levels === 0 ? t('themes.ai.op.count_nowhere', { keyword: op.keywords.join(', ') })
         : t('themes.ai.op.count_level', { keyword: op.keywords.join(', '), level: op.levels === null ? '—' : op.levels });
+    case 'create_node':
+      return t('themes.ai.op.create', { name: Object.values(op.names || {})[0] || op.node_id || '' });
+    case 'delete_node':
+      return t('themes.ai.op.delete', { name: name(op.node_id) });
+    case 'move_node':
+      return t('themes.ai.op.move_node', { name: name(op.node_id), to: op.parent ? name(op.parent) : '—' });
     default:
       return op.op;
   }
+}
+
+/** A proposed change in words: its operation, or a count of its operations when it has several. */
+export function itemText(item, index) {
+  const ops = item.ops || [item.op];
+  if (ops.length === 1) return operationText(ops[0], index);
+  const count = (kind) => ops.filter((op) => op.op === kind).length;
+  const moved = ops.filter((op) => op.op === 'move_keywords' || op.op === 'put_back')
+    .reduce((n, op) => n + op.keywords.length, 0);
+  return t('themes.ai.op.many', { created: count('create_node'), moved, removed: count('delete_node'),
+    total: ops.length });
 }
 
 /**
@@ -62,7 +79,7 @@ export function ProposalList({ proposal, index, accepted, onChange }) {
       ${proposal.items.map((item, i) => html`<li key=${i} class=${`cx-themes-ai__item ${item.refused ? 'is-refused' : ''}`}>
         <${Checkbox} checked=${accepted.has(i)} disabled=${Boolean(item.refused)}
           label=${html`<span class="cx-themes-ai__verb">${t(`themes.ai.verb.${item.verb.replace(' ', '_')}`)}</span>
-            <span class="cx-themes-ai__what">${operationText(item.op, index)}</span>`}
+            <span class="cx-themes-ai__what">${itemText(item, index)}</span>`}
           onChange=${() => toggle(i)} />
         ${item.reason ? html`<p class="cx-themes-ai__reason">${t('themes.ai.reason', { reason: item.reason })}</p>` : null}
         ${item.refused ? html`<p class="cx-themes-ai__refused"><${Icon} name="warning" />

@@ -39,10 +39,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-ENGINE_PACKAGES = ("cartolex.lexicon", "cartolex.atlas")
+#: The copilot kit (``cartolex.copilot``) runs where only the engine is: it is held to its rules.
+ENGINE_PACKAGES = ("cartolex.lexicon", "cartolex.atlas", "cartolex.copilot")
 
 #: Modules inside ``cartolex`` the engine may import (the module or its children).
-ALLOWED_INTERNAL = ("cartolex.lexicon", "cartolex.atlas", "cartolex._data")
+ALLOWED_INTERNAL = ("cartolex.lexicon", "cartolex.atlas", "cartolex.copilot", "cartolex._data")
 #: Modules the engine may import only for annotations or inside a function.
 ALLOWED_FOR_TYPES = ("cartolex.context",)
 

@@ -153,6 +153,8 @@ async function readBody(response) {
   if (response.status === 204) return null;
   const type = response.headers.get('Content-Type') || '';
   if (type.includes('json')) return response.json();
+  // A file to offer (a zip made on demand): its bytes, for downloadFile().
+  if (type.includes('zip') || type.includes('octet-stream')) return { blob: await response.blob() };
   const text = await response.text();
   return text ? { text } : null;
 }

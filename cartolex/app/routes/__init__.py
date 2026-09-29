@@ -11,6 +11,7 @@ from . import (
     build,
     collaborators,
     collection,
+    copilot,
     corpus,
     handoff,
     jobs,
@@ -60,5 +61,6 @@ ROUTERS: list[APIRouter] = [
         project_tools,
         machine,
         handoff,
+        copilot,
     )
 ]

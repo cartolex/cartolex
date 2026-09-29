@@ -53,7 +53,7 @@ export function MergeDialog({ ctx, rows, version, onClose, onDone }) {
   <//>`;
 }
 
-const SOURCES = ['person', 'ai-handoff'];
+const SOURCES = ['person', 'ai-handoff', 'ai-copilot'];
 
 /** The history of the decisions, the latest first; restore any of them. */
 export function HistoryDrawer({ ctx, version, onClose, onChanged, toast }) {
@@ -88,7 +88,7 @@ export function HistoryDrawer({ ctx, version, onClose, onChanged, toast }) {
       render: (r) => (r.decision === 'merge' ? t('keywords.why.merged', { target: r.target })
         : t(`keywords.decision.${r.decision}`)) },
     { id: 'source', label: t('keywords.col.route'), width: '9rem',
-      render: (r) => html`<${RouteMark} route=${r.source === 'ai-handoff' ? 'ai-handoff' : 'person'} />` },
+      render: (r) => html`<${RouteMark} route=${SOURCES.includes(r.source) ? r.source : 'person'} />` },
     { id: 'decided_at', label: t('keywords.col.when'), width: '8rem',
       render: (r) => (r.decided_at ? formatDate(r.decided_at) : '') },
   ];

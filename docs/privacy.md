@@ -42,6 +42,16 @@ sends for them is what it sends for anyone. After a collection, the job's
 record in `logs/jobs/` names every host contacted and the kinds of data sent,
 never a name or an identifier.
 
+**Files you give an AI assistant yourself.** The AI handoff and the AI
+copilot make files you give, if you choose, to an assistant you already use;
+cartolex sends nothing. Both say what they hold before you download them. The
+copilot's bundle holds the keywords or the theme tree, the keywords' vectors
+and each person's usage as numbered rows in a random order: never a name, an
+identifier, an organisation or a text; a keyword that holds a person's name
+is left out. Only when you ask for them does a keyword bundle add a few lines
+of text around each candidate, with every name, address and identifier
+masked (see {doc}`dev/copilot`).
+
 ## What never leaves your computer
 
 - your texts, titles and abstracts, imported or collected;

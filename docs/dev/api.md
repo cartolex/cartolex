@@ -242,7 +242,7 @@ version, so it can be undone too).
 
 | route | what it does |
 | --- | --- |
-| `GET /api/keywords` | the candidates of the current extraction in their three bands (`kept`, `check`, `aside`) with the reason of each, your decisions and the AI's verdicts by API (`keywords.triage`) applied, and the `route` that decided each (`person`, `ai-handoff`, `ai-api`, `extraction`); filters `band`, `lang`, `decision`, `route`, `q` (the term or one of its forms); counts per band, route and language; the counting unit of the extraction; `warning` when several corpus languages have no AI filtering yet (`health_languages_split`); decisions whose keyword disappeared (listed, never dropped) |
+| `GET /api/keywords` | the candidates of the current extraction in their three bands (`kept`, `check`, `aside`) with the reason of each, your decisions and the AI's verdicts by API (`keywords.triage`) applied, and the `route` that decided each (`person`, `ai-handoff`, `ai-copilot`, `ai-api`, `extraction`); filters `band`, `lang`, `decision`, `route`, `q` (the term or one of its forms); counts per band, route and language; the counting unit of the extraction; `warning` when several corpus languages have no AI filtering yet (`health_languages_split`); decisions whose keyword disappeared (listed, never dropped) |
 | `GET /api/keywords/decisions` | the decisions of `keywords.csv`, the latest first (the history, each one restorable); filters `decision`, `source`, `q` |
 | `POST /api/keywords/decisions/where {where, decision, reason}` | keep or exclude every keyword the list's filters keep (`If-Match`) |
 | `POST /api/keywords/decisions {decisions: [{term, language, decision, target, reason}]}` | keep, exclude or merge, one or many (`If-Match`); the first decision freezes the identity |
@@ -277,7 +277,7 @@ version, so it can be undone too).
 | `POST /api/handoff/export {band, bands, terms, lang, limit, max_tokens, group}` | the parts of a handoff (`cartolex.project.handoff`): for each, the prompt to paste, the terms to attach and the answer's format, its `bundle.json` (`cartolex-handoff/1`, sent back with the answer), and what they contain and never contain; parts stay under `max_tokens` (a chat assistant reads a limited amount at once); with `group` (the default) the terms the same people use share a part (`group_items`, from the extraction's `term_people.npz`), so a term and its translation are judged together |
 | `POST /api/handoff/export.zip` | the same parts as a zip, one folder per part |
 | `POST /api/handoff/import {bundle, answer}` | keep the answer as it came in `decisions/history/ai/` (with the part it answers) and propose a decision per answered term, with what could not be read (lines ignored, renumbered, unmatched); the first answers freeze the identity |
-| `GET /api/handoff/proposals`, `GET /api/handoff/proposals/{id}`, `POST /api/handoff/proposals/{id}/accept {terms, all}` | proposals; accepted ones reach `keywords.csv` with the source `ai-handoff`; an accepted term whose English form is another term is merged into it |
+| `GET /api/handoff/proposals`, `GET /api/handoff/proposals/{id}`, `POST /api/handoff/proposals/{id}/accept {terms, all}` | proposals; accepted ones reach `keywords.csv` with the source `ai-handoff` (`ai-copilot` for a copilot's result); an accepted term whose English form is another term is merged into it |
 | `GET /api/keywords/ai` | the two routes of the AI filtering: by handoff (the proposals so far) and by API (provider, whether a key is saved, what is sent, an estimate of the calls and tokens, the last run) |
 | `POST /api/keywords/ai/run {consent}` | filter by API: switch `keywords.triage` on in `params.json` and start it as a build job (202); `ai_api_not_ready` without a key or a provider, `ai_consent_needed` without consent |
 
@@ -641,6 +641,15 @@ accepted operations on the tree, and applies them through
 unreadable lines have a `problem`: `unknown_action`, `missing_fields`,
 `unknown_node`, `unknown_keyword`, `bad_levels`, `empty_name` or `same_node`.
 
+### The AI copilot
+
+The copilot's bundle is a zip an assistant able to run code works from on its
+own; its result comes back as one file. Its format, the kit and the routes
+(`/api/themes/copilot/…`, `/api/keywords/copilot/…`) are in {doc}`copilot`.
+An imported themes result is reviewed like a theme handoff's answer; a triage
+result is a keyword proposal (`GET /api/handoff/proposals/{id}` and its
+`accept` take the ids of both).
+
 ### Errors of the theme editor
 
 | code | status | message | next |
@@ -650,6 +659,7 @@ unreadable lines have a `problem`: `unknown_action`, `missing_fields`,
 | `theme_handoff_empty` | 404 | the tree holds no keyword to send | — |
 | `no_space` | 409 | the keywords have no space yet: build the themes first | `build` |
 | `invalid_theme_bundle` | 422 | this is not a theme bundle of cartolex: {detail} | `fix-input` |
+| `invalid_copilot_result` | 422 | this is not a copilot result of cartolex: {detail} | `fix-input` |
 
 **Keeping over an unanswered proposal, and the versions' names.** When a
 new grouping of the same vocabulary waits for an answer

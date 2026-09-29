@@ -365,6 +365,9 @@ ERRORS: dict[str, ErrorKind] = {
     "invalid_theme_bundle": ErrorKind(
         422, "this is not a theme bundle of cartolex: {detail}", "fix-input"
     ),
+    "invalid_copilot_result": ErrorKind(
+        422, "this is not a copilot result of cartolex: {detail}", "fix-input"
+    ),
     # sharing
     "not_available": ErrorKind(501, "building the offline site is not available in this version"),
     "no_map_to_share": ErrorKind(409, "there is no map to share yet: build the map first", "build"),
