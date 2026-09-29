@@ -22,29 +22,75 @@ from .build import busy_error
 routes = Routes(tags=["collection"])
 
 PersonId = Annotated[str, Field(pattern=r"^[A-Za-z0-9_.:-]{1,64}$")]
-#: A record id: ``scheme:value`` (``orcid:0000-0002-…``, ``openalex:A…``), or a bare ORCID iD.
+#: A record id: ``scheme:value`` (``orcid:0000-0002-…``, ``openalex:A…``, ``hal:<idHAL>``), or
+#: a bare ORCID iD.
 RECORD = re.compile(
     r"^(?:[a-z][a-z0-9_-]{1,31}:[A-Za-z0-9._/-]{1,128}|\d{4}-\d{4}-\d{4}-\d{3}[\dX])$"
 )
+Action = Literal["collect", "identify", "harvest", "institutions", "collaborators", "retry"]
+#: A threshold for a single clear match when a service gives no flag of its own.
+CLEAR_SCORE = 0.8
+
+
+class CollectOptions(BaseModel):
+    """What to collect: the action and its options (each action reads its own)."""
+
+    action: Action = "collect"
+    people: Annotated[list[PersonId] | None, Field(max_length=100_000)] = None
+    years: Annotated[list[int | None] | None, Field(min_length=2, max_length=2)] = None
+    hal: bool = True
+    scielo: Annotated[str | None, Field(pattern=r"^[a-z]{2,8}$")] = None
+    issns: Annotated[list[str], Field(max_length=200)] = []
+    abstracts: bool = False
+    search: Annotated[str | None, Field(max_length=200)] = None
+    institutions: Annotated[list[str] | None, Field(max_length=100)] = None
+    min_works: Annotated[int, Field(ge=1, le=1000)] = 2
+    rounds: Annotated[int, Field(ge=1, le=5)] = 1
+    seeds: Annotated[list[PersonId] | None, Field(max_length=100_000)] = None
+    cap: Annotated[int | None, Field(ge=1, le=100_000)] = None
+    max_authors: Annotated[int | None, Field(ge=2, le=10_000)] = None
+    consent: bool = False
+
+    def options(self) -> dict[str, Any]:
+        return self.model_dump(exclude={"action", "consent"}, exclude_none=True)
 
 
 @routes.get("/api/collection/plan", action="collection.read")
-def plan(request: Request, ctx: ProjectDep) -> dict[str, Any]:
-    """What a collection would do, and what leaves the computer (and what never does)."""
-    return runtime_of(request).collection.plan(ctx.project)
+def plan(
+    request: Request, ctx: ProjectDep, action: Annotated[Action, Query()] = "collect"
+) -> dict[str, Any]:
+    """What *action* would do with its default options, and what leaves the computer."""
+    return runtime_of(request).collection.plan(ctx.project, action, {})
+
+
+@routes.post("/api/collection/plan", action="collection.read")
+def plan_with(request: Request, body: CollectOptions, ctx: ProjectDep) -> dict[str, Any]:
+    """What an action with these options would do, and what leaves the computer (and what
+    never does); nothing is sent."""
+    return runtime_of(request).collection.plan(ctx.project, body.action, body.options())
 
 
 @routes.post("/api/collection/start", action="collection.start")
-def start(request: Request, ctx: ProjectDep) -> JSONResponse:
-    """Start collecting (a job; one job per project at a time: 409 names the running one)."""
+def start(request: Request, ctx: ProjectDep, body: CollectOptions | None = None) -> JSONResponse:
+    """Start an action (a job; one job per project at a time: 409 names the running one).
+
+    When the plan asks consent (data leaves the computer), the request carries
+    ``consent: true``: the person has read the plan.
+    """
     runtime = runtime_of(request)
     service = runtime.collection
     if not service.available:
         raise ApiError.of("collection_unavailable")
+    body = body or CollectOptions()
     project = ctx.project
+    action, options = body.action, body.options()
+    summary = service.plan(project, action, options)
+    if summary.get("consent_needed") and not body.consent:
+        hosts = ", ".join(h["host"] for h in summary["leaves_the_computer"]) or "nobody"
+        raise ApiError.of("consent_needed", hosts=hosts, extra={"plan": summary})
 
     def work(control: JobControl) -> dict[str, Any]:
-        return dict(service.collect(project, control))
+        return dict(service.collect(project, control, action, options))
 
     try:
         info = runtime.jobs.submit(
@@ -52,38 +98,71 @@ def start(request: Request, ctx: ProjectDep) -> JSONResponse:
             jobs_dir=ctx.layout.jobs,
             kind="collection",
             work=work,
-            title="collect texts",
+            title=f"collect: {summary.get('action', action)}",
         )
     except JobConflict as exc:
         raise busy_error(exc.running) from exc
     return JSONResponse({"job": info.as_dict()}, status_code=202)
 
 
-def _latest(request: Request, ctx: Any) -> Any:
+def latest_job(request: Request, ctx: Any, action: str | None = None) -> Any:
+    """The newest collection job (of *action*), or ``None``."""
     jobs = [j for j in runtime_of(request).jobs.list(ctx.id) if j.kind == "collection"]
+    if action is not None:
+        jobs = [j for j in jobs if (j.result or {}).get("action") == action]
     return jobs[0] if jobs else None
 
 
 @routes.get("/api/collection", action="collection.read")
 def progress(request: Request, ctx: ProjectDep) -> dict[str, Any]:
     """The running collection, or the last one: its progress and result."""
-    job = _latest(request, ctx)
+    job = latest_job(request, ctx)
     if job is None:
-        return {
-            "job": None,
-            "empty": empty("empty_no_collection"),
-        }
+        return {"job": None, "empty": empty("empty_no_collection")}
     return {"job": job.as_dict()}
 
 
 @routes.post("/api/collection/cancel", action="collection.start")
 def cancel(request: Request, ctx: ProjectDep) -> dict[str, Any]:
     """Stop the running collection at its next safe point."""
-    job = _latest(request, ctx)
+    job = latest_job(request, ctx)
     if job is None or job.state not in ("queued", "running", "cancelling"):
         raise ApiError.of("collection_not_running")
     info = runtime_of(request).jobs.cancel(job.id)
     return {"job": info.as_dict() if info else job.as_dict()}
+
+
+# ── the identity queue ────────────────────────────────────────────────────────
+
+
+def normalised(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Candidates in one shape, best first, the single clear match flagged."""
+    out = []
+    for c in candidates:
+        evidence = c.get("evidence") or []
+        if isinstance(evidence, dict):
+            evidence = [f"{k}: {v}" for k, v in evidence.items() if v not in (None, "", False)]
+        out.append(
+            {
+                "finder": c.get("finder") or "demo",
+                "record": c.get("record"),
+                "name": c.get("name") or "",
+                "score": c.get("score"),
+                "evidence": list(evidence),
+                "detail": c.get("detail") or "",
+                "clear": c.get("clear"),
+            }
+        )
+    usable = [c for c in out if c["record"]]
+    if all(c["clear"] is None for c in out):
+        single = (
+            len(usable) == 1
+            and isinstance(usable[0]["score"], int | float)
+            and usable[0]["score"] >= CLEAR_SCORE
+        )
+        for c in out:
+            c["clear"] = bool(single and c is usable[0])
+    return out
 
 
 @routes.get("/api/collection/identities", action="collection.read")
@@ -93,9 +172,13 @@ def identities(
     ctx: ProjectDep,
     params: ListDep,
     state: Annotated[Literal["pending", "confirmed", "auto", "none", "all"], Query()] = "pending",
+    clear: Annotated[bool | None, Query()] = None,
+    finder: Annotated[str | None, Query(max_length=32)] = None,
 ) -> dict[str, Any]:
-    """The identity queue: each person to check, with candidate records and their evidence."""
-    people, fp = read_people(ctx.project, runtime_of(request).table_cache)
+    """The identity queue: each person to check, with every finder's candidate records and
+    their evidence; ``clear`` keeps the people with (or without) a single clear match."""
+    runtime = runtime_of(request)
+    people, fp = read_people(ctx.project, runtime.table_cache)
     rows = [
         p
         for p in people
@@ -104,22 +187,38 @@ def identities(
         and (state == "all" or p["identity"] == state)
         and (not params.q or params.q in f"{p['last_name']} {p['first_name']}".casefold())
     ]
+    counts = {"clear": 0, "unclear": 0, "no_candidate": 0}
+    found = {
+        pid: normalised(c)
+        for pid, c in runtime.collection.candidates(
+            ctx.project, [p["person_id"] for p in rows]
+        ).items()
+    }
+    for p in rows:
+        cands = found.get(p["person_id"], [])
+        key = "clear" if any(c["clear"] for c in cands) else "unclear" if cands else "no_candidate"
+        counts[key] += 1
+    if clear is not None:
+        rows = [p for p in rows if any(c["clear"] for c in found.get(p["person_id"], [])) is clear]
+    if finder:
+        rows = [
+            p for p in rows if any(c["finder"] == finder for c in found.get(p["person_id"], []))
+        ]
     out = page(
         rows,
         params,
         sorts={
             "name": lambda p: f"{p['last_name']} {p['first_name']}".casefold(),
             "texts": lambda p: p["coverage"].get("texts", 0),
+            "candidates": lambda p: len(found.get(p["person_id"], [])),
         },
         default_sort="name",
-        filters={"state": state, "q": params.q},
+        filters={"state": state, "q": params.q, "clear": clear, "finder": finder},
         empty=empty(
             "empty_no_identity_to_check" if state == "pending" else "empty_no_identity_in_state"
         ),
-        extra={"version": version_of(fp)},
+        extra={"version": version_of(fp), "counts": counts},
     )
-    ids = [p["person_id"] for p in out["items"]]
-    candidates = runtime_of(request).collection.candidates(ctx.project, ids)
     out["items"] = [
         {
             "person_id": p["person_id"],
@@ -129,7 +228,8 @@ def identities(
             "unit": p["unit"],
             "identity": p["identity"],
             "records": p["records"],
-            "candidates": candidates.get(p["person_id"], []),
+            "columns": p["columns"],
+            "candidates": found.get(p["person_id"], []),
         }
         for p in out["items"]
     ]
@@ -159,17 +259,18 @@ class BulkAccept(BaseModel):
 def accept_many(
     request: Request, response: Response, body: BulkAccept, ctx: ProjectDep
 ) -> dict[str, Any]:
-    """Accept the best candidate of each person listed (those without one are left as they are)."""
+    """Accept the single clear match of each person listed; the others are left as they are
+    (``left``), to decide one by one."""
     expected = expected_version(request)
     found = runtime_of(request).collection.candidates(ctx.project, body.person_ids)
-    changes = {
-        pid: {"identity": "confirmed", "records": options[0]["record"]}
-        for pid, options in found.items()
-        if options
-    }
+    changes = {}
+    for pid, options in found.items():
+        clear = [c for c in normalised(options) if c["clear"]]
+        if clear:
+            changes[pid] = {"identity": "confirmed", "records": clear[0]["record"]}
     left = sorted(set(body.person_ids) - set(changes))
     if not changes:
-        raise ApiError.of("no_candidates")
+        raise ApiError.of("no_clear_match")
     with ctx.handle.mutex:
         check_version(ctx.layout.people_csv, expected)
         fp = write_people_csv(
@@ -200,7 +301,7 @@ def decide(
             change = {"identity": "confirmed", "records": _record(body.record)}
         else:
             found = runtime_of(request).collection.candidates(ctx.project, [person_id])
-            options = [c["record"] for c in found.get(person_id, [])]
+            options = [c["record"] for c in found.get(person_id, []) if c.get("record")]
             record = body.record or (options[0] if options else None)
             if record is None or record not in options:
                 raise ApiError.of("not_a_candidate")
@@ -213,24 +314,3 @@ def decide(
         )
     response.headers["ETag"] = etag_of(fp)
     return {"person_id": person_id, **change, "version": version_of(fp)}
-
-
-@routes.get("/api/collection/coverage", action="collection.read")
-def coverage(request: Request, ctx: ProjectDep) -> dict[str, Any]:
-    """How well the texts cover the people: counts per coverage class and per role."""
-    people, _ = read_people(ctx.project, runtime_of(request).table_cache)
-    classes: dict[str, int] = {"good": 0, "thin": 0, "none": 0}
-    by_role: dict[str, dict[str, int]] = {}
-    texts = 0
-    for p in people:
-        cls = p["coverage"]["class"]
-        classes[cls] += 1
-        by_role.setdefault(p["role"], {"good": 0, "thin": 0, "none": 0})[cls] += 1
-        texts += p["coverage"].get("texts", 0)
-    return {
-        "people": len(people),
-        "classes": classes,
-        "by_role": by_role,
-        "authorships": texts,
-        "empty": None if people else empty("empty_no_people"),
-    }

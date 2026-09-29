@@ -1,96 +1,35 @@
 # SPDX-License-Identifier: MIT
-"""People of a project: reading the tables and decisions, importing a list, writing roles.
+"""People of a project: reading the tables and decisions, writing roles.
 
 The people of a project are rows of ``sources/tables/people.parquet`` (what a
 source says: names, identifiers, extra columns) and rows of
 ``decisions/people.csv`` (what people decided: role, set, identity, records,
-merges). This module reads both into one view, turns an uploaded list into a
-mapping proposal and then into people, and writes decisions with the guarded
-writer.
+merges). This module reads both into one view and writes decisions with the
+guarded writer; :mod:`cartolex.app.importing` imports lists.
 """
 
 from __future__ import annotations
 
-import csv
-import io
-import re
 import unicodedata
-from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
-
-import pyarrow as pa
 
 from cartolex.project import Project
 from cartolex.project.files import fingerprint, write_decision
 from cartolex.project.tables import (
-    SOURCE_SCHEMAS,
     decision_csv_bytes,
     read_decision_csv,
     read_source_table,
-    write_source_table,
 )
 
 __all__ = [
-    "FIELDS",
-    "MappingError",
-    "ParsedList",
     "coverage_of",
     "decided_now",
-    "import_people",
-    "parse_list",
     "people_rows",
-    "propose_mapping",
     "read_people",
     "write_people_csv",
 ]
-
-#: What a column of an imported list can be: a person's field, an extra column kept as a
-#: filter (``column``), or nothing (``ignore``).
-FIELDS = (
-    "last_name",
-    "first_name",
-    "name",
-    "orcid",
-    "email",
-    "unit",
-    "column",
-    "ignore",
-)
-MAX_ROWS = 100_000
-
-_HEADER_HINTS: dict[str, tuple[str, ...]] = {
-    "last_name": (
-        "last name",
-        "lastname",
-        "surname",
-        "family name",
-        "nom",
-        "sobrenome",
-        "apellido",
-    ),
-    "first_name": ("first name", "firstname", "given name", "forename", "prénom", "prenom", "nome"),
-    "name": ("name", "full name", "nom complet", "nome completo", "person", "personne"),
-    "orcid": ("orcid", "orcid id", "orcid ids"),
-    "email": ("email", "e-mail", "mail", "courriel"),
-    "unit": (
-        "unit",
-        "lab",
-        "laboratory",
-        "laboratoire",
-        "team",
-        "équipe",
-        "equipe",
-        "affiliation",
-        "organisation",
-        "organization",
-        "department",
-        "unité",
-        "unite",
-    ),
-}
-_ORCID = re.compile(r"(\d{4}-\d{4}-\d{4}-\d{3}[\dX])")
 
 
 def decided_now() -> str:
@@ -317,287 +256,3 @@ def write_people_csv(
         row["decided_at"] = now
     data = decision_csv_bytes("people", list(rows.values()))
     return write_decision(layout, layout.people_csv, data, expected=expected, action=action)
-
-
-# ── importing a list ─────────────────────────────────────────────────────────
-
-
-@dataclass(frozen=True)
-class ParsedList:
-    """An uploaded or pasted list: its columns and rows (text), and how it was read."""
-
-    columns: list[str]
-    rows: list[list[str]]
-    kind: str  # "table" (a CSV with a header) or "lines" (one person per line)
-    warnings: list[str] = field(default_factory=list)
-
-
-class MappingError(ValueError):
-    """A column mapping or a role that cannot be used; ``code`` and ``params`` say why."""
-
-    def __init__(self, code: str, message: str, **params: object) -> None:
-        super().__init__(message)
-        self.code = code
-        self.params = params
-
-
-def _decode(data: bytes) -> str:
-    for encoding in ("utf-8-sig", "cp1252", "latin-1"):
-        try:
-            return data.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-    return data.decode("utf-8", errors="replace")
-
-
-def parse_list(data: bytes | str) -> ParsedList:
-    """Read a list of people: a CSV (or tab/semicolon separated) with a header, or lines."""
-    text = _decode(data) if isinstance(data, bytes) else data
-    lines = [line for line in text.splitlines() if line.strip()]
-    if not lines:
-        return ParsedList([], [], "lines", ["the list is empty"])
-    sample = "\n".join(lines[:20])
-    header = lines[0]
-    try:
-        dialect: Any = csv.Sniffer().sniff(sample, delimiters=",;\t")
-        has_header = csv.Sniffer().has_header(sample) or any(
-            _guess(h) not in ("column", "ignore") for h in next(csv.reader([header], dialect))
-        )
-    except csv.Error:
-        dialect, has_header = None, False
-    warnings: list[str] = []
-    if dialect is not None and has_header:
-        reader = csv.reader(io.StringIO(text), dialect)
-        rows = [r for r in reader if any(c.strip() for c in r)]
-        columns = [c.strip() or f"column {i + 1}" for i, c in enumerate(rows[0])]
-        body = [[c.strip() for c in r] + [""] * (len(columns) - len(r)) for r in rows[1:]]
-        if len(body) > MAX_ROWS:
-            warnings.append(f"only the first {MAX_ROWS} rows are read")
-        return ParsedList(columns, [r[: len(columns)] for r in body[:MAX_ROWS]], "table", warnings)
-    if _guess(lines[0]) in ("name", "last_name"):  # a one-column list with its header
-        lines = lines[1:]
-    if len(lines) > MAX_ROWS:
-        warnings.append(f"only the first {MAX_ROWS} lines are read")
-    return ParsedList(["name"], [[line.strip()] for line in lines[:MAX_ROWS]], "lines", warnings)
-
-
-def _guess(header: str) -> str:
-    h = _fold(header).replace("_", " ").replace("-", " ").strip()
-    for fld, hints in _HEADER_HINTS.items():
-        if h in {_fold(x).replace("-", " ") for x in hints}:
-            return fld
-    return "column"
-
-
-def propose_mapping(parsed: ParsedList) -> dict[str, str]:
-    """Column → field (:data:`FIELDS`), guessed from the header names."""
-    if parsed.kind == "lines":
-        return {"name": "name"}
-    mapping: dict[str, str] = {}
-    taken: set[str] = set()
-    for column in parsed.columns:
-        guess = _guess(column)
-        if guess not in ("column", "ignore") and guess in taken:
-            guess = "column"
-        taken.add(guess)
-        mapping[column] = guess
-    return mapping
-
-
-def _split_name(value: str) -> tuple[str, str]:
-    """``Last, First`` or ``First Last`` → (last, first)."""
-    value = " ".join(value.split())
-    if "," in value:
-        last, _, first = value.partition(",")
-        return last.strip(), first.strip()
-    parts = value.split(" ")
-    if len(parts) == 1:
-        return parts[0], ""
-    return parts[-1], " ".join(parts[:-1])
-
-
-def _people_of(parsed: ParsedList, mapping: Mapping[str, str]) -> tuple[list[dict], list[str]]:
-    bad = sorted({v for v in mapping.values() if v not in FIELDS})
-    if bad:
-        raise MappingError(
-            "mapping_unknown_fields",
-            f"unknown field(s) {bad}; known: {list(FIELDS)}",
-            fields=bad,
-            known=list(FIELDS),
-        )
-    unknown = sorted(set(mapping) - set(parsed.columns))
-    if unknown:
-        raise MappingError(
-            "mapping_unknown_columns", f"the list has no column(s) {unknown}", columns=unknown
-        )
-    fields = set(mapping.values())
-    if not ({"last_name", "name"} & fields):
-        raise MappingError("mapping_no_name", "map a column to last_name, or to name (a full name)")
-    people, skipped = [], []
-    index = {c: i for i, c in enumerate(parsed.columns)}
-    for n, row in enumerate(parsed.rows, start=1):
-        person: dict[str, Any] = {"columns": {}}
-        for column, fld in mapping.items():
-            value = row[index[column]].strip() if index[column] < len(row) else ""
-            if fld == "ignore" or not value:
-                continue
-            if fld == "column":
-                person["columns"][column] = value
-            elif fld == "name":
-                person["last_name"], person["first_name"] = _split_name(value)
-            elif fld == "orcid":
-                m = _ORCID.search(value.upper())
-                if m:
-                    person["orcid"] = m.group(1)
-                else:
-                    person["columns"][column] = value
-            else:
-                person[fld] = value
-        if not person.get("last_name"):
-            skipped.append(f"row {n}: no name")
-            continue
-        people.append(person)
-    return people, skipped
-
-
-def import_people(
-    project: Project,
-    parsed: ParsedList,
-    mapping: Mapping[str, str],
-    *,
-    role: str = "mapped",
-    set_id: str = "",
-    expected_people: str | None,
-) -> dict[str, Any]:
-    """Add the people of *parsed* to the project, with *role*; returns what was done.
-
-    A person already in the project (the same ORCID iD, or the same names) is
-    not added twice. A ``unit`` becomes an organisation (one per distinct
-    name) and a current affiliation. Every added person gets a row in
-    ``people.csv`` (identity ``pending``), guarded by *expected_people*.
-    """
-    if role not in ("mapped", "context", "projected", "excluded", "undecided"):
-        raise MappingError("unknown_role", f"unknown role {role!r}", role=role)
-    people, skipped = _people_of(parsed, mapping)
-    layout = project.layout
-    existing = people_rows(project)
-    by_orcid = {r["orcid"]: r["person_id"] for r in existing if r["orcid"]}
-    by_name = {
-        (_fold(r["last_name"]), _fold(r["first_name"] or "")): r["person_id"] for r in existing
-    }
-    numbers = [int(m.group(1)) for r in existing if (m := re.fullmatch(r"p(\d+)", r["person_id"]))]
-    next_n = max(numbers, default=0) + 1
-    now = datetime.now(timezone.utc)
-    added, known = [], []
-    new_rows: list[dict[str, Any]] = []
-    units: dict[str, list[str]] = {}
-    for person in people:
-        key = (_fold(person["last_name"]), _fold(person.get("first_name", "")))
-        pid = by_orcid.get(person.get("orcid") or "") or by_name.get(key)
-        if pid is not None:
-            known.append(pid)
-            continue
-        pid = f"p{next_n:04d}"
-        next_n += 1
-        by_name[key] = pid
-        if person.get("orcid"):
-            by_orcid[person["orcid"]] = pid
-        ids = [("email", [person["email"]])] if person.get("email") else []
-        new_rows.append(
-            {
-                "person_id": pid,
-                "last_name": person["last_name"],
-                "first_name": person.get("first_name") or None,
-                "orcid": person.get("orcid"),
-                "ids": ids,
-                "source": "import",
-                "columns": sorted(person["columns"].items()),
-                "aliases": [],
-                "retrieved_at": now,
-            }
-        )
-        if person.get("unit"):
-            units.setdefault(person["unit"], []).append(pid)
-        added.append(pid)
-    if new_rows:
-        table = pa.Table.from_pylist(
-            _normalise(existing) + new_rows, schema=SOURCE_SCHEMAS["people"]
-        )
-        write_source_table(layout.table("people"), "people", table)
-    if units:
-        _add_units(project, units, now)
-    fp = expected_people
-    if added:
-        fp = write_people_csv(
-            project,
-            {
-                pid: {
-                    "role": role,
-                    "set": set_id if role == "projected" else "",
-                    "identity": "pending",
-                }
-                for pid in added
-            },
-            expected=expected_people,
-            action=f"import {len(added)} people",
-        )
-    return {"added": added, "already_known": known, "skipped": skipped, "people_version": fp}
-
-
-def _normalise(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
-    out = []
-    for r in rows:
-        r = dict(r)
-        for key in ("ids", "columns"):
-            value = r.get(key)
-            if isinstance(value, Mapping):
-                r[key] = list(value.items())
-        out.append(r)
-    return out
-
-
-def _add_units(project: Project, units: Mapping[str, Sequence[str]], now: datetime) -> None:
-    layout = project.layout
-    orgs = (
-        read_source_table(layout.table("organisations"), "organisations").to_pylist()
-        if layout.table("organisations").exists()
-        else []
-    )
-    affs = (
-        read_source_table(layout.table("affiliations"), "affiliations").to_pylist()
-        if layout.table("affiliations").exists()
-        else []
-    )
-    by_name = {_fold(o["name"]): o["org_id"] for o in orgs}
-    numbers = [int(m.group(1)) for o in orgs if (m := re.fullmatch(r"o(\d+)", o["org_id"]))]
-    next_n = max(numbers, default=0) + 1
-    level = project.config.levels[0].id if project.config.levels else None
-    for name, pids in units.items():
-        org_id = by_name.get(_fold(name))
-        if org_id is None:
-            org_id = f"o{next_n:04d}"
-            next_n += 1
-            by_name[_fold(name)] = org_id
-            orgs.append(
-                {
-                    "org_id": org_id,
-                    "name": name,
-                    "level": level,
-                    "parents": [],
-                    "ids": [],
-                    "source": "import",
-                    "retrieved_at": now,
-                }
-            )
-        for pid in pids:
-            affs.append({"person_id": pid, "org_id": org_id, "source": "import"})
-    write_source_table(
-        layout.table("organisations"),
-        "organisations",
-        pa.Table.from_pylist(_normalise(orgs), schema=SOURCE_SCHEMAS["organisations"]),
-    )
-    write_source_table(
-        layout.table("affiliations"),
-        "affiliations",
-        pa.Table.from_pylist(affs, schema=SOURCE_SCHEMAS["affiliations"]),
-    )
