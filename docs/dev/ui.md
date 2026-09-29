@@ -178,7 +178,7 @@ project data.
 The button runs the error's next action. The interface runs `retry` (the
 page's `onRetry`, else a reload), `reload` (the page's `onReload`: read again
 and merge; else `onRetry`), `settings`, `open-project` and `build` (their
-pages), `wait` (the Activity drawer), `report` (unfolds the details and copies
+pages; `build` opens the pre-flight sheet, `/build`), `wait` (the Activity drawer), `report` (unfolds the details and copies
 the diagnostic), and an address (`open:<path>` or a path, for extensions).
 `confirm` and `fix-input` get a button only when the page passes `onAction`;
 `unlock`, `sign-in` and `none` are told in words, without a button. In a
@@ -293,6 +293,18 @@ path, and the app's Content-Security-Policy on every answer.
 
 The core pages' modules (`pages/people.js`, `keywords.js`, `map.js`,
 `share.js`, `settings.js`) are placeholders until their screens are built;
+the overview (`pages/overview.js`: `overview/page.js`, `cards.js`,
+`preview.js`) and the build (`pages/build.js`, a page placed `hidden`:
+`build/page.js`, `preflight.js`, `run.js`, `words.js`) are built. The overview
+reads the project state and `GET /api/overview`: the project's name and
+state, the one next step, the stage tracker, the health panel, a small
+preview of the map (a MapFrame) and the recent shared builds. The build page
+(`/build?scope=map`) shows the pre-flight sheet from the dry run (what runs
+and why, the time, the memory against the machine's, the AI calls, the
+consent a stage asks for, a refusal when a stage is too large, with « run
+anyway »), then follows the job it starts with the StageTracker and Stop,
+and ends in one sentence (« nothing changed », « finished before the stop »)
+with an ErrorCard naming the cause and the next action when a stage failed;
 pages placed in `settings` are listed in the header's settings menu. The
 themes screen (`pages/themes.js`, {doc}`themes-editor`) is built. A screen
 is split into modules of a few hundred lines each, under a folder named after

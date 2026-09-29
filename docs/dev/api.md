@@ -183,7 +183,8 @@ projected sets and identity, and opens it.
 | --- | --- |
 | `GET /api/project/state` | every stage's state (the six states, as keys: `up_to_date`, `needs_update`, `never_built`, `running`, `failed`, `skipped`) with its reasons, last run and last failed attempt, grouped in areas (corpus, keywords, themes, map, share, and the extensions'), each area summing up its stages; derived from the run records alone |
 | `POST /api/build {scope, options: {force, allow_over_budget}, dry_run, consent}` | `scope`: stage ids or areas, everything by default. The dry run (the default) answers the plan: each stage's action, reasons, estimate, whether it asks consent, and the consent requests. `dry_run: false` starts a job (202); a stage that asks consent runs only when listed in `consent` |
-| `GET /api/build` | the tracker: the running or last build job (its progress: phase, stage, fractions, ETA, message) and each of its stages, done, running or waiting, with counts and times; its result says what changed |
+| `GET /api/build` | the tracker: the running or last build job (its progress: phase, stage, fractions, ETA, message) and each of its stages, done, running or waiting, with counts and times; its result says what changed. A failed stage's result carries its code, params and `next` (the settings for a missing language model or a refused stage, a diagnostic otherwise); a consent request of a paid stage gives `ai_calls_max`, the most AI calls it makes when the candidates are known |
+| `GET /api/overview` | what the overview adds to the state: `project` (id, name, the state of the whole), `next` (the one most useful next step), `health[]` (a stale map, a missing language model, a stage too large for this machine, several languages without the AI clean-up, a proposal of collaborators cut at its cap), `preview` (an even sample of at most 1 500 of the map's people, `[x, y, top-level theme index]`, with the top-level themes and the bounds; `null` without a map) and `shares` (the three latest site builds). Each item is a message (`code`, `params`, `message`), a `level` (`info`, `warning`) and a `next` action; a build action may carry `scope`, the areas the build covers |
 | `GET /api/jobs`, `GET /api/jobs/{id}`, `GET /api/jobs/{id}/events?after=n`, `POST /api/jobs/{id}/cancel` | jobs |
 
 **Parameters and map versions**
@@ -405,6 +406,20 @@ the English `message` the same way; an empty result also names its next action.
 | `stage_refused` | the stage could not run: {detail} | `detail` | — |
 | `language_model_missing` | a language model is missing: {detail} | `detail` | — |
 | `stage_failed` | the stage failed ({error_type}): {detail} | `error_type`, `detail` | — |
+| `health_map_stale` | the map was drawn from inputs that changed since; building the map restores it | — | `build` |
+| `health_model_missing` | the language model {model} for {language} is not installed; the keyword extraction needs it | `model`, `language` | `settings` |
+| `health_too_large` | {stage} needs about {need_mb} MB of memory and this machine has about {budget_mb} MB | `stage`, `need_mb`, `budget_mb` | `settings` |
+| `health_languages_split` | the texts are in {languages}: without the AI clean-up, keywords of each language may form themes of their own | `languages` | `settings` |
+| `health_snowball_cap` | the last proposal of collaborators in {slot} stopped at the cap of {cap} people | `slot`, `cap` | `settings` |
+| `next_watch_build` | a build is running | — | `open:/build` |
+| `next_import_people` | start with the people whose texts make the map | — | `open:/people` |
+| `next_install_model` | install the language model the keyword extraction needs | — | `settings` |
+| `next_see_failure` | {stage} failed: see why and build again | `stage` | `build` |
+| `next_first_build` | build the keywords, the themes and the map | — | `build` |
+| `next_restore_map` | the map is out of date: building it restores it | — | `build` |
+| `next_update` | some results need an update | — | `build` |
+| `next_curate_themes` | check the themes the grouping proposed and name them | — | `open:/themes` |
+| `next_open_map` | everything is up to date | — | `open:/map` |
 | `reason_code` | {detail} | `detail` | — |
 | `reason_input` | {detail} | `detail` | — |
 | `reason_parameter` | {detail} | `detail` | — |

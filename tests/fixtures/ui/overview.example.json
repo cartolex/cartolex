@@ -1,0 +1,50 @@
+{
+  "overview": {
+    "project": {"id": "demo-coast", "name": "Coastal and marine demo", "state": "needs_update"},
+    "next": {"code": "next_update", "params": {}, "message": "some results need an update",
+             "level": "info", "next": {"label": "Build", "action": "build"}},
+    "health": [
+      {"code": "health_languages_split", "params": {"languages": ["en", "fr"]},
+       "message": "the texts are in en, fr: without the AI clean-up, keywords of each language may form themes of their own",
+       "level": "info", "next": {"label": "Open the settings", "action": "settings"}}
+    ],
+    "preview": null,
+    "shares": {"items": [], "available": false}
+  },
+  "build": {"job": null, "empty": {"code": "empty_nothing_built", "params": {}, "message": "nothing was built yet",
+                                   "next": {"label": "Build", "action": "build"}}},
+  "plan": {
+    "items": [
+      {"stage": "corpus.assemble", "name": "gather the texts", "action": "keep", "state": "up_to_date",
+       "reasons": ["up to date"], "estimate": null, "needs_consent": false, "consent_note": "",
+       "over_budget": false, "refusal": null, "blocked": null, "resume": null, "parameters": {}},
+      {"stage": "keywords.extract", "name": "find keyword candidates", "action": "keep", "state": "up_to_date",
+       "reasons": ["up to date"], "estimate": null, "needs_consent": false, "consent_note": "",
+       "over_budget": false, "refusal": null, "blocked": null, "resume": null, "parameters": {}},
+      {"stage": "keywords.triage", "name": "AI clean-up", "action": "skip", "state": "skipped",
+       "reasons": ["the AI clean-up is switched off"], "estimate": null, "needs_consent": false,
+       "consent_note": "", "over_budget": false, "refusal": null, "blocked": null, "resume": null, "parameters": {}},
+      {"stage": "keywords.build", "name": "build the vocabulary", "action": "run", "state": "needs_update",
+       "reasons": ["decisions/keywords.csv changed"], "estimate": {"seconds": 28, "peak_memory_mb": 410, "basis": "the last run"},
+       "needs_consent": false, "consent_note": "", "over_budget": false, "refusal": null, "blocked": null,
+       "resume": null, "parameters": {}},
+      {"stage": "themes.group", "name": "group keywords into topics and themes", "action": "run", "state": "needs_update",
+       "reasons": ["keywords.build will be rebuilt"], "estimate": {"seconds": 9, "peak_memory_mb": 380, "basis": "the last run"},
+       "needs_consent": false, "consent_note": "", "over_budget": false, "refusal": null, "blocked": null,
+       "resume": null, "parameters": {}},
+      {"stage": "map.layout", "name": "draw the map", "action": "run", "state": "never_built",
+       "reasons": ["never built"], "estimate": {"seconds": 95, "peak_memory_mb": 64000, "basis": "the cost model"},
+       "needs_consent": false, "consent_note": "", "over_budget": true, "refusal": null,
+       "blocked": "needs about 62.5 GB of memory; the budget is 8.0 GB", "resume": null, "parameters": {}}
+    ],
+    "to_run": ["keywords.build", "themes.group"],
+    "to_keep": ["corpus.assemble", "keywords.extract"],
+    "to_skip": ["keywords.triage"],
+    "blocked": {"map.layout": "needs about 62.5 GB of memory; the budget is 8.0 GB"},
+    "estimate": {"seconds": 37, "peak_memory_mb": 410, "basis": "sum of the stages"},
+    "budget_mb": 8192,
+    "consent": [],
+    "describe": "",
+    "running": null
+  }
+}

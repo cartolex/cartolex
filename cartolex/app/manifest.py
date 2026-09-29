@@ -133,6 +133,7 @@ class Manifest(_Model):
 #: cartolex's own pages: (id, order, placement).
 CORE_NAV: tuple[tuple[str, int, str], ...] = (
     ("overview", 10, "main"),
+    ("build", 15, "hidden"),
     ("people", 20, "main"),
     ("keywords", 30, "main"),
     ("themes", 40, "main"),

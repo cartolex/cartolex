@@ -41,6 +41,14 @@
       "placement": "main"
     },
     {
+      "id": "build",
+      "label": "nav.build",
+      "route": "/build",
+      "module": "/static/pages/build.js",
+      "order": 15,
+      "placement": "hidden"
+    },
+    {
       "id": "people",
       "label": "nav.people",
       "route": "/people",

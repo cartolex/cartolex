@@ -1,0 +1,111 @@
+/* SPDX-License-Identifier: MIT */
+/*
+ * The build (pages/build/): the pre-flight sheet, the tracker of a running
+ * build and its result. Colours, sizes and durations come from tokens.css only.
+ */
+
+.cx-build {
+  max-width: 52rem;
+}
+
+.cx-build-pre {
+  display: grid;
+  gap: var(--cx-space-5);
+}
+
+.cx-build-pre__lead {
+  margin-bottom: var(--cx-space-3);
+}
+
+/* The cost: four figures in a row. */
+.cx-build-cost {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--cx-space-3);
+  margin: 0 0 var(--cx-space-4);
+}
+
+.cx-build-cost > div {
+  padding: var(--cx-space-2) var(--cx-space-3);
+  border: var(--cx-rule-width) solid var(--cx-rule);
+  border-radius: var(--cx-radius-m);
+}
+
+.cx-build-cost dt {
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}
+
+.cx-build-cost dd {
+  margin: 0;
+  font-size: var(--cx-text-l);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The refusal of a stage too large for the machine. */
+.cx-build-refusal {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--cx-space-3);
+  padding: var(--cx-space-4);
+  border: var(--cx-rule-width) solid var(--cx-warning);
+  border-radius: var(--cx-radius-m);
+  background: var(--cx-warning-surface);
+}
+
+.cx-build-refusal > .cx-icon {
+  color: var(--cx-warning);
+}
+
+.cx-build-refusal > div {
+  display: grid;
+  gap: var(--cx-space-3);
+}
+
+.cx-build-consent {
+  display: grid;
+  gap: var(--cx-space-2);
+}
+
+.cx-build-consent + .cx-build-consent {
+  margin-top: var(--cx-space-4);
+}
+
+.cx-build-consent__facts {
+  margin: 0;
+  padding-left: var(--cx-space-6);
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}
+
+.cx-build-note {
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}
+
+.cx-build-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-3);
+  margin-top: var(--cx-space-4);
+}
+
+/* The running build. */
+.cx-build-run__head {
+  display: grid;
+  gap: var(--cx-space-2);
+  margin-bottom: var(--cx-space-4);
+}
+
+.cx-build-run__meta {
+  font-variant-numeric: tabular-nums;
+}
+
+.cx-build-result__sentence {
+  font-size: var(--cx-text-l);
+  margin-bottom: var(--cx-space-3);
+}
+
+.cx-build-result .cx-error-card {
+  margin: var(--cx-space-3) 0;
+}

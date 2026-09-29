@@ -72,7 +72,30 @@ def _estimate(e: Any) -> dict[str, Any] | None:
     return {"seconds": e.seconds, "peak_memory_mb": e.peak_memory_mb, "basis": e.basis}
 
 
-def plan_json(the_plan: Any, registry: Any) -> dict[str, Any]:
+#: Terms per AI call of the clean-up (the engine's ``llm_batch_size``).
+AI_BATCH = 150
+#: What to do after a failed stage, by the code of its attempt.
+FAILED_NEXT = {
+    "language_model_missing": ("Open the settings", "settings"),
+    "stage_refused": ("Open the settings", "settings"),
+    "stage_failed": ("Copy a diagnostic", "report"),
+}
+
+
+def ai_calls(ctx: Any, the_plan: Any, stage: str) -> int | None:
+    """At most how many AI calls a paid stage makes: the candidates of the last extraction
+    in batches (answers already paid for are reused, so it is an upper bound); unknown
+    when the extraction runs again first."""
+    from cartolex.build.records import read_record
+
+    if ctx is None or "keywords.extract" in the_plan.to_run or not stage.startswith("keywords."):
+        return None
+    record = read_record(ctx.layout, "keywords.extract")
+    n = record.measures.counts.get("candidates") if record else None
+    return -(-int(n) // AI_BATCH) if n else None
+
+
+def plan_json(the_plan: Any, registry: Any, ctx: Any = None) -> dict[str, Any]:
     items = [
         {
             "stage": i.stage,
@@ -103,6 +126,7 @@ def plan_json(the_plan: Any, registry: Any) -> dict[str, Any]:
                     "paid": stage.paid,
                     "note": stage.consent_note,
                     "estimate": _estimate(i.estimate),
+                    "ai_calls_max": ai_calls(ctx, the_plan, i.stage) if stage.paid else None,
                 }
             )
     return {
@@ -178,10 +202,13 @@ def start_build_job(
             "changed": result.changed,
         }
         if result.failed:
+            said = attempt_message("failed", result.failed[1])
+            label, action = FAILED_NEXT.get(said["code"], FAILED_NEXT["stage_failed"])
             out["failed"] = {
                 "stage": result.failed[0],
                 "error": result.failed[1],
-                **attempt_message("failed", result.failed[1]),
+                **said,
+                "next": {"label": label, "action": action},
             }
             out["error"] = f"{result.failed[0]}: {result.failed[1]}"
         return out
@@ -215,7 +242,7 @@ def post_build(request: Request, body: BuildBody, ctx: ProjectDep) -> Any:
             budget_mb=runtime.settings.build_budget_mb,
             year=runtime.settings.build_year,
         )
-        out = plan_json(the_plan, runtime.registry)
+        out = plan_json(the_plan, runtime.registry, ctx)
         out["running"] = running.as_dict() if running else None
         if not out["to_run"]:
             out["empty"] = empty("empty_up_to_date")
