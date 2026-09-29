@@ -373,7 +373,7 @@ def test_apply_runs_in_the_background(editor):
     wait_status(ui, "1 unsaved change")
     page.locator(".cx-toast", has_text="The themes are applied").wait_for(timeout=180_000)
     page.get_by_role("tab", name="Map", exact=True).click()
-    page.locator(".cx-map-frame canvas").wait_for()
+    page.locator(".cx-map-frame__canvas").wait_for()
     assert page.locator(".cx-themes-legend li").count() >= 5
 
 
@@ -573,7 +573,7 @@ def test_the_editor_and_its_dialogs_have_no_serious_violation(
     assert problems == [], "pick a node:\n" + "\n".join(problems)
     page.keyboard.press("Escape")
     page.get_by_role("tab", name="Map", exact=True).click()
-    page.locator(".cx-map-frame canvas").wait_for()
+    page.locator(".cx-map-frame__canvas").wait_for()
     problems = blocking(run_axe(ui, axe_source))
     assert problems == [], "map:\n" + "\n".join(problems)
     page.locator(".cx-themes__toolbar").get_by_role("button", name="More").click()
@@ -733,7 +733,7 @@ def _states(ui, out, suffix: str) -> None:
     shot("borderline")
     page.locator(".cx-themes-outline .cx-tabs__tab").nth(0).click()
     page.locator(".cx-themes-centre .cx-tabs__tab").nth(1).click()
-    page.locator(".cx-map-frame canvas").wait_for()
+    page.locator(".cx-map-frame__canvas").wait_for()
     shot("map")
     page.locator(".cx-themes-centre .cx-tabs__tab").nth(0).click()
     page.keyboard.press("Control+s")

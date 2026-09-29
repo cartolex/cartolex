@@ -1936,3 +1936,70 @@ a.cx-button:hover {
   height: 100%;
   display: block;
 }
+
+.cx-map-frame__overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.cx-map-frame__card {
+  position: absolute;
+  left: var(--cx-card-x);
+  top: var(--cx-card-y);
+  z-index: 2;
+  max-width: 16rem;
+  padding: var(--cx-space-2) var(--cx-space-3);
+  transform: translate(12px, calc(-100% - 8px));
+  background: var(--cx-surface-raised);
+  color: var(--cx-text);
+  border: var(--cx-rule-width) solid var(--cx-border);
+  border-radius: var(--cx-radius-m);
+  box-shadow: var(--cx-shadow-1);
+  font-size: var(--cx-text-s);
+  line-height: var(--cx-leading-tight);
+  pointer-events: none;
+}
+
+.cx-map-frame__card.is-left {
+  transform: translate(calc(-100% - 12px), calc(-100% - 8px));
+}
+
+.cx-map-frame__card.is-below {
+  transform: translate(12px, 16px);
+}
+
+.cx-map-frame__card.is-left.is-below {
+  transform: translate(calc(-100% - 12px), 16px);
+}
+
+.cx-map-frame__legend {
+  position: absolute;
+  left: var(--cx-space-2);
+  bottom: var(--cx-space-2);
+  z-index: 1;
+  max-width: min(22rem, calc(100% - 2 * var(--cx-space-2)));
+  max-height: calc(100% - 2 * var(--cx-space-2));
+  overflow: auto;
+  padding: var(--cx-space-2) var(--cx-space-3);
+  background: var(--cx-surface-raised);
+  border: var(--cx-rule-width) solid var(--cx-rule);
+  border-radius: var(--cx-radius-m);
+  font-size: var(--cx-text-xs);
+}
+
+.cx-map-symbol {
+  flex: none;
+  fill: var(--cx-symbol);
+  stroke: none;
+  vertical-align: -1px;
+}
+
+.cx-map-symbol__ring {
+  fill: none;
+  stroke: var(--cx-symbol);
+  stroke-width: 1.8;
+}

@@ -250,7 +250,7 @@ empty, long text); the gallery shows them all.
 | ActivityIndicator, ActivityDrawer | « Building · keywords 45 % »; jobs with progress, Stop, results, errors |
 | TreeView | a virtualised tree (thousands of rows): the tree pattern's keyboard, ranges, type-ahead, context menu, drag and drop, a caller's own keys |
 | Treemap | squarified nested rectangles by weight, one hue family per top-level node, labels that fit or are cut, zoom, drop targets |
-| MapFrame | points on a canvas behind a renderer interface: pan, zoom, fit, hit testing, highlight, resize, theme changes; 10⁴ points pan at 60 frames a second |
+| MapFrame, MapSymbol | a scene (layers of points, one shape per kind, ranks the zoom reveals; convex regions; lines; labels on the selection and with the zoom) drawn by WebGL, else Canvas 2D, behind a renderer interface: pan, zoom, fit, centre, hit testing, highlight, a hover card, a permanent legend, resize, theme changes; 10⁵ points pan at 60 frames a second on an integrated GPU. MapSymbol draws a kind's shape in legends and lists |
 
 ## Rules
 
@@ -291,7 +291,7 @@ extension), `GET /api/project/state`, `GET /api/jobs` and
 `POST /api/jobs/<id>/cancel` (`tests/fixtures/ui/`), the shell for every other
 path, and the app's Content-Security-Policy on every answer.
 
-The core pages' modules (`pages/keywords.js`, `map.js`,
+The core pages' modules (`pages/keywords.js`,
 `share.js`) are placeholders until their screens are built;
 the overview (`pages/overview.js`: `overview/page.js`, `cards.js`,
 `preview.js`) and the build (`pages/build.js`, a page placed `hidden`:
@@ -339,6 +339,36 @@ placeholders) and `size="fill"` (its container's height). The fixture
 server answers the themes screen with a small tree
 (`tests/fixtures/ui/themes.example.json`).
 
+The atlas (`pages/map.js`, route `/map`) loads `pages/map/page.js`: the
+treemap (`tree.js`), the map and its legend and hover card, and the panel of
+the selection (`panel.js`) side by side; the controls (`controls.js`: kinds,
+points or regions, the organisations' level, the filters from the people's
+columns, the period, « Clear the filters »); « Find on the map » (`find.js`);
+the map versions and base maps (`versions.js`); the bundle indexed
+(`model.js`) and the scene built from it (`scene.js`, and the world view).
+Its state is in the address (`state.js`: `show`, `as`, `org`, `from`, `to`,
+`f`, `sel`, `theme`, `view`, `base`), so a view can be shared and survives a
+reload. Opening it reads `GET /api/atlas` only; the texts and the keywords of
+people and organisations are read when they are shown.
+
+### The map, from the app and from the offline site
+
+The MapFrame (`components/map-frame.js`) is a thin Preact wrapper around four
+modules that use no library: `components/map/core.js` (the view, fitting,
+zooming, the detail a zoom shows, hit testing, hulls, label placement,
+colours), `canvas2d.js` and `webgl.js` (the renderers) and `controller.js`
+(events, the frame loop, `createMapController({box, canvas, scene, renderer,
+onPick, onHover})`). The offline site reuses them. A page opened from
+`file://` cannot load ES modules (the browser refuses them there), so these
+modules follow three rules: they import only each other, with named imports
+of `./x.js`; they export only declarations (`export function`,
+`export const`); they touch no global but the canvas and box they are given
+and the page's colour tokens. `cartolex.app.static_files.classic_script(paths,
+name)` turns them, in the order of `MAP_MODULES`, into one classic script
+that sets `window[name]`; served over HTTP the site can load them as modules.
+WebGL is tried once per page on a canvas of its own, since a canvas that gave
+a WebGL context cannot give a 2D one.
+
 ## Checks
 
 ```bash
@@ -383,6 +413,12 @@ console error, an uncaught exception or a CSP violation fails a test:
   actions, axe, and one budget on the L world (marked `slow`). A test waits
   with a predicate that returns a boolean, never an element: an element handle
   would keep a page alive and read as a leak.
+- the atlas on the real app (`tests/browser/test_atlas.py`, the S world): the
+  map drawn with WebGL, a person found and shown (panel, hover card, address),
+  organisations and texts shown, a filter from a people's column, the period,
+  « Clear the filters », the state across a reload, the world view, the API
+  calls of the navigation and axe; and a budget: 10⁴ points panned in the
+  gallery at 50 frames a second or more, a frame drawn in under 16 ms.
 
 The browser tests need `tools/requirements-browser.txt` (Playwright, which
 `tools/check.py` installs into the quick Python's environment) and a Chromium

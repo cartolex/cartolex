@@ -547,3 +547,16 @@ def test_the_diagnostic_holds_versions_and_sizes_never_project_data(tmp_path):
             assert secret not in text, secret
     finally:
         app.state.cartolex.shutdown()
+
+
+def test_the_map_modules_make_one_classic_script():
+    """The offline site opens from file://, where browsers refuse ES modules: the map's
+    library-free modules become one classic script that sets a global."""
+    from cartolex.app.static_files import MAP_MODULES, PACKAGE_STATIC, classic_script
+
+    script = classic_script([PACKAGE_STATIC / m for m in MAP_MODULES], "CartolexMap")
+    assert script.startswith("(function () {") and 'window["CartolexMap"] = {' in script
+    for name in ("createMapController", "createWebGLRenderer", "createCanvas2DRenderer", "fitView"):
+        assert name in script.rsplit("window[", 1)[1]
+    body = [line.strip() for line in script.splitlines()]
+    assert not [line for line in body if line.startswith(("import ", "export "))]

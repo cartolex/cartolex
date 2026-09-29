@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 from pathlib import Path, PurePosixPath
 
 from fastapi import Request
@@ -23,7 +24,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 from .errors import ApiError
 from .routing import Routes, runtime_of
 
-__all__ = ["MEDIA_TYPES", "PACKAGE_STATIC", "routes", "safe_file"]
+__all__ = ["MAP_MODULES", "MEDIA_TYPES", "PACKAGE_STATIC", "classic_script", "routes", "safe_file"]
 
 PACKAGE_STATIC = Path(__file__).with_name("static")
 
@@ -47,6 +48,40 @@ MEDIA_TYPES = {
     ".txt": "text/plain; charset=utf-8",
     ".md": "text/markdown; charset=utf-8",
 }
+
+
+#: The map's modules without a library, in the order a classic script needs them.
+MAP_MODULES = (
+    "components/map/core.js",
+    "components/map/canvas2d.js",
+    "components/map/webgl.js",
+    "components/map/controller.js",
+)
+
+_IMPORT = re.compile(r"^import\s[^;]*?\sfrom\s+'\./[\w-]+\.js';[ \t]*\n", re.MULTILINE)
+_EXPORT = re.compile(r"^export (function|const) ([A-Za-z_$][\w$]*)", re.MULTILINE)
+
+
+def classic_script(sources: list[Path], global_name: str) -> str:
+    """ES modules that import only each other (``import {…} from './x.js'``) and export only
+    declarations (``export function``, ``export const``), as one classic script that sets
+    ``window[global_name]`` to everything they export: what a page opened from ``file://``
+    loads, since browsers refuse ES modules there. *sources* come in dependency order."""
+    names: list[str] = []
+    parts: list[str] = []
+    for path in sources:
+        text = _IMPORT.sub("", path.read_text(encoding="utf-8"))
+        names += [m.group(2) for m in _EXPORT.finditer(text)]
+        text = _EXPORT.sub(r"\1 \2", text)
+        if re.search(r"^\s*(import|export)\b", text, re.MULTILINE):
+            raise ValueError(f"{path.name}: an import or export a classic script cannot take")
+        parts.append(f"// {path.name}\n{text}")
+    body = "\n".join(parts)
+    exported = ", ".join(names)
+    return (
+        "(function () {\n'use strict';\n"
+        f"{body}\nwindow[{json.dumps(global_name)}] = {{ {exported} }};\n}})();\n"
+    )
 
 
 def safe_file(root: Path, rel: str) -> Path | None:
