@@ -13,7 +13,8 @@ from fixtures and with the standard library only:
 * ``GET /api/overview``, ``GET /api/build`` and the dry run ``POST /api/build`` —
   ``tests/fixtures/ui/overview.example.json``;
 * ``GET /api/themes`` and ``GET /api/themes/usage`` — ``tests/fixtures/ui/themes.example.json``
-  (a small theme tree), and ``GET /api/atlas`` — no map yet;
+  (a small theme tree), ``GET /api/keywords`` — ``tests/fixtures/ui/keywords.example.json``
+  (a few keywords), and ``GET /api/atlas`` — no map yet;
 * any other ``/api/…`` path — 404 with the error shape;
 * every other ``GET`` — the shell document (history routing: the interface's
   routes are real paths).
@@ -85,6 +86,7 @@ def load_fixtures() -> dict:
         "jobs": json.loads((FIXTURES / "ui" / "jobs.example.json").read_text(encoding="utf-8")),
         **json.loads((FIXTURES / "ui" / "themes.example.json").read_text(encoding="utf-8")),
         **json.loads((FIXTURES / "ui" / "overview.example.json").read_text(encoding="utf-8")),
+        **json.loads((FIXTURES / "ui" / "keywords.example.json").read_text(encoding="utf-8")),
     }
 
 
@@ -233,6 +235,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(HTTPStatus.OK, data["build"])
         if path == "/api/themes":
             return self._json(HTTPStatus.OK, data["themes"], {"ETag": '"sha256:fixture"'})
+        if path == "/api/keywords":
+            return self._json(HTTPStatus.OK, data["keywords"], {"ETag": '"sha256:fixture"'})
         if path == "/api/themes/usage":
             return self._json(HTTPStatus.OK, data["usage"])
         if path == "/api/atlas":

@@ -43,6 +43,7 @@ __all__ = [
     "Verdict",
     "answer_line",
     "cautious_tokens",
+    "group_items",
     "item_line",
     "items_of",
     "parse_answer",
@@ -313,6 +314,113 @@ def split_items(
             acc += t
         if current:
             parts.append(current)
+        if all(size(p) <= max_tokens for p in parts):
+            return parts
+        n_parts += 1
+
+
+def _embedding(
+    items: Sequence[BundleItem], users: Mapping[tuple[str, str], Any], dims: int = 8
+) -> Any:
+    """A few coordinates per item from who uses it (items without users: zeros)."""
+    import numpy as np
+    from scipy import sparse
+    from sklearn.utils.extmath import randomized_svd
+
+    rows, cols = [], []
+    for i, it in enumerate(items):
+        idx = users.get((it.term, it.lang))
+        if idx is not None and len(idx):
+            rows.extend([i] * len(idx))
+            cols.extend(int(x) for x in idx)
+    if not cols:
+        return np.zeros((len(items), 1))
+    n_people = max(cols) + 1
+    m = sparse.csr_matrix(
+        (np.ones(len(cols)), (rows, cols)), shape=(len(items), n_people), dtype=float
+    )
+    # People who use many of the terms say little about which ones go together.
+    df = np.asarray((m > 0).sum(axis=0)).ravel()
+    m = m @ sparse.diags(np.log((1 + len(items)) / (1 + df)) + 1.0)
+    norms = np.sqrt(np.asarray(m.multiply(m).sum(axis=1)).ravel())
+    m = sparse.diags(1.0 / np.maximum(norms, 1e-12)) @ m
+    k = max(1, min(dims, min(m.shape) - 1))
+    u, s, _ = randomized_svd(m, n_components=k, random_state=0)
+    return u * s
+
+
+def _bisect(points: Any, weights: Any, index: list[int], n_parts: int) -> list[list[int]]:
+    """*index* cut into *n_parts* groups of about equal weight, each cut across the
+    direction along which its points spread most (a recursive principal-axis split)."""
+    import numpy as np
+
+    if n_parts <= 1 or len(index) <= 1:
+        return [index]
+    sub = points[index]
+    centred = sub - sub.mean(axis=0)
+    if np.allclose(centred, 0):
+        order = list(index)
+    else:
+        _, _, vt = np.linalg.svd(centred, full_matrices=False)
+        proj = centred @ vt[0]
+        order = [index[j] for j in np.argsort(proj, kind="stable")]
+    left_parts = n_parts // 2
+    goal = weights[order].sum() * left_parts / n_parts
+    cum = np.cumsum(weights[order])
+    cut = int(np.searchsorted(cum, goal)) + 1
+    cut = min(max(cut, 1), len(order) - 1)
+    return _bisect(points, weights, order[:cut], left_parts) + _bisect(
+        points, weights, order[cut:], n_parts - left_parts
+    )
+
+
+def group_items(
+    items: Sequence[BundleItem],
+    users: Mapping[tuple[str, str], Any],
+    *,
+    max_tokens: int,
+    domain: str,
+    description: str,
+    n_people: int,
+    n_texts: int,
+) -> list[list[BundleItem]]:
+    """Cut *items* into parts under *max_tokens* that keep together the terms the same
+    people use, a term and its translation above all, so that a judge sees both and
+    can give them the same English form.
+
+    *users* maps (term, language) to the indices of the people who use it (the
+    extraction's ``term_people.npz``). As many parts as :func:`split_items` makes;
+    each part keeps the items' order. Without *users*, :func:`split_items`.
+    """
+    import numpy as np
+
+    items = list(items)
+    plain = split_items(
+        items,
+        max_tokens=max_tokens,
+        domain=domain,
+        description=description,
+        n_people=n_people,
+        n_texts=n_texts,
+    )
+    if len(plain) <= 1 or not any((it.term, it.lang) in users for it in items):
+        return plain
+    points = _embedding(items, users)
+    weights = np.asarray([cautious_tokens(item_line(99999, it) + "\n") for it in items], float)
+
+    def size(chunk: Sequence[BundleItem]) -> int:
+        note = " (part 10 of 10)"
+        return cautious_tokens(
+            prompt_text(chunk, domain=domain, description=description, part_note=note)
+            + terms_text(chunk, domain=domain, n_people=n_people, n_texts=n_texts, part_note=note)
+        )
+
+    n_parts = len(plain)
+    while True:
+        groups = _bisect(points, weights, list(range(len(items))), n_parts)
+        # Each part in the items' order; the part of the first item first.
+        ordered = sorted((sorted(g) for g in groups if g), key=lambda g: g[0])
+        parts = [[items[i] for i in g] for g in ordered]
         if all(size(p) <= max_tokens for p in parts):
             return parts
         n_parts += 1

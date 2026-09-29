@@ -1,0 +1,138 @@
+/* SPDX-License-Identifier: MIT */
+/*
+ * The keywords screen (pages/keywords/): bands, routes, the warning, the AI
+ * dialogs. The head, tabs and list come from corpus.css. Tokens only.
+ */
+
+.cx-kw-band,
+.cx-kw-proposed {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cx-space-1);
+}
+
+.cx-kw-band .cx-icon,
+.cx-kw-proposed .cx-icon {
+  flex: none;
+}
+
+.cx-kw-term {
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-kw-reason {
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}
+
+.cx-kw-route {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--cx-space-2);
+  border: var(--cx-rule-width) solid var(--cx-border-strong);
+  border-radius: var(--cx-radius-pill);
+  font-size: var(--cx-text-xs);
+  white-space: nowrap;
+}
+
+/* Routes by shape of their chip: you solid, an AI dashed, none without a border. */
+.cx-kw-route--person {
+  border-width: 2px;
+}
+
+.cx-kw-route--ai-handoff,
+.cx-kw-route--ai-api {
+  border-style: dashed;
+}
+
+.cx-kw-route--none {
+  border-color: transparent;
+  color: var(--cx-text-muted);
+}
+
+.cx-kw-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cx-space-2) var(--cx-space-3);
+  padding: var(--cx-space-2) var(--cx-space-3);
+  border-left: 3px solid var(--cx-warning);
+  background: var(--cx-warning-surface);
+}
+
+.cx-kw-warning > .cx-icon {
+  color: var(--cx-warning);
+}
+
+.cx-kw-warning p {
+  flex: 1 1 20rem;
+  margin: 0;
+}
+
+.cx-kw-form,
+.cx-kw-api,
+.cx-kw-review,
+.cx-kw-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cx-space-3);
+}
+
+.cx-kw-scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-2) var(--cx-space-4);
+  margin: 0;
+  padding: var(--cx-space-2) var(--cx-space-3);
+  border: var(--cx-rule-width) solid var(--cx-border);
+  border-radius: var(--cx-radius-m);
+}
+
+.cx-kw-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cx-space-2);
+}
+
+.cx-kw-part {
+  padding: var(--cx-space-2) 0;
+  border-top: var(--cx-rule-width) solid var(--cx-rule);
+}
+
+.cx-kw-part__title {
+  margin: 0 0 var(--cx-space-2);
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-kw-estimate {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--cx-space-2);
+  margin: 0;
+}
+
+.cx-kw-estimate div {
+  padding: var(--cx-space-2) var(--cx-space-3);
+  border: var(--cx-rule-width) solid var(--cx-border);
+  border-radius: var(--cx-radius-m);
+}
+
+.cx-kw-estimate dt {
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}
+
+.cx-kw-estimate dd {
+  margin: 0;
+  font-size: var(--cx-text-l);
+  font-variant-numeric: tabular-nums;
+}
+
+.cx-kw-api__state {
+  margin: 0;
+}
+
+.cx-kw-earlier ul {
+  margin: var(--cx-space-2) 0 0;
+  padding-left: var(--cx-space-4);
+}

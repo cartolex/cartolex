@@ -97,6 +97,8 @@ class EnginePaths:
     parse_cache_dir: Path
     raw_terms_csv: PathPattern  # per corpus language
     global_terms_csv: Path
+    #: Who uses each candidate (person indices of the extraction), for grouping handoffs.
+    term_people_npz: Path
     refined_terms_csv: Path
     refined_terms_lang_csv: PathPattern  # per display language
     refined_pairs_csv: Path
@@ -185,6 +187,7 @@ class EnginePaths:
             parse_cache_dir=auto / "parse_cache",
             raw_terms_csv=PathPattern(auto, "raw_keywords_{}.csv"),
             global_terms_csv=auto / "keywords_global.csv",
+            term_people_npz=auto / "term_people.npz",
             refined_terms_csv=auto / "keywords_global_refined.csv",
             refined_terms_lang_csv=PathPattern(auto, "keywords_global_refined_{}.csv"),
             refined_pairs_csv=auto / "keywords_global_refined_pairs.csv",

@@ -1,0 +1,149 @@
+{
+ "keywords": {
+  "items": [
+   {
+    "term": "tide gauge",
+    "language": "en",
+    "score": 1.0,
+    "score_len": 3.0,
+    "people": 12,
+    "texts": 20,
+    "forms": [
+     "tide gauge",
+     "tide gauges"
+    ],
+    "band": "kept",
+    "reason": "multiword",
+    "extracted_band": "kept",
+    "decision": null,
+    "ai": null,
+    "route": "extraction"
+   },
+   {
+    "term": "trait de côte",
+    "language": "fr",
+    "score": 1.0,
+    "score_len": 2.7,
+    "people": 9,
+    "texts": 14,
+    "forms": [
+     "trait de côte"
+    ],
+    "band": "kept",
+    "reason": "multiword",
+    "extracted_band": "kept",
+    "decision": null,
+    "ai": null,
+    "route": "extraction"
+   },
+   {
+    "term": "shoreline",
+    "language": "en",
+    "score": 1.0,
+    "score_len": 2.4,
+    "people": 15,
+    "texts": 31,
+    "forms": [
+     "shoreline",
+     "shorelines"
+    ],
+    "band": "kept",
+    "reason": "multiword",
+    "extracted_band": "kept",
+    "decision": null,
+    "ai": null,
+    "route": "extraction"
+   },
+   {
+    "term": "data",
+    "language": "en",
+    "score": 1.0,
+    "score_len": 2.1,
+    "people": 30,
+    "texts": 80,
+    "forms": [
+     "data"
+    ],
+    "band": "check",
+    "reason": "single-word",
+    "extracted_band": "check",
+    "decision": null,
+    "ai": null,
+    "route": "extraction"
+   },
+   {
+    "term": "salt marsh",
+    "language": "en",
+    "score": 1.0,
+    "score_len": 1.8,
+    "people": 7,
+    "texts": 11,
+    "forms": [
+     "salt marsh"
+    ],
+    "band": "kept",
+    "reason": "multiword",
+    "extracted_band": "kept",
+    "decision": null,
+    "ai": null,
+    "route": "extraction"
+   },
+   {
+    "term": "houle",
+    "language": "fr",
+    "score": 1.0,
+    "score_len": 1.5,
+    "people": 6,
+    "texts": 9,
+    "forms": [
+     "houle"
+    ],
+    "band": "check",
+    "reason": "single-word",
+    "extracted_band": "check",
+    "decision": null,
+    "ai": null,
+    "route": "extraction"
+   }
+  ],
+  "total": 6,
+  "offset": 0,
+  "limit": 200,
+  "sort": "-score",
+  "sorts": [
+   "language",
+   "people",
+   "score",
+   "term",
+   "texts"
+  ],
+  "filters": {},
+  "empty": null,
+  "counts": {
+   "kept": 4,
+   "check": 2,
+   "aside": 0
+  },
+  "routes": {
+   "person": 0,
+   "ai-handoff": 0,
+   "ai-api": 0,
+   "extraction": 6
+  },
+  "languages": {
+   "en": 4,
+   "fr": 2
+  },
+  "corpus_languages": [
+   "en",
+   "fr"
+  ],
+  "counting_unit": "person",
+  "triage": null,
+  "warning": null,
+  "run": "20260101T000000Z-0000",
+  "orphans": [],
+  "orphan_count": 0,
+  "version": "sha256:fixture"
+ }
+}

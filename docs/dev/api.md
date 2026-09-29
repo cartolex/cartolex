@@ -240,7 +240,9 @@ version, so it can be undone too).
 
 | route | what it does |
 | --- | --- |
-| `GET /api/keywords` | the candidates of the current extraction in their three bands (`kept`, `check`, `aside`) with the reason of each, your decisions applied; filters `band`, `lang`, `decision`, `q`; counts per band; decisions whose keyword disappeared (listed, never dropped) |
+| `GET /api/keywords` | the candidates of the current extraction in their three bands (`kept`, `check`, `aside`) with the reason of each, your decisions and the AI's verdicts by API (`keywords.triage`) applied, and the `route` that decided each (`person`, `ai-handoff`, `ai-api`, `extraction`); filters `band`, `lang`, `decision`, `route`, `q` (the term or one of its forms); counts per band, route and language; the counting unit of the extraction; `warning` when several corpus languages have no AI filtering yet (`health_languages_split`); decisions whose keyword disappeared (listed, never dropped) |
+| `GET /api/keywords/decisions` | the decisions of `keywords.csv`, the latest first (the history, each one restorable); filters `decision`, `source`, `q` |
+| `POST /api/keywords/decisions/where {where, decision, reason}` | keep or exclude every keyword the list's filters keep (`If-Match`) |
 | `POST /api/keywords/decisions {decisions: [{term, language, decision, target, reason}]}` | keep, exclude or merge, one or many (`If-Match`); the first decision freezes the identity |
 | `POST /api/keywords/restore {keywords}` | undo decisions (an exclusion restored) |
 | `GET /api/themes` | the saved tree, or the draft of the last grouping, with the keywords the tree lacks or holds too many |
@@ -262,10 +264,12 @@ version, so it can be undone too).
 | `POST /api/settings/restore` | a backup (multipart `file`): its decision files replace the project's, each current version kept in its history first; `project.json` stays; `not_a_backup` otherwise |
 | `POST /api/settings/reset {what: built}` | remove the built results (every stage is then never built); decisions, texts and caches stay; 409 `busy` while a job runs |
 | `GET /api/machine`, `PUT /api/machine/keys {service, key}` | this computer: the keys saved on it (`mistral`, `openalex`; whether set, from the environment or saved, the last four characters; never shown whole, never in a project: `<data dir>/keys.json`, readable by its owner only; an environment variable wins), whether the AI clean-up can run by API, OpenAlex's daily budget with and without a key, the processors, the memory available and the build's memory budget; `key: null` removes a key; refused on a hosted service (`keys_hosted`) |
-| `POST /api/handoff/export {band, terms, lang, limit, max_tokens}` | the parts of a handoff (`cartolex.project.handoff`): for each, the prompt to paste, the terms to attach and the answer's format, its `bundle.json` (`cartolex-handoff/1`, sent back with the answer), and what they contain and never contain; parts stay under `max_tokens` (a chat assistant reads a limited amount at once) |
+| `POST /api/handoff/export {band, bands, terms, lang, limit, max_tokens, group}` | the parts of a handoff (`cartolex.project.handoff`): for each, the prompt to paste, the terms to attach and the answer's format, its `bundle.json` (`cartolex-handoff/1`, sent back with the answer), and what they contain and never contain; parts stay under `max_tokens` (a chat assistant reads a limited amount at once); with `group` (the default) the terms the same people use share a part (`group_items`, from the extraction's `term_people.npz`), so a term and its translation are judged together |
 | `POST /api/handoff/export.zip` | the same parts as a zip, one folder per part |
 | `POST /api/handoff/import {bundle, answer}` | keep the answer as it came in `decisions/history/ai/` (with the part it answers) and propose a decision per answered term, with what could not be read (lines ignored, renumbered, unmatched); the first answers freeze the identity |
-| `GET /api/handoff/proposals`, `GET /api/handoff/proposals/{id}`, `POST /api/handoff/proposals/{id}/accept {terms, all}` | proposals; accepted ones reach `keywords.csv` with the source `ai-handoff` |
+| `GET /api/handoff/proposals`, `GET /api/handoff/proposals/{id}`, `POST /api/handoff/proposals/{id}/accept {terms, all}` | proposals; accepted ones reach `keywords.csv` with the source `ai-handoff`; an accepted term whose English form is another term is merged into it |
+| `GET /api/keywords/ai` | the two routes of the AI filtering: by handoff (the proposals so far) and by API (provider, whether a key is saved, what is sent, an estimate of the calls and tokens, the last run) |
+| `POST /api/keywords/ai/run {consent}` | filter by API: switch `keywords.triage` on in `params.json` and start it as a build job (202); `ai_api_not_ready` without a key or a provider, `ai_consent_needed` without consent |
 
 **The person**: `GET /api/me/preferences` and `PUT /api/me/preferences
 {locale, theme, other}`: the interface language, the theme and a few other
@@ -403,6 +407,9 @@ catalogues give each code its text in every interface language.
 | `unknown_collection_action` | 422 | {action} is not a collection action; actions: {actions} | `action`, `actions` | `fix-input` |
 | `institutions_missing` | 422 | search institutions by a name, or choose the institutions to read | — | `fix-input` |
 | `consent_needed` | 409 | this collection sends data to {hosts}: read what leaves the computer, then confirm | `hosts` | `confirm` |
+| `too_many_decisions` | 422 | {n} keywords at once is more than {max}: narrow the filters | `n`, `max` | `fix-input` |
+| `ai_api_not_ready` | 409 | the AI filtering by API needs a key (Settings, AI) and a provider in the project | — | `settings` |
+| `ai_consent_needed` | 409 | the AI filtering by API sends keywords to {provider}: confirm first | `provider` | `confirm` |
 | `organisation_not_found` | 404 | there is no organisation {org} | `org` | `reload` |
 | `text_not_found` | 404 | there is no text {text} | `text` | `reload` |
 | `no_institution_proposal` | 404 | nobody was proposed from institutions yet: read institutions first | — | `none` |
@@ -461,6 +468,7 @@ the English `message` the same way; an empty result also names its next action.
 | `empty_no_identity_in_state` | nobody is in this state | — | `none` |
 | `empty_handoff` | no term to send in this band | — | `none` |
 | `empty_no_proposals` | no AI answers imported yet | — | `none` |
+| `empty_no_decisions` | no decision yet: keep, exclude or merge keywords in the list | — | `none` |
 | `collection_unavailable` | collecting texts from bibliographic services is not available in this version; import texts into a folder or corpus slot instead | — | — |
 | `stage_switched_off` | switched off (set {stage}.enabled in decisions/params.json to run it) | `stage` | — |
 | `stage_no_overlay` | the project has no overlay | — | — |

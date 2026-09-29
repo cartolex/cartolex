@@ -29,7 +29,7 @@ CONTAINS = (
     "the field's title and description",
 )
 NEVER = ("texts", "people's names or identifiers", "your decisions", "keys")
-MAX_TERMS = 5_000
+MAX_TERMS = 20_000
 ProposalId = Annotated[str, PathParam(pattern=r"^\d{8}T\d{6}Z-handoff(-\d+)?$")]
 
 
@@ -43,6 +43,10 @@ class ExportBody(BaseModel):
     *max_tokens* (a chat assistant reads a limited amount at once)."""
 
     band: Literal["kept", "check", "aside"] | None = "check"
+    #: Several bands at once (``["kept", "check"]``); replaces *band* when given.
+    bands: Annotated[list[Literal["kept", "check", "aside"]], Field(max_length=3)] | None = None
+    #: Keep the terms the same people use in the same part (a term and its translation).
+    group: bool = True
     terms: Annotated[list[TermRef], Field(max_length=MAX_TERMS)] | None = None
     lang: Annotated[str | None, Field(pattern=r"^[a-z]{2}$")] = None
     limit: Annotated[int, Field(ge=1, le=MAX_TERMS)] = 1000
@@ -54,9 +58,9 @@ def _export(request: Request, body: ExportBody, ctx: Any) -> dict[str, Any]:
     from cartolex.project.handoff import (
         BundleItem,
         cautious_tokens,
+        group_items,
         part_files,
         part_record,
-        split_items,
     )
 
     runtime = runtime_of(request)
@@ -75,7 +79,9 @@ def _export(request: Request, body: ExportBody, ctx: Any) -> dict[str, Any]:
         if wanted is not None:
             if key not in wanted and (row["term"], "") not in wanted:
                 continue
-        elif body.band is not None and view["band"] != body.band:
+        elif body.bands and view["band"] not in body.bands:
+            continue
+        elif not body.bands and body.band is not None and view["band"] != body.band:
             continue
         if body.lang and row["language"] != body.lang:
             continue
@@ -98,8 +104,13 @@ def _export(request: Request, body: ExportBody, ctx: Any) -> dict[str, Any]:
             break
     identity = ctx.project.config.identity
     common = {"domain": identity.domain_title, "description": identity.domain_description}
-    chunks = split_items(
-        items, max_tokens=body.max_tokens, n_people=n_people, n_texts=n_texts, **common
+    users: dict = {}
+    if body.group:
+        from cartolex.lexicon.extract_raw import read_term_people
+
+        users, _ = read_term_people(ctx.layout.stage("keywords.extract") / "term_people.npz")
+    chunks = group_items(
+        items, users, max_tokens=body.max_tokens, n_people=n_people, n_texts=n_texts, **common
     )
     parts = []
     for k, chunk in enumerate(chunks, 1):
@@ -128,6 +139,7 @@ def _export(request: Request, body: ExportBody, ctx: Any) -> dict[str, Any]:
     return {
         "parts": parts,
         "terms": len(items),
+        "grouped": bool(users) and len(parts) > 1,
         "contains": list(CONTAINS),
         "never": list(NEVER),
         "empty": None if items else empty("empty_handoff"),
@@ -183,6 +195,7 @@ def _proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
     for index in sorted(parsed.verdicts):
         item, v = bundle[index], parsed.verdicts[index]
         current = decisions.get((item.term, item.lang))
+        joins = bool(v.canonical) and v.canonical.casefold() != item.term.casefold()
         items.append(
             {
                 "number": index + 1,
@@ -191,7 +204,10 @@ def _proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
                 "code": v.code,
                 "meaning": CODES.get(v.code, ""),
                 "english": v.canonical,
-                "proposed": "keep" if v.accept else "exclude",
+                # An accepted term whose English form is another term joins it (its
+                # translation, or its usual English spelling): a merge.
+                "proposed": ("merge" if joins else "keep") if v.accept else "exclude",
+                "target": v.canonical if v.accept and joins else "",
                 "current": current["decision"] if current else None,
             }
         )
@@ -293,7 +309,7 @@ def accept(
                 "term": i["term"],
                 "language": i["language"],
                 "decision": i["proposed"],
-                "target": "",
+                "target": i["target"],
                 "reason": f"AI: {i['meaning']}"
                 + (
                     f"; English form: {i['english']}" if i["english"] not in ("", i["term"]) else ""
@@ -305,3 +321,97 @@ def accept(
         ctx.project.freeze_identity("first AI answers")
     response.headers["ETag"] = etag_of(fp)
     return {"accepted": len(items), "version": version_of(fp)}
+
+
+@routes.get("/api/keywords/ai", action="keywords.read")
+def ai_routes(request: Request, ctx: ProjectDep) -> dict[str, Any]:
+    """The two routes of the AI filtering: by handoff (no key; the proposals imported so far)
+    and by API (whether a key and a provider are set, what it sends, and an estimate of the
+    calls and tokens of a run), with what the last run by API decided."""
+    from cartolex.lexicon.triage_typed import load_typed_template
+    from cartolex.project.handoff import tokens
+
+    from .build import AI_BATCH
+    from .keywords import api_verdicts
+
+    runtime = runtime_of(request)
+    rows, run_id = extracted(runtime, ctx)
+    # The API route judges the kept and to-check candidates, one per distinct term.
+    terms = sorted({r["term"] for r in rows if r["band"] in ("kept", "check")})
+    calls = -(-len(terms) // AI_BATCH)
+    try:
+        template = load_typed_template(
+            ctx.layout.root / "decisions/prompts/triage_typed_system.txt"
+        )
+        system = tokens(template.text)
+    except Exception:  # an unreadable override: the build says why; the estimate goes on
+        system = 1500
+    tokens_in = calls * system + sum(tokens(t) + 4 for t in terms)
+    tokens_out = len(terms) * 10
+    identity = ctx.project.config.identity.ai
+    ai = runtime.ai_access()
+    key = bool(ai is not None and (ai.api_key or ai.client_factory))
+    _, triage = api_verdicts(runtime, ctx)
+    folder = _ai_folder(ctx)
+    proposals = len(list(folder.glob("*-handoff*.txt"))) if folder.is_dir() else 0
+    return {
+        "run": run_id,
+        "handoff": {"proposals": proposals, "contains": list(CONTAINS), "never": list(NEVER)},
+        "api": {
+            "provider": identity.provider if identity else None,
+            "model": identity.model if identity else None,
+            "key": key,
+            "ready": key and identity is not None,
+            "stage": "keywords.triage",
+            "sends": list(CONTAINS[::2]),
+            "never": list(NEVER),
+            "estimate": {
+                "terms": len(terms),
+                "calls": calls,
+                "tokens_in": tokens_in,
+                "tokens_out": tokens_out,
+                "upper_bound": True,
+            },
+            "last": None
+            if triage is None
+            else {"run": triage.run_id, "at": triage.finished_at, **triage.measures.counts},
+        },
+    }
+
+
+class RunBody(BaseModel):
+    """``consent``: the person read what leaves the computer and what it costs."""
+
+    consent: bool = False
+
+
+@routes.post("/api/keywords/ai/run", action="build.start")
+def run_api(request: Request, body: RunBody, ctx: ProjectDep) -> Any:
+    """Filter the keywords by API: switch the AI clean-up on (``params.json``) and start it
+    as a build job of ``keywords.triage`` (202); refused without a key, a provider or
+    consent."""
+    from fastapi.responses import JSONResponse
+
+    from .build import start_build_job
+
+    runtime = runtime_of(request)
+    identity = ctx.project.config.identity.ai
+    ai = runtime.ai_access()
+    if identity is None or ai is None or not (ai.api_key or ai.client_factory):
+        raise ApiError.of("ai_api_not_ready")
+    if not body.consent:
+        raise ApiError.of("ai_consent_needed", provider=identity.provider)
+    with ctx.handle.mutex:
+        params, fp = ctx.project.read_params()
+        stage = params.stages.get("keywords.triage", {})
+        if stage.get("enabled") is not True:
+            stages = {**params.stages, "keywords.triage": {**stage, "enabled": True}}
+            ctx.project.save_params(
+                params.model_copy(update={"stages": stages}),
+                expected=fp,
+                action="switch the AI clean-up on",
+            )
+    started = start_build_job(
+        runtime, ctx, ["keywords.triage"], consent=["keywords.triage"], title="AI filtering"
+    )
+    return JSONResponse(started, status_code=202)
