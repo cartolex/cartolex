@@ -126,14 +126,18 @@ by an AI, never in the lexicon):
   `{"format": "cartolex-rejects/1", "language": "en"}`, then one JSON object per
   term and project: `term`, `language`, `route` (`ai-api`, `ai-handoff`,
   `ai-copilot`), `date` (UTC day), `project` (a fingerprint of the project,
-  never its name). An AI's `never` answers enter it: every one by API, and the
-  accepted exclusions of a handoff or a copilot.
+  never its name). An AI's `never` answers enter it: every one by API (its
+  prompt gives K, G and F only when sure), and the accepted exclusions of a
+  handoff or a copilot that the judge marked `sure` (an answer that does not
+  say is `unsure`, and stays out).
 
 A project's own answers never reject its own candidates: only other projects'
 do. A person's decision on a term wins: the term is not rejected in that
 project, and a keep or a merge (a *put back*) takes it out of the cache. The
 `rejects` parameter of `keywords.extract` (`params.json`) switches both lists
-off for a project. The extraction records what it applied in its results
+off for a project. A change of the cache makes no result out of date: it
+applies at the next extraction (force `keywords.extract` to apply it now).
+The extraction records what it applied in its results
 (`derived/keywords.extract/rejects.json`: per language, each term and its
 origin, `list` or `earlier`).
 

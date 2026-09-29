@@ -98,8 +98,9 @@ A triage result has `decisions` instead: `{term, language, decision (keep,
 exclude, merge), target, code, category, reason}`. The category
 (`cartolex.lexicon.categories`) follows the code when it is left out: `concept`,
 `method`, `object`, `place` or `field` for a kept or merged term, `never` (never
-a keyword in any field: an accepted one enters the machine's rejection cache) or
-`here` (not informative in this field) for an excluded one. `cartolex.copilot.bundle.check_result`
+a keyword in any field) or `here` (not informative in this field) for an
+excluded one. `confidence` is `sure` or `unsure` (`unsure` when left out): an
+accepted `never` exclusion enters the machine's rejection cache only when sure. `cartolex.copilot.bundle.check_result`
 lists what is wrong with one; the kit writes only results it passes, the app
 reads only those (`invalid_copilot_result`).
 

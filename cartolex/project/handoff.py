@@ -93,10 +93,13 @@ class BundleItem:
 
 @dataclass(frozen=True)
 class Verdict:
-    """A judge's answer for one term: a triage code, and the canonical form of an accept."""
+    """A judge's answer for one term: a triage code, the canonical form of an accept, and
+    whether the judge is sure (``sure`` or ``unsure``; an answer that does not say is
+    ``unsure``). Only a ``never`` answer given as sure enters the rejection cache."""
 
     code: str
     canonical: str = ""
+    confidence: str = "unsure"
 
     @property
     def accept(self) -> bool:
@@ -119,6 +122,7 @@ HANDOFF_FORMAT = "cartolex-handoff/1"
 #: the English term of the list that names the same thing as its English form.
 #: 4: the codes P (a place or setting) and D (a field), H (not informative in
 #: this field), and K, G and F only when sure (they feed the rejection cache).
+#: A rejected line may end with « sure » or « unsure » (unsaid: unsure).
 #: Answers to earlier versions read the same way: their codes are a subset.
 PROMPT_VERSION = 4
 #: The codes of the answer (the engine's triage codes).
@@ -154,9 +158,9 @@ or reject it with one of these:
      term of art of the field (entropy, in physics)
   F  a broken piece, not a term: a phrase cut out of a longer one, words split
      across a phrase boundary, or debris of a sentence
-K, G and F say the term is never a keyword, in any field: give them only when
-you are sure. When a term could be a keyword in another field, or you are
-unsure, give H.
+K, G and F say the term is never a keyword, in any field. After a rejected
+term, say whether you are sure of your answer: « sure » or « unsure ». When a
+term could be a keyword in another field, give H.
 
 A phrase that joins a process, a property or a measure to an object of the
 field (the growth of a cell, the stiffness of a material, the rate of a
@@ -181,26 +185,26 @@ else. For an accepted term (C, M, O, P, D):
   <number> | <code> | <term as listed> | <English form>
 where the English form is the usual English name of what the term names, in
 lower case except proper nouns and acronyms; leave it out when it is the term
-itself (most English terms). For a rejected term (N, H, K, G, F), stop after
-the term:
-  <number> | <code> | <term as listed>
+itself (most English terms). For a rejected term (N, H, K, G, F), end with
+your confidence:
+  <number> | <code> | <term as listed> | <sure or unsure>
 
 For example, with terms from another field:
   1 | C | phase transition
   2 | O | levure bourgeonnante | budding yeast
   3 | M | microscopie à force atomique | atomic force microscopy
-  4 | G | further work
-  5 | N | Lyon
+  4 | G | further work | sure
+  5 | N | Lyon | sure
   6 | C | repliement des protéines | protein folding
   7 | C | enzyme turnover rate
-  8 | F | matter physics
-  9 | F | égard des mesures
-  10 | G | shape
+  8 | F | matter physics | sure
+  9 | F | égard des mesures | sure
+  10 | G | shape | unsure
   11 | C | entropy
   12 | C | transition de phase | phase transition
   13 | P | tidal flat
   14 | D | biophysique | biophysics
-  15 | H | cell
+  15 | H | cell | sure
 
 Read and judge every term yourself; do not write or run a program to decide.
 Give the whole answer as plain text in one code block, or as a downloadable
@@ -214,17 +218,18 @@ The expected answer: one line per term of terms.txt, in order, numbered as in
 the list, fields separated by a vertical bar.
 
   accepted (C, M, O, P, D):  <number> | <code> | <term as listed> | <English form>
-  rejected (N, H, K, G, F):  <number> | <code> | <term as listed>
+  rejected (N, H, K, G, F):  <number> | <code> | <term as listed> | <sure or unsure>
 
 The English form is left out when it is the term itself. Codes: C concept,
 M method, O object of study, P place or setting, D field (accepted); N name,
 H not informative in this field, K administrative wording, G too generic,
-F broken piece of a phrase (rejected; K, G and F only when sure).
+F broken piece of a phrase (rejected). A rejected line ends with sure or
+unsure; a line without it counts as unsure.
 
 Example:
   1 | C | phase transition
   2 | O | levure bourgeonnante | budding yeast
-  4 | G | further work
+  4 | G | further work | sure
 
 Save the answer as answer.txt next to this file. If it came in several pieces
 (after "continue"), paste them one after the other in answer.txt, or save them
@@ -510,10 +515,15 @@ def items_of(record: Mapping[str, Any]) -> list[BundleItem]:
     return [BundleItem(**{k: v for k, v in x.items() if k in fields}) for x in record["items"]]
 
 
-def answer_line(number: int, it: BundleItem, code: str, english: str = "") -> str:
-    """One line of an answer in the expected format (the English form only when it differs)."""
+def answer_line(
+    number: int, it: BundleItem, code: str, english: str = "", confidence: str = ""
+) -> str:
+    """One line of an answer in the expected format (the English form only when it differs;
+    a rejection's *confidence*, ``sure`` or ``unsure``, when given)."""
     if code in ACCEPT_CODES and english and english != it.term:
         return f"{number} | {code} | {it.term} | {english}"
+    if code in REJECT_CODES and confidence:
+        return f"{number} | {code} | {it.term} | {confidence}"
     return f"{number} | {code} | {it.term}"
 
 
@@ -539,24 +549,32 @@ class ParsedAnswer:
         return n_items - len(self.verdicts)
 
 
-def _cells(line: str) -> tuple[int | None, str, str, str] | None:
-    """(number, code, term, English form) of an answer line, in either format; None otherwise."""
+#: The confidences an answer line may end with.
+CONFIDENCES = ("sure", "unsure")
+
+
+def _cells(line: str) -> tuple[int | None, str, str, str, str] | None:
+    """(number, code, term, English form, confidence) of an answer line, in either format;
+    None otherwise. A last cell ``sure`` or ``unsure`` is the confidence (else ``unsure``)."""
     line = line.strip().strip("`").strip()
     if "|" in line or "\t" in line:
         cells = [c.strip() for c in re.split(r"[|\t]", line.strip("|"))]
+        confidence = "unsure"
+        if len(cells) > 3 and cells[-1].strip("*").casefold() in CONFIDENCES:
+            confidence = cells.pop().strip("*").casefold()
         if len(cells) >= 2 and re.fullmatch(r"\d+[.)]?", cells[0]):
             code = cells[1].strip("*").upper()
             if code in ACCEPT_CODES + REJECT_CODES:
                 term = cells[2] if len(cells) > 2 else ""
                 english = cells[3] if len(cells) > 3 else ""
-                return int(cells[0].rstrip(".)")), code, term, english
+                return int(cells[0].rstrip(".)")), code, term, english, confidence
         return None
     m = _LINE.match(line)
     if not m:
         return None
     number, code, _lang, rest = m.groups()
     term, _, english = rest.partition("=")
-    return (int(number) if number else None), code, term.strip(), english.strip()
+    return (int(number) if number else None), code, term.strip(), english.strip(), "unsure"
 
 
 def parse_answer(text: str, items: Sequence[BundleItem]) -> ParsedAnswer:
@@ -580,7 +598,7 @@ def parse_answer(text: str, items: Sequence[BundleItem]) -> ParsedAnswer:
         if cells is None:
             out.ignored += 1
             continue
-        number, code, term, english = cells
+        number, code, term, english, confidence = cells
         out.lines += 1
         index = None
         said = _norm(term)
@@ -604,5 +622,5 @@ def parse_answer(text: str, items: Sequence[BundleItem]) -> ParsedAnswer:
             out.duplicates += 1
             continue
         canonical = english or (items[index].term if code in ACCEPT_CODES else "")
-        out.verdicts[index] = Verdict(code, canonical)
+        out.verdicts[index] = Verdict(code, canonical, confidence)
     return out

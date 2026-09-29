@@ -27,6 +27,13 @@ def test_codes_old_and_new_read_into_categories():
     assert category_of("F") == category_of("K") == "never" and category_of("?") == ""
 
 
+def test_a_rejection_says_whether_the_judge_is_sure():
+    items = [BundleItem(t, "en", "check", "", 3, 3, 0.5, [], []) for t in "abc"]
+    parsed = parse_answer("1 | G | a | sure\n2 | F | b\n3 | C | c | cee | unsure", items)
+    assert [parsed.verdicts[i].confidence for i in range(3)] == ["sure", "unsure", "unsure"]
+    assert parsed.verdicts[2].canonical == "cee" and parsed.verdicts[0].canonical == ""
+
+
 def test_the_category_column_is_optional_in_keywords_csv(tmp_path):
     path = tmp_path / "keywords.csv"
     old = "term,language,decision,target,reason,source,decided_at\nwave,en,keep,,,person,t\n"
@@ -95,6 +102,8 @@ def test_a_copilot_result_carries_known_categories():
     assert check_result(ok, task="triage") == []
     bad = {**head, "decisions": [{**decision, "category": "tasty"}]}
     assert any("category" in p for p in check_result(bad, task="triage"))
+    bad = {**head, "decisions": [{**decision, "confidence": "maybe"}]}
+    assert any("confidence" in p for p in check_result(bad, task="triage"))
 
 
 @pytest.fixture()

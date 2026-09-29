@@ -220,6 +220,7 @@ def _proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
                 "language": item.lang,
                 "code": v.code,
                 "category": category_of(v.code),
+                "confidence": v.confidence,
                 "meaning": CODES.get(v.code, ""),
                 "english": v.canonical,
                 # An accepted term whose English form is another term joins it (its
@@ -346,7 +347,8 @@ def accept(
 
 
 def feed_rejects(request: Request, ctx: Any, items: list[dict[str, Any]], route: str) -> int:
-    """Put the accepted ``never`` exclusions into the machine's rejection cache."""
+    """Put the accepted ``never`` exclusions the judge was sure of into the machine's
+    rejection cache."""
     from cartolex.build.engine import project_fingerprint
 
     from .keywords import machine_rejects
@@ -355,7 +357,10 @@ def feed_rejects(request: Request, ctx: Any, items: list[dict[str, Any]], route:
     rows = [
         {"term": i["term"], "language": i["language"]}
         for i in items
-        if i.get("category") == "never" and i["proposed"] == "exclude" and i["language"]
+        if i.get("category") == "never"
+        and i.get("confidence") == "sure"
+        and i["proposed"] == "exclude"
+        and i["language"]
     ]
     if machine is None or not rows:
         return 0
