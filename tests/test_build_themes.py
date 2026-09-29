@@ -74,7 +74,7 @@ def _check_depth(root: Path, depth: int) -> None:
     assert sizes == sorted(sizes)
     proposal = ThemesFile.model_validate(_json(derived / "themes.group" / "themes_draft.json"))
     assert proposal.depth == depth
-    assert all(node_level(proposal, n) == depth for n in proposal.keywords.values())
+    assert all(1 <= node_level(proposal, n) <= depth for n in proposal.keywords.values())
     applied = _json(derived / "map.layout" / "themes_applied.json")
     assert applied["depth"] == depth and applied["source"] == "draft"
     assert [n["id"] for n in applied["nodes"]] == [n.id for n in proposal.nodes]
@@ -129,7 +129,10 @@ def test_deeper_trees_build_end_to_end(built, tmp_path, depth):
 
 @pytest.fixture(scope="module")
 def two_levels(built, tmp_path_factory) -> Path:
-    return _copy(built, tmp_path_factory.mktemp("d2"), "themes.group.depth=2")
+    # without the comb, the proposal is the two-level draft read as a tree
+    return _copy(
+        built, tmp_path_factory.mktemp("d2"), "themes.group.depth=2", "themes.group.comb=false"
+    )
 
 
 def _same_numbers(root: Path, stage: str) -> None:

@@ -582,7 +582,7 @@ def run_group(ctx: StageContext) -> dict[str, int]:
     """
     from ..atlas import driver
     from ..lexicon.subfields import draft_subfields
-    from ..lexicon.theme_tree import draft_themes
+    from ..lexicon.theme_tree import TOO_BROAD, draft_themes
 
     kept = int(ctx.sizes.kept_keywords or 0)
     levels = theme_levels(ctx.params, kept)
@@ -591,7 +591,12 @@ def run_group(ctx: StageContext) -> dict[str, int]:
     rctx = rctx.replace(progress=_progress_bridge(ctx, 0.6, 0.8))
     doc = _engine_call(
         ctx,
-        lambda: draft_themes(rctx, level_sizes=levels, run=f"themes.group/{ctx.run_id}"),
+        lambda: draft_themes(
+            rctx,
+            level_sizes=levels,
+            run=f"themes.group/{ctx.run_id}",
+            comb=bool(ctx.params.get("comb", True)),
+        ),
     )
     if len(levels) == 2:
         rctx = rctx.replace(progress=_progress_bridge(ctx, 0.8, 1.0))
@@ -600,11 +605,15 @@ def run_group(ctx: StageContext) -> dict[str, int]:
     per_level = [0] * depth
     for node in _tree_levels(doc):
         per_level[node - 1] += 1
+    too_broad = sum(
+        1 for entry in (doc.get("set_aside") or {}).values() if entry.get("reason") == TOO_BROAD
+    )
     return {
         "depth": depth,
         "themes": per_level[0],
         "topics": per_level[-1],
         **{f"groups_level_{i}": n for i, n in enumerate(per_level, start=1)},
+        "too_broad": too_broad,
     }
 
 

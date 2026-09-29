@@ -94,7 +94,8 @@ def test_cartolex_stages_declare_every_stage_in_order():
 def test_the_parameter_set_stays_small():
     """Every parameter earns its place: a new one is a decision, not a habit."""
     count = sum(len(s.params) for s in STAGES)
-    assert count <= 16, f"{count} parameters: justify each new one"
+    # 17: themes.group.comb, off in the reference run (the workspace run has no comb)
+    assert count <= 17, f"{count} parameters: justify each new one"
 
 
 def test_a_registry_refuses_what_does_not_fit():
@@ -214,6 +215,7 @@ def test_effective_values_say_where_they_come_from():
         "top_groups": (12, "params.json", None),
         "keywords_per_group": (20, "default", None),
         "level_sizes": (None, "default", None),
+        "comb": (True, "default", None),
     }
     fake = make_registry(Controls(log=None))["themes.group"]  # a stage that uses the seed
     seeded = resolve_params(fake, params, sizes, year=YEAR)

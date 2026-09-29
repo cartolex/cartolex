@@ -1229,7 +1229,8 @@ def set_reference_decisions(project: Any) -> None:
     The AI clean-up is on, with the model a workspace run uses; the recency
     window is the workspace run's; the themes and topics are the engine's
     default counts (explicit level sizes: the draft's themes over the
-    clustering's topics); the first map version takes the layout's default seed.
+    clustering's topics, keywords on the topics as the workspace run leaves them:
+    no comb); the first map version takes the layout's default seed.
     """
     from cartolex.project.models import AIIdentity
 
@@ -1249,7 +1250,10 @@ def set_reference_decisions(project: Any) -> None:
     stages = {
         "corpus.assemble": {"recency_years": ENGINE_SETTINGS["keywords"]["kw_recency_years"]},
         "keywords.triage": {"enabled": True},
-        "themes.group": {"level_sizes": [_draft_themes(), defaults.clustering_n_concepts]},
+        "themes.group": {
+            "level_sizes": [_draft_themes(), defaults.clustering_n_concepts],
+            "comb": False,
+        },
     }
     updated = params.model_copy(update={"seed": defaults.umap_random_state, "stages": stages})
     project.save_params(updated, expected=fp, action="reference settings")

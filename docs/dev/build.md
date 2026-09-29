@@ -130,6 +130,7 @@ leaves the check to the run.
 | `themes.group` | `top_groups` | 15 | 2–500, fewer than the kept keywords |
 | `themes.group` | `keywords_per_group` | 20 | 2–10 000; the levels must grow from the top |
 | `themes.group` | `level_sizes` | none | 1 to 4 whole numbers, the groups per level from the top; when set, they replace `depth`, `top_groups` and `keywords_per_group` |
+| `themes.group` | `comb` | true | true, false; true puts each keyword of the proposal on the level its texts support and sets aside the keywords too broad for any theme ({doc}`themes-engine`) |
 | `map.trajectories` | `window_years` | 3 | 1–50 |
 
 The layout of a map is not a build parameter: each map version keeps its own
