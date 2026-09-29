@@ -99,3 +99,9 @@ Each entry says when the stored baseline (`tests/baseline/`) was rewritten, why,
 - Engine: 1.0.0.dev0, source fingerprint `c1107b902d974b0a`
 - S: against the previous baseline, 12 stages: 2 identical, 10 different (triage, build, space, group, layout, draft, apply, trajectories, projection, bundle)
 - merge: against the previous baseline, 1 stage: 0 identical, 1 different (merge)
+
+## 2026-09-29 — L
+
+- Reason: Keyword categories and the rejection lists (step 7): the AI judges every band but the rejected one, candidates on the rejection lists go to a new rejected band, keywords.build writes categories.json and theme names prefer a concept or an object on a tie.
+- Engine: 1.0.0.dev0, source fingerprint `c1107b902d974b0a`
+- L: against the previous baseline, 12 stages: 2 identical, 10 different (triage, build, space, group, layout, draft, apply, trajectories, projection, bundle)

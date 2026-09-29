@@ -10,7 +10,7 @@
     0,
     0
    ],
-   "sha256": "9fb118d385f61e15b6843009ae4ef367a7e05582c8344baf143b925722224072"
+   "sha256": "7d039e772c438464f19f610a1aec7f7413c9b49fafbf0959043c7de25887121e"
   },
   "entities.csv": {
    "compress_type": 8,
@@ -34,7 +34,7 @@
     0,
     0
    ],
-   "sha256": "c73054e3786716094f24a94963d3bdf6cfd5cc0ca0a3526515b4f6ce64f99424"
+   "sha256": "ce9606f5c9a21a9dccc0e7b223c02ae7aee849a34eb499dc6503e8fda7320a8f"
   },
   "taxonomy.json": {
    "compress_type": 8,
@@ -46,7 +46,7 @@
     0,
     0
    ],
-   "sha256": "fbe1033efab499d392a684d3fd371ad7218a1b204f21bea10d9caca3b95c47fd"
+   "sha256": "d868bd0e93ee2fab1716bd45733b2fdbc5cff96104a4ae864bee5476fb2adc68"
   },
   "vocabulary.csv": {
    "compress_type": 8,
@@ -58,7 +58,7 @@
     0,
     0
    ],
-   "sha256": "bb7945aba95c9f7fc967c75bbad9e75d50b36c8e19104c8e8178001e47aa9b29"
+   "sha256": "cd597210ed360c112059548058f9e749d6bbb63b8bbf2e0a45b43063ca44863b"
   }
  },
  "order": [
