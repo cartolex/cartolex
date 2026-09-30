@@ -525,3 +525,30 @@ def test_a_regrouping_at_another_depth_is_adopted_and_saved_at_that_depth(client
     )
     assert saved.status_code == 200, saved.text
     assert client.get("/api/themes").json()["tree"]["depth"] == 3
+
+
+def test_the_views_show_per_node_stability_coherence_and_the_people_behind_a_nearness(
+    client, tmp_path
+):
+    """Each node's stability and coherence in the detailed outline, the people who use both a
+    keyword and a suggested node, and many renames in one change, a bad one skipped."""
+    from cartolex.copilot import open_bundle
+
+    session = open_bundle(_unpack(client, THEMES, tmp_path / "themes"))
+    out = session.stability(draws=1, detail=True)
+    nodes = out["nodes"]
+    assert len(nodes) == len(session.tree["nodes"])
+    assert [x["jaccard_mean"] for x in nodes] == sorted(x["jaccard_mean"] for x in nodes)
+    assert all(0 <= x["jaccard_lowest"] <= x["jaccard_mean"] <= 1 for x in nodes)
+    text = session.outline(detail=True)
+    assert "coherence" in text and "stability" in text
+    keyword = next(iter(session.tree["keywords"]))
+    place = session.suggest(keyword)[keyword][0]
+    assert place["shared_people"] == session.shared_people(
+        keyword, session.keywords(place["node"], own=True)
+    )
+    assert "other_people" in session.borderline(n=1)[0]
+    tops = [n["id"] for n in session.tree["nodes"] if n["parent"] is None]
+    skipped = session.rename_many({tops[0]: "First", "nope": "Nothing", tops[1]: "Second"}, "r")
+    assert list(skipped) == ["nope"] and len(session.changes) == 1
+    assert (session.name(tops[0]), session.name(tops[1])) == ("First", "Second")

@@ -134,15 +134,20 @@ needs no checkpoint, and a new conversation `resume()`s from `result/`.
 
 `ThemesSession`: `summary()` (the field, each level's name, sizes and balance),
 `outline()` (with how many people use each node, and a flag when two people make
-most of its use: « one person's vocabulary »), `keywords(node)`, `find(text)`;
-`measure()`, `compare(a, b)`, `borderline()`, `levels()` (the comb, read again
-on the current tree from `text_keywords.npz`), `suggest(keywords)` (the other
-nodes nearest a keyword, its own left out), `stability(level_sizes)`;
+most of its use: « one person's vocabulary »; with `detail=True` each node's
+coherence and, after `stability()` on the same tree, its stability),
+`keywords(node)`, `find(text)`; `measure()`, `compare(a, b)`, `borderline()`,
+`levels()` (the comb, read again on the current tree from `text_keywords.npz`),
+`suggest(keywords)` (the other nodes nearest a keyword, its own left out; it
+and `borderline()` give beside each cosine the people who use both the keyword
+and the node's keywords, `shared_people`), `stability(level_sizes, doc=)` (per
+level, and per node of *doc*: the least stable first);
 `regroup(level_sizes)` (the grouping of the build: `prepare_cluster_embeddings`,
 Ward, `level_groups`, `propose_tree`; one to four sizes, so the new tree may
 have another depth); `layout(method)`, `draw_map(path,
 method=)` (`tree`, `tsne` with scikit-learn, `umap`), `draw_treemap(path)`;
-changes, each with its reason: `rename`, `move`, `merge`, `split`, `create`,
+changes, each with its reason: `rename`, `rename_many` (one change, a shared
+reason, the renames that cannot apply skipped), `move`, `merge`, `split`, `create`,
 `delete`, `move_node`, `set_aside`, `put_back`, `attribution` (a list change
 skips the keywords it cannot apply to, applies the others and returns the
 skipped ones with why), `adopt(tree)` (a restructuring, written as operations:
@@ -172,7 +177,8 @@ the nearest other node), *misplaced* and *borderline* shares, and *alone*,
 the keywords alone in their node (no margin, left out of the others) — the theme
 editor's borderline measure (`cartolex.lexicon.theme_fit`); sizes per level;
 *balance* (the keywords on each level's nodes themselves, their spread and the
-level's share); *stability*, the adjusted Rand index of the grouping redone
+level's share); *stability*, per node the mean Jaccard index of its keywords with
+the closest group of its level in each sample, and the adjusted Rand index of the grouping redone
 without 10 % of the people (the space refitted by cartolex's SVD); where a truth
 exists (a demo world, `data/truth.json` or `open_bundle(truth=)`), the lexicon
 lab's B-cubed F1 for themes, precision and recall for triage.

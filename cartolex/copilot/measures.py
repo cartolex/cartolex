@@ -22,7 +22,8 @@ Every measure is cartolex's own, on the bundled vectors:
   :mod:`cartolex.atlas.hierarchy`) redone on the space refitted without a
   share of the people (:func:`cartolex.atlas.reducers.compute_svd_embeddings`),
   compared with the grouping on everyone by the adjusted Rand index of the
-  keywords' groups at each level;
+  keywords' groups at each level, and each node's: the Jaccard index of its
+  keywords with the closest group of its level in each sample;
 - **truth** (:func:`truth_scores`), only where a truth exists (a demo world): the
   lexicon lab's B-cubed F1 of the top-level nodes against the true themes.
 """
@@ -233,13 +234,17 @@ def stability(
     seed: int = 0,
     components: int = 50,
     ward: Any = None,
+    doc: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """How much the grouping at *level_sizes* holds when a share *drop* of the people is left out.
 
     The space is refitted (cartolex's SVD) on everyone and on *draws* samples
     without a random *drop* of the people; the grouping is redone on each, and
     compared with everyone's by the adjusted Rand index of each level. Returns
-    the mean and the lowest index per level (1: the same groups).
+    the mean and the lowest index per level (1: the same groups). With *doc* (a
+    tree), also each of its nodes' stability (``nodes``, the lowest first): the
+    Jaccard index of its keywords with the closest group of the same level in
+    each sample (mean and lowest; 1: a group of the sample holds exactly them).
     """
     import tempfile
     from pathlib import Path
@@ -264,6 +269,8 @@ def stability(
         emb = compute_svd_embeddings(data, n_components=dimensions, model_path=folder / "svd.json")
         return group_levels(emb.Z_terms, level_sizes, components=components, ward=ward)
 
+    members = _node_rows(doc, terms, len(level_sizes)) if doc is not None else {}
+    per_node: dict[str, list[float]] = {nid: [] for nid in members}
     with tempfile.TemporaryDirectory() as tmp:
         folder = Path(tmp)
         full = grouping(np.arange(n_people), folder)
@@ -274,7 +281,9 @@ def stability(
             again = grouping(rows, folder)
             for lv, (a, b) in enumerate(zip(full, again, strict=True)):
                 per_level[lv].append(_ari(a, b))
-    return {
+            for nid, (lv, keyword_rows) in members.items():
+                per_node[nid].append(_best_jaccard(keyword_rows, again[lv - 1]))
+    out: dict[str, Any] = {
         "drop": drop,
         "draws": int(draws),
         "levels": [
@@ -287,3 +296,48 @@ def stability(
             for lv, v in enumerate(per_level)
         ],
     }
+    if doc is not None:
+        nodes = [
+            {
+                "node": nid,
+                "level": members[nid][0],
+                "keywords": int(len(members[nid][1])),
+                "jaccard_mean": round(float(np.mean(v)), 4),
+                "jaccard_lowest": round(float(np.min(v)), 4),
+            }
+            for nid, v in per_node.items()
+            if v
+        ]
+        out["nodes"] = sorted(nodes, key=lambda x: (x["jaccard_mean"], x["node"]))
+    return out
+
+
+def _node_rows(
+    doc: Mapping[str, Any], terms: Sequence[str], depth: int
+) -> dict[str, tuple[int, np.ndarray]]:
+    """Each node of *doc* down to level *depth*: its level and the rows of the keywords under it."""
+    row = {t: i for i, t in enumerate(terms)}
+    lv = node_levels(doc)
+    parent = {n["id"]: n.get("parent") for n in doc["nodes"]}
+    under: dict[str, list[int]] = defaultdict(list)
+    for k, nid in (doc.get("keywords") or {}).items():
+        if k not in row:
+            continue
+        while nid is not None:
+            under[nid].append(row[k])
+            nid = parent.get(nid)
+    return {
+        nid: (lv[nid], np.asarray(sorted(r), dtype=int))
+        for nid, r in under.items()
+        if nid in lv and lv[nid] <= depth
+    }
+
+
+def _best_jaccard(rows: np.ndarray, labels: np.ndarray) -> float:
+    """The Jaccard index of the keywords *rows* with the group (of *labels*) closest to them."""
+    sizes = Counter(int(x) for x in labels.tolist() if x >= 0)
+    inside = Counter(int(x) for x in labels[rows].tolist() if x >= 0)
+    best = 0.0
+    for g, both in inside.items():
+        best = max(best, both / (len(rows) + sizes[g] - both))
+    return best

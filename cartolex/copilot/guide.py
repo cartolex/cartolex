@@ -270,10 +270,13 @@ _THEMES_GUIDE = """\
 - `session.find("marsh")`: which node holds each keyword containing « marsh »
   (`[("salt marsh", "c2"), ("marsh accretion", "(set aside)")]`).
 - `session.keywords("c2")`: the keywords under a node; `session.name("c2")`: its name.
-- `print(session.outline())`, `print(session.measure())`, `print(session.compare())`.
+- `print(session.outline())`, `print(session.measure())`, `print(session.compare())`;
+  `print(session.outline(detail=True))`: every node with its coherence, its people and,
+  after `session.stability()`, its stability.
 - `session.borderline()`, `session.suggest(["salt marsh"])`, `session.levels()`.
 - `session.move`, `merge`, `split`, `rename`, `set_aside`, `put_back`,
-  `attribution` (each with its reason); `session.undo()`.
+  `attribution` (each with its reason); `session.rename_many({{"c2": "Salt marshes",
+  "c3": "Tides"}}, reason)`: many names, one change; `session.undo()`.
 
 ## The tree you work on
 
@@ -298,7 +301,13 @@ people's usage are in the bundle; people are rows in a random order.
   change it.
 - **Clear borders.** `session.borderline()` lists the keywords nearer another
   node than their own (a negative *margin*); `session.suggest([...])` the other
-  nodes nearest a keyword.
+  nodes nearest a keyword. Each comes with the people behind it
+  (`other_people`, `own_people`, `shared_people`: how many people use both the
+  keyword and that node's keywords). **The space is made of who uses which
+  words, not of what they mean**: two keywords are near because the same people
+  use them. A nearness resting on two or three people is one team's habit, not
+  a kinship of subjects: weigh it by those counts, and by what the words mean
+  (which you judge yourself), before moving a keyword.
 - **Many people behind each theme.** The outline gives, per node, how many
   people use it; a node flagged « one person's vocabulary » (two people make
   most of its use) is one or two people's wording, not a theme of the field:
@@ -327,7 +336,11 @@ need: the curator reads the conversation too.
 - *balance*: per level, the keywords on its nodes themselves (mean, smallest,
   largest), their *spread* and the level's *share* of the placed keywords.
 - *stability*: the adjusted Rand index between the grouping on everyone and on
-  samples without 10 % of the people (1: the same groups). A few seconds.
+  samples without 10 % of the people (1: the same groups), and per node (`nodes`,
+  the least stable first): the Jaccard index of its keywords with the closest
+  group of its level in each sample (1: they stay together). A node below about
+  0.5 falls apart when a few people are left out: merge it, or check it. A few
+  seconds.
 - *truth* (demo worlds only): the B-cubed F1 of the top level against the true themes.
 
 ## The method
@@ -338,7 +351,8 @@ need: the curator reads the conversation too.
    tiny or huge nodes, the keywords on the top level.
 2. **Diagnose.** List the problems with their evidence: `session.borderline(n=30)`,
    `session.levels()`, `session.suggest([...])`, the balance, the flagged nodes,
-   `session.stability()`.
+   `session.stability()` (its least stable nodes), then
+   `print(session.outline(detail=True))` to see the weak nodes in place.
    Each problem: what is wrong, the numbers, two or three keywords as examples.
 3. **Checkpoint with the curator.** Show the diagnosis in their language and
    what you propose to do about it; ask for their standing rules (« never merge
@@ -365,7 +379,8 @@ need: the curator reads the conversation too.
    last change back. A list change skips the keywords it cannot apply to (set
    aside, not in the tree…), applies the others, and prints and returns the
    skipped ones with why.
-6. **Name** every node you touched, and every vague name.
+6. **Name** every node you touched, and every vague name (many at once:
+   `session.rename_many({{...}}, reason)`; a rename that cannot apply is skipped and said).
 7. **Measure again**: `print(session.compare())` and new pictures; undo what does not help.
 8. **Checkpoint 2.** Show `print(session.report())` to the curator and ask
    whether to hand it back; end with the question and wait. Then

@@ -42,6 +42,12 @@ def _csr(arrays: Mapping[str, Any], name: str) -> Any:
     )
 
 
+def _shape(doc: Mapping[str, Any]) -> str:
+    """What a node's stability depends on: the nodes' parents and the keywords' places."""
+    nodes = sorted((str(n["id"]), str(n.get("parent"))) for n in doc["nodes"])
+    return json.dumps([nodes, sorted((doc.get("keywords") or {}).items())])
+
+
 def grouping_options(settings: Mapping[str, Any] | None) -> tuple[Any, Any, float]:
     """The Ward cut's, the comb's and the names' settings of a bundle's ``grouping`` context
     (``themes.group``'s parameters as the project's grouping recorded them); the defaults for
@@ -113,6 +119,7 @@ class ThemesSession(ThemesViews, Session):
         self.tree: dict[str, Any] = copy.deepcopy(self.baseline)
         self.changes: list[dict[str, Any]] = []
         self._past: list[dict[str, Any]] = []
+        self._stable: tuple[str | None, dict[str, float]] = (None, {})
         if truth is None and self.path("data/truth.json").is_file():
             truth = self.json("data/truth.json")
         self.truth = dict(truth) if truth else None
@@ -194,10 +201,14 @@ class ThemesSession(ThemesViews, Session):
     ) -> str:
         """The tree as text: each node with its id, name, size, how many people use it (and a
         flag when two people make most of its use) and its most used keywords. Short by
-        default (the top level, three keywords each); every node with *detail*."""
+        default (the top level, three keywords each); every node with *detail*, each with its
+        own coherence (the mean cosine of its keywords to it, each left out) and, after a
+        :meth:`stability` on this tree, its stability."""
         doc = doc or self.tree
         lv = ops.levels(doc)
         people = self.people_of(doc)
+        coherence = self._coherence(doc) if detail else {}
+        stable = self._node_stability(doc) if detail else {}
         top = top if detail else 3
         lines = []
         hidden = 0
@@ -214,9 +225,15 @@ class ThemesSession(ThemesViews, Session):
             shown = "; ".join(own[:top]) + ("; …" if len(own) > top else "")
             p = people.get(nid, {"people": 0, "one_person": False})
             flag = " — one person's vocabulary?" if p["one_person"] else ""
+            extra = ""
+            if detail:
+                c = coherence.get(nid)
+                extra = f", coherence {c:.2f}" if c is not None else ", coherence —"
+                if nid in stable:
+                    extra += f", stability {stable[nid]:.2f}"
             lines.append(
                 f"{pad}[{nid}] {self.name(nid, doc)} — {len(under)} keywords, "
-                f"{p['people']} people{flag}"
+                f"{p['people']} people{extra}{flag}"
             )
             if not detail:
                 own = under
@@ -225,10 +242,23 @@ class ThemesSession(ThemesViews, Session):
                 lines.append(f"{pad}    {shown}")
         if hidden:
             lines.append(f"({hidden} nodes below the top level: outline(detail=True))")
+        if detail and not stable:
+            lines.append("(each node's stability: run stability() on this tree first)")
         aside = doc.get("set_aside") or {}
         if aside:
             lines.append(f"set aside: {len(aside)} keywords")
         return "\n".join(lines)
+
+    def _coherence(self, doc: Mapping[str, Any]) -> dict[str, float]:
+        """Each node's own coherence: the mean cosine of the keywords under it to it (each left
+        out), as the borderline measure computes it at the node's level."""
+        from cartolex.lexicon.theme_fit import borderline
+
+        found: dict[str, list[float]] = {}
+        for level in range(1, int(doc["depth"]) + 1):
+            for b in borderline(doc, self.terms, self.Z_terms, level=level):
+                found.setdefault(b.node, []).append(b.own)
+        return {nid: round(float(np.mean(v)), 4) for nid, v in found.items()}
 
     def find(self, text: str, doc: Mapping[str, Any] | None = None) -> list[tuple[str, str]]:
         """The keywords containing *text* and their node (``'(set aside)'`` when set aside)."""
@@ -317,21 +347,29 @@ class ThemesSession(ThemesViews, Session):
     ) -> list[dict[str, Any]]:
         """The keywords nearest the border of their node, the smallest margin first: *n*
         (ten by default; up to 200 with *detail*). A keyword alone in its node has no margin
-        and is not listed (``measure()`` counts them, ``alone``)."""
+        and is not listed (``measure()`` counts them, ``alone``). Beside the cosines, the
+        people behind them: ``other_people`` use both the keyword and the other node's
+        keywords, ``own_people`` the keyword and its own node's others."""
         n = max(n, 200) if detail else n
         from dataclasses import asdict
 
         from cartolex.lexicon.theme_fit import borderline
 
-        return [
-            asdict(b)
-            for b in borderline(doc or self.tree, self.terms, self.Z_terms, level=level)[:n]
-        ]
+        doc = doc or self.tree
+        out = []
+        for b in borderline(doc, self.terms, self.Z_terms, level=level)[:n]:
+            item = asdict(b)
+            item["other_people"] = self.shared_people(b.keyword, self.keywords(b.other, doc=doc))
+            item["own_people"] = self.shared_people(b.keyword, self.keywords(b.node, doc=doc))
+            out.append(item)
+        return out
 
     def suggest(
         self, keywords: Iterable[str] | str, *, top: int = 3
     ) -> dict[str, list[dict[str, Any]]]:
-        """For each keyword, the other nodes whose keywords are nearest it (its own left out)."""
+        """For each keyword, the other nodes whose keywords are nearest it (its own left out),
+        each with its cosine (``score``) and ``shared_people``: how many people use both the
+        keyword and that node's keywords (the evidence the nearness rests on)."""
         from dataclasses import asdict
 
         from cartolex.lexicon.theme_fit import suggestions
@@ -340,18 +378,39 @@ class ThemesSession(ThemesViews, Session):
         found = suggestions(self.tree, self.terms, self.Z_terms, wanted, top=top + 1)
         here = self.tree["keywords"]
         # Its own node is not a suggestion: only the other nodes, nearest first.
-        return {k: [asdict(s) for s in v if s.node != here.get(k)][:top] for k, v in found.items()}
+        return {
+            k: [
+                {
+                    **asdict(s),
+                    "shared_people": self.shared_people(k, self.keywords(s.node, own=True)),
+                }
+                for s in v
+                if s.node != here.get(k)
+            ][:top]
+            for k, v in found.items()
+        }
 
     def level_sizes(self, doc: Mapping[str, Any] | None = None) -> list[int]:
         """How many nodes each level of a tree has, from the top."""
         return [x["nodes"] for x in measures.sizes(doc or self.tree)["levels"]]
 
     def stability(
-        self, level_sizes: Sequence[int] | None = None, *, drop: float = 0.1, draws: int = 3
+        self,
+        level_sizes: Sequence[int] | None = None,
+        *,
+        doc: Mapping[str, Any] | None = None,
+        drop: float = 0.1,
+        draws: int = 3,
+        n: int = 10,
+        detail: bool = False,
     ) -> dict[str, Any]:
-        """How well the grouping at *level_sizes* (default: the tree's) holds without some people."""
+        """How well the grouping at *level_sizes* (default: the tree's) holds without some
+        people: per level, and per node of *doc* (default: the tree; pass a :meth:`regroup`
+        with its sizes to see its nodes), the least stable first — *n* of them (ten by
+        default; all with *detail*). ``outline(detail=True)`` then shows each node's."""
         started = time.perf_counter()
-        sizes = list(level_sizes or self.level_sizes())
+        doc = doc or self.tree
+        sizes = list(level_sizes or self.level_sizes(doc))
         out = measures.stability(
             self.X,
             self.terms,
@@ -361,9 +420,19 @@ class ThemesSession(ThemesViews, Session):
             draws=draws,
             components=int(self.context.get("cluster_components") or 50),
             ward=self.ward,
+            doc=doc,
         )
+        self._stable = (_shape(doc), {x["node"]: x["jaccard_mean"] for x in out["nodes"]})
         self._timed("stability", started)
+        if not detail and len(out["nodes"]) > n:
+            out["nodes_shown"] = f"the {n} least stable of {len(out['nodes'])}: detail=True"
+            out["nodes"] = out["nodes"][:n]
         return out
+
+    def _node_stability(self, doc: Mapping[str, Any]) -> dict[str, float]:
+        """The nodes' stability of the last :meth:`stability` on this very tree, if any."""
+        shape, found = self._stable
+        return found if shape == _shape(doc) else {}
 
     # ── grouping ─────────────────────────────────────────────────────────────
     def regroup(self, level_sizes: Sequence[int], *, keep_aside: bool = True) -> dict[str, Any]:
@@ -623,6 +692,34 @@ class ThemesSession(ThemesViews, Session):
             [{"op": "rename_node", "node_id": node_id, "names": self._names(name)}],
             reason,
         )
+
+    def rename_many(
+        self, names: Mapping[str, str | Mapping[str, str]], reason: str
+    ) -> dict[str, str]:
+        """Rename many nodes at once, ``{node_id: name}``, with one shared reason: one change.
+        A rename that cannot apply (no such node, an empty name…) is skipped; the skipped ones
+        are printed and returned with why."""
+        if not str(reason or "").strip():
+            raise ValueError("give the reason of every change: the curator reads it")
+        op_list, skipped = [], {}
+        trial = self.tree
+        for nid, name in names.items():
+            op = {"op": "rename_node", "node_id": nid, "names": self._names(name)}
+            if not any(str(v or "").strip() for v in op["names"].values()):
+                skipped[nid] = "an empty name"
+                continue
+            try:
+                trial = ops.apply(trial, op)
+            except ops.OpRefused as exc:
+                skipped[nid] = str(exc)
+                continue
+            op_list.append(op)
+        if op_list:
+            self._do("rename", op_list, reason, trial)
+        if skipped:
+            shown = "; ".join(f"{k!r} ({r})" for k, r in list(skipped.items())[:20])
+            print(f"renamed {len(op_list)}; skipped {len(skipped)}: {shown}")
+        return skipped
 
     def _sorted_out(
         self, keywords: Iterable[str] | str, why: Any

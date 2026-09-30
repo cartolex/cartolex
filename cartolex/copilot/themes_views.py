@@ -10,6 +10,8 @@ never a text):
 - :meth:`~ThemesViews.people_of`: how many people use each node, and whether
   one or two people make most of its use (« one person's vocabulary »: counts
   only, never who);
+- :meth:`~ThemesViews.shared_people`: how many people use both a keyword and a
+  node's keywords (counts only), the evidence under a nearness in the space;
 - :meth:`~ThemesViews.levels`: the comb, read again on the current tree.
 """
 
@@ -68,6 +70,19 @@ class ThemesViews:
                 "one_person": share >= ONE_PERSON,
             }
         return out
+
+    def shared_people(self, keyword: str, keywords: list[str]) -> int:
+        """How many people use both *keyword* and at least one of *keywords* (itself left out):
+        what a nearness in the space rests on, since the space is made of who uses which words."""
+        col = {t: j for j, t in enumerate(self.terms)}
+        if keyword not in col:
+            return 0
+        cols = [col[k] for k in keywords if k in col and k != keyword]
+        if not cols:
+            return 0
+        users = np.asarray(self.U[:, col[keyword]].toarray()).ravel() > 0
+        other = np.asarray(self.U[:, cols].sum(axis=1)).ravel() > 0
+        return int((users & other).sum())
 
     # ── the comb, on the current tree ────────────────────────────────────────
     def levels(self, n: int = 10, *, detail: bool = False) -> list[dict[str, Any]]:
