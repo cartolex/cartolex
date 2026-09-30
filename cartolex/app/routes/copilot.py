@@ -554,7 +554,7 @@ def triage_proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
     from cartolex.lexicon.categories import category_of
 
     from ..etags import version_of
-    from .handoff import _decisions
+    from .ai_proposals import _decisions
 
     result = _read(ctx, proposal_id)
     decisions, fp = _decisions(ctx)

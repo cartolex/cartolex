@@ -782,7 +782,7 @@ def _theme_proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
     }
 
 
-@routes.get("/api/themes/handoff/proposals", action="themes.read")
+@routes.get("/api/themes/ai/proposals", action="themes.read")
 def theme_proposals(ctx: ProjectDep) -> dict[str, Any]:
     """The theme results imported so far, the newest first: the copilot's (read with
     ``GET /api/themes/copilot/proposals/{id}``) and the answers to a theme handoff an
@@ -798,7 +798,7 @@ def theme_proposals(ctx: ProjectDep) -> dict[str, Any]:
     }
 
 
-@routes.get("/api/themes/handoff/proposals/{proposal_id}", action="themes.read")
+@routes.get("/api/themes/ai/proposals/{proposal_id}", action="themes.read")
 def theme_proposal(proposal_id: ThemeProposalId, ctx: ProjectDep) -> dict[str, Any]:
     """One imported answer: each proposed operation (with why it is refused, if it is),
     and the lines that could not be read."""

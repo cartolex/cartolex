@@ -630,8 +630,8 @@ version imported stay readable:
 
 | route | what it does |
 | --- | --- |
-| `GET /api/themes/handoff/proposals` | the theme results imported so far, newest first: the copilot's (`<time>-copilot-themes`, read with `GET /api/themes/copilot/proposals/{id}`) and the earlier answers (`<time>-themes`) |
-| `GET /api/themes/handoff/proposals/{id}` | an earlier answer read into proposed operations (`items`: `number`, `verb`, `op` in the form of `POST /api/themes/ops`, `reason`, `refused` when it cannot apply to the tree sent) and the lines it could not read (`unreadable`: `line`, `text`, `problem`: `unknown_action`, `missing_fields`, `unknown_node`, `unknown_keyword`, `bad_levels`, `empty_name` or `same_node`) |
+| `GET /api/themes/ai/proposals` | the theme results imported so far, newest first: the copilot's (`<time>-copilot-themes`, read with `GET /api/themes/copilot/proposals/{id}`) and the earlier answers (`<time>-themes`) |
+| `GET /api/themes/ai/proposals/{id}` | an earlier answer read into proposed operations (`items`: `number`, `verb`, `op` in the form of `POST /api/themes/ops`, `reason`, `refused` when it cannot apply to the tree sent) and the lines it could not read (`unreadable`: `line`, `text`, `problem`: `unknown_action`, `missing_fields`, `unknown_node`, `unknown_keyword`, `bad_levels`, `empty_name` or `same_node`) |
 
 The editor shows a proposal as a list to accept or reject, previews the
 accepted operations on the tree, and applies them through

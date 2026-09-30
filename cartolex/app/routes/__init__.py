@@ -6,6 +6,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from . import (
+    ai_proposals,
     app_routes,
     atlas,
     build,
@@ -13,7 +14,6 @@ from . import (
     collection,
     copilot,
     corpus,
-    handoff,
     jobs,
     keywords,
     machine,
@@ -62,7 +62,7 @@ ROUTERS: list[APIRouter] = [
         settings,
         project_tools,
         machine,
-        handoff,
+        ai_proposals,
         copilot,
     )
 ]

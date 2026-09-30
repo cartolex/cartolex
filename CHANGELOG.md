@@ -616,5 +616,6 @@ nothing in the engine names a particular deployment, source or procedure.
   and ends `waiting` (a new job state, never a failure): export the bundle, give
   it to the assistant, import and accept the result, then « Continue the
   build ». The Activity drawer and the overview's next step say so. The
-  manifest's capability `ai_handoff` is now `ai_copilot`, and
-  `/api/handoff/proposals…` is `/api/ai/proposals…`.
+  manifest's capability `ai_handoff` is now `ai_copilot`,
+  `/api/handoff/proposals…` is `/api/ai/proposals…` and
+  `/api/themes/handoff/proposals…` is `/api/themes/ai/proposals…`.

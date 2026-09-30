@@ -353,9 +353,9 @@ def test_a_theme_answer_imported_by_an_earlier_version_is_still_read(depths, cli
     record = {"format": "cartolex-themes-handoff/1", "tree": tree, "language": "en"}
     (ai / f"{stamp}.bundle.json").write_text(json.dumps(record), encoding="utf-8")
     (ai / f"{stamp}.txt").write_text(answer, encoding="utf-8")
-    listed = client.get("/api/themes/handoff/proposals").json()["items"]
+    listed = client.get("/api/themes/ai/proposals").json()["items"]
     assert [p["id"] for p in listed] == [stamp]
-    proposal = client.get(f"/api/themes/handoff/proposals/{stamp}").json()
+    proposal = client.get(f"/api/themes/ai/proposals/{stamp}").json()
     assert [i["verb"] for i in proposal["items"]] == ["RENAME", "MOVE", "MERGE"]
     assert proposal["items"][2]["refused"] and proposal["applicable"] == 2
     assert [u["problem"] for u in proposal["unreadable"]] == ["unknown_keyword"]
