@@ -533,15 +533,26 @@ another finder gives differently is kept as a **conflict**. The text keeps the
 smallest id of the group; parts and authorships move to it (a clash keeps the
 most recent part and the smallest rank, and is listed).
 
-**Preprints.** A preprint and a published version (article, communication,
-chapter or report) are never merged: when they meet by the third rule, or a
-provider states the published DOI (arXiv's `arxiv:doi`, bioRxiv's
-`published`), the preprint's `version_of` names the published text. A preprint
-that meets several published texts stays unlinked. The build reads only the
+**Preprints.** A preprint and a published version (article, review,
+communication, proceedings, chapter or report) are never merged: when they
+meet by the third rule, or a provider states the published DOI (arXiv's
+`arxiv:doi`, bioRxiv's `published`), the preprint's `version_of` names the
+published text. A preprint that meets several published texts by the third
+rule (an article and its conference version) names the version of record among
+them (article, then review, chapter, conference version); it stays unlinked
+when two of them rank the same, or when providers name several. The build reads only the
 published version (`corpus.assemble` skips a text whose `version_of` is in the
 tables): it is the version of record, with its final title, year and DOI, and
 reading both would count one work twice in its authors' texts. A published
 text without an abstract gets its preprint's abstract parts.
+
+**Duplicates the merge keeps apart.** Texts the rules keep apart can still be
+one work: the same article under two DOIs, a conference version with its own
+DOI, a preprint nothing links. The tables keep them all; `corpus.assemble`
+reads one text per work (same normalised title of at least 25 characters,
+years at most one apart, an author in common), the version of record, and
+counts the copies it read once (`duplicate_texts` in its `run.json`, and a
+note on the Texts tab).
 
 Everything is written to `sources/merges.json` (`cartolex-merges/1`): merges
 with their rule and evidence, version links, refusals, conflicts and filled

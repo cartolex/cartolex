@@ -1317,6 +1317,7 @@
   "corpus.texts.rank": "rank {n}",
   "corpus.texts.from": "From {provider}",
   "corpus.texts.part": "{part} ({language}) · {chars} characters",
+  "corpus.texts.duplicates": "{n, plural, one {# duplicate text counted once: the same work under another record (same title, years at most one apart, an author in common)} other {# duplicate texts counted once: the same work under another record (same title, years at most one apart, an author in common)}}",
   "corpus.texts.merged": "{n, plural, one {# merge} other {# merges}}",
   "corpus.texts.merge": "{n, plural, =0 {joined by a shared key} one {# record merged} other {# records merged}} by {rule}",
   "corpus.texts.versions": "Versions",

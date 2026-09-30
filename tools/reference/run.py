@@ -729,7 +729,10 @@ class Engine:
         _mod("atlas.driver").run_svd(self.ctx, **ENGINE_SETTINGS["svd"])
 
     def _run_group(self) -> None:
-        _mod("atlas.driver").run_clustering(self.ctx, **ENGINE_SETTINGS["clustering"])
+        topics = reference_topics(self.ctx.paths.lexical_data_json)
+        _mod("atlas.driver").run_clustering(
+            self.ctx, n_concepts=topics, **ENGINE_SETTINGS["clustering"]
+        )
 
     def _run_layout(self) -> None:
         _mod("atlas.driver").run_umap(self.ctx, **ENGINE_SETTINGS["umap"])
@@ -1216,6 +1219,18 @@ class Engine:
 
 
 #: The number of themes of the subfield draft in a run of the engine alone (its default).
+def reference_topics(lexical_data: Path) -> int:
+    """The topics of the reference run: the engine's default count, below the keywords.
+
+    A world whose vocabulary holds fewer keywords than the default count (the S
+    world, since a candidate needs three texts) takes one topic fewer than its
+    keywords: a project build refuses as many topics as keywords, and the
+    workspace run takes the same count so that both compute the same partition.
+    """
+    n_terms = len(_mod("atlas.model_files").load_lexical_data(lexical_data).terms)
+    return max(1, min(_mod("atlas.driver").DEFAULTS.clustering_n_concepts, n_terms - 1))
+
+
 def _draft_themes() -> int:
     import inspect
 
@@ -1361,6 +1376,15 @@ class ProjectEngine(Engine):
         self._build("themes.space")
 
     def _run_group(self) -> None:
+        topics = reference_topics(self.files.lexical_data_json)
+        params, fp = self.project.read_params()
+        stages = dict(params.stages)
+        stages["themes.group"] = {
+            **stages["themes.group"],
+            "level_sizes": [_draft_themes(), topics],
+        }
+        updated = params.model_copy(update={"stages": stages})
+        self.project.save_params(updated, expected=fp, action="reference topics")
         self._build("themes.group")  # the clustering, and the subfield draft
 
     def _run_layout(self) -> None:

@@ -23,25 +23,25 @@ reason = "The roster keeps only the attribute columns the corpus index has; the 
 reference = "S"
 stage = "extract"
 artifact = "terms_en"
-sha256 = "0424c4db06c7f4607a214cd320ea79ac2fa8bea665aecc91471246a5178933b1"
+sha256 = "50931febfa3a7f3e6fdf7c0ee0f71ee6a5f0c8bdde23602ce4646b1231df830f"
 step = "g2"
-reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form; English phrases take no of complement) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the columns forms (every surface form of a candidate), people and texts (how many use it), band and reason, with the lexicon lab's band rules, the common-modifier rule off (steps 2a2, g2). Then: a single word among the language's stop words, a closed word of another language in a paragraph read as that language, a phrase starting or ending with another language's closed word, and an evenly spread single word are set aside (stop-word, stop-word-edge, even-spread); in a paragraph read as another language, its closed words cut phrases."
+reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form; English phrases take no of complement) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the columns forms (every surface form of a candidate), people and texts (how many use it), band and reason, with the lexicon lab's band rules, the common-modifier rule off (steps 2a2, g2). Then: a single word among the language's stop words, a closed word of another language in a paragraph read as that language, a phrase starting or ending with another language's closed word, and an evenly spread single word are set aside (stop-word, stop-word-edge, even-spread); in a paragraph read as another language, its closed words cut phrases. Then: a candidate must also occur in at least 3 distinct texts (min_texts), so candidates of one or two co-authored texts leave the table."
 
 [[difference]]
 reference = "S"
 stage = "extract"
 artifact = "terms_fr"
-sha256 = "da69fb04e877bf01a6ef06740dfc8a8178f0af679891b605b3a8a2f7a45d1a15"
+sha256 = "a7199d8989f96a29c34a96a18873d499b79a6429b89aa70820b4cecd8eec4a5e"
 step = "g2"
-reason = "Same change as terms_en; French terms with a word of one or two letters (trait de côte, masse d'eau) are now kept whole. Then: stop words and evenly spread single words are set aside (see terms_en)."
+reason = "Same change as terms_en; French terms with a word of one or two letters (trait de côte, masse d'eau) are now kept whole. Then: stop words and evenly spread single words are set aside (see terms_en). Then: a candidate must also occur in at least 3 distinct texts (min_texts), so candidates of one or two co-authored texts leave the table."
 
 [[difference]]
 reference = "S"
 stage = "extract"
 artifact = "terms_merged"
-sha256 = "ac3a6236a3b38f3c45455c58bfe60ee1034fab3735c7bf3a1e5f36c3eb700ba5"
+sha256 = "7288bafc89ce8a9017280f35b1aa9c5b69fb4b2832d399c579a17f2df0ab9827"
 step = "g2"
-reason = "The merged list of the new English and French candidates (see terms_en), with their band and reason (steps 2a2, g2). Then: with the stop-word and even-spread bands (see terms_en)."
+reason = "The merged list of the new English and French candidates (see terms_en), with their band and reason (steps 2a2, g2). Then: with the stop-word and even-spread bands (see terms_en). Then: a candidate must also occur in at least 3 distinct texts (min_texts), so candidates of one or two co-authored texts leave the table."
 
 [[difference]]
 reference = "S"
@@ -117,25 +117,25 @@ reason = "The bundle carries the new vocabulary, entity terms and taxonomy (see 
 reference = "L"
 stage = "extract"
 artifact = "terms_en"
-sha256 = "cc8079dbfe965be575206877a1bbfabc284497e4da1a445c107d4b5849c9d921"
+sha256 = "bb474803a1d40ab56e57ef21c779afbe320987fc21a2fe76006300a6cae1ff01"
 step = "g2"
-reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form; English phrases take no of complement) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the columns forms (every surface form of a candidate), people and texts (how many use it), band and reason, with the lexicon lab's band rules, the common-modifier rule off (steps 2a2, g2). Then: a single word among the language's stop words, a closed word of another language in a paragraph read as that language, a phrase starting or ending with another language's closed word, and an evenly spread single word are set aside (stop-word, stop-word-edge, even-spread); in a paragraph read as another language, its closed words cut phrases."
+reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form; English phrases take no of complement) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the columns forms (every surface form of a candidate), people and texts (how many use it), band and reason, with the lexicon lab's band rules, the common-modifier rule off (steps 2a2, g2). Then: a single word among the language's stop words, a closed word of another language in a paragraph read as that language, a phrase starting or ending with another language's closed word, and an evenly spread single word are set aside (stop-word, stop-word-edge, even-spread); in a paragraph read as another language, its closed words cut phrases. Then: a candidate must also occur in at least 3 distinct texts (min_texts), so candidates of one or two co-authored texts leave the table."
 
 [[difference]]
 reference = "L"
 stage = "extract"
 artifact = "terms_fr"
-sha256 = "16da676401d1f4102e230cf1118cefb73af86b0f69515052f7dcfc60b46653c7"
+sha256 = "5808f58765c478e1e34247e7850cd8dcf4c0c850bc7c449ae3dd6e7e3c12266e"
 step = "g2"
-reason = "Same change as terms_en; French terms with a word of one or two letters (trait de côte, masse d'eau) are now kept whole. Then: stop words and evenly spread single words are set aside (see terms_en)."
+reason = "Same change as terms_en; French terms with a word of one or two letters (trait de côte, masse d'eau) are now kept whole. Then: stop words and evenly spread single words are set aside (see terms_en). Then: a candidate must also occur in at least 3 distinct texts (min_texts), so candidates of one or two co-authored texts leave the table."
 
 [[difference]]
 reference = "L"
 stage = "extract"
 artifact = "terms_merged"
-sha256 = "7e811f6162dfdc71619bab0f573229a81f1e7d2bedc640495427a8cd3e86cc7e"
+sha256 = "d85b16d12854076bf7bde674b54f73cbcd45ce35999d6225ed5a13cebd709f73"
 step = "g2"
-reason = "The merged list of the new English and French candidates (see terms_en), with their band and reason (steps 2a2, g2). Then: with the stop-word and even-spread bands (see terms_en)."
+reason = "The merged list of the new English and French candidates (see terms_en), with their band and reason (steps 2a2, g2). Then: with the stop-word and even-spread bands (see terms_en). Then: a candidate must also occur in at least 3 distinct texts (min_texts), so candidates of one or two co-authored texts leave the table."
 
 [[difference]]
 reference = "L"

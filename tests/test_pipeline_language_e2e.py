@@ -210,7 +210,9 @@ def test_a_corpus_language_without_text_is_skipped(tmp_path: Path, caplog) -> No
         w.writeheader()
         w.writerows(rows)
 
-    ctx = RunContext.for_workspace(ws, KeywordsConfig(min_df=1, kw_recency_years=0, use_llm=False))
+    ctx = RunContext.for_workspace(
+        ws, KeywordsConfig(min_df=1, min_texts=1, kw_recency_years=0, use_llm=False)
+    )
     assert ctx.settings.corpus_languages == ("fr", "en")
     with caplog.at_level(logging.WARNING, logger="cartolex.lexicon.extract_raw"):
         run_pipeline_stage_1(ctx)

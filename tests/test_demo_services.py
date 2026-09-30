@@ -83,8 +83,14 @@ def test_the_special_cases_are_what_they_say() -> None:
     split = world.person(sp["split"])
     records = bib.record_ids(split.person_id)
     assert len(records) == 2
-    copies = [ids for ids in bib.index_of.values() if len(ids) == 2]
+    duplicates = {c for ids in bib.duplicates.values() for c in ids}
+    copies = [ids for ids in bib.index_of.values() if len(ids) == 2 and not set(ids) & duplicates]
     assert len(copies) == 1
+    # The index's duplicate texts: a second DOI, a conference version and a preprint.
+    twin, conference = bib.duplicates["twin-doi"], bib.duplicates["conference"]
+    assert len({bib.works[i].doi for i in twin}) == 2
+    assert [bib.works[i].type for i in conference] == ["article", "article", "preprint"]
+    assert len({bib.works[i].title for i in (*twin, *conference)}) == 2
     original, copy = (bib.works[i] for i in copies[0])
     assert original.doi and copy.doi is None and copy.title == original.title
 

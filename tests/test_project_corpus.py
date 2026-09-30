@@ -313,3 +313,65 @@ def test_a_collection_reads_texts_not_datasets_unless_its_slot_says_so(tmp_path)
                     parts=["title"], doc_types=DOC_TYPES_BY_SLOT_KIND)  # fmt: skip
     assert read(tmp_path / "b")[0] == {"article", "dataset"}
     project.close()
+
+
+def test_a_work_found_twice_is_read_once_as_its_version_of_record(tmp_path):
+    """Same normalised title, years at most one apart and a shared author: one work. The
+    tables keep every record; the corpus reads the version of record (between two articles,
+    the one with the richer parts), and each copy's authors read it."""
+    from datetime import datetime, timezone
+
+    import pyarrow as pa
+
+    from cartolex.project import Project
+    from cartolex.project.models import Slot
+    from cartolex.project.tables import SOURCE_SCHEMAS, read_source_table, write_source_table
+
+    at = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    project = Project.init(tmp_path / "p", name="Twins", domain_title="Coasts",
+                           slots=(Slot(id="c", kind="collection"),))  # fmt: skip
+
+    def table(name, rows):
+        schema = SOURCE_SCHEMAS[name]
+        write_source_table(
+            project.layout.table(name),
+            name,
+            pa.table({f.name: [r.get(f.name) for r in rows] for f in schema}, schema=schema),
+        )
+
+    table("people", [{"person_id": p, "last_name": f"Name{p}", "first_name": "A", "ids": [],
+                      "source": "import", "columns": [], "aliases": [], "retrieved_at": at}
+                     for p in ("p1", "p2", "p3")])  # fmt: skip
+    title = "Sediment Transport on the tidal flats of a bay"
+    texts = [  # (id, type, year, title, authors)
+        ("a1", "article", 2021, title, ["p1"]),
+        ("a2", "article", 2021, title.upper() + ".", ["p2", "p1"]),  # richer: it has an abstract
+        ("c1", "communication", 2020, title, ["p1"]),
+        ("r1", "preprint", 2020, title, ["p2"]),
+        ("x1", "article", 2021, title, ["p3"]),  # no author in common
+        ("y1", "article", 2018, title, ["p1"]),  # too far apart
+        ("s1", "article", 2021, "Tidal flats", ["p1"]),  # a short title never joins
+        ("s2", "article", 2021, "Tidal flats", ["p1"]),
+    ]
+    table("texts", [{"text_id": t, "slot": "c", "position": i, "year": y, "ids": [],
+                     "n_authors": len(a), "retrieved_at": at, "doc_type": k, "title": ti,
+                     "source": "openalex"} for i, (t, k, y, ti, a) in enumerate(texts)])  # fmt: skip
+    part = {"language": "en", "provider": "openalex", "format": "plain", "retrieved_at": at}
+    table("text_parts", sorted([{**part, "text_id": t, "part": "title", "content": ti}
+                                for t, _, _, ti, _ in texts]
+                               + [{**part, "text_id": "a2", "part": "abstract",
+                                   "content": "Mud and sand move with the tide."}],
+                               key=lambda r: (r["text_id"], r["part"])))  # fmt: skip
+    table("authorships", [{"text_id": t, "person_id": p, "position": j + 1, "orgs": []}
+                          for t, _, _, _, a in texts for j, p in enumerate(a)])  # fmt: skip
+    out = tmp_path / "out"
+    summary = assemble_corpus(project.layout, project.config, out, parts=["title", "abstract"])
+    with open(out / "c" / "index.csv", encoding="utf-8", newline="") as fh:
+        read = sorted((r["last_name"], r["txt_path"]) for r in csv.DictReader(fh))
+    assert read == [
+        ("Namep1", "texts/a2.txt"), ("Namep1", "texts/s1.txt"), ("Namep1", "texts/s2.txt"),
+        ("Namep1", "texts/y1.txt"), ("Namep2", "texts/a2.txt"), ("Namep3", "texts/x1.txt"),
+    ]  # fmt: skip
+    assert summary.duplicate_texts == 3
+    assert read_source_table(project.layout.table("texts"), "texts").num_rows == len(texts)
+    project.close()

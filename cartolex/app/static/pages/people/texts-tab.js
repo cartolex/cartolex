@@ -117,6 +117,7 @@ export function TextsTab({ ctx, version, openSheet }) {
           ...Object.entries(counts.provider || {}).map(([p, n]) => ({ value: p, label: t('corpus.filter.option', { label: providerLabel(p), n }) })),
         ]} /></label>
     </div>
+    ${counts.duplicates ? html`<p class="cx-corpus-note" role="note">${t('corpus.texts.duplicates', { n: counts.duplicates })}</p>` : null}
     <${Table} size="fill" label=${t('corpus.tab.texts')} columns=${columns} rows=${list.rows}
       rowKey=${list.rowKey} loading=${list.loading} error=${list.error} onRetry=${list.reload}
       sortMode="server" sort=${sort} onSortChange=${setSort} onRange=${list.onRange}

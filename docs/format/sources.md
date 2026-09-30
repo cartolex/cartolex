@@ -76,7 +76,12 @@ abstract, body, each part in every language it has, separated by a blank line
 and ending with a newline; `full` stands alone. People are read in `person_id`
 order, and each person's texts in slot order, then `position`. A preprint
 whose published version is in the tables (its `version_of`) is not read: the
-published version is, so that a work counts once.
+published version is, so that a work counts once. Likewise, texts of a slot
+with the same normalised title (at least 25 characters), years at most one
+apart and an author in common are one work: only the version of record
+(article, review, chapter, conference version, then other types, a preprint
+last; else the text with the most words in its parts) is read, by the authors
+of every copy.
 
 ## `people.parquet`: one row per person record
 

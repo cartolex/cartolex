@@ -329,7 +329,9 @@ bibliographic layer is derived from the world with random streams of its own
 (the world never changes) and holds what a real index holds: homonyms, a
 person split over two records, a record that merges two people, people
 without records, works declared in the registry, affiliations that change
-over time and co-authors from outside the community. It lets the collection
+over time, co-authors from outside the community, and duplicate texts (the
+same article under a second DOI, a conference version and a preprint of an
+article). It lets the collection
 run offline, in tests and in demonstrations:
 
 ```bash

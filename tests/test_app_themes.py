@@ -115,7 +115,7 @@ def test_the_atlas_reads_the_theme_files_of_any_depth(depths, client_for, depth)
                 assert sum(shares.values()) == pytest.approx(1.0, abs=1e-4)
     # keywords sit on nodes of the tree; organisations, windows and projected people have shares
     placed = [k for k in bundle["keywords"] if k["node"]]
-    assert len(placed) > 300 and all(k["node"] in ids for k in placed)
+    assert len(placed) > 150 and all(k["node"] in ids for k in placed)
     assert all(ids[k["node"]]["level"] == k["level"] for k in placed)
     assert bundle["units"] and all(len(u["shares"]) == depth for u in bundle["units"])
     assert any(u["shares"][depth - 1] for u in bundle["units"])
@@ -479,12 +479,12 @@ def test_the_comb_on_the_tree_sent_suggests_too_broad_keywords_put_back(depths, 
     assert broad, "the comb sets some keywords aside on the S world"
     # put back on their topics, the comb reads them as too broad again
     back = client.post(
-        "/api/themes/ops", json={"tree": tree, "ops": [{"op": "put_back", "keywords": broad[:3]}]}
+        "/api/themes/ops", json={"tree": tree, "ops": [{"op": "put_back", "keywords": broad}]}
     ).json()["tree"]
     listed = client.post("/api/themes/levels", json={"tree": back, "limit": 500}).json()
     assert listed["theta"] is not None and listed["sort"] == "suggested"
     found = {i["keyword"]: i for i in listed["items"]}
-    assert any(found.get(k, {}).get("to", "") is None for k in broad[:3])
+    assert any(found.get(k, {}).get("to", "") is None for k in broad)
     assert all(i["to"] is None or i["share"] > 0 for i in listed["items"])
     # the copilot bundle carries the same reading
     r = client.post("/api/themes/copilot/export", json={"tree": back, "language": "en"})

@@ -258,8 +258,10 @@ def texts(project: Project, cache: Any = None) -> list[dict[str, Any]]:
         people: dict[str, list[str]] = defaultdict(list)
         for a in _rows(project, "authorships", ["text_id", "person_id"]):
             people[a["text_id"]].append(a["person_id"])
+        rows = _rows(project, "texts")
+        copy_of = duplicate_copies(rows, people)
         out = []
-        for t in _rows(project, "texts"):
+        for t in rows:
             tp = parts.get(t["text_id"], [])
             kinds = {p["part"] for p in tp}
             out.append(
@@ -273,6 +275,7 @@ def texts(project: Project, cache: Any = None) -> list[dict[str, Any]]:
                     "doi": t["doi"] or "",
                     "version_of": t["version_of"] or "",
                     "n_authors": t["n_authors"],
+                    "copy_of": copy_of.get(t["text_id"], ""),
                     "people": people.get(t["text_id"], []),
                     "parts": tp,
                     "providers": sorted({p["provider"] for p in tp}),
@@ -290,6 +293,21 @@ def texts(project: Project, cache: Any = None) -> list[dict[str, Any]]:
         return out
 
     return _cached(cache, ("texts", stamp(project)), compute)
+
+
+def duplicate_copies(rows: list[dict[str, Any]], people: Mapping[str, list[str]]) -> dict[str, str]:
+    """The texts the corpus reads once with another (copy → the text read), as
+    ``corpus.assemble`` groups them (:func:`cartolex.project.corpus.duplicate_groups`):
+    a preprint whose published version is in the tables is left aside first."""
+    from cartolex.project.corpus import duplicate_groups, version_rank
+
+    ids = {t["text_id"] for t in rows}
+    meta = {t["text_id"]: t for t in rows if not (t["version_of"] and t["version_of"] in ids)}
+    out: dict[str, str] = {}
+    for group in duplicate_groups(meta, people):
+        keep = min(group, key=lambda t: (version_rank(meta[t]["doc_type"]), t))
+        out.update({t: keep for t in group if t != keep})
+    return out
 
 
 def _merge_log(project: Project) -> dict[str, Any]:

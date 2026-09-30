@@ -41,7 +41,10 @@ year, a title), the value of the more reliable one is kept and the other is
 listed; nothing is replaced silently. A **preprint** and the article it
 became stay two texts, linked: the map reads the article only, so a work
 counts once. Every join is listed, with the rule that made it, in
-`sources/merges.json`.
+`sources/merges.json`. A work the services list twice under different DOIs
+(an article and its conference version, the same article twice) stays two
+texts in the tables, but the map reads it once: the Texts tab says how many
+duplicate texts are counted once.
 
 ## Better texts
 

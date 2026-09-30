@@ -603,6 +603,7 @@ def _run_pipeline_core(
                 "kw_recency_years": cfg.kw_recency_years,
                 "ngram_range": list(cfg.ngram_range),
                 "min_df": cfg.min_df,
+                "min_texts": cfg.min_texts,
                 "max_df": cfg.max_df,
                 "counting_unit": cfg.counting_unit,
                 "max_features": cfg.max_features,

@@ -135,7 +135,9 @@ def test_a_preprint_and_its_published_version_stay_two_linked_texts() -> None:
     assert result.texts["t1"]["version_of"] is None
 
 
-def test_a_preprint_meeting_two_published_texts_is_left_unlinked() -> None:
+def test_a_preprint_meeting_two_published_texts_links_to_the_version_of_record() -> None:
+    """An article and its conference version: the preprint names the article. Two texts of
+    the same rank leave it unlinked."""
     result = merge_works(
         [
             rec("t1", "openalex", doi="10.5555/a", year=2021),
@@ -143,8 +145,16 @@ def test_a_preprint_meeting_two_published_texts_is_left_unlinked() -> None:
             rec("t3", "hal", doc_type="preprint", year=2020),
         ]
     )
-    assert result.texts["t3"]["version_of"] is None
-    assert any("several published" in r.reason for r in result.refused)
+    assert result.texts["t3"]["version_of"] == "t1"
+    tied = merge_works(
+        [
+            rec("t1", "openalex", doi="10.5555/a", year=2021),
+            rec("t2", "openalex", doi="10.5555/b", year=2021),
+            rec("t3", "hal", doc_type="preprint", year=2020),
+        ]
+    )
+    assert tied.texts["t3"]["version_of"] is None
+    assert any("several published" in r.reason for r in tied.refused)
 
 
 # ── properties ───────────────────────────────────────────────────────────────

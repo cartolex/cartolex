@@ -125,6 +125,10 @@ def test_collecting_from_the_services_end_to_end(client, services):
     assert org["affiliations"] and org["parents"]
     texts = client.get("/api/texts?content=abstract&limit=3").json()
     assert texts["total"] > 0
+    # The index's duplicate texts stay in the tables, and the tab says they are read once.
+    every = client.get("/api/texts?limit=500").json()
+    copies = [t for t in every["items"] if t["copy_of"]]
+    assert copies and every["counts"]["duplicates"] == len(copies)
     text = client.get(f"/api/texts/{texts['items'][0]['text_id']}").json()
     assert any(p["part"] == "abstract" and p["provider"] for p in text["parts"]) and text["people"]
     good = client.get("/api/people?coverage=good&limit=1").json()["items"][0]

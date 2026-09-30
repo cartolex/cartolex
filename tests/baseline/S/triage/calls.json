@@ -1,7 +1,7 @@
 {
- "batch_cache_entries": 26,
- "model_calls_first_run": 26,
+ "batch_cache_entries": 9,
+ "model_calls_first_run": 9,
  "model_calls_second_run": 0,
  "second_run_identical": true,
- "term_cache_entries": 3858
+ "term_cache_entries": 1349
 }

@@ -13,6 +13,17 @@ sides.
 A preprint whose published version is in the same tables (``version_of``)
 is left out: only the published version is read.
 
+**One text per work.** An index often holds one work several times: the
+same article under two DOIs, an article and its preprint that nothing links,
+twin chapters, the conference version of an article. The source tables keep
+every record; the corpus reads one text per work. Two texts of a slot are one
+work when their normalised titles are the same (at least
+:data:`DUPLICATE_MIN_TITLE` characters), their years at most
+:data:`DUPLICATE_YEAR_GAP` apart, and they share an author. The text read is
+the version of record (:data:`VERSION_RANK`), else the one with the most
+words in its parts, else the smallest id; its readers are the authors of
+every copy. The copies left out are counted (:attr:`CorpusSummary.duplicate_texts`).
+
 Who goes where comes from ``decisions/people.csv``: ``mapped`` people fill the
 fit slots, each projected set's people fill ``overlays/<set>/``; when the file
 does not exist, every person is mapped. ``context`` people are left out until
@@ -28,6 +39,8 @@ from __future__ import annotations
 
 import csv
 import io
+import re
+import unicodedata
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -40,10 +53,16 @@ from .tables import read_decision_csv, read_source_table
 __all__ = [
     "INDEX_COLUMNS",
     "PEOPLE_COLUMNS",
+    "DUPLICATE_MIN_TITLE",
+    "DUPLICATE_YEAR_GAP",
+    "VERSION_RANK",
     "CorpusSummary",
     "assemble_corpus",
     "attribute_column",
+    "duplicate_groups",
+    "normalised_title",
     "render_text",
+    "version_rank",
 ]
 
 #: The columns of an engine index, in order.
@@ -52,6 +71,70 @@ INDEX_COLUMNS = ("last_name", "first_name", "unit", "txt_path", "doc_year", "doc
 PEOPLE_COLUMNS = ("person_id", "last_name", "first_name", "unit")
 #: The order parts are read in; ``full`` stands alone.
 PART_ORDER = ("title", "abstract", "body")
+
+#: A title shorter than this (normalised, in characters) never makes two texts one work.
+DUPLICATE_MIN_TITLE = 25
+#: Two texts of one work are at most this many years apart.
+DUPLICATE_YEAR_GAP = 1
+#: Which text of a work is read, best first: the version of record. Other types come
+#: after these, in name order, and a preprint last.
+VERSION_RANK = ("article", "review", "chapter", "communication", "proceedings")
+
+_WORD = re.compile(r"[^\W_]+")
+
+
+def normalised_title(title: str | None) -> str:
+    """A title for comparing: lower case, no accents, words only, single spaces."""
+    if not title:
+        return ""
+    plain = unicodedata.normalize("NFKD", title.lower())
+    return " ".join(_WORD.findall("".join(c for c in plain if not unicodedata.combining(c))))
+
+
+def version_rank(doc_type: str | None) -> tuple[int, str]:
+    """Where a document type ranks as the version of record (smaller first)."""
+    kind = doc_type or ""
+    if kind in VERSION_RANK:
+        return (VERSION_RANK.index(kind), "")
+    return (len(VERSION_RANK) + (kind == "preprint"), kind)
+
+
+def duplicate_groups(
+    texts: Mapping[str, Mapping[str, object]], authors: Mapping[str, Iterable[str]]
+) -> list[list[str]]:
+    """The texts that are one work (see the module docstring), in groups of two or more.
+
+    *texts* maps a text id to its ``slot``, ``title`` and ``year``; *authors* a text
+    id to its authors' ids. Each group is sorted by id, the groups by their first id.
+    """
+    by_title: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for tid in sorted(texts):
+        row = texts[tid]
+        title = normalised_title(row.get("title"))  # type: ignore[arg-type]
+        if len(title) >= DUPLICATE_MIN_TITLE and row.get("year") is not None:
+            by_title[(str(row["slot"]), title)].append(tid)
+    parent: dict[str, str] = {}
+
+    def find(t: str) -> str:
+        while parent.get(t, t) != t:
+            t = parent[t]
+        return t
+
+    for tids in by_title.values():
+        for i, a in enumerate(tids):
+            for b in tids[i + 1 :]:
+                gap = abs(int(texts[a]["year"]) - int(texts[b]["year"]))  # type: ignore[call-overload]
+                if gap <= DUPLICATE_YEAR_GAP and set(authors.get(a, ())) & set(authors.get(b, ())):
+                    ra, rb = find(a), find(b)
+                    if ra != rb:
+                        parent[max(ra, rb)] = min(ra, rb)
+    groups: dict[str, list[str]] = defaultdict(list)
+    for t in parent:
+        groups[find(t)].append(t)
+    for root in list(groups):
+        groups[root].append(root)
+    return sorted((sorted(set(g)) for g in groups.values()), key=lambda g: g[0])
+
 
 #: Column names an attribute cannot take (the engine reads them as the document's).
 RESERVED = frozenset({*INDEX_COLUMNS, "source", "person_id"})
@@ -72,6 +155,8 @@ class CorpusSummary:
     texts_without_parts: int = 0
     #: Texts of a document type their slot does not read (a dataset in a collection slot).
     texts_left_out_by_type: int = 0
+    #: Extra copies of a work read once (see the module docstring).
+    duplicate_texts: int = 0
 
 
 def render_text(parts: Sequence[tuple[str, str, str]], *, chosen: Sequence[str]) -> str:
@@ -143,6 +228,7 @@ def assemble_corpus(
     """
     out_dir = Path(out_dir)
     main = _load(layout.tables, config, unit_level, provider_priority)
+    copies: dict[Path, dict[str, str]] = {}
     roles = _roles(layout, main.people)
     summary = CorpusSummary()
     slot_rank = {s.id: i for i, s in enumerate(config.slots)}
@@ -169,6 +255,8 @@ def assemble_corpus(
     def readable(tid: str, src: _Loaded) -> bool:
         allowed = types_of(src.text_meta[tid]["slot"])
         return allowed is None or src.text_meta[tid]["doc_type"] in allowed
+
+    copies[layout.tables] = _one_text_per_work(main, layout.tables, readable)
 
     def texts_of(pid: str, slots: set[str] | None, src: _Loaded) -> list[str]:
         text_meta = src.text_meta
@@ -246,6 +334,7 @@ def assemble_corpus(
         if not root.is_absolute():
             root = layout.root / root
         own = _load(root / "tables", config, unit_level, provider_priority)
+        copies[root / "tables"] = _one_text_per_work(own, root / "tables", readable)
         plans.append(
             (f"overlay:{overlay.id}", target, sorted(own.people), None, own, root / "tables")
         )
@@ -256,6 +345,10 @@ def assemble_corpus(
     for _, target, members, slots, src, tables in plans:
         wanted = {t for pid in members for t in texts_of(pid, slots, src) if readable(t, src)}
         by_tables[tables].append((target, wanted))
+    read = {t for targets in by_tables.values() for _, wanted in targets for t in wanted}
+    summary.duplicate_texts = sum(
+        1 for moved in copies.values() for kept in moved.values() if kept in read
+    )
     bodies: dict[Path, set[str]] = {}
     for tables, targets in by_tables.items():
         src = main if tables == layout.tables else next(p[4] for p in plans if p[5] == tables)
@@ -296,7 +389,7 @@ def _load(
     if missing:
         raise FileNotFoundError(f"{tables}: missing source table(s) {missing}")
     texts = read_source_table(_table(tables, "texts"), "texts")
-    rows = texts.select(["text_id", "slot", "position", "year", "doc_type", "version_of"])
+    rows = texts.select(["text_id", "slot", "position", "year", "doc_type", "version_of", "title"])
     text_meta = {row["text_id"]: row for row in rows.to_pylist()}
     # A preprint whose published version is in the tables is not read: the published text
     # (the version of record, with its year and DOI) is, so a work counts once.
@@ -314,6 +407,56 @@ def _load(
         units=_units(tables, config, unit_level),
         by_person=_texts_by_person(tables, text_meta),
     )
+
+
+def _one_text_per_work(
+    src: _Loaded, tables: Path, readable: Callable[[str, _Loaded], bool]
+) -> dict[str, str]:
+    """Read one text per work of *src* (see the module docstring), in place.
+
+    The copies left out leave ``text_meta``; each of their authors reads the text
+    kept instead. Returns each copy left out → the text kept.
+    """
+    meta = src.text_meta
+    authors: dict[str, set[str]] = defaultdict(set)
+    for pid, tids in src.by_person.items():
+        for tid in tids:
+            authors[tid].add(pid)
+    groups = duplicate_groups({t: m for t, m in meta.items() if readable(t, src)}, authors)
+    if not groups:
+        return {}
+
+    def rank(tid: str) -> tuple[int, str]:
+        return version_rank(meta[tid]["doc_type"])
+
+    tied = {t for g in groups for t in g if sum(1 for u in g if rank(u) == min(map(rank, g))) > 1}
+    words = _part_words(tables, tied) if tied else {}
+    moved: dict[str, str] = {}
+    for group in groups:
+        keep = min(group, key=lambda t: (rank(t), -words.get(t, 0), t))
+        moved.update({t: keep for t in group if t != keep})
+    for pid, tids in src.by_person.items():
+        src.by_person[pid] = list(dict.fromkeys(moved.get(t, t) for t in tids))
+    for tid in moved:
+        del meta[tid]
+    return moved
+
+
+def _part_words(tables: Path, tids: set[str]) -> dict[str, int]:
+    """The words in all the parts of each text of *tids* (every provider, every language)."""
+    import pyarrow.parquet as pq
+
+    table = pq.read_table(
+        _table(tables, "text_parts"),
+        columns=["text_id", "content"],
+        filters=[("text_id", "in", sorted(tids))],
+    )
+    out: dict[str, int] = defaultdict(int)
+    for tid, content in zip(
+        table["text_id"].to_pylist(), table["content"].to_pylist(), strict=True
+    ):
+        out[tid] += len((content or "").split())
+    return dict(out)
 
 
 def _roles(layout: ProjectLayout, people: dict[str, dict]) -> dict[str, tuple[str, str]]:

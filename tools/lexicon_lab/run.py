@@ -49,6 +49,7 @@ from cartolex.lexicon.scoring import score_units  # noqa: E402
 
 LOG = logging.getLogger("lexicon_lab")
 MIN_PEOPLE = 3
+MIN_TEXTS = 3
 MAX_SHARE = 0.6
 DROP = 0.1  # share of texts removed in the stability runs
 STABILITY_SEEDS = (1, 2)
@@ -164,6 +165,7 @@ def score(parsed, variant, units=None) -> dict:
             len(parsed.corpus.people),
             min_df=MIN_PEOPLE,
             max_df=MAX_SHARE,
+            min_texts=MIN_TEXTS,
             options=variant.options,
             names=parsed.names if variant.names else None,
         )

@@ -124,7 +124,9 @@ def test_the_depth_rule_gives_one_level_on_the_s_world(built, tmp_path):
 @pytest.mark.models("en", "fr")
 @pytest.mark.parametrize("depth", [3, 4])
 def test_deeper_trees_build_end_to_end(built, tmp_path, depth):
-    root = _copy(built, tmp_path, f"themes.group.depth={depth}")
+    # four levels on the S world's few hundred keywords need smaller groups to grow
+    more = ("themes.group.keywords_per_group=8",) if depth == 4 else ()
+    root = _copy(built, tmp_path, f"themes.group.depth={depth}", *more)
     _check_depth(root, depth)
     _check_bundle(root, tmp_path, depth)
 

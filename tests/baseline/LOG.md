@@ -105,3 +105,16 @@ Each entry says when the stored baseline (`tests/baseline/`) was rewritten, why,
 - Reason: Keyword categories and the rejection lists (step 7): the AI judges every band but the rejected one, candidates on the rejection lists go to a new rejected band, keywords.build writes categories.json and theme names prefer a concept or an object on a tie.
 - Engine: 1.0.0.dev0, source fingerprint `c1107b902d974b0a`
 - L: against the previous baseline, 12 stages: 2 identical, 10 different (triage, build, space, group, layout, draft, apply, trajectories, projection, bundle)
+
+## 2026-09-29 — S, merge
+
+- Reason: Candidates from three texts, a work read once: a keyword candidate must also occur in at least 3 distinct texts (keywords.extract.min_texts, default 3), so phrases of one or two co-authored texts leave the extraction and every later stage follows; the S world then keeps fewer keywords than the default 150 topics, so the reference groups them into one topic fewer than its keywords (the same in both modes; L keeps 150); corpus.assemble reads one text per work (no duplicate in the demo worlds, so the corpus is unchanged).
+- Engine: 1.0.0.dev0, source fingerprint `e28138d8ba9e6056`
+- S: against the previous baseline, 12 stages: 1 identical, 11 different (extract, triage, build, space, group, layout, draft, apply, trajectories, projection, bundle)
+- merge: against the previous baseline, 1 stage: 0 identical, 1 different (merge)
+
+## 2026-09-29 — L
+
+- Reason: Candidates from three texts, a work read once: a keyword candidate must also occur in at least 3 distinct texts (keywords.extract.min_texts, default 3), so phrases of one or two co-authored texts leave the extraction and every later stage follows; the S world then keeps fewer keywords than the default 150 topics, so the reference groups them into one topic fewer than its keywords (the same in both modes; L keeps 150); corpus.assemble reads one text per work (no duplicate in the demo worlds, so the corpus is unchanged).
+- Engine: 1.0.0.dev0, source fingerprint `e28138d8ba9e6056`
+- L: against the previous baseline, 12 stages: 1 identical, 11 different (extract, triage, build, space, group, layout, draft, apply, trajectories, projection, bundle)

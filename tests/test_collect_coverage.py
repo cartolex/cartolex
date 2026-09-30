@@ -26,6 +26,7 @@ from cartolex.collect.resolve import resolve
 from cartolex.collect.tables import raw_folder, rebuild_sources
 from cartolex.demo import generate
 from cartolex.demo.services import DemoServices
+from cartolex.project.tables import read_source_table
 
 
 @pytest.fixture(scope="module")
@@ -177,7 +178,13 @@ def test_aggregates_by_organisation_year_and_language(services, collected) -> No
     assert groups & {o["name"] for o in orgs.values()}
     assert set(report["by_year"]) and all(y.isdigit() or y == "unknown" for y in report["by_year"])
     total = sum(sum(v.values()) for v in report["by_year"].values())
-    assert total == sum(report["by_language"].values()) == report["slots"]["collected"]["texts"]
+    # the slot's summary counts every text of the tables; a preprint whose published version
+    # is there (the demo index's preprint of a conference version) is not read, nor counted
+    texts = read_source_table(project.layout.table("texts"), "texts").to_pylist()
+    superseded = sum(1 for t in texts if t["version_of"] in {u["text_id"] for u in texts})
+    assert superseded >= 1
+    assert total == sum(report["by_language"].values())
+    assert total == report["slots"]["collected"]["texts"] - superseded
     assert {"en", "fr"} <= set(report["by_language"])
     json.dumps(report)  # the interface reads it as JSON
 
