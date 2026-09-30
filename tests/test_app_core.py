@@ -496,6 +496,35 @@ def test_a_job_whose_process_is_gone_is_interrupted_never_running(tmp_path):
         app.state.cartolex.shutdown()
 
 
+def test_a_job_submitted_while_the_list_is_read_is_running_not_interrupted(tmp_path, monkeypatch):
+    # On a slow machine a job can start while a request reads the jobs: its log (no end
+    # yet, written by this process) must not be reported as interrupted.
+    import cartolex.app.jobs as jobs_module
+    from cartolex.app.routes import jobs as jobs_routes
+
+    read = jobs_module.read_job_logs
+    for n, (path, field) in enumerate([("/api/jobs", "jobs"), ("/api/build", "job")]):
+        app, _ = fake_app(fake_project(tmp_path / f"p{n}"), tmp_path / f"c{n}.log")
+        runner, release = app.state.cartolex.jobs, threading.Event()
+
+        def submit_meanwhile(jobs_dir, project, _r=runner, _e=release, **kw):
+            if not _r.running(project):
+                _r.submit(
+                    project=project, jobs_dir=jobs_dir, kind="build", work=lambda c: _e.wait(10)
+                )
+            return read(jobs_dir, project, **kw)
+
+        monkeypatch.setattr(jobs_routes, "read_job_logs", submit_meanwhile)
+        monkeypatch.setattr(jobs_module, "read_job_logs", submit_meanwhile)
+        try:
+            body = Client(app).get(path).json()[field]
+            job = body[0] if isinstance(body, list) else body
+            assert job["state"] in ("queued", "running"), path
+        finally:
+            release.set()
+            app.state.cartolex.shutdown()
+
+
 # ── logs and the diagnostic ──────────────────────────────────────────────────
 
 

@@ -19,8 +19,12 @@ routes = Routes(tags=["jobs"])
 
 def _jobs(request: Request, ctx: Any) -> list[dict[str, Any]]:
     runtime = runtime_of(request)
+    # The logs are read before the runner is asked: a job is known to the runner before
+    # its log exists, so a job submitted meanwhile is listed live, never read from a log
+    # without an end (which says ``interrupted``).
+    logs = read_job_logs(ctx.layout.jobs, ctx.id, limit=20)
     live = {j.id: j for j in runtime.jobs.list(ctx.id)}
-    past = [j for j in read_job_logs(ctx.layout.jobs, ctx.id, limit=20) if j.id not in live]
+    past = [j for j in logs if j.id not in live]
     jobs = sorted([*live.values(), *past], key=lambda j: j.id, reverse=True)
     return [j.as_dict() for j in jobs[:30]]
 
