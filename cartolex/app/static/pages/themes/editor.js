@@ -89,6 +89,8 @@ export function ThemesEditor() {
       const index = editor.editIndex.value;
       if (index && index.depth > 1) ui.expanded.value = new Set(index.tops);
       done(); // the tree is rendered (signals render synchronously)
+      // `?copilot=1` (a build waiting for the copilot) opens its dialog once the tree is here.
+      if (ctx.query && ctx.query.get('copilot') === '1' && !editor.readOnly.value) setCopilot({});
       // The map's data comes next: after the tree, not competing with it.
       setTimeout(loadAtlas, 0);
     });

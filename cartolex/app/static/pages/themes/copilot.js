@@ -97,7 +97,7 @@ export function ThemeCopilotDialog({ api, editor, onClose, onPreview, onApply, r
         onClick=${() => setStep('import')}>${t('copilot.next')}<//>`;
   } else if (step === 'import') {
     body = html`<${CopilotImport} onRead=${read} busy=${busy} error=${error} />
-      <${EarlierResults} api=${api} url="/api/themes/handoff/proposals" onOpen=${open} />`;
+      <${EarlierResults} api=${api} url="/api/themes/ai/proposals" onOpen=${open} />`;
     footer = html`<${Button} variant="ghost" icon="chevron-left" onClick=${() => setStep('export')}>${t('common.back')}<//>`;
   } else {
     body = proposal ? html`<p class="cx-handoff__lead">${t('themes.ai.review.lead', {

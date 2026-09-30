@@ -103,7 +103,7 @@
   "capabilities": {
     "collection": true,
     "ai_api": false,
-    "ai_handoff": true,
+    "ai_copilot": true,
     "hosted": false
   },
   "project": {

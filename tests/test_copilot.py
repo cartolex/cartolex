@@ -338,7 +338,7 @@ def test_a_whole_session_runs_offline_and_its_result_imports_as_a_proposal(clien
     assert {i["proposed"] for i in proposal["items"]} == {"keep", "exclude", "merge"}
     assert any(i["by"] == "group" for i in proposal["items"])
     accepted = client.post(
-        f"/api/handoff/proposals/{proposal['id']}/accept",
+        f"/api/ai/proposals/{proposal['id']}/accept",
         json={"all": True},
         headers={"If-Match": f'"{proposal["keywords_version"]}"'},
     )

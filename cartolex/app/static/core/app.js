@@ -122,6 +122,8 @@ export async function boot(root) {
         toaster.show({ kind: 'success', title: t('job.toast.succeeded', { title: jobTitle(job) }) });
       } else if (job.state === 'failed' || job.state === 'interrupted') {
         toaster.show({ kind: 'error', id: `job-${job.id}`, title: t('job.toast.failed', { title: jobTitle(job) }) });
+      } else if (job.state === 'waiting') {
+        toaster.show({ kind: 'info', id: `job-${job.id}`, title: t('job.toast.waiting') });
       }
     },
   });

@@ -97,9 +97,9 @@
           "title": "Ai Api",
           "type": "boolean"
         },
-        "ai_handoff": {
+        "ai_copilot": {
           "description": "the AI clean-up outside the app: the copilot bundle (export, then import)",
-          "title": "Ai Handoff",
+          "title": "Ai Copilot",
           "type": "boolean"
         },
         "collection": {
@@ -116,7 +116,7 @@
       "required": [
         "collection",
         "ai_api",
-        "ai_handoff",
+        "ai_copilot",
         "hosted"
       ],
       "title": "Capabilities",

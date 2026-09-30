@@ -57,6 +57,9 @@ export function resultSentence(job) {
   const r = (job && job.result) || {};
   const ran = r.ran || [];
   const outcome = r.outcome || (job && job.state);
+  if (outcome === 'waiting' || (job && job.state === 'waiting')) {
+    return t('build.result.waiting', { n: ran.length });
+  }
   if (outcome === 'cancelled') {
     return ran.length ? t('build.result.cancelled_after', { n: ran.length, stages: namesOf(ran) })
       : t('build.result.cancelled_nothing');

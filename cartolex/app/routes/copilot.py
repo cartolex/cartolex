@@ -10,7 +10,7 @@ proposal the curator already reviews for a handoff:
   theme editor (``POST /api/themes/ops``), then saved as a version;
 - **triage** — the candidates an AI judges (kept, to check and set aside; or
   kept and to check, or to check only) with their evidence; the result's decisions become a keyword proposal, accepted with
-  ``POST /api/handoff/proposals/{id}/accept``.
+  ``POST /api/ai/proposals/{id}/accept``.
 
 The result is kept as it came in ``decisions/history/ai/``; the first
 answers freeze the project's identity. The bundle's format and the kit are in
@@ -582,12 +582,12 @@ def triage_export(
 
 
 def triage_proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
-    """An imported triage result in the shape of a keyword proposal (``GET /api/handoff/proposals/{id}``)."""
+    """An imported triage result in the shape of a keyword proposal (``GET /api/ai/proposals/{id}``)."""
     from cartolex.copilot.bundle import CODES
     from cartolex.lexicon.categories import category_of
 
     from ..etags import version_of
-    from .handoff import _decisions
+    from .ai_proposals import _decisions
 
     result = _read(ctx, proposal_id)
     decisions, fp = _decisions(ctx)
@@ -691,7 +691,7 @@ def triage_import(body: ImportBody, ctx: ProjectDep) -> dict[str, Any]:
     Their standing rules join the curator's notes (``decisions/curation-notes.md``).
 
     Nothing reaches ``keywords.csv`` until it is accepted
-    (``POST /api/handoff/proposals/{id}/accept``).
+    (``POST /api/ai/proposals/{id}/accept``).
     """
     result = _checked(merge_results([_checked(r, "triage") for r in body.all()]), "triage")
     with ctx.handle.mutex:

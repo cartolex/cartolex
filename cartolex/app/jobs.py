@@ -45,12 +45,14 @@ __all__ = [
     "read_job_logs",
 ]
 
-#: The states of a job. ``cancelling``: a cancel was asked and the job has not stopped yet.
+#: The states of a job. ``cancelling``: a cancel was asked and the job has not stopped yet;
+#: ``waiting``: a build ended at an AI step, waiting for a copilot's result.
 JOB_STATES = (
     "queued",
     "running",
     "cancelling",
     "succeeded",
+    "waiting",
     "failed",
     "cancelled",
     "interrupted",
@@ -270,7 +272,7 @@ class LocalJobRunner:
         try:
             result = dict(work(control) or {})
             outcome = result.get("outcome")
-            if outcome in ("failed", "cancelled"):
+            if outcome in ("failed", "cancelled", "waiting"):
                 state = outcome
                 error = result.get("error") if outcome == "failed" else None
             elif job.cancel.is_set() and outcome is None:
@@ -438,6 +440,10 @@ def read_job_logs(jobs_dir: Path, project: str, *, limit: int = 20) -> list[JobI
                 and _pid_alive(int(head.get("pid", -1)))
             )
             state = "running" if alive else "interrupted"
+        waiting = next((e for e in events if e.get("event") == "waiting"), None)
+        if waiting is not None and state == "waiting":
+            pause = {k: v for k, v in waiting.items() if k not in ("at", "event")}
+            result = {**(result or {"ran": []}), "outcome": "waiting", "waiting": pause}
         out.append(
             JobInfo(
                 id=path.stem,

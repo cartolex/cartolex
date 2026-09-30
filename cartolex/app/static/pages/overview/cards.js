@@ -33,6 +33,7 @@ export function NextStep({ item }) {
   if (!item) return null;
   const params = { ...(item.params || {}) };
   if (params.stage) params.stage = nameOf(params.stage);
+  if (params.step && has(`build.ai.step.${params.step}`)) params.step = t(`build.ai.step.${params.step}`);
   const title = has(`overview.next.${item.code}`) ? t(`overview.next.${item.code}`, params) : item.message;
   return html`<${Card} level=${2} title=${t('overview.next.title')} class="cx-grid__wide cx-overview-next"
     data-next=${item.code}>

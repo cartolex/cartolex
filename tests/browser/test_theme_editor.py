@@ -473,7 +473,7 @@ def test_ai_copilot_result_previewed_applied_and_saved(editor):
     preview.get_by_role("button", name="Apply 2 changes and save").click()
     page.locator(".cx-toast", has_text="2 proposed changes applied").wait_for()
     wait_status(ui, "Saved")
-    proposals = api(ui, "GET", "/api/themes/handoff/proposals")["data"]["items"]
+    proposals = api(ui, "GET", "/api/themes/ai/proposals")["data"]["items"]
     assert len(proposals) == 1 and "-copilot-themes" in proposals[0]["id"]
 
 

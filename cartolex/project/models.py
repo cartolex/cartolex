@@ -25,6 +25,7 @@ from pydantic import (
 )
 
 __all__ = [
+    "AI_ROUTES",
     "COLLECT_PARAMS",
     "LANGUAGES",
     "STAGE_IDS",
@@ -257,11 +258,21 @@ COLLECT_PARAMS: dict[str, dict[str, int]] = {
 }
 
 
+#: The AI steps of a build and the routes ``params.json`` may choose for each (its
+#: optional ``ai`` key): nothing, a copilot outside the app (the build pauses for it), or
+#: the provider's API (the keyword clean-up only: the theme curation has no API route).
+AI_ROUTES: dict[str, tuple[str, ...]] = {
+    "keywords.triage": ("none", "copilot", "api"),
+    "themes.curation": ("none", "copilot"),
+}
+
+
 class ParamsFile(_Model):
     """``decisions/params.json``: the parameters people set, and nothing else.
 
     ``collect`` (optional) holds the collection's parameters people set, by step
-    (:data:`COLLECT_PARAMS`); it is left out of the file when empty.
+    (:data:`COLLECT_PARAMS`); ``ai`` (optional) the route chosen for each AI step
+    (:data:`AI_ROUTES`). Both are left out of the file when empty.
     """
 
     format: Literal["cartolex-params/1"] = "cartolex-params/1"
@@ -269,6 +280,7 @@ class ParamsFile(_Model):
     pinned_year: Annotated[int, Field(ge=1900, le=2200)] | None = None
     stages: dict[str, dict[str, Any]] = Field(default_factory=dict)
     collect: dict[str, dict[str, int]] = Field(default_factory=dict)
+    ai: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("stages")
     @classmethod
@@ -307,11 +319,29 @@ class ParamsFile(_Model):
             raise ValueError("; ".join(problems))
         return v
 
+    @field_validator("ai", mode="before")
+    @classmethod
+    def _known_ai(cls, v: Any) -> Any:
+        if not isinstance(v, dict):
+            return v
+        problems = []
+        for step, route in v.items():
+            routes = AI_ROUTES.get(step)
+            if routes is None:
+                problems.append(f"unknown AI step {step!r} (known: {sorted(AI_ROUTES)})")
+            elif route not in routes:
+                problems.append(f"ai.{step}: {route!r} is not one of {list(routes)}")
+        if problems:
+            raise ValueError("; ".join(problems))
+        return v
+
     @model_serializer(mode="wrap")
     def _omit_empty_collect(self, handler: Any) -> Any:
         data = handler(self)
-        if isinstance(data, dict) and not data.get("collect"):
-            data.pop("collect", None)
+        if isinstance(data, dict):
+            for key in ("collect", "ai"):
+                if not data.get(key):
+                    data.pop(key, None)
         return data
 
 

@@ -57,7 +57,7 @@ def test_the_fixture_is_a_valid_manifest_and_the_app_serves_its_shape(tmp_path):
         assert manifest["capabilities"] == {
             "collection": False,
             "ai_api": False,
-            "ai_handoff": True,
+            "ai_copilot": True,
             "hosted": False,
         }
     finally:
