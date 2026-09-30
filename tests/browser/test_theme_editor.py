@@ -317,6 +317,8 @@ def test_the_comb_suggestions_by_the_keyboard(editor):
     listed.locator("[role=treeitem]").first.click()
     page.keyboard.press("u")  # the suggestion: moved up, or set aside as too broad
     wait_status(ui, "1 unsaved change")
+    # the status follows the optimistic tree; the draft is written once the server answers
+    page.wait_for_function(f"() => ({DRAFT})?.past.length === 1")
     draft = page.evaluate(f"() => ({DRAFT}).tree")
     if first["to"]:
         assert draft["keywords"][first["keyword"]] == first["to"]
