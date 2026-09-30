@@ -42,6 +42,32 @@ def _csr(arrays: Mapping[str, Any], name: str) -> Any:
     )
 
 
+def grouping_options(settings: Mapping[str, Any] | None) -> tuple[Any, Any, float]:
+    """The Ward cut's, the comb's and the names' settings of a bundle's ``grouping`` context
+    (``themes.group``'s parameters as the project's grouping recorded them); the defaults for
+    those missing (a bundle made before they were carried)."""
+    from cartolex.atlas.clustering import WardOptions
+    from cartolex.lexicon.theme_comb import CombOptions
+    from cartolex.lexicon.theme_tree import OWN_NAME_FLOOR
+
+    s = dict(settings or {})
+    ward, comb = WardOptions(), CombOptions()
+    ward = WardOptions(
+        limit=int(s.get("exact_ward_limit") or ward.limit),
+        micro=s.get("micro_clusters", ward.micro),
+        seed=int(s.get("micro_seed", ward.seed)),
+    )
+    grid = s.get("comb_grid")
+    comb = CombOptions(
+        theta=s.get("comb_theta", comb.theta),
+        grid=tuple(float(t) for t in grid) if grid else comb.grid,
+        one_level=float(s.get("comb_theta_one_level", comb.one_level)),
+        min_texts=int(s.get("comb_min_texts", comb.min_texts)),
+        max_cells=int(s.get("comb_max_cells", comb.max_cells)),
+    )
+    return ward, comb, float(s.get("own_name_floor", OWN_NAME_FLOOR))
+
+
 class ThemesSession(ThemesViews, Session):
     """A theme tree to curate, with the vectors and measures to do it."""
 
@@ -78,6 +104,8 @@ class ThemesSession(ThemesViews, Session):
         if self.path("data/text_keywords.npz").is_file():
             with np.load(self.path("data/text_keywords.npz"), allow_pickle=False) as arrays:
                 self.D = _csr(arrays, "D")
+        # The project's grouping settings (context.json): the kit groups and combs with them.
+        self.ward, self.comb, self.own_floor = grouping_options(self.context.get("grouping"))
         self.baseline: dict[str, Any] = self.json("data/tree.json")
         self.draft: dict[str, Any] | None = (
             self.json("data/draft.json") if self.path("data/draft.json").is_file() else None
@@ -323,6 +351,8 @@ class ThemesSession(ThemesViews, Session):
             dimensions=int(self.context.get("dimensions") or self.Z_terms.shape[1]),
             drop=drop,
             draws=draws,
+            components=int(self.context.get("cluster_components") or 50),
+            ward=self.ward,
         )
         self._timed("stability", started)
         return out
@@ -347,8 +377,8 @@ class ThemesSession(ThemesViews, Session):
             raise ValueError("the sizes grow from the top level down")
         components = int(self.context.get("cluster_components") or 50)
         Zn = prepare_cluster_embeddings(self.Z_terms, components)
-        finest = fit_agglomerative_labels(Zn, n_clusters=sizes[-1])
-        groups = level_groups(self.Z_terms, finest, sizes)
+        finest = fit_agglomerative_labels(Zn, n_clusters=sizes[-1], ward=self.ward)
+        groups = level_groups(self.Z_terms, finest, sizes, ward=self.ward)
         scores = np.asarray(self.X.sum(axis=0)).ravel()
         doc = propose_tree(
             groups,
@@ -357,6 +387,7 @@ class ThemesSession(ThemesViews, Session):
             reference_language=self.language,
             display_languages=tuple(self.context.get("display_languages") or ()),
             run=f"copilot/{'-'.join(map(str, sizes))}",
+            own_floor=self.own_floor,
         )
         doc["levels"] = copy.deepcopy(self.tree["levels"])
         doc["set_aside"] = {}

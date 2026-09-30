@@ -21,7 +21,9 @@ if TYPE_CHECKING:
     from cartolex.context import RunContext
 
 
-def load_positioning_models(ctx: RunContext) -> tuple:
+def load_positioning_models(
+    ctx: RunContext, *, neighbours: int | None = None, link_radius: float | None = None
+) -> tuple:
     """Positioning stage: load ``(tfidf, restricted_terms, svd, anchors)`` of a run.
 
     Reads the restricted vectorizer (``ctx.paths.vectorizer_json``), the
@@ -33,7 +35,8 @@ def load_positioning_models(ctx: RunContext) -> tuple:
     TF-IDF, restricted-terms, or SVD artifacts are missing, and
     :class:`~cartolex.atlas.model_files.ModelFileError` for a model file that
     cannot be used (for example one of an earlier release). Pass the first three
-    to :func:`project_text`.
+    to :func:`project_text`. *neighbours* and *link_radius* set how the anchors
+    place a point (:mod:`cartolex.atlas.placement`'s defaults when ``None``).
     """
     import pandas as pd
 
@@ -56,11 +59,16 @@ def load_positioning_models(ctx: RunContext) -> tuple:
     terms_df = pd.read_csv(paths.atlas_terms_csv)
     restricted_terms: list[str] = terms_df["term"].tolist()
     svd = load_svd(paths.svd_model_json)
+    placement: dict[str, Any] = {}
+    if neighbours is not None:
+        placement["k"] = int(neighbours)
+    if link_radius is not None:
+        placement["link_radius"] = float(link_radius)
     anchors = None
     if paths.embeddings_json.exists():
         emb = load_embeddings(paths.embeddings_json)
         if emb.umap_ind is not None:
-            anchors = MapAnchors(emb.Z_ind, emb.umap_ind)
+            anchors = MapAnchors(emb.Z_ind, emb.umap_ind, **placement)
     return tfidf, restricted_terms, svd, anchors
 
 

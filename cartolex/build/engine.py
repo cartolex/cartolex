@@ -176,10 +176,13 @@ def keywords_settings(
     max_keywords: int | None = None,
     counting_unit: str | None = None,
     llm_max_concurrent: int | None = None,
+    **fields: Any,
 ) -> KeywordsConfig:
     """The engine's settings for a project: its slots, languages, domain and parameters.
 
-    A parameter left ``None`` keeps the engine's default.
+    A parameter left ``None`` keeps the engine's default. *fields* are other
+    :class:`~cartolex.lexicon.config.KeywordsConfig` fields (:data:`ENGINE_SETTINGS`
+    names those the parameters set); a nullable one is passed as given.
     """
     from ..lexicon.config import CorpusSlot, KeywordsConfig
 
@@ -212,7 +215,39 @@ def keywords_settings(
     ):
         if value is not None:
             values[field] = value
+    for field, value in fields.items():
+        values[field] = tuple(value) if isinstance(value, list) else value
     return KeywordsConfig(**values)
+
+
+#: The parameters that set the engine's settings beyond those :func:`keywords_settings`
+#: names: (stage, parameter) → the :class:`~cartolex.lexicon.config.KeywordsConfig` field.
+ENGINE_SETTINGS: dict[tuple[str, str], str] = {
+    ("keywords.extract", "max_candidates"): "max_features",
+    ("keywords.extract", "vote"): "vote",
+    ("keywords.extract", "length_bonus"): "length_bonus_alpha",
+    ("keywords.extract", "max_words"): "max_units",
+    ("keywords.extract", "of_complement"): "of_complement",
+    ("keywords.extract", "fragment_share"): "band_fragment_share",
+    ("keywords.extract", "drop_share"): "band_drop_share",
+    ("keywords.extract", "keep_share"): "band_keep_share",
+    ("keywords.extract", "name_share"): "band_name_share",
+    ("keywords.extract", "stop_words"): "band_stop_words",
+    ("keywords.extract", "closed_word_edges"): "band_closed_edges",
+    ("keywords.extract", "foreign_reading"): "foreign_reading",
+    ("keywords.extract", "even_spread"): "band_even_spread",
+    ("keywords.extract", "even_people"): "band_even_people",
+    ("keywords.extract", "common_modifier"): "band_generic_spread",
+    ("keywords.build", "nested_threshold"): "nested_threshold",
+    ("keywords.build", "ngram_range"): "ngram_range",
+    ("keywords.build", "weights_basis"): "weights_basis",
+    ("keywords.build", "keywords_per_person"): "top_n_researcher",
+    ("keywords.build", "keywords_per_organisation"): "top_n_unit",
+    ("keywords.build", "keywords_of_field"): "top_n_domain",
+}
+
+#: A parameter the results read do not record (made before it was a parameter).
+_MISSING = object()
 
 
 def _folders(ctx: StageContext) -> dict[str, Path]:
@@ -266,6 +301,11 @@ def run_context(
 
 
 def _settings(ctx: StageContext, **more: Any) -> KeywordsConfig:
+    fields = {}
+    for (stage_id, name), field in ENGINE_SETTINGS.items():
+        value = _param(ctx, stage_id, name, _MISSING)
+        if value is not _MISSING:  # else the engine's default, which is the parameter's
+            fields[field] = value
     return keywords_settings(
         ctx.project.config,
         recency_years=_param(ctx, "corpus.assemble", "recency_years"),
@@ -274,6 +314,7 @@ def _settings(ctx: StageContext, **more: Any) -> KeywordsConfig:
         max_share=_param(ctx, "keywords.extract", "max_share"),
         max_keywords=_param(ctx, "keywords.build", "max_keywords"),
         counting_unit=_param(ctx, "keywords.extract", "counting_unit"),
+        **fields,
         **more,
     )
 
@@ -318,6 +359,11 @@ def run_corpus(ctx: StageContext) -> dict[str, int]:
         parts=ctx.params["parts"],
         provider_priority=ctx.params["provider_priority"],
         doc_types=ctx.params["doc_types"],
+        **{
+            name: ctx.params[name]
+            for name in ("duplicate_min_title", "duplicate_year_gap")
+            if name in ctx.params
+        },
     )
     people: set[tuple[str, str, str]] = set()
     texts = characters = 0
@@ -559,7 +605,14 @@ def run_space(ctx: StageContext) -> dict[str, int]:
     rctx = run_context(ctx, _settings(ctx))
     wanted = ctx.params["dimensions"]
     unit = str(ctx.params.get("space_unit", "person"))
-    _engine_call(ctx, lambda: driver.run_svd(rctx, svd_n_components=wanted, space_unit=unit))
+    solver = {
+        name: ctx.params[name]
+        for name in ("svd_seed", "svd_iterations", "svd_algorithm")
+        if name in ctx.params
+    }
+    _engine_call(
+        ctx, lambda: driver.run_svd(rctx, svd_n_components=wanted, space_unit=unit, **solver)
+    )
     from ..atlas.model_files import load_svd
 
     got = int(load_svd(rctx.paths.svd_model_json).n_components)
@@ -579,6 +632,35 @@ def theme_levels(params: Mapping[str, Any], kept_keywords: int) -> tuple[int, ..
     )
 
 
+def ward_options(params: Mapping[str, Any]) -> Any:
+    """The Ward cut's settings (:class:`cartolex.atlas.clustering.WardOptions`) of
+    ``themes.group``'s *params* (its defaults for those missing)."""
+    from ..atlas.clustering import WardOptions
+
+    base = WardOptions()
+    return WardOptions(
+        limit=int(params.get("exact_ward_limit", base.limit)),
+        micro=params.get("micro_clusters", base.micro),
+        seed=int(params.get("micro_seed", base.seed)),
+    )
+
+
+def comb_options(params: Mapping[str, Any]) -> Any:
+    """The comb's settings (:class:`cartolex.lexicon.theme_comb.CombOptions`) of
+    ``themes.group``'s *params* (its defaults for those missing)."""
+    from ..lexicon.theme_comb import CombOptions
+
+    base = CombOptions()
+    grid = params.get("comb_grid")
+    return CombOptions(
+        theta=params.get("comb_theta", base.theta),
+        grid=tuple(float(t) for t in grid) if grid else base.grid,
+        one_level=float(params.get("comb_theta_one_level", base.one_level)),
+        min_texts=int(params.get("comb_min_texts", base.min_texts)),
+        max_cells=int(params.get("comb_max_cells", base.max_cells)),
+    )
+
+
 def run_group(ctx: StageContext) -> dict[str, int]:
     """``themes.group``: the finest groups (the term clustering), the levels above, the proposal.
 
@@ -587,12 +669,21 @@ def run_group(ctx: StageContext) -> dict[str, int]:
     """
     from ..atlas import driver
     from ..lexicon.subfields import draft_subfields
-    from ..lexicon.theme_tree import TOO_BROAD, draft_themes
+    from ..lexicon.theme_tree import OWN_NAME_FLOOR, TOO_BROAD, draft_themes
 
     kept = int(ctx.sizes.kept_keywords or 0)
     levels = theme_levels(ctx.params, kept)
+    ward = ward_options(ctx.params)
     rctx = run_context(ctx, _settings(ctx), hi=0.6)
-    _engine_call(ctx, lambda: driver.run_clustering(rctx, n_concepts=levels[-1]))
+    _engine_call(
+        ctx,
+        lambda: driver.run_clustering(
+            rctx,
+            n_concepts=levels[-1],
+            n_components=ctx.params.get("cluster_dimensions"),
+            ward=ward,
+        ),
+    )
     rctx = rctx.replace(progress=_progress_bridge(ctx, 0.6, 0.8))
     doc = _engine_call(
         ctx,
@@ -601,6 +692,9 @@ def run_group(ctx: StageContext) -> dict[str, int]:
             level_sizes=levels,
             run=f"themes.group/{ctx.run_id}",
             comb=bool(ctx.params.get("comb", True)),
+            comb_options=comb_options(ctx.params),
+            own_floor=float(ctx.params.get("own_name_floor", OWN_NAME_FLOOR)),
+            ward=ward,
         ),
     )
     if len(levels) == 2:
@@ -857,7 +951,10 @@ LAYOUT_PARAMS = {
 LAYOUT_METHODS: dict[str, tuple[dict[str, str], str | None]] = {
     "umap": (LAYOUT_PARAMS, None),
     "tsne": ({"perplexity": "tsne_perplexity", "metric": "umap_metric"}, "tsne"),
-    "tree": ({}, "tree"),
+    "tree": (
+        {"fill": "tree_fill", "gap": "tree_gap", "lean": "tree_lean", "sharp": "tree_sharp"},
+        "tree",
+    ),
 }
 
 
@@ -948,6 +1045,7 @@ def run_layout(ctx: StageContext) -> dict[str, int]:
             )
     copy_amended(ctx.stage.id, _folders(ctx))
     rctx = run_context(ctx, _settings(ctx), hi=0.9)
+    kwargs.update(_placement(ctx))
     _engine_call(
         ctx, lambda: driver.run_umap(rctx, umap_random_state=version.layout.seed, **kwargs)
     )
@@ -958,12 +1056,32 @@ def run_layout(ctx: StageContext) -> dict[str, int]:
     return {"version": int(version.id[1:]) if version.id[1:].isdigit() else 0, **counts}
 
 
+def _placement(ctx: StageContext) -> dict[str, Any]:
+    """How points are placed on the map: ``map.layout``'s ``neighbours`` and ``link_radius``
+    (this run's, or those its results were made with; left out when not recorded)."""
+    out = {}
+    for name in ("neighbours", "link_radius"):
+        value = _param(ctx, "map.layout", name, None)
+        if value is not None:
+            out[name] = value
+    return out
+
+
 def run_trajectories(ctx: StageContext) -> dict[str, int]:
     """``map.trajectories``: positions per person and time window."""
     from ..atlas import driver
 
     rctx = run_context(ctx, _settings(ctx))
-    _engine_call(ctx, lambda: driver.run_trajectories(rctx, bin_years=ctx.params["window_years"]))
+    _engine_call(
+        ctx,
+        lambda: driver.run_trajectories(
+            rctx,
+            bin_years=ctx.params["window_years"],
+            min_docs_per_bin=ctx.params.get("min_texts_per_window"),
+            length_alpha=rctx.settings.length_bonus_alpha,
+            **_placement(ctx),
+        ),
+    )
     if not rctx.paths.trajectories_csv.exists():
         raise RuntimeError("the trajectories were not computed (see the log for why)")
     return {"points": _rows(rctx.paths.trajectories_csv)}
@@ -994,7 +1112,9 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
     from ..project.files import atomic_write_bytes, json_bytes
 
     rctx = run_context(ctx, _settings(ctx))
-    tfidf, restricted_terms, svd, anchors = _engine_call(ctx, lambda: load_positioning_models(rctx))
+    tfidf, restricted_terms, svd, anchors = _engine_call(
+        ctx, lambda: load_positioning_models(rctx, **_placement(ctx))
+    )
     aliases = pd.read_csv(rctx.paths.term_aliases_csv, dtype=str, keep_default_na=False)
     alias_map = dict(zip(aliases["alias"], aliases["canonical"], strict=True))
     emb = load_embeddings(rctx.paths.embeddings_json)

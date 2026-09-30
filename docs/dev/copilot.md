@@ -25,7 +25,7 @@ retired, and the answers it imported stay readable ({doc}`api`).
 | `bundle.json` | the manifest: format, task, id (the result carries it back), the curator's language, the counts, `parts` (triage), the sha256 of every file |
 | `setup/bootstrap.py` | standard library only: checks the wheel, unpacks it into `setup/site` with `zipfile` (no pip, nothing installed), checks the libraries, prints the line to import the kit |
 | `setup/cartolex-<v>-py3-none-any.whl` | the kit and the engine modules it calls (`cartolex.copilot`, `cartolex.atlas`, `cartolex.lexicon`; Python files only) |
-| `data/` | `context.json` (the field's title and description, the languages, the standing rules; for themes the depth, the levels' names and sizes); themes: `keywords.json`, `vectors.npz` (the keywords' and people's vectors, the lexical matrix and the usage), `text_keywords.npz` (which keywords each text uses, texts as rows in a random order: never a text), `tree.json`, `draft.json`; triage: `terms.json`, `term_people.npz` |
+| `data/` | `context.json` (the field's title and description, the languages, the standing rules; for themes the depth, the levels' names and sizes, and `grouping`: the settings the project's grouping recorded, which the kit's `regroup`, `stability` and `levels` use); themes: `keywords.json`, `vectors.npz` (the keywords' and people's vectors, the lexical matrix and the usage), `text_keywords.npz` (which keywords each text uses, texts as rows in a random order: never a text), `tree.json`, `draft.json`; triage: `terms.json`, `term_people.npz` |
 | `baseline/measures.json` | the measures of the tree (and of the proposal), or the bands and decisions so far |
 | `result/` | where the assistant writes its result, and the kit its progress |
 

@@ -47,7 +47,7 @@ def test_each_step_reads_what_its_stages_produced(client, built):
     assert keywords["candidates"] == sum(keywords["bands"].values())
     assert sum(sum(c) for c in keywords["histogram"]["counts"].values()) <= keywords["candidates"]
     assert keywords["vocabulary"]["max_keywords"] == 10_000
-    assert {f["name"] for f in keywords["fixed"]} >= {"vote", "bands.even_spread"}
+    assert "fixed" not in keywords  # the scoring's settings are parameters now
 
     space = client.get("/api/method/space").json()
     assert len(space["explained"]) == space["dimensions"] == 20

@@ -67,6 +67,8 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from .lexical_filters import is_malformed_term
 from .noun_phrases import (
     FOREIGN_CLASS,
+    FOREIGN_READING,
+    MAX_UNITS,
     TextAnalysis,
     _Keyer,
     closed_form,
@@ -126,7 +128,8 @@ class BandRules:
     lexicon lab). ``name_share``: a candidate this
     often inside a recognised name of a person or a place is set aside (only
     when names are known). ``stop_words``: stop words and closed words of
-    other languages are set aside (``stop-word``, ``stop-word-edge``).
+    other languages are set aside (``stop-word``, and ``stop-word-edge`` when
+    ``closed_edges`` is on too).
     ``even_spread`` and ``even_people``: a single word used by at least
     ``even_people`` of the people who have texts in the language, and by at
     least ``even_spread`` times as many people as its occurrences would reach
@@ -143,11 +146,17 @@ class BandRules:
     stop_words: bool = True
     even_spread: float | None = 0.9
     even_people: float = 0.2
+    closed_edges: bool = True
 
 
 @dataclass(frozen=True)
 class ScoringOptions:
-    """How candidates are scored (see the module docstring); the defaults are the lab's."""
+    """How candidates are scored (see the module docstring); the defaults are the lab's.
+
+    ``max_units``: the longest candidate, in word units; ``foreign_reading``: a
+    paragraph whose phrases hold this many different closed words of another
+    language is read as that language (:func:`cartolex.lexicon.noun_phrases.spans`).
+    """
 
     counting_unit: str = "person"
     vote: str = "frequency"
@@ -155,6 +164,8 @@ class ScoringOptions:
     length_bonus_alpha: float = 2.0
     of_complement: bool = False
     bands: BandRules = field(default_factory=BandRules)
+    max_units: int = MAX_UNITS
+    foreign_reading: int = FOREIGN_READING
 
     def __post_init__(self) -> None:
         if self.counting_unit not in COUNTING_UNITS:
@@ -308,7 +319,15 @@ def score_units(
     found: dict[int, list] = {}
     for a in analyses:
         if id(a) not in found:
-            found[id(a)] = spans(a, lp, lemmas, keyer=keyer, foreign=foreign)
+            found[id(a)] = spans(
+                a,
+                lp,
+                lemmas,
+                keyer=keyer,
+                foreign=foreign,
+                max_units=opts.max_units,
+                foreign_reading=opts.foreign_reading,
+            )
 
     # Per person-text: counts per part (the window and the votes), surfaces.
     person_counts: list[Counter[str]] = [Counter() for _ in range(n_people)]
@@ -573,7 +592,7 @@ def _assign_bands(
         stops = stop_words(lang)
         closed = foreign_words(lang)
         for c in rows:
-            if c.content_words >= 2:
+            if rules.closed_edges and c.content_words >= 2:
                 word = _stop_edge(c.term, closed)
                 if word is not None:
                     edges[c.key] = word

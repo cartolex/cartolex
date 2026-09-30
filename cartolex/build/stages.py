@@ -448,6 +448,17 @@ def _min_texts_fit(values: Mapping[str, Any], sizes: ProjectSizes, _: ProjectFil
     return None
 
 
+def _range_grows(values: Mapping[str, Any], _: ProjectSizes, __: ProjectFile) -> str | None:
+    low, high = values["ngram_range"]
+    if low > high:
+        return f"ngram_range {[low, high]} goes down: the fewest words come first"
+    return None
+
+
+#: The θ values the comb's calibration tries by default (``THETA_GRID``: 0.1 to 0.25).
+_COMB_GRID = [0.1, 0.125, 0.15, 0.175, 0.2, 0.225, 0.25]
+
+
 def _ai_configured(_: Mapping[str, Any], __: ProjectSizes, config: ProjectFile) -> str | None:
     if config.identity.ai is None:
         return "the AI clean-up needs a provider and a model in project.json (identity.ai)"
@@ -541,6 +552,26 @@ STAGES = Registry(
                     minimum=0,
                     maximum=200,
                 ),
+                ParamSpec(
+                    "duplicate_min_title",
+                    "int",
+                    "two texts can be one work (read once) only if their titles, compared "
+                    "without case, accents or punctuation, have at least this many characters",
+                    default=25,
+                    minimum=1,
+                    maximum=1000,
+                    section="same_work",
+                ),
+                ParamSpec(
+                    "duplicate_year_gap",
+                    "int",
+                    "two texts with the same title and a common author are one work when their "
+                    "years are at most this far apart",
+                    default=1,
+                    minimum=0,
+                    maximum=50,
+                    section="same_work",
+                ),
             ),
             uses=("year",),
             provides=("people", "texts", "characters", "mapped_units"),
@@ -601,6 +632,146 @@ STAGES = Registry(
                     "candidates on cartolex's list of rejections, or that an AI rejected in an "
                     "earlier project on this computer, are rejected automatically",
                     default=True,
+                ),
+                ParamSpec(
+                    "max_candidates",
+                    "int",
+                    "at most this many candidates per language, the most used, enter the scoring",
+                    default=1_000_000,
+                    minimum=1,
+                ),
+                ParamSpec(
+                    "vote",
+                    "str",
+                    "how a text votes for a candidate it holds: its occurrences (frequency), "
+                    "once (presence) or 1 + ln of its occurrences (sublinear)",
+                    default="frequency",
+                    choices=("frequency", "presence", "sublinear"),
+                    section="scoring",
+                ),
+                ParamSpec(
+                    "length_bonus",
+                    "float",
+                    "a candidate of L words scores (1 + α (L − 1)) times more: α, the bonus of "
+                    "each word beyond the first",
+                    default=2.0,
+                    minimum=0.0,
+                    maximum=20.0,
+                    section="scoring",
+                ),
+                ParamSpec(
+                    "max_words",
+                    "int",
+                    "the longest candidate, in words (prepositions and articles included)",
+                    default=5,
+                    minimum=1,
+                    maximum=12,
+                    section="scoring",
+                ),
+                ParamSpec(
+                    "of_complement",
+                    "bool",
+                    "English candidates may take one « of » complement (« rate of change »)",
+                    default=False,
+                    section="scoring",
+                ),
+                ParamSpec(
+                    "fragment_share",
+                    "float",
+                    "a candidate found this share of its occurrences inside one and the same "
+                    "longer candidate is part of it, set aside (empty: never)",
+                    default=1.0,
+                    minimum=0.0,
+                    maximum=1.0,
+                    nullable=True,
+                    section="bands",
+                ),
+                ParamSpec(
+                    "drop_share",
+                    "float",
+                    "the least specific share of the candidates, by score, is set aside (0: none)",
+                    default=0.0,
+                    minimum=0.0,
+                    maximum=1.0,
+                    section="bands",
+                ),
+                ParamSpec(
+                    "keep_share",
+                    "float",
+                    "a phrase is kept only within the best share of the candidates, by score; "
+                    "the others are to check (1: every phrase is kept)",
+                    default=1.0,
+                    minimum=0.0,
+                    maximum=1.0,
+                    section="bands",
+                ),
+                ParamSpec(
+                    "name_share",
+                    "float",
+                    "a candidate found this share of its occurrences inside a name of a person "
+                    "or a place is set aside (when names are known)",
+                    default=0.5,
+                    minimum=0.0,
+                    maximum=1.0,
+                    section="bands",
+                ),
+                ParamSpec(
+                    "stop_words",
+                    "bool",
+                    "a single word among the language's stop words, or a closed word of another "
+                    "language, is set aside",
+                    default=True,
+                    section="closed_words",
+                ),
+                ParamSpec(
+                    "closed_word_edges",
+                    "bool",
+                    "a phrase that starts or ends with a closed word of another language is set "
+                    "aside (with stop_words on)",
+                    default=True,
+                    section="closed_words",
+                ),
+                ParamSpec(
+                    "foreign_reading",
+                    "int",
+                    "a paragraph whose phrases hold this many different closed words of another "
+                    "language is read as that language: those words break its phrases",
+                    default=2,
+                    minimum=1,
+                    maximum=50,
+                    section="closed_words",
+                ),
+                ParamSpec(
+                    "even_spread",
+                    "float",
+                    "a single word used by at least this many times the people its occurrences "
+                    "would reach if scattered at random is spread evenly: set aside (empty: never)",
+                    default=0.9,
+                    minimum=0.0,
+                    maximum=10.0,
+                    nullable=True,
+                    section="generic_words",
+                ),
+                ParamSpec(
+                    "even_people",
+                    "float",
+                    "the share of the people with texts in the language a single word must reach "
+                    "before its spread is judged",
+                    default=0.2,
+                    minimum=0.0,
+                    maximum=1.0,
+                    section="generic_words",
+                ),
+                ParamSpec(
+                    "common_modifier",
+                    "float",
+                    "a phrase whose edge adjective is used by at least this share of people is "
+                    "common: to check (empty: never)",
+                    default=None,
+                    minimum=0.0,
+                    maximum=1.0,
+                    nullable=True,
+                    section="generic_words",
                 ),
             ),
             checks=(
@@ -668,6 +839,71 @@ STAGES = Registry(
                     default=10_000,
                     minimum=10,
                 ),
+                ParamSpec(
+                    "nested_threshold",
+                    "float",
+                    "a phrase replaces a shorter keyword it contains when it scores at least this "
+                    "many times the shorter one's score",
+                    default=1.3,
+                    minimum=1.0,
+                    maximum=100.0,
+                ),
+                ParamSpec(
+                    "ngram_range",
+                    "ints",
+                    "the words of a keyword form counted in the texts, fewest and most (the most "
+                    "grows to the longest form)",
+                    default=[1, 4],
+                    minimum=1,
+                    maximum=12,
+                    items=(2, 2),
+                    section="attribution",
+                ),
+                ParamSpec(
+                    "weights_basis",
+                    "str",
+                    "what a keyword weighs in a person's themes: its share of their words (tf) or "
+                    "its length-boosted TF-IDF (tfidf); ranking and the space use TF-IDF",
+                    default="tf",
+                    choices=("tf", "tfidf"),
+                    section="attribution",
+                ),
+                ParamSpec(
+                    "keywords_per_person",
+                    "int",
+                    "each person keeps at most this many keywords, the best scored: the space and "
+                    "the map are made of them",
+                    default=30,
+                    minimum=1,
+                    maximum=10_000,
+                    section="attribution",
+                ),
+                ParamSpec(
+                    "keywords_per_organisation",
+                    "int",
+                    "each organisation keeps at most this many keywords, the best scored",
+                    default=50,
+                    minimum=1,
+                    maximum=10_000,
+                    section="attribution",
+                ),
+                ParamSpec(
+                    "keywords_of_field",
+                    "int",
+                    "the whole field keeps at most this many keywords, the best scored",
+                    default=200,
+                    minimum=1,
+                    maximum=100_000,
+                    section="attribution",
+                ),
+            ),
+            checks=(
+                CrossCheck(
+                    "the n-gram range does not go down",
+                    ("ngram_range",),
+                    (),
+                    _range_grows,
+                ),
             ),
             provides=("kept_keywords",),
             cost=CostModel(
@@ -695,6 +931,32 @@ STAGES = Registry(
                     rule="space_dimensions",
                     minimum=2,
                     maximum=1000,
+                ),
+                ParamSpec(
+                    "svd_seed",
+                    "int",
+                    "the seed of the truncated SVD's random start",
+                    default=42,
+                    minimum=0,
+                    maximum=2**32 - 1,
+                    section="solver",
+                ),
+                ParamSpec(
+                    "svd_iterations",
+                    "int",
+                    "the power iterations of the randomized SVD: more, closer to the exact one",
+                    default=5,
+                    minimum=1,
+                    maximum=100,
+                    section="solver",
+                ),
+                ParamSpec(
+                    "svd_algorithm",
+                    "str",
+                    "the SVD's solver: randomized, or arpack (exact, slower)",
+                    default="randomized",
+                    choices=("randomized", "arpack"),
+                    section="solver",
                 ),
             ),
             cost=CostModel(
@@ -747,11 +1009,110 @@ STAGES = Registry(
                     items=(1, 4),
                 ),
                 ParamSpec(
+                    "cluster_dimensions",
+                    "int",
+                    "the finest groups are cut in this many leading dimensions of the space",
+                    default=50,
+                    minimum=2,
+                    maximum=1000,
+                    section="clustering",
+                ),
+                ParamSpec(
+                    "exact_ward_limit",
+                    "int",
+                    "up to this many keywords, Ward's grouping is exact; above, it runs on "
+                    "micro-clusters (its memory grows with the square of this number)",
+                    default=15_000,
+                    minimum=2,
+                    maximum=1_000_000,
+                    section="clustering",
+                ),
+                ParamSpec(
+                    "micro_clusters",
+                    "int",
+                    "the micro-clusters Ward merges above the exact limit (empty: as many as "
+                    "the limit)",
+                    default=None,
+                    minimum=2,
+                    maximum=1_000_000,
+                    nullable=True,
+                    section="clustering",
+                ),
+                ParamSpec(
+                    "micro_seed",
+                    "int",
+                    "the seed of the micro-clustering",
+                    default=0,
+                    minimum=0,
+                    maximum=2**32 - 1,
+                    section="clustering",
+                ),
+                ParamSpec(
                     "comb",
                     "bool",
                     "put each keyword on the level its texts support, and set aside the keywords "
                     "too broad for any theme",
                     default=True,
+                    section="comb",
+                ),
+                ParamSpec(
+                    "comb_theta",
+                    "float",
+                    "the share of a keyword's use a theme must hold to take it (above what any "
+                    "keyword gives it); empty: calibrated so every level holds about as many "
+                    "keywords per theme",
+                    default=None,
+                    minimum=0.0,
+                    maximum=1.0,
+                    nullable=True,
+                    section="comb",
+                ),
+                ParamSpec(
+                    "comb_grid",
+                    "floats",
+                    "the θ values the calibration tries",
+                    default=_COMB_GRID,
+                    minimum=0.0,
+                    maximum=1.0,
+                    items=(1, 100),
+                    section="comb",
+                ),
+                ParamSpec(
+                    "comb_theta_one_level",
+                    "float",
+                    "θ for a tree of one level, where no balance between levels can choose it",
+                    default=0.2,
+                    minimum=0.0,
+                    maximum=1.0,
+                    section="comb",
+                ),
+                ParamSpec(
+                    "comb_min_texts",
+                    "int",
+                    "a keyword used in fewer texts keeps its group: too little evidence to move it",
+                    default=5,
+                    minimum=1,
+                    maximum=100_000,
+                    section="comb",
+                ),
+                ParamSpec(
+                    "comb_max_cells",
+                    "int",
+                    "above this many keywords × finest groups the proposal is not combed (8 bytes "
+                    "each in memory)",
+                    default=50_000_000,
+                    minimum=1,
+                    section="comb",
+                ),
+                ParamSpec(
+                    "own_name_floor",
+                    "float",
+                    "a combed theme is named after a keyword of its own only when at least this "
+                    "share of that keyword's use falls in it rather than in its siblings",
+                    default=0.5,
+                    minimum=0.0,
+                    maximum=1.0,
+                    section="names",
                 ),
             ),
             checks=(
@@ -799,6 +1160,28 @@ STAGES = Registry(
             upstream=("themes.apply",),
             decisions=("decisions/maps.json",),
             project=("levels",),
+            params=(
+                ParamSpec(
+                    "neighbours",
+                    "int",
+                    "a keyword, a projected person or a time window is placed from this many "
+                    "nearest mapped people in the space",
+                    default=8,
+                    minimum=1,
+                    maximum=500,
+                    section="placement",
+                ),
+                ParamSpec(
+                    "link_radius",
+                    "float",
+                    "those neighbours closer than this share of the map's radius form a group; "
+                    "the point goes to the heaviest group",
+                    default=0.25,
+                    minimum=0.0,
+                    maximum=10.0,
+                    section="placement",
+                ),
+            ),
             cost=CostModel(
                 "mapped_units", 18.1, 6.29e-3, 622.0, 2.2, time_exponent=0.9, memory_exponent=0.5
             ),
@@ -819,6 +1202,14 @@ STAGES = Registry(
                     default=3,
                     minimum=1,
                     maximum=50,
+                ),
+                ParamSpec(
+                    "min_texts_per_window",
+                    "int",
+                    "a person's time window is placed only if it holds at least this many texts",
+                    default=1,
+                    minimum=1,
+                    maximum=1000,
                 ),
             ),
             uses=("year",),

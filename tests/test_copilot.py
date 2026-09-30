@@ -442,3 +442,44 @@ def test_a_restructuring_of_more_operations_than_a_request_takes_comes_as_its_tr
     # The rest applies on top of that tree, within one request.
     applied = client.post("/api/themes/ops", json={"tree": first["tree"], "ops": second["ops"]})
     assert applied.status_code == 200, applied.text
+
+
+def test_the_grouping_settings_travel_into_the_bundle_and_the_kit_combs_with_them(tmp_path):
+    """A pinned θ of the project's grouping is in the bundle's context, and the session's
+    comb on the current tree reads it (not the kit's default calibration)."""
+    from cartolex.copilot import open_bundle
+    from cartolex.lexicon.theme_comb import CombOptions, tree_levels
+
+    root = tmp_path / "project"
+    write_project(generate("XS", 0), root).close()
+    for setting in ("pinned_year=2026", "themes.group.level_sizes=[4,12]"):
+        assert cli(["params", str(root), "--set", setting]) == 0
+    assert cli(["params", str(root), "--set", "themes.group.comb_theta=0.15"]) == 0
+    assert cli(["build", str(root), "--only", "themes.group"]) == 0
+    app = create_app(
+        AppSettings(
+            project=root,
+            launch_token=TOKEN,
+            data_dir=tmp_path / "app",
+            build_budget_mb=1e9,
+            build_year=2026,
+        )
+    )
+    folder = _unpack(Client(app), THEMES, tmp_path / "themes")
+    app.state.cartolex.shutdown()
+    context = json.loads((folder / "data/context.json").read_text(encoding="utf-8"))
+    assert context["grouping"]["comb_theta"] == 0.15
+    assert context["grouping"]["own_name_floor"] == 0.5  # the others at their defaults
+    session = open_bundle(folder)
+    assert session.comb.theta == 0.15 and session.D is not None
+    theta, found = tree_levels(session.tree, session.terms, session.D, options=session.comb)
+    assert theta == 0.15
+    assert (
+        session.levels(detail=True)
+        == [
+            {"keyword": x.keyword, "node": x.node, "to": x.to, "share": x.share, "texts": x.texts}
+            for x in found
+        ][:200]
+    )
+    calibrated, _ = tree_levels(session.tree, session.terms, session.D, options=CombOptions())
+    assert calibrated != 0.15  # the default would have calibrated another θ

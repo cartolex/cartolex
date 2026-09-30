@@ -101,13 +101,32 @@ export function ParamRow({ stage, p, edits, setEdit }) {
   </tr>`;
 }
 
-/** A table of parameters: *rows* are `{stage, p}`. */
+/** The heading of a group of rows: the parameter's section, or its stage's name. */
+function sectionTitle(stage, section) {
+  return section ? t(`method.section.${section}`) : t(`stage.${stage.id}`);
+}
+
+/**
+ * A table of parameters: *rows* are `{stage, p}`, grouped under a heading row where the
+ * stage or the parameter's section (its place on the method screen) changes.
+ */
 export function ParamTable({ rows, edits, setEdit, label }) {
+  const body = [];
+  let last = null;
+  for (const { stage, p } of rows) {
+    const group = `${stage.id}/${p.section || ''}`;
+    if (group !== last) {
+      body.push(html`<tr key=${`section-${group}`} class="cx-method-params__section">
+        <th scope="colgroup" colspan="4">${sectionTitle(stage, p.section)}</th></tr>`);
+      last = group;
+    }
+    body.push(html`<${ParamRow} key=${`${stage.id}.${p.name}`}
+      stage=${stage} p=${p} edits=${edits} setEdit=${setEdit} />`);
+  }
   return html`<table class="cx-settings__table cx-settings__params cx-method-params" aria-label=${label}>
     <thead><tr><th scope="col">${t('settings.build.param')}</th><th scope="col">${t('settings.build.value')}</th>
       <th scope="col">${t('settings.build.origin')}</th><th scope="col"><span class="cx-visually-hidden">${t('settings.build.default')}</span></th></tr></thead>
-    <tbody>${rows.map(({ stage, p }) => html`<${ParamRow} key=${`${stage.id}.${p.name}`}
-      stage=${stage} p=${p} edits=${edits} setEdit=${setEdit} />`)}</tbody>
+    <tbody>${body}</tbody>
   </table>`;
 }
 

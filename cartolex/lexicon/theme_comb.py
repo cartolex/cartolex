@@ -46,11 +46,13 @@ __all__ = [
     "MAX_CELLS",
     "MIN_TEXTS",
     "THETA_GRID",
+    "CombOptions",
     "Combed",
     "LevelSuggestion",
     "calibrate",
     "calibration_curve",
     "comb",
+    "comb_with",
     "corpus_texts",
     "document_keywords",
     "keyword_spread",
@@ -72,6 +74,23 @@ THETA_GRID = tuple(float(x) for x in np.round(np.arange(0.10, 0.251, 0.025), 3))
 MAX_CELLS = 50_000_000
 #: The texts read with the vectorizer at a time.
 TEXT_CHUNK = 2000
+
+
+@dataclass(frozen=True)
+class CombOptions:
+    """The comb's settings (the defaults are the module's constants).
+
+    *theta*: a pinned θ, or ``None`` to calibrate it on *grid* (:func:`calibrate`);
+    *one_level*: the θ of a tree of one level, where no balance can choose it;
+    *min_texts*: a keyword used in fewer texts keeps its node; *max_cells*: above
+    this many keywords × finest nodes the proposal is not combed.
+    """
+
+    theta: float | None = None
+    grid: tuple[float, ...] = THETA_GRID
+    one_level: float = DEFAULT_THETA
+    min_texts: int = MIN_TEXTS
+    max_cells: int = MAX_CELLS
 
 
 # ── the texts ────────────────────────────────────────────────────────────────
@@ -311,17 +330,19 @@ def calibrate(
     *,
     grid: Sequence[float] = THETA_GRID,
     min_texts: int = MIN_TEXTS,
+    default_theta: float = DEFAULT_THETA,
 ) -> Combed:
     """The comb at the θ of *grid* that best balances the keywords per node across levels.
 
     Every level should hold about as many keywords per node as the finest,
     so a top level of few nodes holds few keywords. The θ kept is the one
     whose levels are closest to that (:func:`_balance_error`), the smallest
-    on a tie. At depth 1 there is nothing to balance: :data:`DEFAULT_THETA`.
+    on a tie. At depth 1 there is nothing to balance: *default_theta*
+    (:data:`DEFAULT_THETA`).
     """
     depth = len(maps)
     if depth == 1:
-        return comb(P, n, finest, maps, DEFAULT_THETA, min_texts=min_texts)
+        return comb(P, n, finest, maps, default_theta, min_texts=min_texts)
     nodes = [int(np.max(m, initial=-1)) + 1 for m in maps]
     best: tuple[float, Combed] | None = None
     for t in grid:
@@ -333,6 +354,28 @@ def calibrate(
     return best[1]
 
 
+def comb_with(
+    P: np.ndarray,
+    n: np.ndarray,
+    finest: np.ndarray,
+    maps: Sequence[np.ndarray],
+    options: CombOptions | None = None,
+) -> Combed:
+    """The comb with *options*: at their pinned θ, or calibrated (:func:`calibrate`)."""
+    opts = options if options is not None else CombOptions()
+    if opts.theta is not None:
+        return comb(P, n, finest, maps, float(opts.theta), min_texts=opts.min_texts)
+    return calibrate(
+        P,
+        n,
+        finest,
+        maps,
+        grid=opts.grid,
+        min_texts=opts.min_texts,
+        default_theta=opts.one_level,
+    )
+
+
 def calibration_curve(
     P: np.ndarray,
     n: np.ndarray,
@@ -341,14 +384,18 @@ def calibration_curve(
     *,
     grid: Sequence[float] = THETA_GRID,
     min_texts: int = MIN_TEXTS,
+    options: CombOptions | None = None,
 ) -> dict[str, Any]:
     """What :func:`calibrate` weighed: for each θ of *grid*, the keywords per level and per node,
     the too broad, and the balance error; with the θ it keeps.
 
     ``{"theta": kept θ, "points": [{"theta", "keywords" (per level, from the top),
     "per_node" (per level), "too_broad", "error"}]}``; ``error`` is ``None`` at depth 1, where
-    :data:`DEFAULT_THETA` is kept.
+    :data:`DEFAULT_THETA` is kept. *options*, when given, replace *grid* and *min_texts*, and
+    their pinned θ is the one kept.
     """
+    if options is not None:
+        grid, min_texts = options.grid, options.min_texts
     depth = len(maps)
     nodes = [int(np.max(m, initial=-1)) + 1 for m in maps]
     points: list[dict[str, Any]] = []
@@ -365,7 +412,9 @@ def calibration_curve(
                 "error": None if depth == 1 else round(_balance_error(per_node), 4),
             }
         )
-    kept = calibrate(P, n, finest, maps, grid=grid, min_texts=min_texts).theta
+    kept = comb_with(
+        P, n, finest, maps, options or CombOptions(grid=tuple(grid), min_texts=min_texts)
+    ).theta
     return {"theta": float(kept), "points": points}
 
 
@@ -390,6 +439,7 @@ def tree_levels(
     *,
     grid: Sequence[float] = THETA_GRID,
     min_texts: int = MIN_TEXTS,
+    options: CombOptions | None = None,
 ) -> tuple[float, list[LevelSuggestion]]:
     """The comb read on a curated tree: the keywords whose texts support a higher node.
 
@@ -401,8 +451,10 @@ def tree_levels(
     top-level node holds is suggested « too broad for any theme ». Moves to a
     node elsewhere are the borderline list's business, not this one's. The
     suggestions come with the largest shares first (too broad: the smallest
-    best share first).
+    best share first). *options* (the grouping's comb settings), when given,
+    replace *grid* and *min_texts*.
     """
+    opts = options if options is not None else CombOptions(grid=tuple(grid), min_texts=min_texts)
     nodes = [str(n["id"]) for n in doc.get("nodes") or []]
     parent = {str(n["id"]): n.get("parent") for n in doc.get("nodes") or []}
     level: dict[str, int] = {}
@@ -440,10 +492,10 @@ def tree_levels(
             if a is not None:
                 m[j] = position[a]
         maps.append(m)
-    if len(terms) * len(nodes) > MAX_CELLS or D.shape[1] != len(terms):
+    if len(terms) * len(nodes) > opts.max_cells or D.shape[1] != len(terms):
         return 0.0, []
     P, n = keyword_spread(D, finest, len(nodes))
-    combed = calibrate(P, n, finest, maps, grid=grid, min_texts=min_texts)
+    combed = comb_with(P, n, finest, maps, opts)
     out: list[LevelSuggestion] = []
     for i in np.flatnonzero(finest >= 0):
         own = nodes[finest[i]]

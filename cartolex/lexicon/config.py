@@ -160,8 +160,25 @@ class KeywordsConfig:
     # for an organisation). See cartolex.lexicon.scoring.
     counting_unit: str = "person"
 
-    # Scoring
+    # Scoring (cartolex.lexicon.scoring): how a text votes for its candidates
+    # (frequency, presence, sublinear), the length bonus, English phrases with
+    # one "of" complement, the longest candidate in word units, and how many
+    # closed words of another language make a paragraph read as that language.
+    vote: str = "frequency"
     length_bonus_alpha: float = 2.0
+    of_complement: bool = False
+    max_units: int = 5
+    foreign_reading: int = 2
+    # The bands' rules (cartolex.lexicon.scoring.BandRules; None turns a rule off).
+    band_fragment_share: float | None = 1.0
+    band_drop_share: float = 0.0
+    band_keep_share: float = 1.0
+    band_generic_spread: float | None = None
+    band_name_share: float = 0.5
+    band_stop_words: bool = True
+    band_closed_edges: bool = True
+    band_even_spread: float | None = 0.9
+    band_even_people: float = 0.2
     # Basis of the FINAL quantity weights (atlas shares, pies, wordclouds):
     #   "tf"    — plain term-frequency shares ("fraction of activity", default)
     #   "tfidf" — legacy length-boosted TF-IDF (favours distinctive terms)

@@ -575,8 +575,10 @@ class Span:
     containers: tuple[str, ...]
 
 
-def _reads_as_foreign(analysis: TextAnalysis, foreign: frozenset[str]) -> bool:
-    """Whether the phrases of *analysis* hold :data:`FOREIGN_READING` different *foreign* words."""
+def _reads_as_foreign(
+    analysis: TextAnalysis, foreign: frozenset[str], reading: int = FOREIGN_READING
+) -> bool:
+    """Whether the phrases of *analysis* hold *reading* different *foreign* words."""
     seen: set[str] = set()
     for run in analysis.runs:
         for u in run:
@@ -584,7 +586,7 @@ def _reads_as_foreign(analysis: TextAnalysis, foreign: frozenset[str]) -> bool:
                 low = closed_form(u[0])
                 if low in foreign:
                     seen.add(low)
-                    if len(seen) >= FOREIGN_READING:
+                    if len(seen) >= reading:
                         return True
     return False
 
@@ -596,16 +598,18 @@ def spans(
     *,
     keyer: _Keyer | None = None,
     foreign: frozenset[str] = frozenset(),
+    max_units: int = MAX_UNITS,
+    foreign_reading: int = FOREIGN_READING,
 ) -> list[Span]:
     """Every candidate occurrence of one analysed text, with its containers (see :class:`Span`).
 
-    Every span of at most :data:`MAX_UNITS` units of a run that fully matches
-    the pattern *lp* is one occurrence, nested spans included; *lemmas* is the
-    corpus lemma table (:func:`lemma_table`).
+    Every span of at most *max_units* units (:data:`MAX_UNITS` by default) of a
+    run that fully matches the pattern *lp* is one occurrence, nested spans
+    included; *lemmas* is the corpus lemma table (:func:`lemma_table`).
 
     *foreign* are the closed words of other languages (:func:`foreign_words`),
     written in lower case or in capitals (:func:`closed_form`). A text whose
-    phrases hold :data:`FOREIGN_READING` different ones is text
+    phrases hold *foreign_reading* (:data:`FOREIGN_READING`) different ones is text
     in another language that reached this language's stream (a paragraph
     detected wrongly, a title in capitals): there each of them breaks the
     phrase it is in, and is an occurrence of its own, of class
@@ -615,7 +619,7 @@ def spans(
     keyer = keyer if keyer is not None else _Keyer(lp, lemmas)
     out: list[Span] = []
     runs: Iterable[Sequence[Unit]] = analysis.runs
-    if foreign and _reads_as_foreign(analysis, foreign):
+    if foreign and _reads_as_foreign(analysis, foreign, foreign_reading):
         runs = []
         for run in analysis.runs:
             piece: list[Unit] = []
@@ -636,7 +640,7 @@ def spans(
         for i in range(n):
             if classes[i] not in _CONTENT:
                 continue
-            for j in range(i + 1, min(i + MAX_UNITS, n) + 1):
+            for j in range(i + 1, min(i + max_units, n) + 1):
                 if rx.fullmatch(classes, i, j):
                     found.append((i, j, " ".join(k for k in keys[i:j] if k is not None)))
         for i, j, key in found:

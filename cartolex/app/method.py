@@ -49,17 +49,59 @@ NEIGHBOURS = 10
 PREVIEW_SAMPLE = 800
 #: The score histogram's bins.
 SCORE_BINS = 24
+#: The metrics the screen offers for the space's distances.
+_METRICS = ["cosine", "euclidean"]
 #: The layout parameters the screen offers per method, with the engine's defaults
-#: (``cartolex.atlas.driver.AtlasDefaults``) and their limits.
+#: (``cartolex.atlas.driver.AtlasDefaults``, ``cartolex.atlas.tree_layout``) and their
+#: limits: every parameter a map version's method takes (``cartolex.build.engine.LAYOUT_METHODS``)
+#: but the UMAP recipe (``layout``), which a preview of the people cannot show.
 LAYOUT_DEFAULTS: dict[str, list[dict[str, Any]]] = {
     "umap": [
         {"name": "n_neighbors", "type": "int", "default": 25, "minimum": 2, "maximum": 200},
         {"name": "min_dist", "type": "float", "default": 0.3, "minimum": 0.0, "maximum": 1.0},
+        {"name": "metric", "type": "str", "default": "cosine", "choices": _METRICS},
+        {
+            "name": "n_epochs",
+            "type": "int",
+            "default": None,
+            "minimum": 10,
+            "maximum": 5000,
+            "nullable": True,
+        },
+        {"name": "spread", "type": "float", "default": 1.0, "minimum": 0.1, "maximum": 10.0},
+        {
+            "name": "set_op_mix_ratio",
+            "type": "float",
+            "default": 1.0,
+            "minimum": 0.0,
+            "maximum": 1.0,
+        },
+        {"name": "local_connectivity", "type": "int", "default": 1, "minimum": 1, "maximum": 50},
+        {
+            "name": "repulsion_strength",
+            "type": "float",
+            "default": 1.0,
+            "minimum": 0.0,
+            "maximum": 10.0,
+        },
+        {
+            "name": "negative_sample_rate",
+            "type": "int",
+            "default": 5,
+            "minimum": 1,
+            "maximum": 50,
+        },
     ],
     "tsne": [
-        {"name": "perplexity", "type": "float", "default": 30.0, "minimum": 2.0, "maximum": 200.0}
+        {"name": "perplexity", "type": "float", "default": 30.0, "minimum": 2.0, "maximum": 200.0},
+        {"name": "metric", "type": "str", "default": "cosine", "choices": _METRICS},
     ],
-    "tree": [],
+    "tree": [
+        {"name": "fill", "type": "float", "default": 0.62, "minimum": 0.05, "maximum": 1.0},
+        {"name": "gap", "type": "float", "default": 0.04, "minimum": 0.0, "maximum": 1.0},
+        {"name": "lean", "type": "float", "default": 0.4, "minimum": 0.0, "maximum": 1.0},
+        {"name": "sharp", "type": "float", "default": 8.0, "minimum": 0.0, "maximum": 100.0},
+    ],
 }
 
 
@@ -136,41 +178,9 @@ def _histogram(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {"edges": edges, "counts": counts, "scale": "log"}
 
 
-def _engine_settings(ctx: Any) -> list[dict[str, Any]]:
-    """The scoring's settings this version fixes (not parameters): what they are and their value."""
-    from cartolex.lexicon.scoring import BandRules, ScoringOptions
-
-    rules, options = BandRules(), ScoringOptions()
-    out = [
-        {"name": "vote", "value": options.vote},
-        {"name": "length_bonus_alpha", "value": options.length_bonus_alpha},
-    ]
-    hyper = ctx.layout.stage("keywords.build") / "keywords_hyperparams.json"
-    if hyper.is_file():
-        try:
-            doc = json.loads(hyper.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            doc = {}
-        for name in ("ngram_range", "weights_basis", "nested_threshold"):
-            if name in doc:
-                out.append({"name": name, "value": doc[name]})
-    for name in (
-        "fragment_share",
-        "drop_share",
-        "keep_share",
-        "generic_spread",
-        "name_share",
-        "stop_words",
-        "even_spread",
-        "even_people",
-    ):
-        out.append({"name": f"bands.{name}", "value": getattr(rules, name)})
-    return out
-
-
 def keywords_view(runtime: Any, ctx: Any) -> dict[str, Any]:
     """The candidates of the extraction by band, reason and language; the scores' spread; the
-    vocabulary's size against its cap; the scoring's fixed settings."""
+    vocabulary's size against its cap."""
     from .routes.keywords import extracted
 
     rows, run_id = extracted(runtime, ctx)
@@ -206,7 +216,6 @@ def keywords_view(runtime: Any, ctx: Any) -> dict[str, Any]:
             "kept_keywords": counts.get("kept_keywords"),
             "max_keywords": _value(build, "max_keywords"),
         },
-        "fixed": _engine_settings(ctx),
     }
 
 
@@ -320,7 +329,7 @@ def grouping_view(runtime: Any, ctx: Any) -> dict[str, Any]:
 
     def compute() -> dict[str, Any]:
         from cartolex.atlas.model_files import load_embeddings, load_lexical_data
-        from cartolex.build.engine import theme_levels
+        from cartolex.build.engine import comb_options, theme_levels, ward_options
         from cartolex.lexicon.theme_tree import TEXT_KEYWORDS, TOO_BROAD, comb_calibration
 
         doc = json.loads(draft.read_text(encoding="utf-8"))
@@ -389,6 +398,8 @@ def grouping_view(runtime: Any, ctx: Any) -> dict[str, Any]:
                     term_clusters_csv=folder / "umap_terms_clustered.csv",
                     text_keywords_npz=folder / TEXT_KEYWORDS,
                     level_sizes=theme_levels(params, kept),
+                    comb_options=comb_options(params),
+                    ward=ward_options(params),
                 )
         return {
             "depth": depth,

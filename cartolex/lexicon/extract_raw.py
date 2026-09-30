@@ -53,6 +53,7 @@ from .rejects import read_snapshot
 from .scoring import (
     FORMS_SEPARATOR,
     RAW_COLUMNS,
+    BandRules,
     ScoredCandidates,
     ScoringOptions,
     TextUnit,
@@ -224,9 +225,26 @@ def _empty() -> pd.DataFrame:
 
 
 def options_of(cfg: KeywordsConfig) -> ScoringOptions:
-    """The scoring options a run's settings give (the others keep their defaults)."""
+    """The scoring options a run's settings give (the part weights keep their default: the
+    corpus gives each text as one part)."""
     return ScoringOptions(
-        counting_unit=cfg.counting_unit, length_bonus_alpha=cfg.length_bonus_alpha
+        counting_unit=cfg.counting_unit,
+        vote=cfg.vote,
+        length_bonus_alpha=cfg.length_bonus_alpha,
+        of_complement=cfg.of_complement,
+        max_units=cfg.max_units,
+        foreign_reading=cfg.foreign_reading,
+        bands=BandRules(
+            fragment_share=cfg.band_fragment_share,
+            drop_share=cfg.band_drop_share,
+            keep_share=cfg.band_keep_share,
+            generic_spread=cfg.band_generic_spread,
+            name_share=cfg.band_name_share,
+            stop_words=cfg.band_stop_words,
+            even_spread=cfg.band_even_spread,
+            even_people=cfg.band_even_people,
+            closed_edges=cfg.band_closed_edges,
+        ),
     )
 
 

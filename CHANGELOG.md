@@ -609,3 +609,21 @@ nothing in the engine names a particular deployment, source or procedure.
   the changes that share a reason, at once. The themes kit counts the people
   behind each node, reads the comb on the current tree and suggests only other
   nodes; its views are short unless `detail=True`.
+- **No hidden fixed parameter.** Every engine constant that shapes a result is
+  a parameter of its stage, at the value it had: the duplicate rules of the
+  corpus; the scoring (vote, length bonus, longest candidate, English « of »
+  complements, the window's cap), the bands' thresholds, the closed-word and
+  generic-word rules of the extraction; the n-gram range, weights basis, nested
+  threshold and per-person, per-organisation and field keyword counts of the
+  vocabulary; the SVD's seed, iterations and solver; the clustering's
+  dimensions, Ward's exact limit, micro-clusters and seed, the comb's θ
+  (calibrated by default, or pinned), grid, one-level θ, evidence floor and size
+  limit, and the names' floor; the neighbours and link radius that place points
+  on the map, and the trajectories' texts per window. The method screen shows
+  each under its heading with a one-line explanation in every interface
+  language, and every setting of a layout method (UMAP's, t-SNE's metric, the
+  tree layout's fill, gap, lean and sharpness). A parameter a run did not record
+  is no change at its default: existing results stay up to date. The copilot's
+  themes bundle carries the grouping's recorded settings (`context.json`,
+  `grouping`), and its kit groups, combs and names with them. The inventory,
+  with the constants that stay and why, is in `docs/dev/build.md`.

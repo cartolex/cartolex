@@ -46,7 +46,7 @@ __all__ = [
     "theme_level_sizes",
 ]
 
-ParamType = Literal["int", "float", "bool", "str", "list", "ints"]
+ParamType = Literal["int", "float", "bool", "str", "list", "ints", "floats"]
 
 #: The sizes a rule may use, in the order they are shown.
 SIZE_NAMES = ("people", "texts", "characters", "kept_keywords", "mapped_units")
@@ -240,9 +240,13 @@ class ParamSpec:
     Its value comes from ``params.json`` when set there; otherwise from the named
     :attr:`rule` when there is one, else from :attr:`default`. ``minimum`` and
     ``maximum`` bound numbers; ``choices`` lists the allowed values of a string,
-    or of each item of a list. A ``list`` holds texts, ``ints`` whole numbers
-    (``minimum`` and ``maximum`` then bound each number, ``items`` the length).
-    A *nullable* parameter also takes ``null``: « not set ».
+    or of each item of a list. A ``list`` holds texts, ``ints`` whole numbers and
+    ``floats`` numbers (``minimum`` and ``maximum`` then bound each number,
+    ``items`` the length). A *nullable* parameter also takes ``null``: « not set »
+    (for some, « computed »: its description says what).
+
+    *section* is the parameter's place on the method screen: the heading it is
+    shown under, within its stage's step (``""``: the step's first rows).
     """
 
     name: str
@@ -255,6 +259,7 @@ class ParamSpec:
     choices: tuple[Any, ...] | None = None
     nullable: bool = False
     items: tuple[int, int] | None = None
+    section: str = ""
 
     def __post_init__(self) -> None:
         if self.rule is not None and self.rule not in RULES:
@@ -269,11 +274,16 @@ class ParamSpec:
         t = self.type
         if value is None and self.nullable:
             return None
-        if t == "ints":
+        if t in ("ints", "floats"):
+            number = (int,) if t == "ints" else (int, float)
             if not isinstance(value, list) or not all(
-                isinstance(v, int) and not isinstance(v, bool) for v in value
+                isinstance(v, number)
+                and not isinstance(v, bool)
+                and (t == "ints" or math.isfinite(v))
+                for v in value
             ):
-                return f"{value!r} is not a list of whole numbers"
+                kind = "whole numbers" if t == "ints" else "numbers"
+                return f"{value!r} is not a list of {kind}"
             if self.items is not None and not self.items[0] <= len(value) <= self.items[1]:
                 return f"{value!r} does not have {self.items[0]} to {self.items[1]} items"
             low = [v for v in value if self.minimum is not None and v < self.minimum]
@@ -325,9 +335,11 @@ class ParamSpec:
         """The value as stored in a record (a float parameter set to 1 is 1.0); a rule's value
         by slot kind stays a mapping."""
         if self.type == "float":
-            return float(value)
+            return None if value is None else float(value)
         if isinstance(value, Mapping):
             return {k: self.coerce(v) for k, v in value.items()}
+        if self.type == "floats" and value is not None:
+            return [float(v) for v in value]
         if self.type in ("list", "ints") and value is not None:
             return list(value)
         return value

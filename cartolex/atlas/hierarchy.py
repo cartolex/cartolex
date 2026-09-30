@@ -25,14 +25,16 @@ from typing import Any
 import numpy as np
 from sklearn.preprocessing import normalize
 
-from .clustering import ward_labels
+from .clustering import WardOptions, ward_labels
 
 
 def _centroid(Zn: np.ndarray, idx) -> np.ndarray:
     return normalize(Zn[np.asarray(idx)].mean(axis=0).reshape(1, -1))[0]
 
 
-def group_subfields(concept_centroids: np.ndarray, *, target: int) -> np.ndarray:
+def group_subfields(
+    concept_centroids: np.ndarray, *, target: int, ward: WardOptions | None = None
+) -> np.ndarray:
     """Group concept centroids into proto-subfields by a Ward cut at exactly ``target``.
 
     ``target`` is the **number of subfields** (a tunable granularity lever), honoured exactly:
@@ -55,7 +57,7 @@ def group_subfields(concept_centroids: np.ndarray, *, target: int) -> np.ndarray
         return np.zeros(n, dtype=int)
     if target >= n:
         return np.arange(n, dtype=int)  # asked for ≥ n subfields → each concept stands alone
-    return ward_labels(normalize(C), target)
+    return ward_labels(normalize(C), target, options=ward)
 
 
 @dataclass(frozen=True)
@@ -73,7 +75,11 @@ class LevelGroups:
 
 
 def level_groups(
-    Z_terms: np.ndarray, finest_labels: np.ndarray | list[int], level_sizes: list[int] | tuple
+    Z_terms: np.ndarray,
+    finest_labels: np.ndarray | list[int],
+    level_sizes: list[int] | tuple,
+    *,
+    ward: WardOptions | None = None,
 ) -> list[LevelGroups]:
     """The groups of every level of a theme tree, from the top, over the finest groups given.
 
@@ -82,7 +88,8 @@ def level_groups(
     cut (:func:`group_subfields`) of the L2-normalised centroids of the level
     below at that level's size, ``level_sizes[l]`` (the finest size, the last
     one, is the clustering's and is not used here). At two levels this is
-    exactly :func:`build_hierarchy`'s cut of the concepts into subfields.
+    exactly :func:`build_hierarchy`'s cut of the concepts into subfields. *ward*: how
+    each cut runs (:class:`cartolex.atlas.clustering.WardOptions`).
     """
     Zn = normalize(np.asarray(Z_terms, dtype=float))
     labels = np.asarray(finest_labels, dtype=int)
@@ -93,7 +100,7 @@ def level_groups(
         n = len(below.rows)
         if n >= 2:
             centroids = np.array([_centroid(Zn, np.sort(r)) for r in below.rows])
-            sub_of = group_subfields(centroids, target=int(size))
+            sub_of = group_subfields(centroids, target=int(size), ward=ward)
         else:
             sub_of = np.zeros(n, dtype=int)
         upper = sorted(set(sub_of.tolist()))

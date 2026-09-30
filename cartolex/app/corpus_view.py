@@ -259,7 +259,7 @@ def texts(project: Project, cache: Any = None) -> list[dict[str, Any]]:
         for a in _rows(project, "authorships", ["text_id", "person_id"]):
             people[a["text_id"]].append(a["person_id"])
         rows = _rows(project, "texts")
-        copy_of = duplicate_copies(rows, people)
+        copy_of = duplicate_copies(rows, people, **same_work)
         out = []
         for t in rows:
             tp = parts.get(t["text_id"], [])
@@ -292,19 +292,46 @@ def texts(project: Project, cache: Any = None) -> list[dict[str, Any]]:
             )
         return out
 
-    return _cached(cache, ("texts", stamp(project)), compute)
+    same_work = _same_work(project)
+    return _cached(cache, ("texts", stamp(project), *same_work.values()), compute)
 
 
-def duplicate_copies(rows: list[dict[str, Any]], people: Mapping[str, list[str]]) -> dict[str, str]:
+def _same_work(project: Project) -> dict[str, int]:
+    """How ``corpus.assemble`` finds two texts to be one work: its parameters in
+    ``params.json``, else their defaults."""
+    from cartolex.project.corpus import DUPLICATE_MIN_TITLE, DUPLICATE_YEAR_GAP
+
+    try:
+        params, _ = project.read_params()
+        given = params.stages.get("corpus.assemble") or {}
+    except Exception:  # an unreadable params.json: the build refuses it with its reasons
+        given = {}
+    out = {"min_title": DUPLICATE_MIN_TITLE, "year_gap": DUPLICATE_YEAR_GAP}
+    for key, name in (("min_title", "duplicate_min_title"), ("year_gap", "duplicate_year_gap")):
+        value = given.get(name)
+        if isinstance(value, int) and not isinstance(value, bool):
+            out[key] = value
+    return out
+
+
+def duplicate_copies(
+    rows: list[dict[str, Any]],
+    people: Mapping[str, list[str]],
+    *,
+    min_title: int | None = None,
+    year_gap: int | None = None,
+) -> dict[str, str]:
     """The texts the corpus reads once with another (copy → the text read), as
-    ``corpus.assemble`` groups them (:func:`cartolex.project.corpus.duplicate_groups`):
-    a preprint whose published version is in the tables is left aside first."""
+    ``corpus.assemble`` groups them (:func:`cartolex.project.corpus.duplicate_groups`, with its
+    *min_title* and *year_gap*): a preprint whose published version is in the tables is left
+    aside first."""
     from cartolex.project.corpus import duplicate_groups, version_rank
 
     ids = {t["text_id"] for t in rows}
     meta = {t["text_id"]: t for t in rows if not (t["version_of"] and t["version_of"] in ids)}
+    rules = {k: v for k, v in (("min_title", min_title), ("year_gap", year_gap)) if v is not None}
     out: dict[str, str] = {}
-    for group in duplicate_groups(meta, people):
+    for group in duplicate_groups(meta, people, **rules):
         keep = min(group, key=lambda t: (version_rank(meta[t]["doc_type"]), t))
         out.update({t: keep for t in group if t != keep})
     return out

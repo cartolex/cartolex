@@ -84,7 +84,7 @@ class ThemesViews:
             return list(self.json("baseline/levels.json")["items"])[:n]  # type: ignore[attr-defined]
         from cartolex.lexicon.theme_comb import tree_levels
 
-        _, found = tree_levels(self.tree, self.terms, self.D)
+        _, found = tree_levels(self.tree, self.terms, self.D, options=self.comb)  # type: ignore[attr-defined]
         return [
             {"keyword": x.keyword, "node": x.node, "to": x.to, "share": x.share, "texts": x.texts}
             for x in found

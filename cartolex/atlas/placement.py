@@ -234,14 +234,17 @@ def place(
 
 @dataclass(frozen=True)
 class MapAnchors:
-    """A finished map's anchors: their vectors in the SVD space and their positions."""
+    """A finished map's anchors: their vectors in the SVD space and their positions, and the
+    neighbours (*k*) and link radius a point is placed with."""
 
     vectors: np.ndarray  # (n, dims)
     xy: np.ndarray  # (n, 2)
+    k: int = K
+    link_radius: float = LINK_RADIUS
 
     def place(self, vectors: np.ndarray) -> np.ndarray:
         """The map positions of *vectors* (``(n, 2)``; no rows give ``(0, 2)``)."""
         vectors = np.asarray(vectors, dtype=np.float64)
         if vectors.size == 0:
             return np.zeros((0, 2))
-        return place(vectors, self.vectors, self.xy).xy
+        return place(vectors, self.vectors, self.xy, k=self.k, link_radius=self.link_radius).xy

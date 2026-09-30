@@ -34,6 +34,7 @@ def _spec(spec: Any) -> dict[str, Any]:
         "choices": list(spec.choices) if spec.choices is not None else None,
         "nullable": spec.nullable,
         "items": list(spec.items) if spec.items else None,
+        "section": spec.section or None,
     }
 
 
@@ -86,9 +87,14 @@ def params_view(runtime: Any, project: Any) -> dict[str, Any]:
                 "default_value": baseline[name].value if name in baseline else None,
                 "differs": name in baseline and pv.value != baseline[name].value,
                 "last_run": None if last is None else last.value,
+                # a parameter the last run did not record, at its default, is what that
+                # run did (a parameter a newer cartolex declares)
                 "changed_since_last_run": None
                 if record is None
-                else (last is None or last.value != pv.value),
+                else (
+                    (last is None and pv.source != "default")
+                    or (last is not None and last.value != pv.value)
+                ),
             }
             if name in specs:
                 entry.update(_spec(specs[name]))
