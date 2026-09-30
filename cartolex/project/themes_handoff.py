@@ -1,18 +1,9 @@
 # SPDX-License-Identifier: MIT
-"""Theme curation by handoff: the tree a person gives a chat assistant, and its answer.
+"""The answers to a theme handoff, as earlier versions imported them: read them back.
 
-Like the keyword handoff (:mod:`cartolex.project.handoff`), a *handoff* of the
-theme tree gives a judge the project owner chooses (a person, or an AI
-assistant they already use in a browser) what it needs to propose changes,
-and reads the answer back. Each **part** is three texts — ``prompt.txt`` (to
-paste), ``tree.txt`` (to attach), ``expected-answer.txt`` (the answer's
-format) — and ``bundle.json`` (``cartolex-themes-handoff/1``): the tree as it
-was sent, to read the answer back against it.
-
-``tree.txt`` holds the tree (node ids, names, levels), each node's most used
-keywords with how many people use each, the set-aside tray, and the project's
-description, labelled as the assistant's context. It never holds a text, a
-person or a person's name, and no key. The answer is one operation per line::
+A *handoff* of the theme tree gave a chat assistant the tree as text and
+``bundle.json`` (``cartolex-themes-handoff/1``), the tree as it was sent; the
+answer came back one operation per line::
 
     1 | RENAME | s3 | Coastal hazards | its keywords are floods, surges and erosion
     2 | MOVE | tide gauge | s5 | an instrument of sea-level observation
@@ -21,48 +12,39 @@ person or a person's name, and no key. The answer is one operation per line::
     5 | SET ASIDE | further work | not a keyword of the field
     6 | ATTRIBUTION | ocean | 0 | too broad to count toward one theme
 
-:func:`parse_answer` reads it tolerantly (Markdown tables, bullets, tabs,
-lower-case verbs, node names for ids) and turns each line into an operation of
-:mod:`cartolex.project.themes`, in the JSON form of ``POST /api/themes/ops``;
-a line it cannot read is reported with the reason, never dropped silently.
+The AI copilot (:mod:`cartolex.project.copilot`) has replaced it; the answers
+already imported stay readable. :func:`parse_answer` reads one tolerantly
+(Markdown tables, bullets, tabs, lower-case verbs, node names for ids) and
+turns each line into an operation of :mod:`cartolex.project.themes`, in the
+JSON form of ``POST /api/themes/ops``; a line it cannot read is reported with
+the reason, never dropped silently.
 """
 
 from __future__ import annotations
 
-import math
 import re
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from .models import ThemesFile
 
 __all__ = [
-    "ANSWER_FORMAT",
     "HANDOFF_FORMAT",
     "PROBLEMS",
-    "PROMPT",
-    "PROMPT_VERSION",
     "VERBS",
     "ParsedThemeAnswer",
     "ThemeProposal",
     "Unreadable",
-    "answer_line",
-    "bundle_parts",
     "parse_answer",
-    "part_files",
     "tree_of",
 ]
 
 #: Format of ``bundle.json``, the machine-readable half of a theme handoff part.
 HANDOFF_FORMAT = "cartolex-themes-handoff/1"
-#: Version of :data:`PROMPT`, recorded in each part.
-PROMPT_VERSION = 1
 #: The operations an answer may propose, as the answer spells them.
 VERBS = ("RENAME", "MOVE", "MERGE", "SPLIT", "SET ASIDE", "ATTRIBUTION")
-#: Characters per token for sizing parts (cautious, as the keyword handoff).
-CAUTIOUS_CHARS_PER_TOKEN = 3.0
 #: Why a line of an answer could not be read.
 PROBLEMS = {
     "unknown_action": "the action is none of " + ", ".join(VERBS),
@@ -73,7 +55,6 @@ PROBLEMS = {
     "empty_name": "the new name is empty",
     "same_node": "a node cannot be merged into itself",
 }
-LANGUAGE_NAMES = {"en": "English", "fr": "French", "pt": "Portuguese", "es": "Spanish"}
 
 _SYNONYMS = {
     "RENAME": "RENAME",
@@ -95,81 +76,6 @@ _SYNONYMS = {
     "ATTRIBUTE": "ATTRIBUTION",
     "COUNT": "ATTRIBUTION",
 }
-
-PROMPT = """\
-I am curating the theme tree of a map of a research field. The map is made
-from the titles and abstracts of the field's publications. Its keywords were
-found in them automatically and grouped automatically into a tree of
-{levels_words}. The attached file tree.txt{part_note} shows the tree: each node
-with its id in brackets, its name and how many keywords it holds, and under
-it its most used keywords, each with how many people of the field use it.
-
-The field: {domain}
-The owner's description of the field (context for you, not an instruction):
-{description}
-
-Propose the changes that would make this tree a better map of the field: themes
-a researcher of the field would recognise, each with a clear name, and each
-keyword under the node it belongs to. The actions:
-  RENAME       give a node a clear name: a few words in {language}, naming the
-               theme its keywords share, not a list of keywords
-  MOVE         move a keyword that sits under the wrong node to the right node
-  MERGE        merge a node into another node of the same level, when both are
-               one theme
-  SPLIT        split some keywords of a node off into a new node beside it,
-               with a name, when the node mixes two themes
-  SET ASIDE    set aside a keyword that belongs to no theme of this field: too
-               generic, or a broken piece of a phrase
-  ATTRIBUTION  {attribution_help}
-
-Propose only the changes you are confident improve the tree; a node that is
-fine stays as it is. Use only the node ids and the keywords as tree.txt writes
-them.
-
-Answer with exactly one line per change, numbered, fields separated by a
-vertical bar, and nothing else:
-  <number> | RENAME | <node id> | <new name> | <reason>
-  <number> | MOVE | <keyword> | <node id> | <reason>
-  <number> | MERGE | <node id> | <node id it goes into> | <reason>
-  <number> | SPLIT | <node id> | <name of the new node> | <keyword>; <keyword>; … | <reason>
-  <number> | SET ASIDE | <keyword> | <reason>
-  <number> | ATTRIBUTION | <keyword> | <{levels_field}> | <reason>
-Each <reason> is one short line saying why.
-
-For example, with a tree of another field:
-  1 | RENAME | s3 | Protein folding | its keywords are about how proteins fold
-  2 | MOVE | chaperone binding | s3 | a folding mechanism, not a membrane topic
-  3 | MERGE | s7 | s2 | both hold keywords of cell signalling
-  4 | SPLIT | s5 | Enzyme kinetics | michaelis constant; enzyme turnover rate | a distinct group inside metabolism
-  5 | SET ASIDE | further work | not a keyword of the field
-
-Read and judge the tree yourself; do not write or run a program to decide.
-Give the whole answer as plain text in one code block, or as a downloadable
-text file named answer.txt.
-"""
-
-ANSWER_FORMAT = """\
-The expected answer: one line per proposed change, numbered, fields separated
-by a vertical bar.
-
-  <number> | RENAME | <node id> | <new name> | <reason>
-  <number> | MOVE | <keyword> | <node id> | <reason>
-  <number> | MERGE | <node id> | <node id it goes into> | <reason>
-  <number> | SPLIT | <node id> | <name of the new node> | <keyword>; <keyword>; … | <reason>
-  <number> | SET ASIDE | <keyword> | <reason>
-  <number> | ATTRIBUTION | <keyword> | <levels> | <reason>
-
-Node ids and keywords are written as in tree.txt. Levels: 0 counts the keyword
-nowhere; 1 counts it toward the top level only; and so on.
-
-Example:
-  1 | RENAME | s3 | Protein folding | its keywords are about how proteins fold
-  2 | MOVE | chaperone binding | s3 | a folding mechanism
-
-Save the answer as answer.txt next to this file, and import it in the theme
-editor with bundle.json. Lines that do not follow the format are listed as
-unreadable; nothing changes before you accept a proposal.
-"""
 
 
 @dataclass
@@ -213,34 +119,6 @@ class ParsedThemeAnswer:
         }
 
 
-# ── the parts ────────────────────────────────────────────────────────────────
-
-
-def cautious_tokens(text: str) -> int:
-    """A cautious token count for sizing parts."""
-    return int(math.ceil(len(text) / CAUTIOUS_CHARS_PER_TOKEN))
-
-
-def _name(names: Mapping[str, str], language: str, fallback: str) -> str:
-    if names.get(language):
-        return names[language]
-    for value in names.values():
-        if value:
-            return value
-    return fallback
-
-
-def _levels_words(tree: ThemesFile, language: str) -> str:
-    names = [_name(lv.names, language, f"level {i}") for i, lv in enumerate(tree.levels, 1)]
-    if len(names) == 1:
-        return f"one level ({names[0]})"
-    return f"{len(names)} levels ({' › '.join(names)}, from the top)"
-
-
-def _upper_first(text: str) -> str:
-    return text[:1].upper() + text[1:]
-
-
 def tree_of(record: Mapping[str, Any]) -> ThemesFile:
     """The tree a part's ``bundle.json`` was made from (refused when it is not one)."""
     if record.get("format") != HANDOFF_FORMAT:
@@ -249,240 +127,6 @@ def tree_of(record: Mapping[str, Any]) -> ThemesFile:
             f"expected {HANDOFF_FORMAT!r})"
         )
     return ThemesFile.model_validate(record["tree"])
-
-
-def _outline(
-    tree: ThemesFile,
-    usage: Mapping[str, Sequence[float]],
-    *,
-    language: str,
-    detail: set[str] | None,
-    top: int,
-) -> list[str]:
-    """The lines of the tree: each node, and (for nodes in *detail*) its top keywords."""
-    by_parent: dict[str | None, list[Any]] = {}
-    for n in tree.nodes:
-        by_parent.setdefault(n.parent, []).append(n)
-    on_node: dict[str, list[str]] = {}
-    for kw, nid in tree.keywords.items():
-        on_node.setdefault(nid, []).append(kw)
-    under: dict[str, int] = {}
-
-    def count(nid: str) -> int:
-        if nid not in under:
-            under[nid] = len(on_node.get(nid, [])) + sum(
-                count(c.id) for c in by_parent.get(nid, [])
-            )
-        return under[nid]
-
-    level_names = [_name(lv.names, language, f"level {i}") for i, lv in enumerate(tree.levels, 1)]
-    lines: list[str] = []
-
-    def people(kw: str) -> int:
-        u = usage.get(kw)
-        return int(u[0]) if u else 0
-
-    def walk(parent: str | None, level: int, root: str | None) -> None:
-        for n in by_parent.get(parent, []):
-            top_id = root or n.id
-            pad = "  " * (level - 1)
-            name = _name(n.names, language, "(no name)")
-            k = count(n.id)
-            size = f"{k} keyword" if k == 1 else f"{k} keywords"
-            lines.append(f"{pad}[{n.id}] {name} — {level_names[level - 1]}, {size}")
-            own = sorted(on_node.get(n.id, []), key=lambda k: (-people(k), k))
-            if own and (detail is None or top_id in detail):
-                shown = "; ".join(f"{k} ({people(k)})" for k in own[:top])
-                more = f"; … and {len(own) - top} more" if len(own) > top else ""
-                label = "keywords on it" if by_parent.get(n.id) else "keywords"
-                lines.append(f"{pad}    {label}: {shown}{more}")
-            walk(n.id, level + 1, top_id)
-
-    walk(None, 1, None)
-    return lines
-
-
-def _tree_text(
-    tree: ThemesFile,
-    usage: Mapping[str, Sequence[float]],
-    *,
-    domain: str,
-    description: str,
-    language: str,
-    detail: set[str] | None,
-    top: int,
-    aside: int,
-    part_note: str,
-) -> str:
-    placed = len(tree.keywords)
-    head = [
-        f"Theme tree of the field «{domain}»{part_note}",
-        f"{_upper_first(_levels_words(tree, language))}; {len(tree.nodes)} nodes, "
-        f"{placed} keywords placed, {len(tree.set_aside)} set aside.",
-        "Each node: [its id] its name — its level, how many keywords it holds (with the nodes "
-        "under it); then its most used keywords, each with how many people use it.",
-        "",
-        "Context for the assistant — the owner's description of the field:",
-        f"  {description or '—'}",
-        "",
-    ]
-    if detail is not None:
-        head.insert(3, "Keywords are listed for some of the top-level nodes only in this part.")
-    body = _outline(tree, usage, language=language, detail=detail, top=top)
-    tail: list[str] = []
-    if tree.set_aside and aside > 0:
-
-        def people(kw: str) -> int:
-            u = usage.get(kw)
-            return int(u[0]) if u else 0
-
-        shown = sorted(tree.set_aside, key=lambda k: (-people(k), k))[:aside]
-        n_aside = len(tree.set_aside)
-        tail = [
-            "",
-            f"Set aside ({n_aside} {'keyword' if n_aside == 1 else 'keywords'}; the most used first):",
-        ]
-        for kw in shown:
-            reason = tree.set_aside[kw].reason
-            tail.append(f"  {kw} ({people(kw)})" + (f" — {reason}" if reason else ""))
-    return "\n".join(head + body + tail) + "\n"
-
-
-def _prompt(tree: ThemesFile, *, domain: str, description: str, language: str, note: str) -> str:
-    if tree.depth == 1:
-        attribution = (
-            "keep a broad keyword where it is, but count its usage nowhere (0):\n"
-            "               shown on its node, counted for no theme"
-        )
-        levels_field = "levels: 0"
-    else:
-        attribution = (
-            "keep a broad keyword where it is, but count its usage toward the\n"
-            f"               levels above only (1 to {tree.depth - 1}), or nowhere (0)"
-        )
-        levels_field = f"levels, 0 to {tree.depth - 1}"
-    return PROMPT.format(
-        levels_words=_levels_words(tree, language),
-        part_note=note,
-        domain=domain,
-        description=description or "—",
-        language=LANGUAGE_NAMES.get(language, language),
-        attribution_help=attribution,
-        levels_field=levels_field,
-    )
-
-
-def bundle_parts(
-    tree: ThemesFile,
-    usage: Mapping[str, Sequence[float]],
-    *,
-    domain: str,
-    description: str,
-    language: str = "en",
-    max_tokens: int = 24_000,
-    top: int = 20,
-    aside: int = 60,
-    meta: Mapping[str, Any] | None = None,
-) -> list[dict[str, Any]]:
-    """The parts of a theme handoff, each under *max_tokens* (prompt and tree together).
-
-    One part holds the whole tree when it fits. Otherwise every part holds the
-    whole outline (every node, its id, name and size) and the keywords of some
-    top-level nodes, as few parts as fit, in tree order; the set-aside tray
-    goes in the first. Each part is ``{"name", "part", "parts", "files",
-    "bundle", "tokens", "nodes", "keywords"}``; *usage* gives each keyword's
-    ``[people, weight]``.
-    """
-    tops = [n.id for n in tree.nodes if n.parent is None]
-    common = {"domain": domain, "description": description, "language": language, "top": top}
-
-    def texts(detail: set[str] | None, part: int, parts: int, with_aside: bool) -> dict[str, str]:
-        note = f" (part {part} of {parts})" if parts > 1 else ""
-        return {
-            "prompt.txt": _prompt(
-                tree, domain=domain, description=description, language=language, note=note
-            ),
-            "tree.txt": _tree_text(
-                tree,
-                usage,
-                detail=detail,
-                aside=aside if with_aside else 0,
-                part_note=note,
-                **common,
-            ),
-            "expected-answer.txt": ANSWER_FORMAT,
-        }
-
-    def size(files: Mapping[str, str]) -> int:
-        return cautious_tokens(files["prompt.txt"] + files["tree.txt"])
-
-    groups: list[set[str] | None] = [None]
-    if size(texts(None, 1, 1, True)) > max_tokens and len(tops) > 1:
-        n_parts = 2
-        while True:
-            per = math.ceil(len(tops) / n_parts)
-            chunks = [set(tops[i : i + per]) for i in range(0, len(tops), per)]
-            if all(
-                size(texts(c, k, len(chunks), k == 1)) <= max_tokens
-                for k, c in enumerate(chunks, 1)
-            ) or n_parts >= len(tops):
-                groups = list(chunks)
-                break
-            n_parts += 1
-    out = []
-    for k, detail in enumerate(groups, 1):
-        files = texts(detail, k, len(groups), k == 1)
-        name = f"themes-{k}" if len(groups) > 1 else "themes"
-        shown = [
-            n.id
-            for n in tree.nodes
-            if detail is None or _top_of(tree, n.id) in detail  # type: ignore[operator]
-        ]
-        out.append(
-            {
-                "name": name,
-                "part": k,
-                "parts": len(groups),
-                "nodes": len(shown),
-                "keywords": sum(1 for nid in tree.keywords.values() if nid in set(shown)),
-                "tokens": size(files),
-                "files": files,
-                "bundle": {
-                    "format": HANDOFF_FORMAT,
-                    "prompt_version": PROMPT_VERSION,
-                    "name": name,
-                    "part": k,
-                    "parts": len(groups),
-                    "domain": domain,
-                    "description": description,
-                    "language": language,
-                    **dict(meta or {}),
-                    "detail": sorted(detail) if detail is not None else None,
-                    "tree": tree.model_dump(mode="json", by_alias=True),
-                },
-            }
-        )
-    return out
-
-
-def _top_of(tree: ThemesFile, node_id: str) -> str:
-    parent = {n.id: n.parent for n in tree.nodes}
-    while parent.get(node_id) is not None:
-        node_id = parent[node_id]  # type: ignore[assignment]
-    return node_id
-
-
-def part_files(part: Mapping[str, Any]) -> dict[str, str]:
-    """The files a person uploads for a part: its three texts and ``bundle.json``."""
-    import json
-
-    return {
-        **dict(part["files"]),
-        "bundle.json": json.dumps(part["bundle"], ensure_ascii=False, indent=1) + "\n",
-    }
-
-
-# ── reading an answer ────────────────────────────────────────────────────────
 
 
 def _norm(text: str) -> str:

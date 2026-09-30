@@ -102,7 +102,7 @@ and `cartolex.app` is the web app on top of both (`docs/dev/api.md`):
 | `app.security`, `app.routing`, `app.auth` | the launch link and sessions, the host check, CSRF, the response headers; the guard that calls `authorize` on every route |
 | `app.jobs` | `JobRunner` and the local thread runner; job logs, interrupted jobs |
 | `app.collection`, `app.share` | the collection and site builder protocols, with stand-ins |
-| `app.routes.*` | the API of the screens: state, build, parameters, map versions, snapshots, people, collection, sources, keywords, themes, atlas, share, settings, handoff |
+| `app.routes.*` | the API of the screens: state, build, parameters, map versions, snapshots, people, collection, sources, keywords, themes, atlas, share, settings, the AI copilot and its proposals |
 | `app.server` | `cartolex app` / `cartolex api`: uvicorn on a free loopback port, JSON logs |
 
 ## Layering rules

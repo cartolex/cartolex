@@ -85,14 +85,6 @@ def test_open_dialogs_drawers_and_menus_have_no_serious_violation(ui, axe_source
     ui.page.add_init_script(prefs_script(theme=theme))
     ui.open("/gallery")
     page = ui.page
-    for step in ("Export for an assistant", "Open at the answer", "Open at the review"):
-        page.get_by_role("button", name=step).click()
-        dialog = page.locator("dialog[open]")
-        dialog.wait_for()
-        problems = blocking(run_axe(ui, axe_source, "dialog[open]"))
-        assert problems == [], f"handoff, {step}:\n" + "\n".join(problems)
-        page.keyboard.press("Escape")
-        dialog.wait_for(state="hidden")
     page.locator(".cx-header .cx-activity-indicator").click()
     page.locator("dialog[open]").wait_for()
     problems = blocking(run_axe(ui, axe_source, "dialog[open]"))

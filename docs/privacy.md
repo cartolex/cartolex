@@ -42,9 +42,9 @@ sends for them is what it sends for anyone. After a collection, the job's
 record in `logs/jobs/` names every host contacted and the kinds of data sent,
 never a name or an identifier.
 
-**Files you give an AI assistant yourself.** The AI handoff and the AI
-copilot make files you give, if you choose, to an assistant you already use;
-cartolex sends nothing. Both say what they hold before you download them. The
+**Files you give an AI assistant yourself.** The AI copilot makes a file you
+give, if you choose, to an assistant you already use; cartolex sends nothing.
+It says what it holds before you download it. The
 copilot's bundle holds the keywords or the theme tree, the keywords' vectors
 and each person's usage as numbered rows in a random order: never a name, an
 identifier, an organisation or a text; a keyword that holds a person's name

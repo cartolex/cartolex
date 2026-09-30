@@ -141,42 +141,21 @@ map itself refresh when the apply ends, and the editor says so under the map
 and in the side panel. The keywords' places, their colours on the map and
 the treemap's areas follow each edit at once.
 
-## AI curation through the theme handoff
+## Curate with AI
 
-« More › AI curation… » exports the tree being edited
-(`POST /api/themes/handoff/export`; the format is in {doc}`api`): the
-instructions to paste, `tree.txt` to attach, `bundle.json` to keep. The
-answer, pasted or opened, is read back (`POST /api/themes/handoff/import`,
-kept in `decisions/history/ai/`), and shown as a list: each operation with the
-assistant's reason, those that cannot apply to the tree with why, the lines
-that could not be read. The person chooses, previews the chosen ones on the
-tree (read-only), and applies them: one step of the undo list.
+« Curate with AI », in the editor's header, opens the copilot's dialog
+({doc}`copilot`): the tree being edited, unsaved edits included, goes into a
+bundle an assistant that runs code works from on its own, with the tree's
+levels and measures, the curator's standing rules and cartolex's kit. Its
+`result.json` comes back through the same dialog (or a result imported before
+is opened again), and is shown as a list: each change with the assistant's
+reason, those that cannot apply to the tree with why. The person chooses,
+previews the chosen ones on the tree (read-only), and applies them: they are
+saved at once, as a version whose action starts with `ai-copilot:`.
 
-**The blind test.** `tools/themes_handoff_lab.py bundle FOLDER` writes the
-handoff of the S demo world's proposal (one level, 15 themes, 454 keywords;
-about 4 000 tokens); a fresh assistant that saw only the instructions and
-`tree.txt` answered; `tools/themes_handoff_lab.py score FOLDER` scores each
-operation, applied alone, against the world's known themes (a keyword's
-theme is the primary theme of most works that use it):
-
-| action | proposed | improves | neutral | worsens |
-| --- | --- | --- | --- | --- |
-| rename | 9 | 7 | 1 | 1 |
-| move | 48 | 13 | 32 | 3 |
-| merge | 6 | 6 | 0 | 0 |
-| split | 1 | 0 | 0 | 1 |
-| set aside | 51 | 35 | 5 | 11 |
-| attribution (nowhere) | 21 | 9 | 8 | 4 |
-| all | 136 | 70 (51 %) | 46 (34 %) | 20 (15 %) |
-
-Every line was read (none unreadable) and every operation applied. Applying
-them all, in order, raises the B-cubed F1 of the top level against the known
-themes from 0.548 to 0.679, and leaves 10 top-level nodes for the world's 12
-themes. The neutral moves are mostly of keywords the world spreads over
-several themes; what worsens is setting aside or counting nowhere keywords
-that do belong to one theme. The assistant sets aside too much (51 keywords,
-11 of them wrongly): the prompt's wording on setting aside is left for the
-step that works on the AI handoff.
+Earlier versions also offered a *handoff* (instructions and the tree as text
+to paste in a chat, the answer pasted back); the answers they imported stay
+readable ({doc}`api`), and open in the same review.
 
 ## Components
 

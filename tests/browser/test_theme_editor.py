@@ -4,7 +4,7 @@
 The main flows only, each from a fresh copy of the built project: search and
 rename, undo and redo, move by the menu, merge, split, set aside and put back,
 a draft restored after a reload, a save refused (412) then reloaded and
-merged, apply in the background, and the AI handoff imported and accepted.
+merged, apply in the background, and an AI copilot's result reviewed, applied and saved.
 Then a keyboard script of the menu actions, axe in one theme, and one budget
 on the L world: page ready and search.
 """
@@ -422,44 +422,59 @@ def test_apply_runs_in_the_background(editor):
     assert page.locator(".cx-themes-legend li").count() >= 5
 
 
-def test_ai_handoff_export_import_and_accept(editor):
+def copilot_result(changes: list[tuple[str, list[dict], str]]) -> str:
+    """A themes result of the copilot, as the kit writes it: its path."""
+    import json
+    import tempfile
+    from pathlib import Path
+
+    doc = {
+        "format": "cartolex-copilot-result/1",
+        "task": "themes",
+        "bundle": "b1",
+        "changes": [{"kind": k, "ops": ops, "reason": why} for k, ops, why in changes],
+        "notes": "Two themes to look at first.",
+    }
+    path = Path(tempfile.mkdtemp()) / "result.json"
+    path.write_text(json.dumps(doc), encoding="utf-8")
+    return str(path)
+
+
+def test_ai_copilot_result_previewed_applied_and_saved(editor):
     ui = editor
     page = ui.page
     t = tree(ui)
     tops = [n for n in t["nodes"] if n["parent"] is None]
     kws = sorted(t["keywords"])
-    page.locator(".cx-themes__toolbar").get_by_role("button", name="More").click()
-    menu_item(ui, "AI curation…").click()
+    page.locator(".cx-themes__ai").click()
     d = dialog(ui)
-    d.get_by_text("One part holds the whole tree").wait_for()
-    assert d.get_by_role("button", name="Copy the instructions").count() == 1
-    d.get_by_role("button", name="I have the answer").click()
-    answer = "\n".join(
+    d.get_by_role("button", name="Download the bundle").wait_for()
+    d.get_by_role("button", name="I have the result").click()
+    result = copilot_result(
         [
-            f"1 | RENAME | {tops[0]['id']} | Coastal climate records | its keywords are archives",
-            f"2 | MOVE | {kws[0]} | {tops[1]['id']} | belongs there",
-            f"3 | SET ASIDE | {kws[3]} | too general",
-            "4 | MERGE | nowhere | nothing | no such node",
-            "A closing sentence.",
+            ("rename", [{"op": "rename_node", "node_id": tops[0]["id"],
+                         "names": {"en": "Coastal climate records"}}], "its keywords are archives"),
+            ("move", [{"op": "move_keywords", "keywords": [kws[0]], "node_id": tops[1]["id"]}],
+             "belongs there"),
+            ("set_aside", [{"op": "set_aside", "keywords": [kws[3]], "reason": "AI: too general"}],
+             "too general"),
+            ("merge", [{"op": "merge_nodes", "source": "nowhere", "target": tops[1]["id"]}],
+             "no such node"),
         ]
-    )
-    d.locator("textarea").fill(answer)
-    d.get_by_role("button", name="Read the answer").click()
-    d.get_by_text("The answer proposes 3 changes").wait_for()
-    assert "1 line could not be read" in d.inner_text()
+    )  # fmt: skip
+    d.locator("input[type=file]").set_input_files(result)
+    d.locator(".cx-themes-ai__item").first.wait_for()
+    assert "Cannot be applied" in d.inner_text()
     d.locator(".cx-themes-ai__item").nth(2).locator("input[type=checkbox]").uncheck()
     d.get_by_role("button", name="Preview on the tree").click()
     preview = page.locator(".cx-themes-banner", has_text="Preview of 2 proposed changes")
     preview.wait_for()
     assert row(ui, "Coastal climate records").count() == 1
-    preview.get_by_role("button", name="Apply 2 changes").click()
+    preview.get_by_role("button", name="Apply 2 changes and save").click()
     page.locator(".cx-toast", has_text="2 proposed changes applied").wait_for()
-    wait_status(ui, "1 unsaved change")
-    assert undo_label(ui) == "Undo: Apply 2 AI proposals"
-    page.keyboard.press("Control+z")
-    wait_status(ui, "proposal")
+    wait_status(ui, "Saved")
     proposals = api(ui, "GET", "/api/themes/handoff/proposals")["data"]["items"]
-    assert len(proposals) == 1
+    assert len(proposals) == 1 and "-copilot-themes" in proposals[0]["id"]
 
 
 def test_every_action_by_the_keyboard_alone(editor):
@@ -623,11 +638,10 @@ def test_the_editor_and_its_dialogs_have_no_serious_violation(
     page.locator(".cx-map-frame__canvas").wait_for()
     problems = blocking(run_axe(ui, axe_source))
     assert problems == [], "map:\n" + "\n".join(problems)
-    page.locator(".cx-themes__toolbar").get_by_role("button", name="More").click()
-    menu_item(ui, "AI curation…").click()
-    dialog(ui).get_by_text("One part holds the whole tree").wait_for()
+    page.locator(".cx-themes__ai").click()
+    dialog(ui).get_by_role("button", name="Download the bundle").wait_for()
     problems = blocking(run_axe(ui, axe_source, "dialog[open]"))
-    assert problems == [], "AI handoff:\n" + "\n".join(problems)
+    assert problems == [], "AI copilot:\n" + "\n".join(problems)
 
 
 # ── the budget on the L world ────────────────────────────────────────────────
@@ -807,20 +821,21 @@ def _states(ui, out, suffix: str) -> None:
     page.wait_for_function("() => document.querySelectorAll('dialog[open]').length === 1")
     page.keyboard.press("Escape")
     closed()
-    toolbar.locator(".cx-menubutton button").nth(1).click()
-    page.locator('[role=menu] [data-item="ai"]').click()
-    dialog(ui).locator(".cx-themes-ai__part").wait_for()
-    shot("handoff")
+    page.locator(".cx-themes__ai").click()
+    dialog(ui).locator(".cx-handoff__actions button").wait_for()
+    shot("copilot")
     dialog(ui).locator(".cx-dialog__footer button").nth(1).click()
-    answer = "\n".join(
+    result = copilot_result(
         [
-            f"1 | RENAME | {tops[2]['id']} | Coastal observation | clearer",
-            f"2 | MERGE | {tops[3]['id']} | {tops[4]['id']} | one theme",
-            f"3 | MOVE | nope | {tops[0]['id']} | x",
+            ("rename", [{"op": "rename_node", "node_id": tops[2]["id"],
+                         "names": {"en": "Coastal observation"}}], "clearer"),
+            ("merge", [{"op": "merge_nodes", "source": tops[3]["id"], "target": tops[4]["id"]}],
+             "one theme"),
+            ("move", [{"op": "move_keywords", "keywords": ["nope"], "node_id": tops[0]["id"]}],
+             "x"),
         ]
-    )
-    dialog(ui).locator("textarea").fill(answer)
-    dialog(ui).locator(".cx-dialog__footer button").nth(1).click()
+    )  # fmt: skip
+    dialog(ui).locator("input[type=file]").set_input_files(result)
     dialog(ui).locator(".cx-themes-ai__item").first.wait_for()
     shot("review")
     dialog(ui).locator(".cx-dialog__footer button").nth(1).click()

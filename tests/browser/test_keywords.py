@@ -3,12 +3,14 @@
 
 Open the screen (its budget of API calls), see the warning of the languages,
 search, select a range and exclude it, find it in the history and undo it,
-then filter with an AI in a browser: export, paste an answer, review, accept
-some, and see the route of the accepted decisions. Axe on the screen and its
+then triage with an AI copilot: the bundle offered, a result (two parts)
+imported, reviewed, some accepted, and the route of the accepted decisions. Axe on the screen and its
 dialog; the review screenshots with ``--ui-screenshots``.
 """
 
 from __future__ import annotations
+
+import json
 
 import pytest
 from test_accessibility import blocking, run_axe
@@ -29,7 +31,7 @@ def api_calls(ui, start: int) -> list[str]:
     return [u for u in urls if "/api/" in u and "/api/jobs" not in u]
 
 
-def test_bands_bulk_history_and_the_ai_handoff(keywords, axe_source):
+def test_bands_bulk_history_and_the_ai_copilot(keywords, axe_source, tmp_path):
     ui = keywords
     page = ui.page
     start = len(ui.collected.requests)
@@ -66,44 +68,54 @@ def test_bands_bulk_history_and_the_ai_handoff(keywords, axe_source):
     assert api(ui, "GET", "/api/keywords?decision=exclude")["data"]["total"] == 2
     page.keyboard.press("Escape")
     drawer.wait_for(state="detached")
-    # the AI in a browser: export the kept and to-check keywords, in parts
-    page.get_by_role("button", name="Filter with an AI").first.click()
-    page.get_by_role("menuitem", name="In a chat assistant (no key)…").click()
+    # the AI copilot: the bundle is offered; two results (two parts) come back, merged
+    page.get_by_role("button", name="Triage with AI").first.click()
+    page.get_by_role("menuitem", name="With an AI copilot (runs code, no key)…").click()
     d = page.locator("dialog[open]")
-    d.locator(".cx-kw-part").first.wait_for()
-    assert d.get_by_role("button", name="Copy the text to paste").count() >= 1
+    d.locator("a[download]").wait_for()
     blocking_ = blocking(run_axe(ui, axe_source, "dialog[open]"))
     assert blocking_ == [], blocking_
-    exported = api(ui, "POST", "/api/handoff/export", {"bands": ["kept", "check"], "limit": 20000})
-    items = exported["data"]["parts"][0]["bundle"]["items"]
-    d.get_by_role("button", name="I have the answer").click()
-    fr = next(it for it in items[3:] if it["lang"] == "fr")
-    en = next(it for it in items if it["lang"] == "en")
-    answer = "\n".join(
-        [
-            f"1 | C | {items[0]['term']}",
-            f"2 | G | {items[1]['term']}",
-            f"3 | F | {items[2]['term']}",
-            f"{fr['number']} | C | {fr['term']} | {en['term']}",
-            "Here is the whole answer.",
-        ]
+    rows = api(ui, "GET", "/api/keywords?band=aside&lang=en&limit=4")["data"]["items"]
+    fr = next(
+        r for r in api(ui, "GET", "/api/keywords?band=aside&lang=fr&limit=1")["data"]["items"]
     )
-    d.locator("textarea").fill(answer)
-    d.get_by_role("button", name="Check the answer").click()
+    decisions = [
+        {"term": rows[0]["term"], "language": rows[0]["language"], "decision": "keep",
+         "code": "C", "reason": "family: a concept", "group": "g1", "by": "group"},
+        {"term": rows[1]["term"], "language": rows[1]["language"], "decision": "exclude",
+         "code": "G", "reason": "family: too generic", "group": "g1", "by": "group"},
+        {"term": rows[2]["term"], "language": rows[2]["language"], "decision": "exclude",
+         "code": "F", "reason": "a broken piece", "group": "g2", "by": "term"},
+        {"term": fr["term"], "language": "fr", "decision": "merge", "target": rows[0]["term"],
+         "code": "C", "reason": "its translation", "group": "g3", "by": "term"},
+    ]  # fmt: skip
+    files = []
+    for k, part in enumerate((decisions[:2], decisions[2:]), 1):
+        doc = {"format": "cartolex-copilot-result/1", "task": "triage", "bundle": "b1",
+               "made_at": f"2026-01-01T00:00:0{k}Z", "part": k, "parts": 2, "partial": False,
+               "decisions": part, "rules": ["research discourse: always excluded, sure"],
+               "coverage": {"all": {"candidates": 2, "decided_by_group": 2 - k + 1}},
+               "caveats": {"not_read": {"all": 5}, "read_lightly": ""}, "notes": ""}  # fmt: skip
+        files.append(tmp_path / f"result-part-{k}.json")
+        files[-1].write_text(json.dumps(doc), encoding="utf-8")
+    d.get_by_role("button", name="I have the result").click()
+    d.locator("input[type=file]").set_input_files([str(f) for f in files])
     review = d.get_by_role("grid", name="Proposed decisions")
     review.locator("[role=row][aria-selected]").first.wait_for()
     assert "4 terms have an answer" in d.inner_text()
-    assert f"merged into “{en['term']}”" in d.inner_text()
+    assert f"merged into “{rows[0]['term']}”" in d.inner_text()
+    assert "10 candidates were never shown" in d.inner_text()  # the caveats of both parts
+    assert "research discourse: always excluded, sure" in d.inner_text()
     # leave one out: accept three
     review.locator("[role=row][aria-selected]").nth(2).click(modifiers=["Control"])
     d.get_by_role("button", name="Accept 3 decisions").click()
     page.locator(".cx-toast", has_text="3 AI decisions accepted").wait_for()
-    decided = api(ui, "GET", "/api/keywords?route=ai-handoff")["data"]
+    decided = api(ui, "GET", "/api/keywords?route=ai-copilot")["data"]
     assert decided["total"] == 3
     # the route shows in the list, and the warning is gone
     page.get_by_role("tab", name="Set aside").click()
-    page.get_by_role("combobox", name="Decided by").select_option("ai-handoff")
-    page.get_by_role("grid", name="Set aside").get_by_text("AI · browser").first.wait_for()
+    page.get_by_role("combobox", name="Decided by").select_option("ai-copilot")
+    page.get_by_role("grid", name="Set aside").get_by_text("AI · copilot").first.wait_for()
     assert page.locator(".cx-kw-warning").count() == 0
     assert blocking(run_axe(ui, axe_source)) == []
 
@@ -126,8 +138,8 @@ def test_screenshots_of_the_keywords(demo_s, app_for, open_app, pytestconfig):
         page.screenshot(path=str(out / f"list-{theme}-{locale}.png"))
         page.locator(".cx-corpus__actions .cx-menubutton button").click()
         page.get_by_role("menuitem").first.click()
-        page.locator("dialog[open] .cx-kw-part").first.wait_for()
-        page.screenshot(path=str(out / f"handoff-{theme}-{locale}.png"))
+        page.locator("dialog[open] a[download]").wait_for()
+        page.screenshot(path=str(out / f"copilot-{theme}-{locale}.png"))
         page.keyboard.press("Escape")
         page.locator(".cx-corpus__actions .cx-menubutton button").click()
         page.get_by_role("menuitem").nth(1).click()

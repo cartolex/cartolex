@@ -43,11 +43,7 @@ def test_open_state_screenshots(ui, shots, theme):
     ui.page.add_init_script(prefs_script(theme=theme, locale="en"))
     ui.open("/gallery")
     page = ui.page
-    for label, name in (
-        ("Export for an assistant", "handoff-export"),
-        ("Open at the review", "handoff-review"),
-        ("Open a dialog", "dialog"),
-    ):
+    for label, name in (("Open a dialog", "dialog"),):
         page.get_by_role("button", name=label).click()
         page.locator("dialog[open]").wait_for()
         page.screenshot(path=str(shots / f"{name}-{theme}.png"))

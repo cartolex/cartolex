@@ -1595,32 +1595,6 @@ a.cx-button:hover {
   color: var(--cx-text-muted);
 }
 
-.cx-handoff__preview summary {
-  cursor: pointer;
-  width: fit-content;
-}
-
-.cx-handoff__terms {
-  display: grid;
-  gap: var(--cx-space-1);
-  margin-top: var(--cx-space-2);
-  padding-left: var(--cx-space-5);
-  font-size: var(--cx-text-s);
-}
-
-.cx-handoff__term {
-  font-weight: var(--cx-weight-medium);
-}
-
-.cx-handoff__lang {
-  margin: 0 var(--cx-space-2);
-  padding: 0 var(--cx-space-1);
-  border: var(--cx-rule-width) solid var(--cx-rule);
-  border-radius: var(--cx-radius-s);
-  font-size: var(--cx-text-xs);
-  text-transform: uppercase;
-}
-
 .cx-handoff__evidence,
 .cx-handoff__hint,
 .cx-handoff__status {
@@ -1633,35 +1607,6 @@ a.cx-button:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--cx-space-2);
-}
-
-.cx-handoff__answer {
-  font-family: var(--cx-font-mono);
-  font-size: var(--cx-text-s);
-}
-
-.cx-handoff__summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: var(--cx-space-3);
-}
-
-.cx-handoff__summary div {
-  padding: var(--cx-space-3) var(--cx-space-4);
-  border: var(--cx-rule-width) solid var(--cx-rule);
-  border-radius: var(--cx-radius-m);
-}
-
-.cx-handoff__summary dt {
-  color: var(--cx-text-muted);
-  font-size: var(--cx-text-s);
-}
-
-.cx-handoff__summary dd {
-  margin: 0;
-  font-size: var(--cx-text-2xl);
-  font-weight: var(--cx-weight-bold);
-  font-variant-numeric: tabular-nums;
 }
 
 /* ── Slots ─────────────────────────────────────────────────────────────── */
@@ -1742,6 +1687,42 @@ a.cx-button:hover {
 .cx-copilot__notes {
   max-width: var(--cx-text-width);
   white-space: pre-wrap;
+}
+
+.cx-copilot__note svg {
+  vertical-align: -0.15em;
+  margin-right: var(--cx-space-1);
+}
+
+.cx-copilot__curation {
+  display: grid;
+  gap: var(--cx-space-2);
+  max-width: var(--cx-text-width);
+}
+
+.cx-copilot__curation-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--cx-space-2);
+}
+
+.cx-copilot__caveats {
+  max-width: var(--cx-text-width);
+  padding: var(--cx-space-2) var(--cx-space-3);
+  border-left: 3px solid var(--cx-warning);
+}
+
+.cx-copilot__caveats .cx-copilot__notes-title {
+  display: flex;
+  align-items: center;
+  gap: var(--cx-space-2);
+  margin-top: 0;
+}
+
+.cx-copilot__caveats ul,
+.cx-copilot__rules {
+  margin: var(--cx-space-1) 0 0;
+  padding-left: var(--cx-space-5);
 }
 
 /* ── TreeView ─────────────────────────────────────────────────────────────── */

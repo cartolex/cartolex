@@ -150,8 +150,19 @@ amphipodes`) is a keyword; a single everyday word (`water`, `growth`) is
 not, unless the field uses it as a term of art. Its answers are kept: the
 same candidate is never paid for twice.
 
-A second route is being studied: instead of calling a paid service, export
-the candidates with their evidence — how many people and texts use each one,
-its other spellings, the longer phrases it sits in, its band and reason, a
-line or two where it appears — for a person or an AI assistant to judge, and
-read the answers back.
+**Triage with AI** (the Keywords screen's primary button) offers two routes:
+**by API**, the batches above, with a key; or **with an AI copilot**, without a
+key and without cartolex sending anything. The copilot is a zip you give to an
+assistant that can run code: the candidates with their evidence (how many
+people and texts use each one, its other spellings, the longer phrases it sits
+in, its band and reason, and, if you ask, a line or two where it appears, names
+masked), sorted into groups by cartolex — junk flagged by patterns, families
+that share a head word, the rest by who uses them — and cartolex's own kit.
+The assistant judges a whole group in a line, and term by term only where a
+group is mixed; it keeps its progress on disk, so a large field can be judged
+in several conversations (the bundle can be cut into parts). It asks you twice:
+after its first 200 decisions (does this look right? any standing rules, such
+as « research discourse is always excluded »?) and before handing back. Its
+result comes back as `result.json` (one per part): import it, see what the
+assistant truly read and what it did not, and accept all of it or some. Your
+standing rules are kept in the project, and every later bundle carries them.

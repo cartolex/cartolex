@@ -258,7 +258,7 @@ version, so it can be undone too).
 | `GET /api/atlas/texts` | every text placed on the map, columnar (`cartolex-atlas-texts/1`: `id`, `title`, `year`, `x`, `y`, `by`, `terms`, `people`, `unplaced`); `base` places them on a base map |
 | `GET /api/atlas/regions?kind=person\|organisation&ids=a,b` | the keywords a region spans, by id (at most 500 ids): a person's most used keywords (at most 40), or those of an organisation's current members |
 
-**Sharing, settings, the AI handoff**
+**Sharing, settings, the AI proposals**
 
 | route | what it does |
 | --- | --- |
@@ -272,17 +272,15 @@ version, so it can be undone too).
 | `GET /api/settings`, `PUT /api/settings` | languages, language models, the AI identity (with what changing a frozen one costs: 409 `identity_frozen` unless `confirm_identity_change`), slots, projected sets, levels, data sources |
 | `GET /api/settings/rejects`, `PUT /api/settings/rejects {enabled}` | the candidates rejected automatically: whether the project uses the rejection lists (the `rejects` parameter of `keywords.extract`, ETag of `params.json`), the terms of cartolex's list per corpus language, this computer's cache (`<data dir>/rejects/`, none on a hosted service) |
 | `GET /api/settings/rejects/terms?lang=`, `POST /api/settings/rejects/clear {language, terms}` | the cache's terms (one per term and language: how many projects gave it, the routes, the last day), paged; remove some terms, or empty the cache (of one language); `rejects_hosted` on a hosted service |
+| `GET /api/settings/curation`, `PUT /api/settings/curation {notes, rules}` | the curator's notes for the AI copilot and the standing rules agreed with it (`decisions/curation-notes.md`, `If-Match`; `rules` left out: kept); every copilot bundle carries them |
 | `GET /api/settings/stopwords`, `PUT /api/settings/stopwords {add, remove}` | the words added to and removed from the lists of words that are never keywords, per language (`decisions/stopwords.json`, `If-Match`); a word both added and removed: `stopword_both` |
 | `GET /api/settings/prompts`, `PUT /api/settings/prompts/{name} {text}` | the prompts a project may replace (the packaged text, the project's own in `decisions/prompts/<name>.txt`, the placeholders); `text: null` goes back to the packaged one (the project's is kept in the history); a placeholder the packaged text lacks: `prompt_placeholder` (`If-Match`) |
 | `GET /api/settings/backup` | a zip of `project.json` and `decisions/` with its history, and `backup.json` (`cartolex-backup/1`); texts, caches and built results are left out |
 | `POST /api/settings/restore` | a backup (multipart `file`): its decision files replace the project's, each current version kept in its history first; `project.json` stays; `not_a_backup` otherwise |
 | `POST /api/settings/reset {what: built}` | remove the built results (every stage is then never built); decisions, texts and caches stay; 409 `busy` while a job runs |
 | `GET /api/machine`, `PUT /api/machine/keys {service, key}` | this computer: the keys saved on it (`mistral`, `openalex`; whether set, from the environment or saved, the last four characters; never shown whole, never in a project: `<data dir>/keys.json`, readable by its owner only; an environment variable wins), whether the AI clean-up can run by API, OpenAlex's daily budget with and without a key, the processors, the memory available and the build's memory budget; `key: null` removes a key; refused on a hosted service (`keys_hosted`) |
-| `POST /api/handoff/export {band, bands, terms, lang, limit, max_tokens, group, skip_answered}` | the parts of a handoff (by default every band an AI judges, `kept`, `check` and `aside`, never `rejected`; with `skip_answered`, the default, without the terms an AI already answered in `keywords.csv`) (`cartolex.project.handoff`): for each, the prompt to paste, the terms to attach and the answer's format, its `bundle.json` (`cartolex-handoff/1`, sent back with the answer), and what they contain and never contain; parts stay under `max_tokens` (a chat assistant reads a limited amount at once); with `group` (the default) the terms the same people use share a part (`group_items`, from the extraction's `term_people.npz`), so a term and its translation are judged together |
-| `POST /api/handoff/export.zip` | the same parts as a zip, one folder per part |
-| `POST /api/handoff/import {bundle, answer}` | keep the answer as it came in `decisions/history/ai/` (with the part it answers) and propose a decision per answered term, with what could not be read (lines ignored, renumbered, unmatched); the first answers freeze the identity |
-| `GET /api/handoff/proposals`, `GET /api/handoff/proposals/{id}`, `POST /api/handoff/proposals/{id}/accept {terms, all}` | proposals, each answered term with its code and `category`; accepted ones reach `keywords.csv` with the source `ai-handoff` (`ai-copilot` for a copilot's result) and their category; an accepted term whose English form is another term is merged into it; an accepted exclusion of category `never` whose `confidence` is `sure` enters this computer's rejection cache (an answer line may end with `sure` or `unsure`; unsaid, `unsure`) |
-| `GET /api/keywords/ai` | the two routes of the AI filtering: by handoff (the proposals so far) and by API (provider, whether a key is saved, what is sent, an estimate of the calls and tokens, the last run); the estimate counts every candidate but those rejected automatically (`terms`, `rejected`), those already answered in `cache/ai/` (`answered`) and the `new` ones, the only ones that cost calls |
+| `GET /api/handoff/proposals`, `GET /api/handoff/proposals/{id}`, `POST /api/handoff/proposals/{id}/accept {terms, all}` | the keyword proposals: a copilot's triage results ({doc}`copilot`), and the answers to a handoff (a prompt and a list pasted in a chat) an earlier version imported, still read and accepted (`cartolex.project.handoff` reads them); each answered term with its code, `category`, `reason`, and for a copilot's its `group` and `by` (`group` or `term`); accepted ones reach `keywords.csv` with the source `ai-copilot` (`ai-handoff` for an earlier answer) and their category; an accepted term whose English form is another term is merged into it; an accepted exclusion of category `never` whose `confidence` is `sure` enters this computer's rejection cache |
+| `GET /api/keywords/ai` | the two routes of the AI filtering: with a copilot (`copilot.proposals`, the proposals so far) and by API (provider, whether a key is saved, what is sent, an estimate of the calls and tokens, the last run); the estimate counts every candidate but those rejected automatically (`terms`, `rejected`), those already answered in `cache/ai/` (`answered`) and the `new` ones, the only ones that cost calls |
 | `POST /api/keywords/ai/run {consent}` | filter by API: switch `keywords.triage` on in `params.json` and start it as a build job (202); `ai_api_not_ready` without a key or a provider, `ai_consent_needed` without consent |
 
 **The person**: `GET /api/me/preferences` and `PUT /api/me/preferences
@@ -460,8 +458,7 @@ catalogues give each code its text in every interface language.
 | `theme_refused` | 422 | the change was refused: {detail} | `detail` | `fix-input` |
 | `theme_step_refused` | 422 | step {step} ({op}) was refused: {detail} | `step`, `op`, `detail` | `fix-input` |
 | `no_keywords` | 409 | build the keywords first | — | `build` |
-| `handoff_empty` | 404 | no term to send in this band | — | `none` |
-| `invalid_bundle` | 422 | the bundle is not valid: {detail} | `detail` | `fix-input` |
+| `triage_empty` | 404 | no term to send in this band | — | `none` |
 | `proposal_not_found` | 404 | there is no proposal {proposal} | `proposal` | `reload` |
 | `nothing_chosen` | 422 | choose the terms to accept | — | `fix-input` |
 | `not_available` | 501 | building the offline site is not available in this version | — | `none` |
@@ -501,7 +498,7 @@ the English `message` the same way; an empty result also names its next action.
 | `empty_no_collection` | no collection has run | — | `collect` |
 | `empty_no_identity_to_check` | nobody waits for a check | — | `none` |
 | `empty_no_identity_in_state` | nobody is in this state | — | `none` |
-| `empty_handoff` | no term to send in this band | — | `none` |
+| `empty_triage` | no term to send in this band | — | `none` |
 | `empty_no_proposals` | no AI answers imported yet | — | `none` |
 | `empty_no_rejects` | no term rejected by an AI on this computer yet | — | `none` |
 | `empty_no_decisions` | no decision yet: keep, exclude or merge keywords in the list | — | `none` |
@@ -621,50 +618,30 @@ names the grouping it agreed with in `based_on.run` (a tree saved from a
 proposal, adopted or kept), else the grouping the last apply read (after a
 rebase).
 
-### The theme handoff
+### Theme answers imported by an earlier version
 
-The theme curation by handoff follows the keyword handoff
-(`cartolex.project.themes_handoff`, format `cartolex-themes-handoff/1`): each
-part is `prompt.txt` (to paste), `tree.txt` (to attach), `expected-answer.txt`
-and `bundle.json` (the tree as it was sent). `tree.txt` holds the tree (node
-ids, names, levels), each node's most used keywords with how many people use
-each, the set-aside tray, and the project's description labelled as the
-assistant's context; never texts, people or their names, or keys. A tree too
-large for `max_tokens` is cut by top-level nodes: every part holds the whole
-outline and the keywords of some top-level nodes. The answer is one operation
-per line:
-
-```text
-1 | RENAME | s3 | Coastal hazards | its keywords are floods, surges and erosion
-2 | MOVE | tide gauge | s5 | an instrument of sea-level observation
-3 | MERGE | s7 | s2 | both hold harbour management keywords
-4 | SPLIT | s4 | Salt marshes | salt marsh; marsh accretion | a distinct group
-5 | SET ASIDE | further work | not a keyword of the field
-6 | ATTRIBUTION | ocean | 0 | too broad to count toward one theme
-```
+The AI curation of the themes is the copilot's ({doc}`copilot`). The answers
+to a theme handoff (a prompt and the tree as text, pasted in a chat;
+`cartolex-themes-handoff/1`, `cartolex.project.themes_handoff`) that an earlier
+version imported stay readable:
 
 | route | what it does |
 | --- | --- |
-| `POST /api/themes/handoff/export` | `{tree, top, max_tokens}` (default: the saved tree, else the proposal): the parts, what they contain and never contain |
-| `POST /api/themes/handoff/export.zip` | the same parts as a zip, one folder per part with its `bundle.json` |
-| `POST /api/themes/handoff/import` | `{bundle, answer}`: keeps the answer in `decisions/history/ai/<time>-themes.txt` (and the bundle beside it), reads it into proposed operations (`items`: `number`, `verb`, `op` in the form of `POST /api/themes/ops`, `reason`, `refused` when it cannot apply to the tree sent) and the lines it could not read (`unreadable`: `line`, `text`, `problem`); nothing changes in the tree. The first AI answers freeze the identity |
-| `GET /api/themes/handoff/proposals` | the imported answers, newest first |
-| `GET /api/themes/handoff/proposals/{id}` | one of them, read again |
+| `GET /api/themes/handoff/proposals` | the theme results imported so far, newest first: the copilot's (`<time>-copilot-themes`, read with `GET /api/themes/copilot/proposals/{id}`) and the earlier answers (`<time>-themes`) |
+| `GET /api/themes/handoff/proposals/{id}` | an earlier answer read into proposed operations (`items`: `number`, `verb`, `op` in the form of `POST /api/themes/ops`, `reason`, `refused` when it cannot apply to the tree sent) and the lines it could not read (`unreadable`: `line`, `text`, `problem`: `unknown_action`, `missing_fields`, `unknown_node`, `unknown_keyword`, `bad_levels`, `empty_name` or `same_node`) |
 
 The editor shows a proposal as a list to accept or reject, previews the
 accepted operations on the tree, and applies them through
-`POST /api/themes/ops`, so they are undone like any other edit. An answer's
-unreadable lines have a `problem`: `unknown_action`, `missing_fields`,
-`unknown_node`, `unknown_keyword`, `bad_levels`, `empty_name` or `same_node`.
+`POST /api/themes/ops`.
 
 ### The AI copilot
 
 The copilot's bundle is a zip an assistant able to run code works from on its
 own; its result comes back as one file. Its format, the kit and the routes
 (`/api/themes/copilot/…`, `/api/keywords/copilot/…`) are in {doc}`copilot`.
-An imported themes result is reviewed like a theme handoff's answer; a triage
-result is a keyword proposal (`GET /api/handoff/proposals/{id}` and its
-`accept` take the ids of both).
+An imported themes result is reviewed as a list of changes; a triage result is
+a keyword proposal (`GET /api/handoff/proposals/{id}` and its `accept` take
+the ids of both).
 
 ### Errors of the theme editor
 
@@ -672,9 +649,8 @@ result is a keyword proposal (`GET /api/handoff/proposals/{id}` and its
 | --- | --- | --- | --- |
 | `no_proposal` | 404 | the grouping has proposed no tree yet: build the themes first | `build` |
 | `proposal_changed` | 409 | a newer proposal ({run}) replaced the one you saw: look at it first | `reload` |
-| `theme_handoff_empty` | 404 | the tree holds no keyword to send | — |
+| `themes_empty` | 404 | the tree holds no keyword to send | — |
 | `no_space` | 409 | the keywords have no space yet: build the themes first | `build` |
-| `invalid_theme_bundle` | 422 | this is not a theme bundle of cartolex: {detail} | `fix-input` |
 | `invalid_copilot_result` | 422 | this is not a copilot result of cartolex: {detail} | `fix-input` |
 
 **Keeping over an unanswered proposal, and the versions' names.** When a

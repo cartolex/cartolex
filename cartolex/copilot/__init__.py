@@ -28,16 +28,26 @@ from typing import Any
 
 from .bundle import FORMAT, RESULT_FORMAT, TASKS
 
-__all__ = ["FORMAT", "RESULT_FORMAT", "TASKS", "open_bundle"]
+__all__ = ["FORMAT", "RESULT_FORMAT", "TASKS", "load", "open_bundle"]
 
 
-def open_bundle(folder: Path | str = ".", *, truth: Any = None) -> Any:
+def open_bundle(
+    folder: Path | str = ".",
+    *,
+    truth: Any = None,
+    part: int | None = None,
+    parts: int | None = None,
+) -> Any:
     """The session of the bundle unpacked in *folder*: a
     :class:`~cartolex.copilot.themes.ThemesSession` or a
     :class:`~cartolex.copilot.triage.TriageSession`, by its task.
 
     *truth* (optional, a demo world's): keyword → theme for themes, the true
-    keywords for triage; the measures then include the lab's scores.
+    keywords for triage; the measures then include the lab's scores. *part*
+    opens one part: for triage, a part of the candidates, of *parts* (default:
+    the bundle's own count); for themes, a helper's session (its changes are
+    kept apart, and brought in with ``absorb``). One session, or one helper,
+    per part.
     """
     from .bundle import read_manifest
 
@@ -45,7 +55,15 @@ def open_bundle(folder: Path | str = ".", *, truth: Any = None) -> Any:
     if task == "themes":
         from .themes import ThemesSession
 
-        return ThemesSession(folder, truth=truth)
+        return ThemesSession(folder, truth=truth, part=part)
     from .triage import TriageSession
 
-    return TriageSession(folder, truth=truth)
+    return TriageSession(folder, truth=truth, part=part, parts=parts)
+
+
+def load(folder: Path | str = ".", **options: Any) -> Any:
+    """The session as the last process left it (see :meth:`cartolex.copilot.session.Session.load`):
+    for environments that start a fresh process per step."""
+    from .session import Session
+
+    return Session.load(folder, **options)

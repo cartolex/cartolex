@@ -129,6 +129,11 @@ class ProjectLayout:
         return self.decisions / "prompts"
 
     @property
+    def curation_notes_md(self) -> Path:
+        """The curator's notes and standing rules for the AI copilot (Markdown)."""
+        return self.decisions / "curation-notes.md"
+
+    @property
     def history(self) -> Path:
         return self.decisions / "history"
 

@@ -9,6 +9,8 @@ and go through the AI handoff.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from _app_helpers import TOKEN, Client, etag
 
@@ -253,37 +255,33 @@ def _scenario(client: Client, tmp_path, world) -> None:
     }
     assert next(g for g in summary["generations"] if g["stage"] == "map.layout")["previous"]
 
-    # ── the AI handoff ──
-    exported = client.post("/api/handoff/export", json={"band": "check", "limit": 5}).json()
-    assert exported["terms"] == 5 and "texts" in exported["never"]
-    part = exported["parts"][0]
-    assert part["parts"] == 1 and set(part["files"]) == {
-        "prompt.txt",
-        "terms.txt",
-        "expected-answer.txt",
-    }
-    assert "Coastal and marine systems" in part["files"]["prompt.txt"]
-    items = part["bundle"]["items"]
-    answer = "\n".join(
-        [
-            "Here is the list:",
-            f"1 | C | {items[0]['term']}",
-            f"2 | G | {items[1]['term']}",
-        ]
+    # ── an answer to a handoff, imported by an earlier version: still read and accepted ──
+    assert client.post("/api/handoff/export", json={}).status_code in (404, 405)
+    rows = client.get("/api/keywords", params={"band": "check", "limit": 2}).json()["items"]
+    items = [
+        {"term": r["term"], "lang": r["language"], "band": "check", "reason": "", "people": 1,
+         "texts": 1, "specificity": 0.5, "forms": [], "inside": []}
+        for r in rows
+    ]  # fmt: skip
+    ai = tmp_path / "coast" / "decisions" / "history" / "ai"
+    ai.mkdir(parents=True, exist_ok=True)
+    stamp = "20260101T000000Z-handoff"
+    (ai / f"{stamp}.bundle.json").write_text(
+        json.dumps({"format": "cartolex-handoff/1", "items": items}), encoding="utf-8"
     )
-    proposal = client.post(
-        "/api/handoff/import", json={"bundle": part["bundle"], "answer": answer}
-    ).json()
-    assert proposal["answered"] == 2 and proposal["unanswered"] == 3
-    assert proposal["read"]["ignored"] == 1
+    (ai / f"{stamp}.txt").write_text(
+        f"Here is the list:\n1 | C | {items[0]['term']}\n2 | G | {items[1]['term']}\n",
+        encoding="utf-8",
+    )
+    assert [p["id"] for p in client.get("/api/handoff/proposals").json()["items"]] == [stamp]
+    proposal = client.get(f"/api/handoff/proposals/{stamp}").json()
+    assert proposal["answered"] == 2 and proposal["read"]["ignored"] == 1
     assert [i["proposed"] for i in proposal["items"]] == ["keep", "exclude"]
     accepted = client.post(
-        f"/api/handoff/proposals/{proposal['id']}/accept",
+        f"/api/handoff/proposals/{stamp}/accept",
         json={"all": True},
         headers={"If-Match": f'"{proposal["keywords_version"]}"'},
     )
     assert accepted.status_code == 200 and accepted.json()["accepted"] == 2
     kept = client.get("/api/keywords", params={"q": items[0]["term"]}).json()["items"]
     assert any(k["decision"] and k["decision"]["source"] == "ai-handoff" for k in kept)
-    zipped = client.post("/api/handoff/export.zip", json={"band": "check", "limit": 5})
-    assert zipped.headers["content-type"] == "application/zip" and zipped.content[:2] == b"PK"

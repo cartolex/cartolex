@@ -854,60 +854,20 @@ and to-check scopes, on demo L, demo L trilingual and the four benchmarks —
 takes about 5.2 million input and 1.1 million output tokens: about 0.85
 small, 17 large. Repeating it three times to see the judge's own variance
 triples that. A browser handoff has no per-token price on a subscription,
-but needs a person to paste the bundle in parts and bring the answers back
-(`handoff.ReplayJudge` reads them). The harness is ready: a real judge only
-has to implement `handoff.Judge`.
+but needs a person to paste the bundle in parts and bring the answers back.
+The harness is ready: a real judge only has to implement `handoff.Judge`.
 
-### The browser-handoff test
+### The browser-handoff test (retired)
 
-```bash
-python tools/lexicon_lab/handoff_bundles.py --out ~/cartolex-work/handoff-test --suffix=-v2
-python tools/lexicon_lab/score_handoff.py ~/cartolex-work/handoff-test [--only tocheck-v2]
-```
-
-The first command writes a demo world (L, seed 0 by default) as a project,
-builds its `keywords.extract` stage with the default settings on every year
-of texts, and writes, in a folder outside the repository, the bundles a
-person would hand to a chat assistant: `tocheck/` (the to-check band, one
-bundle) and `kept-tocheck/` (the kept and to-check bands, cut into parts of
-at most `--max-tokens`, 45,000 by default, counted at three characters a
-token). Each part holds `prompt.txt` (the message to paste: the field, the
-triage codes, the answer format), `terms.txt` (the numbered terms with their
-evidence: people and texts, other spellings, the longer phrases they sit in;
-no band), `expected-answer.txt`, their zip, and `bundle.json` (the same items,
-to read the answer back). The candidates are those of the build: the
-engine's loader and scoring are run again on the built project and must
-equal its raw tables. The writer checks that no name or identifier of the
-world's people appears in the bundles, and the folder holds nothing of the
-world's truth; its `README.md` tells a person how to run one bundle in a
-chat assistant and where to save the answer (`answer.txt` next to the
-bundle). `--suffix` writes a new set of bundles (`tocheck-v2/`,
-`kept-tocheck-v2/`) beside the existing ones, which keep their answers; the
-writer never overwrites a folder that holds an answer. Each set records the
-build it comes from (`--project`), so that later sets, made after the
-defaults changed, are scored against their own candidates; each part records
-the version of the prompt (`handoff.PROMPT_VERSION`). Version 2 says that a
-phrase joining a process, a property or a measure to an object of the field
-(« X des Y » in French, a compound in English) is a keyword, and keeps F for
-broken pieces: with the first prompt, a blind judge rejected most French
-« X des Y » terms as fragments. Version 3 adds that a single everyday word is
-G unless it is a term of art, and that a French or Portuguese term takes as
-its English form the English term of the list that names the same thing.
-From version 3 the parts interleave the languages by rank (the best tenth of
-each language first, and so on), so that a term can meet its translation in
-its part; at size L, about a fifth of the French field terms whose English
-twin is a candidate find it in the same part.
-
-The second command scores every bundle present (or those named with
-`--only`). It reads every `answer*.txt` (`handoff.parse_answer`: the
-`<number> | <code> | <term> | <English form>` lines, checked against the
-repeated term; Markdown tables, tabs and the triage's line format also
-work), computes the truth in memory from the demo world, and reports, per
-bundle, for the answers, the oracle and a noisy oracle: how the answers were
-read, precision and recall of the accepted terms against the field terms,
-the final lexicon as the lab measures it, and the agreement of the English
-forms with the truth's. The report goes to
-`.cache/lexicon_lab/handoff-score.md`, never into the test folder.
+A blind test of the handoff (bundles written for a chat assistant, answers
+pasted back and scored against the demo world's truth) guided the prompt's
+versions 2 and 3: a phrase joining a process, a property or a measure to an
+object of the field is a keyword and F is kept for broken pieces (with the
+first prompt, a blind judge rejected most French « X des Y » terms as
+fragments); a single everyday word is G unless it is a term of art; a French
+or Portuguese term takes as its English form the English term of the list that
+names the same thing. The application's route for an assistant is now the
+copilot ({doc}`copilot`); its tools were removed with the handoff.
 
 ## Word boundaries and elision
 
@@ -1175,7 +1135,7 @@ lexicon — kept and to check ok. » The recommendations are approved:
   of another language takes the English form of the English term that names
   the same thing;
 - no paid API use for now: the handoff is tested with a blind judge instead
-  (`tools/lexicon_lab/handoff_bundles.py`, `score_handoff.py`).
+  (a test since retired with the handoff).
 
 Decided later by the owner: without the AI clean-up too, the set-aside band
 does not reach the lexicon (the consolidation's band gate, `keywords.build`

@@ -130,6 +130,73 @@ def put_stopwords(
     return view
 
 
+# ── the curator's notes for the AI copilot ──────────────────────────────────
+
+
+def _curation(ctx: Any) -> dict[str, Any]:
+    from cartolex.project.files import fingerprint
+
+    from .copilot import read_curation
+
+    doc = read_curation(ctx)
+    return {
+        "notes": doc.notes,
+        "rules": [{"task": t, "text": text} for t, text in doc.rules],
+        "version": version_of(fingerprint(ctx.layout.curation_notes_md)),
+    }
+
+
+@routes.get("/api/settings/curation", action="settings.read")
+def get_curation(response: Response, ctx: ProjectDep) -> dict[str, Any]:
+    """The curator's notes for the AI copilot and the standing rules agreed with it
+    (``decisions/curation-notes.md``): every copilot bundle carries them."""
+    view = _curation(ctx)
+    response.headers["ETag"] = etag_of(view["version"])
+    return view
+
+
+class CurationRule(BaseModel):
+    task: Literal["triage", "themes"]
+    text: Annotated[str, Field(min_length=1, max_length=300)]
+
+
+class CurationBody(BaseModel):
+    """The notes (free Markdown) and the standing rules (omitted: kept as they are)."""
+
+    notes: Annotated[str, Field(max_length=20_000)]
+    rules: Annotated[list[CurationRule], Field(max_length=200)] | None = None
+
+
+@routes.put("/api/settings/curation", action="settings.write")
+def put_curation(
+    request: Request, response: Response, body: CurationBody, ctx: ProjectDep
+) -> dict[str, Any]:
+    """Replace the curator's notes, and the rules when given (send ``If-Match``)."""
+    from cartolex.project.curation import CurationNotes, render
+    from cartolex.project.files import write_decision
+
+    from .copilot import read_curation
+
+    expected = expected_version(request)
+    with ctx.handle.mutex:
+        check_version(ctx.layout.curation_notes_md, expected)
+        rules = (
+            [(r.task, " ".join(r.text.split())) for r in body.rules]
+            if body.rules is not None
+            else read_curation(ctx).rules
+        )
+        write_decision(
+            ctx.layout,
+            ctx.layout.curation_notes_md,
+            render(CurationNotes(body.notes.strip(), rules)).encode("utf-8"),
+            expected=expected,
+            action="change the curation notes",
+        )
+    view = _curation(ctx)
+    response.headers["ETag"] = etag_of(view["version"])
+    return view
+
+
 # ── rejected automatically ───────────────────────────────────────────────────
 
 

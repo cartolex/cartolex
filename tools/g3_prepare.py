@@ -11,8 +11,7 @@ The first form writes the S demo world (seed 0) as a project at depth 2
 proposal as the curated tree. It then fills the « To check » queue as a
 rebase would: eight keywords marked « to check », four of them on the node
 their theme holds, four on another one. It prints what the session's tasks
-name, from the demo world's known themes (as ``tools/themes_handoff_lab.py``
-computes them): a theme to rename, a misplaced keyword to move, two themes to
+name, from the demo world's known themes (:func:`truth`): a theme to rename, a misplaced keyword to move, two themes to
 merge, one to split.
 
 ``--reset TARGET`` copies the prepared project to TARGET (replaced): one fresh
@@ -23,10 +22,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import sys
+import unicodedata
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -34,6 +36,69 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 #: Keywords the « To check » queue holds, half of them on a wrong node.
 QUEUE = 8
+
+
+#: A keyword's theme needs this share of the works that use it, and this many works.
+THEME_SHARE, THEME_WORKS = 0.6, 2
+STOPWORDS = {
+    "and", "of", "the", "in", "on", "a", "an", "for", "to", "et", "de", "des", "du", "la", "le",
+    "les", "l", "d", "e", "do", "da", "dos", "das", "o", "os", "as", "em", "no", "na",
+}  # fmt: skip
+
+
+def _norm(text: str) -> str:
+    text = unicodedata.normalize("NFKD", str(text).casefold())
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    return re.sub(r"[\s’'\-]+", " ", text).strip()
+
+
+def _words(text: str) -> set[str]:
+    return {w for w in re.split(r"[^a-z0-9]+", _norm(text)) if len(w) > 2 and w not in STOPWORDS}
+
+
+def _usage(project: Path) -> dict[str, list[float]]:
+    """Each keyword's ``[people, weight]``, as ``GET /api/themes/usage`` gives it."""
+    import numpy as np
+
+    from cartolex.atlas.model_files import load_lexical_data
+
+    data = load_lexical_data(project / "derived" / "themes.space" / "models" / "lexical_data.json")
+    X = data.X_tf if data.X_tf is not None else data.X
+    X = X.tocsr()
+    totals = np.asarray(X.sum(axis=1)).ravel()
+    scale = np.divide(1.0, totals, out=np.zeros_like(totals, dtype=float), where=totals > 0)
+    weights = np.asarray(X.multiply(scale[:, None]).sum(axis=0)).ravel()
+    people = np.asarray((X > 0).sum(axis=0)).ravel()
+    return {
+        str(t): [int(n), round(float(w), 4)]
+        for t, n, w in zip(data.terms, people, weights, strict=True)
+    }
+
+
+def truth(keywords: list[str], size: str = "S", seed: int = 0) -> dict[str, Any]:
+    """Each keyword's theme (or none), its main share, and the themes' names."""
+    from cartolex.demo import generate
+    from cartolex.demo.vocabulary import THEMES
+
+    world = generate(size, seed)
+    texts = [(" " + _norm(f"{w.title} . {w.abstract}") + " ", w.themes[0]) for w in world.works]
+    theme_of: dict[str, str] = {}
+    share_of: dict[str, float] = {}
+    for k in keywords:
+        key = " " + _norm(k) + " "
+        counts = Counter(th for text, th in texts if key in text)
+        n = sum(counts.values())
+        if not n:
+            continue
+        th, m = counts.most_common(1)[0]
+        share_of[k] = m / n
+        if m / n >= THEME_SHARE and n >= THEME_WORKS:
+            theme_of[k] = th
+    names = {
+        th.id: _words(f"{th.name_en} {th.name_fr} {th.name_pt} {th.id.replace('-', ' ')}")
+        for th in THEMES
+    }
+    return {"theme": theme_of, "share": share_of, "names": names}
 
 
 def _name(tree, node_id: str) -> str:
@@ -102,8 +167,6 @@ def _tasks(tree, theme_of: dict[str, str], usage: dict[str, list[float]]) -> dic
 
 def prepare(folder: Path) -> dict:
     """Write, build and curate the session's project; return what the tasks name."""
-    from themes_handoff_lab import _usage, truth
-
     from cartolex.cli import main as cli
     from cartolex.demo import generate
     from cartolex.demo.project import write_project

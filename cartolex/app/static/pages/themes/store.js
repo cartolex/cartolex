@@ -252,6 +252,19 @@ export function createEditor({ api, projectId, announce = () => {} }) {
     });
   }
 
+  /**
+   * Put *after* in place of the tree being edited, as one step of the undo list (a
+   * restructuring too large to send as operations). Resolves to whether it changed.
+   */
+  function replace(after, { label, labelKey = null } = {}) {
+    return serial(async () => {
+      if (!tree.value || readOnly.value || !after) return false;
+      const changed = record(tree.value, after, [], [], label, labelKey);
+      if (changed) announce(t('themes.announce.done', { what: entryLabel(past.value[past.value.length - 1]) }));
+      return changed;
+    });
+  }
+
   function undo() {
     return serial(async () => {
       const list = past.value;
@@ -410,6 +423,6 @@ export function createEditor({ api, projectId, announce = () => {} }) {
   return {
     loading, error, info, base, tree, past, future, usage, busy, restored, viewing, preview,
     lastSaved, opError, shown, index, editIndex, readOnly, dirty, unsaved, savedMark,
-    load, refreshInfo, run, undo, redo, discard, save, reloadAndMerge, adopt, persist, flush, actionName,
+    load, refreshInfo, run, replace, undo, redo, discard, save, reloadAndMerge, adopt, persist, flush, actionName,
   };
 }

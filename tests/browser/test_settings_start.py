@@ -36,7 +36,7 @@ def test_the_sections_of_the_settings(settings):
     section(ui, "Project")
     context = page.get_by_label("Description: the AI's context")
     context.fill("Coastal and ocean sciences; not the economics of fisheries.")
-    page.get_by_role("button", name="Save").click()
+    page.get_by_role("button", name="Save", exact=True).click()
     page.get_by_text("Settings saved").wait_for()
     # a key of this computer: saved, then shown by its last four characters only
     section(ui, "AI")

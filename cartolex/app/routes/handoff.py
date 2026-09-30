@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: MIT
-"""The AI clean-up by handoff: export the parts of a handoff, import an answer, accept a proposal."""
+"""The AI clean-up's proposals (read, accept) and its route by API.
+
+A proposal is a copilot's triage result (:mod:`.copilot`) or, imported by an
+earlier version, an answer to a handoff (a prompt and a list pasted in a
+chat): both stay readable and are accepted the same way."""
 
 from __future__ import annotations
 
 import json
 import re
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from fastapi import Path as PathParam
 from fastapi import Request, Response
@@ -18,174 +22,23 @@ from ..etags import check_version, etag_of, expected_version, version_of
 from ..messages import empty
 from ..people_io import decided_now
 from ..routing import Routes, runtime_of
-from .keywords import _decisions, _effective, _write, extracted
+from .keywords import _decisions, _write, extracted
 
 routes = Routes(tags=["handoff"])
 
-#: What a bundle holds, and what it never holds (shown before the export).
-CONTAINS = (
-    "keyword strings and their language",
-    "for each: how many people and texts use it, its band and why",
-    "the field's title and description",
-)
-NEVER = ("texts", "people's names or identifiers", "your decisions", "keys")
+#: What the triage by API sends, and what it never sends (shown before a run).
+API_SENDS = ("keyword strings and their language", "the field's title and description")
+API_NEVER = ("texts", "people's names or identifiers", "your decisions", "keys")
 MAX_TERMS = 20_000
+#: A proposal: a copilot's triage result, or an answer to a handoff imported by an
+#: earlier version (still readable, and accepted the same way).
 ProposalId = Annotated[str, PathParam(pattern=r"^\d{8}T\d{6}Z-(handoff|copilot-triage)(-\d+)?$")]
+_PROPOSAL = re.compile(r"^\d{8}T\d{6}Z-(handoff|copilot-triage)(-\d+)?$")
 
 
 class TermRef(BaseModel):
     term: Annotated[str, Field(min_length=1, max_length=300)]
     language: Annotated[str, Field(pattern=r"^([a-z]{2})?$")] = ""
-
-
-class ExportBody(BaseModel):
-    """The terms to send: a band, several, or a list (by default every band an AI judges:
-    kept, to check and set aside, never those rejected automatically); parts of at most
-    *max_tokens* (a chat assistant reads a limited amount at once)."""
-
-    band: Literal["kept", "check", "aside"] | None = None
-    #: Several bands at once (``["kept", "check"]``); replaces *band* when given.
-    bands: Annotated[list[Literal["kept", "check", "aside"]], Field(max_length=3)] | None = None
-    #: Leave out the terms an AI already answered (a handoff or a copilot's accepted answer).
-    skip_answered: bool = True
-    #: Keep the terms the same people use in the same part (a term and its translation).
-    group: bool = True
-    terms: Annotated[list[TermRef], Field(max_length=MAX_TERMS)] | None = None
-    lang: Annotated[str | None, Field(pattern=r"^[a-z]{2}$")] = None
-    limit: Annotated[int, Field(ge=1, le=MAX_TERMS)] = 1000
-    max_tokens: Annotated[int, Field(ge=2_000, le=1_000_000)] = 24_000
-
-
-def bundle_items(
-    request: Request, body: ExportBody, ctx: Any
-) -> tuple[list[Any], str, int, int, dict[tuple[str, str], dict[str, str]]]:
-    """The terms a bundle sends, with their evidence: ``(items, run, people, texts, decisions)``."""
-    from cartolex.build.records import read_record
-    from cartolex.lexicon.scoring import AI_BANDS
-    from cartolex.project.handoff import BundleItem
-
-    from .keywords import AI_SOURCES
-
-    runtime = runtime_of(request)
-    rows, run_id = extracted(runtime, ctx)
-    if run_id is None:
-        raise ApiError.of("no_keywords")
-    decisions, _ = _decisions(ctx)
-    wanted = {(t.term, t.language) for t in body.terms} if body.terms else None
-    corpus = read_record(ctx.layout, "corpus.assemble")
-    counts = corpus.measures.counts if corpus else {}
-    n_people, n_texts = max(1, counts.get("people", 0)), counts.get("texts", 0)
-    bands = body.bands or ([body.band] if body.band is not None else list(AI_BANDS))
-    items = []
-    for row in sorted(rows, key=lambda r: -r["score_len"]):
-        decision = decisions.get((row["term"], row["language"]))
-        view = _effective(row, decision)
-        key = (row["term"], row["language"])
-        if wanted is not None:
-            if key not in wanted and (row["term"], "") not in wanted:
-                continue
-        elif row["band"] not in AI_BANDS or view["band"] not in bands:
-            continue
-        elif body.skip_answered and decision is not None and decision["source"] in AI_SOURCES:
-            continue
-        if body.lang and row["language"] != body.lang:
-            continue
-        reason = view["reason"]
-        inside = [reason.split(":", 1)[1].strip()] if reason.startswith("part-of:") else []
-        items.append(
-            BundleItem(
-                term=row["term"],
-                lang=row["language"],
-                band=view["band"],
-                reason=reason,
-                people=row["people"],
-                texts=row["texts"],
-                specificity=round(1.0 - row["people"] / n_people, 3),
-                forms=row["forms"][:4],
-                inside=inside,
-            )
-        )
-        if len(items) >= body.limit:
-            break
-    return items, run_id, n_people, n_texts, decisions
-
-
-def _export(request: Request, body: ExportBody, ctx: Any) -> dict[str, Any]:
-    from cartolex.project.handoff import cautious_tokens, group_items, part_files, part_record
-
-    items, run_id, n_people, n_texts, _ = bundle_items(request, body, ctx)
-    identity = ctx.project.config.identity
-    common = {"domain": identity.domain_title, "description": identity.domain_description}
-    users: dict = {}
-    if body.group:
-        from cartolex.lexicon.extract_raw import read_term_people
-
-        users, _ = read_term_people(ctx.layout.stage("keywords.extract") / "term_people.npz")
-    chunks = group_items(
-        items, users, max_tokens=body.max_tokens, n_people=n_people, n_texts=n_texts, **common
-    )
-    parts = []
-    for k, chunk in enumerate(chunks, 1):
-        name = f"handoff-{k}" if len(chunks) > 1 else "handoff"
-        files = part_files(
-            chunk, n_people=n_people, n_texts=n_texts, part=k, parts=len(chunks), **common
-        )
-        parts.append(
-            {
-                "name": name,
-                "part": k,
-                "parts": len(chunks),
-                "terms": len(chunk),
-                "tokens": cautious_tokens(files["prompt.txt"] + files["terms.txt"]),
-                "files": files,
-                "bundle": part_record(
-                    chunk,
-                    name=name,
-                    part=k,
-                    parts=len(chunks),
-                    meta={"run": run_id},
-                    **common,
-                ),
-            }
-        )
-    return {
-        "parts": parts,
-        "terms": len(items),
-        "grouped": bool(users) and len(parts) > 1,
-        "contains": list(CONTAINS),
-        "never": list(NEVER),
-        "empty": None if items else empty("empty_handoff"),
-    }
-
-
-@routes.post("/api/handoff/export", action="keywords.read")
-def export(request: Request, body: ExportBody, ctx: ProjectDep) -> dict[str, Any]:
-    """The parts of a handoff: for each, the prompt to paste, the terms to attach, the answer's
-    format, and ``bundle.json`` (to send back with the answer); what they contain and never do."""
-    return _export(request, body, ctx)
-
-
-@routes.post("/api/handoff/export.zip", action="keywords.read")
-def export_zip(request: Request, body: ExportBody, ctx: ProjectDep) -> Response:
-    """The same parts as a zip: one folder per part with the files a person uploads."""
-    from cartolex.project.handoff import part_zip
-
-    out = _export(request, body, ctx)
-    if not out["parts"]:
-        raise ApiError.of("handoff_empty")
-    data = part_zip({p["name"]: p["files"] for p in out["parts"]})
-    return Response(
-        data,
-        media_type="application/zip",
-        headers={"Content-Disposition": 'attachment; filename="handoff.zip"'},
-    )
-
-
-class ImportBody(BaseModel):
-    """The part that was sent (its ``bundle.json``), and the answer as it came back (pasted)."""
-
-    bundle: dict[str, Any]
-    answer: Annotated[str, Field(min_length=1, max_length=5_000_000)]
 
 
 def _ai_folder(ctx: Any) -> Path:
@@ -247,43 +100,19 @@ def _proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
     }
 
 
-@routes.post("/api/handoff/import", action="keywords.write")
-def import_answers(request: Request, body: ImportBody, ctx: ProjectDep) -> dict[str, Any]:
-    """Keep the answer as it came (``decisions/history/ai/``) and propose decisions.
-
-    Nothing reaches ``keywords.csv`` until the proposal is accepted. The first
-    AI answers freeze the project's identity.
-    """
-    from cartolex.project.files import atomic_write_bytes, json_bytes, utc_stamp
-    from cartolex.project.handoff import items_of
-
-    try:
-        items_of(body.bundle)
-    except (KeyError, TypeError, ValueError) as exc:
-        raise ApiError.of("invalid_bundle", detail=str(exc)) from exc
+def _proposal_ids(ctx: Any) -> list[str]:
     folder = _ai_folder(ctx)
-    with ctx.handle.mutex:
-        base = f"{utc_stamp()}-handoff"
-        proposal_id, n = base, 1
-        while (folder / f"{proposal_id}.txt").exists():
-            n += 1
-            proposal_id = f"{base}-{n}"
-        atomic_write_bytes(folder / f"{proposal_id}.bundle.json", json_bytes(body.bundle))
-        atomic_write_bytes(folder / f"{proposal_id}.txt", body.answer.encode("utf-8"))
-        proposal = _proposal(ctx, proposal_id)
-        if proposal["answered"]:
-            ctx.project.freeze_identity("first AI answers")
-    return proposal
+    if not folder.is_dir():
+        return []
+    names = {p.name.split(".", 1)[0] for p in folder.iterdir() if p.suffix in (".txt", ".json")}
+    return sorted((i for i in names if _PROPOSAL.match(i)), reverse=True)
 
 
 @routes.get("/api/handoff/proposals", action="keywords.read")
 def proposals(ctx: ProjectDep) -> dict[str, Any]:
-    """The proposals imported so far, the newest first."""
-    folder = _ai_folder(ctx)
-    names = (
-        (p.name[: -len(".txt")] for p in folder.glob("*-handoff*.txt")) if folder.is_dir() else ()
-    )
-    ids = sorted((i for i in names if re.match(r"^\d{8}T\d{6}Z-handoff(-\d+)?$", i)), reverse=True)
+    """The proposals imported so far (a copilot's results, and the answers to a handoff an
+    earlier version imported), the newest first."""
+    ids = _proposal_ids(ctx)
     return {
         "items": [{"id": i, "at": i[:16]} for i in ids],
         "total": len(ids),
@@ -369,9 +198,9 @@ def feed_rejects(request: Request, ctx: Any, items: list[dict[str, Any]], route:
 
 @routes.get("/api/keywords/ai", action="keywords.read")
 def ai_routes(request: Request, ctx: ProjectDep) -> dict[str, Any]:
-    """The two routes of the AI filtering: by handoff (no key; the proposals imported so far)
-    and by API (whether a key and a provider are set, what it sends, and an estimate of the
-    calls and tokens of a run), with what the last run by API decided."""
+    """The two routes of the AI filtering: with a copilot (no key; the proposals imported so
+    far) and by API (whether a key and a provider are set, what it sends, and an estimate of
+    the calls and tokens of a run), with what the last run by API decided."""
 
     from cartolex.lexicon.llm_filter import TermDecisionCache
     from cartolex.lexicon.scoring import AI_BANDS
@@ -409,19 +238,17 @@ def ai_routes(request: Request, ctx: ProjectDep) -> dict[str, Any]:
     ai = runtime.ai_access()
     key = bool(ai is not None and (ai.api_key or ai.client_factory))
     _, triage = api_verdicts(runtime, ctx)
-    folder = _ai_folder(ctx)
-    proposals = len(list(folder.glob("*-handoff*.txt"))) if folder.is_dir() else 0
     return {
         "run": run_id,
-        "handoff": {"proposals": proposals, "contains": list(CONTAINS), "never": list(NEVER)},
+        "copilot": {"proposals": len(_proposal_ids(ctx))},
         "api": {
             "provider": identity.provider if identity else None,
             "model": identity.model if identity else None,
             "key": key,
             "ready": key and identity is not None,
             "stage": "keywords.triage",
-            "sends": list(CONTAINS[::2]),
-            "never": list(NEVER),
+            "sends": list(API_SENDS),
+            "never": list(API_NEVER),
             "estimate": {
                 "terms": len(terms),
                 "new": new_terms,

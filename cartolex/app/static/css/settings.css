@@ -134,6 +134,11 @@
   color: var(--cx-warning);
 }
 
+.cx-settings__subtitle {
+  margin: var(--cx-space-2) 0 0;
+  font-size: var(--cx-text-m);
+}
+
 .cx-settings__list,
 .cx-settings__order {
   margin: 0 0 var(--cx-space-2);

@@ -203,6 +203,15 @@ def _unpack(client: Client, url: str | tuple[str, dict], folder: Path) -> Path:
     return folder
 
 
+BOOT = """
+    import json, sys, subprocess
+    boot = subprocess.run([sys.executable, "setup/bootstrap.py"], capture_output=True, text=True)
+    assert boot.returncode == 0, boot.stdout + boot.stderr
+    exec(next(l for l in boot.stdout.splitlines() if l.startswith("import sys")))
+    from cartolex.copilot import open_bundle
+"""
+
+
 THEMES_SESSION = """
     import json, sys
     for name in ("pydantic", "spacy", "umap"):
@@ -234,6 +243,18 @@ THEMES_SESSION = """
     s.adopt(other, "clearer themes", curator_agreed=True)
     tops = [n["id"] for n in s.tree["nodes"] if n["parent"] is None]
     s.rename(tops[0], "Renamed theme", "its keywords share this")
+    print(json.dumps(s.timings))
+"""
+
+#: The next step, in a fresh process: the session as the last one left it.
+THEMES_NEXT_STEP = (
+    BOOT
+    + """
+    from cartolex.copilot import load
+    s = load(".")
+    assert [c["kind"] for c in s.changes] == ["restructure", "rename"], s.changes
+    s.outline(); s.levels(); s.suggest(list(s.tree["keywords"])[:1])
+    tops = [n["id"] for n in s.tree["nodes"] if n["parent"] is None]
     kids = [n["id"] for n in s.tree["nodes"] if n["parent"] == tops[1]]
     if len(kids) > 1:
         s.merge(kids[1], kids[0], "one theme")
@@ -242,31 +263,49 @@ THEMES_SESSION = """
     s.set_aside(own[-1:], "too generic")
     s.draw_map(); s.draw_treemap()
     s.write_result("notes", curator_agreed=True)
-    print(json.dumps(s.timings))
 """
+)
 
-TRIAGE_SESSION = """
-    import json, sys, subprocess
-    boot = subprocess.run([sys.executable, "setup/bootstrap.py"], capture_output=True, text=True)
-    assert boot.returncode == 0, boot.stdout + boot.stderr
-    exec(next(l for l in boot.stdout.splitlines() if l.startswith("import sys")))
-    from cartolex.copilot import open_bundle
+
+#: The first conversation: groups read and decided in lines, a rule, then a partial result.
+TRIAGE_SESSION = (
+    BOOT
+    + """
     s = open_bundle(".")
-    s.summary(); s.table("check"); s.pairs(min_people=1); s.neighbours(s.items[0]["term"], s.items[0]["lang"])
-    en = next(i for i in s.items if i["lang"] == "en")
-    fr = next(i for i in s.items if i["lang"] == "fr")
-    s.keep(en["term"], "en", "a concept of the field")
-    s.exclude(s.items[-1]["term"], s.items[-1]["lang"], "too generic")
-    s.merge(fr["term"], "fr", en["term"], "its translation")
-    s.write_result("notes", curator_agreed=True)
-    print(json.dumps(s.timings))
+    s.summary(); s.budget(); s.table("check"); s.pairs()
+    batch = s.next_batch(2)
+    g1, g2 = [l.split(" ")[0] for l in batch.splitlines() if l.startswith("g")]
+    unseen = next(g.id for g in s.groups if g.id not in (g1, g2))
+    out = s.apply(f"{g1} C ; kept\\n{g1}.1 G!\\n{unseen} G\\nnonsense")
+    assert "not shown yet" in out and "not understood" in out, out
+    assert s.next_batch(1).split(" ")[0] not in (g1, g2)  # a group is shown once
+    cov = s.coverage()["all"]
+    assert cov["decided_by_group"] == len(s.group(g1).members) - 1 and cov["decided_by_term"] == 1
+    s.add_rule("research discourse: always excluded, sure")
+    s.write_result("first half", partial=True)
 """
+)
+
+#: The next conversation takes the work up from result/ and hands back.
+TRIAGE_RESUMED = (
+    BOOT
+    + """
+    s = open_bundle(".")
+    print(s.resume())
+    assert s.rules and len(s.decisions) >= 2
+    en = next(i for i in s.items if i["lang"] == "en" and (i["term"], "en") not in s.decisions)
+    fr = next(i for i in s.items if i["lang"] == "fr")
+    s.merge(fr["term"], "fr", en["term"], "its translation")
+    s.write_result("notes", curator_agreed=True, read_lightly="the kept band")
+"""
+)
 
 
 def test_a_whole_session_runs_offline_and_its_result_imports_as_a_proposal(client, tmp_path):
     python = _sandbox(tmp_path)
     folder = _unpack(client, THEMES, tmp_path / "themes")
     _run(python, folder, THEMES_SESSION)
+    _run(python, folder, THEMES_NEXT_STEP)
     result = json.loads((folder / "result/result.json").read_text(encoding="utf-8"))
     assert (
         result["format"] == "cartolex-copilot-result/1"
@@ -285,18 +324,121 @@ def test_a_whole_session_runs_offline_and_its_result_imports_as_a_proposal(clien
 
     folder = _unpack(client, "/api/keywords/copilot/export?scope=both", tmp_path / "triage")
     _run(python, folder, TRIAGE_SESSION)
+    partial = json.loads((folder / "result/result.json").read_text(encoding="utf-8"))
+    assert partial["partial"] is True and partial["rules"]
+    assert (folder / "result/decisions.jsonl").is_file()
+    _run(python, folder, TRIAGE_RESUMED)
     result = json.loads((folder / "result/result.json").read_text(encoding="utf-8"))
-    r = client.post("/api/keywords/copilot/import", json={"result": result})
+    assert result["coverage"]["all"]["decided_unread"] == 1  # the merge: never shown
+    # The two results merge (the later wins), with the kit's counts and caveats.
+    r = client.post("/api/keywords/copilot/import", json={"results": [result, partial]})
     assert r.status_code == 200, r.text
     proposal = r.json()
-    assert [i["proposed"] for i in proposal["items"]] == ["keep", "exclude", "merge"]
+    assert proposal["merged"] == 2 and proposal["caveats"]["read_lightly"] == "the kept band"
+    assert {i["proposed"] for i in proposal["items"]} == {"keep", "exclude", "merge"}
+    assert any(i["by"] == "group" for i in proposal["items"])
     accepted = client.post(
         f"/api/handoff/proposals/{proposal['id']}/accept",
         json={"all": True},
         headers={"If-Match": f'"{proposal["keywords_version"]}"'},
     )
-    assert accepted.status_code == 200 and accepted.json()["accepted"] == 3
+    assert accepted.status_code == 200 and accepted.json()["accepted"] == len(proposal["items"])
     decided = client.get("/api/keywords?route=ai-copilot").json()
-    assert decided["total"] == 3
+    assert decided["total"] == len(proposal["items"])
+    # The curator's standing rule is kept, and the next bundle carries it.
+    # The curator's notes: written in the project beside the rules, carried by every bundle.
+    got = client.get("/api/settings/curation")
+    assert got.json()["rules"][0]["task"] == "triage"
+    put = client.put(
+        "/api/settings/curation",
+        json={"notes": "Keep the two teams' wave terms together."},
+        headers={"If-Match": got.headers["ETag"]},
+    )
+    assert put.status_code == 200 and put.json()["rules"] == got.json()["rules"]
+    again = _bundle(client, "/api/keywords/copilot/export?scope=check")
+    readme = again["README_FIRST.md"].decode()
+    assert "research discourse: always excluded" in readme
+    assert "Keep the two teams' wave terms together." in readme
+    assert "Keep the two teams" in _bundle(client, THEMES)["GUIDE.md"].decode()
     bad = client.post("/api/keywords/copilot/import", json={"result": {"format": "other"}})
     assert bad.status_code == 422 and bad.json()["error"]["code"] == "invalid_copilot_result"
+
+
+def test_twins_are_found_by_their_words_not_by_shared_users(client, tmp_path):
+    """A term and its translation pair up; terms that merely share their few users do not
+    (co-usage alone scored nearly every rare pair 1.0)."""
+    import numpy as np
+    from scipy import sparse
+
+    from cartolex.copilot.sorting import twin_pairs
+    from cartolex.copilot.triage import TriageSession
+    from cartolex.demo.vocabulary import THEMES
+
+    folder = _unpack(client, "/api/keywords/copilot/export?scope=all", tmp_path / "pairs")
+    s = TriageSession(folder)
+    found = s.pairs(n=300, detail=True)
+    assert len(found) >= 5 and all(p["score"] >= 0.75 for p in found)
+    truth = {t.fr.casefold(): t.en.casefold() for th in THEMES for t in th.terms}
+    for p in found:
+        if p["a"].casefold() in truth:
+            assert truth[p["a"].casefold()] == p["b"].casefold(), p
+    fr = [i for i, it in enumerate(s.items) if it["lang"] == "fr"]
+    en = [i for i, it in enumerate(s.items) if it["lang"] == "en"]
+    same_users = int(((s._V[fr] @ s._V[en].T).toarray() >= 0.99).sum())
+    assert same_users > 3 * len(found)  # identical users are common; they make no pair
+    # Four candidates: two twins used by different people, two strangers used by the same one.
+    items = [
+        {"term": "diversité des cryptophytes", "lang": "fr", "people": 2},
+        {"term": "cryptophyte diversity", "lang": "en", "people": 2},
+        {"term": "gestion des ports", "lang": "fr", "people": 2},
+        {"term": "reef fish mortality", "lang": "en", "people": 2},
+    ]
+    V = sparse.csr_matrix(np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 0, 1]], dtype=float))
+    pairs = twin_pairs(items, V, "en")
+    assert [(p["a"], p["b"]) for p in pairs] == [
+        ("diversité des cryptophytes", "cryptophyte diversity")
+    ]
+
+
+def test_the_pre_sort_flags_patterns_keeps_formulas_whole_and_groups_families():
+    from cartolex.copilot.sorting import flag, head_word, is_formula
+
+    assert flag("further work", "en") == ("pattern", "discourse")
+    assert flag("rôle de l'étude", "fr") == ("pattern", "discourse")
+    assert flag("evolution of the", "en") == ("pattern", "edge")
+    assert flag("table 2", "en") == ("pattern", "number")
+    assert flag("coastal sediment budget", "en", people=1, texts=1) == ("specific", "one text")
+    assert flag("sea level rise", "en", people=9, texts=12) == ("", "")
+    assert is_formula("CO2") and is_formula("CO") and not is_formula("Alexandrium")
+    assert head_word("binding assays", "en") == head_word("cell viability assay", "en")
+    assert head_word("érosion des plages", "fr") == head_word("érosion côtière", "fr")
+
+
+def test_a_restructuring_of_more_operations_than_a_request_takes_comes_as_its_tree(client):
+    """A restructuring's operations can outnumber what ``POST /api/themes/ops`` takes (500):
+    the proposal carries the tree it gives, which the editor puts in place as one step."""
+    tree = client.get("/api/themes").json()["tree"]
+    top = next(n["id"] for n in tree["nodes"] if n["parent"] is None)
+    keywords = sorted(tree["keywords"])
+    ops = [{"op": "create_node", "parent": None, "names": {"en": "All of it"}, "node_id": "ai1"}]
+    ops += [{"op": "move_keywords", "keywords": [k], "node_id": "ai1"} for k in keywords]
+    while len(ops) <= 520:  # harmless steps, as a large restructuring has many
+        ops += [{"op": "set_attribution", "keywords": [k], "levels": None} for k in keywords]
+    result = {
+        "format": "cartolex-copilot-result/1",
+        "task": "themes",
+        "bundle": "b1",
+        "changes": [
+            {"kind": "restructure", "ops": ops, "reason": "one theme"},
+            {"kind": "rename", "ops": [{"op": "rename_node", "node_id": top,
+                                         "names": {"en": "Emptied"}}], "reason": "r"},
+        ],
+    }  # fmt: skip
+    r = client.post("/api/themes/copilot/import", json={"result": result})
+    assert r.status_code == 200, r.text
+    first, second = r.json()["items"]
+    assert not first["refused"] and set(first["tree"]["keywords"].values()) == {"ai1"}
+    assert "tree" not in second
+    # The rest applies on top of that tree, within one request.
+    applied = client.post("/api/themes/ops", json={"tree": first["tree"], "ops": second["ops"]})
+    assert applied.status_code == 200, applied.text

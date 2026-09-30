@@ -98,7 +98,7 @@
           "type": "boolean"
         },
         "ai_handoff": {
-          "description": "the AI clean-up by handoff (export, then import)",
+          "description": "the AI clean-up outside the app: the copilot bundle (export, then import)",
           "title": "Ai Handoff",
           "type": "boolean"
         },

@@ -27,20 +27,31 @@ def _answer(ui, button, folder: Path, task: str) -> Path:
     zipfile.ZipFile(io.BytesIO(body)).extractall(folder)
     s = open_bundle(folder)
     if task == "themes":
+        # A restructuring of more operations than one request takes (500): it comes back as
+        # its tree, put in place as one step.
+        s.adopt(s.regroup(s.level_sizes()), "the grouping again", curator_agreed=True)
+        ops = s.changes[0]["ops"]
+        while len(ops) <= 500:
+            ops += [
+                {"op": "set_attribution", "keywords": [k], "levels": None}
+                for k in s.tree["keywords"]
+            ]
         top = next(n["id"] for n in s.tree["nodes"] if n["parent"] is None)
         s.rename(top, "Coastal climate records", "its keywords are archives of past climates")
         s.set_aside(s.keywords(top)[-1:], "too general to name a theme")
     else:
-        s.keep(s.items[0]["term"], s.items[0]["lang"], "a concept of the field")
+        g = s.next_batch(1).split(" ")[0]
+        first = s.group(g).members[0]
+        s.apply(f"{g}.1 C ; a concept of the field")
         s.exclude(s.items[-1]["term"], s.items[-1]["lang"], "too generic", code="G")
+        assert (s.items[first]["term"], s.items[first]["lang"]) in s.decisions
     return s.write_result("Two changes to look at first.", curator_agreed=True)
 
 
 def _themes(ui, folder: Path, shots: Path | None, suffix: str) -> None:
     page = ui.page
     open_editor(ui)
-    page.locator(".cx-themes__toolbar .cx-menubutton button").last.click()
-    page.get_by_role("menu").get_by_role("menuitem").nth(2).click()
+    page.locator(".cx-themes__ai").click()
     d = dialog(ui)
     button = d.locator(".cx-handoff__actions button")
     button.wait_for()
@@ -54,13 +65,18 @@ def _themes(ui, folder: Path, shots: Path | None, suffix: str) -> None:
     if shots:
         page.screenshot(path=str(shots / f"themes-review-{suffix}.png"))
     d.locator(".cx-dialog__footer button").last.click()
+    # Applied and saved: nothing unsaved is left to hold the next navigation.
+    page.locator(".cx-toast").first.wait_for()
+    page.wait_for_function(
+        "() => !document.querySelector('.cx-themes__status .cx-themes-state.is-dirty')"
+    )
 
 
 def _keywords(ui, folder: Path, shots: Path | None, suffix: str) -> None:
     page = ui.page
     ui.navigate("/keywords?band=check")
     page.locator(".cx-corpus__actions .cx-menubutton button").click()
-    page.get_by_role("menuitem").nth(2).click()
+    page.get_by_role("menuitem").nth(0).click()
     d = dialog(ui)
     link = d.locator("a[download]")
     link.wait_for()
@@ -81,7 +97,7 @@ def test_a_copilot_result_is_reviewed_applied_and_saved(demo_s, app_for, open_ap
     ui.server = server
     before = len(api(ui, "GET", "/api/themes/versions")["data"]["items"])
     _themes(ui, tmp_path / "themes", None, "")
-    ui.page.locator(".cx-toast", has_text="2 proposed changes applied").wait_for()
+    ui.page.locator(".cx-toast", has_text="3 proposed changes applied").wait_for()
     wait_status(ui, "Saved")
     versions = api(ui, "GET", "/api/themes/versions")["data"]["items"]
     assert len(versions) == before + 1
@@ -89,7 +105,7 @@ def test_a_copilot_result_is_reviewed_applied_and_saved(demo_s, app_for, open_ap
     ui.page.locator(".cx-toast", has_text="2 AI decisions accepted").wait_for()
     assert api(ui, "GET", "/api/keywords?route=ai-copilot")["data"]["total"] == 2
     made_by = [v["made_by"] or "" for v in api(ui, "GET", "/api/themes/versions")["data"]["items"]]
-    assert any(m.startswith("ai-copilot: apply 2 changes") for m in made_by), made_by
+    assert any(m.startswith("ai-copilot: apply 3 changes") for m in made_by), made_by
 
 
 @pytest.mark.slow

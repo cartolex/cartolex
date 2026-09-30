@@ -246,7 +246,6 @@ empty, long text); the gallery shows them all.
 | ErrorCard | see the API client above |
 | ProgressBar | never goes back; indeterminate without a value |
 | Tooltip, Help | hover and focus, dismissible with Escape; Help opens an explanation |
-| AiHandoffDialog | export a bundle of terms with its instructions (what it contains, what it never contains), paste the answer, review, import |
 | ActivityIndicator, ActivityDrawer | « Building · keywords 45 % »; jobs with progress, Stop, results, errors |
 | TreeView | a virtualised tree (thousands of rows): the tree pattern's keyboard, ranges, type-ahead, context menu, drag and drop, a caller's own keys |
 | Treemap | squarified nested rectangles by weight, one hue family per top-level node, labels that fit or are cut, zoom, drop targets |
@@ -317,7 +316,7 @@ which puts together the outline (`outline.js`, `rows.js`, `review.js`), the
 treemap and map panels (`treemap.js`, `map.js`, `centre.js`), the side panel
 (`panel.js`), the actions and operations (`actions.js`, `operations.js`,
 `dialogs.js`), the draft store (`store.js`), the versions (`versions.js`) and
-the AI handoff (`handoff.js`), over the tree's model (`model.js`,
+the AI copilot (`copilot.js`, its review in `proposal.js`), over the tree's model (`model.js`,
 `labels.js`). Static modules cost nothing after the first load (they are
 cached), so the budget of a navigation counts API calls only.
 
@@ -330,9 +329,11 @@ where keeping is « put back »; search over the terms and their forms, language
 category, route and decision filters, a category column, range selection, keep, exclude, merge and undo for the rows
 selected or for every row the filters keep, the route that decided each
 keyword); the merge dialog and the history of the decisions (`dialogs.js`);
-the AI filtering in a browser (`handoff.js`: export the keywords an AI judges,
-kept, to check and set aside by default, in parts, paste an answer, review it term by term and accept all or
-some) and by API (`api.js`: what is sent, the estimate of calls and tokens,
+the triage with AI (« Triage with AI », the primary button): with a copilot
+(`copilot.js`: the bundle of the candidates an AI judges, kept, to check and
+set aside by default, cut into parts; its results imported, merged and
+reviewed term by term, `review.js`, with the kit's counts and caveats; accept
+all or some) and by API (`api.js`: what is sent, the estimate of calls and tokens,
 consent, a build job). Opening it reads one page of the list.
 
 The corpus screen (`pages/people.js`, route `/people`) loads

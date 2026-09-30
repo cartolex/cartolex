@@ -12,6 +12,11 @@ Every measure is cartolex's own, on the bundled vectors:
   (*borderline*);
 - **sizes**: the nodes of each level and the keywords under them (smallest,
   median, largest), the keywords placed and set aside;
+- **balance** (:func:`balance`): the keywords placed on the nodes of each level
+  themselves, their spread (the coefficient of variation: 0 when every node
+  holds as many) and the level's share of all placed keywords. A balanced tree
+  has about as many keywords on each node of a level, and few on the top level
+  (a keyword there is one the texts support no finer);
 - **stability** (:func:`stability`): the grouping (:mod:`cartolex.atlas.clustering`,
   :mod:`cartolex.atlas.hierarchy`) redone on the space refitted without a
   share of the people (:func:`cartolex.atlas.reducers.compute_svd_embeddings`),
@@ -32,7 +37,16 @@ import numpy as np
 
 from .ops import levels as node_levels
 
-__all__ = ["BORDER", "bcubed", "fit", "sizes", "stability", "summary", "truth_scores"]
+__all__ = [
+    "BORDER",
+    "balance",
+    "bcubed",
+    "fit",
+    "sizes",
+    "stability",
+    "summary",
+    "truth_scores",
+]
 
 #: A keyword whose margin is below this sits on the border between two nodes.
 BORDER = 0.05
@@ -76,6 +90,30 @@ def sizes(doc: Mapping[str, Any]) -> dict[str, Any]:
             }
         )
     return out
+
+
+def balance(doc: Mapping[str, Any]) -> dict[str, Any]:
+    """Per level: the keywords on its nodes themselves (mean, smallest, largest), their
+    spread (coefficient of variation) and the level's share of all placed keywords."""
+    lv = node_levels(doc)
+    own: Counter[str] = Counter((doc.get("keywords") or {}).values())
+    placed = max(1, len(doc.get("keywords") or {}))
+    out = []
+    for level in range(1, int(doc["depth"]) + 1):
+        counts = [own[n] for n, v in lv.items() if v == level]
+        mean = float(np.mean(counts)) if counts else 0.0
+        cv = float(np.std(counts) / mean) if counts and mean else 0.0
+        out.append(
+            {
+                "level": level,
+                "own_mean": round(mean, 1),
+                "own_smallest": min(counts) if counts else 0,
+                "own_largest": max(counts) if counts else 0,
+                "spread": round(cv, 3),
+                "share": round(sum(counts) / placed, 4),
+            }
+        )
+    return {"levels": out}
 
 
 def fit(
@@ -144,8 +182,9 @@ def summary(
     *,
     truth: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Every measure of *doc* but stability (sizes, fit, truth), as one JSON-ready dict."""
-    out = {"sizes": sizes(doc), "fit": fit(doc, terms, Z)}
+    """Every measure of *doc* but stability (sizes, balance, fit, truth), as one JSON-ready
+    dict."""
+    out = {"sizes": sizes(doc), "balance": balance(doc), "fit": fit(doc, terms, Z)}
     scores = truth_scores(doc, truth)
     if scores is not None:
         out["truth"] = scores

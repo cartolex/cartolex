@@ -103,7 +103,7 @@ class EnginePaths:
     #: The categories of the keywords (lower-case term → category), from the AI's answers
     #: and the decisions (see cartolex.lexicon.categories); absent, none known.
     keyword_categories_json: Path
-    #: Who uses each candidate (person indices of the extraction), for grouping handoffs.
+    #: Who uses each candidate (person indices of the extraction), for the copilot's bundle.
     term_people_npz: Path
     refined_terms_csv: Path
     refined_terms_lang_csv: PathPattern  # per display language
