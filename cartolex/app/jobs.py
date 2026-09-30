@@ -237,6 +237,8 @@ class LocalJobRunner:
                 title_params=dict(title_params or {}),
             )
             job = _Job(info)
+            # Known here before its log is written: a reader that takes the logs and then
+            # the runner's list never sees this job as a log without an end.
             self._jobs[job_id] = job
         log = Path(jobs_dir) / f"{job_id}.jsonl"
         control = JobControl(

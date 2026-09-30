@@ -324,9 +324,9 @@ def get_build(request: Request, ctx: ProjectDep) -> dict[str, Any]:
     from ..jobs import read_job_logs
 
     runtime = runtime_of(request)
-    jobs = [j for j in runtime.jobs.list(ctx.id) if j.kind == "build"]
-    if not jobs:
-        jobs = [j for j in read_job_logs(ctx.layout.jobs, ctx.id, limit=5) if j.kind == "build"]
+    # The logs first, then the runner: a build submitted meanwhile is live, not interrupted.
+    logs = [j for j in read_job_logs(ctx.layout.jobs, ctx.id, limit=5) if j.kind == "build"]
+    jobs = [j for j in runtime.jobs.list(ctx.id) if j.kind == "build"] or logs
     if not jobs:
         return {
             "job": None,

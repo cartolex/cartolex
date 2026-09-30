@@ -70,7 +70,9 @@ const PAGE = 200;
  * A list read from the server one page at a time, for a virtualised Table:
  * `rows` has the list's full length, rows not read yet are placeholders, and
  * `onRange` (the Table's) reads the pages in view. A change of *query* starts
- * again from the first page; `reload()` reads again what is in view.
+ * again from the first page; `reload()` reads again what is in view, and an
+ * answer to a read asked before it is dropped. `data.$asked` says when the
+ * first page was asked (`performance.now()`).
  * @param {object} ctx the page's context (its `api`)
  * @param {string} path
  * @param {object} query filters and sort
@@ -104,6 +106,8 @@ export function usePaged(ctx, path, query, keyOf) {
     const gen = s.gen;
     if (s.asked.has(pageNo)) return;
     s.asked.add(pageNo);
+    // When the read was asked: a page that saves compares it with its last save's answer.
+    const asked = performance.now();
     ctx.api.get(path, { query: { ...sent, offset: pageNo * PAGE, limit: PAGE } }).then((result) => {
       if (gen !== store.current.gen) return;
       if (!result.ok) {
@@ -116,7 +120,8 @@ export function usePaged(ctx, path, query, keyOf) {
       setState((prev) => ({
         rows: build(),
         total: s.total,
-        data: pageNo === 0 || !prev.data ? { ...result.data, etag: result.etag } : prev.data,
+        data: pageNo === 0 || !prev.data ? { ...result.data, etag: result.etag, $asked: asked }
+          : prev.data,
         loading: false,
         error: null,
       }));
