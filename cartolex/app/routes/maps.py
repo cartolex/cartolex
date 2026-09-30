@@ -25,6 +25,9 @@ class VersionAction(BaseModel):
     version: Annotated[str | None, Field(pattern=r"^[A-Za-z0-9_-]{1,32}$")] = None
     seed: Annotated[int | None, Field(ge=0, lt=2**32)] = None
     method: Literal["umap", "tsne", "tree"] | None = None
+    #: ``try``: layout parameters of the method (``n_neighbors``, ``min_dist``, ``perplexity``…),
+    #: set over the pinned version's (same method) or the method's defaults; ``None`` removes one.
+    params: Annotated[dict[str, float | int | str | None], Field(max_length=16)] = {}
     note: Annotated[str, Field(max_length=500)] = ""
     build: bool = False
 
@@ -46,6 +49,20 @@ def _view(ctx: Any) -> dict[str, Any]:
         "version": version_of(fp),
         "empty": None if versions else empty("empty_no_map_versions"),
     }
+
+
+def _check_layout_params(maps: Any, body: VersionAction) -> None:
+    """Refuse a layout parameter the method does not take (422 ``layout_param_unknown``)."""
+    from cartolex.build.engine import LAYOUT_METHODS
+    from cartolex.project.maps import pinned
+
+    method = body.method or pinned(maps).layout.method
+    known = sorted(LAYOUT_METHODS.get(method, ({}, None))[0])
+    for key in body.params:
+        if key not in known:
+            raise ApiError.of(
+                "layout_param_unknown", method=method, param=key, known=", ".join(known) or "—"
+            )
 
 
 @routes.get("/api/map/versions", action="map.read")
@@ -82,7 +99,10 @@ def change_versions(
                     seed = max((v.layout.seed for v in maps.versions), default=0) + 1
                 if maps.pinned is None:
                     raise ApiError.of("no_pinned_version")
-                maps, added = try_another(maps, seed=seed, method=body.method, note=body.note)
+                _check_layout_params(maps, body)
+                maps, added = try_another(
+                    maps, seed=seed, method=body.method, note=body.note, params=body.params
+                )
                 action = f"try {added}"
         except KeyError as exc:
             raise ApiError.of("map_version_not_found", version=body.version) from exc

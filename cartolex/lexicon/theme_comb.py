@@ -49,6 +49,7 @@ __all__ = [
     "Combed",
     "LevelSuggestion",
     "calibrate",
+    "calibration_curve",
     "comb",
     "corpus_texts",
     "document_keywords",
@@ -330,6 +331,42 @@ def calibrate(
             best = (err, c)
     assert best is not None
     return best[1]
+
+
+def calibration_curve(
+    P: np.ndarray,
+    n: np.ndarray,
+    finest: np.ndarray,
+    maps: Sequence[np.ndarray],
+    *,
+    grid: Sequence[float] = THETA_GRID,
+    min_texts: int = MIN_TEXTS,
+) -> dict[str, Any]:
+    """What :func:`calibrate` weighed: for each θ of *grid*, the keywords per level and per node,
+    the too broad, and the balance error; with the θ it keeps.
+
+    ``{"theta": kept θ, "points": [{"theta", "keywords" (per level, from the top),
+    "per_node" (per level), "too_broad", "error"}]}``; ``error`` is ``None`` at depth 1, where
+    :data:`DEFAULT_THETA` is kept.
+    """
+    depth = len(maps)
+    nodes = [int(np.max(m, initial=-1)) + 1 for m in maps]
+    points: list[dict[str, Any]] = []
+    for t in grid:
+        c = comb(P, n, finest, maps, float(t), min_texts=min_texts)
+        counts = c.counts(depth)
+        per_node = _per_node(c, nodes)
+        points.append(
+            {
+                "theta": float(t),
+                "keywords": [counts[lv] for lv in range(1, depth + 1)],
+                "per_node": [round(float(x), 3) for x in per_node],
+                "too_broad": counts[0],
+                "error": None if depth == 1 else round(_balance_error(per_node), 4),
+            }
+        )
+    kept = calibrate(P, n, finest, maps, grid=grid, min_texts=min_texts).theta
+    return {"theta": float(kept), "points": points}
 
 
 # ── suggestions on a tree of any shape ───────────────────────────────────────

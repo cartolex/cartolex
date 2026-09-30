@@ -208,6 +208,60 @@ def fit_tree_layout(
     return umap_ind, place_terms(Z_terms, Zi, umap_ind)
 
 
+#: The methods :func:`preview_layout` draws, and the parameters each reads.
+PREVIEW_PARAMS: dict[str, tuple[str, ...]] = {
+    "umap": ("n_neighbors", "min_dist"),
+    "tsne": ("perplexity",),
+    "tree": (),
+}
+
+
+def preview_layout(
+    Z_ind: np.ndarray,
+    *,
+    method: str,
+    seed: int = 0,
+    params: dict[str, Any] | None = None,
+    tree: Any = None,
+    usage: Any = None,
+) -> np.ndarray:
+    """A quick 2D layout of the people *Z_ind* (a sample of them), to compare methods.
+
+    ``umap`` fits UMAP on the people (cosine, ``n_neighbors``, ``min_dist``),
+    ``tsne`` openTSNE (``perplexity``), ``tree`` the theme *tree*'s map (with the
+    people × keywords *usage*). The same seed gives the same layout. The map
+    itself fits more (the terms, anchors): this is a preview of the method.
+    """
+    params = dict(params or {})
+    Z = np.asarray(Z_ind, dtype=float)
+    if method == "umap":
+        n = Z.shape[0]
+        return _fit_umap(
+            _umap_params(
+                n_neighbors=int(max(2, min(int(params.get("n_neighbors") or 25), n - 1))),
+                min_dist=float(params.get("min_dist", 0.3)),
+                n_components=2,
+                metric="cosine",
+                random_state=int(seed),
+            ),
+            Z,
+        )
+    if method == "tsne":
+        xy, _ = fit_tsne_layout(
+            Z,
+            np.zeros((0, Z.shape[1])),
+            perplexity=float(params.get("perplexity") or 30.0),
+            random_state=int(seed),
+        )
+        return xy
+    if method == "tree":
+        if tree is None or usage is None:
+            raise ValueError("the tree layout needs the applied theme tree")
+        xy, _ = fit_tree_layout(Z, np.zeros((0, Z.shape[1])), tree=tree, usage=usage)
+        return xy
+    raise ValueError(f"unknown layout method {method!r}; known: {sorted(PREVIEW_PARAMS)}")
+
+
 def compute_svd_embeddings(
     data: LexicalData,
     *,

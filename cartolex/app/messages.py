@@ -54,6 +54,15 @@ MESSAGES: dict[str, MessageKind] = {
         "every keyword sits on the level its texts support, or you kept it there", "Close", "none"
     ),
     "empty_tree_never_saved": MessageKind("the tree was never saved", "Close", "none"),
+    "empty_no_space": MessageKind(
+        "the keywords are not placed in a space yet: build the themes", "Build the themes", "build"
+    ),
+    "empty_no_grouping": MessageKind(
+        "the keywords are not grouped yet: build the themes", "Build the themes", "build"
+    ),
+    "empty_no_corpus": MessageKind(
+        "the texts are not gathered yet: build the corpus", "Build the corpus", "build"
+    ),
     "empty_no_map": MessageKind("no map yet: build the map", "Build the map", "build"),
     "empty_no_map_versions": MessageKind(
         "no map yet: the first build draws one and pins it", "Build the map", "build"

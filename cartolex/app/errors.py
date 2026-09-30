@@ -208,6 +208,13 @@ ERRORS: dict[str, ErrorKind] = {
     "no_pinned_version": ErrorKind(
         409, "there is no pinned map version to start from: build the map first", "build"
     ),
+    "layout_param_unknown": ErrorKind(
+        422, "the {method} layout takes no parameter {param}; it takes: {known}", "fix-input"
+    ),
+    "layout_method_unavailable": ErrorKind(
+        422, "the {method} layout is not installed on this computer", "fix-input"
+    ),
+    "preview_needs_build": ErrorKind(409, "this preview needs {stage} built first", "build"),
     "base_not_found": ErrorKind(404, "there is no base map {base}", "reload"),
     "base_no_map": ErrorKind(
         422, "{path} holds no project with a map: build its map there first", "fix-input"

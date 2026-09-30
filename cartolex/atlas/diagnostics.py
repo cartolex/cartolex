@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import numpy as np
 from sklearn.manifold import trustworthiness
@@ -54,6 +55,38 @@ def neighborhood_preservation(
     )
     overlap = [len(set(hi[i]) & set(lo[i])) / eff_k for i in range(n)]
     return float(np.mean(overlap))
+
+
+def neighbour_overlap(
+    high: Any,
+    low: np.ndarray,
+    *,
+    k: int = 10,
+    high_metric: str = "cosine",
+    low_metric: str = "euclidean",
+) -> float:
+    """The share of each point's ``k`` nearest neighbours in *high* that stay among its ``k``
+    nearest in *low*, averaged over the points (``0``..``1``).
+
+    *high* may be sparse (a TF-IDF matrix); *low* is a reduction of the same rows
+    (a space of fewer dimensions, a 2D map). The kNN are exact: callers sample
+    the rows first on large sets (see :func:`neighborhood_preservation`).
+    """
+    n = low.shape[0]
+    eff_k = min(k, n - 1)
+    if eff_k < 1:
+        return 0.0
+    hi = (
+        NearestNeighbors(n_neighbors=eff_k + 1, metric=high_metric)
+        .fit(high)
+        .kneighbors(high, return_distance=False)[:, 1:]
+    )
+    lo = (
+        NearestNeighbors(n_neighbors=eff_k + 1, metric=low_metric)
+        .fit(low)
+        .kneighbors(low, return_distance=False)[:, 1:]
+    )
+    return float(np.mean([len(set(hi[i]) & set(lo[i])) / eff_k for i in range(n)]))
 
 
 def cluster_separation(coords2d: np.ndarray, labels: np.ndarray) -> float | None:

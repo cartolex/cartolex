@@ -566,3 +566,15 @@ nothing in the engine names a particular deployment, source or procedure.
   already reviews: theme operations applied and saved as a version, or keyword
   decisions to accept. `cartolex.lexicon` loads its public names on first use,
   so a light module of it no longer loads the extraction.
+- **The method screen.** `/method` (the header's settings menu) shows the build
+  step by step — texts, keywords, space, grouping, layout — each with its
+  parameters (value, origin, limits, a mark when a value differs from its
+  default or was not built yet, back to default), what the step produced, read
+  from its outputs (`GET /api/method/<step>`: the candidates by band and score,
+  the variance by dimension and the neighbours kept, the levels, the comb's θ
+  calibration and a dendrogram of the themes, the neighbours the map keeps),
+  and « rebuild from here » (`/build?force=<stage>`). A layout is previewed on
+  a sample of the people beside the map (`POST /api/method/layout/preview`, a
+  job, then cached) and can become a map version with its parameters
+  (`POST /api/map/versions` takes `params`). The settings' list of every
+  parameter moved there.

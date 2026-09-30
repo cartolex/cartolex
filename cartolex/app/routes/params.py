@@ -38,7 +38,9 @@ def _spec(spec: Any) -> dict[str, Any]:
 
 
 def params_view(runtime: Any, project: Any) -> dict[str, Any]:
-    """Every stage's parameters: value, origin, limits, and the value of the last run."""
+    """Every stage's parameters: value, origin, limits, the value without ``params.json``
+    (``default_value``, and ``differs`` when the value is another), and the value of the last
+    run."""
     from cartolex.build import RULES, load_params
     from cartolex.build.params import ParamsError, resolve_params
     from cartolex.build.records import read_record
@@ -62,6 +64,10 @@ def params_view(runtime: Any, project: Any) -> dict[str, Any]:
     stages, problems = [], []
     for stage in registry:
         resolved = resolve_params(stage, params, sizes, year=year)
+        # what each value would be without params.json: the default, or the rule's value
+        baseline = resolve_params(
+            stage, params.model_copy(update={"stages": {}}), sizes, year=year
+        ).values
         if stage.skip_reason(project.config, params) is None:
             problems += resolved.problems(stage, sizes, project.config)
         record = records.get(stage.id)
@@ -77,6 +83,8 @@ def params_view(runtime: Any, project: Any) -> dict[str, Any]:
                 "rule_description": RULES[pv.rule].description if pv.rule in RULES else None,
                 "waits_for": list(resolved.unknown.get(name, ())) or None,
                 "set_in_file": name in (params.stages.get(stage.id) or {}),
+                "default_value": baseline[name].value if name in baseline else None,
+                "differs": name in baseline and pv.value != baseline[name].value,
                 "last_run": None if last is None else last.value,
                 "changed_since_last_run": None
                 if record is None

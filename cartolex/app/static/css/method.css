@@ -1,0 +1,288 @@
+/* SPDX-License-Identifier: MIT */
+/*
+ * The method screen (pages/method/): the steps beside one step, its
+ * parameters and what it produced, the figures drawn in SVG. It builds on the
+ * settings' layout (settings.css). Tokens only.
+ */
+
+.cx-method__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cx-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cx-method__step {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  gap: var(--cx-space-2);
+  align-items: center;
+}
+
+.cx-method__number {
+  color: var(--cx-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cx-method__panels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cx-space-4);
+}
+
+.cx-method-card {
+  min-width: 0;
+}
+
+.cx-num {
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.cx-method-params tr.is-changed > th[scope='row'] {
+  box-shadow: inset 3px 0 0 var(--cx-text);
+}
+
+.cx-method-mark {
+  display: flex;
+  gap: var(--cx-space-1);
+  align-items: center;
+  margin: var(--cx-space-1) 0 0;
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}
+
+.cx-method-mark--changed {
+  color: var(--cx-text);
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-method-global,
+.cx-method-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-3);
+  align-items: flex-end;
+  margin: var(--cx-space-3) 0;
+}
+
+.cx-method-form .cx-settings__inline-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cx-space-1);
+}
+
+.cx-method-form .is-changed .cx-settings__muted {
+  color: var(--cx-text);
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-method-subtitle {
+  margin: var(--cx-space-5) 0 var(--cx-space-2);
+  font-size: var(--cx-text-m);
+}
+
+.cx-method-caption {
+  margin-bottom: var(--cx-space-1);
+  font-weight: var(--cx-weight-medium);
+  text-align: start;
+}
+
+.cx-method-two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: var(--cx-space-4);
+  align-items: start;
+  margin: var(--cx-space-3) 0;
+}
+
+.cx-method-ranked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cx-space-2);
+}
+
+.cx-method-ranked__table {
+  display: flex;
+  flex-direction: column;
+  height: 26rem;
+}
+
+.cx-method-ranked__table > .cx-table--fill {
+  flex: 1 1 auto;
+}
+
+.cx-method-outline,
+.cx-method-outline ol {
+  margin: 0;
+  padding-inline-start: var(--cx-space-4);
+}
+
+.cx-method-outline li {
+  margin: var(--cx-space-1) 0;
+}
+
+.cx-method-outline__name {
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-method-outline .cx-num {
+  margin-inline-start: var(--cx-space-2);
+}
+
+.cx-method-waiting {
+  display: flex;
+  gap: var(--cx-space-2);
+  align-items: center;
+  color: var(--cx-text-muted);
+}
+
+.cx-method-waiting .cx-progress {
+  flex: 0 0 12rem;
+}
+
+.cx-method-compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: var(--cx-space-3);
+  margin: var(--cx-space-3) 0;
+}
+
+.cx-method-compare__map {
+  margin: 0;
+}
+
+.cx-method-compare__map figcaption {
+  margin-top: var(--cx-space-1);
+  font-size: var(--cx-text-s);
+}
+
+.cx-method-compare__frame {
+  height: 16rem;
+  border: var(--cx-rule-width) solid var(--cx-rule);
+  border-radius: var(--cx-radius-m);
+}
+
+.cx-method-compare__legend,
+.cx-method-compare > .cx-settings__muted {
+  grid-column: 1 / -1;
+}
+
+.cx-method-fixed td {
+  white-space: nowrap;
+}
+
+/* ── figures ───────────────────────────────────────────────────────────── */
+
+.cx-chart {
+  margin: var(--cx-space-3) 0;
+}
+
+.cx-chart__svg {
+  display: block;
+  width: 100%;
+  max-width: 48rem;
+  height: auto;
+  color: var(--cx-text-muted);
+  font-size: 11px;
+}
+
+.cx-chart__svg text {
+  fill: var(--cx-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cx-chart__svg .cx-chart__label,
+.cx-chart__svg .cx-chart__leaf {
+  fill: var(--cx-text);
+}
+
+.cx-chart__rule {
+  stroke: var(--cx-rule);
+  stroke-width: 1;
+}
+
+.cx-chart__base {
+  stroke: var(--cx-border-strong);
+  stroke-width: 1;
+}
+
+.cx-chart__mark line {
+  stroke: var(--cx-text);
+  stroke-dasharray: 4 3;
+  stroke-width: 1;
+}
+
+.cx-chart__svg .cx-chart__mark text {
+  fill: var(--cx-text);
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-chart__line polyline {
+  fill: none;
+  stroke-width: 2;
+}
+
+.cx-chart__tree {
+  fill: none;
+  stroke: var(--cx-text-muted);
+  stroke-width: 1.5;
+}
+
+.cx-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-1) var(--cx-space-3);
+  margin: var(--cx-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--cx-text-s);
+}
+
+.cx-chart__legend li {
+  display: flex;
+  gap: var(--cx-space-1);
+  align-items: center;
+}
+
+.cx-chart__swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: var(--cx-radius-s);
+}
+
+.cx-chart__numbers {
+  margin-top: var(--cx-space-2);
+  font-size: var(--cx-text-s);
+}
+
+.cx-chart__numbers summary {
+  cursor: pointer;
+  color: var(--cx-text-muted);
+}
+
+.cx-chart__hue-1 { fill: var(--cx-hue-1); stroke: var(--cx-hue-1); background: var(--cx-hue-1); }
+.cx-chart__hue-2 { fill: var(--cx-hue-2); stroke: var(--cx-hue-2); background: var(--cx-hue-2); }
+.cx-chart__hue-3 { fill: var(--cx-hue-3); stroke: var(--cx-hue-3); background: var(--cx-hue-3); }
+.cx-chart__hue-4 { fill: var(--cx-hue-4); stroke: var(--cx-hue-4); background: var(--cx-hue-4); }
+.cx-chart__hue-5 { fill: var(--cx-hue-5); stroke: var(--cx-hue-5); background: var(--cx-hue-5); }
+.cx-chart__hue-6 { fill: var(--cx-hue-6); stroke: var(--cx-hue-6); background: var(--cx-hue-6); }
+.cx-chart__hue-7 { fill: var(--cx-hue-7); stroke: var(--cx-hue-7); background: var(--cx-hue-7); }
+.cx-chart__hue-8 { fill: var(--cx-hue-8); stroke: var(--cx-hue-8); background: var(--cx-hue-8); }
+.cx-chart__hue-9 { fill: var(--cx-hue-9); stroke: var(--cx-hue-9); background: var(--cx-hue-9); }
+.cx-chart__hue-10 { fill: var(--cx-hue-10); stroke: var(--cx-hue-10); background: var(--cx-hue-10); }
+.cx-chart__hue-11 { fill: var(--cx-hue-11); stroke: var(--cx-hue-11); background: var(--cx-hue-11); }
+.cx-chart__hue-12 { fill: var(--cx-hue-12); stroke: var(--cx-hue-12); background: var(--cx-hue-12); }
+
+.cx-chart__line circle {
+  stroke: none;
+}
+
+@media (max-width: 40rem) {
+  .cx-method__step {
+    grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  }
+}

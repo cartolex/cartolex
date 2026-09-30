@@ -58,6 +58,27 @@ class Cache:
                 self._items.popitem(last=False)
         return value
 
+    def peek(self, key: Any) -> Any:
+        """The value kept for *key*, or ``None`` (without computing it)."""
+        with self._lock:
+            if key in self._items:
+                self._items.move_to_end(key)
+                return self._items[key]
+        return None
+
+    def put(self, key: Any, value: Any) -> None:
+        """Keep *value* for *key*."""
+        with self._lock:
+            self._items[key] = value
+            self._items.move_to_end(key)
+            while len(self._items) > self._size:
+                self._items.popitem(last=False)
+
+    def items(self) -> list[tuple[Any, Any]]:
+        """What is kept, the oldest first (a copy)."""
+        with self._lock:
+            return list(self._items.items())
+
 
 class Runtime:
     """Everything one app holds while it runs."""
@@ -127,6 +148,8 @@ class Runtime:
         self.warned: set[tuple[str, str]] = set()
         self.atlas_cache = Cache(8)
         self.table_cache = Cache(16)
+        #: The layout previews of the method screen, by what they were drawn from.
+        self.preview_cache = Cache(24)
         self._upload_tmp: tempfile.TemporaryDirectory[str] | None = None
         if settings.data_dir is not None:
             self.upload_root = Path(settings.data_dir) / "uploads"
