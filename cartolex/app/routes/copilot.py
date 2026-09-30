@@ -80,6 +80,37 @@ def _context(ctx: Any, task: str, **extra: Any) -> dict[str, Any]:
     }
 
 
+#: The grouping's settings a themes bundle carries (``themes.group``'s parameters): the kit
+#: groups, combs and names with them, as the project's grouping did.
+GROUPING_SETTINGS = (
+    "cluster_dimensions",
+    "exact_ward_limit",
+    "micro_clusters",
+    "micro_seed",
+    "comb_theta",
+    "comb_grid",
+    "comb_theta_one_level",
+    "comb_min_texts",
+    "comb_max_cells",
+    "own_name_floor",
+)
+
+
+def _grouping(ctx: Any) -> dict[str, Any]:
+    """The settings the grouping recorded in its ``run.json`` (the defaults before it ran, or
+    for a setting it did not record)."""
+    from cartolex.build.records import read_record
+    from cartolex.build.stages import STAGES
+
+    stage = STAGES["themes.group"]
+    record = read_record(ctx.layout, "themes.group")
+    out = {}
+    for name in GROUPING_SETTINGS:
+        recorded = record.parameters.get(name) if record is not None else None
+        out[name] = recorded.value if recorded is not None else stage.param(name).default
+    return out
+
+
 def read_curation(ctx: Any) -> Any:
     """The curator's notes and standing rules (``decisions/curation-notes.md``)."""
     from cartolex.project.curation import parse
@@ -227,12 +258,14 @@ def themes_export(request: Request, body: ThemesExportBody, ctx: ProjectDep) -> 
     data, emb = _space_models(request, ctx)
     X = data.X
     U = data.X_tf if getattr(data, "X_tf", None) is not None else data.X
+    grouping = _grouping(ctx)
     context = _context(
         ctx,
         "themes",
         depth=tree.depth,
         dimensions=int(emb.Z_terms.shape[1]),
-        cluster_components=50,
+        cluster_components=grouping["cluster_dimensions"],
+        grouping=grouping,
         levels=_levels(tree, ctx.project.config.languages.reference),
     )
     from cartolex.lexicon.theme_comb import tree_levels

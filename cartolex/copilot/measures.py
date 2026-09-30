@@ -205,15 +205,16 @@ def _labels(level_rows: Sequence[np.ndarray], n: int) -> np.ndarray:
 
 
 def group_levels(
-    Z_terms: np.ndarray, level_sizes: Sequence[int], *, components: int = 50
+    Z_terms: np.ndarray, level_sizes: Sequence[int], *, components: int = 50, ward: Any = None
 ) -> list[np.ndarray]:
-    """Each keyword's group at every level (from the top), by the grouping of cartolex."""
+    """Each keyword's group at every level (from the top), by the grouping of cartolex (with
+    *ward*, the project's :class:`~cartolex.atlas.clustering.WardOptions`)."""
     from cartolex.atlas.clustering import fit_agglomerative_labels, prepare_cluster_embeddings
     from cartolex.atlas.hierarchy import level_groups
 
     Zn = prepare_cluster_embeddings(np.asarray(Z_terms, dtype=float), components)
-    finest = fit_agglomerative_labels(Zn, n_clusters=int(level_sizes[-1]))
-    groups = level_groups(Z_terms, finest, list(level_sizes))
+    finest = fit_agglomerative_labels(Zn, n_clusters=int(level_sizes[-1]), ward=ward)
+    groups = level_groups(Z_terms, finest, list(level_sizes), ward=ward)
     return [_labels(g.rows, len(Z_terms)) for g in groups]
 
 
@@ -227,6 +228,7 @@ def stability(
     draws: int = 3,
     seed: int = 0,
     components: int = 50,
+    ward: Any = None,
 ) -> dict[str, Any]:
     """How much the grouping at *level_sizes* holds when a share *drop* of the people is left out.
 
@@ -256,7 +258,7 @@ def stability(
             meta_ind=pd.DataFrame(index=range(len(rows))),
         )
         emb = compute_svd_embeddings(data, n_components=dimensions, model_path=folder / "svd.json")
-        return group_levels(emb.Z_terms, level_sizes, components=components)
+        return group_levels(emb.Z_terms, level_sizes, components=components, ward=ward)
 
     with tempfile.TemporaryDirectory() as tmp:
         folder = Path(tmp)
