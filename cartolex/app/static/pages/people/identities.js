@@ -9,6 +9,10 @@
  *
  * Every decision is saved at once and the next person comes up. The single
  * clear matches (one candidate, a high score) can be accepted in bulk.
+ *
+ * The saves go one after the other, each with the version (ETag) the previous
+ * one answered; a list read asked before a save neither gives its older version
+ * nor brings back a person just decided (a slow machine answers late).
  */
 import { html, useEffect, useRef, useState } from '../../core/preact.js';
 import { formatNumber, formatPercent, has, t } from '../../core/i18n.js';
@@ -60,7 +64,6 @@ function Candidate({ candidate, number, picked, onPick }) {
 export function IdentityQueue({ ctx, version, bump, toast, openSheet, openCollect, canCollect, refresh }) {
   const [filter, setFilter] = useState('');
   const [finder, setFinder] = useState('');
-  const [local, setLocal] = useState(0);
   const [active, setActive] = useState(null);
   const [pick, setPick] = useState(-1);
   const [pasted, setPasted] = useState('');
@@ -72,11 +75,24 @@ export function IdentityQueue({ ctx, version, bump, toast, openSheet, openCollec
     state: 'pending',
     clear: filter === 'clear' ? true : filter === 'unclear' ? false : undefined,
     finder: finder || undefined,
-    $v: `${version}.${local}`,
+    $v: version,
   }, (row) => row.person_id);
   const data = list.data || {};
   const counts = data.counts || {};
-  if (data.etag && data.etag !== etag.current && !busy) etag.current = data.etag;
+  // The saves, one after the other; when the last one answered; the people decided since.
+  const queue = useRef(Promise.resolve());
+  const saves = useRef({ pending: 0, answeredAt: -1 });
+  const decided = useRef(new Set());
+  const fresh = data.etag && saves.current.pending === 0
+    && data.$asked > saves.current.answeredAt;
+  if (fresh && data.etag !== etag.current) etag.current = data.etag;
+  if (fresh && decided.current.size) decided.current = new Set();
+  const latest = useRef(list);
+  latest.current = list;
+  const answered = (result) => {
+    saves.current.answeredAt = performance.now();
+    if (result.etag) etag.current = result.etag;
+  };
 
   const picked = useRef(-1);
   const choosePick = (i) => {
@@ -95,37 +111,51 @@ export function IdentityQueue({ ctx, version, bump, toast, openSheet, openCollec
 
   // Keys may come before a render: the person and the pending state are read from refs.
   const current = useRef(null);
-  const saving = useRef(false);
   const choose = (row) => {
-    current.current = row;
-    setActive(row);
+    // A person decided here and still in an older answer of the list is not shown again.
+    const next = row && decided.current.has(row.person_id) ? null : row;
+    current.current = next;
+    setActive(next);
   };
 
-  async function decide(body) {
-    const person = current.current;
-    if (!person || saving.current) return;
-    saving.current = true;
+  /** Run *write* after the saves before it; *write* sends `etag.current` as it is then. */
+  function serial(write) {
+    saves.current.pending += 1;
     setBusy(true);
+    const run = queue.current.then(write).finally(() => {
+      saves.current.pending -= 1;
+      if (!saves.current.pending) setBusy(false);
+    });
+    queue.current = run.catch(() => {});
+    return run;
+  }
+
+  function decide(body) {
+    const person = current.current;
+    if (!person || decided.current.has(person.person_id)) return;
+    decided.current.add(person.person_id);
+    // The decided person leaves the queue at once: nothing acts on them any more; the
+    // list's next person becomes the active one when the list comes back.
+    choose(null);
     setError(null);
-    const result = await ctx.api.post(
-      `/api/collection/identities/${encodeURIComponent(person.person_id)}`, body,
-      { ifMatch: etag.current },
-    );
-    saving.current = false;
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    if (result.etag) etag.current = result.etag;
-    // The decided person leaves the queue: nothing acts on them any more; the list's next
-    // person becomes the active one when it comes back.
-    if (current.current === person) choose(null);
-    toast({ kind: 'success', title: t(`corpus.identities.saved.${body.decision}`,
-      { name: personName(person) }), timeout: 2500 });
-    setLocal((v) => v + 1);
-    refresh();
-    focusGrid();
+    serial(async () => {
+      const result = await ctx.api.post(
+        `/api/collection/identities/${encodeURIComponent(person.person_id)}`, body,
+        { ifMatch: etag.current },
+      );
+      answered(result);
+      if (!result.ok) {
+        decided.current.delete(person.person_id);
+        setError(result.error);
+        latest.current.reload();
+        return;
+      }
+      toast({ kind: 'success', title: t(`corpus.identities.saved.${body.decision}`,
+        { name: personName(person) }), timeout: 2500 });
+      latest.current.reload();
+      refresh();
+      focusGrid();
+    });
   }
   const confirmPicked = () => {
     const person = current.current;
@@ -133,15 +163,13 @@ export function IdentityQueue({ ctx, version, bump, toast, openSheet, openCollec
     if (cand && cand.record) decide({ decision: 'accept', record: cand.record });
   };
 
-  async function acceptClear() {
-    setBusy(true);
+  const acceptClear = () => serial(async () => {
     setError(null);
     const ids = [];
     for (let offset = 0; offset < (counts.clear || 0); offset += 500) {
       const page = await ctx.api.get('/api/collection/identities',
         { query: { state: 'pending', clear: true, offset, limit: 500 } });
       if (!page.ok) {
-        setBusy(false);
         setError(page.error);
         return;
       }
@@ -152,17 +180,16 @@ export function IdentityQueue({ ctx, version, bump, toast, openSheet, openCollec
     for (let i = 0; i < ids.length; i += 5000) {
       const result = await ctx.api.post('/api/collection/identities/accept',
         { person_ids: ids.slice(i, i + 5000) }, { ifMatch: etag.current });
+      answered(result);
       if (!result.ok) {
         setError(result.error);
         break;
       }
-      if (result.etag) etag.current = result.etag;
       accepted += result.data.accepted.length;
     }
-    setBusy(false);
     toast({ kind: 'success', title: t('corpus.identities.accepted', { n: accepted }) });
     bump();
-  }
+  });
 
   const onKeyDown = (event) => {
     const target = event.target;

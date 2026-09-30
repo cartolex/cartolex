@@ -142,3 +142,47 @@ def test_collect_identities_by_keyboard_and_a_sheet_that_says_why(corpus_app, op
     sheet.wait_for()
     assert "First blocking cause" in sheet.inner_text()
     assert "No data" in sheet.inner_text()
+
+
+def test_two_quick_decisions_on_a_slow_machine_are_both_saved(corpus_app, open_app):
+    # A slow list (a loaded machine): a read asked before the first decision answers during
+    # its save. The second decision, made at once on the next person, waits for the first
+    # save and uses the version it answered; the decided person does not come back.
+    ui = open_app(corpus_app)
+    page = ui.page
+    ui.navigate("/people")
+    page.locator(f".cx-corpus {REAL_ROW}").first.wait_for()
+    page.get_by_role("button", name="Collect").click()
+    page.get_by_role("menuitem", name="Find identities").click()
+    page.get_by_role("button", name="What leaves the computer").click()
+    page.get_by_label("I have read what leaves the computer").check()
+    page.get_by_role("button", name="Start").click()
+    assert _wait_jobs(ui)["state"] == "succeeded"
+    page.get_by_role("tab", name="Identities").click()
+    queue = page.locator(".cx-corpus-queue")
+    queue.locator(REAL_ROW).first.wait_for()
+    before = _count(ui, "pending")
+    collection = corpus_app.app.state.cartolex.collection
+    candidates = collection.candidates
+
+    def slow(*args, **kwargs):
+        time.sleep(1.0)
+        return candidates(*args, **kwargs)
+
+    collection.candidates = slow
+    queue.get_by_label("Found by", exact=True).select_option("openalex")  # a read starts
+    queue.locator(".cx-table__scroller").focus()
+    page.keyboard.press("ArrowDown")
+    queue.locator(".cx-corpus-panel__head").wait_for()
+    page.keyboard.press("1")
+    page.keyboard.press("Enter")
+    # the next person at once, while the first save and the read are still out
+    page.keyboard.press("ArrowDown")
+    queue.locator(".cx-corpus-panel__head").wait_for()
+    page.keyboard.press("n")
+    _until(lambda: _count(ui, "none") == 1, timeout=15)
+    assert _count(ui, "pending") == before - 2
+    # the late read has answered: the queue shows neither decided person, and no error
+    left = _get(ui, "/api/collection/identities?state=pending&finder=openalex&limit=1")["total"]
+    _until(lambda: queue.locator(REAL_ROW).count() == left, timeout=15)
+    assert queue.locator(".cx-error-card").count() == 0
