@@ -43,7 +43,7 @@ class PreviewBody(BaseModel):
 
     method: Literal["umap", "tsne", "tree"]
     seed: Annotated[int, Field(ge=0, lt=2**32)] = 0
-    params: Annotated[dict[str, float | int | None], Field(max_length=8)] = {}
+    params: Annotated[dict[str, float | int | str | None], Field(max_length=16)] = {}
 
 
 @routes.post("/api/method/layout/preview", action="map.write")

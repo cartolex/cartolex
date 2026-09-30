@@ -100,18 +100,24 @@ def version_rank(doc_type: str | None) -> tuple[int, str]:
 
 
 def duplicate_groups(
-    texts: Mapping[str, Mapping[str, object]], authors: Mapping[str, Iterable[str]]
+    texts: Mapping[str, Mapping[str, object]],
+    authors: Mapping[str, Iterable[str]],
+    *,
+    min_title: int = DUPLICATE_MIN_TITLE,
+    year_gap: int = DUPLICATE_YEAR_GAP,
 ) -> list[list[str]]:
     """The texts that are one work (see the module docstring), in groups of two or more.
 
     *texts* maps a text id to its ``slot``, ``title`` and ``year``; *authors* a text
     id to its authors' ids. Each group is sorted by id, the groups by their first id.
+    *min_title* and *year_gap* replace :data:`DUPLICATE_MIN_TITLE` and
+    :data:`DUPLICATE_YEAR_GAP`.
     """
     by_title: dict[tuple[str, str], list[str]] = defaultdict(list)
     for tid in sorted(texts):
         row = texts[tid]
         title = normalised_title(row.get("title"))  # type: ignore[arg-type]
-        if len(title) >= DUPLICATE_MIN_TITLE and row.get("year") is not None:
+        if len(title) >= min_title and row.get("year") is not None:
             by_title[(str(row["slot"]), title)].append(tid)
     parent: dict[str, str] = {}
 
@@ -124,7 +130,7 @@ def duplicate_groups(
         for i, a in enumerate(tids):
             for b in tids[i + 1 :]:
                 gap = abs(int(texts[a]["year"]) - int(texts[b]["year"]))  # type: ignore[call-overload]
-                if gap <= DUPLICATE_YEAR_GAP and set(authors.get(a, ())) & set(authors.get(b, ())):
+                if gap <= year_gap and set(authors.get(a, ())) & set(authors.get(b, ())):
                     ra, rb = find(a), find(b)
                     if ra != rb:
                         parent[max(ra, rb)] = min(ra, rb)
@@ -205,6 +211,8 @@ def assemble_corpus(
     provider_priority: Sequence[str] = (),
     doc_types: Sequence[str] | Mapping[str, Sequence[str] | None] | None = None,
     unit_level: str | None = None,
+    duplicate_min_title: int = DUPLICATE_MIN_TITLE,
+    duplicate_year_gap: int = DUPLICATE_YEAR_GAP,
 ) -> CorpusSummary:
     """Write the engine's corpus for *config*'s fit slots and projected sets into *out_dir*.
 
@@ -224,8 +232,10 @@ def assemble_corpus(
     (``None``: every type); a slot's own ``doc_types`` in ``project.json``
     replace them. A text of another type is left out, and counted. *unit_level* names the level
     whose organisation fills the ``unit`` column (default: the project's first
-    level, else any affiliation).
+    level, else any affiliation). *duplicate_min_title* and *duplicate_year_gap* are
+    how two texts are found to be one work (:func:`duplicate_groups`).
     """
+    same_work = {"min_title": duplicate_min_title, "year_gap": duplicate_year_gap}
     out_dir = Path(out_dir)
     main = _load(layout.tables, config, unit_level, provider_priority)
     copies: dict[Path, dict[str, str]] = {}
@@ -256,7 +266,7 @@ def assemble_corpus(
         allowed = types_of(src.text_meta[tid]["slot"])
         return allowed is None or src.text_meta[tid]["doc_type"] in allowed
 
-    copies[layout.tables] = _one_text_per_work(main, layout.tables, readable)
+    copies[layout.tables] = _one_text_per_work(main, layout.tables, readable, same_work)
 
     def texts_of(pid: str, slots: set[str] | None, src: _Loaded) -> list[str]:
         text_meta = src.text_meta
@@ -334,7 +344,7 @@ def assemble_corpus(
         if not root.is_absolute():
             root = layout.root / root
         own = _load(root / "tables", config, unit_level, provider_priority)
-        copies[root / "tables"] = _one_text_per_work(own, root / "tables", readable)
+        copies[root / "tables"] = _one_text_per_work(own, root / "tables", readable, same_work)
         plans.append(
             (f"overlay:{overlay.id}", target, sorted(own.people), None, own, root / "tables")
         )
@@ -410,7 +420,10 @@ def _load(
 
 
 def _one_text_per_work(
-    src: _Loaded, tables: Path, readable: Callable[[str, _Loaded], bool]
+    src: _Loaded,
+    tables: Path,
+    readable: Callable[[str, _Loaded], bool],
+    same_work: Mapping[str, int] | None = None,
 ) -> dict[str, str]:
     """Read one text per work of *src* (see the module docstring), in place.
 
@@ -422,7 +435,9 @@ def _one_text_per_work(
     for pid, tids in src.by_person.items():
         for tid in tids:
             authors[tid].add(pid)
-    groups = duplicate_groups({t: m for t, m in meta.items() if readable(t, src)}, authors)
+    groups = duplicate_groups(
+        {t: m for t, m in meta.items() if readable(t, src)}, authors, **dict(same_work or {})
+    )
     if not groups:
         return {}
 

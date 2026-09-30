@@ -309,6 +309,10 @@ def _changes(
             waits = ", ".join(s.replace("_", " ") for s in resolved.unknown[name])
             reasons.append(Reason("parameter", name, f"parameter {name} waits for {waits}"))
         elif before is None:
+            if pv.source == "default":
+                # a parameter a newer cartolex declares, at its default: the default is
+                # what the stage did before it was a parameter, so nothing changed
+                continue
             reasons.append(
                 Reason("parameter", name, f"parameter {name} is new: {pv.value!r} ({_origin(pv)})")
             )

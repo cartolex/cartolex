@@ -45,6 +45,14 @@
   box-shadow: inset 3px 0 0 var(--cx-text);
 }
 
+.cx-method-params__section > th {
+  padding-top: var(--cx-space-3);
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+  font-weight: var(--cx-weight-medium);
+  text-align: start;
+}
+
 .cx-method-mark {
   display: flex;
   gap: var(--cx-space-1);
@@ -88,14 +96,6 @@
   margin-bottom: var(--cx-space-1);
   font-weight: var(--cx-weight-medium);
   text-align: start;
-}
-
-.cx-method-two {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-  gap: var(--cx-space-4);
-  align-items: start;
-  margin: var(--cx-space-3) 0;
 }
 
 .cx-method-ranked {
@@ -168,10 +168,6 @@
 .cx-method-compare__legend,
 .cx-method-compare > .cx-settings__muted {
   grid-column: 1 / -1;
-}
-
-.cx-method-fixed td {
-  white-space: nowrap;
 }
 
 /* ── figures ───────────────────────────────────────────────────────────── */

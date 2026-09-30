@@ -16,6 +16,7 @@ micro-cluster. See ``docs/dev/themes-engine.md`` for the measures.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -31,13 +32,29 @@ EXACT_WARD_LIMIT = 15_000
 MICRO_SEED = 0
 
 
-def micro_cluster_count(n_points: int, n_clusters: int, *, limit: int = EXACT_WARD_LIMIT) -> int:
+@dataclass(frozen=True)
+class WardOptions:
+    """How a Ward cut runs: exactly up to *limit* points, else in two stages.
+
+    *micro* is the number of micro-clusters of the two-stage cut (``None``: the
+    rule of :func:`micro_cluster_count`, as many as the exact path allows);
+    *seed* is the micro-clustering's seed.
+    """
+
+    limit: int = EXACT_WARD_LIMIT
+    micro: int | None = None
+    seed: int = MICRO_SEED
+
+
+def micro_cluster_count(
+    n_points: int, n_clusters: int, *, limit: int = EXACT_WARD_LIMIT, micro: int | None = None
+) -> int:
     """How many micro-clusters the two-stage cut makes of *n_points*: ``min(n, limit)``.
 
     As many as the weighted Ward merges within the memory the exact path is
-    allowed (``limit`` points).
+    allowed (``limit`` points); *micro*, when given, replaces ``limit``.
     """
-    return int(min(n_points, limit))
+    return int(min(n_points, limit if micro is None else micro))
 
 
 def weighted_ward_linkage(points: np.ndarray, weights: np.ndarray) -> np.ndarray:
@@ -191,6 +208,7 @@ def two_stage_ward_labels(
     limit: int = EXACT_WARD_LIMIT,
     seed: int = MICRO_SEED,
     init: str = MICRO_INIT,
+    micro: int | None = None,
 ) -> np.ndarray:
     """Ward cut of *points* into *n_clusters* groups through micro-clusters (0-based labels).
 
@@ -208,7 +226,7 @@ def two_stage_ward_labels(
     k = max(1, min(int(n_clusters), n))
     if k == 1:
         return np.zeros(n, dtype=int)
-    m = micro_cluster_count(n, k, limit=limit)
+    m = micro_cluster_count(n, k, limit=limit, micro=micro)
     if 2 * k > m:
         return micro_clusters(P, k, seed=seed, init=init)
     micro = micro_clusters(P, m, seed=seed, init=init)
@@ -225,19 +243,29 @@ def two_stage_ward_labels(
 
 
 def ward_labels(
-    points: np.ndarray, n_clusters: int, *, limit: int = EXACT_WARD_LIMIT
+    points: np.ndarray,
+    n_clusters: int,
+    *,
+    limit: int | None = None,
+    options: WardOptions | None = None,
 ) -> np.ndarray:
     """Ward cut of *points* into *n_clusters* groups (0-based labels), exact up to *limit* points.
 
-    Up to *limit* points: scipy's ``linkage(method="ward")`` cut with
-    ``fcluster(maxclust)``, as always. Above: :func:`two_stage_ward_labels`.
+    Up to *limit* points (*options*' limit, :data:`EXACT_WARD_LIMIT` by default):
+    scipy's ``linkage(method="ward")`` cut with ``fcluster(maxclust)``, as
+    always. Above: :func:`two_stage_ward_labels`, with *options*' micro-clusters
+    and seed.
     """
     from scipy.cluster.hierarchy import fcluster, linkage
 
+    opts = options if options is not None else WardOptions()
+    limit = opts.limit if limit is None else limit
     n = points.shape[0]
     if n > limit:
         logger.info("Ward on %d points in two stages (micro-clusters above %d).", n, limit)
-        return two_stage_ward_labels(points, n_clusters, limit=limit)
+        return two_stage_ward_labels(
+            points, n_clusters, limit=limit, seed=opts.seed, micro=opts.micro
+        )
     link = linkage(points, method="ward")
     # fcluster labels are 1..k; shift to 0-based to match the rest of the pipeline.
     return fcluster(link, t=n_clusters, criterion="maxclust").astype(int) - 1
@@ -254,19 +282,21 @@ def prepare_cluster_embeddings(Z_terms: np.ndarray, n_components_cluster: int) -
     return normalize(Z_terms[:, :k_dims], norm="l2", axis=1)
 
 
-def fit_agglomerative_labels(Zn: np.ndarray, *, n_clusters: int) -> np.ndarray:
+def fit_agglomerative_labels(
+    Zn: np.ndarray, *, n_clusters: int, ward: WardOptions | None = None
+) -> np.ndarray:
     """Ward agglomerative clustering on L2-normalised SVD vectors → labels.
 
     Bottom-up: merges the most correlated terms first, building a tree whose cut at
     ``n_clusters`` gives the "concept" partition. Assigns **every** term (no ``-1`` noise)
     and ``n_clusters`` is a direct knob. Returns a 0-based integer label array. Above
-    :data:`EXACT_WARD_LIMIT` terms the cut runs in two stages (:func:`ward_labels`).
+    *ward*'s limit (:data:`EXACT_WARD_LIMIT`) the cut runs in two stages (:func:`ward_labels`).
     """
     n = Zn.shape[0]
     k = max(1, min(int(n_clusters), n))
     if k == 1:
         return np.zeros(n, dtype=int)
-    return ward_labels(Zn, k)
+    return ward_labels(Zn, k, options=ward)
 
 
 def cluster_terms(
@@ -277,6 +307,7 @@ def cluster_terms(
     top_n_terms_per_cluster: int,
     clusters_terms_csv,
     n_components_cluster: int = 50,
+    ward: WardOptions | None = None,
 ) -> pd.DataFrame:
     """Cluster terms into ``n_clusters`` concepts via **Ward agglomerative** clustering.
 
@@ -299,7 +330,7 @@ def cluster_terms(
         Zn.shape[1],
         Z.shape[1],
     )
-    labels = fit_agglomerative_labels(Zn, n_clusters=n_clusters)
+    labels = fit_agglomerative_labels(Zn, n_clusters=n_clusters, ward=ward)
 
     term_scores = col_sums(data.X)
 

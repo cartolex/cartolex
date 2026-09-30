@@ -198,21 +198,43 @@ def fit_tsne_layout(
 
 
 def fit_tree_layout(
-    Z_ind: np.ndarray, Z_terms: np.ndarray, *, tree: Any, usage: Any
+    Z_ind: np.ndarray,
+    Z_terms: np.ndarray,
+    *,
+    tree: Any,
+    usage: Any,
+    options: dict[str, float] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """The theme tree's map of the people (:mod:`cartolex.atlas.tree_layout`), the terms placed on it."""
+    """The theme tree's map of the people (:mod:`cartolex.atlas.tree_layout`), the terms placed on it.
+
+    *options* are :func:`~cartolex.atlas.tree_layout.tree_layout`'s ``fill``, ``gap``,
+    ``lean`` and ``sharp`` (its defaults when left out).
+    """
     from .tree_layout import people_paths, tree_layout
 
     Zi = np.asarray(Z_ind, dtype=float)
-    umap_ind = tree_layout(tree, people_paths(tree, usage, Zi), Zi)
+    umap_ind = tree_layout(tree, people_paths(tree, usage, Zi), Zi, **dict(options or {}))
     return umap_ind, place_terms(Z_terms, Zi, umap_ind)
 
 
+#: The UMAP settings a preview reads beside ``n_neighbors`` and ``min_dist``.
+_UMAP_PREVIEW = (
+    "metric",
+    "n_epochs",
+    "spread",
+    "set_op_mix_ratio",
+    "local_connectivity",
+    "repulsion_strength",
+    "negative_sample_rate",
+)
+#: The tree layout's settings (:func:`cartolex.atlas.tree_layout.tree_layout`).
+TREE_OPTIONS = ("fill", "gap", "lean", "sharp")
+
 #: The methods :func:`preview_layout` draws, and the parameters each reads.
 PREVIEW_PARAMS: dict[str, tuple[str, ...]] = {
-    "umap": ("n_neighbors", "min_dist"),
-    "tsne": ("perplexity",),
-    "tree": (),
+    "umap": ("n_neighbors", "min_dist", *_UMAP_PREVIEW),
+    "tsne": ("perplexity", "metric"),
+    "tree": TREE_OPTIONS,
 }
 
 
@@ -227,22 +249,26 @@ def preview_layout(
 ) -> np.ndarray:
     """A quick 2D layout of the people *Z_ind* (a sample of them), to compare methods.
 
-    ``umap`` fits UMAP on the people (cosine, ``n_neighbors``, ``min_dist``),
-    ``tsne`` openTSNE (``perplexity``), ``tree`` the theme *tree*'s map (with the
-    people × keywords *usage*). The same seed gives the same layout. The map
-    itself fits more (the terms, anchors): this is a preview of the method.
+    ``umap`` fits UMAP on the people (``n_neighbors``, ``min_dist`` and the other
+    settings of :data:`PREVIEW_PARAMS`, UMAP's own defaults but the map's),
+    ``tsne`` openTSNE (``perplexity``, ``metric``), ``tree`` the theme *tree*'s map
+    (with the people × keywords *usage*, and its ``fill``, ``gap``, ``lean``,
+    ``sharp``). The same seed gives the same layout. The map itself fits more
+    (the terms, anchors): this is a preview of the method.
     """
     params = dict(params or {})
     Z = np.asarray(Z_ind, dtype=float)
     if method == "umap":
         n = Z.shape[0]
+        extra = {k: params[k] for k in _UMAP_PREVIEW if params.get(k) is not None}
+        extra.setdefault("metric", "cosine")
         return _fit_umap(
             _umap_params(
                 n_neighbors=int(max(2, min(int(params.get("n_neighbors") or 25), n - 1))),
                 min_dist=float(params.get("min_dist", 0.3)),
                 n_components=2,
-                metric="cosine",
                 random_state=int(seed),
+                **extra,
             ),
             Z,
         )
@@ -251,13 +277,17 @@ def preview_layout(
             Z,
             np.zeros((0, Z.shape[1])),
             perplexity=float(params.get("perplexity") or 30.0),
+            metric=str(params.get("metric") or "cosine"),
             random_state=int(seed),
         )
         return xy
     if method == "tree":
         if tree is None or usage is None:
             raise ValueError("the tree layout needs the applied theme tree")
-        xy, _ = fit_tree_layout(Z, np.zeros((0, Z.shape[1])), tree=tree, usage=usage)
+        options = {k: float(params[k]) for k in TREE_OPTIONS if params.get(k) is not None}
+        xy, _ = fit_tree_layout(
+            Z, np.zeros((0, Z.shape[1])), tree=tree, usage=usage, options=options
+        )
         return xy
     raise ValueError(f"unknown layout method {method!r}; known: {sorted(PREVIEW_PARAMS)}")
 
@@ -268,11 +298,14 @@ def compute_svd_embeddings(
     n_components: int,
     model_path: Path,
     random_state: int = 42,
+    n_iter: int = 5,
+    algorithm: str = "randomized",
 ) -> Embeddings:
     """Reduce the lexical matrix with truncated SVD; return researcher and term embeddings.
 
     The fitted model is stored at *model_path* (a model descriptor, see
-    :mod:`cartolex.atlas.model_files`).
+    :mod:`cartolex.atlas.model_files`). *random_state*, *n_iter* and *algorithm*
+    are scikit-learn's ``TruncatedSVD`` settings (its defaults but the seed).
     """
     from cartolex.atlas.model_files import save_svd
 
@@ -281,7 +314,7 @@ def compute_svd_embeddings(
     logger.info("Running TruncatedSVD (PCA-like) on normalised X...")
 
     n_components = min(n_components, X_norm.shape[0], X_norm.shape[1])
-    svd = TruncatedSVD(n_components=n_components, random_state=random_state)
+    svd = _truncated_svd(n_components, random_state, n_iter, algorithm, X_norm.shape)
     # Pin BLAS to one thread for the factorization: multi-threaded OpenBLAS/MKL can deadlock when
     # this runs inside a server worker-thread pool (an application froze here while a standalone
     # process ran it in under a second). The matrices are small, so there is no cost.
@@ -310,6 +343,28 @@ def compute_svd_embeddings(
     )
 
 
+def _truncated_svd(
+    n_components: int, random_state: int, n_iter: int, algorithm: str, shape: tuple[int, int]
+) -> TruncatedSVD:
+    """scikit-learn's ``TruncatedSVD`` with the space's settings.
+
+    ARPACK needs fewer components than the matrix's smaller side: at the bound
+    the randomized solver runs instead (the space keeps its size).
+    """
+    if algorithm not in ("randomized", "arpack"):
+        raise ValueError(f"unknown SVD algorithm {algorithm!r}; expected randomized or arpack")
+    if algorithm == "arpack" and n_components >= min(shape):
+        logger.warning(
+            "ARPACK needs fewer than %d components (asked %d): the randomized solver runs.",
+            min(shape),
+            n_components,
+        )
+        algorithm = "randomized"
+    return TruncatedSVD(
+        n_components=n_components, random_state=random_state, n_iter=n_iter, algorithm=algorithm
+    )
+
+
 def text_tfidf(D: Any) -> Any:
     """The texts' TF-IDF over the keywords, each row L2-normalised.
 
@@ -332,6 +387,8 @@ def compute_text_svd_embeddings(
     n_components: int,
     model_path: Path,
     random_state: int = 42,
+    n_iter: int = 5,
+    algorithm: str = "randomized",
 ) -> Embeddings:
     """The space fitted on the texts: truncated SVD of the texts' TF-IDF (:func:`text_tfidf`).
 
@@ -347,7 +404,7 @@ def compute_text_svd_embeddings(
     T = text_tfidf(D)
     T = T[np.asarray(T.getnnz(axis=1)) > 0]
     n_components = min(n_components, T.shape[0], T.shape[1])
-    svd = TruncatedSVD(n_components=n_components, random_state=random_state)
+    svd = _truncated_svd(n_components, random_state, n_iter, algorithm, T.shape)
     with threadpool_limits(limits=1, user_api="blas"):  # see compute_svd_embeddings
         svd.fit(T)
         Z_ind = svd.transform(normalize(data.X, norm="l2", axis=1))
@@ -389,6 +446,7 @@ def compute_umap(
     tsne_perplexity: float = 30.0,
     tree: Any = None,
     usage: Any = None,
+    tree_options: dict[str, float] | None = None,
 ) -> Embeddings:
     """Project the SVD embeddings down to 2D with UMAP (or another layout).
 
@@ -433,7 +491,7 @@ def compute_umap(
             raise ValueError("the tree layout needs the applied theme tree and the usage matrix")
         logger.info("Computing the theme tree's layout (themes first, researchers inside)...")
         emb.umap_ind, emb.umap_terms = fit_tree_layout(
-            emb.Z_ind, emb.Z_terms, tree=tree, usage=usage
+            emb.Z_ind, emb.Z_terms, tree=tree, usage=usage, options=tree_options
         )
         return emb
     if layout == "tsne_anchored" or (fallback == "tsne" and not umap_available()):

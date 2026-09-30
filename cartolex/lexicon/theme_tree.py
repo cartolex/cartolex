@@ -724,14 +724,20 @@ def draft_themes(
     level_sizes: Sequence[int],
     run: str | None = None,
     comb: bool = False,
+    comb_options: Any = None,
+    own_floor: float = OWN_NAME_FLOOR,
+    ward: Any = None,
 ) -> dict[str, Any]:
     """Grouping stage: write the proposal tree (``ctx.paths.themes_draft_json``) and return it.
 
     Needs the term clustering (``ctx.paths.terms_clustered_csv``, its groups
     are the finest level) and the SVD. *level_sizes* are the groups per level,
-    from the top; the coarser levels are cut from the finest. *run* names the
+    from the top; the coarser levels are cut from the finest (*ward*: how each
+    cut runs, :class:`cartolex.atlas.clustering.WardOptions`). *run* names the
     run in the tree's ``based_on``. With *comb*, the texts of the corpus place
-    each keyword on its level (:mod:`cartolex.lexicon.theme_comb`).
+    each keyword on its level (:mod:`cartolex.lexicon.theme_comb`, with
+    *comb_options*, a :class:`~cartolex.lexicon.theme_comb.CombOptions`), and a
+    node is named after a keyword of its own when *own_floor* of its use falls in it.
     """
     from .io_helpers import slot_indexes
 
@@ -756,6 +762,9 @@ def draft_themes(
             run=run,
             categories_json=paths.keyword_categories_json,
             texts=texts,
+            comb_options=comb_options,
+            own_floor=own_floor,
+            ward=ward,
         )
 
 
@@ -772,6 +781,9 @@ def write_theme_draft(
     run: str | None = None,
     categories_json: Path | None = None,
     texts: Mapping[str, Any] | None = None,
+    comb_options: Any = None,
+    own_floor: float = OWN_NAME_FLOOR,
+    ward: Any = None,
 ) -> dict[str, Any]:
     """Write the proposal tree from explicit files (see :func:`draft_themes`).
 
@@ -793,13 +805,13 @@ def write_theme_draft(
     terms = [str(t) for t in data.terms]
     labels = _load_term_cluster_labels(term_clusters_csv, terms)
     scores = np.asarray(data.X.sum(axis=0)).ravel()
-    levels = level_groups(emb.Z_terms, labels, list(level_sizes))
+    levels = level_groups(emb.Z_terms, labels, list(level_sizes), ward=ward)
     categories: dict[str, str] = {}
     if categories_json is not None and categories_json.is_file():
         categories = json.loads(categories_json.read_text(encoding="utf-8"))
     placement = spread = None
     if texts is not None:
-        combed = _comb(levels, terms, texts)
+        combed = _comb(levels, terms, texts, comb_options)
         if combed is not None:
             placement, spread, D = combed
             from .theme_comb import save_text_keywords
@@ -817,6 +829,7 @@ def write_theme_draft(
         preferred={t for t in terms if categories.get(t.strip().lower()) in NAMING_PREFERRED},
         placement=placement,
         spread=spread,
+        own_floor=own_floor,
     )
     draft_json_out.parent.mkdir(parents=True, exist_ok=True)
     draft_json_out.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", "utf-8")
@@ -836,13 +849,16 @@ def comb_calibration(
     term_clusters_csv: Path,
     text_keywords_npz: Path,
     level_sizes: Sequence[int],
+    comb_options: Any = None,
+    ward: Any = None,
 ) -> dict[str, Any] | None:
     """The comb's calibration as the grouping ran it, read again from its files.
 
     The levels are cut again from the term clustering (as :func:`write_theme_draft`
-    cuts them) and the texts × keywords the comb read are those it stored; the
-    answer is :func:`cartolex.lexicon.theme_comb.calibration_curve`'s. ``None``
-    when the comb did not run (no stored texts) or the files do not match.
+    cuts them, with *ward*) and the texts × keywords the comb read are those it
+    stored; the answer is :func:`cartolex.lexicon.theme_comb.calibration_curve`'s,
+    with *comb_options* (the grouping's). ``None`` when the comb did not run (no
+    stored texts) or the files do not match.
     """
     from cartolex.atlas.hierarchy import level_groups
     from cartolex.atlas.model_files import load_embeddings, load_lexical_data
@@ -859,30 +875,37 @@ def comb_calibration(
     if D.shape[1] != len(terms):
         return None
     labels = _load_term_cluster_labels(term_clusters_csv, terms)
-    levels = level_groups(emb.Z_terms, labels, list(level_sizes))
+    levels = level_groups(emb.Z_terms, labels, list(level_sizes), ward=ward)
     finest = np.full(len(terms), -1, dtype=np.int64)
     for p, rows in enumerate(levels[-1].rows):
         finest[np.asarray(rows, dtype=np.int64)] = p
     P, n = tc.keyword_spread(D, finest, len(levels[-1].rows))
-    curve = tc.calibration_curve(P, n, finest, tc.level_maps(levels))
+    opts = comb_options if comb_options is not None else tc.CombOptions()
+    curve = tc.calibration_curve(P, n, finest, tc.level_maps(levels), options=opts)
     return {
         **curve,
         "texts": int(D.shape[0]),
-        "min_texts": tc.MIN_TEXTS,
-        "default_theta": tc.DEFAULT_THETA,
+        "min_texts": opts.min_texts,
+        "default_theta": opts.one_level,
+        "pinned": opts.theta,
         "nodes": [len(lv.rows) for lv in levels],
     }
 
 
 def _comb(
-    levels: Sequence[Any], terms: Sequence[str], texts: Mapping[str, Any]
+    levels: Sequence[Any],
+    terms: Sequence[str],
+    texts: Mapping[str, Any],
+    options: Any = None,
 ) -> tuple[tuple[np.ndarray, np.ndarray], np.ndarray, Any] | None:
     """The comb's placement of every keyword row, the keywords' spread and the texts × keywords
-    matrix read (``None``: not combed)."""
+    matrix read (``None``: not combed); *options*: a
+    :class:`~cartolex.lexicon.theme_comb.CombOptions`."""
     from . import theme_comb as tc
 
+    opts = options if options is not None else tc.CombOptions()
     n_finest = len(levels[-1].rows)
-    if len(terms) * n_finest > tc.MAX_CELLS:
+    if len(terms) * n_finest > opts.max_cells:
         logger.warning(
             "Themes: %d keywords × %d topics is too large to comb; keywords stay on the topics.",
             len(terms),
@@ -904,7 +927,7 @@ def _comb(
     for p, rows in enumerate(levels[-1].rows):
         finest[np.asarray(rows, dtype=np.int64)] = p
     P, n = tc.keyword_spread(D, finest, n_finest)
-    combed = tc.calibrate(P, n, finest, tc.level_maps(levels))
+    combed = tc.comb_with(P, n, finest, tc.level_maps(levels), opts)
     counts = combed.counts(len(levels))
     logger.info(
         "Themes: combed %d texts at θ %.3f: keywords per level %s, %d too broad for any theme.",

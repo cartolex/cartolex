@@ -2,19 +2,17 @@
 /**
  * The keywords step's diagnostic: the candidates by band and by reason, the
  * spread of their scores (a histogram by band, on a log scale), the
- * vocabulary against its cap, the scoring's settings this version fixes, and
- * the ranked list of candidates (score, people, texts, band, reason,
+ * vocabulary against its cap, and the ranked list of candidates (score, people, texts, band, reason,
  * language) with its filters, paged on the server (`GET /api/keywords`).
  */
 
 import { html, useEffect, useState } from '../../core/preact.js';
-import { formatNumber, has, t } from '../../core/i18n.js';
+import { formatNumber, t } from '../../core/i18n.js';
 import { Icon, Input, Select, Table } from '../../components/index.js';
 import { usePaged } from '../people/common.js';
 import { BandMark, extractionReason, keyOf } from '../keywords/common.js';
 import { BarChart } from './charts.js';
 import { BAND_SERIES, Facts, Lead } from './common.js';
-import { shown } from './params.js';
 
 const SORTS = { term: 'term', people: 'people', texts: 'texts', score: 'score', language: 'language' };
 
@@ -104,25 +102,14 @@ export function KeywordsDiagnostic({ ctx, view }) {
     ${bars.length ? html`<${BarChart} bars=${bars} series=${series} every=${4}
       label=${t('method.keywords.histogram')} caption=${t('method.keywords.histogram_caption')}
       xLabel=${t('method.keywords.score')} yLabel=${t('method.keywords.count')} />` : null}
-    <div class="cx-method-two">
-      <table class="cx-settings__table" aria-label=${t('method.keywords.reasons')}>
-        <caption class="cx-method-caption">${t('method.keywords.reasons')}</caption>
-        <thead><tr><th scope="col">${t('keywords.col.band')}</th><th scope="col">${t('keywords.col.reason')}</th>
-          <th scope="col" class="cx-num">${t('method.keywords.count')}</th></tr></thead>
-        <tbody>${BAND_SERIES.flatMap((b) => Object.entries((view.reasons || {})[b.id] || {}).map(([code, n]) => html`
-          <tr key=${`${b.id}-${code}`}><td><${BandMark} band=${b.id} /></td><td>${reasonWords(code)}</td>
-            <td class="cx-num">${formatNumber(n)}</td></tr>`))}</tbody>
-      </table>
-      <table class="cx-settings__table cx-method-fixed" aria-label=${t('method.keywords.fixed')}>
-        <caption class="cx-method-caption">${t('method.keywords.fixed')}</caption>
-        <thead><tr><th scope="col">${t('settings.build.param')}</th><th scope="col">${t('settings.build.value')}</th></tr></thead>
-        <tbody>${(view.fixed || []).map((f) => html`<tr key=${f.name}>
-          <th scope="row"><code>${f.name}</code>${has(`method.fixed.${f.name}`)
-            ? html`<div class="cx-settings__muted">${t(`method.fixed.${f.name}`)}</div>` : null}</th>
-          <td>${f.value === null ? t('method.off') : shown(f.value)}</td></tr>`)}</tbody>
-      </table>
-    </div>
-    <p class="cx-settings__muted">${t('method.keywords.fixed_help')}</p>
+    <table class="cx-settings__table" aria-label=${t('method.keywords.reasons')}>
+      <caption class="cx-method-caption">${t('method.keywords.reasons')}</caption>
+      <thead><tr><th scope="col">${t('keywords.col.band')}</th><th scope="col">${t('keywords.col.reason')}</th>
+        <th scope="col" class="cx-num">${t('method.keywords.count')}</th></tr></thead>
+      <tbody>${BAND_SERIES.flatMap((b) => Object.entries((view.reasons || {})[b.id] || {}).map(([code, n]) => html`
+        <tr key=${`${b.id}-${code}`}><td><${BandMark} band=${b.id} /></td><td>${reasonWords(code)}</td>
+          <td class="cx-num">${formatNumber(n)}</td></tr>`))}</tbody>
+    </table>
     <h4 class="cx-method-subtitle">${t('method.keywords.ranked')}</h4>
     <${Ranked} ctx=${ctx} languages=${languages} />`;
 }

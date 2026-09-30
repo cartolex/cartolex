@@ -30,14 +30,14 @@ import numpy as np
 from scipy import sparse
 from sklearn.preprocessing import normalize
 
-__all__ = ["FILL", "people_paths", "tree_layout"]
+__all__ = ["FILL", "GAP", "LEAN", "SHARP", "people_paths", "tree_layout"]
 
 #: The share of a parent disc its children's discs cover.
 FILL = 0.62
 #: Rounds of the relaxation that pushes overlapping discs apart.
 _ROUNDS = 300
 #: The gap kept between two discs, as a share of the smaller radius.
-_GAP = 0.04
+GAP = 0.04
 
 
 def people_paths(tree: Any, usage: sparse.spmatrix, Z: np.ndarray) -> np.ndarray:
@@ -117,7 +117,7 @@ def _mds(centroids: np.ndarray) -> np.ndarray:
     return out
 
 
-def _pack(guess: np.ndarray, radii: np.ndarray, outer: float) -> np.ndarray:
+def _pack(guess: np.ndarray, radii: np.ndarray, outer: float, gap: float = GAP) -> np.ndarray:
     """Disc centres near *guess*, not overlapping, inside a disc of radius *outer* at 0.
 
     Every round, each overlapping pair is pushed apart by half its overlap (all
@@ -132,7 +132,7 @@ def _pack(guess: np.ndarray, radii: np.ndarray, outer: float) -> np.ndarray:
     else:
         angles = 2 * np.pi * np.arange(k) / k
         pos = np.c_[np.cos(angles), np.sin(angles)] * (outer * 0.5)
-    need = radii[:, None] + radii[None, :] + _GAP * np.minimum(radii[:, None], radii[None, :])
+    need = radii[:, None] + radii[None, :] + gap * np.minimum(radii[:, None], radii[None, :])
     np.fill_diagonal(need, 0.0)
     ring = np.linspace(0.0, 2 * np.pi, k, endpoint=False)
     unit = np.c_[np.cos(ring), np.sin(ring)]
@@ -187,7 +187,13 @@ def _spread(Zn: np.ndarray) -> np.ndarray:
     return xy
 
 
-def _pull(Zn: np.ndarray, groups: list[np.ndarray], centres: np.ndarray, own: int) -> np.ndarray:
+def _pull(
+    Zn: np.ndarray,
+    groups: list[np.ndarray],
+    centres: np.ndarray,
+    own: int,
+    sharp: float | None = None,
+) -> np.ndarray:
     """Per member of ``groups[own]``: a vector toward the sibling discs it resembles.
 
     The direction is the mean of the unit vectors toward the other discs,
@@ -195,6 +201,7 @@ def _pull(Zn: np.ndarray, groups: list[np.ndarray], centres: np.ndarray, own: in
     the length (0 to 1) grows as the member resembles another disc as much as
     its own.
     """
+    sharp = SHARP if sharp is None else sharp
     members = groups[own]
     C = normalize(np.vstack([Zn[g].mean(axis=0) for g in groups]))
     sims = Zn[members] @ C.T
@@ -202,27 +209,40 @@ def _pull(Zn: np.ndarray, groups: list[np.ndarray], centres: np.ndarray, own: in
     delta = centres[others] - centres[own]
     dist = np.hypot(delta[:, 0], delta[:, 1])
     units = delta / np.maximum(dist, 1e-12)[:, None]
-    logits = _SHARP * sims[:, others]
+    logits = sharp * sims[:, others]
     logits -= logits.max(axis=1, keepdims=True)
     w = np.exp(logits)
     w /= w.sum(axis=1, keepdims=True)
-    strength = 1.0 / (1.0 + np.exp(-_SHARP * (sims[:, others].max(axis=1) - sims[:, own])))
+    strength = 1.0 / (1.0 + np.exp(-sharp * (sims[:, others].max(axis=1) - sims[:, own])))
     return (w @ units) * strength[:, None]
 
 
 #: How sharply a person's cosines to the discs decide where they lean.
-_SHARP = 8.0
+SHARP = 8.0
 #: The share of a person's place in their disc given by where they lean (the rest by their spread).
-_LEAN = 0.4
+LEAN = 0.4
 
 
-def tree_layout(tree: Any, paths: np.ndarray, Z: np.ndarray) -> np.ndarray:
+def tree_layout(
+    tree: Any,
+    paths: np.ndarray,
+    Z: np.ndarray,
+    *,
+    fill: float = FILL,
+    gap: float = GAP,
+    lean: float = LEAN,
+    sharp: float = SHARP,
+) -> np.ndarray:
     """The map positions (``n × 2``) of the people with *paths* (from :func:`people_paths`).
 
     Inside their finest disc, people are spread by their own principal axes and
     lean toward the sibling discs (at every level) whose people they resemble,
     so that a person between two themes sits on the side facing the other.
+    *fill* is the share of a disc its children cover, *gap* the gap between two
+    discs (a share of the smaller radius), *lean* the share of a person's place
+    given by where they lean, *sharp* how sharply their cosines decide it.
     """
+    lean_share = lean
     Zn = normalize(np.asarray(Z, dtype=np.float64))
     n = len(Zn)
     xy = np.zeros((n, 2))
@@ -234,8 +254,8 @@ def tree_layout(tree: Any, paths: np.ndarray, Z: np.ndarray) -> np.ndarray:
         if level > depth or not len(members):
             if not len(members):
                 return
-            local = (1.0 - _LEAN) * _spread(Zn[members])
-            local += _LEAN * lean[members] / np.maximum(splits[members], 1.0)[:, None]
+            local = (1.0 - lean_share) * _spread(Zn[members])
+            local += lean_share * lean[members] / np.maximum(splits[members], 1.0)[:, None]
             rho = np.hypot(local[:, 0], local[:, 1])
             far = rho > 1.0
             local[far] = local[far] / rho[far][:, None]
@@ -248,11 +268,11 @@ def tree_layout(tree: Any, paths: np.ndarray, Z: np.ndarray) -> np.ndarray:
         if len(groups) == 1:
             place(groups[0], level + 1, centre, radius)
             return
-        radii = radius * np.sqrt(FILL * mass / mass.sum())
+        radii = radius * np.sqrt(fill * mass / mass.sum())
         guess = _mds(np.vstack([Zn[g].mean(axis=0) for g in groups]))
-        centres = _pack(guess, radii, radius)
+        centres = _pack(guess, radii, radius, gap)
         for j, g in enumerate(groups):
-            lean[g] += _pull(Zn, groups, centres, j)
+            lean[g] += _pull(Zn, groups, centres, j, sharp)
             splits[g] += 1.0
         for g, c, r in zip(groups, centres, radii, strict=True):
             place(g, level + 1, centre + c, float(r))

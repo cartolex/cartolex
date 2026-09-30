@@ -91,13 +91,43 @@ def test_cartolex_stages_declare_every_stage_in_order():
             assert spec.description
 
 
-def test_the_parameter_set_stays_small():
-    """Every parameter earns its place: a new one is a decision, not a habit."""
-    count = sum(len(s.params) for s in STAGES)
-    # 17: themes.group.comb, off in the reference run (the workspace run has no comb)
-    # 18: themes.space.space_unit, the space by texts, under study (off by default)
-    # 19: keywords.extract.min_texts, the owner's floor of distinct texts beside min_people
-    assert count <= 19, f"{count} parameters: justify each new one"
+def _documented_parameters() -> set[tuple[str, str]]:
+    """The (stage, parameter) rows of docs/dev/build.md's parameter table."""
+    from pathlib import Path
+
+    text = (Path(__file__).parents[1] / "docs" / "dev" / "build.md").read_text("utf-8")
+    table = text.split("## Parameters", 1)[1].split("\n\n**", 1)[0]
+    rows = set()
+    for line in table.splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) >= 5 and cells[0].startswith("`") and cells[1].startswith("`"):
+            rows.add((cells[0].strip("`"), cells[1].strip("`")))
+    return rows
+
+
+def test_every_parameter_is_in_the_documented_inventory():
+    """No hidden fixed parameter: every engine constant that shapes a result is a parameter
+    of its stage (docs/dev/build.md lists the constants that stay, and why). The inventory
+    is the parameter table of docs/dev/build.md: a parameter is added there, with its
+    default, its limits and its place on the method screen, and its one-line explanation
+    in every interface language."""
+    from cartolex.app.method import STEPS
+    from cartolex.app.static_files import PACKAGE_STATIC
+
+    declared = {(s.id, p.name): p for s in STAGES for p in s.params}
+    documented = _documented_parameters()
+    assert documented == set(declared), "docs/dev/build.md's table and the stages differ"
+    on_screen = {stage for stages in STEPS.values() for stage in stages}
+    catalogues = {
+        code: json.loads((PACKAGE_STATIC / "i18n" / f"{code}.json").read_text("utf-8"))
+        for code in ("en", "fr", "pt-BR")
+    }
+    for (stage, name), spec in declared.items():
+        assert stage in on_screen, f"{stage} has no step on the method screen"
+        for code, catalogue in catalogues.items():
+            assert f"param.{stage}.{name}" in catalogue, f"{code}: no explanation of {name}"
+            if spec.section:
+                assert f"method.section.{spec.section}" in catalogue
 
 
 def test_a_registry_refuses_what_does_not_fit():
@@ -212,13 +242,14 @@ def test_effective_values_say_where_they_come_from():
     params = ParamsFile(seed=11, stages={"themes.group": {"top_groups": 12}})
     resolved = resolve_params(stage, params, sizes, year=YEAR)
     values = {k: (v.value, v.source, v.rule) for k, v in resolved.values.items()}
-    assert values == {
+    assert {k: values[k] for k in ("depth", "top_groups", "keywords_per_group", "level_sizes")} == {
         "depth": (2, "rule", "theme_depth"),
         "top_groups": (12, "params.json", None),
         "keywords_per_group": (20, "default", None),
         "level_sizes": (None, "default", None),
-        "comb": (True, "default", None),
     }
+    others = {p.name for p in stage.params} - {"depth", "top_groups"}
+    assert {values[name][1] for name in others} == {"default"}
     fake = make_registry(Controls(log=None))["themes.group"]  # a stage that uses the seed
     seeded = resolve_params(fake, params, sizes, year=YEAR)
     assert (seeded.values["seed"].value, seeded.values["seed"].source) == (11, "params.json")

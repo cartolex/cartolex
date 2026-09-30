@@ -237,7 +237,7 @@ def themes_export(request: Request, body: ThemesExportBody, ctx: ProjectDep) -> 
     )
     from cartolex.lexicon.theme_comb import tree_levels
 
-    from .themes_fit import _texts
+    from .themes_fit import _comb_options, _texts
 
     terms = [str(t) for t in data.terms]
     doc = tree.model_dump(mode="json", by_alias=True)
@@ -253,7 +253,7 @@ def themes_export(request: Request, body: ThemesExportBody, ctx: ProjectDep) -> 
         context=context,
         curator_language=body.language,
         mask=_names(ctx),
-        levels=tree_levels(doc, terms, D) if D is not None else None,
+        levels=tree_levels(doc, terms, D, options=_comb_options(ctx)) if D is not None else None,
         texts=D,
     )
     return _zip(zipped, "copilot-themes.zip")

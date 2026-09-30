@@ -15,6 +15,7 @@ import pytest
 from _build_fakes import YEAR, Controls, make_project, make_registry, set_texts
 
 from cartolex.build import (
+    ParamSpec,
     Registry,
     StageState,
     build,
@@ -326,6 +327,19 @@ def test_sizes_come_from_the_records_else_from_the_sources(env):
     records = {s: v.record for s, v in status(env.project, env.registry, year=YEAR).items()}
     sizes = current_sizes(env.project, env.registry, records)
     assert sizes.kept_keywords == 1_234 and sizes.people == 3  # the stages' own counts
+
+
+def test_a_parameter_a_newer_version_declares_changes_nothing_at_its_default(env):
+    """A parameter the last run did not record, at its default, is what that run did; set to
+    another value, it is a change."""
+    env.build()
+    stage = env.registry["keywords.extract"]
+    added = ParamSpec("new_knob", "float", "a constant that became a parameter", default=0.5)
+    env.registry = env.registry.replace("keywords.extract", params=(*stage.params, added))
+    assert env.states()["keywords.extract"] is OK
+    params = ParamsFile(stages={"keywords.extract": {"new_knob": 0.25}})
+    env.layout.params_json.write_text(params.model_dump_json(), encoding="utf-8")
+    assert env.reasons("keywords.extract") == ["parameter new_knob is new: 0.25 (from params.json)"]
 
 
 def test_a_new_stage_version_needs_an_update(env):

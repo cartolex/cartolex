@@ -304,10 +304,11 @@ another layout is tried as a new version beside it.
 | --- | --- | --- |
 | `umap` | UMAP of the people in the space | `n_neighbors`, `min_dist`, `metric`, `n_epochs`, `spread`, `set_op_mix_ratio`, `local_connectivity`, `repulsion_strength`, `negative_sample_rate`, `layout` |
 | `tsne` | t-SNE of the people (the optional `openTSNE` package: `pip install 'cartolex[tsne]'`) | `perplexity` (30), `metric` |
-| `tree` | the applied theme tree: themes as discs, people inside their heaviest theme | none |
+| `tree` | the applied theme tree: themes as discs, people inside their heaviest theme | `fill` (0.62: the share of a disc its children cover), `gap` (0.04), `lean` (0.4), `sharp` (8) |
 
 In every method the keywords are placed on the people's map by their nearest
-people, and `seed` makes the map the same on every run. {doc}`../dev/layouts`
+people (`map.layout`'s `neighbours` and `link_radius` in `params.json`), and
+`seed` makes the map the same on every run. {doc}`../dev/layouts`
 compares them.
 
 ## `snowball.csv`

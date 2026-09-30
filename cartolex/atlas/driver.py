@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
-from cartolex.atlas.clustering import cluster_terms, prepare_cluster_embeddings
+from cartolex.atlas.clustering import WardOptions, cluster_terms, prepare_cluster_embeddings
 from cartolex.atlas.io import build_lexical_matrix, load_run_settings
 from cartolex.atlas.model_files import (
     load_embeddings,
@@ -31,6 +31,8 @@ from cartolex.atlas.model_files import (
     save_embeddings,
     save_lexical_data,
 )
+from cartolex.atlas.placement import LINK_RADIUS as PLACEMENT_LINK_RADIUS
+from cartolex.atlas.placement import K as PLACEMENT_K
 from cartolex.atlas.placement import MapAnchors
 from cartolex.atlas.plots import (
     aggregate_labs,
@@ -327,8 +329,14 @@ def run_svd(
     svd_n_components: int | None = None,
     force: bool = False,
     space_unit: str = "person",
+    svd_seed: int = 42,
+    svd_iterations: int = 5,
+    svd_algorithm: str = "randomized",
 ) -> None:
     """SVD stage: build the TF-IDF matrix and run the SVD reduction.
+
+    *svd_seed*, *svd_iterations* and *svd_algorithm* are the truncated SVD's
+    seed, power iterations and solver (``randomized`` or ``arpack``).
 
     *space_unit* is what the space is fitted on: ``person`` (the people ×
     keywords matrix: keywords are near when the same people use them) or
@@ -342,15 +350,27 @@ def run_svd(
     lexical data and embeddings (without layout coordinates yet).
     """
     with ctx.threads.applied():
-        _run_svd(ctx, svd_n_components=svd_n_components, force=force, space_unit=space_unit)
+        _run_svd(
+            ctx,
+            svd_n_components=svd_n_components,
+            force=force,
+            space_unit=space_unit,
+            solver={"random_state": svd_seed, "n_iter": svd_iterations, "algorithm": svd_algorithm},
+        )
 
 
 SPACE_UNITS = ("person", "text")
 
 
 def _run_svd(
-    ctx: RunContext, *, svd_n_components: int | None, force: bool, space_unit: str = "person"
+    ctx: RunContext,
+    *,
+    svd_n_components: int | None,
+    force: bool,
+    space_unit: str = "person",
+    solver: dict[str, Any] | None = None,
 ) -> None:
+    solver = dict(solver or {})
     if space_unit not in SPACE_UNITS:
         raise ValueError(f"unknown space unit {space_unit!r}; expected one of {SPACE_UNITS}")
     paths = ctx.paths
@@ -384,13 +404,14 @@ def _run_svd(
             terms=data.terms,
         )
         emb = compute_text_svd_embeddings(
-            data, D, n_components=eff_svd_n_components, model_path=paths.svd_model_json
+            data, D, n_components=eff_svd_n_components, model_path=paths.svd_model_json, **solver
         )
     else:
         emb = compute_svd_embeddings(
             data,
             n_components=eff_svd_n_components,
             model_path=paths.svd_model_json,
+            **solver,
         )
 
     ctx.report(0.8, "writing the space")
@@ -440,6 +461,12 @@ def run_umap(
     force: bool = False,
     umap_fallback: str | None = None,
     tsne_perplexity: float | None = None,
+    tree_fill: float | None = None,
+    tree_gap: float | None = None,
+    tree_lean: float | None = None,
+    tree_sharp: float | None = None,
+    neighbours: int = PLACEMENT_K,
+    link_radius: float = PLACEMENT_LINK_RADIUS,
 ) -> None:
     """UMAP layout stage: project the SVD space to 2D (the final lexical step).
 
@@ -465,7 +492,21 @@ def run_umap(
     researchers inside their heaviest theme (:mod:`cartolex.atlas.tree_layout`).
     The map is coloured by the high-dimensional term clusters. Every default comes from
     :func:`atlas_defaults`; pin ``umap_n_neighbors`` / ``umap_min_dist`` to override.
+    ``tree_fill``, ``tree_gap``, ``tree_lean`` and ``tree_sharp`` set the tree layout
+    (:func:`cartolex.atlas.tree_layout.tree_layout`); the terms are placed from their
+    *neighbours* nearest researchers, grouped within *link_radius*
+    (:mod:`cartolex.atlas.placement`).
     """
+    tree_options = {
+        k: float(v)
+        for k, v in (
+            ("fill", tree_fill),
+            ("gap", tree_gap),
+            ("lean", tree_lean),
+            ("sharp", tree_sharp),
+        )
+        if v is not None
+    }
     with ctx.threads.applied():
         _run_umap(
             ctx,
@@ -485,6 +526,8 @@ def run_umap(
             force=force,
             umap_fallback=umap_fallback,
             tsne_perplexity=tsne_perplexity,
+            tree_options=tree_options,
+            placement=(int(neighbours), float(link_radius)),
         )
 
 
@@ -507,6 +550,8 @@ def _run_umap(
     force: bool,
     umap_fallback: str | None,
     tsne_perplexity: float | None = None,
+    tree_options: dict[str, float] | None = None,
+    placement: tuple[int, float] = (PLACEMENT_K, PLACEMENT_LINK_RADIUS),
 ) -> None:
     paths = ctx.paths
     d = atlas_defaults(ctx)
@@ -597,7 +642,15 @@ def _run_umap(
         tsne_perplexity=tsne_perplexity if tsne_perplexity is not None else d.tsne_perplexity,
         tree=tree,
         usage=usage,
+        tree_options=tree_options,
     )
+    moved = placement != (PLACEMENT_K, PLACEMENT_LINK_RADIUS)
+    if moved and eff_umap_layout != "joint" and len(emb.Z_terms):
+        # the layouts place the terms with the default neighbours: again with the stage's
+        from cartolex.atlas.placement import place
+
+        k, radius = placement
+        emb.umap_terms = place(emb.Z_terms, emb.Z_ind, emb.umap_ind, k=k, link_radius=radius).xy
     layout_engine = (
         eff_umap_layout
         if eff_umap_layout in ("tsne_anchored", "tsne", "tree")
@@ -743,6 +796,7 @@ def run_clustering(
     n_components: int | None = None,
     target_subfields: int | None = None,
     force: bool = False,
+    ward: WardOptions | None = None,
 ) -> None:
     """Cluster terms in SVD space (cosine) into concepts via **agglomerative Ward**.
 
@@ -751,7 +805,9 @@ def run_clustering(
     **ARE the hierarchy's concepts**, so changing ``n_concepts`` changes the hierarchy.
     Also groups the concept centroids into exactly ``target_subfields`` deterministic **proto-
     subfields** (the candidate subfields of the subfield draft). Needs only the SVD; writes
-    the cluster table, the per-term clustered table and the proto-subfields.
+    the cluster table, the per-term clustered table and the proto-subfields. *n_components*
+    is the leading SVD dimensions the terms are clustered in; *ward* how the cut runs (exact
+    up to a limit, then through micro-clusters).
     """
     with ctx.threads.applied():
         _run_clustering(
@@ -760,6 +816,7 @@ def run_clustering(
             n_components=n_components,
             target_subfields=target_subfields,
             force=force,
+            ward=ward,
         )
 
 
@@ -770,6 +827,7 @@ def _run_clustering(
     n_components: int | None,
     target_subfields: int | None,
     force: bool,
+    ward: WardOptions | None = None,
 ) -> None:
     paths = ctx.paths
     d = atlas_defaults(ctx)
@@ -791,6 +849,7 @@ def _run_clustering(
         top_n_terms_per_cluster=d.top_n_terms_per_cluster,
         clusters_terms_csv=paths.clusters_csv,
         n_components_cluster=eff_n_components,
+        ward=ward,
     )
     df_terms_clustered.to_csv(paths.terms_clustered_csv, index=False)
     n_clusters = df_terms_clustered["cluster"].nunique()
@@ -1137,6 +1196,8 @@ def run_trajectories(
     length_alpha: float = 2.0,
     force: bool = False,
     cohort_by: str | None = None,
+    neighbours: int = PLACEMENT_K,
+    link_radius: float = PLACEMENT_LINK_RADIUS,
 ) -> None:
     """Trajectories stage: project per-(researcher, time-bin) fingerprints into the reference map.
 
@@ -1148,7 +1209,8 @@ def run_trajectories(
     only those types across all slots), bins each researcher's documents into
     fixed-width time windows, folds them onto the canonical concept vocabulary,
     projects them through the same SVD as the static map and places them on it by
-    their nearest mapped people (:mod:`cartolex.atlas.placement`). Bins are
+    their nearest mapped people (:mod:`cartolex.atlas.placement`: *neighbours*
+    of them, grouped within *link_radius*). Bins are
     counted back from ``ctx.now_year``. Writes the trajectory points and the
     per-window reprojections. Skipped with a warning if prerequisites are absent.
 
@@ -1165,6 +1227,8 @@ def run_trajectories(
             length_alpha=length_alpha,
             force=force,
             cohort_by=cohort_by,
+            neighbours=neighbours,
+            link_radius=link_radius,
         )
 
 
@@ -1177,6 +1241,8 @@ def _run_trajectories(
     length_alpha: float,
     force: bool,
     cohort_by: str | None,
+    neighbours: int = PLACEMENT_K,
+    link_radius: float = PLACEMENT_LINK_RADIUS,
 ) -> None:
     paths = ctx.paths
     d = atlas_defaults(ctx)
@@ -1231,7 +1297,7 @@ def _run_trajectories(
     if emb.umap_ind is None:
         logger.warning("Trajectories skipped — the map is not drawn yet: run the layout first.")
         return
-    anchors = MapAnchors(emb.Z_ind, emb.umap_ind)
+    anchors = MapAnchors(emb.Z_ind, emb.umap_ind, k=neighbours, link_radius=link_radius)
     ref_terms = list(data.terms)
     # The terms of every chunk's matrix are the reference terms (lower-cased).
     traj_terms = [str(t).lower() for t in ref_terms]

@@ -113,30 +113,71 @@ records a failed attempt with the reason. When a stage upstream in the same
 build will report a size again (the vocabulary is being rebuilt), the plan
 leaves the check to the run.
 
-| stage | parameter | default | allowed |
-| --- | --- | --- | --- |
-| `corpus.assemble` | `parts` | rule `parts_by_slot_kind`: title, abstract for a collection slot; title, abstract, full for a folder or a corpus slot | title, abstract, body, full (a list set here applies to every slot) |
-| `corpus.assemble` | `doc_types` | rule `doc_types_by_slot_kind`: article, book, chapter, communication, preprint, proceedings, report, review, thesis for a collection slot; every type for a folder or a corpus slot; a slot's own `doc_types` replace it | document types (a list set here applies to every slot without its own) |
-| `corpus.assemble` | `provider_priority` | folder, openalex, hal, scielo, europepmc, arxiv, biorxiv | provider names; the others follow alphabetically |
-| `corpus.assemble` | `recency_years` | 5 | 0–200; 0 keeps every year |
-| `keywords.extract` | `counting_unit` | person | person, text, organisation |
-| `keywords.extract` | `min_people` | 3 | ≥ 1, and no more than the people whose texts build the lexicon |
-| `keywords.extract` | `min_texts` | 3 | ≥ 1, and no more than the texts that build the lexicon: a candidate must occur in this many distinct texts (one co-authored text is one text's evidence, however many people signed it) |
-| `keywords.extract` | `max_share` | 0.6 | 0.01–1 |
-| `keywords.extract` | `rejects` | true | true, false: candidates on cartolex's list of rejections or in the machine's cache go to the `rejected` band |
-| `keywords.triage` | `enabled` | false | true, false |
-| `keywords.build` | `max_keywords` | 10 000 | ≥ 10 |
-| `themes.space` | `space_unit` | person | person, text: what the space is fitted on (an option under study, see {doc}`themes-engine`) |
-| `themes.space` | `dimensions` | rule `space_dimensions` | 2–1000; a space never has more dimensions than people or keywords (the run says so) |
-| `themes.group` | `depth` | rule `theme_depth` | 1–4 |
-| `themes.group` | `top_groups` | 15 | 2–500, fewer than the kept keywords |
-| `themes.group` | `keywords_per_group` | 20 | 2–10 000; the levels must grow from the top |
-| `themes.group` | `level_sizes` | none | 1 to 4 whole numbers, the groups per level from the top; when set, they replace `depth`, `top_groups` and `keywords_per_group` |
-| `themes.group` | `comb` | true | true, false; true puts each keyword of the proposal on the level its texts support and sets aside the keywords too broad for any theme ({doc}`themes-engine`) |
-| `map.trajectories` | `window_years` | 3 | 1–50 |
+| stage | parameter | default | allowed | on the method screen |
+| --- | --- | --- | --- | --- |
+| `corpus.assemble` | `parts` | rule `parts_by_slot_kind`: title, abstract for a collection slot; title, abstract, full for a folder or a corpus slot | title, abstract, body, full (a list set here applies to every slot) | Texts |
+| `corpus.assemble` | `doc_types` | rule `doc_types_by_slot_kind`: article, book, chapter, communication, preprint, proceedings, report, review, thesis for a collection slot; every type for a folder or a corpus slot; a slot's own `doc_types` replace it | document types (a list set here applies to every slot without its own) | Texts |
+| `corpus.assemble` | `provider_priority` | folder, openalex, hal, scielo, europepmc, arxiv, biorxiv | provider names; the others follow alphabetically | Texts |
+| `corpus.assemble` | `recency_years` | 5 | 0–200; 0 keeps every year | Texts |
+| `corpus.assemble` | `duplicate_min_title` | 25 | 1–1 000 characters of the normalised title: shorter titles never make two texts one work | Texts › The same work |
+| `corpus.assemble` | `duplicate_year_gap` | 1 | 0–50 years between two texts of the same title and a common author | Texts › The same work |
+| `keywords.extract` | `counting_unit` | person | person, text, organisation | Keywords |
+| `keywords.extract` | `min_people` | 3 | ≥ 1, and no more than the people whose texts build the lexicon | Keywords |
+| `keywords.extract` | `min_texts` | 3 | ≥ 1, and no more than the texts that build the lexicon: a candidate must occur in this many distinct texts (one co-authored text is one text's evidence, however many people signed it) | Keywords |
+| `keywords.extract` | `max_share` | 0.6 | 0.01–1 | Keywords |
+| `keywords.extract` | `rejects` | true | true, false: candidates on cartolex's list of rejections or in the machine's cache go to the `rejected` band | Keywords |
+| `keywords.extract` | `max_candidates` | 1 000 000 | ≥ 1: the window keeps the most used candidates of each language | Keywords |
+| `keywords.extract` | `vote` | frequency | frequency, presence, sublinear (`cartolex.lexicon.scoring`) | Keywords › Scoring |
+| `keywords.extract` | `length_bonus` | 2 | 0–20: α of `score × (1 + α (L − 1))`; the consolidation, the trajectories and the projected sets use the same α | Keywords › Scoring |
+| `keywords.extract` | `max_words` | 5 | 1–12 word units, prepositions and articles included | Keywords › Scoring |
+| `keywords.extract` | `of_complement` | false | true, false: English phrases with one « of » complement | Keywords › Scoring |
+| `keywords.extract` | `fragment_share` | 1 | 0–1, or none (the rule off) | Keywords › Bands |
+| `keywords.extract` | `drop_share` | 0 | 0–1 | Keywords › Bands |
+| `keywords.extract` | `keep_share` | 1 | 0–1 | Keywords › Bands |
+| `keywords.extract` | `name_share` | 0.5 | 0–1 (only when names are known) | Keywords › Bands |
+| `keywords.extract` | `stop_words` | true | true, false | Keywords › Closed words |
+| `keywords.extract` | `closed_word_edges` | true | true, false (acts with `stop_words` on) | Keywords › Closed words |
+| `keywords.extract` | `foreign_reading` | 2 | 1–50 different closed words of another language (acts with `stop_words` on) | Keywords › Closed words |
+| `keywords.extract` | `even_spread` | 0.9 | 0–10, or none (the rule off) | Keywords › Generic words |
+| `keywords.extract` | `even_people` | 0.2 | 0–1 | Keywords › Generic words |
+| `keywords.extract` | `common_modifier` | none (off) | 0–1, or none | Keywords › Generic words |
+| `keywords.triage` | `enabled` | false | true, false | Keywords |
+| `keywords.build` | `max_keywords` | 10 000 | ≥ 10 | Keywords |
+| `keywords.build` | `nested_threshold` | 1.3 | 1–100 | Keywords |
+| `keywords.build` | `ngram_range` | [1, 4] | two whole numbers, 1–12, not going down; the most grows to the longest form | Keywords › Keywords of people and organisations |
+| `keywords.build` | `weights_basis` | tf | tf, tfidf | Keywords › Keywords of people and organisations |
+| `keywords.build` | `keywords_per_person` | 30 | 1–10 000 | Keywords › Keywords of people and organisations |
+| `keywords.build` | `keywords_per_organisation` | 50 | 1–10 000 | Keywords › Keywords of people and organisations |
+| `keywords.build` | `keywords_of_field` | 200 | 1–100 000 | Keywords › Keywords of people and organisations |
+| `themes.space` | `space_unit` | person | person, text: what the space is fitted on (an option under study, see {doc}`themes-engine`) | Space |
+| `themes.space` | `dimensions` | rule `space_dimensions` | 2–1000; a space never has more dimensions than people or keywords (the run says so) | Space |
+| `themes.space` | `svd_seed` | 42 | 0–2³² − 1 | Space › The SVD |
+| `themes.space` | `svd_iterations` | 5 | 1–100 | Space › The SVD |
+| `themes.space` | `svd_algorithm` | randomized | randomized, arpack (at as many dimensions as the matrix's smaller side, the randomized solver runs, with a warning) | Space › The SVD |
+| `themes.group` | `depth` | rule `theme_depth` | 1–4 | Grouping |
+| `themes.group` | `top_groups` | 15 | 2–500, fewer than the kept keywords | Grouping |
+| `themes.group` | `keywords_per_group` | 20 | 2–10 000; the levels must grow from the top | Grouping |
+| `themes.group` | `level_sizes` | none | 1 to 4 whole numbers, the groups per level from the top; when set, they replace `depth`, `top_groups` and `keywords_per_group` | Grouping |
+| `themes.group` | `cluster_dimensions` | 50 | 2–1000 (at most the space's dimensions are used) | Grouping › Ward's grouping |
+| `themes.group` | `exact_ward_limit` | 15 000 | 2–1 000 000 points; exact Ward holds about 8·n² bytes | Grouping › Ward's grouping |
+| `themes.group` | `micro_clusters` | none: as many as `exact_ward_limit` | 2–1 000 000, or none | Grouping › Ward's grouping |
+| `themes.group` | `micro_seed` | 0 | 0–2³² − 1 | Grouping › Ward's grouping |
+| `themes.group` | `comb` | true | true, false; true puts each keyword of the proposal on the level its texts support and sets aside the keywords too broad for any theme ({doc}`themes-engine`) | Grouping › The comb |
+| `themes.group` | `comb_theta` | none: calibrated on `comb_grid` | 0–1, or none | Grouping › The comb |
+| `themes.group` | `comb_grid` | 0.1, 0.125, 0.15, 0.175, 0.2, 0.225, 0.25 | 1 to 100 numbers, 0–1 | Grouping › The comb |
+| `themes.group` | `comb_theta_one_level` | 0.2 | 0–1 | Grouping › The comb |
+| `themes.group` | `comb_min_texts` | 5 | 1–100 000 | Grouping › The comb |
+| `themes.group` | `comb_max_cells` | 50 000 000 | ≥ 1 keywords × finest groups | Grouping › The comb |
+| `themes.group` | `own_name_floor` | 0.5 | 0–1 | Grouping › Names |
+| `map.layout` | `neighbours` | 8 | 1–500; the trajectories and the projected sets are placed alike | Layout › Placing on the map |
+| `map.layout` | `link_radius` | 0.25 | 0–10, a share of the map's radius | Layout › Placing on the map |
+| `map.trajectories` | `window_years` | 3 | 1–50 | Layout |
+| `map.trajectories` | `min_texts_per_window` | 1 | 1–1000 | Layout |
 
 The layout of a map is not a build parameter: each map version keeps its own
 method, seed and settings in `decisions/maps.json`, an input of `map.layout`.
+`map.layout`'s own parameters say how points are placed on any map (the
+keywords, and after it the time windows and the projected people).
 
 **The theme rules.** With K kept keywords and U mapped units (the units the map
 places, the mapped people by default), the depth of the theme tree is
@@ -160,6 +201,70 @@ its current `run.json`; before that stage has run, `people`, `texts`,
 metadata and `people.csv`), and a rule that needs a size nobody knows yet waits:
 the plan shows its value as unknown, and the run computes it once the upstream
 stage has reported it.
+
+## No hidden parameter
+
+Every engine constant that shapes a result is a parameter of its stage: its
+default is the value the engine had before it became a parameter, so existing
+results stay what they are. A parameter a stage's `run.json` does not record
+(the run was made before it was declared) is not a change when its value is its
+default: the stage stays up to date (a value set in `params.json` is a change,
+« parameter X is new »), and the method screen does not mark it as not built.
+`tests/test_build_params.py` holds the inventory: every declared parameter is a
+row of the table above, has its one-line explanation in every interface
+language (`param.<stage>.<name>`), and its section (`ParamSpec.section`, the
+heading it is shown under on the method screen, `method.section.<id>`).
+
+What became a parameter:
+
+| module | constant | value | parameter |
+| --- | --- | --- | --- |
+| `project.corpus` | `DUPLICATE_MIN_TITLE`, `DUPLICATE_YEAR_GAP` | 25, 1 | `corpus.assemble.duplicate_min_title`, `.duplicate_year_gap` |
+| `lexicon.config` | `KeywordsConfig.max_features` | 1 000 000 | `keywords.extract.max_candidates` |
+| `lexicon.scoring` | `ScoringOptions.vote`, `.length_bonus_alpha`, `.of_complement` | frequency, 2, false | `keywords.extract.vote`, `.length_bonus`, `.of_complement` |
+| `lexicon.noun_phrases` | `MAX_UNITS`, `FOREIGN_READING` | 5, 2 | `keywords.extract.max_words`, `.foreign_reading` |
+| `lexicon.scoring` | `BandRules.fragment_share`, `.drop_share`, `.keep_share`, `.name_share` | 1, 0, 1, 0.5 | `keywords.extract.fragment_share`, `.drop_share`, `.keep_share`, `.name_share` |
+| `lexicon.scoring` | `BandRules.stop_words` (and the edges it switched with it) | true | `keywords.extract.stop_words`, `.closed_word_edges` |
+| `lexicon.scoring` | `BandRules.even_spread`, `.even_people`, `.generic_spread` | 0.9, 0.2, none | `keywords.extract.even_spread`, `.even_people`, `.common_modifier` |
+| `lexicon.config` | `nested_threshold`, `ngram_range`, `weights_basis` | 1.3, (1, 4), tf | `keywords.build.nested_threshold`, `.ngram_range`, `.weights_basis` |
+| `lexicon.config` | `top_n_researcher`, `top_n_unit`, `top_n_domain` | 30, 50, 200 | `keywords.build.keywords_per_person`, `.keywords_per_organisation`, `.keywords_of_field` |
+| `atlas.reducers` | `TruncatedSVD` seed, power iterations, solver | 42, 5, randomized | `themes.space.svd_seed`, `.svd_iterations`, `.svd_algorithm` |
+| `atlas.driver` | `AtlasDefaults.clustering_n_components` | 50 | `themes.group.cluster_dimensions` |
+| `atlas.clustering` | `EXACT_WARD_LIMIT`, `micro_cluster_count` (min(points, limit)), `MICRO_SEED` | 15 000, the rule, 0 | `themes.group.exact_ward_limit`, `.micro_clusters`, `.micro_seed` |
+| `lexicon.theme_comb` | θ (calibrated), `THETA_GRID`, `DEFAULT_THETA`, `MIN_TEXTS`, `MAX_CELLS` | calibrated, 0.1–0.25 by 0.025, 0.2, 5, 5·10⁷ | `themes.group.comb_theta`, `.comb_grid`, `.comb_theta_one_level`, `.comb_min_texts`, `.comb_max_cells` |
+| `lexicon.theme_tree` | `OWN_NAME_FLOOR` | 0.5 | `themes.group.own_name_floor` |
+| `atlas.placement` | `K`, `LINK_RADIUS` | 8, 0.25 | `map.layout.neighbours`, `.link_radius` |
+| `atlas.driver` | `AtlasDefaults.traj_min_docs_per_bin` | 1 | `map.trajectories.min_texts_per_window` |
+| `atlas.driver` | the trajectories' `length_alpha` | 2 | follows `keywords.extract.length_bonus` |
+| `app.method` | the layout parameters the method screen offered (`n_neighbors`, `min_dist`, `perplexity`) | | every parameter of a map version's method: UMAP's `metric`, `n_epochs`, `spread`, `set_op_mix_ratio`, `local_connectivity`, `repulsion_strength`, `negative_sample_rate`; t-SNE's `metric` |
+| `atlas.tree_layout` | `FILL`, `GAP`, `LEAN`, `SHARP` | 0.62, 0.04, 0.4, 8 | the tree layout's `fill`, `gap`, `lean`, `sharp` (map versions, method screen) |
+
+What stays a constant, and why:
+
+| module | constant | value | why |
+| --- | --- | --- | --- |
+| `lexicon.scoring` | `ScoringOptions.part_weights` | 1 per part | the corpus gives each text as one part (`full`): a weight per part cannot act |
+| `lexicon.config` | `extraction_n_jobs`, `llm_max_concurrent` | 1, 4 | worker processes and calls in flight: the output is the same whatever their number |
+| `lexicon.config` | `refined_top_n` | 0 | recorded only: the consolidation cuts at `max_keywords` |
+| `lexicon.config`, `lexicon.llm_triage` | `llm_model`, `llm_batch_size`, `llm_temperature`, `llm_min_score`, `llm_timeout_s` | | the AI clean-up's settings: the model is `identity.ai`, the others belong to the AI steps' own parameters |
+| `project.corpus` | `VERSION_RANK` | article, review, chapter, communication, proceedings | the version of record is one rule at collection (`collect.merge`) and at reading: a build parameter would split them |
+| `project.corpus` | `PART_ORDER`, `PARTS_BATCH` | title, abstract, body; 20 000 | the order a text's parts are written in, and a batch size |
+| `lexicon.extract_raw`, `lexicon.parse_cache` | `PARSE_BATCH`, `MAX_PIECE_CHARS`, `PART_SIZE` | 64, 10 000, 1000 | the parser's batches and pieces (cut at paragraph ends) and the cache's files: memory bounds |
+| `lexicon.text_utils`, `lexicon.lexical_filters`, `lexicon.lang_utils` | the split-word repair (`min_real` 5, `max_passes` 2), the malformed-string gate, the language markers | | repair and recognition of the texts, not a choice of method; the stop words are edited in `decisions/stopwords.json` |
+| `atlas.reducers` | `TruncatedSVD`'s oversampling and normaliser, openTSNE's initialisation and neighbour search | scikit-learn's and openTSNE's defaults | solver internals: `svd_iterations` and `svd_algorithm` are the SVD's accuracy knobs |
+| `atlas.clustering` | `MICRO_INIT`, the mini-batch k-means' batches (max(1024, 4m)), first sample (3m), iterations (50) | | the micro-clustering's solver, its seed and count being parameters |
+| `atlas.placement` | `CHUNK_CELLS`, `_MARGIN`, the weights' 64 bisection steps | 2²², 10⁻⁹ | memory bound, exact ranking margin and convergence: the positions do not depend on them |
+| `atlas.tree_layout` | `_ROUNDS` | 300 | the relaxation stops as soon as no disc overlaps; the cap only bounds its time |
+| `atlas.driver` | `umap_n_components` | 2 | the map is two-dimensional |
+| `atlas.driver` | `clustering_target_subfields`, `top_n_terms_per_cluster`, `min_researchers_per_lab` | 30, 10, 3 | they shape `proto_subfields.json`, the clusters' table and the groups' layout table, which no stage, screen or site reads |
+| `atlas.driver` | `cluster_target_weight`, `respect_clusters` | 0.3, off | a semi-supervised UMAP the build never asks for |
+| `build.engine` | `TSNE_FROM_PEOPLE` | 1000 | the rule of the first map version's method; each version records its method, and another can be tried and pinned |
+| `lexicon.theme_tree` | `TOP_KEYWORDS`, `MAX_DEPTH`, `CHUNK_BYTES` | 15, 4, 64 MB | how many keywords a theme lists (its name is its most used keyword; the list only breaks a tie between siblings' names), the format's depth, a chunk size |
+| `lexicon.theme_comb` | `TEXT_CHUNK` | 2000 | texts read at a time |
+| `atlas.driver`, `build.engine` | `traj_top_k_terms`, the projected sets' `top_k` and `near_terms` | 8, 10, 10 | how many keywords a window or a projected person lists |
+| `atlas.driver` | `TRAJECTORY_CHUNK`, `atlas.blocks.BLOCK_CELLS` | 1000, 2²⁴ | chunk sizes |
+| `app.method` | `NEIGHBOURS`, `PREVIEW_SAMPLE`, `SCORE_BINS` | 10, 800, 24 | the method screen's measures, not results |
+| `build.params` | the rules' constants (`SPACE_DIMENSIONS`, `SPACE_FROM_PEOPLE`, `SPACE_MAX_DIMENSIONS`, the depth formula, the parts and document types by slot kind) | | defaults computed by a rule: the parameter they set (`dimensions`, `depth`, `parts`, `doc_types`) takes any value |
 
 ## Run records and fingerprints
 
@@ -363,14 +468,22 @@ made with.
 | --- | --- |
 | `corpus.assemble.parts`, `.provider_priority` | `assemble_corpus(parts=…, provider_priority=…)`; `parts` is a list, or the rule's parts by slot kind |
 | `corpus.assemble.recency_years` | `KeywordsConfig.kw_recency_years` |
+| `corpus.assemble.duplicate_min_title`, `.duplicate_year_gap` | `assemble_corpus(duplicate_min_title=…, duplicate_year_gap=…)`, then `duplicate_groups(min_title=…, year_gap=…)`; the corpus view groups the copies with the values of `params.json` |
 | the `year` | `RunContext.now_year` |
 | `keywords.extract.min_people`, `.min_texts`, `.max_share`, `.counting_unit` | `KeywordsConfig.min_df`, `.min_texts`, `.max_df`, `.counting_unit` |
 | `keywords.extract.rejects` | the rejection snapshot the runner writes (`EnginePaths.rejects_json`): cartolex's list and the machine's cache (`EngineOptions.rejects_folder`), minus the terms a person decided on; empty when false |
+| `keywords.extract.max_candidates`, `.vote`, `.length_bonus`, `.max_words`, `.of_complement`, `.foreign_reading` | `KeywordsConfig.max_features`, `.vote`, `.length_bonus_alpha`, `.max_units`, `.of_complement`, `.foreign_reading`, which `extract_raw.options_of` turns into `ScoringOptions` |
+| `keywords.extract.fragment_share`, `.drop_share`, `.keep_share`, `.name_share`, `.stop_words`, `.closed_word_edges`, `.even_spread`, `.even_people`, `.common_modifier` | `KeywordsConfig.band_*`, then `BandRules.fragment_share`, `.drop_share`, `.keep_share`, `.name_share`, `.stop_words`, `.closed_edges`, `.even_spread`, `.even_people`, `.generic_spread` |
 | `keywords.build.max_keywords` | `KeywordsConfig.global_top_n` |
+| `keywords.build.nested_threshold`, `.ngram_range`, `.weights_basis`, `.keywords_per_person`, `.keywords_per_organisation`, `.keywords_of_field` | `KeywordsConfig.nested_threshold`, `.ngram_range`, `.weights_basis`, `.top_n_researcher`, `.top_n_unit`, `.top_n_domain` |
 | `themes.space.dimensions`, `.space_unit` | `run_svd(svd_n_components=…, space_unit=…)` |
+| `themes.space.svd_seed`, `.svd_iterations`, `.svd_algorithm` | `run_svd(svd_seed=…, svd_iterations=…, svd_algorithm=…)`: scikit-learn's `TruncatedSVD(random_state, n_iter, algorithm)` |
+| `themes.group.cluster_dimensions`, `.exact_ward_limit`, `.micro_clusters`, `.micro_seed` | `run_clustering(n_components=…, ward=WardOptions(limit, micro, seed))`; the same `WardOptions` cut the levels above (`level_groups(ward=…)`) |
+| `themes.group.comb_theta`, `.comb_grid`, `.comb_theta_one_level`, `.comb_min_texts`, `.comb_max_cells`, `.own_name_floor` | `draft_themes(comb_options=CombOptions(theta, grid, one_level, min_texts, max_cells), own_floor=…)`; the method screen's calibration and the comb's suggestions on a curated tree read the options the grouping recorded (`cartolex.build.engine.comb_options`) |
 | the theme levels | every level: `draft_themes(level_sizes=…)`; the finest: `run_clustering(n_concepts=…)`; at depth 2 the top level of the two-level draft: `draft_subfields(n_subfields=…)` |
-| `map.trajectories.window_years` | `run_trajectories(bin_years=…)` |
-| the pinned map version | `run_umap(umap_random_state=seed, …)` with its method's parameters: for `umap` (`n_neighbors`, `min_dist`, `metric`, `layout`…), `umap_layout="tsne"` and `tsne_perplexity` for `tsne`, `umap_layout="tree"` for `tree` |
+| `map.layout.neighbours`, `.link_radius` | `run_umap(neighbours=…, link_radius=…)`, `run_trajectories(…)`, `load_positioning_models(…)`: `MapAnchors(k, link_radius)` |
+| `map.trajectories.window_years`, `.min_texts_per_window` | `run_trajectories(bin_years=…, min_docs_per_bin=…)`, with `length_alpha` from `keywords.extract.length_bonus` |
+| the pinned map version | `run_umap(umap_random_state=seed, …)` with its method's parameters: for `umap` (`n_neighbors`, `min_dist`, `metric`, `n_epochs`, `spread`, `set_op_mix_ratio`, `local_connectivity`, `repulsion_strength`, `negative_sample_rate`, `layout`), `umap_layout="tsne"` with `tsne_perplexity` and `metric` for `tsne`, `umap_layout="tree"` with `tree_fill`, `tree_gap`, `tree_lean`, `tree_sharp` for `tree` (`fill`, `gap`, `lean`, `sharp` in the version) |
 | `identity.ai.model` | `KeywordsConfig.llm_model` |
 | `identity.domain_title`, `identity.domain_description` | `KeywordsConfig.domain_title`, `.domain_description` (the AI's only context besides the terms) |
 | `decisions/stopwords.json` | the stop-word profile: every word added or removed, in any language, extends or shrinks the list of words that are never keywords |

@@ -41,10 +41,14 @@ function paramsText(params) {
   return entries.length ? entries.map(([k, v]) => `${k} ${shown(v)}`).join(', ') : t('method.layout.defaults');
 }
 
+/** A layout parameter's default in words (none: the method chooses). */
+const shownDefault = (s) => (s.default === null ? t('method.layout.automatic') : shown(s.default));
+
 /** The form of a preview: method, its parameters (defaults shown), seed. */
 function Form({ view, form, setForm, busy, onPreview }) {
   const specs = (view.parameters || {})[form.method] || [];
-  const set = (name, raw) => setForm({ ...form, params: { ...form.params, [name]: raw === '' ? undefined : Number(raw) } });
+  const set = (s, raw) => setForm({ ...form, params: { ...form.params,
+    [s.name]: raw === '' ? undefined : s.choices ? raw : Number(raw) } });
   return html`<div class="cx-method-form" role="group" aria-label=${t('method.layout.form')}>
     <label class="cx-settings__inline-label">${t('settings.layout.method')}
       <${Select} value=${form.method} options=${view.methods.map((m) => ({ value: m, label: t(`settings.layout.method.${m}`) }))}
@@ -54,11 +58,15 @@ function Form({ view, form, setForm, busy, onPreview }) {
       const changed = v !== undefined && v !== s.default;
       return html`<label key=${s.name} class=${`cx-settings__inline-label ${changed ? 'is-changed' : ''}`}>
         <code>${s.name}</code>
-        <${Input} type="number" class="cx-settings__number" min=${s.minimum} max=${s.maximum}
-          step=${s.type === 'int' ? 1 : 'any'} value=${v === undefined ? '' : v} placeholder=${shown(s.default)}
-          onInput=${(e) => set(s.name, e.currentTarget.value)} />
-        <span class="cx-settings__muted">${changed ? t('method.param.changed', { value: shown(s.default) })
-          : t('method.layout.default_value', { value: shown(s.default) })}</span></label>`;
+        ${s.choices ? html`<${Select} value=${v === undefined ? s.default : v}
+            options=${s.choices.map((c) => ({ value: c, label: c }))}
+            onChange=${(e) => set(s, e.currentTarget.value === s.default ? '' : e.currentTarget.value)} />`
+          : html`<${Input} type="number" class="cx-settings__number" min=${s.minimum} max=${s.maximum}
+          step=${s.type === 'int' ? 1 : 'any'} value=${v === undefined ? '' : v}
+          placeholder=${s.default === null ? t('method.layout.automatic') : shown(s.default)}
+          onInput=${(e) => set(s, e.currentTarget.value)} />`}
+        <span class="cx-settings__muted">${changed ? t('method.param.changed', { value: shownDefault(s) })
+          : t('method.layout.default_value', { value: shownDefault(s) })}</span></label>`;
     })}
     <label class="cx-settings__inline-label">${t('method.layout.seed')}
       <${Input} type="number" class="cx-settings__number" min="0" step="1" value=${form.seed}

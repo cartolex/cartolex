@@ -110,6 +110,16 @@ def borderline(request: Request, body: BorderlineBody, ctx: ProjectDep) -> dict[
     )
 
 
+def _comb_options(ctx: Any) -> Any:
+    """The comb's settings the grouping ran with (its record's parameters, else the defaults)."""
+    from cartolex.build.engine import comb_options
+    from cartolex.build.records import read_record
+
+    record = read_record(ctx.layout, "themes.group")
+    values = {} if record is None else {k: v.value for k, v in record.parameters.items()}
+    return comb_options(values)
+
+
 def _texts(request: Request, ctx: Any, terms: list[str]) -> Any:
     """The texts × keywords the grouping's comb read (``None``: not read, the comb was off)."""
     from cartolex.build.records import read_record
@@ -176,7 +186,7 @@ def levels(request: Request, body: LevelsBody, ctx: ProjectDep) -> dict[str, Any
         )
     doc = tree.model_dump(mode="json", by_alias=True)
     review = doc.get("review") or {}
-    theta, found = tree_levels(doc, terms, D)
+    theta, found = tree_levels(doc, terms, D, options=_comb_options(ctx))
     items = [
         {
             "keyword": s.keyword,
