@@ -609,3 +609,12 @@ nothing in the engine names a particular deployment, source or procedure.
   the changes that share a reason, at once. The themes kit counts the people
   behind each node, reads the comb on the current tree and suggests only other
   nodes; its views are short unless `detail=True`.
+- **AI help chosen on the build page.** The pre-flight sheet offers a route for
+  each AI step, remembered per project (`params.json`, `ai`): the keyword
+  clean-up (none, a copilot, or the API) and the theme curation (none or a
+  copilot: it has no API route). With a copilot the build runs up to the step
+  and ends `waiting` (a new job state, never a failure): export the bundle, give
+  it to the assistant, import and accept the result, then « Continue the
+  build ». The Activity drawer and the overview's next step say so. The
+  manifest's capability `ai_handoff` is now `ai_copilot`, and
+  `/api/handoff/proposals…` is `/api/ai/proposals…`.

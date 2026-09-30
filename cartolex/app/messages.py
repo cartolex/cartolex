@@ -131,6 +131,9 @@ MESSAGES: dict[str, MessageKind] = {
     ),
     # the overview's one next step
     "next_watch_build": MessageKind("a build is running", "Follow the build", "open:/build"),
+    "next_copilot_waiting": MessageKind(
+        "the build waits for your copilot ({step})", "Continue the build", "open:/build"
+    ),
     "next_import_people": MessageKind(
         "start with the people whose texts make the map", "Add people", "open:/people"
     ),

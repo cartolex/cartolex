@@ -17,13 +17,16 @@ export function isActive(job) {
 
 /**
  * Every stage of the project in build order, with what this build does to it:
- * done, running (with its progress), waiting, stopped, kept, skipped, not run.
+ * done, running (with its progress), waiting, stopped, kept, skipped, not run, held
+ * back for a copilot.
  */
 export function trackerRows(order, tracker, job) {
   const own = new Map((tracker.stages || []).map((s) => [s.stage, s]));
   const kept = new Set(tracker.kept || []);
   const skipped = new Set(tracker.skipped || []);
   const refused = new Set(tracker.refused || []);
+  const pause = job && job.result && job.result.waiting;
+  const held = new Set((pause && pause.held) || []);
   const progress = job && job.progress;
   const rows = [];
   for (const id of order) {
@@ -42,6 +45,8 @@ export function trackerRows(order, tracker, job) {
       } else {
         rows.push({ ...base, state: 'never_built', stateText: t('build.stage.waiting') });
       }
+    } else if (held.has(id)) {
+      rows.push({ ...base, state: 'never_built', stateText: t('build.action.held') });
     } else if (refused.has(id)) {
       rows.push({ ...base, state: 'skipped', stateText: t('build.stage.refused') });
     } else if (kept.has(id)) {

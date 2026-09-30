@@ -4,6 +4,7 @@
  *
  * - `preflight.js`: the pre-flight sheet (what runs and why, the cost, consent, refusal);
  * - `run.js`: the tracker while the job runs, with Stop, and the result when it ends;
+ * - `ai.js`: the route of each AI step, and the card of a build waiting for a copilot;
  * - `words.js`: sizes, names, the one-sentence result, the error card of a failure;
  * - `page.js`: the page, which puts them together.
  */

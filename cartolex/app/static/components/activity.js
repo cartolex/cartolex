@@ -17,7 +17,7 @@ import { StatusDot, stageName } from './status.js';
 
 const DOT = {
   queued: 'running', running: 'running', cancelling: 'running', succeeded: 'up_to_date',
-  failed: 'failed', interrupted: 'failed', cancelled: 'skipped',
+  waiting: 'needs_update', failed: 'failed', interrupted: 'failed', cancelled: 'skipped',
 };
 
 function kindWord(job, form) {
@@ -47,11 +47,19 @@ export function jobResultSummary(result) {
   return key && has(key) ? t(key, result.summary_params || {}) : result.summary || '';
 }
 
+/** The AI step a build waits at, in words (« keyword clean-up »). */
+function waitingStep(job) {
+  const step = job.result && job.result.waiting && job.result.waiting.step;
+  const key = `build.ai.step.${step}`;
+  return step && has(key) ? t(key) : '';
+}
+
 /** The indicator's words for a job: « Building · keywords 45 % », « Build failed ». */
 export function jobHeadline(job) {
   if (job.state === 'failed' || job.state === 'interrupted') {
     return t('activity.failed', { kind: kindWord(job, 'noun') });
   }
+  if (job.state === 'waiting') return t('activity.waiting', { step: waitingStep(job) });
   if (job.state === 'queued') return t('activity.queued', { verb: kindWord(job, 'verb') });
   const p = job.progress || {};
   const fraction = typeof p.stage_fraction === 'number' ? p.stage_fraction : p.fraction;
@@ -109,6 +117,14 @@ function JobItem({ job, jobs }) {
       <div class="cx-job__actions">
         ${job.result && job.result.link ? html`<a class="cx-link" href=${job.result.link}>
           ${t('job.open_result')}</a>` : null}
+        <${Button} size="s" variant="ghost" onClick=${() => jobs.dismiss(job.id)}>
+          ${t('common.dismiss')}<//>
+      </div>
+    </div>` : null}
+    ${job.state === 'waiting' ? html`<div class="cx-job__result">
+      <p class="cx-job__meta">${t('job.waiting', { step: waitingStep(job) })}</p>
+      <div class="cx-job__actions">
+        <a class="cx-link" href="/build">${t('job.waiting.continue')}</a>
         <${Button} size="s" variant="ghost" onClick=${() => jobs.dismiss(job.id)}>
           ${t('common.dismiss')}<//>
       </div>

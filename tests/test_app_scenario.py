@@ -273,12 +273,12 @@ def _scenario(client: Client, tmp_path, world) -> None:
         f"Here is the list:\n1 | C | {items[0]['term']}\n2 | G | {items[1]['term']}\n",
         encoding="utf-8",
     )
-    assert [p["id"] for p in client.get("/api/handoff/proposals").json()["items"]] == [stamp]
-    proposal = client.get(f"/api/handoff/proposals/{stamp}").json()
+    assert [p["id"] for p in client.get("/api/ai/proposals").json()["items"]] == [stamp]
+    proposal = client.get(f"/api/ai/proposals/{stamp}").json()
     assert proposal["answered"] == 2 and proposal["read"]["ignored"] == 1
     assert [i["proposed"] for i in proposal["items"]] == ["keep", "exclude"]
     accepted = client.post(
-        f"/api/handoff/proposals/{stamp}/accept",
+        f"/api/ai/proposals/{stamp}/accept",
         json={"all": True},
         headers={"If-Match": f'"{proposal["keywords_version"]}"'},
     )

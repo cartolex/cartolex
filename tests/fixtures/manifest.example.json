@@ -8,7 +8,7 @@
   "nav": [{"id": "overview", "label": "nav.overview", "route": "/overview",
            "module": "/static/pages/overview.js", "order": 10}],
   "modules": ["/static/ext/<id>/index.js"],
-  "capabilities": {"collection": true, "ai_api": false, "ai_handoff": true, "hosted": false},
+  "capabilities": {"collection": true, "ai_api": false, "ai_copilot": true, "hosted": false},
   "project": {"open": true, "id": "…", "name": "…"},
   "security": {"csrf_header": "X-Cartolex-CSRF", "csrf_cookie": "cartolex_csrf_<instance>"}
 }

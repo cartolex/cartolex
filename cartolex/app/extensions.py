@@ -303,7 +303,7 @@ def _check(ext: Extension) -> None:
 
 
 #: Capabilities cartolex sets itself; an extension cannot switch them.
-CORE_CAPABILITIES = ("collection", "ai_api", "ai_handoff", "hosted")
+CORE_CAPABILITIES = ("collection", "ai_api", "ai_copilot", "hosted")
 
 
 def combine(extensions: Sequence[Extension]) -> Combined:

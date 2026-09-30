@@ -138,13 +138,34 @@ def _people_count(ctx: Any) -> int:
         return 0
 
 
-def next_step(ctx: Any, stages: list[dict], health: list[dict], running: Any) -> dict:
-    """The single most useful action now, in this order: watch a running build, add people,
-    install a missing model, look at a failure, a first build, restore a stale map, bring the
-    rest up to date, curate the themes, look at the map."""
+def _waiting_step(runtime: Any, ctx: Any) -> str | None:
+    """The AI step the last build paused at, when its route is still a copilot."""
+    from ..ai_steps import routes_of
+    from .build import last_build
+
+    last = last_build(runtime, ctx)
+    pause = (
+        (last.result or {}).get("waiting") if last is not None and last.state == "waiting" else None
+    )
+    if not pause:
+        return None
+    params, _ = ctx.project.read_params()
+    step = pause.get("step")
+    return step if routes_of(params).get(step) == "copilot" else None
+
+
+def next_step(
+    ctx: Any, stages: list[dict], health: list[dict], running: Any, waiting: str | None = None
+) -> dict:
+    """The single most useful action now, in this order: watch a running build, the copilot
+    a paused build waits for, add people, install a missing model, look at a failure, a first
+    build, restore a stale map, bring the rest up to date, curate the themes, look at the
+    map."""
     states = [s["state"] for s in stages]
     if running is not None:
         return item("next_watch_build")
+    if waiting is not None:
+        return item("next_copilot_waiting", step=waiting)
     if not any(s == "up_to_date" for s in states) and _people_count(ctx) == 0:
         return item("next_import_people")
     if any(h["code"] == "health_model_missing" for h in health):
@@ -240,7 +261,9 @@ def overview(request: Request, ctx: ProjectDep) -> dict[str, Any]:
             "name": config.name,
             "state": summary([s for own in areas.values() for s in own]),
         },
-        "next": next_step(ctx, stages, health, running),
+        "next": next_step(
+            ctx, stages, health, running, None if running else _waiting_step(runtime, ctx)
+        ),
         "health": health,
         "preview": atlas,
         "shares": {"items": shares, "available": runtime.site_builder.available},

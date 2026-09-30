@@ -136,8 +136,9 @@ through a `JobRunner` (submit, status, progress, cancel, list, events).
 `LocalJobRunner` runs each in a thread of the app; a queue can stand behind the
 same interface. One job runs per project at a time: a second build or
 collection is refused with 409 `busy`, naming the running job. A job's states
-are `queued`, `running`, `cancelling`, `succeeded`, `failed`, `cancelled` and
-`interrupted`. A cancel stops at the next safe point, and the result says
+are `queued`, `running`, `cancelling`, `succeeded`, `waiting` (a build that
+ended at an AI step whose route is a copilot, waiting for its result: not a
+failure), `failed`, `cancelled` and `interrupted`. A cancel stops at the next safe point, and the result says
 « nothing changed » or « finished before the cancel ».
 
 Every job writes `logs/jobs/<job id>.jsonl` in its project: a `job` line (its
@@ -191,7 +192,8 @@ build.
 | route | what it does |
 | --- | --- |
 | `GET /api/project/state` | every stage's state (the six states, as keys: `up_to_date`, `needs_update`, `never_built`, `running`, `failed`, `skipped`) with its reasons, last run and last failed attempt, grouped in areas (corpus, keywords, themes, map, share, and the extensions'), each area summing up its stages; derived from the run records alone |
-| `POST /api/build {scope, options: {force, allow_over_budget}, dry_run, consent}` | `scope`: stage ids or areas, everything by default. The dry run (the default) answers the plan: each stage's action, reasons, estimate, whether it asks consent, and the consent requests. `dry_run: false` starts a job (202); a stage that asks consent runs only when listed in `consent`; without it, an opt-in stage (the AI clean-up; its request says `skipped_without: true`) is skipped as if switched off and the stages after it run, any other is refused with those after it |
+| `POST /api/build {scope, options: {force, allow_over_budget}, dry_run, consent, continue}` | `scope`: stage ids or areas, everything by default. The dry run (the default) answers the plan: each stage's action, reasons, estimate, whether it asks consent, the consent requests, the route of each AI step (`ai`: `routes`, `choices`, `api_ready`, and `version`, the version of `params.json`) and where the build pauses for a copilot (`pause`: `step`, `after`, `resumes`, `page`, the copilot's page, and `held`, the stages it holds back; `null` when it does not). A build pauses at an AI step whose route is a copilot when the stage after it runs and either the stage before it runs in the same build or no copilot result was accepted since that stage's run: it runs what comes before and ends `waiting`, its result's `waiting` naming the pause; `continue` lists the steps (`keywords.triage`, `themes.curation`) it goes past. `dry_run: false` starts a job (202); a stage that asks consent runs only when listed in `consent`; without it, an opt-in stage (the AI clean-up; its request says `skipped_without: true`) is skipped as if switched off and the stages after it run, any other is refused with those after it |
+| `PUT /api/build/ai {keywords.triage, themes.curation}` | the route of each AI step, kept in `params.json` (`ai`): `none`, `copilot` or, for the keyword clean-up only, `api` (which switches `keywords.triage` on; the theme curation has no API route); a step left out keeps its route; `If-Match` with the version of `params.json`; answers as the dry run's `ai` |
 | `GET /api/build` | the tracker: the running or last build job (its progress: phase, stage, fractions, ETA, message) and each of its stages, done, running or waiting, with counts and times; its result says what changed. A failed stage's result carries its code, params and `next` (the settings for a missing language model or a refused stage, a diagnostic otherwise); a consent request of a paid stage gives `ai_calls_max`, the most AI calls it makes when the candidates are known |
 | `GET /api/overview` | what the overview adds to the state: `project` (id, name, the state of the whole), `next` (the one most useful next step), `health[]` (a stale map, a missing language model, a stage too large for this machine, several languages without the AI clean-up, a proposal of collaborators cut at its cap), `preview` (an even sample of at most 1 500 of the map's people, `[x, y, top-level theme index]`, with the top-level themes and the bounds; `null` without a map) and `shares` (the three latest site builds). Each item is a message (`code`, `params`, `message`), a `level` (`info`, `warning`) and a `next` action; a build action may carry `scope`, the areas the build covers |
 | `GET /api/jobs`, `GET /api/jobs/{id}`, `GET /api/jobs/{id}/events?after=n`, `POST /api/jobs/{id}/cancel` | jobs; a job's `title` comes with `title_code` and `title_params` (`job.title.<code>`), a result's `summary` with `summary_code` and `summary_params` (`job.summary.<code>`) |
@@ -279,7 +281,7 @@ version, so it can be undone too).
 | `POST /api/settings/restore` | a backup (multipart `file`): its decision files replace the project's, each current version kept in its history first; `project.json` stays; `not_a_backup` otherwise |
 | `POST /api/settings/reset {what: built}` | remove the built results (every stage is then never built); decisions, texts and caches stay; 409 `busy` while a job runs |
 | `GET /api/machine`, `PUT /api/machine/keys {service, key}` | this computer: the keys saved on it (`mistral`, `openalex`; whether set, from the environment or saved, the last four characters; never shown whole, never in a project: `<data dir>/keys.json`, readable by its owner only; an environment variable wins), whether the AI clean-up can run by API, OpenAlex's daily budget with and without a key, the processors, the memory available and the build's memory budget; `key: null` removes a key; refused on a hosted service (`keys_hosted`) |
-| `GET /api/handoff/proposals`, `GET /api/handoff/proposals/{id}`, `POST /api/handoff/proposals/{id}/accept {terms, all}` | the keyword proposals: a copilot's triage results ({doc}`copilot`), and the answers to a handoff (a prompt and a list pasted in a chat) an earlier version imported, still read and accepted (`cartolex.project.handoff` reads them); each answered term with its code, `category`, `reason`, and for a copilot's its `group` and `by` (`group` or `term`); accepted ones reach `keywords.csv` with the source `ai-copilot` (`ai-handoff` for an earlier answer) and their category; an accepted term whose English form is another term is merged into it; an accepted exclusion of category `never` whose `confidence` is `sure` enters this computer's rejection cache |
+| `GET /api/ai/proposals`, `GET /api/ai/proposals/{id}`, `POST /api/ai/proposals/{id}/accept {terms, all}` | the keyword proposals: a copilot's triage results ({doc}`copilot`), and the answers to a handoff (a prompt and a list pasted in a chat) an earlier version imported, still read and accepted (`cartolex.project.handoff` reads them); each answered term with its code, `category`, `reason`, and for a copilot's its `group` and `by` (`group` or `term`); accepted ones reach `keywords.csv` with the source `ai-copilot` (`ai-handoff` for an earlier answer) and their category; an accepted term whose English form is another term is merged into it; an accepted exclusion of category `never` whose `confidence` is `sure` enters this computer's rejection cache |
 | `GET /api/keywords/ai` | the two routes of the AI filtering: with a copilot (`copilot.proposals`, the proposals so far) and by API (provider, whether a key is saved, what is sent, an estimate of the calls and tokens, the last run); the estimate counts every candidate but those rejected automatically (`terms`, `rejected`), those already answered in `cache/ai/` (`answered`) and the `new` ones, the only ones that cost calls |
 | `POST /api/keywords/ai/run {consent}` | filter by API: switch `keywords.triage` on in `params.json` and start it as a build job (202); `ai_api_not_ready` without a key or a provider, `ai_consent_needed` without consent |
 
@@ -516,6 +518,7 @@ the English `message` the same way; an empty result also names its next action.
 | `health_languages_split` | the texts are in {languages}: without the AI clean-up, keywords of each language may form themes of their own | `languages` | `settings` |
 | `health_snowball_cap` | the last proposal of collaborators in {slot} stopped at the cap of {cap} people | `slot`, `cap` | `settings` |
 | `next_watch_build` | a build is running | — | `open:/build` |
+| `next_copilot_waiting` | the build waits for your copilot ({step}) | `step` | `open:/build` |
 | `next_import_people` | start with the people whose texts make the map | — | `open:/people` |
 | `next_install_model` | install the language model the keyword extraction needs | — | `settings` |
 | `next_see_failure` | {stage} failed: see why and build again | `stage` | `build` |
@@ -640,7 +643,7 @@ The copilot's bundle is a zip an assistant able to run code works from on its
 own; its result comes back as one file. Its format, the kit and the routes
 (`/api/themes/copilot/…`, `/api/keywords/copilot/…`) are in {doc}`copilot`.
 An imported themes result is reviewed as a list of changes; a triage result is
-a keyword proposal (`GET /api/handoff/proposals/{id}` and its `accept` take
+a keyword proposal (`GET /api/ai/proposals/{id}` and its `accept` take
 the ids of both).
 
 ### Errors of the theme editor

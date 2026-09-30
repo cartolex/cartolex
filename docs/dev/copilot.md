@@ -207,7 +207,17 @@ with a result; the kit writes only results it passes, the app reads only those
 | `GET /api/themes/copilot/proposals/{id}` | one of them, read again |
 | `GET /api/keywords/copilot/summary?scope=&usage_lines=` | the same for triage (`scope`: `all`, the default, Kept, To check and Set aside, never the candidates rejected automatically; `both`, Kept and To check; or `check`), with `tokens` (an estimate of what the assistant spends) and `parts` (how many conversations it takes) |
 | `GET /api/keywords/copilot/export?scope=&usage_lines=&language=&parts=` | the triage bundle, cut into `parts` (0, the default: as the summary suggests) |
-| `POST /api/keywords/copilot/import {result}` or `{results}` | keeps the result in `decisions/history/ai/<time>-copilot-triage.json` and its new rules in `decisions/curation-notes.md`; several results (the parts, a result taken up again) are merged first (in the order they were made, a later decision on a term wins; the counts and caveats of the latest result of each bundle and part); gives a keyword proposal (the shape of `GET /api/handoff/proposals/{id}`, each item with its `reason`, `category`, `group` and `by`; `coverage`, `caveats`, `rules`, `partial`, `merged`), accepted with `POST /api/handoff/proposals/{id}/accept` (source `ai-copilot`, its own route in the Keywords list; reason « AI: » and the assistant's) |
+| `POST /api/keywords/copilot/import {result}` or `{results}` | keeps the result in `decisions/history/ai/<time>-copilot-triage.json` and its new rules in `decisions/curation-notes.md`; several results (the parts, a result taken up again) are merged first (in the order they were made, a later decision on a term wins; the counts and caveats of the latest result of each bundle and part); gives a keyword proposal (the shape of `GET /api/ai/proposals/{id}`, each item with its `reason`, `category`, `group` and `by`; `coverage`, `caveats`, `rules`, `partial`, `merged`), accepted with `POST /api/ai/proposals/{id}/accept` (source `ai-copilot`, its own route in the Keywords list; reason « AI: » and the assistant's) |
+
+**From the build.** The build page's pre-flight sheet offers a route for each
+AI step (`PUT /api/build/ai`, kept in `params.json`'s `ai`). With the copilot,
+a build runs up to the step and ends `waiting` before the stage that reads the
+result (the vocabulary, or the themes applied): its card says « export the
+bundle, give it to your assistant, import the result » and opens the dialog of
+the Keywords screen or of the theme editor (`?copilot=1`); once the result is
+accepted, « Continue the build » runs the rest (`POST /api/build {continue}`).
+The Activity drawer and the overview's next step (`next_copilot_waiting`) say
+the build waits for the copilot.
 
 The dialogs show what a bundle holds and never holds, the parts and the token
 estimate (triage), the results imported before (the earlier handoff answers

@@ -42,9 +42,10 @@ export function createJobsStore({ api, dismissed, onFinished, timing = {}, enabl
     const hidden = new Set(dismissed.value);
     return jobs.value.filter((j) => ACTIVE.has(j.state) || !hidden.has(j.id));
   });
-  /** The job the header shows: the first active one, else the latest failure not dismissed. */
+  /** The job the header shows: the first active one, else the latest failure or build waiting
+   * for a copilot not dismissed. */
   const headline = computed(() => active.value[0]
-    || visible.value.find((j) => j.state === 'failed' || j.state === 'interrupted') || null);
+    || visible.value.find((j) => ['failed', 'interrupted', 'waiting'].includes(j.state)) || null);
 
   const apply = (list) => {
     for (const job of list) {

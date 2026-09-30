@@ -66,7 +66,7 @@ export function KeywordCopilotDialog({ ctx, onClose, onDone }) {
   };
   const open = async (id) => {
     setError(null);
-    const r = await ctx.api.get(`/api/handoff/proposals/${encodeURIComponent(id)}`);
+    const r = await ctx.api.get(`/api/ai/proposals/${encodeURIComponent(id)}`);
     if (r.ok) show(r.data);
     else setError(r.error);
   };
@@ -76,7 +76,7 @@ export function KeywordCopilotDialog({ ctx, onClose, onDone }) {
     const all = chosen.size === proposal.items.length;
     const terms = all ? [] : proposal.items.filter((it) => chosen.has(itemKey(it)))
       .map((it) => ({ term: it.term, language: it.language }));
-    const r = await ctx.api.post(`/api/handoff/proposals/${encodeURIComponent(proposal.id)}/accept`,
+    const r = await ctx.api.post(`/api/ai/proposals/${encodeURIComponent(proposal.id)}/accept`,
       { all, terms }, { ifMatch: `"${proposal.keywords_version}"` });
     setBusy(false);
     if (r.ok) onDone(t('keywords.ai.accepted', { n: r.data.accepted }));
@@ -118,7 +118,7 @@ export function KeywordCopilotDialog({ ctx, onClose, onDone }) {
         onClick=${() => setStep('import')}>${t('copilot.next')}<//>`;
   } else if (step === 'import') {
     body = html`<${CopilotImport} onRead=${read} busy=${busy} error=${error} multiple />
-      <${EarlierResults} api=${ctx.api} url="/api/handoff/proposals" onOpen=${open} />`;
+      <${EarlierResults} api=${ctx.api} url="/api/ai/proposals" onOpen=${open} />`;
     footer = html`<${Button} variant="ghost" icon="chevron-left" onClick=${() => setStep('export')}>${t('common.back')}<//>`;
   } else {
     body = html`<${CopilotOutcome} proposal=${proposal} />

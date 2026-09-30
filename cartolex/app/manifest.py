@@ -93,7 +93,7 @@ class Capabilities(BaseModel):
 
     collection: bool = Field(description="collecting texts from bibliographic services")
     ai_api: bool = Field(description="the AI clean-up by API (a key was given)")
-    ai_handoff: bool = Field(
+    ai_copilot: bool = Field(
         description="the AI clean-up outside the app: the copilot bundle (export, then import)"
     )
     hosted: bool = Field(description="a hosted service (many projects, a host's sign-in)")
@@ -235,7 +235,7 @@ def build_manifest(runtime: Runtime, principal: Principal, project: dict | None)
     capabilities = Capabilities(
         collection=runtime.collection.available,
         ai_api=bool(ai is not None and (ai.api_key or ai.client_factory)),
-        ai_handoff=True,
+        ai_copilot=True,
         hosted=settings.hosted,
         **combined.capabilities,
     )

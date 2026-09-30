@@ -5,13 +5,14 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
-from fastapi import Request
+from fastapi import Request, Response
 from pydantic import BaseModel, Field
 
 from ..deps import ProjectDep
 from ..errors import ApiError
+from ..etags import check_version, etag_of, expected_version, version_of
 from ..jobs import JobConflict, JobControl
 from ..messages import attempt_message, empty
 from ..routing import Routes, runtime_of
@@ -20,6 +21,7 @@ from .state import AREAS
 routes = Routes(tags=["build"])
 
 StageOrArea = Annotated[str, Field(pattern=r"^[a-z][a-z._-]{0,63}$")]
+AiStepId = Literal["keywords.triage", "themes.curation"]
 JOB_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
@@ -36,13 +38,16 @@ class BuildBody(BaseModel):
 
     ``dry_run`` (the default) answers with the plan, its estimate and the
     consent requests; ``dry_run: false`` starts a job, running the stages
-    that ask consent only when their id is in ``consent``.
+    that ask consent only when their id is in ``consent``. A build pauses at an
+    AI step whose route is a copilot (:mod:`cartolex.app.ai_steps`), except at
+    the steps in ``continue`` (« continue the build »).
     """
 
     scope: Annotated[list[StageOrArea], Field(max_length=32)] | None = None
     options: BuildOptions = BuildOptions()
     dry_run: bool = True
     consent: Annotated[list[StageOrArea], Field(max_length=32)] = []
+    go_on: Annotated[list[AiStepId], Field(max_length=4, alias="continue")] = []
 
 
 def busy_error(running: Any) -> ApiError:
@@ -95,7 +100,9 @@ def ai_calls(ctx: Any, the_plan: Any, stage: str) -> int | None:
     return -(-int(n) // AI_BATCH) if n else None
 
 
-def plan_json(the_plan: Any, registry: Any, ctx: Any = None) -> dict[str, Any]:
+def plan_json(
+    the_plan: Any, registry: Any, ctx: Any = None, pause: dict[str, Any] | None = None
+) -> dict[str, Any]:
     items = [
         {
             "stage": i.stage,
@@ -141,7 +148,34 @@ def plan_json(the_plan: Any, registry: Any, ctx: Any = None) -> dict[str, Any]:
         "budget_mb": the_plan.budget_mb,
         "consent": consent,
         "describe": the_plan.describe(),
+        "pause": pause,
     }
+
+
+def ai_view(runtime: Any, ctx: Any) -> dict[str, Any]:
+    """The route of each AI step (``none``, ``copilot``, ``api``), the routes each can take,
+    whether the API is ready (a key and a provider), and the version of ``params.json``."""
+    from cartolex.project.models import AI_ROUTES
+
+    from ..ai_steps import routes_of
+
+    params, fp = ctx.project.read_params()
+    ai = runtime.ai_access()
+    ready = bool(ai is not None and (ai.api_key or ai.client_factory))
+    return {
+        "routes": routes_of(params),
+        "choices": {step: list(routes) for step, routes in AI_ROUTES.items()},
+        "api_ready": ready and ctx.project.config.identity.ai is not None,
+        "version": version_of(fp),
+    }
+
+
+def pause_for(runtime: Any, ctx: Any, the_plan: Any, passed: list[str]) -> dict[str, Any] | None:
+    """Where a build of *the_plan* pauses for a copilot (:func:`cartolex.app.ai_steps.pause_of`)."""
+    from ..ai_steps import pause_of, routes_of
+
+    params, _ = ctx.project.read_params()
+    return pause_of(ctx.project, runtime.registry, the_plan, routes_of(params), set(passed))
 
 
 def progress_json(event: Any) -> dict[str, Any]:
@@ -173,20 +207,50 @@ def start_build_job(
     consent: list[str] = (),  # type: ignore[assignment]
     title: str = "build",
     title_code: str = "build",
+    passed: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Submit a build of *targets* as a job; 409 when a job runs on the project."""
-    from cartolex.build import build
+    """Submit a build of *targets* as a job; 409 when a job runs on the project.
+
+    With *passed* (a list, the build page's builds), the build pauses at an AI step
+    whose route is a copilot, except the steps in it: it runs what comes before the
+    step and ends ``waiting``, its result naming the pause (``waiting``).
+    """
+    from cartolex.build import build, plan
 
     project, registry = ctx.project, runtime.registry
     settings = runtime.settings
     accepted = set(consent)
 
     def work(control: JobControl) -> dict[str, Any]:
+        run_targets, pause = targets, None
+        if passed is not None:
+            the_plan = plan(
+                project,
+                targets,
+                registry=registry,
+                force=force,
+                budget_mb=settings.build_budget_mb,
+                year=settings.build_year,
+            )
+            pause = pause_for(runtime, ctx, the_plan, passed)
+            if pause is not None:
+                run_targets = [s for s in the_plan.to_run if s not in pause["held"]]
+                control.event("waiting", **pause)
+        if pause is not None and not run_targets:
+            return {
+                "outcome": "waiting",
+                "summary": "waiting for a copilot",
+                "ran": [],
+                "refused": {},
+                "not_run": [],
+                "changed": False,
+                "waiting": pause,
+            }
         result = build(
             project,
-            targets,
+            run_targets,
             registry=registry,
-            force=force,
+            force=[s for s in force if run_targets is None or s in run_targets],
             budget_mb=settings.build_budget_mb,
             allow_over_budget=allow_over_budget,
             consent=lambda request: request.stage in accepted,
@@ -214,6 +278,8 @@ def start_build_job(
                 "next": {"label": label, "action": action},
             }
             out["error"] = f"{result.failed[0]}: {result.failed[1]}"
+        elif pause is not None and result.outcome == "succeeded":
+            out["outcome"], out["waiting"] = "waiting", pause
         return out
 
     try:
@@ -250,8 +316,10 @@ def post_build(request: Request, body: BuildBody, ctx: ProjectDep) -> Any:
             budget_mb=runtime.settings.build_budget_mb,
             year=runtime.settings.build_year,
         )
-        out = plan_json(the_plan, runtime.registry, ctx)
+        pause = pause_for(runtime, ctx, the_plan, list(body.go_on))
+        out = plan_json(the_plan, runtime.registry, ctx, pause)
         out["running"] = running.as_dict() if running else None
+        out["ai"] = ai_view(runtime, ctx)
         if not out["to_run"]:
             out["empty"] = empty("empty_up_to_date")
         return out
@@ -262,8 +330,42 @@ def post_build(request: Request, body: BuildBody, ctx: ProjectDep) -> Any:
         force=force,
         allow_over_budget=body.options.allow_over_budget,
         consent=list(body.consent),
+        passed=list(body.go_on),
     )
     return JSONResponse(started, status_code=202)
+
+
+class AiRoutesBody(BaseModel):
+    """The route of each AI step: ``none``, ``copilot`` or ``api`` (the keyword clean-up
+    only). A step left out keeps its route."""
+
+    model_config = {"populate_by_name": True}
+
+    keywords_triage: Literal["none", "copilot", "api"] | None = Field(None, alias="keywords.triage")
+    themes_curation: Literal["none", "copilot"] | None = Field(None, alias="themes.curation")
+
+
+@routes.put("/api/build/ai", action="params.write")
+def put_ai_routes(
+    request: Request, response: Response, body: AiRoutesBody, ctx: ProjectDep
+) -> dict[str, Any]:
+    """Choose the route of the AI steps, kept in ``params.json`` (``ai``; the clean-up by API
+    switches ``keywords.triage`` on); ``If-Match`` with the version of ``params.json``."""
+    from ..ai_steps import with_routes
+
+    runtime = runtime_of(request)
+    expected = expected_version(request)
+    chosen = {k: v for k, v in body.model_dump(by_alias=True).items() if v is not None}
+    with ctx.handle.mutex:
+        check_version(ctx.layout.params_json, expected)
+        params, _ = ctx.project.read_params()
+        updated = with_routes(params, chosen)
+        if updated != params:
+            said = ", ".join(f"{k}={v}" for k, v in sorted(chosen.items()))
+            ctx.project.save_params(updated, expected=expected, action=f"AI route {said}")
+    view = ai_view(runtime, ctx)
+    response.headers["ETag"] = etag_of(view["version"])
+    return view
 
 
 def job_events(ctx: Any, job_id: str, after: int = 0) -> list[dict[str, Any]]:
@@ -318,19 +420,24 @@ def tracker(ctx: Any, job: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-@routes.get("/api/build", action="build.read")
-def get_build(request: Request, ctx: ProjectDep) -> dict[str, Any]:
-    """The tracker: the running build, or the last one: stage, progress, ETA, what changed."""
+def last_build(runtime: Any, ctx: Any) -> Any:
+    """The running build job, or the last one (from this process, else from the logs)."""
     from ..jobs import read_job_logs
 
-    runtime = runtime_of(request)
     jobs = [j for j in runtime.jobs.list(ctx.id) if j.kind == "build"]
     if not jobs:
         jobs = [j for j in read_job_logs(ctx.layout.jobs, ctx.id, limit=5) if j.kind == "build"]
-    if not jobs:
+    return jobs[0] if jobs else None
+
+
+@routes.get("/api/build", action="build.read")
+def get_build(request: Request, ctx: ProjectDep) -> dict[str, Any]:
+    """The tracker: the running build, or the last one: stage, progress, ETA, what changed."""
+    last = last_build(runtime_of(request), ctx)
+    if last is None:
         return {
             "job": None,
             "empty": empty("empty_nothing_built"),
         }
-    job = jobs[0].as_dict()
+    job = last.as_dict()
     return {"job": job, **tracker(ctx, job)}

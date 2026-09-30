@@ -97,6 +97,27 @@ number:
 An unknown step or parameter, or a value below its smallest (1, and 2 for
 `max_authors`), is refused when the file is read.
 
+`ai` (optional, added within version 1 and left out of the file when empty)
+holds the route people chose for each AI step of a build, from the build
+page:
+
+```json
+"ai": {"keywords.triage": "copilot", "themes.curation": "none"}
+```
+
+| step | routes | meaning |
+| --- | --- | --- |
+| `keywords.triage` | `none`, `copilot`, `api` | the keyword clean-up, between the extraction and the vocabulary |
+| `themes.curation` | `none`, `copilot` | the theme curation, between the grouping and the themes applied; it has no API route |
+
+`none` (the default) builds without AI help. `copilot`: the build runs up to
+the step and pauses there until an assistant's result is imported and
+accepted, or the person continues without it. `api`: the clean-up runs by the
+provider's API, the opt-in stage `keywords.triage`, whose `enabled` switch
+(`stages`) is the one the build reads: choosing `api` sets it, choosing
+another route clears it, and `enabled: true` reads as `api` whatever `ai`
+says. An unknown step or route is refused when the file is read.
+
 ## `keywords.csv`
 
 | column | meaning |

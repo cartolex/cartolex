@@ -38,7 +38,7 @@ refuses what does not fit with `ExtensionError` (a
 | `identity_provider` | `provider(NewProject) -> {…}`: fills a new project's identity (`domain_title`, `domain_description`, `ai`) from what the creator typed and who they are |
 | `overlay_sets` | the projected sets (`Overlay`) every new project gets |
 | `status_keys` | `StatusArea(id, label, stages, probe)`: an area of the project state (`GET /api/project/state`) summing up stages, or items a `probe(project)` returns |
-| `capabilities` | flags the interface reads in the manifest (`{"reports": True}`); cartolex's own (`collection`, `ai_api`, `ai_handoff`, `hosted`) cannot be set |
+| `capabilities` | flags the interface reads in the manifest (`{"reports": True}`); cartolex's own (`collection`, `ai_api`, `ai_copilot`, `hosted`) cannot be set |
 | `middlewares` | Starlette `Middleware` objects, run inside cartolex's own layers: after the host check and the security headers, before the routes |
 | `settings_dir_name` | the name of the app's own folder on the computer (default `cartolex`), where the recent projects are kept. One extension at most sets it |
 | `prompt_dir` | a folder of prompt templates replacing the packaged ones for every stage (the AI clean-up's). One extension at most sets it |

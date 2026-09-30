@@ -109,3 +109,68 @@
 .cx-build-result .cx-error-card {
   margin: var(--cx-space-3) 0;
 }
+
+/* The AI steps: a route for each (radio buttons), and where the build pauses. */
+.cx-build-ai__steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--cx-space-4);
+  margin-top: var(--cx-space-3);
+}
+
+.cx-build-ai__step {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cx-build-ai__legend {
+  margin-bottom: var(--cx-space-1);
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-build-ai__option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cx-space-2);
+  padding: var(--cx-space-1) 0;
+  cursor: pointer;
+}
+
+.cx-build-ai__option input {
+  margin-top: 0.3em;
+  accent-color: var(--cx-accent);
+}
+
+.cx-build-ai__option.is-disabled {
+  cursor: default;
+}
+
+.cx-build-ai__option.is-disabled .cx-build-ai__label {
+  color: var(--cx-text-muted);
+}
+
+.cx-build-ai__help {
+  display: block;
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}
+
+.cx-build-ai__pause {
+  display: flex;
+  gap: var(--cx-space-2);
+  align-items: flex-start;
+  margin: var(--cx-space-4) 0 0;
+}
+
+/* A build waiting for a copilot: the three things to do. */
+.cx-build-wait__steps {
+  margin: 0 0 var(--cx-space-3);
+  padding-left: var(--cx-space-6);
+  display: grid;
+  gap: var(--cx-space-1);
+}
+
+.cx-build-wait .cx-build-note {
+  margin-bottom: var(--cx-space-3);
+}

@@ -40,7 +40,9 @@ export function KeywordsScreen() {
   const [band, setBandState] = useState(() => bandOf(ctx.query));
   const [version, setVersion] = useState(0);
   const [data, setData] = useState(null);
-  const [dialog, setDialog] = useState(null); // {kind, ...}
+  // `?copilot=1` (a build waiting for the copilot) opens its dialog at once.
+  const [dialog, setDialog] = useState(() => (ctx.query && ctx.query.get('copilot') === '1'
+    ? { kind: 'copilot' } : null)); // {kind, ...}
   const [watched, setWatched] = useState(null);
   const toast = (item) => app.toaster.show(item);
   const bump = () => setVersion((v) => v + 1);

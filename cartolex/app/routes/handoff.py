@@ -24,7 +24,7 @@ from ..people_io import decided_now
 from ..routing import Routes, runtime_of
 from .keywords import _decisions, _write, extracted
 
-routes = Routes(tags=["handoff"])
+routes = Routes(tags=["ai"])
 
 #: What the triage by API sends, and what it never sends (shown before a run).
 API_SENDS = ("keyword strings and their language", "the field's title and description")
@@ -108,7 +108,7 @@ def _proposal_ids(ctx: Any) -> list[str]:
     return sorted((i for i in names if _PROPOSAL.match(i)), reverse=True)
 
 
-@routes.get("/api/handoff/proposals", action="keywords.read")
+@routes.get("/api/ai/proposals", action="keywords.read")
 def proposals(ctx: ProjectDep) -> dict[str, Any]:
     """The proposals imported so far (a copilot's results, and the answers to a handoff an
     earlier version imported), the newest first."""
@@ -120,7 +120,7 @@ def proposals(ctx: ProjectDep) -> dict[str, Any]:
     }
 
 
-@routes.get("/api/handoff/proposals/{proposal_id}", action="keywords.read")
+@routes.get("/api/ai/proposals/{proposal_id}", action="keywords.read")
 def proposal(proposal_id: ProposalId, ctx: ProjectDep) -> dict[str, Any]:
     """One proposal: each answered term, its verdict and the decision it proposes."""
     return _proposal(ctx, proposal_id)
@@ -133,7 +133,7 @@ class AcceptBody(BaseModel):
     all: bool = False
 
 
-@routes.post("/api/handoff/proposals/{proposal_id}/accept", action="keywords.write")
+@routes.post("/api/ai/proposals/{proposal_id}/accept", action="keywords.write")
 def accept(
     request: Request,
     response: Response,
