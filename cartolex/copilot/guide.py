@@ -150,7 +150,8 @@ def readme(task: str, manifest: Mapping[str, Any], context: Mapping[str, Any] | 
         hard = [
             f"- Speak with the curator in {lang}. Write theme names in {reference}.",
             "- **Checkpoint 1 — before restructuring.** Show what a restructuring changes "
-            "(numbers, pictures, examples) and ask. Go on only when they agree.",
+            "(numbers, pictures, examples, and the number of levels when it changes) and ask. "
+            "Go on only when they agree.",
             "- **Checkpoint 2 — before handing back.** Show `session.report()` and ask.",
             "- **A checkpoint ends with a question** to the curator; then wait for the "
             "answer and take no other step before it.",
@@ -264,6 +265,16 @@ _THEMES_GUIDE = """\
 
 {field}
 {rules}
+## Quick reference
+
+- `session.find("marsh")`: which node holds each keyword containing « marsh »
+  (`[("salt marsh", "c2"), ("marsh accretion", "(set aside)")]`).
+- `session.keywords("c2")`: the keywords under a node; `session.name("c2")`: its name.
+- `print(session.outline())`, `print(session.measure())`, `print(session.compare())`.
+- `session.borderline()`, `session.suggest(["salt marsh"])`, `session.levels()`.
+- `session.move`, `merge`, `split`, `rename`, `set_aside`, `put_back`,
+  `attribution` (each with its reason); `session.undo()`.
+
 ## The tree you work on
 
 {levels}
@@ -310,7 +321,9 @@ need: the curator reads the conversation too.
 
 - *coherence*: the mean cosine of a keyword to its node (itself left out); higher is tighter.
 - *margin*: that cosine minus the one to the nearest other node of the level;
-  *misplaced* is the share with a negative margin, *borderline* below 0.05.
+  *misplaced* is the share with a negative margin, *borderline* below 0.05. A
+  keyword alone in its node has no margin: it is left out of these and of
+  `borderline()`, and *alone* counts it.
 - *balance*: per level, the keywords on its nodes themselves (mean, smallest,
   largest), their *spread* and the level's *share* of the placed keywords.
 - *stability*: the adjusted Rand index between the grouping on everyone and on
@@ -336,8 +349,11 @@ need: the curator reads the conversation too.
    `other = session.regroup([12, 60])` (groups per level, from the top), then
    `print(session.compare(session.tree, other))`, `session.stability([12, 60])`,
    `session.draw_treemap("result/other.png", other)`. Compare two or three sizes;
-   more groups always look more coherent: prefer the stabler, clearer one. Ask
-   the curator, end with the question and wait; with their agreement:
+   more groups always look more coherent: prefer the stabler, clearer one. The
+   number of sizes is the number of levels (1 to 4): when the field reads better
+   with one level more or less (`session.regroup([5, 14, 45])`), propose that depth
+   too, and say so, as the curator's other levels change with it. Ask the
+   curator, end with the question and wait; with their agreement:
    `session.adopt(other, reason, curator_agreed=True)`.
 5. **Refine** node by node, each change with its reason:
    `session.rename("s3", "Coastal hazards", reason)`,
@@ -346,7 +362,9 @@ need: the curator reads the conversation too.
    `session.set_aside(["further work"], reason)`, `session.put_back([...], "c3", reason)`,
    `session.attribution(["ocean"], 0, reason)`, `session.create(...)`,
    `session.delete(...)`, `session.move_node(...)`. `session.undo()` takes the
-   last change back.
+   last change back. A list change skips the keywords it cannot apply to (set
+   aside, not in the tree…), applies the others, and prints and returns the
+   skipped ones with why.
 6. **Name** every node you touched, and every vague name.
 7. **Measure again**: `print(session.compare())` and new pictures; undo what does not help.
 8. **Checkpoint 2.** Show `print(session.report())` to the curator and ask

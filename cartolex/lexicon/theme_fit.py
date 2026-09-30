@@ -25,7 +25,10 @@ costs one product of the keywords by the nodes of a level.
 
 A node's centroid is the mean of the normalised vectors of the keywords it
 holds, on it or under it, renormalised. Keywords outside the space (not in its
-vocabulary) are ignored; a node of one keyword gives no margin to it.
+vocabulary, or with a zero vector) are ignored. A keyword alone in its node (at
+the level compared) has no margin: without it, its node has no centroid. It is
+left out of the list; :func:`alone` counts these keywords, so a measure over the
+list can say how many it leaves out.
 """
 
 from __future__ import annotations
@@ -36,7 +39,7 @@ from typing import Any
 
 import numpy as np
 
-__all__ = ["Borderline", "Suggestion", "borderline", "suggestions"]
+__all__ = ["Borderline", "Suggestion", "alone", "borderline", "suggestions"]
 
 
 @dataclass(frozen=True)
@@ -69,14 +72,20 @@ def _normalised(Z: np.ndarray) -> np.ndarray:
 class _Tree:
     """The nodes of a ``cartolex-themes/1`` document, their levels and the keywords' rows."""
 
-    def __init__(self, doc: Mapping[str, Any], terms: Sequence[str]) -> None:
+    def __init__(
+        self, doc: Mapping[str, Any], terms: Sequence[str], Zn: np.ndarray | None = None
+    ) -> None:
         nodes = list(doc.get("nodes") or [])
         self.parent = {n["id"]: n.get("parent") for n in nodes}
         self.order = [n["id"] for n in nodes]
         self.level: dict[str, int] = {}
         for nid in self.order:
             self._level(nid)
+        self.Zn = Zn
         row = {t: i for i, t in enumerate(terms)}
+        if Zn is not None:  # a zero vector is outside the space
+            present = np.flatnonzero(np.any(Zn != 0, axis=1))
+            row = {terms[i]: int(i) for i in present}
         self.placed = {
             k: v for k, v in (doc.get("keywords") or {}).items() if k in row and v in self.parent
         }
@@ -112,6 +121,42 @@ class _Tree:
         return ids, total, count
 
 
+def _compared(
+    tree: _Tree, level: int | None
+) -> list[tuple[int, list[str], np.ndarray, np.ndarray, list[tuple[str, str]]]]:
+    """Per level compared: its nodes, their sums and counts, and the keywords compared there
+    with their node at that level."""
+    levels = sorted({tree.level[n] for n in tree.placed.values()}) if level is None else [level]
+    out = []
+    for lv in levels:
+        assert tree.Zn is not None
+        ids, total, count = tree.sums(tree.Zn, lv)
+        keywords = [
+            (k, tree.ancestor(n, lv))
+            for k, n in tree.placed.items()
+            if (tree.level[n] == lv if level is None else tree.ancestor(n, lv) is not None)
+        ]
+        out.append((lv, ids, total, count, [(k, n) for k, n in keywords if n is not None]))
+    return out
+
+
+def alone(
+    doc: Mapping[str, Any],
+    terms: Sequence[str],
+    Z: np.ndarray,
+    *,
+    level: int | None = None,
+) -> list[str]:
+    """The placed keywords alone in their node at the level compared (as in
+    :func:`borderline`): they have no margin, and the list leaves them out."""
+    tree = _Tree(doc, terms, _normalised(Z))
+    out: list[str] = []
+    for _, ids, _, count, keywords in _compared(tree, level):
+        pos = {n: j for j, n in enumerate(ids)}
+        out += [k for k, n in keywords if count[pos[n]] < 2]
+    return sorted(out)
+
+
 def borderline(
     doc: Mapping[str, Any],
     terms: Sequence[str],
@@ -124,23 +169,17 @@ def borderline(
     *doc* is a tree document, *terms* the space's keywords in the rows of *Z*
     (the keywords' vectors). With *level*, each keyword is compared at that
     level through its node's ancestor there (keywords placed above it are left
-    out); without, at the level of its own node. Ties go to the keyword's text.
+    out); without, at the level of its own node. A keyword alone in its node
+    there has no margin and is left out (:func:`alone`). Ties go to the keyword's text.
     """
-    tree = _Tree(doc, terms)
     Zn = _normalised(Z)
-    levels = sorted({tree.level[n] for n in tree.placed.values()}) if level is None else [level]
+    tree = _Tree(doc, terms, Zn)
     out: list[Borderline] = []
-    for lv in levels:
-        ids, total, count = tree.sums(Zn, lv)
+    for lv, ids, total, count, keywords in _compared(tree, level):
         if len(ids) < 2:
             continue
         pos = {n: j for j, n in enumerate(ids)}
         C = _normalised(total)
-        keywords = [
-            (k, tree.ancestor(n, lv))
-            for k, n in tree.placed.items()
-            if (tree.level[n] == lv if level is None else tree.ancestor(n, lv) is not None)
-        ]
         keywords = [(k, n) for k, n in keywords if count[pos[n]] >= 2]
         if not keywords:
             continue

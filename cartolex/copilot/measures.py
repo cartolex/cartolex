@@ -9,7 +9,8 @@ Every measure is cartolex's own, on the bundled vectors:
   their difference, the *margin*. Per level: the mean cosine to the own node
   (*coherence*), the mean margin, the share of keywords nearer another node
   (*misplaced*) and of keywords within :data:`BORDER` of the border
-  (*borderline*);
+  (*borderline*). A keyword alone in its node has no margin: it is left out of
+  these, and *alone* says how many were;
 - **sizes**: the nodes of each level and the keywords under them (smallest,
   median, largest), the keywords placed and set aside;
 - **balance** (:func:`balance`): the keywords placed on the nodes of each level
@@ -119,14 +120,16 @@ def balance(doc: Mapping[str, Any]) -> dict[str, Any]:
 def fit(
     doc: Mapping[str, Any], terms: Sequence[str], Z: np.ndarray, *, border: float = BORDER
 ) -> dict[str, Any]:
-    """Per level: coherence, mean margin, the shares of misplaced and borderline keywords."""
-    from cartolex.lexicon.theme_fit import borderline
+    """Per level: coherence, mean margin, the shares of misplaced and borderline keywords, and
+    how many keywords alone in their node were left out of them (``alone``)."""
+    from cartolex.lexicon.theme_fit import alone, borderline
 
     out = []
     for level in range(1, int(doc["depth"]) + 1):
         items = borderline(doc, terms, Z, level=level)
+        lone = len(alone(doc, terms, Z, level=level))
         if not items:
-            out.append({"level": level, "keywords": 0})
+            out.append({"level": level, "keywords": 0, "alone": lone})
             continue
         own = np.array([b.own for b in items])
         margin = np.array([b.margin for b in items])
@@ -138,6 +141,7 @@ def fit(
                 "margin": round(float(margin.mean()), 4),
                 "misplaced": round(float((margin < 0).mean()), 4),
                 "borderline": round(float((margin < border).mean()), 4),
+                "alone": lone,
             }
         )
     return {"levels": out}

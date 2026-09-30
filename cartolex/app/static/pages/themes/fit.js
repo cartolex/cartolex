@@ -60,7 +60,7 @@ export function createFit({ api }) {
     borderError.value = null;
     const d = result.data;
     border.value = {
-      tree, level: level.value, total: d.total, negative: d.negative, empty: d.empty,
+      tree, level: level.value, total: d.total, negative: d.negative, alone: d.alone || 0, empty: d.empty,
       items: append && current ? [...current.items, ...d.items] : d.items,
     };
   }
@@ -259,7 +259,8 @@ function MarginPane({ editor, ui }) {
       </label>
       <p class="cx-themes-check__help" id="cx-themes-border-help">${t('themes.border.keys')}</p>
       ${data ? html`<p class="cx-themes-border__count" aria-live="polite">
-        ${t('themes.border.count', { total: data.total, negative: data.negative })}</p>` : null}
+        ${t('themes.border.count', { total: data.total, negative: data.negative })}${data.alone
+          ? ` ${t('themes.border.alone', { alone: data.alone })}` : ''}</p>` : null}
     </div>
     ${fit.borderError.value ? html`<${ErrorCard} error=${fit.borderError.value} compact
       onRetry=${() => fit.retryBorder(tree)} />` : null}

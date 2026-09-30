@@ -63,12 +63,14 @@ def borderline(request: Request, body: BorderlineBody, ctx: ProjectDep) -> dict[
     Each item: ``keyword``, ``node`` (its node at the level compared),
     ``level``, ``other`` (the nearest other node there), ``own`` and ``near``
     (cosines to the two centroids, the keyword left out of its own) and
-    ``margin`` (``own − near``; negative: nearer the other node). Keywords
+    ``margin`` (``own − near``; negative: nearer the other node). A keyword alone in
+    its node has no margin and is not listed; ``alone`` counts them. Keywords
     kept here from this list (review state ``kept``) are left out unless
     ``reviewed``; a review made elsewhere (the queue of a rebase) does not hide one. Sorts:
     ``margin`` (default), ``keyword``, ``own``, ``near``; ``q`` filters on the
     keyword's text.
     """
+    from cartolex.lexicon.theme_fit import alone
     from cartolex.lexicon.theme_fit import borderline as measure
 
     tree = _parse_tree(body.tree)
@@ -106,6 +108,7 @@ def borderline(request: Request, body: BorderlineBody, ctx: ProjectDep) -> dict[
         extra={
             "measure": "cosine margin to the nearest other node of the same level",
             "negative": sum(1 for i in items if i["margin"] < 0),
+            "alone": len(alone(doc, terms, Z, level=body.level)),
         },
     )
 

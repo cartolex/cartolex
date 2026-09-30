@@ -1324,6 +1324,7 @@
   "themes.border.level": "Comparar no nível",
   "themes.border.level.own": "do seu nó",
   "themes.border.keys": "A: manter aqui · O: mover para o outro nó · S: pôr de lado… · J e K: próxima e anterior",
+  "themes.border.alone": "({alone, plural, one {# palavra-chave sozinha no seu nó, sem margem, não é listada} other {# palavras-chave sozinhas no seu nó, sem margem, não são listadas}})",
   "themes.border.count": "{total, plural, one {# palavra-chave} other {# palavras-chave}}, {negative, plural, =0 {nenhuma mais perto de outro nó} one {# mais perto de outro nó} other {# mais perto de outro nó}}",
   "themes.border.detail": "ou {other}",
   "themes.border.margin_help": "A margem: quanto a palavra-chave está mais perto do seu nó do que do outro (uma diferença de cossenos; abaixo de zero, está mais perto do outro)",

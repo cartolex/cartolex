@@ -1324,6 +1324,7 @@
   "themes.border.level": "Compare at",
   "themes.border.level.own": "the level of its node",
   "themes.border.keys": "A: keep here · O: move to the other node · S: set aside… · J and K: next and previous",
+  "themes.border.alone": "({alone, plural, one {# keyword alone in its node, without a margin, is not listed} other {# keywords alone in their node, without a margin, are not listed}})",
   "themes.border.count": "{total, plural, one {# keyword} other {# keywords}}, {negative, plural, =0 {none nearer another node} one {# nearer another node} other {# nearer another node}}",
   "themes.border.detail": "or {other}",
   "themes.border.margin_help": "The margin: how much nearer the keyword is to its own node than to the other (a difference of cosines; below zero, it is nearer the other)",

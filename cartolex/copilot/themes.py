@@ -242,9 +242,9 @@ class ThemesSession(ThemesViews, Session):
     def measure(
         self, doc: Mapping[str, Any] | None = None, *, detail: bool = False
     ) -> dict[str, Any]:
-        """The tree's measures: per level, nodes, coherence, margin, misplaced share and
-        spread (and the truth's score if any); every measure (sizes, balance, fit) with
-        *detail*."""
+        """The tree's measures: per level, nodes, coherence, margin, misplaced share, spread and
+        the keywords alone in their node (no margin, left out of the others), and the truth's
+        score if any; every measure (sizes, balance, fit) with *detail*."""
         started = time.perf_counter()
         out = measures.summary(doc or self.tree, self.terms, self.Z_terms, truth=self.truth)
         self._timed("measure", started)
@@ -261,6 +261,7 @@ class ThemesSession(ThemesViews, Session):
                     "coherence": fit.get("coherence"),
                     "margin": fit.get("margin"),
                     "misplaced": fit.get("misplaced"),
+                    "alone": fit.get("alone", 0),
                     "spread": bal["spread"],
                     "share": bal["share"],
                 }
@@ -276,25 +277,31 @@ class ThemesSession(ThemesViews, Session):
         detail: bool = False,
     ) -> str:
         """The main measures of two trees side by side (default: the baseline and the tree):
-        the sizes, coherence and misplaced share per level; every measure with *detail*."""
+        the sizes, coherence and misplaced share per level; every measure with *detail*. Trees
+        of different depths are compared level by level from the top (``—``: no such level)."""
         a = self.measure(before or self.baseline, detail=True)
         b = self.measure(after or self.tree, detail=True)
-        rows = [("keywords placed", a["sizes"]["placed"], b["sizes"]["placed"])]
-        rows.append(("set aside", a["sizes"]["set_aside"], b["sizes"]["set_aside"]))
-        for x, y in zip(a["sizes"]["levels"], b["sizes"]["levels"], strict=False):
-            rows.append((f"level {x['level']} nodes", x["nodes"], y["nodes"]))
-        for x, y in zip(a["balance"]["levels"], b["balance"]["levels"], strict=False):
-            if detail:
-                rows.append((f"level {x['level']} on a node", x["own_mean"], y["own_mean"]))
-            rows.append((f"level {x['level']} spread", x["spread"], y["spread"]))
-            if detail:
-                rows.append((f"level {x['level']} share", x["share"], y["share"]))
-        for x, y in zip(a["fit"]["levels"], b["fit"]["levels"], strict=False):
-            for key in ("coherence", "margin", "misplaced", "borderline"):
-                if not detail and key not in ("coherence", "misplaced"):
-                    continue
-                if key in x and key in y:
-                    rows.append((f"level {x['level']} {key}", x[key], y[key]))
+        rows: list[tuple[str, Any, Any]] = [
+            ("levels", len(a["sizes"]["levels"]), len(b["sizes"]["levels"])),
+            ("keywords placed", a["sizes"]["placed"], b["sizes"]["placed"]),
+            ("set aside", a["sizes"]["set_aside"], b["sizes"]["set_aside"]),
+        ]
+
+        def by_level(m: Mapping[str, Any], part: str) -> dict[int, Mapping[str, Any]]:
+            return {x["level"]: x for x in m[part]["levels"]}
+
+        def side_by_side(part: str, keys: Sequence[str]) -> None:
+            x, y = by_level(a, part), by_level(b, part)
+            for level in sorted(set(x) | set(y)):
+                for key in keys:
+                    u, v = x.get(level, {}).get(key, "—"), y.get(level, {}).get(key, "—")
+                    if u != "—" or v != "—":
+                        rows.append((f"level {level} {key}", u, v))
+
+        side_by_side("sizes", ["nodes"])
+        side_by_side("balance", ["own_mean", "spread", "share"] if detail else ["spread"])
+        fit_keys = ["coherence", "misplaced"]
+        side_by_side("fit", [*fit_keys, "margin", "borderline", "alone"] if detail else fit_keys)
         if "truth" in a and "truth" in b:
             rows.append(("truth B-cubed F1", a["truth"]["bcubed_f1"], b["truth"]["bcubed_f1"]))
         width = max(len(r[0]) for r in rows)
@@ -309,7 +316,8 @@ class ThemesSession(ThemesViews, Session):
         detail: bool = False,
     ) -> list[dict[str, Any]]:
         """The keywords nearest the border of their node, the smallest margin first: *n*
-        (ten by default; up to 200 with *detail*)."""
+        (ten by default; up to 200 with *detail*). A keyword alone in its node has no margin
+        and is not listed (``measure()`` counts them, ``alone``)."""
         n = max(n, 200) if detail else n
         from dataclasses import asdict
 
@@ -361,9 +369,12 @@ class ThemesSession(ThemesViews, Session):
     def regroup(self, level_sizes: Sequence[int], *, keep_aside: bool = True) -> dict[str, Any]:
         """A new tree by cartolex's grouping at *level_sizes* (groups per level, from the top).
 
-        Nothing changes until you :meth:`adopt` it. Nodes are named after their
-        most used keyword, as the grouping names them. With *keep_aside*, the
-        keywords set aside in the tree stay set aside.
+        One to four sizes: the new tree has that many levels, which may differ
+        from the tree's (the levels kept from the top keep their names, a new
+        one takes the default name). Nothing changes until you :meth:`adopt`
+        it. Nodes are named after their most used keyword, as the grouping
+        names them. With *keep_aside*, the keywords set aside in the tree stay
+        set aside.
         """
         from cartolex.atlas.clustering import fit_agglomerative_labels, prepare_cluster_embeddings
         from cartolex.atlas.hierarchy import level_groups
@@ -371,8 +382,8 @@ class ThemesSession(ThemesViews, Session):
 
         started = time.perf_counter()
         sizes = [int(x) for x in level_sizes]
-        if len(sizes) != int(self.tree["depth"]):
-            raise ValueError(f"give {self.tree['depth']} sizes, one per level of the tree")
+        if not 1 <= len(sizes) <= ops.MAX_DEPTH:
+            raise ValueError(f"give 1 to {ops.MAX_DEPTH} sizes, one per level of the new tree")
         if any(b <= a for a, b in zip(sizes, sizes[1:], strict=False)):
             raise ValueError("the sizes grow from the top level down")
         components = int(self.context.get("cluster_components") or 50)
@@ -389,7 +400,7 @@ class ThemesSession(ThemesViews, Session):
             run=f"copilot/{'-'.join(map(str, sizes))}",
             own_floor=self.own_floor,
         )
-        doc["levels"] = copy.deepcopy(self.tree["levels"])
+        doc["levels"] = ops.relevel(self.tree["levels"], int(self.tree["depth"]), len(sizes))
         doc["set_aside"] = {}
         if keep_aside:
             for k, entry in (self.tree.get("set_aside") or {}).items():
@@ -613,10 +624,53 @@ class ThemesSession(ThemesViews, Session):
             reason,
         )
 
-    def move(self, keywords: Iterable[str] | str, node_id: str, reason: str) -> None:
-        """Move placed keywords onto a node (of any level)."""
-        kws = [keywords] if isinstance(keywords, str) else list(keywords)
-        self._do("move", [{"op": "move_keywords", "keywords": kws, "node_id": node_id}], reason)
+    def _sorted_out(
+        self, keywords: Iterable[str] | str, why: Any
+    ) -> tuple[list[str], dict[str, str]]:
+        """*keywords* split into those a list change applies to and those it skips, with why
+        (*why* gives the reason a keyword is skipped, or ``None``)."""
+        kws = list(dict.fromkeys([keywords] if isinstance(keywords, str) else keywords))
+        skipped = {k: r for k in kws if (r := why(k))}
+        return [k for k in kws if k not in skipped], skipped
+
+    def _list_change(
+        self,
+        kind: str,
+        keywords: Iterable[str] | str,
+        why: Any,
+        op: Mapping[str, Any],
+        reason: str,
+    ) -> dict[str, str]:
+        """Apply a list change to the keywords it can apply to; the others skipped, said and
+        returned (``{keyword: why}``)."""
+        if not str(reason or "").strip():
+            raise ValueError("give the reason of every change: the curator reads it")
+        kws, skipped = self._sorted_out(keywords, why)
+        if kws:
+            self._do(kind, [{**op, "keywords": kws}], reason)
+        if skipped:
+            shown = "; ".join(f"{k!r} ({r})" for k, r in list(skipped.items())[:20])
+            more = f" and {len(skipped) - 20} more" if len(skipped) > 20 else ""
+            done = f"{kind} applied to {len(kws)}" if kws else "nothing applied"
+            print(f"{done}; skipped {len(skipped)}: {shown}{more}")
+        return skipped
+
+    def _placed_or_why(self, k: str) -> str | None:
+        if k in (self.tree.get("set_aside") or {}):
+            return "set aside: put it back instead"
+        return None if k in self.tree["keywords"] else "not in the tree"
+
+    def move(self, keywords: Iterable[str] | str, node_id: str, reason: str) -> dict[str, str]:
+        """Move placed keywords onto a node (of any level). Keywords set aside or not in the
+        tree are skipped; the skipped ones are returned with why."""
+        self.name(node_id)  # a node that is not there refuses the whole change
+        return self._list_change(
+            "move",
+            keywords,
+            self._placed_or_why,
+            {"op": "move_keywords", "node_id": node_id},
+            reason,
+        )
 
     def merge(self, source: str, target: str, reason: str) -> None:
         """Merge a node into another of the same level."""
@@ -663,25 +717,67 @@ class ThemesSession(ThemesViews, Session):
         op = {"op": "move_node", "node_id": node_id, "parent": parent, "position": position}
         self._do("move_node", [op], reason)
 
-    def set_aside(self, keywords: Iterable[str] | str, reason: str) -> None:
-        """Set keywords aside: they belong to no theme of the field."""
-        kws = [keywords] if isinstance(keywords, str) else list(keywords)
-        self._do(
+    def set_aside(self, keywords: Iterable[str] | str, reason: str) -> dict[str, str]:
+        """Set keywords aside: they belong to no theme of the field. Keywords not in the tree
+        are skipped; the skipped ones are returned with why."""
+        aside = self.tree.get("set_aside") or {}
+        return self._list_change(
             "set_aside",
-            [{"op": "set_aside", "keywords": kws, "reason": f"AI: {reason}"[:500]}],
+            keywords,
+            lambda k: None if k in self.tree["keywords"] or k in aside else "not in the tree",
+            {"op": "set_aside", "reason": f"AI: {reason}"[:500]},
             reason,
         )
 
-    def put_back(self, keywords: Iterable[str] | str, node_id: str | None, reason: str) -> None:
-        """Put set-aside keywords back on a node (``None``: where they came from)."""
-        kws = [keywords] if isinstance(keywords, str) else list(keywords)
-        self._do("put_back", [{"op": "put_back", "keywords": kws, "node_id": node_id}], reason)
+    def put_back(
+        self, keywords: Iterable[str] | str, node_id: str | None, reason: str
+    ) -> dict[str, str]:
+        """Put set-aside keywords back on a node (``None``: where they came from). Keywords not
+        set aside, or with no place to go back to, are skipped and returned with why."""
+        if node_id is not None:
+            self.name(node_id)
+        aside = self.tree.get("set_aside") or {}
+        nodes = {n["id"] for n in self.tree["nodes"]}
 
-    def attribution(self, keywords: Iterable[str] | str, levels: int | None, reason: str) -> None:
-        """Count broad keywords toward the top *levels* only (``0``: nowhere; ``None``: their node)."""
-        kws = [keywords] if isinstance(keywords, str) else list(keywords)
-        self._do(
-            "attribution", [{"op": "set_attribution", "keywords": kws, "levels": levels}], reason
+        def why(k: str) -> str | None:
+            if k not in aside:
+                return "already placed" if k in self.tree["keywords"] else "not in the tree"
+            if node_id is None and aside[k].get("from") not in nodes:
+                return "its node is gone: name one"
+            return None
+
+        return self._list_change(
+            "put_back", keywords, why, {"op": "put_back", "node_id": node_id}, reason
+        )
+
+    def attribution(
+        self, keywords: Iterable[str] | str, levels: int | None, reason: str
+    ) -> dict[str, str]:
+        """Count broad keywords toward the top *levels* only (``0``: nowhere; ``None``: their
+        node). Keywords set aside, not in the tree, or on a node not below *levels* are
+        skipped; the skipped ones are returned with why."""
+        depth = int(self.tree["depth"])
+        if levels is not None and (
+            not isinstance(levels, int) or isinstance(levels, bool) or not 0 <= levels < depth
+        ):
+            raise ValueError(f"an attribution is None or 0 to {depth - 1}, not {levels!r}")
+        lv = ops.levels(self.tree)
+
+        def why(k: str) -> str | None:
+            if k in (self.tree.get("set_aside") or {}):
+                return "set aside: put it back first"
+            if k not in self.tree["keywords"]:
+                return "not in the tree"
+            if levels is not None and levels >= lv[self.tree["keywords"][k]]:
+                return f"its node is on level {lv[self.tree['keywords'][k]]}: nothing to lower"
+            return None
+
+        return self._list_change(
+            "attribution",
+            keywords,
+            why,
+            {"op": "set_attribution", "levels": levels},
+            reason,
         )
 
     def _fresh_id(self, taken: set[str] | None = None) -> str:
@@ -706,21 +802,28 @@ class ThemesSession(ThemesViews, Session):
         what it changes (:meth:`compare`, the pictures) and ask first, then call
         with ``curator_agreed=True``. The change is written as operations:
         the new nodes, the keywords moved onto them (or set aside), the old
-        nodes left empty removed; names and levels as in *target*.
+        nodes left empty removed; names as in *target*. A *target* of another
+        depth first gets new empty levels at the bottom, or last loses the
+        emptied bottom levels (the level names as :meth:`regroup` gives them).
         """
         if not curator_agreed:
             raise CheckpointNeeded(
                 "Checkpoint 1: before restructuring, show the curator what changes (compare(), "
-                "draw_map(), draw_treemap()) in their language and ask whether to "
+                "draw_map(), draw_treemap(), and the number of levels when it changes) in "
+                "their language and ask whether to "
                 "restructure. " + ASK + " Then call "
                 "adopt(..., curator_agreed=True)."
             )
-        if int(target["depth"]) != int(self.tree["depth"]):
-            raise ValueError("adopt a tree of the same depth as the current one")
+        depth, new_depth = int(self.tree["depth"]), int(target["depth"])
+        if not 1 <= new_depth <= ops.MAX_DEPTH:
+            raise ValueError(f"a tree has 1 to {ops.MAX_DEPTH} levels, not {new_depth}")
         current = self.tree
         taken: set[str] = set()
         new_of: dict[str, str] = {}
-        op_list: list[dict[str, Any]] = []
+        # A deeper tree: its new levels first, empty at the bottom, for the new nodes.
+        op_list: list[dict[str, Any]] = [
+            {"op": "insert_level", "at": at} for at in range(depth + 1, new_depth + 1)
+        ]
         for nid in ops.tree_order(target):
             node = next(n for n in target["nodes"] if n["id"] == nid)
             fresh = self._fresh_id(taken)
@@ -763,6 +866,17 @@ class ThemesSession(ThemesViews, Session):
             except ops.OpRefused:
                 continue
             op_list.append({"op": "delete_node", "node_id": nid})
+        # A shallower tree: its bottom levels, emptied, last.
+        for at in range(depth, new_depth, -1):
+            op = {"op": "remove_level", "at": at}
+            try:
+                after = ops.apply(after, op)
+            except ops.OpRefused as exc:
+                raise ValueError(
+                    f"the target leaves keywords on level {at} of the tree ({exc}): place or "
+                    "set aside every keyword of the tree in it"
+                ) from None
+            op_list.append(op)
         self._do("restructure", op_list, reason, after)
 
     # ── the result ───────────────────────────────────────────────────────────

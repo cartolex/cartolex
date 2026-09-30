@@ -139,11 +139,15 @@ most of its use: « one person's vocabulary »), `keywords(node)`, `find(text)`;
 on the current tree from `text_keywords.npz`), `suggest(keywords)` (the other
 nodes nearest a keyword, its own left out), `stability(level_sizes)`;
 `regroup(level_sizes)` (the grouping of the build: `prepare_cluster_embeddings`,
-Ward, `level_groups`, `propose_tree`); `layout(method)`, `draw_map(path,
+Ward, `level_groups`, `propose_tree`; one to four sizes, so the new tree may
+have another depth); `layout(method)`, `draw_map(path,
 method=)` (`tree`, `tsne` with scikit-learn, `umap`), `draw_treemap(path)`;
 changes, each with its reason: `rename`, `move`, `merge`, `split`, `create`,
-`delete`, `move_node`, `set_aside`, `put_back`, `attribution`, `adopt(tree)` (a
-restructuring, written as operations), `undo()`; `add_rule`, `report()`,
+`delete`, `move_node`, `set_aside`, `put_back`, `attribution` (a list change
+skips the keywords it cannot apply to, applies the others and returns the
+skipped ones with why), `adopt(tree)` (a restructuring, written as operations:
+at another depth, `insert_level` at the bottom first or `remove_level` of the
+emptied bottom levels last, so the import applies it as one tree step), `undo()`; `add_rule`, `report()`,
 `write_result(notes)`. For helpers in parallel: `parts(k)` (the top-level nodes
 in k parts of about as many keywords), `open_bundle(".", part=j)` (a helper's
 session, its new nodes named apart and its changes in
@@ -164,7 +168,8 @@ message with the question, and wait for the answer.
 
 **Measures** (`cartolex.copilot.measures`): per level, *coherence* (mean
 cosine of a keyword to its node, itself left out), *margin* (minus the cosine to
-the nearest other node), *misplaced* and *borderline* shares — the theme
+the nearest other node), *misplaced* and *borderline* shares, and *alone*,
+the keywords alone in their node (no margin, left out of the others) — the theme
 editor's borderline measure (`cartolex.lexicon.theme_fit`); sizes per level;
 *balance* (the keywords on each level's nodes themselves, their spread and the
 level's share); *stability*, the adjusted Rand index of the grouping redone

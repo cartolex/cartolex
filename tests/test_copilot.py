@@ -483,3 +483,45 @@ def test_the_grouping_settings_travel_into_the_bundle_and_the_kit_combs_with_the
     )
     calibrated, _ = tree_levels(session.tree, session.terms, session.D, options=CombOptions())
     assert calibrated != 0.15  # the default would have calibrated another θ
+
+
+def test_a_regrouping_at_another_depth_is_adopted_and_saved_at_that_depth(client, tmp_path):
+    """Two levels regrouped into three: adopted as one restructuring, imported in the app as
+    one tree step, saved at depth 3; a list change skips what it cannot apply to."""
+    from _app_helpers import etag
+
+    from cartolex.copilot import open_bundle
+
+    session = open_bundle(_unpack(client, THEMES, tmp_path / "themes"))
+    assert session.tree["depth"] == 2
+    other = session.regroup([3, 6, 12])
+    assert other["depth"] == 3 and len(other["levels"]) == 3
+    assert "levels" in session.compare(session.tree, other)
+    session.adopt(other, "three levels read better", curator_agreed=True)
+    assert session.tree["depth"] == 3 and len(session.changes) == 1
+    assert session.level_sizes() == [3, 6, 12]
+    placed = sorted(session.tree["keywords"])
+    session.set_aside(placed[:1], "too generic")
+    skipped = session.attribution([placed[0], placed[1]], 0, "broad")
+    assert list(skipped) == [placed[0]] and "set aside" in skipped[placed[0]]
+    assert session.tree["attribution"] == {placed[1]: 0}
+    result = json.loads(session.write_result("notes", curator_agreed=True).read_text("utf-8"))
+    themes = client.get("/api/themes")
+    r = client.post("/api/themes/copilot/import", json={"result": result})
+    assert r.status_code == 200, r.text
+    items = r.json()["items"]
+    assert not any(i["refused"] for i in items) and items[0]["tree"]["depth"] == 3
+    tree = items[0]["tree"]
+    for item in items[1:]:
+        tree = client.post("/api/themes/ops", json={"tree": tree, "ops": item["ops"]}).json()[
+            "tree"
+        ]
+    assert tree["keywords"] == session.tree["keywords"]
+    assert tree["levels"] == session.tree["levels"]
+    saved = client.put(
+        "/api/themes",
+        json={"tree": tree, "action": "AI answer"},
+        headers={"If-Match": etag(themes)},
+    )
+    assert saved.status_code == 200, saved.text
+    assert client.get("/api/themes").json()["tree"]["depth"] == 3

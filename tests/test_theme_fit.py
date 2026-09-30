@@ -6,7 +6,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from cartolex.lexicon.theme_fit import borderline, suggestions
+from cartolex.lexicon.theme_fit import alone, borderline, suggestions
 
 # Two directions, two nodes: "bridge" sits between them, nearer the other node than its own.
 TERMS = ["a1", "a2", "a3", "b1", "b2", "bridge", "loose"]
@@ -35,3 +35,18 @@ def test_suggestions_rank_the_nearest_nodes():
     assert [s.node for s in found["b1"]] == ["s2", "s1"]
     assert len(found["loose"]) == 2 and found["unknown"] == []
     assert found["loose"][0].score >= found["loose"][1].score
+
+
+def test_a_keyword_alone_in_its_node_has_no_margin_and_is_counted_apart():
+    """Leave-one-out: alone in its node, a keyword has no centroid to compare with (not a
+    cosine of 1 to itself); it is left out of the list and of the measures, which count it."""
+    from cartolex.copilot.measures import fit
+
+    doc = {**DOC, "depth": 1, "nodes": [*DOC["nodes"], {"id": "s3", "parent": None}]}
+    doc["keywords"] = {**DOC["keywords"], "loose": "s3"}
+    doc["set_aside"] = {}
+    found = borderline(doc, TERMS, Z)
+    assert "loose" not in {b.keyword for b in found} and alone(doc, TERMS, Z) == ["loose"]
+    level = fit(doc, TERMS, Z)["levels"][0]
+    assert level["alone"] == 1 and level["keywords"] == len(found) == 6
+    assert level["margin"] == pytest.approx(np.mean([b.margin for b in found]), abs=1e-3)

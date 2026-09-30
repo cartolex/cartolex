@@ -9,6 +9,10 @@ dictionaries, with the same rules: the carry rule of attributions, new node ids
 new one, never changing its argument, and raises :class:`OpRefused` with the
 reason when the operation cannot apply.
 
+The level operations are the kit's own subset: ``insert_level`` at the bottom
+(a new, empty level) and ``remove_level`` of an empty bottom level, what a
+restructuring at another depth needs; the editor makes the others.
+
 Every operation is also written in the JSON form of ``POST /api/themes/ops``
 (:func:`apply`), the form a result carries back: the application replays it
 with its own functions, so what the kit computed and what the project
@@ -22,9 +26,21 @@ import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-__all__ = ["LANGUAGES", "OP_KINDS", "OpRefused", "apply", "level_of", "levels", "tree_order"]
+__all__ = [
+    "LANGUAGES",
+    "MAX_DEPTH",
+    "OP_KINDS",
+    "OpRefused",
+    "apply",
+    "level_of",
+    "levels",
+    "relevel",
+    "tree_order",
+]
 
 LANGUAGES = ("en", "fr", "pt")
+#: The most levels a tree has (``cartolex.project.themes.MAX_DEPTH``).
+MAX_DEPTH = 4
 #: The operations a result may carry (the ``op`` of ``POST /api/themes/ops``).
 OP_KINDS = (
     "rename_node",
@@ -37,7 +53,20 @@ OP_KINDS = (
     "set_aside",
     "put_back",
     "set_attribution",
+    "insert_level",
+    "remove_level",
 )
+_THEME = {"en": "Theme", "fr": "Thème", "pt": "Tema"}
+_TOPIC = {"en": "Topic", "fr": "Sujet", "pt": "Tópico"}
+_FIELD = {"en": "Field", "fr": "Champ", "pt": "Área"}
+_DOMAIN = {"en": "Domain", "fr": "Domaine", "pt": "Domínio"}
+#: The default level names by depth, from the top (the project's, :mod:`cartolex.project.themes`).
+DEFAULT_LEVELS: dict[int, tuple[dict[str, str], ...]] = {
+    1: (_THEME,),
+    2: (_THEME, _TOPIC),
+    3: (_FIELD, _THEME, _TOPIC),
+    4: (_DOMAIN, _FIELD, _THEME, _TOPIC),
+}
 _NODE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 _AUTO_ID = re.compile(r"^n([1-9][0-9]*)$")
 
@@ -77,6 +106,30 @@ def levels(doc: Mapping[str, Any]) -> dict[str, int]:
 def level_of(doc: Mapping[str, Any], node_id: str) -> int:
     """The level of *node_id*."""
     return levels(doc)[node_id]
+
+
+def relevel(
+    levels: list[Mapping[str, Any]], old_depth: int, new_depth: int
+) -> list[dict[str, Any]]:
+    """The levels of a tree whose depth goes from *old_depth* to *new_depth*, levels kept from
+    the top: a kept level keeps the names someone gave it (a name still the default of its old
+    place becomes the default of its new place), a new level takes the default name of its
+    place (the project's rule for a level inserted or removed at the bottom)."""
+    old_defaults, new_defaults = DEFAULT_LEVELS[old_depth], DEFAULT_LEVELS[new_depth]
+    out: list[dict[str, Any]] = []
+    for place in range(new_depth):
+        if place >= old_depth:
+            out.append({"names": dict(new_defaults[place])})
+            continue
+        level = copy.deepcopy(dict(levels[place]))
+        level["names"] = {
+            lang: new_defaults[place].get(lang, name)
+            if name == old_defaults[place].get(lang)
+            else name
+            for lang, name in (level.get("names") or {}).items()
+        }
+        out.append(level)
+    return out
 
 
 def _sample(values: Iterable[str], n: int = 5) -> str:
@@ -393,6 +446,36 @@ def _set_attribution(w: _Work, op: Mapping[str, Any]) -> None:
             w.attribution[k] = value
 
 
+def _insert_level(w: _Work, op: Mapping[str, Any]) -> None:
+    # The kit adds levels at the bottom only (a new bottom level starts empty); the
+    # application's other insertions are made in the editor.
+    if w.depth >= MAX_DEPTH:
+        raise OpRefused(f"the tree already has {MAX_DEPTH} levels")
+    if op.get("at") != w.depth + 1 or op.get("root_names"):
+        raise OpRefused(f"the kit inserts a level at the bottom only (at {w.depth + 1})")
+    w.doc["levels"] = relevel(w.doc["levels"], w.depth, w.depth + 1)
+    w.depth += 1
+    w.doc["depth"] = w.depth
+
+
+def _remove_level(w: _Work, op: Mapping[str, Any]) -> None:
+    # The kit removes an empty bottom level only (a restructuring empties it first).
+    if w.depth <= 1:
+        raise OpRefused("a tree keeps at least one level")
+    if op.get("at") != w.depth:
+        raise OpRefused(f"the kit removes the bottom level only (at {w.depth})")
+    bottom = [nid for nid in w.nodes if w.level(nid) == w.depth]
+    if bottom:
+        raise OpRefused(f"the bottom level still has nodes: {_sample(bottom)}")
+    for entry in w.aside.values():
+        n = entry.get("attribution")
+        if n is not None and n >= w.depth - 1:
+            entry.pop("attribution", None)
+    w.doc["levels"] = relevel(w.doc["levels"], w.depth, w.depth - 1)
+    w.depth -= 1
+    w.doc["depth"] = w.depth
+
+
 _APPLY = {
     "rename_node": _rename_node,
     "move_keywords": _move_keywords,
@@ -404,4 +487,6 @@ _APPLY = {
     "set_aside": _set_aside,
     "put_back": _put_back,
     "set_attribution": _set_attribution,
+    "insert_level": _insert_level,
+    "remove_level": _remove_level,
 }

@@ -1324,6 +1324,7 @@
   "themes.border.level": "Comparer au niveau",
   "themes.border.level.own": "de son nœud",
   "themes.border.keys": "A : garder ici · O : déplacer vers l’autre nœud · S : mettre de côté… · J et K : suivant et précédent",
+  "themes.border.alone": "({alone, plural, one {# mot-clé seul dans son nœud, sans marge, n’est pas listé} other {# mots-clés seuls dans leur nœud, sans marge, ne sont pas listés}})",
   "themes.border.count": "{total, plural, one {# mot-clé} other {# mots-clés}}, {negative, plural, =0 {aucun plus proche d’un autre nœud} one {# plus proche d’un autre nœud} other {# plus proches d’un autre nœud}}",
   "themes.border.detail": "ou {other}",
   "themes.border.margin_help": "La marge : de combien le mot-clé est plus proche de son nœud que de l’autre (une différence de cosinus ; sous zéro, il est plus proche de l’autre)",
