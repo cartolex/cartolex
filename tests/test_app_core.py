@@ -79,7 +79,8 @@ def test_a_page_whose_module_is_missing_shows_the_placeholder(tmp_path, caplog):
         assert modules["overview"] == "/static/pages/overview.js"
         assert modules["people"] == modules["settings"] == "/static/pages/placeholder.js"
         warnings = [r for r in caplog.records if getattr(r, "event", "") == "missing_module"]
-        assert len(warnings) == 8  # once per page, not once per request
+        missing = [n for n in first["nav"] if n["module"] == "/static/pages/placeholder.js"]
+        assert len(warnings) == len(missing)  # once per page, not once per request
         assert client.get("/static/pages/people.js").status_code == 404
     finally:
         app.state.cartolex.shutdown()
