@@ -554,7 +554,8 @@ def run_space(ctx: StageContext) -> dict[str, int]:
 
     rctx = run_context(ctx, _settings(ctx))
     wanted = ctx.params["dimensions"]
-    _engine_call(ctx, lambda: driver.run_svd(rctx, svd_n_components=wanted))
+    unit = str(ctx.params.get("space_unit", "person"))
+    _engine_call(ctx, lambda: driver.run_svd(rctx, svd_n_components=wanted, space_unit=unit))
     from ..atlas.model_files import load_svd
 
     got = int(load_svd(rctx.paths.svd_model_json).n_components)

@@ -129,6 +129,8 @@ def truth(world: DemoWorld) -> dict:
         doc["languages"] = list(world.languages)
         if world.bodies:
             doc["bodies"] = True
+        if world.two_subjects:
+            doc["two_subjects"] = world.two_subjects
         doc["lexicon"] = lexicon_truth(world.languages, bodies=world.bodies)
     return doc
 
@@ -310,6 +312,8 @@ def write_world(world: DemoWorld, out_dir: Path, *, overwrite: bool = False) -> 
         manifest["languages"] = list(world.languages)
     if world.bodies:
         manifest["bodies"] = True
+    if world.two_subjects:
+        manifest["two_subjects"] = world.two_subjects
     manifest["generator"] = f"cartolex.demo {GENERATOR_VERSION}"
     manifest["counts"] = world.counts()
     manifest["files"] = {rel: hashlib.sha256(files[rel]).hexdigest() for rel in sorted(files)}

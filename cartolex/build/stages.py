@@ -660,6 +660,14 @@ STAGES = Registry(
             upstream=("keywords.build",),
             params=(
                 ParamSpec(
+                    "space_unit",
+                    "str",
+                    "what the space is fitted on: the people (keywords are near when the same "
+                    "people use them) or the texts (near when the same texts use them)",
+                    default="person",
+                    choices=("person", "text"),
+                ),
+                ParamSpec(
                     "dimensions",
                     "int",
                     "the dimensions of the space keywords and people are placed in",

@@ -54,6 +54,13 @@ def main(argv: list[str] | None = None) -> int:
         default="en,fr",
         help="languages of the texts: en,fr (default) or en,fr,pt",
     )
+    create.add_argument(
+        "--two-subjects",
+        default=0.0,
+        type=float,
+        metavar="SHARE",
+        help="this share of the cohort works on two unrelated subjects (default 0)",
+    )
     services = sub.add_parser(
         "services", help="serve the demo bibliographic services on this computer (until Ctrl-C)"
     )
@@ -99,7 +106,11 @@ def main(argv: list[str] | None = None) -> int:
     started = time.perf_counter()
     try:
         world = generate(
-            size=args.size, seed=args.seed, languages=args.languages, bodies=args.bodies
+            size=args.size,
+            seed=args.seed,
+            languages=args.languages,
+            bodies=args.bodies,
+            two_subjects=args.two_subjects,
         )
     except ValueError as exc:
         parser.error(str(exc))

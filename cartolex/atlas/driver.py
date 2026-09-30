@@ -39,7 +39,12 @@ from cartolex.atlas.plots import (
     plot_superposed_map,
     plot_term_clusters,
 )
-from cartolex.atlas.reducers import compute_svd_embeddings, compute_umap, umap_available
+from cartolex.atlas.reducers import (
+    compute_svd_embeddings,
+    compute_text_svd_embeddings,
+    compute_umap,
+    umap_available,
+)
 from cartolex.lexicon.io_helpers import SlotIndex, slot_indexes
 
 if TYPE_CHECKING:
@@ -321,8 +326,15 @@ def run_svd(
     *,
     svd_n_components: int | None = None,
     force: bool = False,
+    space_unit: str = "person",
 ) -> None:
     """SVD stage: build the TF-IDF matrix and run the SVD reduction.
+
+    *space_unit* is what the space is fitted on: ``person`` (the people ×
+    keywords matrix: keywords are near when the same people use them) or
+    ``text`` (the texts × keywords TF-IDF of the fitted slots' texts: near
+    when the same texts use them; the people are then placed through that
+    space, see :func:`~cartolex.atlas.reducers.compute_text_svd_embeddings`).
 
     Reads the consolidation outputs (``paths.person_terms_csv``,
     ``paths.roster_csv``, ``paths.run_settings_json``); writes the PCA-like
@@ -330,10 +342,17 @@ def run_svd(
     lexical data and embeddings (without layout coordinates yet).
     """
     with ctx.threads.applied():
-        _run_svd(ctx, svd_n_components=svd_n_components, force=force)
+        _run_svd(ctx, svd_n_components=svd_n_components, force=force, space_unit=space_unit)
 
 
-def _run_svd(ctx: RunContext, *, svd_n_components: int | None, force: bool) -> None:
+SPACE_UNITS = ("person", "text")
+
+
+def _run_svd(
+    ctx: RunContext, *, svd_n_components: int | None, force: bool, space_unit: str = "person"
+) -> None:
+    if space_unit not in SPACE_UNITS:
+        raise ValueError(f"unknown space unit {space_unit!r}; expected one of {SPACE_UNITS}")
     paths = ctx.paths
     defaults = atlas_defaults(ctx)
     ctx.enforce_staleness("svd", force=force)
@@ -354,11 +373,25 @@ def _run_svd(ctx: RunContext, *, svd_n_components: int | None, force: bool) -> N
     pd.DataFrame({"term": data.terms}).to_csv(paths.atlas_terms_csv, index=False)
     logger.info("Wrote restricted term list to %s", paths.atlas_terms_csv)
 
-    emb = compute_svd_embeddings(
-        data,
-        n_components=eff_svd_n_components,
-        model_path=paths.svd_model_json,
-    )
+    if space_unit == "text":
+        from cartolex.lexicon.theme_comb import corpus_texts
+
+        ctx.report(0.4, "reading the texts")
+        D = corpus_texts(
+            [index for _, index, _ in slot_indexes(ctx)],
+            vectorizer_json=paths.vectorizer_json,
+            aliases_csv=paths.term_aliases_csv,
+            terms=data.terms,
+        )
+        emb = compute_text_svd_embeddings(
+            data, D, n_components=eff_svd_n_components, model_path=paths.svd_model_json
+        )
+    else:
+        emb = compute_svd_embeddings(
+            data,
+            n_components=eff_svd_n_components,
+            model_path=paths.svd_model_json,
+        )
 
     ctx.report(0.8, "writing the space")
     pcs_ind = pd.DataFrame(

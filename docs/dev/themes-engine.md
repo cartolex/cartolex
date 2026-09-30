@@ -159,6 +159,81 @@ about as many keywords per node. Its recall of broad keywords (0.5 to 0.75)
 is the price of that balance; a fixed relative 0.2 catches more (0.66 to 0.78)
 at a slightly lower precision.
 
+## The space by texts: an option, measured
+
+`themes.space` fits the keyword space on the people × keywords matrix: two
+keywords are near when the same people use them. A person working on two
+unrelated subjects then brings their keywords together. With
+`space_unit: text` the space is fitted on the texts instead
+(`cartolex.atlas.reducers.compute_text_svd_embeddings`): the fitted slots'
+texts, each read once and folded onto the keywords as the comb reads them,
+their TF-IDF over the texts (presence × smoothed IDF, rows L2-normalised),
+then the same truncated SVD; the keywords' vectors are its components
+scaled by the singular values. The people are placed as a projected person
+is, by their row of the lexical matrix through that SVD, so the mapped and
+the projected people are placed alike (placing each person at the mean of
+their texts' vectors measured the same). The default stays `person`.
+
+**Measures** (`python tools/space_unit_study.py FOLDER --size S|L
+[--two-subjects 0.3] [--sizes 12,150] [--map --draft] [--merged]`, on the
+demo worlds and on the same worlds where 30 % of the cohort works on two
+unrelated subjects, `S2` and `L2`, {doc}`../demo`). Specific keywords: terms
+of one theme in the demo's truth. Themes: Ward's cut at 12 (the truth's
+number); topics: at 25 (S) or 150 (L). *Mixed*: a group whose specific
+keywords hold two unrelated themes (neither the other's neighbour) at 20 %
+each. *Neighbours*: of each specific keyword's 10 nearest, the share of its
+theme. *Stability*: the ARI of the theme cut with the space refitted without
+a tenth of the units (people or texts; two draws). *One language*: the share
+of each theme's keywords in its main language (the whole vocabulary's
+share in its main language in brackets). People: of each person's 5
+nearest, the share with the same main theme, and the Spearman ρ of the
+people's closeness with that of their true theme mixes, in the space and on
+the drawn map. Proposal: the ARI of the combed proposal's top level.
+
+| world | space | themes ARI · purity | topics purity · mixed | neighbours | stability | one language | people: space · map (ρ) | proposal ARI |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| S | person | 0.33 · 0.59 | 0.74 · 3 | 0.64 | 0.61 | 0.87 (0.82) | 0.46 · 0.43 (0.30) | 0.37 |
+| | text | 0.62 · 0.81 | 0.87 · 2 | 0.83 | 0.66 | 1.00 | 0.51 · 0.47 (0.46) | 0.58 |
+| S2 | person | 0.31 · 0.61 | 0.70 · 9 | 0.60 | 0.50 | 0.90 (0.90) | 0.34 · 0.34 (0.30) | 0.32 |
+| | text | 0.68 · 0.84 | 0.90 · 2 | 0.87 | 0.72 | 1.00 | 0.44 · 0.39 (0.39) | 0.71 |
+| L | person | 0.32 · 0.59 | 0.72 · 22 | 0.63 | 0.47 | 0.86 (0.86) | 0.58 · 0.56 (0.38) | 0.54 |
+| | text | 0.74 · 0.84 | 0.99 · 0 | 0.97 | 0.87 | 1.00 | 0.66 · 0.61 (0.38) | 0.78 |
+| L2 | person | 0.21 · 0.49 | 0.65 · 29 | 0.56 | 0.32 | 0.85 (0.85) | 0.51 · 0.48 (0.29) | 0.47 |
+| | text | 0.73 · 0.88 | 0.98 · 4 | 0.96 | 0.90 | 1.00 | 0.60 · 0.54 (0.33) | 0.78 |
+
+The collapse the text space was made for: on L2, of each specific keyword's
+nearest, 19.6 % are of an unrelated theme in the people's space, 1.3 % in
+the texts'. The stage takes 2.5 s instead of 1.5 s on L (it reads the texts
+once more), with the same peak.
+
+**What it costs.**
+
+- **Languages apart.** A keyword is near only the keywords its texts use,
+  and a text is in one language: every theme of the text space is in one
+  language (1.00 in the table). On L the proposal has 4 themes of 15 in
+  French only, each mixing several subjects (the French texts are fewer),
+  where the people's space puts the French keywords with the English ones of
+  their subject. Folding every translation the vocabulary holds onto its
+  English keyword first (the truth's pairs, a perfect merge: 174 keywords on
+  L) raises the theme ARI to 0.87 but leaves the themes in one language
+  (0.996, for 0.93 of the vocabulary in English): the keywords without a
+  kept translation still gather by language.
+- **The comb, tuned on the people's space.** On a text-space tree it
+  catches fewer broad keywords (recall 0.60 → 0.39 on L, 0.50 → 0.26 on S,
+  precision 1.00 both) and moves specific keywords out of their theme
+  (in their theme: 1.00 before the comb, 0.89 after, where the people's
+  space goes from 0.82 to 0.97): θ and its band were calibrated on the
+  people's space.
+- **The demo favours it.** Each demo text is written from one theme, or two
+  neighbours: the texts carry the truth more directly than real abstracts
+  may. The gain on a real corpus is not measured here.
+
+A space fitted on the texts and the people together (their rows stacked)
+keeps most of the gain and all of the language split when a person weighs
+one text (L: themes ARI 0.73, one language 0.996); weighing the people as
+much as all the texts halves the split and loses most of the gain (0.56,
+0.89 for 0.86).
+
 ## Structure suggestions: measured, not shipped
 
 Two signals were tried for suggesting changes to a tree

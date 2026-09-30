@@ -125,6 +125,7 @@ leaves the check to the run.
 | `keywords.extract` | `rejects` | true | true, false: candidates on cartolex's list of rejections or in the machine's cache go to the `rejected` band |
 | `keywords.triage` | `enabled` | false | true, false |
 | `keywords.build` | `max_keywords` | 10 000 | ≥ 10 |
+| `themes.space` | `space_unit` | person | person, text: what the space is fitted on (an option under study, see {doc}`themes-engine`) |
 | `themes.space` | `dimensions` | rule `space_dimensions` | 2–1000; a space never has more dimensions than people or keywords (the run says so) |
 | `themes.group` | `depth` | rule `theme_depth` | 1–4 |
 | `themes.group` | `top_groups` | 15 | 2–500, fewer than the kept keywords |
@@ -365,7 +366,7 @@ made with.
 | `keywords.extract.min_people`, `.max_share`, `.counting_unit` | `KeywordsConfig.min_df`, `.max_df`, `.counting_unit` |
 | `keywords.extract.rejects` | the rejection snapshot the runner writes (`EnginePaths.rejects_json`): cartolex's list and the machine's cache (`EngineOptions.rejects_folder`), minus the terms a person decided on; empty when false |
 | `keywords.build.max_keywords` | `KeywordsConfig.global_top_n` |
-| `themes.space.dimensions` | `run_svd(svd_n_components=…)` |
+| `themes.space.dimensions`, `.space_unit` | `run_svd(svd_n_components=…, space_unit=…)` |
 | the theme levels | every level: `draft_themes(level_sizes=…)`; the finest: `run_clustering(n_concepts=…)`; at depth 2 the top level of the two-level draft: `draft_subfields(n_subfields=…)` |
 | `map.trajectories.window_years` | `run_trajectories(bin_years=…)` |
 | the pinned map version | `run_umap(umap_random_state=seed, …)` with its method's parameters: for `umap` (`n_neighbors`, `min_dist`, `metric`, `layout`…), `umap_layout="tsne"` and `tsne_perplexity` for `tsne`, `umap_layout="tree"` for `tree` |

@@ -107,6 +107,22 @@ bibliography, titles and abstracts are those of the world without bodies.
 Size S with bodies holds about 243,000 words. They exist to measure choices
 that matter for full texts (lexicon lab, {doc}`dev/lexicon-lab`).
 
+### People with two unrelated subjects
+
+```bash
+python -m cartolex.demo create --size S --seed 0 --two-subjects 0.3 --out demo-S-two --corpus
+```
+
+With `--two-subjects SHARE` (`generate(..., two_subjects=0.3)`), that share of
+the cohort works on two unrelated subjects: a first theme (weight 0.55) and a
+second one that is not its neighbour (neither lists the other), and each of
+their texts is on one subject only (a secondary theme, when a text has one, is
+a neighbour of its first). It is the case where a person's keywords come from
+two fields, which a space fitted on the people collapses; it serves the study
+of the space by texts ({doc}`dev/themes-engine`). The draw has a stream of its
+own, but the people it changes draw their works differently, so such a world
+is not the default one with a few people changed.
+
 ### The trilingual variant
 
 ```bash
