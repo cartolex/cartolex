@@ -65,6 +65,11 @@ def _themes(ui, folder: Path, shots: Path | None, suffix: str) -> None:
     if shots:
         page.screenshot(path=str(shots / f"themes-review-{suffix}.png"))
     d.locator(".cx-dialog__footer button").last.click()
+    # Applied and saved: nothing unsaved is left to hold the next navigation.
+    page.locator(".cx-toast").first.wait_for()
+    page.wait_for_function(
+        "() => !document.querySelector('.cx-themes__status .cx-themes-state.is-dirty')"
+    )
 
 
 def _keywords(ui, folder: Path, shots: Path | None, suffix: str) -> None:
