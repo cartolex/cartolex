@@ -203,8 +203,9 @@ def test_the_recipe_and_the_old_method_address(demo_s, app_for, open_app, tmp_pa
     page.get_by_role("checkbox", name="Changed only").check()
     row = page.locator("[data-recipe='keywords.extract.min_people']")
     row.get_by_text("Changed").wait_for()
-    # the pinned year and the depth (the demo's) and this one; nothing at its default
-    assert page.locator("tr[data-recipe]").count() == 3
+    # the demo's own settings (pinned year, depth, keywords per group) and this one; nothing at its default
+    assert page.locator("tr[data-recipe]").count() == 4
+    page.locator("[data-recipe='themes.group.keywords_per_group']").wait_for()
     assert page.locator("[data-recipe='keywords.extract.max_share']").count() == 0
     with page.expect_download() as got:
         page.get_by_text("Download as Markdown").click()
