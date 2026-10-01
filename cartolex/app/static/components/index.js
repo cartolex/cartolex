@@ -15,6 +15,9 @@ export { ErrorCard } from './error-card.js';
 export { Checkbox, FormField, Input, Select, Textarea } from './form-field.js';
 export { ICON_NAMES, Icon } from './icons.js';
 export { ContextMenuArea, Menu, MenuButton } from './menu.js';
+export {
+  ParamControl, ParamField, itemLabel, originText, shapeOf, shownValue,
+} from './param-field.js';
 export { ProgressBar } from './progress.js';
 export { ErrorBoundary, Slot } from './slot.js';
 export {

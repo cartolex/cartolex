@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 /**
  * Editing build parameters (`GET/PUT /api/params`), shared by the method
- * screen and the settings' build options: each parameter's value in the input
- * of its kind, where the value comes from (a default, a rule and its reason,
- * `params.json`), its limits, a mark when it differs from its default and when
- * the last build used another value, and « back to default ». The edits are
- * kept until saved (with the version read, `If-Match`) or undone.
+ * screen and the settings' build options: each parameter in the shared
+ * ParamField (`components/param-field.js`: the control of its shape, where the
+ * value comes from, the marks, « back to default »), grouped by stage and
+ * section, and on the method screen by tier (essential, « More », « Advanced »).
+ * The edits are kept until saved (with the version read, `If-Match`) or undone.
  */
 
 import { html, useState } from '../../core/preact.js';
 import { formatNumber, has, t } from '../../core/i18n.js';
-import { Button, Checkbox, Icon, Input, Select } from '../../components/index.js';
+import { Button, ParamField } from '../../components/index.js';
 import { State, refusal } from '../settings/common.js';
 
 /** Parameters the stages record but people set elsewhere (the global seed, the year). */
@@ -38,67 +38,12 @@ export function explanation(stageId, p) {
   return has(key) ? t(key) : p.description || '';
 }
 
-/** The editor of one parameter: its kind's input, the edit kept in *edit*. */
-function ParamInput({ p, id, edit, onEdit }) {
-  const value = edit && 'value' in edit ? edit.value : p.value;
-  const label = `${p.name}`;
-  if (p.choices && p.choices.length && p.type !== 'list') {
-    return html`<${Select} id=${id} aria-label=${label} value=${String(value)}
-      options=${p.choices.map((c) => ({ value: String(c), label: String(c) }))}
-      onChange=${(e) => onEdit({ value: e.currentTarget.value })} />`;
-  }
-  if (p.type === 'bool') {
-    return html`<${Checkbox} label=${t('settings.build.on')} checked=${Boolean(value)}
-      onChange=${(e) => onEdit({ value: e.currentTarget.checked })} />`;
-  }
-  if (p.type === 'int' || p.type === 'float') {
-    return html`<${Input} id=${id} aria-label=${label} type="number" class="cx-settings__number"
-      value=${value === null || value === undefined ? '' : value} min=${p.minimum ?? undefined} max=${p.maximum ?? undefined}
-      step=${p.type === 'int' ? 1 : 'any'}
-      onInput=${(e) => onEdit({ value: e.currentTarget.value === '' ? null : Number(e.currentTarget.value) })} />`;
-  }
-  return html`<${Input} id=${id} aria-label=${label} spellcheck="false" class="cx-settings__json"
-    value=${edit && 'text' in edit ? edit.text : JSON.stringify(value)}
-    onInput=${(e) => {
-      const text = e.currentTarget.value;
-      try {
-        onEdit({ value: JSON.parse(text), text });
-      } catch {
-        onEdit({ text, invalid: true });
-      }
-    }} />`;
-}
-
-/** The marks of a parameter: changed from its default, not built with this value yet. */
-function Marks({ p, edit }) {
-  const pending = edit && !edit.reset;
-  const differs = pending ? JSON.stringify(edit.value) !== JSON.stringify(p.default_value) : p.differs && !(edit && edit.reset);
-  return html`${differs ? html`<div class="cx-method-mark cx-method-mark--changed">
-      <${Icon} name="dot" /><span>${t('method.param.changed', { value: shown(p.default_value) })}</span></div>` : null}
-    ${!pending && p.changed_since_last_run ? html`<div class="cx-method-mark">
-      <${Icon} name="info" /><span>${t('method.param.not_built', { value: shown(p.last_run) })}</span></div>` : null}
-    ${pending ? html`<div class="cx-method-mark"><${Icon} name="info" /><span>${t('method.param.unsaved')}</span></div>` : null}`;
-}
-
-/** One parameter's row. */
+/** One parameter's field (the shared ParamField), keyed `<stage>.<name>`. */
 export function ParamRow({ stage, p, edits, setEdit }) {
   const key = `${stage.id}.${p.name}`;
-  const edit = edits[key];
   const id = `cx-param-${key.replace(/[^a-z0-9]/gi, '-')}`;
-  const differs = edit ? !edit.reset && JSON.stringify(edit.value) !== JSON.stringify(p.default_value) : p.differs;
-  return html`<tr class=${differs ? 'is-changed' : ''} data-param=${key}>
-    <th scope="row"><label for=${id}><code>${p.name}</code></label>
-      <div class="cx-settings__muted">${explanation(stage.id, p)}</div></th>
-    <td><${ParamInput} p=${p} id=${id} edit=${edit} onEdit=${(e) => setEdit(key, e)} />
-      ${edit && edit.invalid ? html`<div><${State} kind="warning">${t('settings.build.invalid')}<//></div>` : null}</td>
-    <td>${edit && edit.reset ? t('settings.origin.default') : origin(p)}
-      ${p.waits_for ? html`<div class="cx-settings__muted">${t('settings.build.waits', { sizes: p.waits_for.join(', ') })}</div>` : null}
-      ${p.minimum !== null && p.minimum !== undefined ? html`<div class="cx-settings__muted">
-        ${t('settings.build.limits', { min: shown(p.minimum), max: shown(p.maximum) })}</div>` : null}
-      <${Marks} p=${p} edit=${edit} /></td>
-    <td>${p.set_in_file || (edit && !edit.reset) ? html`<${Button} size="s" variant="ghost"
-      onClick=${() => setEdit(key, { reset: true })}>${t('settings.build.default')}<//>` : null}</td>
-  </tr>`;
+  return html`<${ParamField} p=${p} id=${id} dataKey=${key} edit=${edits[key]}
+    help=${explanation(stage.id, p)} onEdit=${(e) => setEdit(key, e)} />`;
 }
 
 /** The heading of a group of rows: the parameter's section, or its stage's name. */
@@ -106,28 +51,47 @@ function sectionTitle(stage, section) {
   return section ? t(`method.section.${section}`) : t(`stage.${stage.id}`);
 }
 
-/**
- * A table of parameters: *rows* are `{stage, p}`, grouped under a heading row where the
- * stage or the parameter's section (its place on the method screen) changes.
- */
-export function ParamTable({ rows, edits, setEdit, label }) {
+/** Rows under a heading where the stage or the parameter's section changes. */
+function Grouped({ rows, edits, setEdit }) {
   const body = [];
   let last = null;
   for (const { stage, p } of rows) {
     const group = `${stage.id}/${p.section || ''}`;
     if (group !== last) {
-      body.push(html`<tr key=${`section-${group}`} class="cx-method-params__section">
-        <th scope="colgroup" colspan="4">${sectionTitle(stage, p.section)}</th></tr>`);
+      body.push(html`<h4 key=${`section-${group}`} class="cx-method-params__section">${sectionTitle(stage, p.section)}</h4>`);
       last = group;
     }
-    body.push(html`<${ParamRow} key=${`${stage.id}.${p.name}`}
-      stage=${stage} p=${p} edits=${edits} setEdit=${setEdit} />`);
+    body.push(html`<${ParamRow} key=${`${stage.id}.${p.name}`} stage=${stage} p=${p} edits=${edits} setEdit=${setEdit} />`);
   }
-  return html`<table class="cx-settings__table cx-settings__params cx-method-params" aria-label=${label}>
-    <thead><tr><th scope="col">${t('settings.build.param')}</th><th scope="col">${t('settings.build.value')}</th>
-      <th scope="col">${t('settings.build.origin')}</th><th scope="col"><span class="cx-visually-hidden">${t('settings.build.default')}</span></th></tr></thead>
-    <tbody>${body}</tbody>
-  </table>`;
+  return body;
+}
+
+/** Whether a row is changed from its default, or edited and not saved. */
+function touched({ stage, p }, edits) {
+  return p.differs || p.set_in_file || Boolean(edits[`${stage.id}.${p.name}`]);
+}
+
+/**
+ * The parameters of *rows* (`{stage, p}`), grouped by stage and section. With *tiers*, the
+ * essential ones first, then « More » (intermediate) and « Advanced » folded; a fold opens
+ * when it holds a changed parameter.
+ */
+export function ParamTable({ rows, edits, setEdit, label, tiers = false }) {
+  if (!tiers) {
+    return html`<div class="cx-method-params" role="group" aria-label=${label}>
+      <${Grouped} rows=${rows} edits=${edits} setEdit=${setEdit} /></div>`;
+  }
+  const of = (tier) => rows.filter((r) => (r.p.tier || 'advanced') === tier);
+  const fold = (tier) => {
+    const list = of(tier);
+    if (!list.length) return null;
+    return html`<details class="cx-method-tier" open=${list.some((r) => touched(r, edits)) || undefined}>
+      <summary class="cx-method-tier__summary">${t(`method.tier.${tier}`, { n: list.length })}</summary>
+      <${Grouped} rows=${list} edits=${edits} setEdit=${setEdit} /></details>`;
+  };
+  return html`<div class="cx-method-params" role="group" aria-label=${label}>
+    <${Grouped} rows=${of('essential')} edits=${edits} setEdit=${setEdit} />
+    ${fold('intermediate')}${fold('advanced')}</div>`;
 }
 
 /** The rows of *stageIds*' parameters (the seed and the year are set once for the build). */

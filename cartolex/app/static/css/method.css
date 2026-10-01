@@ -41,18 +41,6 @@
   text-align: end;
 }
 
-.cx-method-params tr.is-changed > th[scope='row'] {
-  box-shadow: inset 3px 0 0 var(--cx-text);
-}
-
-.cx-method-params__section > th {
-  padding-top: var(--cx-space-3);
-  color: var(--cx-text-muted);
-  font-size: var(--cx-text-s);
-  font-weight: var(--cx-weight-medium);
-  text-align: start;
-}
-
 .cx-method-mark {
   display: flex;
   gap: var(--cx-space-1);

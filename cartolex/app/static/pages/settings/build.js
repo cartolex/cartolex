@@ -81,7 +81,8 @@ export function BuildSection({ ctx, app }) {
         ${pinned ? html`<div class="cx-settings__inline">
           <label class="cx-settings__inline-label">${t('settings.layout.method')}
             <${Select} value=${method || pinned.layout.method}
-              options=${methods.map((m) => ({ value: m, label: t(`settings.layout.method.${m}`) }))}
+              options=${methods.map((m) => ({ value: m, label: t(`settings.layout.method.${m}`),
+                disabled: m in ((maps.data && maps.data.unavailable) || {}) }))}
               onChange=${(e) => setMethod(e.currentTarget.value)} /></label>
           <${Button} disabled=${!method || method === pinned.layout.method} onClick=${tryMethod}>${t('settings.layout.try')}<//>
         </div><p class="cx-settings__muted">${t('settings.layout.try_help')}</p>` : null}

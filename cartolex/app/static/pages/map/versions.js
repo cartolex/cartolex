@@ -41,7 +41,7 @@ export function VersionsDialog({ ctx, open, onClose, drawn, base, onBase, onBuil
       if (!r.ok) setError(r.error);
       else {
         setVersions({ ...r.data, etag: r.etag });
-        if (!method) setMethod(r.data.methods[0]);
+        if (!method) setMethod(r.data.methods.find((m) => !(m in (r.data.unavailable || {}))));
       }
     });
     ctx.api.get('/api/map/bases').then((r) => {
@@ -130,9 +130,10 @@ export function VersionsDialog({ ctx, open, onClose, drawn, base, onBase, onBuil
       <h3 class="cx-atlas-panel__subtitle">${t('map.versions.try')}</h3>
       <div class="cx-atlas-versions__form">
         <${FormField} label=${t('map.versions.method')}
-          help=${versions.default_method && !versions.default_method.tsne_available ? t('map.versions.no_tsne') : ''}>
+          help=${Object.values(versions.unavailable || {}).map((why) => t('error.layout_method_unavailable.message', why.params)).join(' ')}>
           ${(field) => html`<${Select} ...${field} value=${method}
-            options=${versions.methods.map((m) => ({ value: m, label: methodName(m) }))}
+            options=${versions.methods.map((m) => ({ value: m, label: methodName(m),
+              disabled: m in (versions.unavailable || {}) }))}
             onChange=${(e) => setMethod(e.currentTarget.value)} />`}
         <//>
         <${FormField} label=${t('map.versions.seed_field')} help=${t('map.versions.seed_help')}>

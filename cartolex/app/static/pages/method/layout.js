@@ -51,8 +51,11 @@ function Form({ view, form, setForm, busy, onPreview }) {
     [s.name]: raw === '' ? undefined : s.choices ? raw : Number(raw) } });
   return html`<div class="cx-method-form" role="group" aria-label=${t('method.layout.form')}>
     <label class="cx-settings__inline-label">${t('settings.layout.method')}
-      <${Select} value=${form.method} options=${view.methods.map((m) => ({ value: m, label: t(`settings.layout.method.${m}`) }))}
+      <${Select} value=${form.method} options=${view.methods.map((m) => ({ value: m, label: t(`settings.layout.method.${m}`),
+          disabled: m in (view.unavailable || {}) }))}
         onChange=${(e) => setForm({ ...form, method: e.currentTarget.value, params: {} })} /></label>
+    ${Object.entries(view.unavailable || {}).map(([m, why]) => html`<p key=${m} class="cx-settings__muted cx-method-form__reason">
+      ${refusal(why)}</p>`)}
     ${specs.map((s) => {
       const v = form.params[s.name];
       const changed = v !== undefined && v !== s.default;
@@ -97,7 +100,8 @@ function Compare({ preview }) {
 export function LayoutDiagnostic({ ctx, app, view, reload }) {
   const { jobs } = app.stores;
   const pinned = view.pinned;
-  const [form, setForm] = useState({ method: (pinned && pinned.method) || view.methods[0], seed: 0,
+  const usable = view.methods.filter((m) => !(m in (view.unavailable || {})));
+  const [form, setForm] = useState({ method: pinned && usable.includes(pinned.method) ? pinned.method : usable[0], seed: 0,
     params: { ...((pinned && pinned.params) || {}) } });
   const [preview, setPreview] = useState(null);
   const [job, setJob] = useState(null);

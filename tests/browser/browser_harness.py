@@ -41,13 +41,19 @@ class UI:
         return int(value)
 
     def wait_ready(self, after: int = 0, timeout: float = 10000) -> int:
-        """Wait until a navigation newer than *after* is ready; return its token."""
+        """Wait until a navigation newer than *after* is ready; return its token. A dialog
+        that opens instead (« Leave this page? ») fails at once, with its words."""
         self.page.wait_for_function(
-            "(after) => Number(document.documentElement.dataset.routeReady || 0) > after",
+            "(after) => Number(document.documentElement.dataset.routeReady || 0) > after"
+            " || Boolean(document.querySelector('dialog[open]'))",
             arg=after,
             timeout=timeout,
         )
-        return self.token()
+        token = self.token()
+        if token <= after:
+            words = self.page.evaluate("() => document.querySelector('dialog[open]').innerText")
+            raise AssertionError(f"a dialog opened instead of the page: {words!r}")
+        return token
 
     def open(self, path: str = "/gallery") -> None:
         """Load the app at *path* and wait for its first page."""
