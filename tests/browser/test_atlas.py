@@ -5,15 +5,19 @@ The main flow: the map drawn with WebGL, find a person and see them in the
 panel and on the map (the hover card), show organisations and texts, filter
 the people by a column of theirs and narrow the period, clear every filter
 (the period too), the state kept in the address across a reload, the world
-view; the API calls of the navigation and axe. The budget: a map of 10⁴
-points panned in the component gallery.
+view; the API calls of the navigation and axe. The map's frame in both themes, with the « Tune »
+panel open and closed and after a resize: its canvas inside its border, nothing over it but its
+legend, no block of a foreign colour on it. The budget: a map of 10⁴ points panned in the
+component gallery.
 """
 
 from __future__ import annotations
 
+import io
 import os
 from urllib.parse import parse_qs, urlsplit
 
+import pytest
 from browser_harness import write_measures
 from test_accessibility import blocking, run_axe
 
@@ -109,6 +113,77 @@ def test_the_main_flow_of_the_atlas(demo_s, app_for, open_app, axe_source):
     page.get_by_role("button", name="World").click()
     assert query(ui)["view"] == ["world"]
     page.get_by_role("group", name="World map of the organisations").wait_for()
+
+
+#: The frame, its box, its canvas and its legend, and what is on top at points of the canvas.
+FRAME_GEOMETRY = """() => {
+  const rect = (e) => { const b = e.getBoundingClientRect();
+    return {left: b.left, top: b.top, right: b.right, bottom: b.bottom}; };
+  const frame = document.querySelector('.cx-atlas__frame');
+  const box = frame.querySelector('.cx-map-frame__box');
+  const canvas = box.querySelector('canvas');
+  const legend = frame.querySelector('.cx-map-frame__legend');
+  const c = rect(canvas), l = rect(legend);
+  const over = [];
+  for (let i = 1; i < 10; i += 1) for (let j = 1; j < 10; j += 1) {
+    const x = c.left + (c.right - c.left) * i / 10, y = c.top + (c.bottom - c.top) * j / 10;
+    if (x >= l.left && x <= l.right && y >= l.top && y <= l.bottom) continue;
+    if (y < 0 || y > innerHeight) continue;
+    const top = document.elementFromPoint(x, y);
+    if (top && top !== canvas && !legend.contains(top)) over.push(top.className || top.tagName);
+  }
+  return {frame: rect(frame), box: rect(box), canvas: c, legend: l, over,
+    border: parseFloat(getComputedStyle(frame).borderTopWidth)};
+}"""
+
+
+def white_blocks(png: bytes, area: dict, legend: dict) -> int:
+    """How many 8×8 blocks of *area* (outside the *legend*) are pure white."""
+    Image = pytest.importorskip("PIL.Image")
+    img = Image.open(io.BytesIO(png)).convert("RGB")
+    found = 0
+    for y in range(int(area["top"]) + 2, int(area["bottom"]) - 10, 8):
+        for x in range(int(area["left"]) + 2, int(area["right"]) - 10, 8):
+            if (
+                legend["left"] - 8 <= x <= legend["right"]
+                and legend["top"] - 8 <= y <= legend["bottom"]
+            ):
+                continue
+            block = img.crop((x, y, x + 8, y + 8)).getextrema()
+            found += all(lo >= 250 for lo, _ in block)
+    return found
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_the_map_stays_inside_its_frame(demo_s, app_for, open_app, theme):
+    ui = open_app(app_for(demo_s), theme=theme)
+    page = ui.page
+    for path, size in (
+        ("/map", None),
+        ("/map?tune=1", None),
+        ("/map?tune=1", {"width": 1200, "height": 700}),
+        ("/map", {"width": 1600, "height": 1000}),
+    ):
+        if size:
+            page.set_viewport_size(size)
+        ui.open(path)  # a reload: the panel open or closed as the address says
+        page.locator(".cx-atlas .cx-map-frame__box").wait_for()
+        page.wait_for_timeout(400)  # the resize observed, the frame drawn again
+        page.locator(".cx-atlas__frame").scroll_into_view_if_needed()
+        g = page.evaluate(FRAME_GEOMETRY)
+        inner = {
+            k: g["frame"][k] + (g["border"] if k in ("left", "top") else -g["border"])
+            for k in g["frame"]
+        }
+        where = f"{path} {size}"
+        for side in ("left", "top"):
+            assert g["canvas"][side] >= inner[side] - 0.5, (where, g)
+        for side in ("right", "bottom"):
+            assert g["canvas"][side] <= inner[side] + 0.5, (where, g)  # no point below the border
+        assert g["over"] == [], (where, g["over"])  # nothing over the canvas but the legend
+        if theme == "dark":
+            shot = page.screenshot()
+            assert white_blocks(shot, g["canvas"], g["legend"]) == 0, where
 
 
 def test_a_map_of_ten_thousand_points_pans_at_the_frame_rate(ui):
