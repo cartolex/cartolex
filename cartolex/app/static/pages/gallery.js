@@ -20,7 +20,7 @@ import {
   StatusPill, Stepper, Table, Tabs, Textarea, Toaster, Tooltip, TreeView, Treemap, createToaster,
 } from '../components/index.js';
 import {
-  ERRORS, JOBS, STAGES, THEME_TREE,
+  ERRORS, JOBS, LARGE_JOBS, STAGES, THEME_TREE,
   mapPoints, tableRows,
 } from './gallery-data.js';
 
@@ -491,10 +491,16 @@ function fakeJobs(list) {
   const dismissed = signal([]);
   const visible = computed(() => jobs.value.filter((j) => !dismissed.value.includes(j.id)));
   const active = computed(() => jobs.value.filter((j) => ['queued', 'running', 'cancelling'].includes(j.state)));
-  const headline = computed(() => active.value[0] || visible.value.find((j) => j.state === 'failed') || null);
+  const headline = computed(() => active.value[0]
+    || visible.value.find((j) => ['failed', 'paused'].includes(j.state)) || null);
   return {
     jobs, visible, active, headline,
     watch: () => () => {},
+    resumable: (job) => job.state === 'paused',
+    resume: async (job) => {
+      jobs.value = jobs.value.map((j) => (j.id === job.id ? { ...j, state: 'running' } : j));
+      return { ok: true };
+    },
     cancel: (id) => {
       jobs.value = jobs.value.map((j) => (j.id === id ? { ...j, state: 'cancelling' } : j));
     },
@@ -607,11 +613,12 @@ function MapDemo() {
 function Activity() {
   const stores = useMemo(() => ({
     running: fakeJobs(JOBS), failed: fakeJobs(JOBS.slice(1)), idle: fakeJobs([]),
+    large: fakeJobs(LARGE_JOBS.slice(0, 1)), paused: fakeJobs(LARGE_JOBS.slice(1)),
   }), []);
   const [open, setOpen] = useState(null);
   return html`<${Section} id="activity">
     <div class="cx-gallery__row">
-      ${['running', 'failed', 'idle'].map((k) => html`<${Example} key=${k} label=${t(`gallery.activity.${k}`)}>
+      ${['running', 'failed', 'idle', 'large', 'paused'].map((k) => html`<${Example} key=${k} label=${t(`gallery.activity.${k}`)}>
         <${ActivityIndicator} jobs=${stores[k]} onOpen=${() => setOpen(k)} />
       <//>`)}
     </div>

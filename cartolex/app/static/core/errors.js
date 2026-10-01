@@ -6,8 +6,8 @@
  * {"label", "action"}}}`. The interface turns it, a failed connection or an
  * unexpected exception into one shape:
  *
- *   { code, message, next: {label, action} | null, status, method, path,
- *     requestId, time, technical }
+ *   { code, params, message, next: {label, action} | null, status, method,
+ *     path, requestId, time, technical }
  *
  * `message` and `next.label` are plain words for the person; `technical` holds
  * what a developer needs and is shown folded. A diagnostic never holds project
@@ -22,6 +22,7 @@ export function errorFromResponse(body, { status, method, path, requestId } = {}
     ? { label: String(err.next.label || ''), action: String(err.next.action) } : null;
   return {
     code: String(err.code || `http_${status || 0}`),
+    params: err.params && typeof err.params === 'object' ? err.params : {},
     message: String(err.message || ''),
     next,
     status: status ?? null,
@@ -33,10 +34,38 @@ export function errorFromResponse(body, { status, method, path, requestId } = {}
   };
 }
 
+/**
+ * The error model of a failed job (`job.error`: `{code, params, message, exception, detail,
+ * step, progress}`, or words from an older app): the cause's code and params for the card,
+ * and, folded away and in the diagnostic, the exception, its message and the step it was in.
+ */
+export function jobError(job) {
+  const err = job && job.error;
+  if (!err) return null;
+  if (typeof err === 'string') {
+    return errorFromResponse({ error: { code: `job_${job.state}`, message: err } });
+  }
+  const model = errorFromResponse({ error: err }, { status: err.status });
+  const lines = [];
+  if (err.exception) lines.push(`${err.exception}: ${err.detail || ''}`.trim());
+  if (err.step) {
+    const p = err.progress || {};
+    const fraction = typeof p.stage_fraction === 'number' ? p.stage_fraction : p.fraction;
+    lines.push(`step: ${err.step}${typeof fraction === 'number' ? ` (${Math.round(fraction * 100)} %)` : ''}`);
+  }
+  if (err.progress && err.progress.code) {
+    lines.push(`progress: ${err.progress.code} ${JSON.stringify(err.progress.params || {})}`);
+  }
+  if (job.finished_at) model.time = job.finished_at;
+  model.technical = lines.length ? lines.join('\n') : null;
+  return model;
+}
+
 /** The error model of a request that got no answer (server stopped, connection lost). */
 export function networkError({ method, path, cause } = {}) {
   return {
     code: 'network',
+    params: {},
     message: '',
     next: { label: '', action: 'retry' },
     status: null,
@@ -53,6 +82,7 @@ export function errorFromException(error, { code = 'unexpected' } = {}) {
   const e = error instanceof Error ? error : new Error(String(error));
   return {
     code,
+    params: {},
     message: '',
     next: { label: '', action: 'reload' },
     status: null,

@@ -318,6 +318,9 @@ class ServiceCollection(BaseCollection):
         options: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any]:
         from cartolex.collect.http import Cancelled, EgressRecord
+        from cartolex.project.checkpoints import JobPaused
+
+        from .messages import job_pause
 
         action = "identify" if action == "collect" else action
         if action not in ACTIONS:
@@ -330,6 +333,9 @@ class ServiceCollection(BaseCollection):
             result = runner(project, opts, self._client_factory(project, control, clients), done)
         except Cancelled:
             result = {"outcome": "cancelled", "ran": list(done)}
+        except JobPaused as paused:
+            # Resumable: the result says why, and the checkpoint to resume from.
+            result = {"outcome": "paused", "pause": job_pause(paused), "ran": list(done)}
         finally:
             # What left the computer is recorded whatever the end: a failed or paused job
             # sent requests too.

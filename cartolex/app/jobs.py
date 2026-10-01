@@ -310,6 +310,8 @@ class LocalJobRunner:
                 end["error"] = error
             if state == "paused" and result and result.get("pause"):
                 end["pause"] = result["pause"]
+                if result.get("action"):
+                    end["action"] = result["action"]
             control.event("job-end", **end)
 
     # ── reading ──
@@ -469,6 +471,8 @@ def read_job_logs(jobs_dir: Path, project: str, *, limit: int = 20) -> list[JobI
                 error = last["error"]
             if state == "paused" and isinstance(last.get("pause"), dict):
                 result = {**(result or {}), "outcome": "paused", "pause": last["pause"]}
+                if last.get("action"):
+                    result["action"] = last["action"]
         else:
             finished = None
             alive = (
