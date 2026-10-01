@@ -184,9 +184,7 @@ class LargeInstitutionService:
         rng.shuffle(slots)
         n = len(slots)
         authorships = [
-            self._authorship(
-                rng, k, "first" if r == 0 else ("last" if r == n - 1 else "middle")
-            )
+            self._authorship(rng, k, "first" if r == 0 else ("last" if r == n - 1 else "middle"))
             for r, k in enumerate(slots)
         ]
         year = rng.randint(*self.years)
@@ -239,10 +237,16 @@ class LargeInstitutionService:
             "open_access": {"is_oa": False, "oa_status": "closed", "oa_url": None},
             "authorships": authorships,
             "countries_distinct_count": 1,
-            "institutions_distinct_count": len({i["id"] for a in authorships for i in a["institutions"]}),
+            "institutions_distinct_count": len(
+                {i["id"] for a in authorships for i in a["institutions"]}
+            ),
             "cited_by_count": rng.randrange(200),
-            "biblio": {"volume": str(rng.randrange(90)), "issue": "1", "first_page": "1",
-                       "last_page": str(rng.randrange(2, 40))},  # fmt: skip
+            "biblio": {
+                "volume": str(rng.randrange(90)),
+                "issue": "1",
+                "first_page": "1",
+                "last_page": str(rng.randrange(2, 40)),
+            },  # fmt: skip
             "is_retracted": False,
             "is_paratext": False,
             "primary_topic": topics[0],

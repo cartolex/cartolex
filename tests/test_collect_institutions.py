@@ -20,6 +20,7 @@ from cartolex.collect.tables import read_runs
 from cartolex.demo import generate
 from cartolex.demo.services import DemoServices, write_snapshot
 from cartolex.project import Project
+from cartolex.project.checkpoints import JobPaused
 from cartolex.project.tables import read_decision_csv, read_source_table
 
 
@@ -141,14 +142,17 @@ def test_split_records_are_suggested_never_merged(services, project) -> None:
 
 
 def test_a_shared_orcid_is_a_suggested_merge(services, project) -> None:
-    from cartolex.collect.institutions import _merges
+    from cartolex.collect.institutions import _Authors, _merges, _TableView
 
     authors = {
         "A1": {"name": "Ada Tavelin", "orcid": "0000-0000-0000-0001", "works": [{"id": "W1", "year": 2020, "units": ["I1"]}]},
         "A2": {"name": "A. Tavelin-Quell", "orcid": "0000-0000-0000-0001", "works": [{"id": "W2", "year": 2021, "units": ["I2"]}]},
         "A3": {"name": "Ada Tavelin", "orcid": "0000-0000-0000-0002", "works": [{"id": "W3", "year": 2021, "units": ["I1"]}]},
     }  # fmt: skip
-    merges = {tuple(m.records): m.reason for m in _merges(authors, {}, 1)}
+    table = _Authors()
+    for aid, rec in authors.items():
+        table.add_entry({**rec, "record": f"openalex:{aid}"})
+    merges = {tuple(m.records): m.reason for m in _merges(_TableView(table), 1)}
     assert merges == {("openalex:A1", "openalex:A2"): "the same ORCID"}
 
 
@@ -199,13 +203,14 @@ def test_a_person_confirmed_before_is_not_taken_twice(services, project) -> None
     assert report.known == {first.record: pid} and not report.taken
 
 
-def test_a_page_cut_short_keeps_no_proposal(services, project) -> None:
+def test_a_page_cut_short_pauses_and_keeps_no_proposal(services, project) -> None:
     bib = services.bibliography
     top = bib.institutions[bib.institutions[bib.joint_lab].parent]
     services.faults.add("cut_page", service="openalex", path=r"^works\?", times=None)
-    with pytest.raises(IncompleteResults):
+    with pytest.raises(JobPaused) as paused:
         propose_people(project, _api(services, project), [top.id])
     services.faults.clear()
+    assert isinstance(paused.value.cause, IncompleteResults)
     slot = project.config.slots[0].id
     assert not read_runs(project.layout, slot, "institution_proposals")
 

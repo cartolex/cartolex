@@ -31,7 +31,7 @@ import hashlib
 import json
 import random
 import time
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -59,7 +59,9 @@ __all__ = [
     "IncompleteResults",
     "MalformedResponse",
     "NotFound",
+    "Page",
     "RequestRefused",
+    "ShortPage",
     "ServiceError",
     "ServiceUnavailable",
     "TokenBucket",
@@ -138,6 +140,11 @@ class MalformedResponse(ServiceError):
 
 class IncompleteResults(ServiceError):
     """A paged list ended before the count the service announced: a page was cut short."""
+
+
+class ShortPage(ValueError):
+    """A page of a paged list holds fewer items than the count announced leaves for it (it was
+    cut short, or the list said it ended too early): asked again, as a malformed answer is."""
 
 
 # ── small pieces ─────────────────────────────────────────────────────────────
@@ -236,6 +243,23 @@ class CursorPaging:
     first: str = "*"
     max_pages: int = 10_000
     confirm_empty: bool = False
+
+
+@dataclass(frozen=True)
+class Page:
+    """One page of a cursor-paged list, read by :meth:`HttpClient.pages`.
+
+    *cursor* is the cursor that asked for it; *next_cursor* the one that asks
+    for the next page (``None`` on the last); *total* the count the service
+    announced; *read* the items read up to and including this page.
+    """
+
+    items: list[Any]
+    cursor: str
+    next_cursor: str | None
+    total: int | None
+    read: int
+    retrieved_at: datetime
 
 
 _LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
@@ -749,6 +773,77 @@ class HttpClient:
             )
         return Fetched(items, retrieved_at, False)
 
+    def pages(
+        self,
+        service: str,
+        path: str,
+        params: Mapping[str, Any] | None = None,
+        *,
+        kind: str,
+        sends: Iterable[str] = (),
+        paging: CursorPaging,
+        validate: Callable[[Any], None] | None = None,
+        cursor: str | None = None,
+        read: int = 0,
+        per_page: int | None = None,
+    ) -> Iterator[Page]:
+        """The pages of a cursor-paged list one at a time, from *cursor* (the first page when
+        ``None``); nothing is cached and nothing is kept between pages.
+
+        *read* is how many items the pages before *cursor* held (a resumed list).
+        A page that holds fewer items than *per_page* while the count announced
+        says more remain, or that ends the list before that count, is cut short:
+        it is asked again like a malformed answer, and after the last attempt
+        :class:`IncompleteResults` is raised. The caller keeps what it needs of
+        each page and, to go on later, the page's ``next_cursor``.
+        """
+        svc = self.service(service)
+        url = svc.base_url + "/" + path.lstrip("/")
+        if self.mode == "cache_only":
+            raise CacheMiss(svc.name, kind, _canonical_url(url))
+        host = urlsplit(url).netloc
+        base_params = dict(params or {})
+        current = cursor or paging.first
+        seen: set[str] = set()
+        count = read
+
+        def check(data: Any) -> None:
+            if validate is not None:
+                validate(data)
+            items = paging.items(data)
+            nxt = paging.next_cursor(data)
+            total = paging.total(data)
+            if total is None or not items and nxt is None:
+                return
+            left = total - count
+            if nxt is not None and per_page and len(items) < min(per_page, left):
+                raise ShortPage(f"a page holds {len(items)} items of the {left} still announced")
+            if nxt is None and len(items) < left:
+                raise ShortPage(
+                    f"the list ended after {count + len(items)} of the {total} items announced"
+                )
+
+        for _page in range(10 * paging.max_pages):
+            page_params = {**base_params, paging.cursor_param: current}
+            _status, body, _kept, retrieved = self._send(svc, url, page_params, sends, None, check)
+            data = json.loads(body)
+            items = list(paging.items(data))
+            nxt = paging.next_cursor(data)
+            count += len(items)
+            last = not nxt or not items
+            yield Page(items, current, None if last else nxt, paging.total(data), count, retrieved)
+            if last:
+                return
+            if nxt in seen:
+                raise MalformedResponse(
+                    host, 200, "the list's cursor repeats itself", "collect again later"
+                )
+            seen.add(nxt)
+            current = nxt
+        raise MalformedResponse(
+            host, None, f"the list did not end after {10 * paging.max_pages} pages", "report it"
+        )
+
     def get_bytes(
         self,
         service: str,
@@ -902,6 +997,14 @@ class HttpClient:
                         data = body if raw else json.loads(body)
                         if validate is not None:
                             validate(data)
+                    except ShortPage as exc:
+                        failure = (
+                            IncompleteResults,
+                            status,
+                            f"a page was cut short ({str(exc)[:80]})",
+                            "try again later",
+                            None,
+                        )
                     except (ValueError, TypeError, KeyError, AttributeError) as exc:
                         failure = (
                             MalformedResponse,

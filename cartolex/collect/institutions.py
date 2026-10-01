@@ -31,26 +31,53 @@ affiliations dated by their works. Their works come with the harvest.
 
 The proposal is kept in ``sources/<slot>/raw/institution_proposals/`` (no row
 is built from it), the people taken in ``raw/institution/``.
+
+**Large institutions.** The works are read page by page, with only the fields
+the proposal needs, and folded into per-author aggregates (a few bytes per
+signature): memory does not grow with the work records. Every
+:data:`CHECKPOINT_PAGES` pages the cursor and the aggregates are saved in
+``raw/checkpoints/`` (:mod:`cartolex.project.checkpoints`); a stop or a page
+that keeps failing pauses the reading, and a resumed reading gives the
+proposal an uninterrupted one gives.
 """
 
 from __future__ import annotations
 
+import base64
+import math
+import sys
+import time
+from array import array
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from cartolex.project import Project
+from cartolex.project.checkpoints import Checkpoint, JobPaused, work_key
 from cartolex.project.models import Level
 
 from .decisions import read_people, slot_window, update_people
 from .names import compatible_first_names, split_full_name, surname_parts
-from .openalex import OpenAlexSource, Years, parse_institution_ref, short_id
+from .openalex import PER_PAGE, OpenAlexSource, Years, parse_institution_ref, short_id
 from .people_import import _collection_slot, _ensure_levels
-from .tables import RawRun, RawWriter, SourceBuilder, iso, parse_time, read_runs, rebuild_sources
+from .tables import (
+    RawRun,
+    RawWriter,
+    SourceBuilder,
+    iso,
+    parse_time,
+    raw_folder,
+    read_runs,
+    rebuild_sources,
+)
 
 __all__ = [
+    "CHECKPOINT_PAGES",
+    "CONFIRM_WORKS",
+    "CURSOR_VALIDITY_S",
     "LARGE_TYPES",
     "MIN_WORKS",
     "InstitutionProposal",
@@ -58,6 +85,8 @@ __all__ = [
     "ProposedPerson",
     "TakeReport",
     "Unit",
+    "checkpoint_folder",
+    "checkpoint_options",
     "find_institutions",
     "propose_levels",
     "propose_people",
@@ -81,6 +110,16 @@ DEFAULT_LEVELS = (
 )
 PROPOSALS = "institution_proposals"
 TAKEN = "institution"
+CHECKPOINTS = "checkpoints"
+CHECKPOINT_KIND = "institution_works"
+#: Pages read between two checkpoints (10,000 works).
+CHECKPOINT_PAGES = 100
+#: How long a paused reading's cursor is trusted. OpenAlex documents no expiry: a cursor is a
+#: place in a sort order, and the index changes from day to day; an older reading starts again.
+CURSOR_VALIDITY_S = 7 * 24 * 3600.0
+#: Above this many works the app asks before reading them: a day of OpenAlex's free budget
+#: without a key (1,000 list requests of 100 works).
+CONFIRM_WORKS = 100_000
 
 
 @dataclass
@@ -173,6 +212,9 @@ class InstitutionProposal:
     slot: str = ""
     run_id: str = ""
     source: str = "api"
+    #: What happened on the way (a reading started again, a count that changed): codes,
+    #: params and words.
+    notes: list[dict[str, Any]] = field(default_factory=list)
 
     def lines(self, show: int | None = None) -> list[str]:
         """The proposal in words."""
@@ -272,6 +314,274 @@ def _records_of_people(project: Project) -> dict[str, str]:
     return out
 
 
+class _Authors:
+    """What the proposal keeps of each author while the works go by: no work record.
+
+    Per author: the record, the name and ORCID shown first, and one entry per
+    work signed there (the work's number, and its year with the units stated,
+    shared between authors as one small table). Two arrays per author: the
+    memory grows with the signatures, a few bytes each, never with the records.
+    """
+
+    def __init__(self) -> None:
+        self.index: dict[str, int] = {}
+        self.ids: list[str] = []
+        self.names: list[str] = []
+        self.orcids: list[str | None] = []
+        self.works: list[array] = []  # work numbers (``W123`` → 123)
+        self.keys: list[array] = []  # indices into :attr:`combos`
+        self.combos: list[tuple[int | None, tuple[str, ...]]] = []
+        self._combo: dict[tuple[int | None, tuple[str, ...]], int] = {}
+
+    def __len__(self) -> int:
+        return len(self.ids)
+
+    def add(
+        self,
+        aid: str,
+        name: str,
+        orcid: str | None,
+        work: int | None,
+        year: int | None,
+        here: tuple[str, ...],
+    ) -> None:
+        """One signature: *aid* signed *work* (``None``: the same work again) at *here*."""
+        row = self.index.get(aid)
+        if row is None:
+            row = self.index[aid] = len(self.ids)
+            self.ids.append(aid)
+            self.names.append(name)
+            self.orcids.append(orcid)
+            self.works.append(array("q"))
+            self.keys.append(array("i"))
+        elif orcid and not self.orcids[row]:
+            self.orcids[row] = orcid
+        if work is None:
+            return
+        combo = (year, here)
+        key = self._combo.get(combo)
+        if key is None:
+            key = self._combo[combo] = len(self.combos)
+            self.combos.append(combo)
+        self.works[row].append(work)
+        self.keys[row].append(key)
+
+    def entry(self, aid: str) -> dict[str, Any]:
+        """The author as the proposal's raw run keeps it (each work once, in reading order)."""
+        row = self.index[aid]
+        works = []
+        seen: set[int] = set()
+        for number, key in zip(self.works[row], self.keys[row], strict=True):
+            if number in seen:
+                continue
+            seen.add(number)
+            year, here = self.combos[key]
+            works.append({"id": f"W{number}", "year": year, "units": list(here)})
+        return {
+            "type": "author",
+            "record": f"openalex:{aid}",
+            "name": self.names[row],
+            "orcid": self.orcids[row],
+            "works": works,
+        }
+
+    def add_entry(self, rec: Mapping[str, Any]) -> None:
+        """An author read back from a raw run (:meth:`entry`'s shape)."""
+        aid = rec["record"].split(":", 1)[1]
+        self.add(aid, rec.get("name") or aid, rec.get("orcid"), None, None, ())
+        for w in rec.get("works") or []:
+            self.add(aid, "", None, _work_number(w["id"]), w.get("year"), tuple(w["units"]))
+
+    # ── what merges need, author by author ──
+    def work_set(self, aid: str) -> set[int]:
+        return set(self.works[self.index[aid]])
+
+    def unit_set(self, aid: str) -> set[str]:
+        return {u for k in set(self.keys[self.index[aid]]) for u in self.combos[k][1]}
+
+    def n_works(self, aid: str) -> int:
+        return len(set(self.works[self.index[aid]]))
+
+    # ── checkpoints ──
+    def state(self) -> dict[str, Any]:
+        return {
+            "byteorder": sys.byteorder,
+            "ids": self.ids,
+            "names": self.names,
+            "orcids": self.orcids,
+            "works": [_b64(a) for a in self.works],
+            "keys": [_b64(a) for a in self.keys],
+            "combos": [[y, list(u)] for y, u in self.combos],
+        }
+
+    @classmethod
+    def from_state(cls, state: Mapping[str, Any]) -> _Authors:
+        if state.get("byteorder") != sys.byteorder:
+            raise ValueError("the checkpoint was written on a computer of another byte order")
+        out = cls()
+        out.ids = list(state["ids"])
+        out.names = list(state["names"])
+        out.orcids = list(state["orcids"])
+        out.index = {aid: i for i, aid in enumerate(out.ids)}
+        out.works = [_array("q", t) for t in state["works"]]
+        out.keys = [_array("i", t) for t in state["keys"]]
+        out.combos = [(y, tuple(u)) for y, u in state["combos"]]
+        out._combo = {c: i for i, c in enumerate(out.combos)}
+        if not len(out.ids) == len(out.names) == len(out.works) == len(out.keys):
+            raise ValueError("the checkpoint's authors do not add up")
+        return out
+
+
+def _b64(a: array) -> str:
+    return base64.b64encode(a.tobytes()).decode("ascii")
+
+
+def _array(typecode: str, text: str) -> array:
+    out = array(typecode)
+    out.frombytes(base64.b64decode(text))
+    return out
+
+
+def _work_number(wid: str) -> int:
+    return int(wid[1:])
+
+
+@dataclass
+class _Reading:
+    """Where the reading of an institution's works got to: what a checkpoint keeps."""
+
+    options: dict[str, Any]
+    roots: list[str]
+    unit_records: dict[str, dict[str, Any]]
+    #: The units whose works are read: the roots and every unit below them.
+    inside: list[str] = field(default_factory=list)
+    authors: _Authors = field(default_factory=_Authors)
+    cursor: str | None = None
+    read: int = 0
+    total: int | None = None
+    pages: int = 0
+    works: int = 0
+    unnamed: int = 0
+    first_at: str | None = None
+    confirmed: bool = False
+    notes: list[dict[str, Any]] = field(default_factory=list)
+
+    def state(self) -> dict[str, Any]:
+        return {
+            "options": self.options,
+            "roots": self.roots,
+            "unit_records": self.unit_records,
+            "inside": self.inside,
+            "authors": self.authors.state(),
+            "cursor": self.cursor,
+            "read": self.read,
+            "total": self.total,
+            "pages": self.pages,
+            "works": self.works,
+            "unnamed": self.unnamed,
+            "first_at": self.first_at,
+            "confirmed": self.confirmed,
+            "notes": self.notes,
+        }
+
+    @classmethod
+    def from_state(cls, state: Mapping[str, Any]) -> _Reading:
+        return cls(
+            options=dict(state["options"]),
+            roots=list(state["roots"]),
+            unit_records=dict(state["unit_records"]),
+            inside=list(state["inside"]),
+            authors=_Authors.from_state(state["authors"]),
+            cursor=state["cursor"],
+            read=int(state["read"]),
+            total=state["total"],
+            pages=int(state["pages"]),
+            works=int(state["works"]),
+            unnamed=int(state["unnamed"]),
+            first_at=state["first_at"],
+            confirmed=bool(state["confirmed"]),
+            notes=list(state.get("notes") or []),
+        )
+
+    def progress(self) -> dict[str, Any]:
+        return {"works": self.read, "total": self.total, "pages": self.pages}
+
+
+def _read_page(reading: _Reading, works: Sequence[Mapping[str, Any]], inside: set[str]) -> None:
+    """Fold one page of works into the per-author aggregates."""
+    authors = reading.authors
+    for work in works:
+        wid = short_id(work.get("id"))
+        year = (
+            work.get("publication_year") if isinstance(work.get("publication_year"), int) else None
+        )
+        if not wid or not wid.startswith("W"):
+            continue
+        reading.works += 1
+        number = _work_number(wid)
+        signed: set[str] = set()
+        for authorship in work.get("authorships") or []:
+            stated = [short_id(i.get("id")) for i in authorship.get("institutions") or []]
+            here = tuple(sorted({s for s in stated if s in inside}))
+            if not here:
+                continue
+            shown = authorship.get("author") or {}
+            aid = short_id(shown.get("id"))
+            if not aid:
+                reading.unnamed += 1
+                continue
+            orcid = (shown.get("orcid") or "").rsplit("/", 1)[-1] or None
+            name = shown.get("display_name") or authorship.get("raw_author_name") or aid
+            authors.add(aid, name, orcid, None if aid in signed else number, year, here)
+            signed.add(aid)
+
+
+def checkpoint_folder(project: Project, slot: str) -> Path:
+    """``sources/<slot>/raw/checkpoints/``: where paused collections keep their state."""
+    return raw_folder(project.layout, slot) / CHECKPOINTS
+
+
+def _checkpoint(project: Project, slot: str, options: Mapping[str, Any]) -> Checkpoint:
+    return Checkpoint(checkpoint_folder(project, slot), CHECKPOINT_KIND, work_key(options))
+
+
+def checkpoint_options(
+    project: Project, checkpoint_id: str, *, slot: str | None = None
+) -> dict[str, Any] | None:
+    """The options of the paused proposal *checkpoint_id* (to resume it), or ``None``."""
+    slot = _collection_slot(project, slot, "collection")
+    try:
+        cp = Checkpoint.by_id(checkpoint_folder(project, slot), checkpoint_id)
+    except ValueError:
+        return None
+    if cp.kind != CHECKPOINT_KIND:
+        return None
+    saved = cp.load()
+    if saved is None:
+        return None
+    return dict(saved.state.get("options") or {})
+
+
+def _pause(
+    cp: Checkpoint,
+    reading: _Reading,
+    code: str,
+    message: str,
+    *,
+    cause: BaseException | None = None,
+    **params: Any,
+) -> JobPaused:
+    cp.save(reading.state())
+    return JobPaused(
+        code=code,
+        message=message,
+        checkpoint=cp.id,
+        params={**reading.progress(), **params},
+        progress=reading.progress(),
+        cause=cause,
+    )
+
+
 def propose_people(
     project: Project,
     source: OpenAlexSource,
@@ -282,19 +592,170 @@ def propose_people(
     levels: Mapping[str, str] | None = None,
     slot: str | None = None,
     now: datetime | None = None,
+    resume: bool = False,
+    confirm_above: int | None = None,
+    progress: Callable[[dict[str, Any]], None] | None = None,
+    checkpoint_every: int = CHECKPOINT_PAGES,
 ) -> InstitutionProposal:
     """Propose the authors of *institutions* and their units with *min_works* works or more.
 
     *years* defaults to the slot's window. The proposal is kept in the slot's
     raw folder (``institution_proposals``); nothing enters the tables until
     people are taken (:func:`take_people`).
+
+    The works are read page by page and folded into per-author aggregates; every
+    *checkpoint_every* pages the cursor and the aggregates are saved in
+    ``raw/checkpoints/``. When the job is cancelled, or a page still fails after
+    its retries, the state is saved and :class:`~cartolex.project.checkpoints.JobPaused`
+    is raised; with *resume*, the reading continues from the saved cursor (a
+    state older than :data:`CURSOR_VALIDITY_S`, or a cursor the service
+    refuses, starts again from the first page, with a note). With
+    *confirm_above*, a list announcing more works than that pauses after its
+    first page (``collect_size_confirm``), until resumed. *progress* receives,
+    after each page, the works read, the total, the pages and the rate.
     """
+    from .http import Cancelled, RequestRefused, ServiceError
+
     if min_works < 1:
         raise ValueError("min_works must be at least 1")
     now = now or datetime.now(timezone.utc)
     slot = _collection_slot(project, slot, "collection")
     if years is None:
         years = slot_window(project.config, slot)
+    refs = []
+    for ref in institutions:
+        parsed = parse_institution_ref(ref)
+        if parsed is None:
+            raise ValueError(f"{ref!r} is not an OpenAlex institution id or a ROR id")
+        refs.append(parsed)
+    options = {
+        "institutions": sorted(set(refs)),
+        "years": list(years) if years else None,
+        "source": source.label,
+    }
+    cp = _checkpoint(project, slot, options)
+    reading: _Reading | None = None
+    notes: list[dict[str, Any]] = []
+    if resume:
+        saved = cp.load(now=now)
+        if saved is not None and saved.age_s > CURSOR_VALIDITY_S:
+            notes.append(_note("checkpoint_expired", days=round(saved.age_s / 86400, 1)))
+        elif saved is not None:
+            try:
+                reading = _Reading.from_state(saved.state)
+            except (KeyError, TypeError, ValueError):
+                notes.append(_note("checkpoint_unreadable"))
+    if reading is None:
+        cp.clear()
+        reading = _start_reading(source, institutions, options)
+        reading.notes = notes
+    resumed = resume and reading.cursor is not None
+    units = {iid: Unit.of(r) for iid, r in sorted(reading.unit_records.items())}
+    inside = set(reading.inside)
+    started = time.monotonic()
+    read_at_start = reading.read
+    while True:
+        fresh_pages = 0
+        try:
+            pages = source.institution_work_pages(
+                reading.roots, years, cursor=reading.cursor, read=reading.read
+            )
+            for page in pages:
+                fresh_pages += 1
+                if reading.first_at is None:
+                    reading.first_at = iso(page.retrieved_at)
+                _read_page(reading, page.items, inside)
+                reading.cursor = page.next_cursor
+                reading.read = page.read
+                reading.total = page.total
+                reading.pages += 1
+                if progress is not None:
+                    elapsed = max(1e-6, time.monotonic() - started)
+                    rate = (reading.read - read_at_start) / elapsed
+                    left = max(0, (reading.total or reading.read) - reading.read)
+                    progress(
+                        {
+                            "works": reading.read,
+                            "total": reading.total,
+                            "pages": reading.pages,
+                            "authors": len(reading.authors),
+                            "rate": round(rate, 1),
+                            "eta_s": round(left / rate, 1) if rate > 0 else None,
+                        }
+                    )
+                if page.next_cursor is None:
+                    break
+                total = reading.total or 0
+                if confirm_above is not None and not reading.confirmed and total > confirm_above:
+                    reading.confirmed = True
+                    elapsed = max(1e-3, time.monotonic() - started)
+                    requests = math.ceil(total / PER_PAGE)
+                    raise _pause(
+                        cp,
+                        reading,
+                        "collect_size_confirm",
+                        f"{total} works are signed there: reading them takes about {requests} "
+                        "requests; confirm to go on, narrow the years or the units, or read "
+                        "the OpenAlex snapshot instead (cartolex collect snapshot)",
+                        requests=requests,
+                        seconds=round(requests * elapsed / fresh_pages),
+                    )
+                reading.confirmed = True
+                if reading.pages % checkpoint_every == 0:
+                    cp.save(reading.state())
+        except JobPaused:
+            raise
+        except Cancelled as exc:
+            raise _pause(
+                cp,
+                reading,
+                "collect_stopped",
+                f"stopped after {reading.read} of {reading.total} works; resume to go on",
+                cause=exc,
+            ) from exc
+        except ServiceError as exc:
+            if resumed and fresh_pages == 0 and isinstance(exc, RequestRefused):
+                # The service no longer takes the saved cursor: start again, cleanly.
+                fresh = _start_reading(source, institutions, options)
+                fresh.notes = [*reading.notes, _note("cursor_refused")]
+                fresh.confirmed = True
+                reading, resumed, read_at_start = fresh, False, 0
+                cp.clear()
+                continue
+            raise _pause(
+                cp,
+                reading,
+                "collect_paused",
+                f"a page still failed after its retries ({exc}); "
+                f"{reading.read} of {reading.total} works are kept: resume to go on",
+                cause=exc,
+            ) from exc
+        break
+    if reading.total is not None and reading.read != reading.total:
+        reading.notes.append(
+            _note("works_count_changed", read=reading.read, announced=reading.total)
+        )
+    proposal = _finish(project, reading, units, years, min_works, levels, slot, source, now)
+    cp.clear()
+    return proposal
+
+
+def _note(code: str, **params: Any) -> dict[str, Any]:
+    words = {
+        "checkpoint_expired": "the paused reading was too old to go on from: it started again",
+        "checkpoint_unreadable": "the paused reading could not be read: it started again",
+        "cursor_refused": "the service no longer took the paused reading's place: it started "
+        "again from the first page",
+        "works_count_changed": "the index changed during the reading: {read} works read of "
+        "the {announced} announced",
+    }
+    return {"code": code, "params": params, "message": words[code].format(**params)}
+
+
+def _start_reading(
+    source: OpenAlexSource, institutions: Sequence[str], options: Mapping[str, Any]
+) -> _Reading:
+    """The institutions, their units and the other parents of joint units: before any work."""
     roots = resolve_institutions(source, institutions)
     root_ids = [u.id for u in roots]
     unit_records: dict[str, dict[str, Any]] = {}
@@ -307,86 +768,82 @@ def propose_people(
             fetched = source.institution(root.id)
             if fetched is not None:
                 unit_records[root.id] = fetched.data
-    units = {iid: Unit.of(r) for iid, r in sorted(unit_records.items())}
+    inside = set(unit_records)
     # A unit may belong to other institutions too (a joint unit): their records are kept,
     # so that it enters with every parent.
-    for iid in sorted({p for u in units.values() for p in u.parents} - set(units)):
+    parents = {p for r in unit_records.values() for p in Unit.of(r).parents} - inside
+    for iid in sorted(parents):
         fetched = source.institution(iid)
         if fetched is not None:
             unit_records[iid] = fetched.data
-    fetched_works = source.works_by_institutions(root_ids, years)
+    return _Reading(
+        options=dict(options), roots=root_ids, unit_records=unit_records, inside=sorted(inside)
+    )
+
+
+def _finish(
+    project: Project,
+    reading: _Reading,
+    units_all: Mapping[str, Unit],
+    years: Years,
+    min_works: int,
+    levels: Mapping[str, str] | None,
+    slot: str,
+    source: OpenAlexSource,
+    now: datetime,
+) -> InstitutionProposal:
+    units = {iid: u for iid, u in units_all.items() if iid in set(reading.inside)}
     proposal = InstitutionProposal(
-        roots=root_ids,
+        roots=reading.roots,
         window=years,
         min_works=min_works,
         units=units,
         slot=slot,
         source=source.label,
+        works=reading.works,
+        unnamed=reading.unnamed,
+        notes=list(reading.notes),
     )
-    proposal.levels = propose_levels(
-        {iid: Unit.of(r) for iid, r in unit_records.items()}, project.config.levels, levels
-    )
-    authors: dict[str, dict[str, Any]] = {}
-    inside = set(units)
-    for work in fetched_works.data:
-        wid = short_id(work.get("id"))
-        year = (
-            work.get("publication_year") if isinstance(work.get("publication_year"), int) else None
-        )
-        if not wid:
-            continue
-        proposal.works += 1
-        for authorship in work.get("authorships") or []:
-            stated = [short_id(i.get("id")) for i in authorship.get("institutions") or []]
-            here = sorted({s for s in stated if s in inside})
-            if not here:
-                continue
-            shown = authorship.get("author") or {}
-            aid = short_id(shown.get("id"))
-            if not aid:
-                proposal.unnamed += 1
-                continue
-            entry = authors.setdefault(
-                aid,
-                {
-                    "type": "author",
-                    "record": f"openalex:{aid}",
-                    "name": shown.get("display_name") or authorship.get("raw_author_name") or aid,
-                    "orcid": None,
-                    "works": [],
-                },
-            )
-            orcid = (shown.get("orcid") or "").rsplit("/", 1)[-1] or None
-            entry["orcid"] = entry["orcid"] or orcid
-            if wid not in {w["id"] for w in entry["works"]}:
-                entry["works"].append({"id": wid, "year": year, "units": here})
-    known = _records_of_people(project)
-    for aid in sorted(authors):
-        entry = authors[aid]
-        person = _person_of(entry, units)
-        person.person_id = known.get(entry["record"])
-        if person.works >= min_works:
-            proposal.people.append(person)
-        else:
-            proposal.below += 1
-    proposal.people.sort(key=lambda p: (-p.works, p.name, p.record))
-    proposal.merges = _merges(authors, units, min_works)
+    proposal.levels = propose_levels(units_all, project.config.levels, levels)
     header = {
-        "roots": root_ids,
+        "roots": reading.roots,
         "years": list(years) if years else None,
         "min_works": min_works,
         "levels": proposal.levels,
         "source": source.label,
-        "works": proposal.works,
+        "works": reading.works,
     }
-    at = iso(fetched_works.retrieved_at)
+    if reading.notes:
+        header["notes"] = reading.notes
+    at = reading.first_at or iso(now)
+    known = _records_of_people(project)
+    authors = reading.authors
     with RawWriter(project.layout, slot, PROPOSALS, header, now=now) as out:
-        for iid in sorted(unit_records):
-            out.add({"type": "unit", "retrieved_at": at, "record": unit_records[iid]})
-        for aid in sorted(authors):
-            out.add({**authors[aid], "retrieved_at": at})
+        for iid in sorted(reading.unit_records):
+            out.add({"type": "unit", "retrieved_at": at, "record": reading.unit_records[iid]})
+        for aid in sorted(authors.index):
+            entry = authors.entry(aid)
+            out.add({**entry, "retrieved_at": at})
+            _propose(proposal, entry, units, known, min_works)
     proposal.run_id = out.run_id
+    proposal.people.sort(key=lambda p: (-p.works, p.name, p.record))
+    proposal.merges = _merges(_TableView(authors), min_works)
     return proposal
+
+
+def _propose(
+    proposal: InstitutionProposal,
+    entry: Mapping[str, Any],
+    units: Mapping[str, Unit],
+    known: Mapping[str, str],
+    min_works: int,
+) -> None:
+    person = _person_of(entry, units)
+    person.person_id = known.get(entry["record"])
+    if person.works >= min_works:
+        proposal.people.append(person)
+    else:
+        proposal.below += 1
 
 
 def _person_of(entry: Mapping[str, Any], units: Mapping[str, Unit]) -> ProposedPerson:
@@ -424,21 +881,43 @@ def _split_name(name: str) -> tuple[str, str]:
     return last, first
 
 
-def _merges(
-    authors: Mapping[str, Mapping[str, Any]], units: Mapping[str, Unit], min_works: int
-) -> list[MergeSuggestion]:
+class _TableView:
+    """What :func:`_merges` asks of the authors, from the compact table."""
+
+    def __init__(self, authors: _Authors) -> None:
+        self.a = authors
+
+    def ids(self) -> list[str]:
+        return sorted(self.a.index)
+
+    def name(self, aid: str) -> str:
+        return self.a.names[self.a.index[aid]]
+
+    def orcid(self, aid: str) -> str | None:
+        return self.a.orcids[self.a.index[aid]]
+
+    def works(self, aid: str) -> set[int]:
+        return self.a.work_set(aid)
+
+    def units(self, aid: str) -> set[str]:
+        return self.a.unit_set(aid)
+
+
+def _merges(view: _TableView, min_works: int) -> list[MergeSuggestion]:
     """Author records that may be one person: a shared ORCID; or the same surname, first names
     that agree (one may be an initial), a unit in common and no work in common (and not two
-    different ORCIDs). One of them must reach *min_works*, or the two together must."""
-    works = {aid: {w["id"] for w in a["works"]} for aid, a in authors.items()}
-    stated = {aid: {u for w in a["works"] for u in w["units"]} for aid, a in authors.items()}
-    names = {aid: _split_name(a["name"]) for aid, a in authors.items()}
+    different ORCIDs). One of them must reach *min_works*, or the two together must.
+
+    The works and units of an author are looked at only within a group that may hold a
+    pair, so memory stays that of the largest group."""
+    names = {aid: _split_name(view.name(aid)) for aid in view.ids()}
     pairs: dict[tuple[str, str], str] = {}
     by_orcid: dict[str, list[str]] = defaultdict(list)
     by_surname: dict[str, list[str]] = defaultdict(list)
-    for aid in sorted(authors):
-        if authors[aid]["orcid"]:
-            by_orcid[authors[aid]["orcid"]].append(aid)
+    for aid in sorted(names):
+        orcid = view.orcid(aid)
+        if orcid:
+            by_orcid[orcid].append(aid)
         key = " ".join(surname_parts(names[aid][0]))
         if key:
             by_surname[key].append(aid)
@@ -447,9 +926,13 @@ def _merges(
             for b in group[i + 1 :]:
                 pairs[(a, b)] = "the same ORCID"
     for group in by_surname.values():
+        if len(group) < 2:
+            continue
+        works = {aid: view.works(aid) for aid in group}
+        stated = {aid: view.units(aid) for aid in group}
         for i, a in enumerate(group):
             for b in group[i + 1 :]:
-                oa, ob = authors[a]["orcid"], authors[b]["orcid"]
+                oa, ob = view.orcid(a), view.orcid(b)
                 if (
                     (a, b) not in pairs
                     and not (oa and ob and oa != ob)
@@ -460,8 +943,9 @@ def _merges(
                     pairs[(a, b)] = "the same name at the same unit, no work in common"
     out = []
     for (a, b), reason in sorted(pairs.items()):
-        total = len(works[a] | works[b])
-        if max(len(works[a]), len(works[b])) < min_works and total < min_works:
+        wa, wb = view.works(a), view.works(b)
+        total = len(wa | wb)
+        if max(len(wa), len(wb)) < min_works and total < min_works:
             continue
         out.append(MergeSuggestion([f"openalex:{a}", f"openalex:{b}"], reason, total))
     return out
@@ -509,13 +993,13 @@ def read_proposal(
     slot = _collection_slot(project, slot, "collection")
     run = _latest_proposal(project, slot, run_id)
     units: dict[str, Unit] = {}
-    authors: dict[str, dict[str, Any]] = {}
+    authors = _Authors()
     for rec in run.records():
         if rec.get("type") == "unit":
             unit = Unit.of(rec["record"])
             units[unit.id] = unit
         elif rec.get("type") == "author":
-            authors[rec["record"].split(":", 1)[1]] = rec
+            authors.add_entry(rec)
     header = run.header
     min_works = int(header.get("min_works") or MIN_WORKS)
     years = header.get("years")
@@ -529,17 +1013,13 @@ def read_proposal(
         slot=slot,
         run_id=run.run_id,
         source=str(header.get("source") or "api"),
+        notes=list(header.get("notes") or []),
     )
     known = _records_of_people(project)
-    for aid in sorted(authors):
-        person = _person_of(authors[aid], units)
-        person.person_id = known.get(authors[aid]["record"])
-        if person.works >= min_works:
-            proposal.people.append(person)
-        else:
-            proposal.below += 1
+    for aid in sorted(authors.index):
+        _propose(proposal, authors.entry(aid), units, known, min_works)
     proposal.people.sort(key=lambda p: (-p.works, p.name, p.record))
-    proposal.merges = _merges(authors, units, min_works)
+    proposal.merges = _merges(_TableView(authors), min_works)
     return proposal
 
 
