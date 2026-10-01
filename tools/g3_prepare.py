@@ -178,7 +178,19 @@ def prepare(folder: Path) -> dict:
     if folder.exists():
         raise SystemExit(f"{folder} exists: choose a new folder")
     write_project(generate("S", 0), folder).close()
-    assert cli(["params", str(folder), "--set", "pinned_year=2026", "themes.group.depth=2"]) == 0
+    assert (
+        cli(
+            [
+                "params",
+                str(folder),
+                "--set",
+                "pinned_year=2026",
+                "themes.group.depth=2",
+                "themes.group.keywords_per_group=20",
+            ]
+        )
+        == 0
+    )
     assert cli(["build", str(folder)]) == 0
     draft = folder / "derived" / "themes.group" / "themes_draft.json"
     tree = ThemesFile.model_validate(json.loads(draft.read_text(encoding="utf-8")))
