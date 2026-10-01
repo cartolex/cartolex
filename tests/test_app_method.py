@@ -145,3 +145,69 @@ def test_tsne_is_listed_switched_off_with_its_reason_when_missing(client, monkey
     refused = client.post("/api/method/layout/preview", json={"method": "tsne"})
     assert refused.status_code == 422
     assert refused.json()["error"]["params"]["command"] == 'pip install "cartolex[tsne]"'
+
+
+def _file_stages(view: dict) -> dict:
+    """What params.json sets now, from a read of ``/api/params``."""
+    out: dict = {}
+    for s in view["stages"]:
+        for p in s["params"]:
+            if p["set_in_file"] and p["name"] not in ("seed", "year"):
+                out.setdefault(s["id"], {})[p["name"]] = p["value"]
+    return out
+
+
+def test_the_recipe_marks_a_changed_value_the_state_counts_it_and_it_exports(client):
+    read = client.get("/api/params")
+    before = read.json()
+    body = {"seed": 0, "pinned_year": before["global"]["pinned_year"]["value"],
+            "stages": _file_stages(before)}  # fmt: skip
+    changed = {**body, "stages": {**body["stages"], "keywords.extract": {"min_people": 4}}}
+    saved = client.put("/api/params", json=changed, headers={"If-Match": etag(read)})
+    assert saved.status_code == 200, saved.text
+    try:
+        recipe = client.get("/api/recipe").json()
+        row = next(
+            r
+            for r in recipe["rows"]
+            if (r["group"], r["name"]) == ("keywords.extract", "min_people")
+        )
+        assert row["value"] == 4 and row["default_value"] == 3 and row["differs"]
+        assert row["from"] == "params.json" and row["panel"] == "keywords"
+        dims = next(r for r in recipe["rows"] if r["name"] == "dimensions")
+        assert dims["from"] == "rule" and dims["rule_description"] and not dims["differs"]
+        assert any(r["group"] == "layout" and r["name"] == "method" for r in recipe["rows"])
+
+        state = client.get("/api/project/state").json()
+        assert state["changed_params"]["keywords.extract"] == 1
+        states = {s["id"]: s["state"] for s in state["stages"]}
+        assert states["keywords.extract"] == states["themes.space"] == "needs_update"
+
+        md = client.get("/api/recipe/export", params={"format": "md"})
+        assert md.headers["content-type"].startswith("text/markdown")
+        assert "| Fewest people * | `min_people` | 4 | 3 |" in md.text
+        csv = client.get("/api/recipe/export", params={"format": "csv", "language": "fr"})
+        assert "attachment" in csv.headers["content-disposition"]
+        line = next(
+            x for x in csv.text.splitlines() if x.startswith("keywords.extract,min_people,")
+        )
+        assert line.split(",")[2:5] == ["Nombre minimal de personnes", "4", "3"]
+    finally:
+        again = client.get("/api/params")
+        client.put("/api/params", json=body, headers={"If-Match": etag(again)})
+
+
+def test_every_parameter_has_a_short_label_in_every_interface_language():
+    import json
+
+    from cartolex.app.method import LAYOUT_DEFAULTS
+    from cartolex.app.static_files import PACKAGE_STATIC
+    from cartolex.build.stages import STAGES
+
+    keys = {f"param.label.{s.id}.{p.name}" for s in STAGES for p in s.params}
+    keys |= {f"param.label.layout.{p['name']}" for specs in LAYOUT_DEFAULTS.values() for p in specs}
+    keys |= {"param.label.layout.method", "param.label.layout.seed", "param.label.build.seed",
+             "param.label.build.pinned_year"}  # fmt: skip
+    for lang in ("en", "fr", "pt-BR"):
+        words = json.loads((PACKAGE_STATIC / "i18n" / f"{lang}.json").read_text(encoding="utf-8"))
+        assert sorted(keys - set(words)) == [], lang

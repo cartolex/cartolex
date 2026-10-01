@@ -114,6 +114,8 @@ def project_state(request: Request, ctx: ProjectDep) -> dict[str, Any]:
     state sums up its stages' (running, failed, needs update, never built, up
     to date, skipped). Extensions add areas of their own.
     """
+    from ..recipe import changed_counts
+
     runtime = runtime_of(request)
     stages = stage_states(runtime, ctx.project)
     by_id = {s["id"]: s for s in stages}
@@ -159,4 +161,5 @@ def project_state(request: Request, ctx: ProjectDep) -> dict[str, Any]:
         "stages": stages,
         "job": running.as_dict() if running else None,
         "identity_frozen": ctx.project.config.identity.frozen,
+        "changed_params": changed_counts(runtime, ctx),
     }

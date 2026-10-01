@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
-from fastapi import Request, Response
+from fastapi import Query, Request, Response
 from pydantic import BaseModel, Field
 
 from ..deps import ProjectDep
@@ -189,3 +189,44 @@ def put_params(
     view = params_view(runtime, project)
     response.headers["ETag"] = etag_of(view["version"])
     return view
+
+
+@routes.get("/api/recipe", action="params.read")
+def get_recipe(request: Request, response: Response, ctx: ProjectDep) -> dict[str, Any]:
+    """The recipe of the build, read-only: every parameter of every stage with its value, its
+    default, its origin (a rule with its reason), whether it differs and its tier, then the
+    pinned map version's layout; each row names the page whose « Tune » panel edits it."""
+    from ..recipe import recipe_view
+
+    view = recipe_view(runtime_of(request), ctx)
+    response.headers["ETag"] = etag_of(view["version"])
+    return view
+
+
+@routes.get("/api/recipe/export", action="params.read")
+def export_recipe(
+    request: Request,
+    ctx: ProjectDep,
+    format: Literal["md", "csv"] = "md",
+    language: Annotated[str, Query(max_length=8)] = "",
+) -> Response:
+    """The recipe as Markdown (one table per stage) or CSV (one row per parameter), with the
+    parameters' labels in *language* (an interface language; English otherwise)."""
+    from datetime import date
+
+    from cartolex.project.project import cartolex_version
+
+    from ..recipe import catalogue, recipe_csv, recipe_markdown, recipe_view
+    from ..static_files import PACKAGE_STATIC
+
+    runtime = runtime_of(request)
+    lang = language if language in runtime.settings.locales else "en"
+    words = catalogue(runtime.settings.static_dir or PACKAGE_STATIC, lang)
+    view = recipe_view(runtime, ctx)
+    if format == "csv":
+        body, media = recipe_csv(view, words), "text/csv; charset=utf-8"
+    else:
+        made = f"cartolex {cartolex_version()}, {date.today().isoformat()}"
+        body, media = recipe_markdown(view, words, made), "text/markdown; charset=utf-8"
+    return Response(body.encode("utf-8"), media_type=media,
+                    headers={"Content-Disposition": f'attachment; filename="recipe.{format}"'})  # fmt: skip
