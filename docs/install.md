@@ -120,6 +120,12 @@ and names the command that installs it.
 Install one with `pip install "cartolex[llm]"` (or `"cartolex[llm,tsne]"`).
 Without it, the feature says which extra it needs.
 
+The installer kit installs `cartolex[tsne]`, and plain `cartolex` where openTSNE
+cannot be installed: openTSNE (BSD-3-Clause) has wheels for Python 3.10 to 3.14
+on Linux x86-64, macOS (Intel and Apple silicon) and Windows, but none for Linux
+on ARM, where pip would have to compile it. Without it the screens still list
+t-SNE, switched off, with the reason and the command that installs it.
+
 ## The first run
 
 `cartolex` starts the app on a free port of this computer and opens it in

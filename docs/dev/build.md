@@ -113,10 +113,21 @@ records a failed attempt with the reason. When a stage upstream in the same
 build will report a size again (the vocabulary is being rebuilt), the plan
 leaves the check to the run.
 
+A `ParamSpec` also carries what the screens need, which never changes what a
+value may be: its `tier` (`essential`, `intermediate`, `advanced`: how
+prominent it is, from the one table `PARAM_TIERS` of `stages.py`, see
+{doc}`params-tiers`), a `widget` when its type does not say its control
+(`order` for `provider_priority`, `levels` for `level_sizes`; `shape` infers
+the others), `keys` for a list that may be given per slot kind (`parts`,
+`doc_types`: then its value is one list, or an object with a list, or `null`
+when the parameter is nullable, for each kind) and `suggestions`, the items a
+control offers for an open list. `GET /api/params` gives them with each
+parameter (`tier`, `widget`, `keys`, `suggestions`).
+
 | stage | parameter | default | allowed | on the method screen |
 | --- | --- | --- | --- | --- |
-| `corpus.assemble` | `parts` | rule `parts_by_slot_kind`: title, abstract for a collection slot; title, abstract, full for a folder or a corpus slot | title, abstract, body, full (a list set here applies to every slot) | Texts |
-| `corpus.assemble` | `doc_types` | rule `doc_types_by_slot_kind`: article, book, chapter, communication, preprint, proceedings, report, review, thesis for a collection slot; every type for a folder or a corpus slot; a slot's own `doc_types` replace it | document types (a list set here applies to every slot without its own) | Texts |
+| `corpus.assemble` | `parts` | rule `parts_by_slot_kind`: title, abstract for a collection slot; title, abstract, full for a folder or a corpus slot | title, abstract, body, full: one list for every slot, or an object giving each slot kind (`collection`, `folder`, `corpus`) its own | Texts |
+| `corpus.assemble` | `doc_types` | rule `doc_types_by_slot_kind`: article, book, chapter, communication, preprint, proceedings, report, review, thesis for a collection slot; every type for a folder or a corpus slot; a slot's own `doc_types` replace it | document types: one list for every slot without its own, or an object giving each slot kind its own (`null`: every type) | Texts |
 | `corpus.assemble` | `provider_priority` | folder, openalex, hal, scielo, europepmc, arxiv, biorxiv | provider names; the others follow alphabetically | Texts |
 | `corpus.assemble` | `recency_years` | 5 | 0–200; 0 keeps every year | Texts |
 | `corpus.assemble` | `duplicate_min_title` | 25 | 1–1 000 characters of the normalised title: shorter titles never make two texts one work | Texts › The same work |

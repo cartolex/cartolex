@@ -2,8 +2,10 @@
 """The method screen (`/method`) on the real app, the S demo world at depth 2.
 
 One scenario over the steps: the API calls of a step, a parameter changed
-(its mark, saved, not built yet) and put back, the diagnostics' figures of
-each step, a layout preview computed as a job and shown beside the map, and
+(its mark, saved, not built yet) and put back, the tiers' folds, the parts by
+slot kind, the providers' order and the levels edited and read back, the
+diagnostics' figures of each step, t-SNE switched off with its reason when
+openTSNE is missing, a layout preview computed as a job and shown beside the map, and
 « rebuild from here » opening the pre-flight sheet; axe on the screen. The
 review screenshots, with ``--ui-screenshots DIR``.
 """
@@ -15,6 +17,8 @@ from pathlib import Path
 
 import pytest
 from test_accessibility import blocking, run_axe
+
+import cartolex.atlas.reducers as reducers
 
 
 def api_calls(ui, since: int) -> list[str]:
@@ -33,13 +37,20 @@ def step(ui, name: str) -> None:
     ui.wait_ready(before)
 
 
+def saved(ui) -> None:
+    """The edits are saved: Save is disabled again (a toast may be an earlier save's)."""
+    ui.page.wait_for_function(
+        "() => document.querySelector('.cx-method-card .cx-settings__actions button').disabled"
+    )
+
+
 def settled(ui) -> None:
     ui.page.wait_for_function(
         "() => !document.querySelector('[aria-busy=true], .cx-card--loading')"
     )
 
 
-def test_the_steps_of_the_method(demo_s, app_for, open_app, axe_source):
+def test_the_steps_of_the_method(demo_s, app_for, open_app, axe_source, monkeypatch):
     ui = open_app(app_for(demo_s))
     page = ui.page
     before = len(ui.collected.requests)
@@ -51,18 +62,59 @@ def test_the_steps_of_the_method(demo_s, app_for, open_app, axe_source):
     assert blocking(run_axe(ui, axe_source, ".cx-method")) == []
 
     # a parameter changed: marked, saved, not built yet; then back to its default
-    row = page.locator("tr[data-param='keywords.extract.min_people']")
+    row = page.locator("[data-param='keywords.extract.min_people']")
     row.get_by_role("spinbutton").fill("4")
-    row.get_by_text("Changed: the default is 3").wait_for()
-    page.get_by_role("button", name="Save").click()
+    row.get_by_text("Changed", exact=True).wait_for()
+    row.get_by_text("Default: 3").wait_for()
+    page.get_by_role("button", name="Save", exact=True).click()
     page.get_by_text("Build options saved").first.wait_for()
     row.get_by_text(re.compile("Not built with this value yet")).wait_for()
     row.get_by_role("button", name="Back to default").click()
-    page.get_by_role("button", name="Save").click()
+    page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_function(
         "() => document.querySelector('.cx-method-card .cx-settings__actions button').disabled"
     )
-    row.get_by_text("Changed: the default is 3").wait_for(state="detached")
+    row.get_by_text("Changed", exact=True).wait_for(state="detached")
+    # the tiers: the rules of the filters are folded under « Advanced »
+    stop_words = page.locator("[data-param='keywords.extract.stop_words']")
+    assert not stop_words.is_visible()
+    page.get_by_text(re.compile(r"^Advanced \(\d+\)$")).click()
+    stop_words.get_by_role("switch").wait_for()
+
+    # real controls: the parts by slot kind, the providers' order, the levels, round-tripped
+    step(ui, "Texts")
+    settled(ui)
+    page.get_by_role("checkbox", name="Collected texts: abstract").uncheck()
+    page.get_by_text(re.compile(r"^Advanced \(\d+\)$")).click()
+    hal = page.get_by_role("listitem", name=re.compile(r"^HAL, 3 of"))
+    hal.focus()
+    page.keyboard.press("Alt+ArrowUp")
+    page.get_by_role("listitem", name=re.compile(r"^HAL, 2 of")).wait_for()
+    page.get_by_role("button", name="Save", exact=True).click()
+    saved(ui)
+    step(ui, "Grouping")
+    settled(ui)
+    levels = page.locator("[data-param='themes.group.level_sizes']")
+    levels.get_by_role("checkbox", name="Set the size of each level").check()
+    levels.get_by_role("spinbutton", name="Level 1").fill("3")
+    levels.get_by_role("button", name="Add a level").click()
+    levels.get_by_role("spinbutton", name="Level 2").fill("9")
+    page.get_by_role("button", name="Save", exact=True).click()
+    saved(ui)
+    ui.navigate("/method?step=texts")
+    settled(ui)
+    assert not page.get_by_role("checkbox", name="Collected texts: abstract").is_checked()
+    assert page.get_by_role("checkbox", name="Folders of documents: abstract").is_checked()
+    # a fold holding a changed parameter opens by itself
+    assert (
+        page.locator("details.cx-method-tier[open]").filter(has_text="provider_priority").count()
+        == 1
+    )
+    page.get_by_role("listitem", name=re.compile(r"^HAL, 2 of")).wait_for()
+    ui.navigate("/method?step=grouping")
+    settled(ui)
+    levels = page.locator("[data-param='themes.group.level_sizes']")
+    assert levels.get_by_role("spinbutton", name="Level 2").input_value() == "9"
 
     # the space: the rule of its dimensions, the variance and the neighbours kept
     step(ui, "Space")
@@ -77,9 +129,15 @@ def test_the_steps_of_the_method(demo_s, app_for, open_app, axe_source):
     page.get_by_role("img", name="Keywords per group at each level, by θ").wait_for()
     page.get_by_role("img", name="How the top-level themes join").wait_for()
 
-    # the layout: a preview computed as a job, beside the map on the same people
+    # the layout: t-SNE listed switched off with its reason when openTSNE is missing
+    monkeypatch.setattr(reducers, "opentsne_available", lambda: False)
     step(ui, "Layout")
     settled(ui)
+    assert page.get_by_role("radio", name="t-SNE").is_disabled()
+    page.get_by_text(
+        re.compile(r"needs the optional openTSNE package.*cartolex\[tsne\]")
+    ).first.wait_for()
+    # a preview computed as a job, beside the map on the same people
     page.get_by_role("group", name="Layout to preview").get_by_role("spinbutton").first.fill("10")
     page.get_by_role("button", name="Preview").click()
     page.get_by_text(re.compile(r"UMAP: \d+ ?% of the nearest people kept")).wait_for(

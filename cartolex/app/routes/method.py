@@ -51,11 +51,12 @@ def preview(request: Request, ctx: ProjectDep, body: PreviewBody) -> JSONRespons
     """The preview of a layout on a sample of the people, with the map on the same sample: 200
     with ``preview`` when it was computed on the current space, else 202 with the ``job`` that
     computes it (send the same request again once it ends)."""
-    from ..method import LAYOUT_DEFAULTS, _methods, layout_preview, preview_key
+    from ..method import LAYOUT_DEFAULTS, layout_preview, preview_key, unavailable_methods
 
     runtime = runtime_of(request)
-    if body.method not in _methods():
-        raise ApiError.of("layout_method_unavailable", method=body.method)
+    missing = unavailable_methods().get(body.method)
+    if missing is not None:
+        raise ApiError.of("layout_method_unavailable", **missing["params"])
     known = [p["name"] for p in LAYOUT_DEFAULTS[body.method]]
     for key in body.params:
         if key not in known:

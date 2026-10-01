@@ -212,7 +212,10 @@ ERRORS: dict[str, ErrorKind] = {
         422, "the {method} layout takes no parameter {param}; it takes: {known}", "fix-input"
     ),
     "layout_method_unavailable": ErrorKind(
-        422, "the {method} layout is not installed on this computer", "fix-input"
+        422,
+        "the {method} layout needs the optional {package} package, which is not installed on "
+        "this computer: run the installer again, or {command}",
+        "fix-input",
     ),
     "preview_needs_build": ErrorKind(409, "this preview needs {stage} built first", "build"),
     "base_not_found": ErrorKind(404, "there is no base map {base}", "reload"),

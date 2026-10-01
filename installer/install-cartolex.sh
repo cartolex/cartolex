@@ -8,6 +8,9 @@
 # the system's certificates (UV_NATIVE_TLS, for networks that inspect HTTPS), then the
 # system's Python 3.10 or later. HTTPS_PROXY, HTTP_PROXY and NO_PROXY are followed.
 #
+# cartolex is installed with the t-SNE layout (the extra "tsne", openTSNE); where that
+# cannot be installed (no wheel for this computer and no compiler), without it.
+#
 # For testing: CARTOLEX_WHEEL=/path/to/cartolex-*.whl (or a wheel next to this file)
 # installs that file instead of the pinned release; CARTOLEX_ROUTE=system skips uv.
 # Running this again updates the installation.
@@ -56,12 +59,15 @@ if [ -z "$WHEEL" ]; then
 fi
 if [ -n "$WHEEL" ]; then
   [ -f "$WHEEL" ] || fail "the wheel $WHEEL does not exist"
+  WHEEL="$(cd "$(dirname "$WHEEL")" && pwd)/$(basename "$WHEEL")"
   SPEC="$WHEEL"
+  FULL_SPEC="cartolex[tsne] @ file://$WHEEL"
   say "installing the wheel $WHEEL"
 elif [ "${PIN#@}" != "$PIN" ]; then
   fail "this copy of the installer names no version: use the kit of a release"
 else
   SPEC="cartolex==$PIN"
+  FULL_SPEC="cartolex[tsne]==$PIN"
   say "installing cartolex $PIN"
 fi
 
@@ -107,7 +113,10 @@ install_with_uv() {
     rm -rf "$ENV_DIR"
     "$UV" venv --quiet --python "$UV_PYTHON_VERSION" "$ENV_DIR" || return 1
   fi
-  "$UV" pip install --python "$(env_python)" --upgrade "$SPEC" || return 1
+  if ! "$UV" pip install --python "$(env_python)" --upgrade "$FULL_SPEC"; then
+    say "the t-SNE layout (openTSNE) cannot be installed here; installing cartolex without it"
+    "$UV" pip install --python "$(env_python)" --upgrade "$SPEC" || return 1
+  fi
   # cartolex models add installs with uv when the environment has no pip.
   PATH="$(dirname "$UV"):$PATH" "$ENV_DIR/bin/cartolex" models add $MODELS --yes || return 1
 }
@@ -136,7 +145,10 @@ install_with_python() {
       fail "Python could not create an environment (on Debian or Ubuntu: sudo apt install python3-venv)"
   fi
   "$(env_python)" -m pip --version >/dev/null 2>&1 || "$(env_python)" -m ensurepip --upgrade || return 1
-  "$(env_python)" -m pip install --upgrade "$SPEC" || return 1
+  if ! "$(env_python)" -m pip install --upgrade "$FULL_SPEC"; then
+    say "the t-SNE layout (openTSNE) cannot be installed here; installing cartolex without it"
+    "$(env_python)" -m pip install --upgrade "$SPEC" || return 1
+  fi
   "$ENV_DIR/bin/cartolex" models add $MODELS --yes || return 1
 }
 

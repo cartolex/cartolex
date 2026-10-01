@@ -208,20 +208,36 @@
   font-weight: var(--cx-weight-medium);
 }
 
-.cx-settings__params th[scope='row'] {
-  font-weight: normal;
-  max-width: 22rem;
-}
-
 .cx-settings__number {
   width: 8rem;
 }
 
-.cx-settings__json {
-  width: 100%;
-  min-width: 10rem;
-  font-family: var(--cx-font-mono);
-  font-size: var(--cx-text-xs);
+/* Parameters (pages/method/params.js), on the method screen and the build options */
+.cx-method-params {
+  margin: var(--cx-space-2) 0;
+}
+
+.cx-method-params__section {
+  margin: var(--cx-space-4) 0 var(--cx-space-1);
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-method-tier {
+  margin-top: var(--cx-space-4);
+  border-top: var(--cx-rule-width) solid var(--cx-rule);
+}
+
+.cx-method-tier__summary {
+  padding: var(--cx-space-2) 0;
+  font-weight: var(--cx-weight-medium);
+  cursor: pointer;
+}
+
+.cx-method-tier__summary:focus-visible {
+  outline: var(--cx-focus-width) solid var(--cx-focus);
+  outline-offset: var(--cx-focus-offset);
 }
 
 .cx-settings__code {

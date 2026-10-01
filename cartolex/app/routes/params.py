@@ -35,6 +35,10 @@ def _spec(spec: Any) -> dict[str, Any]:
         "nullable": spec.nullable,
         "items": list(spec.items) if spec.items else None,
         "section": spec.section or None,
+        "tier": spec.tier,
+        "widget": spec.shape,
+        "keys": list(spec.keys) if spec.keys is not None else None,
+        "suggestions": list(spec.suggestions) if spec.suggestions is not None else None,
     }
 
 
@@ -99,10 +103,22 @@ def params_view(runtime: Any, project: Any) -> dict[str, Any]:
             if name in specs:
                 entry.update(_spec(specs[name]))
             elif name == "seed":
-                entry.update({"type": "int", "description": "fixes every random choice"})
+                entry.update(
+                    {
+                        "type": "int",
+                        "description": "fixes every random choice",
+                        "tier": "advanced",
+                        "widget": "number",
+                    }
+                )
             elif name == "year":
                 entry.update(
-                    {"type": "int", "description": "the year date windows count back from"}
+                    {
+                        "type": "int",
+                        "description": "the year date windows count back from",
+                        "tier": "advanced",
+                        "widget": "number",
+                    }
                 )
             items.append(entry)
         if items:

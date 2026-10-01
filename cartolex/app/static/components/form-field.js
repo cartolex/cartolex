@@ -62,13 +62,13 @@ export function Textarea({ class: cls = '', rows = 4, ...rest }) {
 }
 
 /**
- * A select styled for FormField.
- * @param {{options: Array<{value: string, label: any}>}} props
+ * A select styled for FormField; an option may be `disabled` (shown, not chosen).
+ * @param {{options: Array<{value: string, label: any, disabled?: boolean}>}} props
  */
 export function Select({ options, class: cls = '', ...rest }) {
   return html`<span class="cx-select">
     <select class=${`cx-input cx-select__control ${cls}`} ...${rest}>
-      ${options.map((o) => html`<option value=${o.value} key=${o.value}>${o.label}</option>`)}
+      ${options.map((o) => html`<option value=${o.value} key=${o.value} disabled=${o.disabled}>${o.label}</option>`)}
     </select>
     <${Icon} name="chevron-down" class="cx-select__chevron" />
   </span>`;

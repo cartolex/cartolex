@@ -486,6 +486,116 @@ def _overlay_tables(project: Project) -> list[tuple[str, Path]]:
     return files
 
 
+#: The slot kinds a keyed parameter (``parts``, ``doc_types``) gives a value of its own.
+SLOT_KINDS = ("collection", "folder", "corpus")
+#: The document types the controls of ``doc_types`` offer (any other is allowed).
+DOC_TYPE_SUGGESTIONS = (
+    "article",
+    "book",
+    "chapter",
+    "communication",
+    "preprint",
+    "proceedings",
+    "report",
+    "review",
+    "thesis",
+    "dataset",
+    "software",
+    "peer-review",
+    "other",
+)
+
+_E, _M, _A = "essential", "intermediate", "advanced"
+
+#: How prominent each parameter is on the screens: the one table to change (the reasons
+#: are in docs/dev/params-tiers.md). Every parameter of every stage is listed once.
+PARAM_TIERS: dict[str, dict[str, str]] = {
+    "corpus.assemble": {
+        "parts": _E,
+        "recency_years": _E,
+        "doc_types": _M,
+        "provider_priority": _A,
+        "duplicate_min_title": _A,
+        "duplicate_year_gap": _A,
+    },
+    "keywords.extract": {
+        "min_people": _E,
+        "min_texts": _E,
+        "counting_unit": _M,
+        "max_share": _M,
+        "rejects": _M,
+        "max_words": _M,
+        "length_bonus": _M,
+        "max_candidates": _A,
+        "vote": _A,
+        "of_complement": _A,
+        "fragment_share": _A,
+        "drop_share": _A,
+        "keep_share": _A,
+        "name_share": _A,
+        "stop_words": _A,
+        "closed_word_edges": _A,
+        "foreign_reading": _A,
+        "even_spread": _A,
+        "even_people": _A,
+        "common_modifier": _A,
+    },
+    "keywords.triage": {"enabled": _M},
+    "keywords.build": {
+        "max_keywords": _E,
+        "keywords_per_person": _M,
+        "keywords_per_organisation": _M,
+        "keywords_of_field": _M,
+        "weights_basis": _M,
+        "nested_threshold": _A,
+        "ngram_range": _A,
+    },
+    "themes.space": {
+        "space_unit": _E,
+        "dimensions": _E,
+        "svd_seed": _A,
+        "svd_iterations": _A,
+        "svd_algorithm": _A,
+    },
+    "themes.group": {
+        "depth": _E,
+        "level_sizes": _E,
+        "comb": _E,
+        "top_groups": _M,
+        "keywords_per_group": _M,
+        "comb_theta": _M,
+        "cluster_dimensions": _A,
+        "exact_ward_limit": _A,
+        "micro_clusters": _A,
+        "micro_seed": _A,
+        "comb_grid": _A,
+        "comb_theta_one_level": _A,
+        "comb_min_texts": _A,
+        "comb_max_cells": _A,
+        "own_name_floor": _A,
+    },
+    "map.layout": {"neighbours": _M, "link_radius": _A},
+    "map.trajectories": {"window_years": _E, "min_texts_per_window": _M},
+}
+
+
+def _tiered(stages: list[Stage]) -> list[Stage]:
+    """*stages* with each parameter's tier from :data:`PARAM_TIERS`, which must list them all."""
+    declared = {(s.id, p.name) for s in stages for p in s.params}
+    listed = {(sid, name) for sid, names in PARAM_TIERS.items() for name in names}
+    if declared != listed:
+        missing = sorted(f"{a}.{b}" for a, b in declared - listed)
+        extra = sorted(f"{a}.{b}" for a, b in listed - declared)
+        raise ValueError(f"PARAM_TIERS: missing {missing}, unknown {extra}")
+    return [
+        dataclasses.replace(
+            s,
+            params=tuple(dataclasses.replace(p, tier=PARAM_TIERS[s.id][p.name]) for p in s.params),
+        )
+        for s in stages
+    ]
+
+
 #: cartolex's stages, each running the engine (``cartolex.build.engine``). The AI
 #: clean-up needs a key or a client: see :func:`cartolex.build.engine.engine_registry`.
 #: Cost models: fitted with tools/cost_fit.py on each stage run in a fresh process on
@@ -519,15 +629,19 @@ STAGES = Registry(
                     rule="parts_by_slot_kind",
                     choices=("title", "abstract", "body", "full"),
                     minimum=1,
+                    keys=SLOT_KINDS,
                 ),
                 ParamSpec(
                     "doc_types",
                     "list",
                     "the document types read, for every slot without doc_types of its own (by "
                     "default, by the kind of the slot: a collection reads texts, not datasets, "
-                    "software or peer reviews)",
+                    "software or peer reviews; empty: every type)",
                     rule="doc_types_by_slot_kind",
                     minimum=1,
+                    nullable=True,
+                    keys=SLOT_KINDS,
+                    suggestions=DOC_TYPE_SUGGESTIONS,
                 ),
                 ParamSpec(
                     "provider_priority",
@@ -543,6 +657,7 @@ STAGES = Registry(
                         "arxiv",
                         "biorxiv",
                     ],
+                    widget="order",
                 ),
                 ParamSpec(
                     "recency_years",
@@ -1007,6 +1122,7 @@ STAGES = Registry(
                     nullable=True,
                     minimum=1,
                     items=(1, 4),
+                    widget="levels",
                 ),
                 ParamSpec(
                     "cluster_dimensions",
@@ -1233,3 +1349,4 @@ STAGES = Registry(
         ),
     ]
 )
+STAGES = Registry(_tiered(list(STAGES)))

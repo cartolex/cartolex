@@ -35,6 +35,7 @@ dev/engine
 dev/extraction
 dev/lexicon-lab
 dev/build
+dev/params-tiers
 dev/themes
 dev/themes-engine
 dev/checks

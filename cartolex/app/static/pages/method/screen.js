@@ -2,8 +2,10 @@
 /**
  * The method screen (`/method?step=<id>`): the steps of the build in pipeline
  * order on the left, each with the state of its stages; on the right, one
- * step: its parameters (value, origin, limits, a mark when a value differs
- * from its default, back to default), what the step produced (its
+ * step: its parameters by tier (the essential ones, then « More » and
+ * « Advanced » folded), each with the control of its shape, its default and
+ * origin, a mark when it differs, back to default; on the layout step also
+ * the map's layout method, its parameters and seed; what the step produced (its
  * diagnostic, read from the stage's outputs), and « rebuild from here »,
  * which opens the pre-flight sheet for this step and every step after it.
  *
@@ -23,6 +25,7 @@ import { KeywordsDiagnostic } from './keywords.js';
 import { SpaceDiagnostic } from './space.js';
 import { GroupingDiagnostic } from './grouping.js';
 import { LayoutDiagnostic } from './layout.js';
+import { MapSettings } from './map-settings.js';
 
 const DIAGNOSTICS = {
   texts: TextsDiagnostic,
@@ -69,8 +72,10 @@ function StepPanel({ ctx, app, step }) {
         onClick=${() => ctx.navigate(rebuildHref(step.from))}>${t('method.rebuild')}<//>`}>
       ${params.error ? html`<${ErrorCard} error=${params.error} compact onRetry=${params.reload} />` : null}
       ${params.data ? html`<p class="cx-settings__note">${t(`method.params.lead.${step.id}`)}</p>
+        ${step.id === 'layout' && view.data ? html`<${MapSettings} ctx=${ctx} app=${app} view=${view.data} />
+          <h4 class="cx-method-subtitle">${t('method.map.placement')}</h4>` : null}
         ${rows.length ? html`<${ParamTable} rows=${rows} edits=${editor.edits} setEdit=${editor.setEdit}
-          label=${t('method.params.title')} />` : html`<p class="cx-settings__muted">${t('method.params.none')}</p>`}
+          label=${t('method.params.title')} tiers />` : html`<p class="cx-settings__muted">${t('method.params.none')}</p>`}
         ${step.id === 'texts' ? html`<${WholeBuild} data=${params.data} global=${global} setGlobal=${setGlobal} />` : null}
         <${ParamActions} editor=${combined} onSave=${save} />
         <p class="cx-settings__muted">${t('method.rebuild_help')}</p>` : null}

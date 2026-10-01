@@ -241,7 +241,8 @@ empty, long text); the gallery shows them all.
 | Menu, MenuButton, ContextMenuArea | arrows, Home/End, type-ahead, radio and checkbox items, groups; Escape gives the focus back; right click, Shift+F10 or the Menu key |
 | Dialog, Drawer, ConfirmDialog | native `<dialog>`, focus trap, Escape, focus returned |
 | Toast | two live regions (polite, assertive); errors stay until dismissed |
-| FormField, Input, Textarea, Select, Checkbox | label, help, error in words, « required » in words |
+| FormField, Input, Textarea, Select, Checkbox | label, help, error in words, « required » in words; a Select's option may be disabled |
+| ParamField, ParamControl | a build parameter edited with the control of its shape (`widget`, else `shapeOf()`): a switch, a segmented choice (a choice this computer cannot use shown switched off with its reason), a slider with its default marked, chips, a reorderable list (Alt+↑/↓), two numbers, one number per level, a grid of slot kinds × items; « Not set » for a nullable value; the field adds the default, the origin (a rule's reason), the marks and « Back to default » |
 | EmptyState | always names the next action |
 | ErrorCard | see the API client above |
 | ProgressBar | never goes back; indeterminate without a value |
@@ -379,8 +380,10 @@ settings menu) loads `pages/method/screen.js`: the steps of the build in
 pipeline order (texts, keywords, space, grouping, layout), each with the
 shape of its stages' state, one step at a time (`/method?step=<id>`). A step
 shows its parameters (`params.js`, shared with the settings' build options:
-value, origin, limits, a mark when a value differs from its default and when
-the last build used another, back to default, saved with `If-Match`), what
+each a ParamField, the essential ones first, then « More » and « Advanced »
+folded, saved with `If-Match`); the layout step also shows the map's layout
+(`map-settings.js`: the method, its parameters by tier and the seed of the
+pinned map version, saved as a new version, pinned), what
 the step produced (`texts.js`, `keywords.js`, `space.js`, `grouping.js`,
 `layout.js`, from `GET /api/method/<step>`) and « rebuild from here », the
 pre-flight sheet with that stage forced (`/build?force=<stage>`). The figures
