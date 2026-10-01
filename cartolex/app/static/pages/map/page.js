@@ -8,7 +8,8 @@
  * view places organisations at their address. Everything the page shows is in
  * the address (see `state.js`). Reads `GET /api/atlas` when it opens; the
  * texts, and the keywords of people and organisations, when they are shown.
- * The map's « Tune » panel (`pages/tune/`) reads nothing until it opens.
+ * The map's « Tune » panel (`pages/tune/`) reads nothing until it opens; a change of the
+ * layout there is previewed on this map (`preview.js`), kept as the pinned version or discarded.
  */
 import { html, useEffect, useMemo, useRef, useState } from '../../core/preact.js';
 import { locale, t } from '../../core/i18n.js';
@@ -27,6 +28,7 @@ import { Find } from './find.js';
 import { TreePanel } from './tree.js';
 import { VersionsDialog } from './versions.js';
 import { TunePanel } from '../tune/panel.js';
+import { PreviewBar, createLayoutPreview, previewScene } from './preview.js';
 
 const PICKED = { people: 'person', keywords: 'keyword', organisations: 'organisation', texts: 'text',
   projected: 'projected', windows: 'person' };
@@ -120,6 +122,11 @@ export function AtlasScreen() {
   const [land, setLand] = useState(null);
   const frame = useRef(null);
   const asked = useRef(new Set());
+  const preview = useMemo(() => createLayoutPreview({ api: ctx.api, jobs: app.stores.jobs }), []);
+  const [keeping, setKeeping] = useState(false);
+  useEffect(() => () => preview.dispose(), []);
+  // a layout draft outlives the panel: leaving asks first
+  useEffect(() => ctx.guard({ dirty: () => preview.draft.value !== null }), []);
 
   const setState = (patch) => {
     setStateRaw((s) => {
@@ -198,6 +205,12 @@ export function AtlasScreen() {
       : mapScene(index, state, { texts, sets, locale: locale.value });
   }, [index, state, texts, sets, locale.value, land]);
 
+  // a preview of the layout replaces the map's scene (the sample of people it drew)
+  const shown = preview.phase.value !== 'idle' ? preview.preview.value : null;
+  const before = Boolean(shown && shown.current && preview.side.value === 'before');
+  const previewed = useMemo(() => (shown && index && state.view !== 'world'
+    ? previewScene(before ? shown.current.points : shown.points, shown.themes, index) : null), [shown, before, index, state.view]);
+
   const select = (sel, { centre = false } = {}) => {
     setState({ sel });
     if (!sel || !centre || !frame.current || !index) return;
@@ -244,14 +257,20 @@ export function AtlasScreen() {
         action=${{ label: t('map.none.build'), href: '/build?scope=map' }}>${t('map.none.text')}<//>
     </div>`;
   }
-  const { scene, counts, notes } = built;
+  const { counts, notes } = built;
+  const scene = previewed || built.scene;
+  const keep = async () => {
+    setKeeping(true);
+    await preview.keep(ctx.navigate, app.toaster);
+    setKeeping(false);
+  };
   const sel = state.sel;
   const lit = scene.layers.reduce((n, l) => n + (l.highlightCount || 0), 0);
   const status = sel ? t('map.status', { count: lit }) : '';
   const base = atlas.base || null;
   return html`<div class="cx-page cx-atlas">
     ${head}
-    <${TunePanel} ctx=${ctx} id="map" />
+    <${TunePanel} ctx=${ctx} id="map" preview=${preview} />
     ${base ? html`<div class="cx-atlas__banner" role="status">
       <p>${t('map.base.banner', { name: base.name, version: base.map_version, shared: base.shared_keywords })}</p>
       <${Button} size="s" onClick=${() => setState({ base: '', sel: null })}>${t('map.base.back')}<//>
@@ -263,6 +282,7 @@ export function AtlasScreen() {
       <${TreePanel} index=${index} state=${state} onSelect=${(s) => select(s)}
         onZoom=${(theme) => setState({ theme })} />
       <div class="cx-atlas__map">
+        ${preview.phase.value !== 'idle' ? html`<${PreviewBar} store=${preview} onKeep=${keep} busy=${keeping} />` : null}
         <div class="cx-atlas__tools">
           <${IconButton} icon="plus" size="s" label=${t('themes.map.zoom_in')}
             onClick=${() => frame.current && frame.current.zoomBy(1.4)} />
@@ -272,14 +292,16 @@ export function AtlasScreen() {
             ${t('themes.map.fit')}<//>
           <span class="cx-atlas__keys" aria-hidden="true">${t('themes.map.keys')}</span>
         </div>
-        <${MapFrame} class="cx-atlas__frame" scene=${scene} frameRef=${frame}
-          label=${state.view === 'world' ? t('map.world.label') : t('map.label')} status=${status}
-          onPick=${(hit) => select(pickOf(scene, hit, index, texts))}
+        <${MapFrame} class=${`cx-atlas__frame ${previewed ? 'is-preview' : ''}`} scene=${scene} frameRef=${frame}
+          label=${previewed ? t(before ? 'map.preview.before_label' : 'map.preview.label', { n: shown.sample })
+            : state.view === 'world' ? t('map.world.label') : t('map.label')} status=${status}
+          onPick=${(hit) => (previewed ? null : select(pickOf(scene, hit, index, texts)))}
           hoverCard=${(hit) => {
-            const s = pickOf(scene, hit, index, texts);
+            const s = previewed ? null : pickOf(scene, hit, index, texts);
             return s ? html`<${HoverCard} sel=${s} index=${index} texts=${texts} />` : null;
           }}
-          legend=${html`<${Legend} index=${index} state=${state} counts=${counts} onSelect=${(s) => select(s)} />`} />
+          legend=${html`<${Legend} index=${index} state=${state} counts=${previewed ? { people: shown.sample } : counts}
+            onSelect=${(s) => select(s)} />`} />
       </div>
       <${Panel} index=${index} state=${state} counts=${counts} sets=${sets} texts=${texts} base=${base}
         onSelect=${(s) => select(s, { centre: true })} onClose=${() => setState({ sel: null })} />

@@ -8,6 +8,11 @@
  * adds a map version with them, pins it and opens the pre-flight sheet of the
  * map (`POST /api/map/versions`, `try` then `pin`, with `If-Match`).
  *
+ * On the atlas, each change is a draft of the map's preview store
+ * (`pages/map/preview.js`): a moment later the atlas draws its preview on the map, which
+ * « Keep » (or « Save » here) turns into the pinned map version and « Discard » drops (the
+ * fields go back to the pinned version). The draft outlives the panel closed and opened again.
+ *
  * It reads nothing when it opens: the layout's diagnostic
  * (`GET /api/method/layout`) carries the methods, their parameters and the
  * pinned version.
@@ -18,6 +23,7 @@ import { t } from '../../core/i18n.js';
 import { Button, Input, ParamControl, ParamField } from '../../components/index.js';
 import { refusal } from '../settings/common.js';
 import { LabelWithCode, paramLabel } from './params.js';
+import { previewBody } from '../map/preview.js';
 
 const TIERS = ['essential', 'intermediate', 'advanced'];
 
@@ -27,20 +33,53 @@ function firstAvailable(view) {
   return view.methods.find((m) => !(m in off)) || view.methods[0];
 }
 
-export function MapSettings({ ctx, app, view }) {
+/** The parameters a draft gives its method: the pinned version's own (same method), then the edits. */
+function draftParams(pinned, method, edits) {
+  const params = { ...(pinned && pinned.method === method ? pinned.params || {} : {}) };
+  for (const [name, e] of Object.entries(edits)) {
+    if (e.reset) delete params[name];
+    else params[name] = e.value;
+  }
+  return params;
+}
+
+export function MapSettings({ ctx, app, view, preview = null }) {
   const pinned = view.pinned;
   const off = view.unavailable || {};
   const start = pinned && !(pinned.method in off) ? pinned.method : firstAvailable(view);
-  const [method, setMethod] = useState(start);
-  const [edits, setEdits] = useState({});
-  const [seed, setSeed] = useState(pinned ? pinned.seed : 0);
+  const kept = preview && preview.draft.value;
+  const [method, setMethod] = useState(kept ? kept.method : start);
+  const [edits, setEdits] = useState(kept ? kept.edits : {});
+  const [seed, setSeed] = useState(kept ? kept.seed : pinned ? pinned.seed : 0);
   const [problem, setProblem] = useState(null);
   const [busy, setBusy] = useState(false);
   const own = pinned && pinned.method === method ? pinned.params || {} : {};
   const dirty = Boolean(pinned) && (method !== pinned.method || seed !== pinned.seed || Object.keys(edits).length > 0);
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty;
-  useEffect(() => ctx.guard({ dirty: () => dirtyRef.current }), []);
+  // on the atlas the page guards the draft (it outlives the panel); elsewhere, the panel does
+  useEffect(() => (preview ? undefined : ctx.guard({ dirty: () => dirtyRef.current })), []);
+
+  // « Discard » on the map: back to the pinned version
+  const generation = preview ? preview.generation.value : 0;
+  const seen = useRef(generation);
+  useEffect(() => {
+    if (seen.current === generation) return;
+    seen.current = generation;
+    setMethod(start); setEdits({}); setSeed(pinned ? pinned.seed : 0); setProblem(null);
+  }, [generation]);
+
+  // each change: a draft of the map's preview (or none, back at the pinned version)
+  useEffect(() => {
+    if (!preview || !pinned) return;
+    if (!dirty) {
+      if (preview.active()) preview.discard();
+      return;
+    }
+    if (Object.values(edits).some((e) => e.invalid)) return;
+    const draft = { method, seed, edits };
+    preview.ask(previewBody(view, { method, seed, params: draftParams(pinned, method, edits) }), draft);
+  }, [method, seed, edits]);
 
   const specs = ((view.parameters || {})[method] || []).map((s) => {
     const set = s.name in own && own[s.name] !== null;
@@ -62,6 +101,13 @@ export function MapSettings({ ctx, app, view }) {
     setProblem(null);
     if (Object.values(edits).some((e) => e.invalid)) return setProblem(t('param.field.invalid'));
     setBusy(true);
+    if (preview) {
+      // the same as « Keep » on the map
+      const done = await preview.keep(ctx.navigate, app.toaster);
+      setBusy(false);
+      if (!done && preview.problem.value) setProblem(refusal(preview.problem.value));
+      return undefined;
+    }
     const params = {};
     for (const p of specs) {
       const e = edits[p.name];
@@ -115,6 +161,7 @@ export function MapSettings({ ctx, app, view }) {
       ${dirty ? html`<${Button} variant="ghost" onClick=${() => {
         setMethod(start); setEdits({}); setSeed(pinned ? pinned.seed : 0);
       }}>${t('settings.build.undo')}<//>` : null}
+      ${preview && dirty ? html`<p class="cx-settings__muted">${t('method.map.preview_note')}</p>` : null}
     </div>
   </section>`;
 }

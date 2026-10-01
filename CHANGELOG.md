@@ -590,6 +590,16 @@ nothing in the engine names a particular deployment, source or procedure.
   each to its panel, and exports Markdown or CSV (`GET /api/recipe`,
   `GET /api/recipe/export`). `/method` now sends to the Recipe or to a step's
   page and has left the settings menu.
+- **Changes seen before a rebuild.** On the Map page, a change of the layout's
+  method, seed or a parameter is previewed on the map itself (a sample of at most
+  800 people, « Before » and « After » with the nearest people each keeps,
+  « Keep » as the pinned map version or « Discard »); a newer change supersedes
+  a preview being computed. On the Keywords page, moving `min_people`,
+  `min_texts`, `max_share` or `max_keywords` gives at once the candidates kept
+  and dropped against the last build and the strongest that would leave or
+  enter (`GET /api/method/keywords/preview`, nothing saved; a looser window
+  says it needs a new extraction). The map's frame never draws below its
+  border, and its legend no longer leaves a light block over the dark map.
 - **The method screen.** `/method` (the header's settings menu) shows the build
   step by step — texts, keywords, space, grouping, layout — each with its
   parameters (value, origin, limits, a mark when a value differs from its

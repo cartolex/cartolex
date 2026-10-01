@@ -12,7 +12,9 @@
  * holding a changed value opens by itself), the seed and the pinned year on
  * the texts, the map's layout (a map version, pinned) on the map; save and
  * undo; « Rebuild from here » (the pre-flight sheet with the panel's first
- * stage forced); and what the step produced. Above the header, when the
+ * stage forced); and what the step produced. On the keywords, the thresholds that filter the
+ * stored candidates are previewed as they move (`thresholds.js`); on the map, the layout's
+ * changes are drawn on the map itself (`pages/map/preview.js`). Above the header, when the
  * page's outputs need an update, a note names the first stage to rebuild and
  * offers to rebuild from it.
  */
@@ -32,6 +34,7 @@ import { SpaceDiagnostic } from './space.js';
 import { GroupingDiagnostic } from './grouping.js';
 import { LayoutDiagnostic } from './layout.js';
 import { MapSettings } from './map-settings.js';
+import { ThresholdsPreview } from './thresholds.js';
 
 const DIAGNOSTICS = {
   texts: TextsDiagnostic,
@@ -72,7 +75,7 @@ function Produced({ ctx, app, step, view, from, titled }) {
 }
 
 /** The opened panel: it reads the parameters and the diagnostics when it mounts. */
-function TuneBody({ ctx, app, id, panel }) {
+function TuneBody({ ctx, app, id, panel, preview }) {
   const params = useResource(ctx.api, '/api/params');
   // one resource per step; a panel's steps never change, so the hooks keep their order
   const views = panel.steps.map((step) => useResource(ctx.api, `/api/method/${step}`));
@@ -92,10 +95,11 @@ function TuneBody({ ctx, app, id, panel }) {
     ${params.error ? html`<${ErrorCard} error=${params.error} compact onRetry=${params.reload} />` : null}
     ${!params.data && !params.error ? html`<p class="cx-settings__muted" aria-busy="true">${t('common.loading')}</p>` : null}
     ${params.data ? html`<p class="cx-settings__note">${t(`tune.lead.${id}`)}</p>
-      ${layout && layout.data ? html`<${MapSettings} ctx=${ctx} app=${app} view=${layout.data} />
+      ${layout && layout.data ? html`<${MapSettings} ctx=${ctx} app=${app} view=${layout.data} preview=${preview} />
         <h4 class="cx-method-subtitle">${t('method.map.placement')}</h4>` : null}
       ${rows.length ? html`<${ParamTable} rows=${rows} edits=${editor.edits} setEdit=${editor.setEdit}
         label=${t(`tune.title.${id}`)} tiers />` : html`<p class="cx-settings__muted">${t('method.params.none')}</p>`}
+      ${id === 'keywords' ? html`<${ThresholdsPreview} ctx=${ctx} data=${params.data} edits=${editor.edits} />` : null}
       ${id === 'texts' ? html`<${WholeBuild} data=${params.data} global=${global} setGlobal=${setGlobal} />` : null}
       <${ParamActions} editor=${combined} onSave=${save} />
       <div class="cx-tune__rebuild">
@@ -119,9 +123,9 @@ function OutOfDate({ ctx, stage }) {
 
 /**
  * The « Tune » panel of the page *id* (`texts`, `keywords`, `themes`, `map`); *ctx* is the
- * page's context.
+ * page's context; on the map, *preview* is the page's layout preview (`pages/map/preview.js`).
  */
-export function TunePanel({ ctx, id }) {
+export function TunePanel({ ctx, id, preview = null }) {
   const { app } = ctx;
   const panel = PANELS[id];
   const uid = useUid('cx-tune');
@@ -145,7 +149,7 @@ export function TunePanel({ ctx, id }) {
       <${StatusDot} state=${panelState(panel, stages)} size="s" label />
     </div>
     <div class="cx-tune__body" id=${`${uid}-body`} hidden=${!open}>
-      ${open ? html`<${TuneBody} ctx=${ctx} app=${app} id=${id} panel=${panel} />` : null}
+      ${open ? html`<${TuneBody} ctx=${ctx} app=${app} id=${id} panel=${panel} preview=${preview} />` : null}
     </div>
   </section>`;
 }

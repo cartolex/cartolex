@@ -117,6 +117,8 @@ export async function boot(root) {
     enabled: Boolean(manifest.project && manifest.project.open),
     dismissed: prefs.dismissedJobs,
     onFinished: (job) => {
+      // a layout preview changes nothing in the project, and the map shows it: no toast
+      if (job.kind === 'preview') return;
       project.refresh();
       if (job.state === 'succeeded') {
         toaster.show({ kind: 'success', title: t('job.toast.succeeded', { title: jobTitle(job) }) });

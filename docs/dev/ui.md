@@ -396,9 +396,21 @@ undo (`params.js`, shared with the settings' build options, `If-Match`; a
 save refreshes the project state); « Rebuild from here », the pre-flight
 sheet with the panel's first stage forced (`/build?force=<stage>`); and what
 the step produced (`texts.js`, `keywords.js`, `space.js`, `grouping.js`,
-`layout.js`; on the map, the layout's preview on a sample of the people
-beside the map, a job the first time, then cached, which can become a map
-version). The figures (`charts.js`: stacked bars, lines with marks, a
+`layout.js`). Where a change is cheap to show, the panel shows it before a
+rebuild. On the keywords, the thresholds that only filter the stored
+candidates (`min_people` and `min_texts` raised, `max_share` lowered,
+`max_keywords` either way; `thresholds.js`, `GET /api/method/keywords/preview`)
+give at once the candidates kept and dropped against the last build, by band,
+the vocabulary's size and the strongest that would leave or enter; nothing is
+saved, and a value only a new extraction can show (a looser window) says so.
+On the map, a change of the layout's method, seed or a parameter is drawn on
+the map itself (`pages/map/preview.js`): a moment after the last change, a
+sample of at most 800 people drawn with it (`POST /api/method/layout/preview`,
+a job the first time, then cached), in a « Preview » state with « Before »
+(the map now on the same people) and « After », the nearest people each
+keeps, « Keep » (a map version, pinned, then the build of the map) and
+« Discard »; a change while a preview is computed cancels it and asks for the
+newest. The draft outlives the panel closed (leaving the page asks first). The figures (`charts.js`: stacked bars, lines with marks, a
 dendrogram) are SVG drawn from the numbers, each an image with a name and a
 caption, its numbers folded under it. When a stage a page's outputs depend
 on needs an update, the panel's note says so, names the first such stage and

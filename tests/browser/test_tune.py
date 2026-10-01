@@ -107,6 +107,46 @@ def test_the_keywords_panel(demo_s, app_for, open_app, axe_source):
     stop_words.get_by_role("switch").wait_for()
 
 
+def test_the_keywords_thresholds_show_their_counts_as_they_move(demo_s, app_for, open_app):
+    ui = open_app(app_for(demo_s))
+    page = ui.page
+    ui.navigate("/keywords?tune=1")
+    settled(ui)
+    box = page.locator(".cx-thresholds")
+    box.get_by_text("These are the last build's thresholds.").wait_for()
+    field = page.locator(".cx-tune [data-param='keywords.extract.min_people']").get_by_role(
+        "spinbutton"
+    )
+
+    def counts(before: str) -> str:
+        """The box's words once they changed from *before* and nothing is being asked."""
+        page.wait_for_function(
+            "(before) => { const box = document.querySelector('.cx-thresholds');"
+            " return Boolean(box) && box.getAttribute('aria-busy') === 'false'"
+            " && box.innerText !== before; }",
+            arg=before,
+        )
+        return box.inner_text()
+
+    unchanged = box.inner_text()
+    field.fill("5")
+    five = counts(unchanged)
+    assert re.search(r"Candidates\s+[\d,]+ → [\d,]+ \(−[\d,]+\)", five), five
+    assert re.search(r"\d+ candidates? would leave", five)
+    leaving = box.locator(".cx-thresholds__list").first.locator("li")
+    assert leaving.count() > 0 and "Fewest people" in leaving.first.inner_text()
+    field.fill("8")
+    eight = counts(five)
+    assert "would leave" in eight  # more leave, other words
+    # a looser window needs a new extraction: said so, not previewed
+    field.fill("2")
+    box.get_by_text(re.compile("only a new extraction shows them")).wait_for()
+    # nothing saved
+    params = page.evaluate("() => fetch('/api/params').then((r) => r.json())")
+    stage = next(s for s in params["stages"] if s["id"] == "keywords.extract")
+    assert next(p for p in stage["params"] if p["name"] == "min_people")["value"] == 3
+
+
 def test_the_texts_panel_on_the_people_page(demo_s, app_for, open_app):
     ui = open_app(app_for(demo_s))
     page = ui.page
@@ -167,12 +207,6 @@ def test_the_map_panel(demo_s, app_for, open_app, monkeypatch):
     row.get_by_role("button", name="Back to default").click()
     save(panel)
     page.locator(".cx-tune__stale").wait_for(state="detached")
-    # the layout's preview moved with it: computed as a job, beside the map on the same people
-    panel.get_by_role("group", name="Layout to preview").get_by_role("spinbutton").first.fill("10")
-    panel.get_by_role("button", name="Preview").click()
-    page.get_by_text(re.compile(r"UMAP: \d+ ?% of the nearest people kept")).wait_for(
-        timeout=120_000
-    )
     # rebuild from here: the pre-flight sheet of this step and those after it
     before = ui.token()
     panel.get_by_role("button", name="Rebuild from here").click()
@@ -220,6 +254,63 @@ def test_the_recipe_and_the_old_method_address(demo_s, app_for, open_app, tmp_pa
     page.get_by_role("button", name="Settings and display").click()
     page.get_by_role("menuitem", name="Settings", exact=True).wait_for()
     assert page.get_by_role("menuitem", name="Method").count() == 0
+
+
+def preview_bar(page):
+    return page.locator(".cx-atlas-preview")
+
+
+def wait_preview(page, params: dict) -> None:
+    """Wait until the map shows the preview of *params*, computed (no progress any more)."""
+    page.wait_for_function(
+        "(want) => { const bar = document.querySelector('.cx-atlas-preview');"
+        " const p = bar && bar.querySelector('[data-preview-params]');"
+        " return Boolean(p) && p.dataset.previewParams === want && !bar.querySelector('.cx-progress'); }",
+        arg=json.dumps(params, separators=(",", ":")),
+        timeout=120_000,
+    )
+
+
+def test_the_map_previews_a_layout_change_in_place(demo_s, app_for, open_app, tmp_path):
+    ui = open_app(app_for(demo_s))
+    page = ui.page
+    ui.navigate("/map?tune=1")
+    settled(ui)
+    frame = page.locator(".cx-atlas__frame")
+    assert "is-preview" not in frame.get_attribute("class")
+    field = page.locator(".cx-tune [data-param='map.n_neighbors']").get_by_role("spinbutton")
+    # a change draws a preview on the map; a next change while it is computed supersedes it
+    field.fill("10")
+    preview_bar(page).get_by_text("Computing the preview").wait_for()
+    page.wait_for_timeout(1500)  # its job started
+    field.fill("11")
+    wait_preview(page, {"n_neighbors": 11})
+    jobs = page.evaluate("() => fetch('/api/jobs').then((r) => r.json())")["jobs"]
+    states = sorted(j["state"] for j in jobs if j["kind"] == "preview")
+    assert states in (["cancelled", "succeeded"], ["succeeded", "succeeded"]), states
+    assert "is-preview" in frame.get_attribute("class")
+    bar = preview_bar(page)
+    assert re.search(
+        r"UMAP: \d+ ?% of the nearest people kept \(the map now: \d+ ?%\)", bar.inner_text()
+    )
+    assert frame.get_by_role("group", name=re.compile("Preview of the layout")).count() == 1
+    bar.get_by_role("button", name="Before").click()
+    frame.get_by_role("group", name=re.compile("The map now, the same")).wait_for()
+    # discard: the map again, the field back at the pinned version's value
+    bar.get_by_role("button", name="Discard").click()
+    bar.wait_for(state="detached")
+    assert "is-preview" not in frame.get_attribute("class")
+    assert field.input_value() == "25"
+    # keep: a new map version, pinned, then the build of the map
+    field.fill("11")
+    wait_preview(page, {"n_neighbors": 11})  # computed once: cached
+    before = ui.token()
+    preview_bar(page).get_by_role("button", name="Keep").click()
+    ui.wait_ready(before)
+    assert "/build?scope=map" in page.url
+    versions = page.evaluate("() => fetch('/api/map/versions').then((r) => r.json())")
+    pinned = next(v for v in versions["versions"] if v["id"] == versions["pinned"])
+    assert pinned["layout"]["params"] == {"n_neighbors": 11}
 
 
 @pytest.mark.slow
