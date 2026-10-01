@@ -122,3 +122,18 @@ def test_on_a_curated_tree_the_comb_suggests_moving_up_or_setting_aside():
     assert theta == 0.5 and set(by) == {"wide", "field"}
     assert (by["wide"].node, by["wide"].to) == ("c0", "s0") and by["wide"].share >= 0.5
     assert by["field"].to is None and by["field"].share < 0.5
+
+
+def test_on_a_space_of_texts_a_keyword_moves_sideways_only_under_its_parent():
+    """« b1 » grouped on a topic of theme A, its texts in theme B's: anywhere it goes to their
+    topic; within the parent it may not (another theme's topic), so it goes to their theme."""
+    finest = FINEST.copy()
+    finest[TERMS.index("b1")] = 1
+    P, n = keyword_spread(_texts(), finest, 4)
+    maps = level_maps(LEVELS)
+    row = TERMS.index("b1")
+    anywhere = comb(P, n, finest, maps, 0.5, min_texts=3)
+    assert (anywhere.level[row], anywhere.node[row]) == (2, 2)
+    within = comb(P, n, finest, maps, 0.5, min_texts=3, sideways="within_parent")
+    assert (within.level[row], within.node[row]) == (1, 1)
+    assert comb(P, n, finest, maps, 0.5, min_texts=3, sideways="up_only").level[row] == 0

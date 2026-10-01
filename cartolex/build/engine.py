@@ -699,7 +699,7 @@ def comb_options(params: Mapping[str, Any]) -> Any:
         one_level=float(params.get("comb_theta_one_level", base.one_level)),
         min_texts=int(params.get("comb_min_texts", base.min_texts)),
         max_cells=int(params.get("comb_max_cells", base.max_cells)),
-        sideways=bool(params.get("comb_sideways", base.sideways)),
+        sideways=str(params.get("comb_sideways", base.sideways)),
     )
 
 

@@ -1200,17 +1200,19 @@ STAGES = Registry(
                     "comb_theta_one_level",
                     "float",
                     "θ for a tree of one level, where no balance between levels can choose it",
-                    default=0.2,
+                    rule="comb_theta_one_level_by_space",
                     minimum=0.0,
                     maximum=1.0,
                     section="comb",
                 ),
                 ParamSpec(
                     "comb_sideways",
-                    "bool",
-                    "a keyword may move to the group of a level that holds most of its use, not "
+                    "str",
+                    "where a keyword may move on each level, to the group holding most of its "
+                    "use: anywhere; within its group's parent (anywhere at the top level); or "
                     "only up its own group's ancestors",
                     rule="comb_sideways_by_space",
+                    choices=("anywhere", "within_parent", "up_only"),
                     section="comb",
                 ),
                 ParamSpec(

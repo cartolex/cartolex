@@ -70,7 +70,7 @@ def grouping_options(settings: Mapping[str, Any] | None) -> tuple[Any, Any, floa
         one_level=float(s.get("comb_theta_one_level", comb.one_level)),
         min_texts=int(s.get("comb_min_texts", comb.min_texts)),
         max_cells=int(s.get("comb_max_cells", comb.max_cells)),
-        sideways=bool(s.get("comb_sideways", comb.sideways)),
+        sideways=str(s.get("comb_sideways", comb.sideways)),
     )
     return ward, comb, float(s.get("own_name_floor", OWN_NAME_FLOOR))
 

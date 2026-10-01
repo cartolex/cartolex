@@ -219,7 +219,8 @@ def _effective(stage_id: str, name: str, params: ParamsFile, sizes: ProjectSizes
 
 
 def _by_space(key: str) -> Callable[[ProjectSizes, Mapping[str, Any]], Any]:
-    """The comb's *key* (``grid`` or ``sideways``) calibrated for the space's unit."""
+    """The comb's *key* (``grid``, ``one_level`` or ``sideways``) calibrated for the
+    space's unit."""
 
     def compute(_: ProjectSizes, read: Mapping[str, Any]) -> Any:
         from ..lexicon.theme_comb import CALIBRATION
@@ -292,10 +293,18 @@ RULES: dict[str, Rule] = {
             reads=(("themes.space", "space_unit"),),
         ),
         Rule(
+            "comb_theta_one_level_by_space",
+            "θ for one level, calibrated for the space's unit: 0.2 on the people's space, "
+            "0.3 on the texts'",
+            (),
+            _by_space("one_level"),
+            reads=(("themes.space", "space_unit"),),
+        ),
+        Rule(
             "comb_sideways_by_space",
-            "on the people's space a keyword may move to the group holding most of its use; "
-            "on the texts' it only moves up (the keywords every text uses gather in groups of "
-            "their own there, which would draw the specific keywords around them)",
+            "anywhere on the people's space; within the parent on the texts' (there the "
+            "keywords many texts use gather in topics of their own, which would draw the "
+            "specific keywords of other themes)",
             (),
             _by_space("sideways"),
             reads=(("themes.space", "space_unit"),),

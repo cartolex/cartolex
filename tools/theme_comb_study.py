@@ -169,7 +169,7 @@ def comb_report(
     label: str,
     *,
     relative: bool = True,
-    sideways: bool = True,
+    sideways: str = "anywhere",
 ) -> dict:
     from cartolex.lexicon.theme_comb import comb, keyword_spread
 
@@ -529,10 +529,10 @@ def main(argv=None) -> int:
         "groups each language apart: its broad keywords stay on a node of their language)",
     )
     ap.add_argument(
-        "--up-only",
-        action="store_true",
-        help="comb, relative: read each keyword's own node on every level, not the one with "
-        "the most use (the keyword only moves up)",
+        "--sideways",
+        choices=["anywhere", "within_parent", "up_only"],
+        default="anywhere",
+        help="comb, relative: where a keyword may move on each level (the engine's comb_sideways)",
     )
     ap.add_argument("--space", choices=["person", "text"], help="build: the space's unit")
     ap.add_argument("--kinds", action="store_true", help="print the placements by kind of keyword")
@@ -565,7 +565,7 @@ def main(argv=None) -> int:
             finest,
             maps,
             min_texts=args.min_texts,
-            sideways=not args.up_only,
+            sideways=args.sideways,
             **({"grid": grid} if grid else {}),
             **({"default_theta": args.one_level} if args.one_level else {}),
         )
@@ -589,7 +589,7 @@ def main(argv=None) -> int:
                 th,
                 min_texts=args.min_texts,
                 relative=True,
-                sideways=not args.up_only,
+                sideways=args.sideways,
             )
             print_comb(summarise(space, sizes, c, maps, finest, f"relative θ {th}"))
     if args.what == "grid":

@@ -400,7 +400,7 @@ def test_the_space_is_fitted_on_the_texts_by_a_rule_and_can_be_on_the_people(bui
     space = json.loads(project.layout.run_json("themes.space").read_text())["parameters"]
     assert space["space_unit"] == {"value": "text", "from": "rule", "rule": "space_unit_texts"}
     group = json.loads(project.layout.run_json("themes.group").read_text())["parameters"]
-    assert group["comb_sideways"]["value"] is False
+    assert group["comb_sideways"]["value"] == "within_parent"
     assert group["comb_grid"]["rule"] == "comb_grid_by_space"
     before = (project.layout.stage("themes.space") / "models" / "svd.npz").read_bytes()
     params, fp = project.read_params()
@@ -411,7 +411,7 @@ def test_the_space_is_fitted_on_the_texts_by_a_rule_and_can_be_on_the_people(bui
     record = json.loads(project.layout.run_json("themes.space").read_text())
     assert record["parameters"]["space_unit"]["value"] == "person"
     group = json.loads(project.layout.run_json("themes.group").read_text())["parameters"]
-    assert group["comb_sideways"]["value"] is True
+    assert group["comb_sideways"]["value"] == "anywhere"
     assert group["comb_grid"]["value"] == [0.1, 0.125, 0.15, 0.175, 0.2, 0.225, 0.25]
     after = (project.layout.stage("themes.space") / "models" / "svd.npz").read_bytes()
     assert after != before
