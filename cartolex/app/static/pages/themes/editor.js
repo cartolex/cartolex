@@ -3,7 +3,8 @@
  * sync, a side panel, and every action from a menu and the keyboard (drag and
  * drop is a shortcut). Nothing is ever lost: undo and redo, an autosaved
  * draft, a guard before leaving, « reload and merge » when the saved tree
- * changed, versions to compare and restore.
+ * changed, versions to compare and restore. Above them, the « Tune » panel of
+ * the space and the grouping (`pages/tune/`).
  */
 
 import { batch, html, useEffect, useMemo, useState } from '../../core/preact.js';
@@ -27,6 +28,7 @@ import { OperationDialog } from './operations.js';
 import { createUi, installActions, refusal } from './actions.js';
 import { createFit } from './fit.js';
 import { createLevels } from './levels.js';
+import { TunePanel } from '../tune/panel.js';
 
 function Banner({ tone = 'info', icon, children, actions }) {
   return html`<div class=${`cx-themes-banner cx-themes-banner--${tone}`} role="status">
@@ -368,6 +370,7 @@ export function ThemesEditor() {
     const next = info.empty && info.empty.next;
     return html`<div class="cx-page">
       <h1 class="cx-page__title">${t('nav.themes')}</h1>
+      <${TunePanel} ctx=${ctx} id="themes" />
       <${EmptyState} icon="file" level=${2} title=${t('themes.none.title')}
         action=${next ? { label: t('themes.none.action'), href: '/' } : null}>${t('themes.none.text')}<//>
     </div>`;
@@ -543,6 +546,7 @@ export function ThemesEditor() {
           onClick=${() => ui.saveAndApply()}>${t('themes.save_apply')}<//>
       </div>
     </header>
+    <${TunePanel} ctx=${ctx} id="themes" />
     ${banners.length || applyError ? html`<div class="cx-themes__banners">
       ${banners}
       ${applyError ? html`<${ErrorCard} error=${applyError} compact onDismiss=${() => setApplyError(null)}

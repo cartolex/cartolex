@@ -18,4 +18,4 @@ import { definePage } from '../core/page.js';
 import { KeywordsScreen } from './keywords/page.js';
 
 export const page = definePage(() => html`<${KeywordsScreen} />`,
-  { styles: ['/static/css/corpus.css', '/static/css/keywords.css'] });
+  { styles: ['/static/css/corpus.css', '/static/css/keywords.css', '/static/css/settings.css', '/static/css/tune.css'] });

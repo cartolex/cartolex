@@ -25,7 +25,8 @@
  * A nullable number or list gets « Not set ». `ParamControl({p, value, onChange,
  * id, labelId, label})` is the control alone: `onChange(value, invalid)`, where
  * *invalid* is true when the control holds something the parameter cannot take.
- * `ParamField({p, edit, onEdit, id, label, help})` is the whole field: its name
+ * `ParamField({p, edit, onEdit, id, label, controlLabel, help})` is the whole field: its name
+ * (*label*, markup; *controlLabel*, the words naming the control, else the code name)
  * and explanation, the control, its default, where its value comes from (a
  * rule's reason), the marks (changed, unsaved, not built yet) and « Back to
  * default »; *edit* is `{value, invalid}` or `{reset: true}` (or undefined),
@@ -344,7 +345,7 @@ export function originText(p) {
  * One parameter: name, explanation, control, default, origin, marks, « Back to default ».
  * @param {{p: object, edit?: object, onEdit: Function, id: string, label?: any, help?: any, dataKey?: string}} props
  */
-export function ParamField({ p, edit, onEdit, id, label, help, dataKey }) {
+export function ParamField({ p, edit, onEdit, id, label, controlLabel, help, dataKey }) {
   const labelId = `${id}-label`;
   const name = label || html`<code>${p.name}</code>`;
   const pending = Boolean(edit && !edit.reset);
@@ -357,7 +358,7 @@ export function ParamField({ p, edit, onEdit, id, label, help, dataKey }) {
       ${help ? html`<p class="cx-param__help">${help}</p>` : null}
     </div>
     <div class="cx-param__control">
-      <${ParamControl} p=${p} id=${id} labelId=${labelId} value=${value}
+      <${ParamControl} p=${p} id=${id} labelId=${labelId} value=${value} label=${controlLabel || p.name}
         onChange=${(v, invalid) => onEdit({ value: v, invalid: Boolean(invalid) })} />
       ${pending && edit.invalid ? html`<p class="cx-param__problem" role="alert"><${Icon} name="warning" />
         <span>${t('param.field.invalid')}</span></p>` : null}

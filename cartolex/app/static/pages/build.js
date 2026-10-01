@@ -6,10 +6,11 @@
  * - `run.js`: the tracker while the job runs, with Stop, and the result when it ends;
  * - `ai.js`: the route of each AI step, and the card of a build waiting for a copilot;
  * - `words.js`: sizes, names, the one-sentence result, the error card of a failure;
+ * - `recipe.js`: the Recipe tab, every parameter with its value and origin, and its exports;
  * - `page.js`: the page, which puts them together.
  */
 import { html } from '../core/preact.js';
 import { definePage } from '../core/page.js';
 import { BuildPage } from './build/page.js';
 
-export const page = definePage(() => html`<${BuildPage} />`, { styles: ['/static/css/build.css'] });
+export const page = definePage(() => html`<${BuildPage} />`, { styles: ['/static/css/build.css', '/static/css/settings.css', '/static/css/tune.css'] });

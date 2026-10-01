@@ -21,4 +21,4 @@ import { html } from '../core/preact.js';
 import { definePage } from '../core/page.js';
 import { ThemesEditor } from './themes/editor.js';
 
-export const page = definePage(() => html`<${ThemesEditor} />`, { styles: ['/static/css/themes.css'] });
+export const page = definePage(() => html`<${ThemesEditor} />`, { styles: ['/static/css/themes.css', '/static/css/settings.css', '/static/css/keywords.css', '/static/css/tune.css'] });

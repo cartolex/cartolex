@@ -4,7 +4,8 @@
  * its band, Kept, To check, Set aside and Rejected automatically (the band in
  * the address, `?band=`), with the counting unit and the languages in the head, a warning
  * when languages would split the themes, the history of the decisions, and
- * the triage with AI (a copilot, or by API). Opening it reads one list page.
+ * the triage with AI (a copilot, or by API), and the keywords' « Tune » panel
+ * (`pages/tune/`). Opening it reads one list page.
  */
 import { html, useState } from '../../core/preact.js';
 import { formatNumber, t } from '../../core/i18n.js';
@@ -17,6 +18,7 @@ import { KeywordList } from './list.js';
 import { HistoryDrawer, MergeDialog } from './dialogs.js';
 import { ApiDialog } from './api.js';
 import { KeywordCopilotDialog } from './copilot.js';
+import { TunePanel } from '../tune/panel.js';
 
 function bandOf(query) {
   const band = query && query.get('band');
@@ -91,6 +93,7 @@ export function KeywordsScreen() {
     </header>
     ${data && data.warning ? html`<${LanguagesWarning} warning=${data.warning}
       onFilter=${() => setDialog({ kind: 'copilot' })} />` : null}
+    <${TunePanel} ctx=${ctx} id="keywords" />
     <${Slot} slots=${app.registries.slots} name="keywords.cards" class="cx-grid" />
     ${data && data.orphan_count ? html`<p class="cx-corpus__note" role="note">${t('keywords.orphans', {
       n: data.orphan_count })}</p>` : null}

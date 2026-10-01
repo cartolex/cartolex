@@ -3,12 +3,14 @@
  * The Texts tab: every text with the richest part it has (title only, an
  * abstract, a full text), the providers of its parts, its people. A text's
  * drawer shows each part by provider (the versions of its words), the records
- * merged into it, its preprints and the conflicts between finders.
+ * merged into it, its preprints and the conflicts between finders. Above the list, the
+ * texts' « Tune » panel (`corpus.assemble`, the build's seed and pinned year).
  */
 import { html, useEffect, useState } from '../../core/preact.js';
 import { formatNumber, has, t } from '../../core/i18n.js';
 import { Drawer, EmptyState, ErrorCard, Input, Select, Table } from '../../components/index.js';
 import { usePaged } from './common.js';
+import { TunePanel } from '../tune/panel.js';
 
 const CONTENT = ['title', 'abstract', 'full'];
 
@@ -102,6 +104,7 @@ export function TextsTab({ ctx, version, openSheet }) {
     { id: 'people', label: t('corpus.col.people'), sortable: true, numeric: true, width: '6rem' },
   ];
   return html`<div class="cx-corpus-tab">
+    <${TunePanel} ctx=${ctx} id="texts" />
     <div class="cx-corpus-filters" role="group" aria-label=${t('corpus.filters')}>
       <label class="cx-corpus-filters__search"><span class="cx-visually-hidden">${t('corpus.texts.search')}</span>
         <${Input} type="search" value=${q} placeholder=${t('corpus.texts.search')}

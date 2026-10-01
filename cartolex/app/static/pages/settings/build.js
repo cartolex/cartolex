@@ -1,15 +1,15 @@
 /**
  * Sizes, machine limits and build options. The main options (theme depth and
  * group counts, the counting unit, the map's layout method) are edited here;
- * every other parameter is on the method screen (`/method`), step by step,
- * beside what each step produced.
+ * every other parameter is in the « Tune » panel of the page it shapes, and
+ * the Build page's Recipe (`/build?tab=recipe`) lists them all.
  */
 
 import { html, useState } from '../../core/preact.js';
 import { t } from '../../core/i18n.js';
 import { Button, Select } from '../../components/index.js';
 import { Block, State, refusal, useResource } from './common.js';
-import { ParamActions, ParamTable, shown, useParamEdits } from '../method/params.js';
+import { ParamActions, ParamTable, shown, useParamEdits } from '../tune/params.js';
 
 /** The main options: (stage, parameter). */
 const MAIN = [
@@ -66,10 +66,10 @@ export function BuildSection({ ctx, app }) {
           setEdit=${editor.setEdit} label=${t('settings.build.options')} />
         <${ParamActions} editor=${editor} />
         <p class="cx-settings__note">${t('settings.build.method_lead')}
-          <a href="/method" onClick=${(e) => {
+          <a href="/build?tab=recipe" onClick=${(e) => {
             if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
             e.preventDefault();
-            ctx.navigate('/method');
+            ctx.navigate('/build?tab=recipe');
           }}>${t('settings.build.method_link')}</a></p>` : null}
     <//>
     <${Block} title=${t('settings.layout.title')} resource=${maps}>

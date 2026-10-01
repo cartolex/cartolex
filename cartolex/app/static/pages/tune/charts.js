@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /**
- * The method screen's figures, drawn in SVG from the diagnostics' numbers:
+ * The « Tune » panels' figures, drawn in SVG from the diagnostics' numbers:
  * stacked bars, lines with marks, and a dendrogram. Each figure is an image
  * with a name and a caption for assistive technology, and its numbers can be
  * unfolded as a table below it. Series take the data hues (`--cx-hue-N`, by

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 /**
- * Editing build parameters (`GET/PUT /api/params`), shared by the method
- * screen and the settings' build options: each parameter in the shared
- * ParamField (`components/param-field.js`: the control of its shape, where the
- * value comes from, the marks, « back to default »), grouped by stage and
- * section, and on the method screen by tier (essential, « More », « Advanced »).
- * The edits are kept until saved (with the version read, `If-Match`) or undone.
+ * Editing build parameters (`GET/PUT /api/params`), shared by the pages'
+ * « Tune » panels and the settings' build options: each parameter in the
+ * shared ParamField (`components/param-field.js`: the control of its shape,
+ * where the value comes from, the marks, « back to default ») under its short
+ * label (`param.label.<stage>.<name>`, the code name beside it, small),
+ * grouped by stage and section, and in a panel by tier (essential, « More »,
+ * « Advanced »). The edits are kept until saved (with the version read,
+ * `If-Match`) or undone.
  */
 
 import { html, useState } from '../../core/preact.js';
@@ -38,11 +40,28 @@ export function explanation(stageId, p) {
   return has(key) ? t(key) : p.description || '';
 }
 
+/**
+ * A parameter's short label in the interface language (`param.label.<group>.<name>`, where the
+ * group is a stage id, `build` or `layout`); its code name when the catalogue has none.
+ */
+export function paramLabel(group, name) {
+  const key = `param.label.${group}.${name}`;
+  return has(key) ? t(key) : name;
+}
+
+/** The label of a field: the short label, then the code name, small (for the docs and the recipe). */
+export function LabelWithCode({ group, name }) {
+  const label = paramLabel(group, name);
+  return label === name ? html`<code>${name}</code>`
+    : html`<span class="cx-param__label">${label}</span> <code class="cx-param__code">${name}</code>`;
+}
+
 /** One parameter's field (the shared ParamField), keyed `<stage>.<name>`. */
 export function ParamRow({ stage, p, edits, setEdit }) {
   const key = `${stage.id}.${p.name}`;
   const id = `cx-param-${key.replace(/[^a-z0-9]/gi, '-')}`;
   return html`<${ParamField} p=${p} id=${id} dataKey=${key} edit=${edits[key]}
+    label=${html`<${LabelWithCode} group=${stage.id} name=${p.name} />`} controlLabel=${paramLabel(stage.id, p.name)}
     help=${explanation(stage.id, p)} onEdit=${(e) => setEdit(key, e)} />`;
 }
 
@@ -137,6 +156,8 @@ export function useParamEdits(ctx, params, toaster) {
       params.set(result.data, result.etag);
       setEdits({});
       toaster.show({ kind: 'success', title: t('settings.build.saved') });
+      // the stages after a changed value need an update now: their states say so at once
+      if (ctx.app && ctx.app.stores) ctx.app.stores.project.refresh();
       return true;
     }
     if (result.kind === 'stale') {

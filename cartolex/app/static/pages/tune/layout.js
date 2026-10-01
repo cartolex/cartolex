@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /**
- * The layout step's diagnostic: the pinned map version (method, seed, layout
+ * The map's diagnostic (its « Tune » panel): the pinned map version (method, seed, layout
  * parameters), how many of each person's nearest people of the space the map
  * keeps, and a preview: a sample of the people drawn with a method and its
  * parameters (`POST /api/method/layout/preview`, a job the first time, then

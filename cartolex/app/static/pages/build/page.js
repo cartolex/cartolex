@@ -2,7 +2,8 @@
 /**
  * The build page (`/build`, `?scope=map,themes`, and `&force=themes.space` to run
  * stages again even when they are up to date, « rebuild from here »): the
- * pre-flight sheet, then the tracker of the job it starts, then its result.
+ * pre-flight sheet, then the tracker of the job it starts, then its result. A
+ * second tab, the Recipe (`?tab=recipe`, `recipe.js`), lists every parameter.
  *
  * On arrival it reads the last build (`GET /api/build`): a running one is
  * followed at once; otherwise the dry run (`POST /api/build`) gives the sheet.
@@ -14,11 +15,14 @@
 import { html, useEffect, useState } from '../../core/preact.js';
 import { formatList, has, t } from '../../core/i18n.js';
 import { usePage, usePageTitle } from '../../core/page.js';
-import { ErrorCard } from '../../components/index.js';
+import { ErrorCard, Tabs } from '../../components/index.js';
 import { Preflight } from './preflight.js';
 import { Result, Running, isActive, trackerRows } from './run.js';
 import { resultSentence } from './words.js';
 import { Waiting } from './ai.js';
+import { RecipeTab } from './recipe.js';
+
+const TABS = ['build', 'recipe'];
 
 function scopeOf(query, name = 'scope') {
   const raw = query && query.get(name);
@@ -31,10 +35,9 @@ function areaWord(scope) {
   return has(key) ? t(key) : scope;
 }
 
-export function BuildPage() {
-  const ctx = usePage();
+/** The Build tab: the pre-flight sheet, then the job it starts, then its result. */
+function BuildTab({ ctx }) {
   const { jobs, project } = ctx.app.stores;
-  usePageTitle(t('build.title'));
   const scope = scopeOf(ctx.query);
   const force = scopeOf(ctx.query, 'force') || [];
   const [plan, setPlan] = useState(null);
@@ -141,11 +144,27 @@ export function BuildPage() {
     body = html`<p class="cx-build-note" aria-busy="true">${t('common.loading')}</p>`;
   }
   const last = !watching && tracker && tracker.job && !isActive(tracker.job) ? tracker.job : null;
-  return html`<div class="cx-page cx-build">
-    <h1 class="cx-page__title">${t('build.title')}</h1>
-    <p class="cx-page__lead">${scope ? t('build.lead.scope', { areas: formatList(scope.map(areaWord)) })
+  return html`<p class="cx-page__lead">${scope ? t('build.lead.scope', { areas: formatList(scope.map(areaWord)) })
       : t('build.lead.all')}</p>
     ${last ? html`<p class="cx-build-note" data-last-build>${t('build.last', { sentence: resultSentence(last) })}</p>` : null}
-    ${body}
+    ${body}`;
+}
+
+export function BuildPage() {
+  const ctx = usePage();
+  usePageTitle(t('build.title'));
+  const [tab, setTabState] = useState(() => (ctx.query && ctx.query.get('tab') === 'recipe' ? 'recipe' : 'build'));
+  const setTab = (id) => {
+    setTabState(id);
+    const url = new URL(window.location.href);
+    if (id === 'build') url.searchParams.delete('tab');
+    else url.searchParams.set('tab', id);
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+  };
+  return html`<div class="cx-page cx-build">
+    <h1 class="cx-page__title">${t('build.title')}</h1>
+    <${Tabs} tabs=${TABS.map((id) => ({ id, label: t(`build.tab.${id}`) }))} selected=${tab} onSelect=${setTab}
+      label=${t('build.tabs')} class="cx-build__tabs"
+      panel=${(id) => (id === 'recipe' ? html`<${RecipeTab} ctx=${ctx} />` : html`<${BuildTab} ctx=${ctx} />`)} />
   </div>`;
 }

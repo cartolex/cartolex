@@ -45,9 +45,9 @@ def test_the_sections_of_the_settings(settings):
     page.get_by_text(re.compile(r"saved on this computer \(…5678\)")).wait_for()
     assert page.get_by_text("The AI clean-up can run by API.").is_visible()
     assert "sk-demo-key" not in page.content()
-    # the build options; every other parameter is on the method screen
+    # the build options; every other parameter is in its page's « Tune » panel, all in the Recipe
     section(ui, "Sizes and build options")
-    page.get_by_role("link", name="open the method").wait_for()
+    page.get_by_role("link", name="open the recipe").wait_for()
     # stop words, one per line
     section(ui, "Stop words")
     page.get_by_label("Never keywords").first.fill("coast\nshore")

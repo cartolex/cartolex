@@ -17,4 +17,4 @@ import { html } from '../core/preact.js';
 import { definePage } from '../core/page.js';
 import { CorpusScreen } from './people/page.js';
 
-export const page = definePage(() => html`<${CorpusScreen} />`, { styles: ['/static/css/corpus.css'] });
+export const page = definePage(() => html`<${CorpusScreen} />`, { styles: ['/static/css/corpus.css', '/static/css/settings.css', '/static/css/keywords.css', '/static/css/tune.css'] });

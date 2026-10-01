@@ -8,6 +8,7 @@
  * view places organisations at their address. Everything the page shows is in
  * the address (see `state.js`). Reads `GET /api/atlas` when it opens; the
  * texts, and the keywords of people and organisations, when they are shown.
+ * The map's « Tune » panel (`pages/tune/`) reads nothing until it opens.
  */
 import { html, useEffect, useMemo, useRef, useState } from '../../core/preact.js';
 import { locale, t } from '../../core/i18n.js';
@@ -25,6 +26,7 @@ import { Panel } from './panel.js';
 import { Find } from './find.js';
 import { TreePanel } from './tree.js';
 import { VersionsDialog } from './versions.js';
+import { TunePanel } from '../tune/panel.js';
 
 const PICKED = { people: 'person', keywords: 'keyword', organisations: 'organisation', texts: 'text',
   projected: 'projected', windows: 'person' };
@@ -237,6 +239,7 @@ export function AtlasScreen() {
   }
   if (!atlas.available) {
     return html`<div class="cx-page cx-atlas">${head}
+      <${TunePanel} ctx=${ctx} id="map" />
       <${EmptyState} icon="file" level=${2} title=${t('map.none')}
         action=${{ label: t('map.none.build'), href: '/build?scope=map' }}>${t('map.none.text')}<//>
     </div>`;
@@ -248,6 +251,7 @@ export function AtlasScreen() {
   const base = atlas.base || null;
   return html`<div class="cx-page cx-atlas">
     ${head}
+    <${TunePanel} ctx=${ctx} id="map" />
     ${base ? html`<div class="cx-atlas__banner" role="status">
       <p>${t('map.base.banner', { name: base.name, version: base.map_version, shared: base.shared_keywords })}</p>
       <${Button} size="s" onClick=${() => setState({ base: '', sel: null })}>${t('map.base.back')}<//>

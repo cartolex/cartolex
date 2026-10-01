@@ -1,39 +1,172 @@
 /* SPDX-License-Identifier: MIT */
 /*
- * The method screen (pages/method/): the steps beside one step, its
- * parameters and what it produced, the figures drawn in SVG. It builds on the
- * settings' layout (settings.css). Tokens only.
+ * The « Tune » panels of the steps' pages (pages/tune/): the panel, its
+ * parameters and what the step produced, the figures drawn in SVG; and the
+ * Build page's Recipe (pages/build/recipe.js). It builds on the settings'
+ * layout (settings.css). Tokens only.
  */
 
-.cx-method__steps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--cx-space-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+/* ── the panel ─────────────────────────────────────────────────────────── */
+
+.cx-tune {
+  margin: 0 0 var(--cx-space-3);
+  border: var(--cx-rule-width) solid var(--cx-border);
+  border-radius: var(--cx-radius-m);
+  background: var(--cx-surface);
 }
 
-.cx-method__step {
-  display: grid;
-  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+.cx-tune__head {
+  display: flex;
+  gap: var(--cx-space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--cx-space-3) 0 0;
+}
+
+.cx-tune__title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: var(--cx-text-m);
+}
+
+.cx-tune__toggle {
+  display: flex;
+  gap: var(--cx-space-2);
+  align-items: center;
+  width: 100%;
+  min-height: var(--cx-control-height);
+  padding: var(--cx-space-2) var(--cx-space-3);
+  border: 0;
+  border-radius: var(--cx-radius-m);
+  background: transparent;
+  color: var(--cx-text);
+  font: inherit;
+  font-weight: var(--cx-weight-medium);
+  text-align: start;
+  cursor: pointer;
+}
+
+.cx-tune__toggle:hover {
+  background: var(--cx-surface-alt);
+}
+
+.cx-tune__toggle:focus-visible {
+  outline: var(--cx-focus-width) solid var(--cx-focus);
+  outline-offset: calc(-1 * var(--cx-focus-width));
+}
+
+.cx-tune__count {
+  color: var(--cx-text-muted);
+  font-weight: var(--cx-weight-regular);
+  font-size: var(--cx-text-s);
+}
+
+.cx-tune__count.is-changed {
+  color: var(--cx-text);
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-tune__body:not([hidden]) {
+  max-height: min(70vh, 56rem);
+  overflow: auto;
+  padding: 0 var(--cx-space-4) var(--cx-space-4);
+  border-top: var(--cx-rule-width) solid var(--cx-rule);
+}
+
+.cx-tune__subtitle {
+  margin: var(--cx-space-5) 0 var(--cx-space-2);
+  padding-top: var(--cx-space-3);
+  border-top: var(--cx-rule-width) solid var(--cx-rule);
+  font-size: var(--cx-text-m);
+}
+
+.cx-tune__rebuild {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-2) var(--cx-space-3);
+  align-items: center;
+  margin-top: var(--cx-space-3);
+}
+
+.cx-tune__rebuild p {
+  flex: 1 1 18rem;
+  margin: 0;
+}
+
+.cx-tune__stale {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-2) var(--cx-space-3);
+  align-items: center;
+  padding: var(--cx-space-2) var(--cx-space-3);
+  border-bottom: var(--cx-rule-width) solid var(--cx-rule);
+  background: var(--cx-surface-alt);
+  border-radius: var(--cx-radius-m) var(--cx-radius-m) 0 0;
+}
+
+.cx-tune__stale p {
+  flex: 1 1 16rem;
+  margin: 0;
+}
+
+.cx-param__code {
+  margin-inline-start: var(--cx-space-1);
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-xs);
+  font-weight: var(--cx-weight-regular);
+}
+
+/* ── the recipe ────────────────────────────────────────────────────────── */
+
+.cx-build__tabs {
+  margin-top: var(--cx-space-3);
+}
+
+.cx-recipe__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-3);
+  align-items: flex-end;
+  justify-content: space-between;
+  margin: var(--cx-space-3) 0;
+}
+
+.cx-recipe__filters,
+.cx-recipe__exports {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-2) var(--cx-space-4);
+  align-items: center;
+}
+
+.cx-recipe__filters .cx-settings__inline-label {
+  display: flex;
   gap: var(--cx-space-2);
   align-items: center;
 }
 
-.cx-method__number {
-  color: var(--cx-text-muted);
-  font-variant-numeric: tabular-nums;
+.cx-recipe__table {
+  width: 100%;
 }
 
-.cx-method__panels {
-  display: flex;
-  flex-direction: column;
-  gap: var(--cx-space-4);
+.cx-recipe__table .cx-recipe__group th {
+  padding-top: var(--cx-space-4);
+  font-size: var(--cx-text-m);
+  text-align: start;
 }
 
-.cx-method-card {
-  min-width: 0;
+.cx-recipe__table .cx-recipe__group .cx-num {
+  margin-inline-start: var(--cx-space-2);
+  font-weight: var(--cx-weight-regular);
+}
+
+.cx-recipe__table tbody th[scope="row"] {
+  font-weight: var(--cx-weight-regular);
+  text-align: start;
+}
+
+.cx-recipe__table tr.is-changed th[scope="row"] {
+  font-weight: var(--cx-weight-medium);
 }
 
 .cx-num {
@@ -84,22 +217,6 @@
   margin-bottom: var(--cx-space-1);
   font-weight: var(--cx-weight-medium);
   text-align: start;
-}
-
-.cx-method-ranked {
-  display: flex;
-  flex-direction: column;
-  gap: var(--cx-space-2);
-}
-
-.cx-method-ranked__table {
-  display: flex;
-  flex-direction: column;
-  height: 26rem;
-}
-
-.cx-method-ranked__table > .cx-table--fill {
-  flex: 1 1 auto;
 }
 
 .cx-method-outline,
@@ -266,7 +383,8 @@
 }
 
 @media (max-width: 40rem) {
-  .cx-method__step {
-    grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  .cx-recipe__table {
+    display: block;
+    overflow-x: auto;
   }
 }

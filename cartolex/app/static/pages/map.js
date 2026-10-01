@@ -18,4 +18,4 @@ import { html } from '../core/preact.js';
 import { definePage } from '../core/page.js';
 import { AtlasScreen } from './map/page.js';
 
-export const page = definePage(() => html`<${AtlasScreen} />`, { styles: ['/static/css/map.css'] });
+export const page = definePage(() => html`<${AtlasScreen} />`, { styles: ['/static/css/map.css', '/static/css/settings.css', '/static/css/keywords.css', '/static/css/tune.css'] });

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /**
- * The map's layout on the layout step, beside the step's own parameters: the
+ * The map's layout in the map's « Tune » panel, beside the placement's parameters: the
  * method of the pinned map version (UMAP, t-SNE, the tree; one this computer
  * cannot draw is listed, switched off, with its reason and its fix), its
  * parameters by tier (the essential ones, then « More » and « Advanced »
@@ -8,7 +8,7 @@
  * adds a map version with them, pins it and opens the pre-flight sheet of the
  * map (`POST /api/map/versions`, `try` then `pin`, with `If-Match`).
  *
- * It reads nothing when it opens: the layout step's diagnostic
+ * It reads nothing when it opens: the layout's diagnostic
  * (`GET /api/method/layout`) carries the methods, their parameters and the
  * pinned version.
  */
@@ -17,6 +17,7 @@ import { html, useEffect, useRef, useState } from '../../core/preact.js';
 import { t } from '../../core/i18n.js';
 import { Button, Input, ParamControl, ParamField } from '../../components/index.js';
 import { refusal } from '../settings/common.js';
+import { LabelWithCode, paramLabel } from './params.js';
 
 const TIERS = ['essential', 'intermediate', 'advanced'];
 
@@ -52,6 +53,7 @@ export function MapSettings({ ctx, app, view }) {
 
   const field = (p) => html`<${ParamField} key=${`${method}.${p.name}`} p=${p} id=${`cx-map-${p.name}`}
     dataKey=${`map.${p.name}`} edit=${edits[p.name]}
+    label=${html`<${LabelWithCode} group="layout" name=${p.name} />`} controlLabel=${paramLabel('layout', p.name)}
     help=${t(`method.map.param.${p.name}`)}
     onEdit=${(e) => setEdits({ ...edits, [p.name]: e })} />`;
   const tier = (name) => specs.filter((p) => (p.tier || 'advanced') === name);

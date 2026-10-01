@@ -141,7 +141,7 @@ CORE_NAV: tuple[tuple[str, int, str], ...] = (
     ("themes", 40, "main"),
     ("map", 50, "main"),
     ("share", 60, "main"),
-    ("method", 85, "settings"),
+    ("method", 85, "hidden"),  # an old address: it sends to the Recipe or a step's page
     ("settings", 90, "settings"),
     ("start", 95, "settings"),
 )

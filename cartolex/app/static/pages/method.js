@@ -1,20 +1,27 @@
 // SPDX-License-Identifier: MIT
 /**
- * The method screen (`/method`, in the header's settings menu). Its modules
- * are in `pages/method/`:
- *
- * - `screen.js`: the steps in pipeline order, one step at a time
- *   (`/method?step=<id>`): its parameters, what it produced, « rebuild from here »;
- * - `params.js`: editing parameters (shared with the settings' build options);
- * - `texts.js`, `keywords.js`, `space.js`, `grouping.js`, `layout.js`: each
- *   step's diagnostic;
- * - `charts.js`: the figures (bars, lines, a dendrogram) drawn in SVG from data;
- * - `common.js`: the steps, their states, facts, names.
+ * `/method`, the former method screen: an address kept for links and bookmarks.
+ * Its parameters now live in the « Tune » panel of the page each step shapes
+ * (`pages/tune/`), and every value is listed in the Build page's Recipe. The
+ * page sends `/method` to the Recipe and `/method?step=<id>` to that step's
+ * page with its panel open, replacing the address in the history.
  */
 
-import { html } from '../core/preact.js';
-import { definePage } from '../core/page.js';
-import { MethodScreen } from './method/screen.js';
+import { PANELS } from './tune/common.js';
 
-export const page = definePage(() => html`<${MethodScreen} />`,
-  { styles: ['/static/css/settings.css', '/static/css/corpus.css', '/static/css/keywords.css', '/static/css/method.css'] });
+/** The page of each former step. */
+const STEP_PAGE = { texts: 'texts', keywords: 'keywords', space: 'themes', grouping: 'themes', layout: 'map' };
+
+/** Where `/method?step=…` goes now. */
+export function methodTarget(query) {
+  const step = query && query.get('step');
+  const panel = Object.hasOwn(STEP_PAGE, step || '') ? PANELS[STEP_PAGE[step]] : null;
+  return panel ? panel.href : '/build?tab=recipe';
+}
+
+export const page = {
+  mount(ctx) {
+    ctx.deferReady(); // never ready: the page it sends to is
+    ctx.navigate(methodTarget(ctx.query), { replace: true });
+  },
+};
