@@ -552,7 +552,7 @@ PARAM_TIERS: dict[str, dict[str, str]] = {
     },
     "themes.space": {
         "space_unit": _E,
-        "dimensions": _E,
+        "dimensions": _M,
         "svd_seed": _A,
         "svd_iterations": _A,
         "svd_algorithm": _A,

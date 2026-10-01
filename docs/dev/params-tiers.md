@@ -9,7 +9,7 @@ every stage once (the registry refuses to load otherwise); the layout
 parameters of a map version carry theirs in `LAYOUT_DEFAULTS`
 (`cartolex/app/method.py`).
 
-This table is a proposal, to be approved before it is merged.
+This table was approved by the owner on 1 October 2026.
 
 ## The build's parameters
 
@@ -50,7 +50,7 @@ This table is a proposal, to be approved before it is merged.
 | `keywords.build` | `nested_threshold` | advanced | an internal of the vocabulary's nesting |
 | `keywords.build` | `ngram_range` | advanced | the counting of forms; follows the longest phrase anyway |
 | `themes.space` | `space_unit` | essential | people or texts: what "near" means for keywords |
-| `themes.space` | `dimensions` | essential | the resolution of the space; a rule sets it, the one number worth checking |
+| `themes.space` | `dimensions` | intermediate | the resolution of the space; a rule sets it from the project size |
 | `themes.space` | `svd_seed` | advanced | an SVD internal |
 | `themes.space` | `svd_iterations` | advanced | an SVD internal |
 | `themes.space` | `svd_algorithm` | advanced | an SVD internal |
