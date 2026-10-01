@@ -235,11 +235,14 @@ def stability(
     components: int = 50,
     ward: Any = None,
     doc: Mapping[str, Any] | None = None,
+    texts: Any = None,
 ) -> dict[str, Any]:
     """How much the grouping at *level_sizes* holds when a share *drop* of the people is left out.
 
     The space is refitted (cartolex's SVD) on everyone and on *draws* samples
-    without a random *drop* of the people; the grouping is redone on each, and
+    without a random *drop* of the people; with *texts* (texts × keywords, the
+    bundle's space being fitted on the texts), on all the texts and on samples
+    without a *drop* of them, as the project fits it. The grouping is redone on each, and
     compared with everyone's by the adjusted Rand index of each level. Returns
     the mean and the lowest index per level (1: the same groups). With *doc* (a
     tree), also each of its nodes' stability (``nodes``, the lowest first): the
@@ -252,21 +255,30 @@ def stability(
     import pandas as pd
     from scipy import sparse
 
-    from cartolex.atlas.reducers import compute_svd_embeddings
+    from cartolex.atlas.reducers import compute_svd_embeddings, compute_text_svd_embeddings
     from cartolex.atlas.types import LexicalData
 
     X = sparse.csr_matrix(X)
-    n_people = X.shape[0]
+    D = sparse.csr_matrix(texts) if texts is not None else None
+    n_people = X.shape[0] if D is None else D.shape[0]  # the units left out
     rng = np.random.default_rng(seed)
 
     def grouping(rows: np.ndarray, folder: Path) -> list[np.ndarray]:
+        people = rows if D is None else np.arange(X.shape[0])
         data = LexicalData(
-            X=X[rows],
+            X=X[people],
             terms=list(terms),
-            individuals=[str(i) for i in range(len(rows))],
-            meta_ind=pd.DataFrame(index=range(len(rows))),
+            individuals=[str(i) for i in range(len(people))],
+            meta_ind=pd.DataFrame(index=range(len(people))),
         )
-        emb = compute_svd_embeddings(data, n_components=dimensions, model_path=folder / "svd.json")
+        if D is None:
+            emb = compute_svd_embeddings(
+                data, n_components=dimensions, model_path=folder / "svd.json"
+            )
+        else:
+            emb = compute_text_svd_embeddings(
+                data, D[rows], n_components=dimensions, model_path=folder / "svd.json"
+            )
         return group_levels(emb.Z_terms, level_sizes, components=components, ward=ward)
 
     members = _node_rows(doc, terms, len(level_sizes)) if doc is not None else {}

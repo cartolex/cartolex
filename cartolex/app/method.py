@@ -347,8 +347,16 @@ def space_view(runtime: Any, ctx: Any) -> dict[str, Any]:
             "neighbours": {"k": NEIGHBOURS, "sample": len(rows), "curve": curve},
         }
 
+    from .routes.overview import space_languages
+
     view = dict(_cached(runtime, ("space", ctx.id, record.run_id), compute))
-    return {**view, "run": record.run_id, "wanted": _value(record, "dimensions")}
+    return {
+        **view,
+        "run": record.run_id,
+        "wanted": _value(record, "dimensions"),
+        "unit": _value(record, "space_unit"),
+        "notes": space_languages(ctx),
+    }
 
 
 # ── the grouping ─────────────────────────────────────────────────────────────

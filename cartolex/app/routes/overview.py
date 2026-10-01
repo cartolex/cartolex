@@ -86,6 +86,26 @@ def _languages_split(config: Any, by_id: dict[str, dict], ai_given: bool) -> lis
     return [item("health_languages_split", languages=langs)]
 
 
+def space_languages(ctx: Any) -> list[dict]:
+    """A space of texts whose vocabulary has many keywords outside the reference language:
+    its themes may split by language (``themes.space``'s last run)."""
+    from cartolex.build.engine import space_languages_apart
+    from cartolex.build.records import read_record
+
+    record = read_record(ctx.layout, "themes.space")
+    if record is None or "space_unit" not in record.parameters:
+        return []
+    share = space_languages_apart(
+        record.measures.counts, str(record.parameters["space_unit"].value)
+    )
+    if share is None:
+        return []
+    language = ctx.project.config.languages.reference
+    return [
+        item("health_space_languages", level="warning", share=round(100 * share), language=language)
+    ]
+
+
 def _snowball_cut(ctx: Any) -> list[dict]:
     """The last proposal of collaborators stopped at the cap (``collect.snowball.cap``)."""
     from cartolex.collect.tables import read_runs
@@ -246,6 +266,7 @@ def overview(request: Request, ctx: ProjectDep) -> dict[str, Any]:
         *_missing_models(config, by_id),
         *_too_large(the_plan),
         *_languages_split(config, by_id, ai_given),
+        *space_languages(ctx),
         *_snowball_cut(ctx),
     ]
     try:

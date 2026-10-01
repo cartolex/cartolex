@@ -90,6 +90,7 @@ GROUPING_SETTINGS = (
     "comb_theta",
     "comb_grid",
     "comb_theta_one_level",
+    "comb_sideways",
     "comb_min_texts",
     "comb_max_cells",
     "own_name_floor",
@@ -264,6 +265,7 @@ def themes_export(request: Request, body: ThemesExportBody, ctx: ProjectDep) -> 
         "themes",
         depth=tree.depth,
         dimensions=int(emb.Z_terms.shape[1]),
+        space_unit=_space_unit(ctx),
         cluster_components=grouping["cluster_dimensions"],
         grouping=grouping,
         levels=_levels(tree, ctx.project.config.languages.reference),
@@ -290,6 +292,15 @@ def themes_export(request: Request, body: ThemesExportBody, ctx: ProjectDep) -> 
         texts=D,
     )
     return _zip(zipped, "copilot-themes.zip")
+
+
+def _space_unit(ctx: Any) -> str:
+    """What the space was fitted on (``themes.space``'s last run; the people before it said)."""
+    from cartolex.build.records import read_record
+
+    record = read_record(ctx.layout, "themes.space")
+    pv = record.parameters.get("space_unit") if record is not None else None
+    return str(pv.value) if pv is not None else "person"
 
 
 def _levels(tree: Any, language: str) -> list[dict[str, Any]]:

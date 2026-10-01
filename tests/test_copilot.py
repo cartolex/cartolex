@@ -535,6 +535,7 @@ def test_the_views_show_per_node_stability_coherence_and_the_people_behind_a_nea
     from cartolex.copilot import open_bundle
 
     session = open_bundle(_unpack(client, THEMES, tmp_path / "themes"))
+    assert session.context["space_unit"] == "text"  # refitted on the texts, as the project
     out = session.stability(draws=1, detail=True)
     nodes = out["nodes"]
     assert len(nodes) == len(session.tree["nodes"])

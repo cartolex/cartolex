@@ -183,12 +183,51 @@ def space_dimensions(people: int) -> int:
 
 @dataclass(frozen=True)
 class Rule:
-    """A default computed from the project's sizes."""
+    """A default computed from the project's sizes, and from earlier stages' parameters.
+
+    *needs* names the sizes the rule uses; *reads* the parameters of upstream stages
+    it follows, as ``(stage, parameter)`` pairs: *compute* then takes the sizes and
+    those parameters' effective values, keyed ``"stage.parameter"``.
+    """
 
     name: str
     description: str
     needs: tuple[str, ...]
-    compute: Callable[[ProjectSizes], Any]
+    compute: Callable[..., Any]
+    reads: tuple[tuple[str, str], ...] = ()
+
+    def value(self, sizes: ProjectSizes, params: ParamsFile) -> Any:
+        """The rule's value for *sizes* and the parameters it reads in *params*."""
+        if not self.reads:
+            return self.compute(sizes)
+        read = {f"{sid}.{name}": _effective(sid, name, params, sizes) for sid, name in self.reads}
+        return self.compute(sizes, read)
+
+
+def _effective(stage_id: str, name: str, params: ParamsFile, sizes: ProjectSizes) -> Any:
+    """The effective value of *stage_id*'s parameter *name*: set in *params*, else its
+    rule's value, else its default (cartolex's stages)."""
+    from .stages import STAGES
+
+    spec = next(p for p in STAGES[stage_id].params if p.name == name)
+    given = params.stages.get(stage_id, {}) or {}
+    if name in given:
+        return spec.coerce(given[name])
+    if spec.rule is not None:
+        return spec.coerce(RULES[spec.rule].value(sizes, params))
+    return spec.coerce(spec.default)
+
+
+def _by_space(key: str) -> Callable[[ProjectSizes, Mapping[str, Any]], Any]:
+    """The comb's *key* (``grid`` or ``sideways``) calibrated for the space's unit."""
+
+    def compute(_: ProjectSizes, read: Mapping[str, Any]) -> Any:
+        from ..lexicon.theme_comb import CALIBRATION
+
+        value = getattr(CALIBRATION[str(read["themes.space.space_unit"])], key)
+        return list(value) if isinstance(value, tuple) else value
+
+    return compute
 
 
 #: The parts of a text read by default, by the kind of its slot: collected texts by their
@@ -234,6 +273,32 @@ RULES: dict[str, Rule] = {
             "20 up to 2 000 people, then 20 × √(people / 2 000), at most 200",
             ("people",),
             lambda s: space_dimensions(s.people or 1),
+        ),
+        Rule(
+            "space_unit_texts",
+            "the texts: keywords are near when the same texts use them, which groups them by "
+            "subject better than the people do (a person working on two subjects no longer "
+            "brings them together); the people's space may suit a corpus in several "
+            "languages better",
+            (),
+            lambda s: "text",
+        ),
+        Rule(
+            "comb_grid_by_space",
+            "the θ values calibrated for the space's unit: 0.1 to 0.25 by 0.025 on the "
+            "people's space, 0.125 to 0.275 on the texts'",
+            (),
+            _by_space("grid"),
+            reads=(("themes.space", "space_unit"),),
+        ),
+        Rule(
+            "comb_sideways_by_space",
+            "on the people's space a keyword may move to the group holding most of its use; "
+            "on the texts' it only moves up (the keywords every text uses gather in groups of "
+            "their own there, which would draw the specific keywords around them)",
+            (),
+            _by_space("sideways"),
+            reads=(("themes.space", "space_unit"),),
         ),
         Rule(
             "doc_types_by_slot_kind",
@@ -534,7 +599,7 @@ def resolve_params(stage: Stage, params: ParamsFile, sizes: ProjectSizes, *, yea
                 values[spec.name] = ParameterValue(value=None, source="rule", rule=rule.name)
             else:
                 values[spec.name] = ParameterValue(
-                    value=spec.coerce(rule.compute(sizes)), source="rule", rule=rule.name
+                    value=spec.coerce(rule.value(sizes, params)), source="rule", rule=rule.name
                 )
         else:
             values[spec.name] = ParameterValue(value=spec.coerce(spec.default), source="default")

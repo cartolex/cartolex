@@ -243,6 +243,25 @@ _MEANING = {
 }
 
 
+#: What makes two keywords near, by the unit the space is fitted on.
+_SPACE = {
+    "person": (
+        "**The space is made of who uses which words, not of what they mean**: two keywords "
+        "are near because the same people\n  use them. A nearness resting on two or three "
+        "people is one team's habit, not\n  a kinship of subjects: weigh it by those counts, "
+        "and by what the words mean\n  (which you judge yourself), before moving a keyword."
+    ),
+    "text": (
+        "**The space is made of which words the same texts use, not of what they mean**: two "
+        "keywords\n  are near because the same texts use them. Texts are written in one "
+        "language, so\n  keywords of different languages are far apart even when they name "
+        "the same\n  subject; and a nearness resting on a few texts of two or three people is "
+        "one\n  team's habit, not a kinship of subjects: weigh it by those counts, and by what "
+        "the\n  words mean (which you judge yourself), before moving a keyword."
+    ),
+}
+
+
 def _levels(context: Mapping[str, Any]) -> str:
     levels = list(context.get("levels") or [])
     depth = int(context.get("depth") or len(levels) or 1)
@@ -303,11 +322,7 @@ people's usage are in the bundle; people are rows in a random order.
   node than their own (a negative *margin*); `session.suggest([...])` the other
   nodes nearest a keyword. Each comes with the people behind it
   (`other_people`, `own_people`, `shared_people`: how many people use both the
-  keyword and that node's keywords). **The space is made of who uses which
-  words, not of what they mean**: two keywords are near because the same people
-  use them. A nearness resting on two or three people is one team's habit, not
-  a kinship of subjects: weigh it by those counts, and by what the words mean
-  (which you judge yourself), before moving a keyword.
+  keyword and that node's keywords). {space}
 - **Many people behind each theme.** The outline gives, per node, how many
   people use it; a node flagged « one person's vocabulary » (two people make
   most of its use) is one or two people's wording, not a theme of the field:
@@ -335,11 +350,11 @@ need: the curator reads the conversation too.
   `borderline()`, and *alone* counts it.
 - *balance*: per level, the keywords on its nodes themselves (mean, smallest,
   largest), their *spread* and the level's *share* of the placed keywords.
-- *stability*: the adjusted Rand index between the grouping on everyone and on
-  samples without 10 % of the people (1: the same groups), and per node (`nodes`,
+- *stability*: the adjusted Rand index between the grouping on everything and on
+  samples without 10 % of the {units} (1: the same groups), and per node (`nodes`,
   the least stable first): the Jaccard index of its keywords with the closest
   group of its level in each sample (1: they stay together). A node below about
-  0.5 falls apart when a few people are left out: merge it, or check it. A few
+  0.5 falls apart when a few {units} are left out: merge it, or check it. A few
   seconds.
 - *truth* (demo worlds only): the B-cubed F1 of the top level against the true themes.
 
@@ -672,6 +687,8 @@ def guide(
             field=_field(context, "themes"),
             rules=_rules(context),
             levels=_levels(context),
+            space=_SPACE["text" if context.get("space_unit") == "text" else "person"],
+            units="texts" if context.get("space_unit") == "text" else "people",
             corpus=", ".join(_name(x) for x in corpus) or reference,
             reference=reference,
             display=f" (the map also shows them in {', '.join(others)})" if others else "",

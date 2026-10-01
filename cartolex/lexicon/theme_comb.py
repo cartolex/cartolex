@@ -42,10 +42,13 @@ from scipy import sparse
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "CALIBRATION",
     "DEFAULT_THETA",
     "MAX_CELLS",
     "MIN_TEXTS",
+    "TEXT_THETA_GRID",
     "THETA_GRID",
+    "Calibration",
     "CombOptions",
     "Combed",
     "LevelSuggestion",
@@ -69,6 +72,31 @@ DEFAULT_THETA = 0.2
 #: The θ values the calibration tries (outside this band the demo worlds lose
 #: specific keywords, or keep broad ones: see the measures).
 THETA_GRID = tuple(float(x) for x in np.round(np.arange(0.10, 0.251, 0.025), 3))
+#: The θ values the calibration tries on a space fitted on the texts.
+TEXT_THETA_GRID = tuple(float(x) for x in np.round(np.arange(0.125, 0.276, 0.025), 3))
+
+
+@dataclass(frozen=True)
+class Calibration:
+    """The comb's calibration for one unit of the keyword space: where θ is looked for
+    (*grid*), θ at depth 1 (*one_level*), and whether a keyword may move *sideways* (to the
+    node of a level holding most of its use) or only up its own group's ancestors."""
+
+    grid: tuple[float, ...]
+    one_level: float
+    sideways: bool
+
+
+#: The calibration for each unit the keyword space is fitted on (``themes.space.space_unit``).
+#: In a space of texts, the keywords every text uses (words of the whole field, of several
+#: themes, of one language) gather in groups of their own, which hold most of the use of
+#: the specific keywords around them: a sideways move would send those into such a group,
+#: while the grouping already has them in their topic. There a keyword only moves up, on a
+#: grid shifted by one step. The measures are in ``docs/dev/themes-engine.md``.
+CALIBRATION: dict[str, Calibration] = {
+    "person": Calibration(THETA_GRID, DEFAULT_THETA, True),
+    "text": Calibration(TEXT_THETA_GRID, DEFAULT_THETA, False),
+}
 #: The largest keywords × finest nodes spread the comb holds (8 bytes a cell): above
 #: it the proposal is not combed.
 MAX_CELLS = 50_000_000
@@ -83,7 +111,9 @@ class CombOptions:
     *theta*: a pinned θ, or ``None`` to calibrate it on *grid* (:func:`calibrate`);
     *one_level*: the θ of a tree of one level, where no balance can choose it;
     *min_texts*: a keyword used in fewer texts keeps its node; *max_cells*: above
-    this many keywords × finest nodes the proposal is not combed.
+    this many keywords × finest nodes the proposal is not combed; *sideways*: a keyword
+    may move to the node of a level holding most of its use (else only up its own
+    node's ancestors). The defaults are the people's space's (:data:`CALIBRATION`).
     """
 
     theta: float | None = None
@@ -91,6 +121,7 @@ class CombOptions:
     one_level: float = DEFAULT_THETA
     min_texts: int = MIN_TEXTS
     max_cells: int = MAX_CELLS
+    sideways: bool = True
 
 
 # ── the texts ────────────────────────────────────────────────────────────────
@@ -262,6 +293,7 @@ def comb(
     *,
     min_texts: int = MIN_TEXTS,
     relative: bool = True,
+    sideways: bool = True,
 ) -> Combed:
     """Place each keyword on the lowest node whose subtree holds ≥ θ of its use.
 
@@ -271,8 +303,10 @@ def comb(
     is taken when its share reaches that level's ``θ``; no level reaching it:
     too broad (level ``0``). With *relative* (the engine's reading), a node's
     share is read above the share ``b`` all the keywords' use gives it:
-    ``(s − b) / (1 − b)``. A keyword with fewer than *min_texts* texts of
-    evidence keeps its node.
+    ``(s − b) / (1 − b)``. Without *sideways*, the node read on each level is
+    the keyword's own (its finest node's ancestor there), not the one with the
+    most use: the keyword only moves up. A keyword with fewer than *min_texts*
+    texts of evidence keeps its node.
     """
     depth = len(maps)
     th = np.full(depth, float(theta)) if np.isscalar(theta) else np.asarray(theta, dtype=float)
@@ -301,6 +335,9 @@ def comb(
             b = M.T @ base
             S = (S - b) / np.maximum(1.0 - b, 1e-12)
         best = S.argmax(axis=1)
+        if not sideways and S.shape[1]:  # the keyword's own node on the level
+            mine = m[np.maximum(finest, 0)]
+            best = np.where((finest >= 0) & (mine >= 0), mine, best)
         top = S[rows, best] if S.shape[1] else np.zeros(len(rows))
         ok = waiting & (top >= th[lv - 1] - 1e-12)
         level[ok] = lv
@@ -331,6 +368,7 @@ def calibrate(
     grid: Sequence[float] = THETA_GRID,
     min_texts: int = MIN_TEXTS,
     default_theta: float = DEFAULT_THETA,
+    sideways: bool = True,
 ) -> Combed:
     """The comb at the θ of *grid* that best balances the keywords per node across levels.
 
@@ -342,11 +380,11 @@ def calibrate(
     """
     depth = len(maps)
     if depth == 1:
-        return comb(P, n, finest, maps, default_theta, min_texts=min_texts)
+        return comb(P, n, finest, maps, default_theta, min_texts=min_texts, sideways=sideways)
     nodes = [int(np.max(m, initial=-1)) + 1 for m in maps]
     best: tuple[float, Combed] | None = None
     for t in grid:
-        c = comb(P, n, finest, maps, float(t), min_texts=min_texts)
+        c = comb(P, n, finest, maps, float(t), min_texts=min_texts, sideways=sideways)
         err = _balance_error(_per_node(c, nodes))
         if best is None or err < best[0] - 1e-12:
             best = (err, c)
@@ -364,7 +402,9 @@ def comb_with(
     """The comb with *options*: at their pinned θ, or calibrated (:func:`calibrate`)."""
     opts = options if options is not None else CombOptions()
     if opts.theta is not None:
-        return comb(P, n, finest, maps, float(opts.theta), min_texts=opts.min_texts)
+        return comb(
+            P, n, finest, maps, float(opts.theta), min_texts=opts.min_texts, sideways=opts.sideways
+        )
     return calibrate(
         P,
         n,
@@ -373,6 +413,7 @@ def comb_with(
         grid=opts.grid,
         min_texts=opts.min_texts,
         default_theta=opts.one_level,
+        sideways=opts.sideways,
     )
 
 
@@ -391,16 +432,17 @@ def calibration_curve(
 
     ``{"theta": kept θ, "points": [{"theta", "keywords" (per level, from the top),
     "per_node" (per level), "too_broad", "error"}]}``; ``error`` is ``None`` at depth 1, where
-    :data:`DEFAULT_THETA` is kept. *options*, when given, replace *grid* and *min_texts*, and
-    their pinned θ is the one kept.
+    :data:`DEFAULT_THETA` is kept. *options*, when given, replace *grid* and *min_texts* (and
+    say whether a keyword moves sideways), and their pinned θ is the one kept.
     """
+    sideways = True
     if options is not None:
-        grid, min_texts = options.grid, options.min_texts
+        grid, min_texts, sideways = options.grid, options.min_texts, options.sideways
     depth = len(maps)
     nodes = [int(np.max(m, initial=-1)) + 1 for m in maps]
     points: list[dict[str, Any]] = []
     for t in grid:
-        c = comb(P, n, finest, maps, float(t), min_texts=min_texts)
+        c = comb(P, n, finest, maps, float(t), min_texts=min_texts, sideways=sideways)
         counts = c.counts(depth)
         per_node = _per_node(c, nodes)
         points.append(

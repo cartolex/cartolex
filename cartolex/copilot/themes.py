@@ -70,6 +70,7 @@ def grouping_options(settings: Mapping[str, Any] | None) -> tuple[Any, Any, floa
         one_level=float(s.get("comb_theta_one_level", comb.one_level)),
         min_texts=int(s.get("comb_min_texts", comb.min_texts)),
         max_cells=int(s.get("comb_max_cells", comb.max_cells)),
+        sideways=bool(s.get("comb_sideways", comb.sideways)),
     )
     return ward, comb, float(s.get("own_name_floor", OWN_NAME_FLOOR))
 
@@ -405,7 +406,7 @@ class ThemesSession(ThemesViews, Session):
         detail: bool = False,
     ) -> dict[str, Any]:
         """How well the grouping at *level_sizes* (default: the tree's) holds without some
-        people: per level, and per node of *doc* (default: the tree; pass a :meth:`regroup`
+        people (or texts, on a space of texts): per level, and per node of *doc* (default: the tree; pass a :meth:`regroup`
         with its sizes to see its nodes), the least stable first — *n* of them (ten by
         default; all with *detail*). ``outline(detail=True)`` then shows each node's."""
         started = time.perf_counter()
@@ -421,6 +422,7 @@ class ThemesSession(ThemesViews, Session):
             components=int(self.context.get("cluster_components") or 50),
             ward=self.ward,
             doc=doc,
+            texts=self.D if self.context.get("space_unit") == "text" else None,
         )
         self._stable = (_shape(doc), {x["node"]: x["jaccard_mean"] for x in out["nodes"]})
         self._timed("stability", started)

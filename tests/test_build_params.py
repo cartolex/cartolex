@@ -248,8 +248,16 @@ def test_effective_values_say_where_they_come_from():
         "keywords_per_group": (20, "default", None),
         "level_sizes": (None, "default", None),
     }
-    others = {p.name for p in stage.params} - {"depth", "top_groups"}
+    by_space = {"comb_grid", "comb_sideways"}
+    others = {p.name for p in stage.params} - {"depth", "top_groups"} - by_space
     assert {values[name][1] for name in others} == {"default"}
+    # the comb's calibration follows the space's unit: the texts' by a rule, else the people's
+    assert values["comb_sideways"] == (False, "rule", "comb_sideways_by_space")
+    people = ParamsFile(stages={"themes.space": {"space_unit": "person"}})
+    on_people = resolve_params(stage, people, sizes, year=YEAR).values
+    assert on_people["comb_sideways"].value is True
+    assert on_people["comb_grid"].value == [0.1, 0.125, 0.15, 0.175, 0.2, 0.225, 0.25]
+    assert values["comb_grid"][0] == [0.125, 0.15, 0.175, 0.2, 0.225, 0.25, 0.275]
     fake = make_registry(Controls(log=None))["themes.group"]  # a stage that uses the seed
     seeded = resolve_params(fake, params, sizes, year=YEAR)
     assert (seeded.values["seed"].value, seeded.values["seed"].source) == (11, "params.json")
