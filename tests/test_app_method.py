@@ -20,7 +20,19 @@ def built(tmp_path_factory) -> Path:
     """The S demo world as a project at depth 2, built."""
     root = tmp_path_factory.mktemp("method-s") / "project"
     write_project(generate("S", 0), root).close()
-    assert cli(["params", str(root), "--set", "pinned_year=2026", "themes.group.depth=2"]) == 0
+    assert (
+        cli(
+            [
+                "params",
+                str(root),
+                "--set",
+                "pinned_year=2026",
+                "themes.group.depth=2",
+                "themes.group.keywords_per_group=20",
+            ]
+        )
+        == 0
+    )
     assert cli(["build", str(root)]) == 0
     return root
 

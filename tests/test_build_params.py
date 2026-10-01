@@ -258,8 +258,31 @@ def test_effective_values_say_where_they_come_from():
     on_people = resolve_params(stage, people, sizes, year=YEAR).values
     assert on_people["comb_sideways"].value == "anywhere"
     assert on_people["comb_theta_one_level"].value == 0.2
-    assert on_people["comb_grid"].value == [0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2, 0.225, 0.25]
-    assert values["comb_grid"][0] == [0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2, 0.225, 0.25, 0.275]
+    assert on_people["comb_grid"].value == [
+        0.025,
+        0.05,
+        0.075,
+        0.1,
+        0.125,
+        0.15,
+        0.175,
+        0.2,
+        0.225,
+        0.25,
+    ]
+    assert values["comb_grid"][0] == [
+        0.025,
+        0.05,
+        0.075,
+        0.1,
+        0.125,
+        0.15,
+        0.175,
+        0.2,
+        0.225,
+        0.25,
+        0.275,
+    ]
     fake = make_registry(Controls(log=None))["themes.group"]  # a stage that uses the seed
     seeded = resolve_params(fake, params, sizes, year=YEAR)
     assert (seeded.values["seed"].value, seeded.values["seed"].source) == (11, "params.json")

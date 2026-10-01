@@ -125,7 +125,11 @@ def test_the_depth_rule_gives_one_level_on_the_s_world(built, tmp_path):
 @pytest.mark.parametrize("depth", [3, 4])
 def test_deeper_trees_build_end_to_end(built, tmp_path, depth):
     # four levels on the S world's few hundred keywords need smaller groups to grow
-    more = ("themes.group.keywords_per_group=8",) if depth == 4 else ()
+    more = (
+        ("themes.group.keywords_per_group=8",)
+        if depth == 4
+        else ("themes.group.keywords_per_group=20",)
+    )
     root = _copy(built, tmp_path, f"themes.group.depth={depth}", *more)
     _check_depth(root, depth)
     _check_bundle(root, tmp_path, depth)
@@ -135,7 +139,11 @@ def test_deeper_trees_build_end_to_end(built, tmp_path, depth):
 def two_levels(built, tmp_path_factory) -> Path:
     # without the comb, the proposal is the two-level draft read as a tree
     return _copy(
-        built, tmp_path_factory.mktemp("d2"), "themes.group.depth=2", "themes.group.comb=false"
+        built,
+        tmp_path_factory.mktemp("d2"),
+        "themes.group.depth=2",
+        "themes.group.comb=false",
+        "themes.group.keywords_per_group=20",
     )
 
 
@@ -232,7 +240,7 @@ def test_a_curated_two_level_tree_gives_the_same_numbers_both_ways(two_levels, t
 def test_a_curated_deeper_tree_is_applied_and_rebased(built, tmp_path):
     from cartolex.project.themes import insert_level, rename_node
 
-    root = _copy(built, tmp_path, "themes.group.depth=3")
+    root = _copy(built, tmp_path, "themes.group.depth=3", "themes.group.keywords_per_group=20")
     project = Project.open(root, write=True)
     proposal = ThemesFile.model_validate(
         _json(project.layout.stage("themes.group") / "themes_draft.json")

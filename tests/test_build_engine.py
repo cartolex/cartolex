@@ -412,7 +412,18 @@ def test_the_space_is_fitted_on_the_texts_by_a_rule_and_can_be_on_the_people(bui
     assert record["parameters"]["space_unit"]["value"] == "person"
     group = json.loads(project.layout.run_json("themes.group").read_text())["parameters"]
     assert group["comb_sideways"]["value"] == "anywhere"
-    assert group["comb_grid"]["value"] == [0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2, 0.225, 0.25]
+    assert group["comb_grid"]["value"] == [
+        0.025,
+        0.05,
+        0.075,
+        0.1,
+        0.125,
+        0.15,
+        0.175,
+        0.2,
+        0.225,
+        0.25,
+    ]
     after = (project.layout.stage("themes.space") / "models" / "svd.npz").read_bytes()
     assert after != before
     project.close()
