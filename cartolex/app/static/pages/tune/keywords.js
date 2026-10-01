@@ -23,7 +23,8 @@ function reasonWords(code) {
 export function KeywordsDiagnostic({ view }) {
   const bands = view.bands || {};
   const vocab = view.vocabulary || {};
-  const capped = vocab.max_keywords && vocab.kept_keywords >= vocab.max_keywords;
+  const capped = vocab.max_keywords && vocab.scored !== null && vocab.scored !== undefined
+    && vocab.scored > vocab.max_keywords;
   const hist = view.histogram || { edges: [], counts: {} };
   const bars = hist.edges.slice(0, -1).map((edge, i) => ({
     label: formatNumber(edge, { maximumSignificantDigits: 2 }),

@@ -298,8 +298,24 @@ def keywords_view(runtime: Any, ctx: Any) -> dict[str, Any]:
         "vocabulary": {
             "kept_keywords": counts.get("kept_keywords"),
             "max_keywords": _value(build, "max_keywords"),
+            # The scored list the cap cuts (its length before the cap): the cap is reached
+            # when it is longer than the cap, whatever the kept keywords count.
+            "scored": _scored_count(runtime, ctx, build),
         },
     }
+
+
+def _scored_count(runtime: Any, ctx: Any, build: Any) -> int | None:
+    """The number of terms of the build's scored list (cached by its run)."""
+    path = ctx.layout.stage("keywords.build") / "keywords_global_refined.csv"
+    if build is None or not path.is_file():
+        return None
+
+    def compute() -> int:
+        with open(path, encoding="utf-8") as fh:
+            return max(0, sum(1 for _ in fh) - 1)
+
+    return _cached(runtime, ("keywords-scored", ctx.id, build.run_id), compute)
 
 
 # ── the keywords' thresholds, previewed ──────────────────────────────────────
