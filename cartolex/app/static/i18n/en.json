@@ -2600,5 +2600,10 @@
   "tune.thresholds.entering": "{n, plural, one {# entry would enter the vocabulary} other {# entries would enter the vocabulary}}",
   "tune.thresholds.out_of_vocabulary": "{n, plural, one {# entry would leave the vocabulary} other {# entries would leave the vocabulary}}",
   "tune.thresholds.cause": "{param}: {people, number} people, {texts, number} texts",
-  "tune.thresholds.note": "Counted on the last build's candidates, the strongest first; nothing is saved. Once rebuilt, the scores of the others shift a little."
+  "tune.thresholds.note": "Counted on the last build's candidates, the strongest first; nothing is saved. Once rebuilt, the scores of the others shift a little.",
+  "job.pause.collect_budget_paused": "OpenAlex’s daily budget is spent. What was read is kept: resume once it comes back.",
+  "job.budget.back": "The budget comes back: {time}",
+  "job.budget.key": "Without a key the daily budget is small: a free OpenAlex key raises it tenfold. Set it in Settings, Data sources.",
+  "job.budget.open_settings": "Open the sources settings",
+  "job.size.rough": "A rough estimate from the first page: the time left is measured again while reading."
 }

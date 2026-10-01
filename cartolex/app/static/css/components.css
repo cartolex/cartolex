@@ -1833,8 +1833,17 @@ a.cx-button:hover {
 
 .cx-job__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--cx-space-3);
+}
+
+.cx-job__actions > .cx-button {
+  flex-shrink: 0;
+}
+
+.cx-job__back {
+  flex: 1 1 10rem;
 }
 
 /* ── AI handoff ────────────────────────────────────────────────────────── */

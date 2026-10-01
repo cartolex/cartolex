@@ -2600,5 +2600,10 @@
   "tune.thresholds.entering": "{n, plural, one {# entrée entrerait dans le vocabulaire} other {# entrées entreraient dans le vocabulaire}}",
   "tune.thresholds.out_of_vocabulary": "{n, plural, one {# entrée sortirait du vocabulaire} other {# entrées sortiraient du vocabulaire}}",
   "tune.thresholds.cause": "{param} : {people, number} personnes, {texts, number} textes",
-  "tune.thresholds.note": "Compté sur les candidats du dernier calcul, les plus forts d’abord ; rien n’est enregistré. Après un nouveau calcul, les scores des autres bougent un peu."
+  "tune.thresholds.note": "Compté sur les candidats du dernier calcul, les plus forts d’abord ; rien n’est enregistré. Après un nouveau calcul, les scores des autres bougent un peu.",
+  "job.pause.collect_budget_paused": "Le budget du jour d’OpenAlex est épuisé. Ce qui a été lu est gardé : reprenez une fois le budget revenu.",
+  "job.budget.back": "Le budget revient : {time}",
+  "job.budget.key": "Sans clé, le budget du jour est petit : une clé OpenAlex gratuite le multiplie par dix. Indiquez-la dans Réglages, Sources de données.",
+  "job.budget.open_settings": "Ouvrir les réglages des sources",
+  "job.size.rough": "Estimation grossière d’après la première page : le temps restant est mesuré à nouveau pendant la lecture."
 }

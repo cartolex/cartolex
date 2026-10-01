@@ -33,7 +33,7 @@ import random
 import time
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import quote, urlsplit, urlunsplit
@@ -115,9 +115,15 @@ class ServiceError(CollectError):
         advice: str,
         *,
         retry_after: float | None = None,
+        resets_at: datetime | None = None,
+        budget_spent: bool = False,
     ) -> None:
         self.host, self.status, self.what, self.advice = host, status, what, advice
         self.retry_after = retry_after
+        #: When the service said its budget comes back (``X-RateLimit-Reset``), in UTC.
+        self.resets_at = resets_at
+        #: The service said its daily budget is spent (not a passing rate limit).
+        self.budget_spent = budget_spent
         shown = f"status {status}" if status is not None else "no answer"
         super().__init__(f"{host}: {what} ({shown}); {advice}")
 
@@ -311,6 +317,33 @@ def _retry_after(value: str | None, now: datetime) -> float | None:
     if when.tzinfo is None:
         when = when.replace(tzinfo=timezone.utc)
     return max(0.0, (when - now).total_seconds())
+
+
+def _rate_reset(value: str | None, now: datetime) -> datetime | None:
+    """When an ``X-RateLimit-Reset`` header says the budget comes back: seconds from now, a
+    Unix time (above 10^9) or an HTTP date."""
+    if not value:
+        return None
+    value = value.strip()
+    try:
+        number = float(value)
+    except ValueError:
+        seconds = _retry_after(value, now)
+        return None if seconds is None else now + timedelta(seconds=seconds)
+    if number > 1e9:
+        return datetime.fromtimestamp(number, timezone.utc)
+    return now + timedelta(seconds=max(0.0, number))
+
+
+def _spent(response: Any) -> bool:
+    """Whether a 429 says the budget is spent: ``X-RateLimit-Remaining`` at 0 or below, or
+    a body that names the budget (a passing rate limit says neither)."""
+    try:
+        if float(response.headers.get("X-RateLimit-Remaining", "")) <= 0:
+            return True
+    except ValueError:
+        pass
+    return "budget" in (response.text or "")[:2000].lower()
 
 
 # ── the cache ────────────────────────────────────────────────────────────────
@@ -965,7 +998,21 @@ class HttpClient:
             else:
                 status = response.status_code
                 if status in _RETRIED_STATUS:
-                    asked = _retry_after(response.headers.get("Retry-After"), self._now())
+                    now = self._now()
+                    asked = _retry_after(response.headers.get("Retry-After"), now)
+                    if status == 429 and _spent(response):
+                        resets_at = _rate_reset(response.headers.get("X-RateLimit-Reset"), now)
+                        # A spent daily budget: retrying before it comes back only costs time.
+                        raise ServiceUnavailable(
+                            host,
+                            status,
+                            "the daily budget is spent",
+                            "it comes back at the time the service gives (else midnight UTC), "
+                            "or set an API key",
+                            retry_after=(resets_at - now).total_seconds() if resets_at else asked,
+                            resets_at=resets_at,
+                            budget_spent=True,
+                        )
                     if asked is not None and asked > policy.max_retry_after:
                         raise ServiceUnavailable(
                             host,
