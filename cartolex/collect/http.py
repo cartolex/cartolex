@@ -116,11 +116,14 @@ class ServiceError(CollectError):
         *,
         retry_after: float | None = None,
         resets_at: datetime | None = None,
+        budget_spent: bool = False,
     ) -> None:
         self.host, self.status, self.what, self.advice = host, status, what, advice
         self.retry_after = retry_after
         #: When the service said its budget comes back (``X-RateLimit-Reset``), in UTC.
         self.resets_at = resets_at
+        #: The service said its daily budget is spent (not a passing rate limit).
+        self.budget_spent = budget_spent
         shown = f"status {status}" if status is not None else "no answer"
         super().__init__(f"{host}: {what} ({shown}); {advice}")
 
@@ -332,12 +335,15 @@ def _rate_reset(value: str | None, now: datetime) -> datetime | None:
     return now + timedelta(seconds=max(0.0, number))
 
 
-def _spent(value: str | None) -> bool:
-    """Whether an ``X-RateLimit-Remaining`` header says nothing is left."""
+def _spent(response: Any) -> bool:
+    """Whether a 429 says the budget is spent: ``X-RateLimit-Remaining`` at 0 or below, or
+    a body that names the budget (a passing rate limit says neither)."""
     try:
-        return value is not None and float(value) <= 0
+        if float(response.headers.get("X-RateLimit-Remaining", "")) <= 0:
+            return True
     except ValueError:
-        return False
+        pass
+    return "budget" in (response.text or "")[:2000].lower()
 
 
 # ── the cache ────────────────────────────────────────────────────────────────
@@ -959,7 +965,6 @@ class HttpClient:
         kinds = self._sends(svc, sends)
         # The last failure: its class, status, what happened and what to do.
         failure: tuple[type[ServiceError], int | None, str, str, float | None] | None = None
-        resets_at: datetime | None = None
         for attempt in range(1, policy.max_attempts + 1):
             self.check_cancel()
             self._wait(self._bucket(svc, host).reserve(), f"pacing requests to {host}")
@@ -995,9 +1000,8 @@ class HttpClient:
                 if status in _RETRIED_STATUS:
                     now = self._now()
                     asked = _retry_after(response.headers.get("Retry-After"), now)
-                    if status == 429:
+                    if status == 429 and _spent(response):
                         resets_at = _rate_reset(response.headers.get("X-RateLimit-Reset"), now)
-                    if status == 429 and _spent(response.headers.get("X-RateLimit-Remaining")):
                         # A spent daily budget: retrying before it comes back only costs time.
                         raise ServiceUnavailable(
                             host,
@@ -1007,6 +1011,7 @@ class HttpClient:
                             "or set an API key",
                             retry_after=(resets_at - now).total_seconds() if resets_at else asked,
                             resets_at=resets_at,
+                            budget_spent=True,
                         )
                     if asked is not None and asked > policy.max_retry_after:
                         raise ServiceUnavailable(
@@ -1015,7 +1020,6 @@ class HttpClient:
                             f"the service asks to wait {asked:.0f} s",
                             "its rate or daily budget is spent; try again after that time",
                             retry_after=asked,
-                            resets_at=resets_at or now + timedelta(seconds=asked),
                         )
                     failure = (
                         ServiceUnavailable,
@@ -1079,5 +1083,4 @@ class HttpClient:
             what,
             f"gave up after {policy.max_attempts} attempts; {advice}",
             retry_after=asked,
-            resets_at=resets_at if status == 429 else None,
         )

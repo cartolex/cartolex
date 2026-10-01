@@ -278,7 +278,7 @@ def _cause_code(exc: BaseException) -> tuple[str, dict[str, Any]]:
         params = {"host": exc.host, "status": exc.status, "what": exc.what}
         if exc.retry_after is not None:
             params["wait_s"] = round(exc.retry_after)
-        if isinstance(exc, ServiceUnavailable) and exc.status == 429:
+        if isinstance(exc, ServiceUnavailable) and exc.budget_spent:
             return "collect_budget_spent", params
         if isinstance(exc, IncompleteResults):
             return "collect_incomplete", params

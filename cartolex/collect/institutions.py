@@ -730,7 +730,7 @@ def propose_people(
                 marks.append((_clock(), 0))
                 cp.clear()
                 continue
-            if exc.status == 429:
+            if exc.budget_spent:
                 raise _pause(
                     cp,
                     reading,

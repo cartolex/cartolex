@@ -17,6 +17,7 @@ from _app_helpers import TOKEN, Client
 from cartolex.app import AppSettings, create_app
 from cartolex.app.collect_service import ServiceCollection
 from cartolex.app.jobs import LocalJobRunner, read_job_logs
+from cartolex.app.messages import job_error
 from cartolex.collect import HttpClient, RetryPolicy, local_settings
 from cartolex.collect import institutions as inst
 from cartolex.collect.http import ServiceUnavailable
@@ -251,3 +252,25 @@ def test_a_spent_budget_pauses_with_the_reset_time(app_client, server) -> None:
     assert job["state"] == "paused" and pause["code"] == "collect_budget_paused", job
     assert pause["params"]["resets_at"] == "2026-09-21T14:13:20+00:00"
     assert pause["params"]["keyed"] is False
+
+
+def test_a_rate_limit_that_keeps_failing_is_an_ordinary_pause(server, tmp_path) -> None:
+    # 429 without a spent budget (no X-RateLimit-Remaining at 0, no word of it): rate limiting.
+    server.faults.add(
+        "status",
+        service="openalex",
+        path=r"^works\?.*cursor=",
+        skip=3,
+        status=429,
+        times=None,
+        headers={"X-RateLimit-Reset": "60"},
+    )
+    try:
+        with pytest.raises(JobPaused) as paused:
+            _propose(_project(tmp_path / "p"), server)
+    finally:
+        server.faults.clear()
+    pause = paused.value
+    assert pause.code == "collect_paused" and "resets_at" not in pause.params
+    assert not pause.cause.budget_spent
+    assert job_error(pause.cause)["code"] == "collect_service_unavailable"
