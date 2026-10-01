@@ -98,7 +98,12 @@ does not make their keywords look broad.
    keywords per node to the finest level's); at depth 1, where nothing can
    be balanced, 0.2. The band is what the measures below support: above
    0.25 the small world loses specific keywords, below 0.1 it keeps the
-   broad ones.
+   broad ones. These are the people's space's values; a space of texts has
+   its own (*The comb on a space of texts*, below): the grid, θ at depth 1
+   and where a keyword may move (`comb_sideways`) follow
+   `themes.space.space_unit` by rules (`comb_grid_by_space`,
+   `comb_theta_one_level_by_space`, `comb_sideways_by_space`;
+   `cartolex.lexicon.theme_comb.CALIBRATION`).
 
 **On a curated tree: suggestions only.** The grouping keeps the texts it read
 (`themes.group/text_keywords.npz`). The editor's « Borderline » tab can show,
@@ -159,12 +164,13 @@ about as many keywords per node. Its recall of broad keywords (0.5 to 0.75)
 is the price of that balance; a fixed relative 0.2 catches more (0.66 to 0.78)
 at a slightly lower precision.
 
-## The space by texts: an option, measured
+## The space: the texts by default, the people as a choice
 
-`themes.space` fits the keyword space on the people × keywords matrix: two
-keywords are near when the same people use them. A person working on two
-unrelated subjects then brings their keywords together. With
-`space_unit: text` the space is fitted on the texts instead
+`themes.space` can fit the keyword space on the people × keywords matrix
+(`space_unit: person`): two keywords are near when the same people use them.
+A person working on two unrelated subjects then brings their keywords
+together. With `space_unit: text`, the default (the rule `space_unit_texts`,
+recorded as such in `run.json`), the space is fitted on the texts instead
 (`cartolex.atlas.reducers.compute_text_svd_embeddings`): the fitted slots'
 texts, each read once and folded onto the keywords as the comb reads them,
 their TF-IDF over the texts (presence × smoothed IDF, rows L2-normalised),
@@ -172,7 +178,12 @@ then the same truncated SVD; the keywords' vectors are its components
 scaled by the singular values. The people are placed as a projected person
 is, by their row of the lexical matrix through that SVD, so the mapped and
 the projected people are placed alike (placing each person at the mean of
-their texts' vectors measured the same). The default stays `person`.
+their texts' vectors measured the same). The texts became the default on
+the measures below and on a real project (`tools/space_unit_project.py`, an
+English corpus of 21 500 texts): of each keyword's nearest, the links made
+only by people fall from 30 % to 1.5 %, and a blind judge rated 76 % of the
+text space's themes and topics « one subject » against 66 %; the grouping is
+less stable there (topics' ARI without a tenth of the people 0.54 → 0.37).
 
 **Measures** (`python tools/space_unit_study.py FOLDER --size S|L
 [--two-subjects 0.3] [--sizes 12,150] [--map --draft] [--merged]`, on the
@@ -218,12 +229,12 @@ once more), with the same peak.
   L) raises the theme ARI to 0.87 but leaves the themes in one language
   (0.996, for 0.93 of the vocabulary in English): the keywords without a
   kept translation still gather by language.
-- **The comb, tuned on the people's space.** On a text-space tree it
-  catches fewer broad keywords (recall 0.60 → 0.39 on L, 0.50 → 0.26 on S,
-  precision 1.00 both) and moves specific keywords out of their theme
-  (in their theme: 1.00 before the comb, 0.89 after, where the people's
-  space goes from 0.82 to 0.97): θ and its band were calibrated on the
-  people's space.
+- **The comb, tuned on the people's space.** With the people's
+  calibration, a text-space tree has fewer broad keywords caught (recall
+  0.60 → 0.39 on L, 0.50 → 0.26 on S, precision 1.00 both) and specific
+  keywords moved out of their theme (in their theme: 1.00 before the comb,
+  0.89 after, where the people's space goes from 0.82 to 0.97). The comb now
+  has a calibration of its own there (below).
 - **The demo favours it.** Each demo text is written from one theme, or two
   neighbours: the texts carry the truth more directly than real abstracts
   may. The gain on a real corpus is not measured here.
@@ -233,6 +244,103 @@ keeps most of the gain and all of the language split when a person weighs
 one text (L: themes ARI 0.73, one language 0.996); weighing the people as
 much as all the texts halves the split and loses most of the gain (0.56,
 0.89 for 0.86).
+
+**Languages: the diagnostic.** A space of texts whose vocabulary has 10 % or
+more of its keywords outside the reference language (a keyword's language: the
+one the vocabulary gives its form, `keywords_global_refined.csv`) warns in its
+`run.json` and in the overview and the space step (`health_space_languages`:
+« themes may split by language; the people's space may suit this corpus
+better »; `cartolex.build.engine.SPACE_LANGUAGE_SHARE`). The threshold is a
+proposal: on the L demo world 21 % of the keywords are French and one theme of
+French keywords only forms; on the real corpus above, 0.1 %. It is untested on
+a real bilingual corpus.
+
+### The comb on a space of texts
+
+Why the people's calibration fails there (L world, 12 › 150): in a space of
+texts the keywords many texts use gather in groups of their own, since they
+co-occur with everything. One topic of 37 frequent words, of no theme
+(its keywords' texts split between two neighbouring themes), held a larger
+share of the use of 133 specific keywords than their own topic did (median
+0.37 against 0.23, read relative to the 5.5 % every keyword gives it): moved
+to it, they left their theme. And the French keywords make a node of their
+own, which holds their broad keywords' texts: those are never broad there
+(the language split, not a calibration matter; the measures below judge the
+keywords of the reference language for that reason, and give the whole
+vocabulary's beside them).
+
+Three remedies were measured (`tools/theme_comb_study.py comb|relative
+--sideways … --grid … --one-level … --language en`):
+
+- **a higher θ alone** cannot restore the recall at depth 1 on L (it stops at
+  0.54 while the precision falls to 0.28 at θ 0.6);
+- **only up** (`up_only`: each keyword read on its own node's ancestors) keeps
+  the demo's specific keywords in their theme (0.99) but sets aside a keyword
+  the grouping put in the wrong theme: on the real project, 870 keywords set
+  aside where the people's space sets aside 545, and on the people's space
+  itself 508 of the L world's (precision 0.14);
+- **within the parent** (`within_parent`, kept): below the top level a keyword
+  may move only to a node under its own node's parent, at the top level to any
+  node; with the grid one step higher (0.125 to 0.275) and θ 0.3 at depth 1.
+
+The texts' calibration against the people's (keywords of the reference
+language; the whole vocabulary in brackets; calibrated θ):
+
+| world, sizes | space (calibration) | θ | broad P · R | specific in their theme (before) |
+| --- | --- | --- | --- | --- |
+| S, 12 | people | 0.2 | 0.90 · 0.70 (0.93 · 0.47) | 0.92 (0.88) |
+|  | texts (people's calibration) | 0.2 | 1.00 · 0.52 (1.00 · 0.25) | 0.95 (0.95) |
+|  | texts (own) | 0.3 | 0.85 · 0.85 (0.86 · 0.44) | 0.94 (0.95) |
+| S, 12 › 25 | people | 0.25 | 0.88 · 0.78 (0.80 · 0.60) | 0.96 (0.92) |
+|  | texts (people's calibration) | 0.25 | 1.00 · 0.56 (1.00 · 0.29) | 0.95 (1.00) |
+|  | texts (own) | 0.275 | 0.95 · 0.67 (0.95 · 0.35) | 0.95 (1.00) |
+| S, 3 › 12 › 25 | people | 0.25 | 0.88 · 0.78 (0.80 · 0.60) | 0.96 (0.92) |
+|  | texts (people's calibration) | 0.25 | 1.00 · 0.56 (1.00 · 0.29) | 0.95 (1.00) |
+|  | texts (own) | 0.275 | 0.90 · 0.67 (0.90 · 0.35) | 0.94 (1.00) |
+| S2, 12 | people | 0.2 | 1.00 · 0.79 (0.96 · 0.83) | 0.84 (0.73) |
+|  | texts (people's calibration) | 0.2 | 1.00 · 0.55 (1.00 · 0.31) | 0.94 (0.95) |
+|  | texts (own) | 0.3 | 1.00 · 0.76 (1.00 · 0.44) | 0.94 (0.95) |
+| S2, 12 › 25 | people | 0.25 | 0.96 · 0.86 (0.93 · 0.83) | 0.92 (0.87) |
+|  | texts (people's calibration) | 0.25 | 1.00 · 0.62 (1.00 · 0.35) | 1.00 (1.00) |
+|  | texts (own) | 0.275 | 1.00 · 0.72 (1.00 · 0.40) | 1.00 (1.00) |
+| S2, 3 › 12 › 25 | people | 0.25 | 0.96 · 0.86 (0.93 · 0.83) | 0.92 (0.87) |
+|  | texts (people's calibration) | 0.25 | 1.00 · 0.62 (1.00 · 0.35) | 1.00 (1.00) |
+|  | texts (own) | 0.275 | 1.00 · 0.76 (1.00 · 0.42) | 1.00 (1.00) |
+| L, 12 | people | 0.2 | 0.96 · 0.69 (0.93 · 0.68) | 0.97 (0.70) |
+|  | texts (people's calibration) | 0.2 | 1.00 · 0.63 (1.00 · 0.37) | 0.93 (0.99) |
+|  | texts (own) | 0.3 | 0.96 · 0.81 (0.96 · 0.47) | 0.93 (0.99) |
+| L, 12 › 150 | people | 0.125 | 1.00 · 0.53 (1.00 · 0.32) | 0.95 (0.84) |
+|  | texts (people's calibration) | 0.125 | 1.00 · 0.46 (1.00 · 0.26) | 0.88 (1.00) |
+|  | texts (own) | 0.125 | 1.00 · 0.46 (1.00 · 0.26) | 0.94 (1.00) |
+| L, 3 › 12 › 150 | people | 0.125 | 1.00 · 0.53 (1.00 · 0.32) | 0.95 (0.84) |
+|  | texts (people's calibration) | 0.15 | 1.00 · 0.57 (1.00 · 0.33) | 0.88 (1.00) |
+|  | texts (own) | 0.125 | 1.00 · 0.46 (1.00 · 0.26) | 0.94 (1.00) |
+| L2, 12 | people | 0.2 | 0.98 · 0.74 (0.80 · 0.84) | 0.99 (0.59) |
+|  | texts (people's calibration) | 0.2 | 1.00 · 0.72 (1.00 · 0.31) | 0.92 (0.99) |
+|  | texts (own) | 0.3 | 0.95 · 0.76 (0.95 · 0.32) | 0.92 (0.99) |
+| L2, 12 › 150 | people | 0.125 | 1.00 · 0.59 (0.87 · 0.36) | 0.90 (0.77) |
+|  | texts (people's calibration) | 0.175 | 1.00 · 0.63 (1.00 · 0.27) | 0.84 (1.00) |
+|  | texts (own) | 0.175 | 1.00 · 0.63 (1.00 · 0.27) | 0.84 (1.00) |
+| L2, 3 › 12 › 150 | people | 0.125 | 1.00 · 0.59 (0.87 · 0.36) | 0.90 (0.77) |
+|  | texts (people's calibration) | 0.175 | 1.00 · 0.63 (1.00 · 0.27) | 0.84 (1.00) |
+|  | texts (own) | 0.175 | 1.00 · 0.63 (1.00 · 0.27) | 0.84 (1.00) |
+
+At depth 1 the texts' calibration restores the people's recall of broad
+keywords at a similar precision (S 0.52 → 0.85, S2 0.55 → 0.76, L 0.63 →
+0.81, L2 0.72 → 0.76; the people 0.70 to 0.79). At two and three levels it
+recovers part of it (S 0.56 → 0.67 against 0.78, S2 0.62 → 0.72 against 0.86;
+L unchanged at 0.46 against 0.53; L2 0.63 against 0.59), and keeps more
+specific keywords in their theme on L (0.88 → 0.94, the people 0.95), not on
+L2 (0.84, the people 0.90). On L the calibration sits at the floor of its
+grid (0.125), the balance of the levels asking for a lower θ. Over the whole
+vocabulary the recall stays lower (the broad French keywords, in a node of
+their language).
+
+On the real project (both spaces built with these calibrations, 15 › 161):
+the text space sets aside 522 keywords as too broad (the people's 545, the
+people's calibration on the text space 289), 317 of them also set aside by
+the people's space (58 % of its, against 39 % before); 1 675 keywords go up to
+a theme (the people's 1 293) and 1 017 stay on the topics (1 376).
 
 ## Structure suggestions: measured, not shipped
 
