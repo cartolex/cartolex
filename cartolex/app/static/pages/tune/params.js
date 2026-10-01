@@ -10,10 +10,24 @@
  * `If-Match`) or undone.
  */
 
-import { html, useState } from '../../core/preact.js';
+import { html, signal, useEffect, useState } from '../../core/preact.js';
 import { formatNumber, has, t } from '../../core/i18n.js';
 import { Button, ParamField } from '../../components/index.js';
 import { State, refusal } from '../settings/common.js';
+
+/**
+ * The parameters last saved on this page visit, by a « Tune » panel or the themes playground:
+ * `{data, etag}` (the answer of `PUT /api/params`). Each reader of `GET /api/params` follows
+ * it, so a change saved in one shows in the others.
+ */
+export const paramsSaved = signal(null);
+
+/** Follow the saved parameters in *params* (a resource: `{etag, set}`). */
+export function useParamsFollow(params) {
+  useEffect(() => paramsSaved.subscribe((saved) => {
+    if (saved && saved.etag && saved.etag !== params.etag) params.set(saved.data, saved.etag);
+  }), [params.etag]);
+}
 
 /** Parameters the stages record but people set elsewhere (the global seed, the year). */
 const GLOBAL = new Set(['seed', 'year']);
@@ -154,6 +168,7 @@ export function useParamEdits(ctx, params, toaster) {
     const result = await ctx.api.put('/api/params', body, { ifMatch: params.etag });
     if (result.ok) {
       params.set(result.data, result.etag);
+      paramsSaved.value = { data: result.data, etag: result.etag };
       setEdits({});
       toaster.show({ kind: 'success', title: t('settings.build.saved') });
       // the stages after a changed value need an update now: their states say so at once

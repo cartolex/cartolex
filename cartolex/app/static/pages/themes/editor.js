@@ -160,6 +160,7 @@ export function ThemesEditor() {
   }, [jobs, applyJob]);
 
   const { run, focusSearch } = installActions({ editor, ui, setDialog, toast });
+  ui.openCopilot = () => setCopilot({});
 
   // ── saving, applying, versions ──
   async function save({ quiet = false, action = null } = {}) {
@@ -466,7 +467,9 @@ export function ThemesEditor() {
     banners.push(html`<${Banner} key="kept" icon="check" actions=${html`<${Button} size="s" variant="ghost"
       onClick=${() => setKept(null)}>${t('common.dismiss')}<//>`}>${t('themes.apply.kept')}<//>`);
   }
-  if (info.proposal && info.proposal.pending) {
+  // a proposal adopted as the draft (the playground) waits for the draft's save, not for a question
+  const adopted = info.proposal && tree.based_on && tree.based_on.run === info.proposal.run;
+  if (info.proposal && info.proposal.pending && !adopted) {
     banners.push(html`<${Banner} key="proposal" actions=${html`<${Button} size="s" onClick=${compareProposal}>
       ${t('themes.proposal.compare')}<//>`}>${t('themes.proposal.text')}<//>`);
   }
@@ -517,6 +520,7 @@ export function ThemesEditor() {
     }
   }
 
+  const playing = ui.centreTab.value === 'playground';
   const status = viewing ? t('themes.status.viewing') : preview ? t('themes.status.preview')
     : dirty ? t('themes.status.unsaved', { count: editor.unsaved.value })
       : base.source === 'draft' ? t('themes.status.proposal') : t('themes.status.saved');
@@ -555,10 +559,10 @@ export function ThemesEditor() {
       ${applyError ? html`<${ErrorCard} error=${applyError} compact onDismiss=${() => setApplyError(null)}
         onRetry=${() => ui.saveAndApply()} />` : null}
     </div>` : null}
-    <div class="cx-themes__body">
-      <${OutlinePane} editor=${editor} ui=${ui} />
-      <${CentrePane} editor=${editor} ui=${ui} atlas=${atlas} atlasError=${atlasError} onRetryAtlas=${loadAtlas} />
-      <${SidePanel} editor=${editor} ui=${ui} atlas=${atlas} />
+    <div class=${`cx-themes__body ${playing ? 'is-playground' : ''}`}>
+      ${playing ? null : html`<${OutlinePane} editor=${editor} ui=${ui} />`}
+      <${CentrePane} ctx=${ctx} editor=${editor} ui=${ui} atlas=${atlas} atlasError=${atlasError} onRetryAtlas=${loadAtlas} />
+      ${playing ? null : html`<${SidePanel} editor=${editor} ui=${ui} atlas=${atlas} />`}
     </div>
     <p class="cx-visually-hidden" aria-live="polite" aria-atomic="true">${announcement}</p>
     ${modal}

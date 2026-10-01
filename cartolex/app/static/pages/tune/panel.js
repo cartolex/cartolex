@@ -24,7 +24,7 @@ import { t } from '../../core/i18n.js';
 import { useUid } from '../../core/dom.js';
 import { Button, EmptyState, ErrorCard, Icon, Input, StatusDot } from '../../components/index.js';
 import { useResource } from '../settings/common.js';
-import { ParamActions, ParamTable, paramRows, useParamEdits } from './params.js';
+import { ParamActions, ParamTable, paramRows, useParamEdits, useParamsFollow } from './params.js';
 import {
   PANELS, changedCount, firstStale, notBuilt, panelState, rebuildHref, stageWords,
 } from './common.js';
@@ -77,6 +77,7 @@ function Produced({ ctx, app, step, view, from, titled }) {
 /** The opened panel: it reads the parameters and the diagnostics when it mounts. */
 function TuneBody({ ctx, app, id, panel, preview }) {
   const params = useResource(ctx.api, '/api/params');
+  useParamsFollow(params);
   // one resource per step; a panel's steps never change, so the hooks keep their order
   const views = panel.steps.map((step) => useResource(ctx.api, `/api/method/${step}`));
   const editor = useParamEdits(ctx, params, app.toaster);

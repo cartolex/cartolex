@@ -35,10 +35,12 @@ class PlaygroundBody(BaseModel):
     """The settings to preview, per stage (``themes.space``: ``space_unit``; ``themes.group``:
     ``depth``, ``top_groups``, ``keywords_per_group``, ``level_sizes``, ``comb``,
     ``comb_theta``), laid over ``params.json`` (``null``: back to the default or the rule);
-    with ``tree``, the tree to compare the preview with."""
+    with ``tree``, the tree to compare the preview with; ``supersede``: the preview job these
+    settings replace (cancelled when it still runs)."""
 
     settings: Settings = {}
     tree: dict[str, Any] | None = None
+    supersede: Annotated[str, Field(pattern=r"^[\w-]{1,96}$")] | None = None
 
 
 def _refused(exc: Exception) -> ApiError:
@@ -63,12 +65,23 @@ def playground(request: Request, ctx: ProjectDep, body: PlaygroundBody) -> JSONR
     the space's unit changes): 200 ``{preview, against}`` when it was computed from the
     current results, else 202 ``{job}`` (send the same request once the job ends). Nothing is
     saved. ``preview``: ``tree``, ``settings`` (each stage's effective values),
-    ``space_refit``, ``theta`` and ``seconds``; ``against``: how it differs from ``tree``."""
+    ``space_refit``, ``theta`` and ``seconds``; ``against``: how it differs from ``tree``.
+    With ``supersede`` naming a preview job still running: it is cancelled, and the answer
+    is 202 with that job and ``superseded`` (send the request again once it ends)."""
+    from ..jobs import ACTIVE_STATES
     from ..playground import PreviewNeedsBuild, PreviewRefused, cache_key, group_preview
     from ..playground import preview_settings as effective_of
 
     runtime = runtime_of(request)
     year = runtime.settings.build_year
+    if body.supersede:
+        # the job these settings replace: cancelled while it runs (wait for its end, then ask
+        # again); one preview job runs at a time
+        old = runtime.jobs.status(body.supersede)
+        if old is not None and old.project == ctx.id and old.group == "preview":
+            if old.state in ACTIVE_STATES:
+                cancelled = runtime.jobs.cancel(body.supersede) or old
+                return JSONResponse({"job": cancelled.as_dict(), "superseded": True}, 202)
     try:
         effective = effective_of(ctx.project, runtime.registry, body.settings, year)
     except (PreviewRefused, PreviewNeedsBuild) as exc:
