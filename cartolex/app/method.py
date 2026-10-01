@@ -27,6 +27,7 @@ __all__ = [
     "PREVIEW_SAMPLE",
     "STEPS",
     "grouping_view",
+    "keywords_preview",
     "keywords_view",
     "layout_preview",
     "layout_view",
@@ -298,6 +299,189 @@ def keywords_view(runtime: Any, ctx: Any) -> dict[str, Any]:
             "kept_keywords": counts.get("kept_keywords"),
             "max_keywords": _value(build, "max_keywords"),
         },
+    }
+
+
+# ── the keywords' thresholds, previewed ──────────────────────────────────────
+
+#: The thresholds a preview applies to the stored candidates, without a new extraction: each
+#: parameter's stage and the side a value may move to and still be previewed (``up``: a larger
+#: value only removes candidates; ``down``: a smaller one only removes them; ``both``: the cap
+#: of the vocabulary, applied to the full scored list ``keywords.build`` keeps). The others
+#: (``counting_unit``, ``max_candidates``, the scoring and the bands' rules) change the scores
+#: or the bands themselves: they need a new extraction.
+PREVIEW_THRESHOLDS: dict[str, tuple[str, str]] = {
+    "min_people": ("keywords.extract", "up"),
+    "min_texts": ("keywords.extract", "up"),
+    "max_share": ("keywords.extract", "down"),
+    "max_keywords": ("keywords.build", "both"),
+}
+#: The candidates (and vocabulary entries) a preview names, the strongest first.
+PREVIEW_NAMED = 8
+_BANDS = ("kept", "check", "aside", "rejected")
+
+
+def _preview_base(runtime: Any, ctx: Any, rows: list[dict[str, Any]], run_id: str) -> dict:
+    """The arrays a preview filters (cached by the extraction's and the build's runs)."""
+    import csv
+
+    build = _record(ctx, "keywords.build")
+    build_run = build.run_id if build is not None else None
+
+    def compute() -> dict[str, Any]:
+        refined: list[tuple[str, float, str]] = []
+        path = ctx.layout.stage("keywords.build") / "keywords_global_refined.csv"
+        if build_run is not None and path.is_file():
+            with open(path, encoding="utf-8", newline="") as fh:
+                for r in csv.DictReader(fh):
+                    refined.append((r["term"], float(r.get("score") or 0), r.get("lang") or ""))
+        n_people = 0
+        npz = ctx.layout.stage("keywords.extract") / "term_people.npz"
+        if npz.is_file():
+            with np.load(npz, allow_pickle=False) as z:
+                n_people = int(z["n_people"][0])
+        score = np.asarray([r["score_len"] for r in rows], dtype=float)
+        lower = [r["term"].casefold() for r in rows]
+        return {
+            "people": np.asarray([r["people"] for r in rows], dtype=np.int64),
+            "texts": np.asarray([r["texts"] for r in rows], dtype=np.int64),
+            "score": score,
+            "band": np.asarray(
+                [_BANDS.index(r["band"]) if r["band"] in _BANDS else 0 for r in rows]
+            ),
+            "order": np.argsort(-score, kind="stable"),
+            "lower": lower,
+            "rows_of": Counter(lower),
+            "n_people": n_people or int(max((r["people"] for r in rows), default=0)),
+            "refined": refined,
+            "build_run": build_run,
+        }
+
+    return _cached(runtime, ("keywords-preview", ctx.id, run_id, build_run), compute)
+
+
+def _named(rows: list[dict[str, Any]], index: Any, causes: Any = None) -> list[dict[str, Any]]:
+    out = []
+    for i in index[:PREVIEW_NAMED]:
+        r = rows[int(i)]
+        item = {k: r[k] for k in ("term", "language", "score_len", "people", "texts", "band")}
+        if causes is not None:
+            item["cause"] = causes[int(i)]
+        out.append(item)
+    return out
+
+
+def keywords_preview(runtime: Any, ctx: Any, values: Mapping[str, Any]) -> dict[str, Any]:
+    """What the keywords' thresholds *values* (any of :data:`PREVIEW_THRESHOLDS`; a missing one
+    keeps the last build's) would keep of the last build's candidates and vocabulary: the counts
+    by band, the vocabulary's size, the candidates that would leave and the vocabulary entries
+    that would enter or leave (the strongest first). A value only a new extraction can show
+    (a looser window: candidates outside the last one were never kept) is named in ``needs``
+    and the last build's value is used in its place. Nothing is written."""
+    import time
+
+    from .messages import message
+    from .routes.keywords import extracted
+
+    started = time.perf_counter()
+    rows, run_id = extracted(runtime, ctx)
+    if run_id is None:
+        return {"run": None, "empty": empty("empty_no_keywords")}
+    base = _preview_base(runtime, ctx, rows, run_id)
+    extract = _record(ctx, "keywords.extract")
+    build = _record(ctx, "keywords.build")
+    built = {
+        name: _value(extract if stage == "keywords.extract" else build, name)
+        for name, (stage, _) in PREVIEW_THRESHOLDS.items()
+    }
+    used: dict[str, Any] = {}
+    needs = []
+    for name, (_, side) in PREVIEW_THRESHOLDS.items():
+        want, was = values.get(name), built[name]
+        if want is None or was is None:
+            used[name] = was
+            continue
+        looser = (side == "up" and want < was) or (side == "down" and want > was)
+        if looser:
+            needs.append(message("preview_needs_extraction", param=name, value=want, built=was))
+            used[name] = was
+        else:
+            used[name] = want
+
+    people, texts = base["people"], base["texts"]
+    causes = np.full(len(rows), "", dtype=object)
+    drop = np.zeros(len(rows), dtype=bool)
+    tests = [
+        ("min_people", people < (used["min_people"] or 0)),
+        ("min_texts", texts < (used["min_texts"] or 0)),
+        (
+            "max_share",
+            people
+            > (used["max_share"] if used["max_share"] is not None else 1.0) * base["n_people"],
+        ),
+    ]
+    for name, fails in tests:
+        causes[fails & ~drop] = name
+        drop |= fails
+    band = base["band"]
+    bands = {
+        b: {
+            "before": int((band == i).sum()),
+            "after": int(((band == i) & ~drop).sum()),
+        }
+        for i, b in enumerate(_BANDS)
+    }
+    order = base["order"]
+    leaving = order[drop[order]]
+
+    # The vocabulary: the scored list keywords.build keeps, cut at the cap; a term all of whose
+    # candidates (one per language) leave leaves it too.
+    refined = base["refined"]
+    dropped = Counter(base["lower"][i] for i in np.flatnonzero(drop))
+    gone = {t for t, n in dropped.items() if n == base["rows_of"][t]}
+
+    def alive(term: str) -> bool:
+        return not gone or term.casefold() not in gone
+
+    cap_before = built["max_keywords"] or len(refined)
+    cap_after = used["max_keywords"] or len(refined)
+    before = [t for t, _, _ in refined[:cap_before]]
+    kept_after = [e for e in refined if alive(e[0])][:cap_after]
+    after = {t for t, _, _ in kept_after}
+    was_in = set(before)
+    entering = [e for e in kept_after if e[0] not in was_in]
+    out_of = [e for e in refined[:cap_before] if e[0] not in after]
+
+    def entries(items: list[tuple[str, float, str]]) -> list[dict[str, Any]]:
+        return [
+            {"term": t, "score": round(sc, 6), "language": lang}
+            for t, sc, lang in items[:PREVIEW_NAMED]
+        ]
+
+    return {
+        "run": run_id,
+        "build_run": base["build_run"],
+        "built": built,
+        "used": used,
+        "needs": needs,
+        "people": base["n_people"],
+        "candidates": {
+            "before": len(rows),
+            "after": int((~drop).sum()),
+            "leaving": int(drop.sum()),
+        },
+        "bands": bands,
+        "leaving": _named(rows, leaving, causes),
+        "vocabulary": {
+            "available": base["build_run"] is not None and bool(refined),
+            "before": len(before),
+            "after": len(after),
+            "entering": len(entering),
+            "leaving": len(out_of),
+        },
+        "vocabulary_entering": entries(entering),
+        "vocabulary_leaving": entries(out_of),
+        "ms": round((time.perf_counter() - started) * 1000, 2),
     }
 
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from fastapi import Request
+from fastapi import Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -36,6 +36,31 @@ def get_step(request: Request, ctx: ProjectDep, step: Step) -> dict[str, Any]:
     from ..method import step_view
 
     return step_view(runtime_of(request), ctx, step)
+
+
+@routes.get("/api/method/keywords/preview", action="params.read")
+def keywords_preview(
+    request: Request,
+    ctx: ProjectDep,
+    min_people: Annotated[int | None, Query(ge=1, le=10**7)] = None,
+    min_texts: Annotated[int | None, Query(ge=1, le=10**7)] = None,
+    max_share: Annotated[float | None, Query(ge=0.01, le=1.0)] = None,
+    max_keywords: Annotated[int | None, Query(ge=10, le=10**7)] = None,
+) -> dict[str, Any]:
+    """What the keywords' thresholds would keep of the last build's candidates and vocabulary,
+    without a new extraction and without saving anything: the counts by band, the vocabulary's
+    size, the strongest candidates that would leave and the vocabulary entries that would enter
+    or leave. A value only a new extraction can show (a looser window) is named in ``needs``
+    (``preview_needs_extraction``) and the last build's value is used in its place."""
+    from ..method import keywords_preview as preview_of
+
+    values = {
+        "min_people": min_people,
+        "min_texts": min_texts,
+        "max_share": max_share,
+        "max_keywords": max_keywords,
+    }
+    return preview_of(runtime_of(request), ctx, values)
 
 
 class PreviewBody(BaseModel):

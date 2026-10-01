@@ -98,6 +98,39 @@ def test_a_layout_preview_is_a_job_then_a_cached_answer(client):
     assert wrong.status_code == 422 and wrong.json()["error"]["code"] == "layout_param_unknown"
 
 
+def test_the_keywords_thresholds_preview_on_the_stored_candidates(client, built):
+    params = built / "decisions" / "params.json"
+    before = params.read_bytes()
+    same = client.get("/api/method/keywords/preview").json()
+    assert same["built"] == {
+        "min_people": 3,
+        "min_texts": 3,
+        "max_share": 0.6,
+        "max_keywords": 10_000,
+    }
+    assert same["candidates"]["after"] == same["candidates"]["before"] and not same["needs"]
+
+    stricter = client.get("/api/method/keywords/preview", params={"min_people": 5}).json()
+    gone = stricter["candidates"]["leaving"]
+    assert gone > 0 and stricter["candidates"]["after"] == stricter["candidates"]["before"] - gone
+    assert sum(b["after"] for b in stricter["bands"].values()) == stricter["candidates"]["after"]
+    named = stricter["leaving"]
+    assert named and all(r["people"] < 5 and r["cause"] == "min_people" for r in named)
+    assert [r["score_len"] for r in named] == sorted((r["score_len"] for r in named), reverse=True)
+    assert stricter["vocabulary"]["after"] <= stricter["vocabulary"]["before"]
+
+    # a looser window needs a new extraction: named, and the last build's value kept
+    looser = client.get("/api/method/keywords/preview", params={"min_people": 2}).json()
+    assert [n["code"] for n in looser["needs"]] == ["preview_needs_extraction"]
+    assert looser["needs"][0]["params"] == {"param": "min_people", "value": 2, "built": 3}
+    assert looser["used"]["min_people"] == 3 and looser["candidates"]["leaving"] == 0
+
+    # the vocabulary's cap, both ways, on the full scored list
+    cap = client.get("/api/method/keywords/preview", params={"max_keywords": 50}).json()
+    assert cap["vocabulary"]["after"] == 50 and len(cap["vocabulary_leaving"]) == 8
+    assert params.read_bytes() == before  # nothing saved
+
+
 def test_a_map_version_takes_layout_parameters_and_params_say_their_default(client):
     versions = client.get("/api/map/versions")
     tried = client.post(

@@ -169,6 +169,11 @@ MESSAGES: dict[str, MessageKind] = {
         "Open the settings",
         "settings",
     ),
+    # a preview that cannot show a value
+    "preview_needs_extraction": MessageKind(
+        "{param} at {value} reaches past the last build's {built}: the candidates outside its "
+        "window were never kept, a new extraction shows them"
+    ),
     # the overview's one next step
     "next_watch_build": MessageKind("a build is running", "Follow the build", "open:/build"),
     "next_copilot_waiting": MessageKind(
