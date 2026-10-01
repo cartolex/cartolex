@@ -78,7 +78,9 @@ def test_a_failing_page_pauses_and_the_resumed_reading_gives_the_same_proposal(
     server, reference, tmp_path
 ) -> None:
     project = _project(tmp_path / "p")
-    server.faults.add("status", service="openalex", path=r"^works\?.*cursor=", skip=6, times=2, status=503)
+    server.faults.add(
+        "status", service="openalex", path=r"^works\?.*cursor=", skip=6, times=2, status=503
+    )
     with pytest.raises(JobPaused) as paused:
         _propose(project, server)
     server.faults.clear()
