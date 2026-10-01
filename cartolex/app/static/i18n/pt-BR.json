@@ -2120,7 +2120,7 @@
   "method.keywords.reasons": "Por que cada candidato está na sua faixa",
   "method.keywords.ranked": "Candidatos por pontuação",
   "method.keywords.any_band": "Todas as faixas",
-  "method.space.lead": "Cada dimensão guarda uma parte da variância das palavras-chave das pessoas. Mais dimensões guardam temas mais finos, e mais ruído.",
+  "method.space.lead": "O espaço é ajustado sobre os textos (palavras-chave ficam próximas quando os mesmos textos as usam; o padrão) ou sobre as pessoas (quando as mesmas pessoas as usam). Cada dimensão guarda uma parte da variância das suas palavras-chave. Mais dimensões guardam temas mais finos, e mais ruído.",
   "method.space.dimensions": "Dimensões",
   "method.space.wanted": "Dimensões pedidas",
   "method.space.explained_total": "Variância guardada",

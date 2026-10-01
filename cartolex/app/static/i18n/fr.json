@@ -2120,7 +2120,7 @@
   "method.keywords.reasons": "Pourquoi chaque candidat est dans sa bande",
   "method.keywords.ranked": "Candidats classés par score",
   "method.keywords.any_band": "Toutes les bandes",
-  "method.space.lead": "Chaque dimension garde une part de la variance des mots-clés des personnes. Plus de dimensions gardent des thèmes plus fins, et plus de bruit.",
+  "method.space.lead": "L’espace est ajusté sur les textes (des mots-clés sont proches quand les mêmes textes les emploient ; par défaut) ou sur les personnes (quand les mêmes personnes les emploient). Chaque dimension garde une part de la variance de leurs mots-clés. Plus de dimensions gardent des thèmes plus fins, et plus de bruit.",
   "method.space.dimensions": "Dimensions",
   "method.space.wanted": "Dimensions demandées",
   "method.space.explained_total": "Variance gardée",

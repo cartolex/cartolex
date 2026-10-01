@@ -2120,7 +2120,7 @@
   "method.keywords.reasons": "Why each candidate is in its band",
   "method.keywords.ranked": "Candidates ranked by score",
   "method.keywords.any_band": "Every band",
-  "method.space.lead": "Each dimension keeps a share of the variance of the people's keywords. More dimensions keep finer themes, and more noise.",
+  "method.space.lead": "The space is fitted on the texts (keywords are near when the same texts use them; the default) or on the people (when the same people use them). Each dimension keeps a share of the variance of their keywords. More dimensions keep finer themes, and more noise.",
   "method.space.dimensions": "Dimensions",
   "method.space.wanted": "Dimensions asked for",
   "method.space.explained_total": "Variance kept",

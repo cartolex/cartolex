@@ -73,7 +73,8 @@ class ThemesViews:
 
     def shared_people(self, keyword: str, keywords: list[str]) -> int:
         """How many people use both *keyword* and at least one of *keywords* (itself left out):
-        what a nearness in the space rests on, since the space is made of who uses which words."""
+        what a nearness in the space rests on (on the people's space, it is made of who uses which
+        words)."""
         col = {t: j for j, t in enumerate(self.terms)}
         if keyword not in col:
             return 0
