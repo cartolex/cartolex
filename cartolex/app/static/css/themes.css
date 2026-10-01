@@ -1083,53 +1083,59 @@
 }
 
 .cx-pg-icicle {
-  transition: opacity var(--cx-duration-fast) ease;
-}
-
-.cx-pg-icicle {
-  display: grid;
-  grid-auto-columns: minmax(10rem, 1fr);
-  grid-auto-flow: column;
-  gap: var(--cx-space-2);
-  min-height: 0;
-  overflow-x: auto;
-}
-
-.cx-pg-col {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: auto;
+  transition: opacity var(--cx-duration-fast) ease;
+}
+
+/* the levels' names, kept in view while the icicle scrolls */
+.cx-pg-icicle__heads {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--cx-pg-depth), minmax(10rem, 1fr));
+  gap: var(--cx-space-2);
+  min-width: calc(var(--cx-pg-depth) * 10.5rem);
+  padding-bottom: var(--cx-space-1);
+  background: var(--cx-surface);
 }
 
 .cx-pg-col__title {
   display: flex;
   justify-content: space-between;
   gap: var(--cx-space-2);
-  margin: 0 0 var(--cx-space-1);
+  margin: 0;
   font-size: var(--cx-text-s);
 }
 
-.cx-pg-col__list {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 2px;
-  min-height: 24rem;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  list-style: none;
+/* one column per level; a block at its place (--cx-pg-y, --cx-pg-h), its children beside it */
+.cx-pg-icicle__body {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: calc(var(--cx-pg-depth) * 10.5rem);
+  height: var(--cx-pg-height);
 }
 
-/* a block's height follows its keyword count (--cx-pg-k, the largest node 12rem high); a long
-   level scrolls */
 .cx-pg-block {
+  position: absolute;
+  top: var(--cx-pg-y);
+  left: calc(var(--cx-pg-col) * (100% + var(--cx-space-2)) / var(--cx-pg-depth));
   display: flex;
-  flex: 0 0 auto;
-  height: max(2.75rem, calc(12rem * var(--cx-pg-k, 1) / var(--cx-pg-max, 1)));
+  width: calc((100% + var(--cx-space-2)) / var(--cx-pg-depth) - var(--cx-space-2));
+  height: var(--cx-pg-h);
+  padding-bottom: 2px;
+}
+
+/* the path of the node hovered or focused: its ancestors and descendants; the rest fades */
+.cx-pg-icicle__body.is-lit .cx-pg-block:not(.is-path):not(.cx-pg-block--more) {
+  opacity: 0.45;
 }
 
 .cx-pg-block__button {
+  position: relative;
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -1157,6 +1163,18 @@
 
 .cx-pg-block--l4 .cx-pg-block__button {
   background: color-mix(in srgb, var(--cx-pg-hue) 14%, var(--cx-surface));
+}
+
+/* the node's own keywords: a band at the foot of its block, by their share of its keywords */
+.cx-pg-block__own {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: max(4px, calc(var(--cx-pg-band) * 100%));
+  background-image: repeating-linear-gradient(135deg, transparent 0 5px,
+    color-mix(in srgb, var(--cx-pg-hue) 60%, transparent) 5px 6px);
+  pointer-events: none;
 }
 
 .cx-pg-block__button:hover,
@@ -1190,7 +1208,6 @@
 }
 
 .cx-pg-block--more {
-  flex: 0 0 auto;
   align-items: center;
   padding: var(--cx-space-1) var(--cx-space-2);
   border: 1px dashed var(--cx-border);

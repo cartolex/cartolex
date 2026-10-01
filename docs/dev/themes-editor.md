@@ -145,12 +145,17 @@ panel's room.
   project's parameters (`GET /api/params`, read when the tab opens) and stay
   for the visit; a save of the « Tune » panel shows here, and the other way
   round.
-- **The tree as columns**, one per level: each node a block whose height
-  follows its keyword count, the top level in its hue family and the levels
-  below in tints of it, with its name, its keywords and « N its own ». A level
-  of more than 60 nodes shows the largest and « + N more ». A block opens its
-  most used keywords in a popover. Keys: one tab stop, ↑ ↓ within a level,
-  ← → to the parent and the first child, Enter or Space, Escape.
+- **The tree as an icicle**, one column per level, aligned: a node's children
+  sit beside it in the next column, in one group whose total height is the
+  parent's. A block's height follows its keyword count, never below the room
+  of its label; the node's own keywords show as a hatched band at its foot and
+  as « N its own ». The top level is in its hue family, the levels below in
+  tints of it. A parent of more than 20 children (the top level: 60) shows its
+  largest and « + N more » inside its own span. The whole icicle scrolls as
+  one, the levels' names staying in view; hovering or focusing a node
+  highlights its path (ancestors and descendants). A block opens its most used
+  keywords in a popover. Keys: one tab stop, ↑ ↓ within a level, ← → to the
+  parent and the first child, Enter or Space, Escape.
 - **The side panel**: the balance across levels (per level, the share of the
   keywords on its nodes, and the keywords on each node, median and middle
   half, against the target: few keywords on the top level, about as many on

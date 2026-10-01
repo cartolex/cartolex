@@ -54,9 +54,21 @@ def test_change_the_levels_and_the_keywords_per_topic_adopt_then_undo(playground
     assert page.locator(".cx-pg-balance tbody tr").count() == 2
 
     control(ui, "Levels").locator(".cx-segmented__option", has_text="3").click()
-    page.wait_for_function("() => document.querySelectorAll('.cx-pg-col').length === 3")
+    page.wait_for_function("() => document.querySelectorAll('.cx-pg-col__title').length === 3")
     wait_ready(ui)
     assert page.locator(".cx-pg-balance tbody tr").count() == 3
+    # each child block lies within its parent's vertical span, in the next column
+    outside = page.evaluate(
+        """() => [...document.querySelectorAll('.cx-pg-block[data-parent]')]
+          .filter((b) => b.dataset.parent).map((b) => {
+            const p = document.querySelector(`.cx-pg-block[data-node="${b.dataset.parent}"]`);
+            const r = b.getBoundingClientRect();
+            const q = p.getBoundingClientRect();
+            return r.top >= q.top - 0.5 && r.bottom <= q.bottom + 0.5 && r.left > q.right ? null
+              : b.dataset.node;
+          }).filter(Boolean)"""
+    )
+    assert outside == []
     topics = columns(ui)[-1]
     per_topic(ui, 10)
     page.wait_for_function(
