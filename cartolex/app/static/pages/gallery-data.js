@@ -78,6 +78,39 @@ export const JOBS = [
     finished_at: '2026-09-28T08:31:00Z', progress: null, result: { ran: [] }, error: null },
 ];
 
+/** A large collection from an institution: reading, asking before a large list, paused. */
+export const LARGE_JOBS = [
+  { id: 'job-13', kind: 'collection', state: 'running', cancellable: true,
+    title_code: 'collect_institutions', created_at: '2026-09-28T10:00:00Z',
+    started_at: '2026-09-28T10:00:01Z', finished_at: null,
+    progress: { phase: 1, phases: 1, stage: 'corpus.institutions', fraction: 0.41,
+      stage_fraction: 0.41, code: 'institution_works', eta_s: 3120,
+      params: { works: 697400, total: 1702300, pages: 6974, authors: 141020, rate: 322 } },
+    result: null, error: null },
+  { id: 'job-12', kind: 'collection', state: 'paused', cancellable: false,
+    title_code: 'collect_institutions', created_at: '2026-09-28T09:00:00Z',
+    started_at: '2026-09-28T09:00:01Z', finished_at: '2026-09-28T09:00:03Z', progress: null,
+    result: { outcome: 'paused', action: 'institutions', pause: {
+      code: 'collect_size_confirm', checkpoint: 'institution_works-0123456789abcdef',
+      params: { works: 100, total: 1702300, pages: 1, requests: 17023, seconds: 5300,
+        cost_usd: 1.7, days: 2, keyed: true },
+      progress: { works: 100, total: 1702300, pages: 1 }, cause: null } },
+    error: null },
+  { id: 'job-11', kind: 'collection', state: 'paused', cancellable: false,
+    title_code: 'collect_institutions', created_at: '2026-09-28T08:00:00Z',
+    started_at: '2026-09-28T08:00:01Z', finished_at: '2026-09-28T08:37:00Z', progress: null,
+    result: { outcome: 'paused', action: 'institutions', pause: {
+      code: 'collect_paused', checkpoint: 'institution_works-fedcba9876543210',
+      params: { works: 99900, total: 1702300, pages: 999 },
+      progress: { works: 99900, total: 1702300, pages: 999 },
+      cause: { code: 'collect_budget_spent', exception: 'ServiceUnavailable',
+        params: { host: 'api.openalex.org', status: 429, what: 'too many requests' },
+        message: 'api.openalex.org refused more requests (status 429)',
+        detail: 'api.openalex.org: too many requests (status 429); gave up after 5 attempts',
+        step: 'corpus.institutions', progress: { stage: 'corpus.institutions', fraction: 0.06 } } } },
+    error: null },
+];
+
 /** Error models (core/errors.js) of the gallery's ErrorCards. */
 export const ERRORS = {
   server: {

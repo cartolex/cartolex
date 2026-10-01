@@ -211,6 +211,23 @@ and the person of the project they already are, if any.
 - **Split records** of one person (the same name, first names that agree, one
   may be an initial, at the same unit, with no work in common; or a shared
   ORCID) are suggested, never merged: `--take A1+A2` takes them as one person.
+- **Large institutions.** The works are read 100 at a time (the most a page
+  holds), with only the three fields the proposal reads, and folded into each
+  author's counts as they come: memory grows with the authors, not with the
+  works. A national institution signs hundreds of thousands of works a year:
+  one request per 100 works, so a million works is 10,000 requests, a whole
+  day of OpenAlex's free budget with a key (a tenth of it without one). Narrow
+  the years or choose units below the institution, or read the OpenAlex
+  snapshot instead (`collect snapshot`, below). In the app, a list of more
+  than 100,000 works waits for your confirmation after its first page, and
+  the progress shows the works read, the requests, the rate and the time left.
+- **Stop and resume.** Every 100 pages the place reached and the counts are
+  saved in the slot's `raw/checkpoints/`. Ctrl-C (Stop in the app), or a page
+  that still fails after its retries (a spent budget, a service down), pauses
+  the reading with its cause; `--resume` (Resume in the app) goes on from
+  there and gives the proposal an uninterrupted reading gives. A pause older
+  than a week, or a place the service no longer takes, starts again from the
+  first page, with a note.
 
 The people taken are `mapped` by default (`--role context`, `projected` or
 `excluded` otherwise), with their records confirmed; their works come with the

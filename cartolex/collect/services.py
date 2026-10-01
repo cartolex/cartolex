@@ -128,6 +128,9 @@ SERVICES: Mapping[str, Service] = MappingProxyType(
             label="OpenAlex",
             base_url="https://api.openalex.org",
             # Documented ceiling: 100 requests per second (help.openalex.org, 2026-08-19);
+            # checked again 2026-10-01: at most 100 per page, cursor paging with no stated
+            # limit or expiry, the snapshot advised for bulk downloads; a free key's $1 a day
+            # is 10,000 list requests (10⁶ works), $0.10 without a key is 1,000 (10⁵ works).
             # the real limit is the daily budget, so cartolex stays far below it.
             rate=RateLimit(per_second=10.0, burst=10),
             lifetimes=_frozen(

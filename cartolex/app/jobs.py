@@ -15,6 +15,15 @@ name or a text), the
 events of its work (a build writes its own: phases, stage ends, counts, times)
 and a ``job-end`` line. After a restart, a job whose log has no end and whose
 process is gone is reported as ``interrupted``, never as running.
+
+A job that fails records why in its ``job-end`` line and its :attr:`JobInfo.error`
+(:func:`~cartolex.app.messages.job_error`): the cause's code, params and
+words, the exception's class and a short message, the step it was in and how
+far it got. A job that raises :class:`~cartolex.project.checkpoints.JobPaused`
+(or returns ``outcome: paused``) ends ``paused``: its state is saved and a new
+job can resume it; the ``job-end`` line and ``result.pause`` say why, how far
+it got and the checkpoint to resume from
+(:func:`~cartolex.app.messages.job_pause`).
 """
 
 from __future__ import annotations
@@ -33,6 +42,9 @@ from typing import Any, Protocol
 
 from cartolex.build.machine import boot_id
 from cartolex.build.records import new_run_id
+from cartolex.project.checkpoints import JobPaused
+
+from .messages import job_error, job_pause
 
 __all__ = [
     "ACTIVE_STATES",
@@ -46,13 +58,15 @@ __all__ = [
 ]
 
 #: The states of a job. ``cancelling``: a cancel was asked and the job has not stopped yet;
-#: ``waiting``: a build ended at an AI step, waiting for a copilot's result.
+#: ``waiting``: a build ended at an AI step, waiting for a copilot's result; ``paused``: a long
+#: job stopped with its state saved (asked to stop, or a request kept failing), to be resumed.
 JOB_STATES = (
     "queued",
     "running",
     "cancelling",
     "succeeded",
     "waiting",
+    "paused",
     "failed",
     "cancelled",
     "interrupted",
@@ -80,7 +94,9 @@ class JobInfo:
     finished_at: str | None = None
     progress: dict[str, Any] | None = None
     result: dict[str, Any] | None = None
-    error: str | None = None
+    #: Why a failed job failed: ``{code, params, message, exception, detail, step, progress}``
+    #: (:func:`~cartolex.app.messages.job_error`).
+    error: dict[str, Any] | None = None
     group: str = "work"
     #: The title as a code of the interface's catalogues (``job.title.<code>``) and
     #: its parameters; ``title`` stays the English words.
@@ -268,23 +284,35 @@ class LocalJobRunner:
 
     def _run(self, job: _Job, work: Work, control: JobControl) -> None:
         self._update(job, state="running", started_at=_stamp())
-        state, result, error = "succeeded", None, None
+        state, result = "succeeded", None
+        error: dict[str, Any] | None = None
         try:
             result = dict(work(control) or {})
             outcome = result.get("outcome")
-            if outcome in ("failed", "cancelled", "waiting"):
+            if outcome in ("failed", "cancelled", "waiting", "paused"):
                 state = outcome
-                error = result.get("error") if outcome == "failed" else None
+                if outcome == "failed":
+                    error = _returned_error(result.get("error"), job.info.progress)
             elif job.cancel.is_set() and outcome is None:
                 state = "cancelled"
+        except JobPaused as paused:
+            state, result = "paused", {"outcome": "paused", "pause": job_pause(paused)}
         except BaseException as exc:  # a job never takes the server down
-            state, error = ("cancelled", None) if job.cancel.is_set() else ("failed", None)
-            if state == "failed":
-                error = _error_text(exc)
+            if job.cancel.is_set():
+                state = "cancelled"
+            else:
+                state, error = "failed", job_error(exc, job.info.progress)
         finally:
             finished = _stamp()
             self._update(job, state=state, finished_at=finished, result=result, error=error)
-            control.event("job-end", state=state)
+            end: dict[str, Any] = {"state": state}
+            if error is not None:
+                end["error"] = error
+            if state == "paused" and result and result.get("pause"):
+                end["pause"] = result["pause"]
+                if result.get("action"):
+                    end["action"] = result["action"]
+            control.event("job-end", **end)
 
     # ── reading ──
     def _update(self, job: _Job, **changes: Any) -> None:
@@ -372,10 +400,18 @@ class LocalJobRunner:
                 job.thread.join(max(0.0, deadline - time.monotonic()))
 
 
-def _error_text(exc: BaseException) -> str:
-    """An error in words: its type and message (messages of cartolex name no person)."""
-    text = str(exc).strip()
-    return f"{type(exc).__name__}: {text}" if text else type(exc).__name__
+def _returned_error(value: Any, progress: Mapping[str, Any] | None) -> dict[str, Any]:
+    """The error a job's work returned (words, or a record), as a failed job's record."""
+    if isinstance(value, Mapping) and value.get("code"):
+        return dict(value)
+    text = str(value or "").strip()
+    kind, sep, detail = text.partition(": ")
+    if not (sep and kind.isidentifier()):
+        kind, detail = "Error", text
+    out = job_error(RuntimeError(detail), progress)
+    out["params"]["error_type"] = out["exception"] = kind
+    out["message"] = f"the job failed ({kind}): {detail}"
+    return out
 
 
 # ── logs of earlier jobs ─────────────────────────────────────────────────────
@@ -426,10 +462,17 @@ def read_job_logs(jobs_dir: Path, project: str, *, limit: int = 20) -> list[JobI
         build_end = next((e for e in reversed(events) if e.get("event") == "end"), None)
         if build_end is not None:
             result = {"outcome": build_end.get("outcome"), "ran": build_end.get("ran", [])}
+        error = None
         if ends:
             last = ends[-1]
             state = last.get("state") or last.get("outcome") or "succeeded"
             finished = last.get("at")
+            if isinstance(last.get("error"), dict):
+                error = last["error"]
+            if state == "paused" and isinstance(last.get("pause"), dict):
+                result = {**(result or {}), "outcome": "paused", "pause": last["pause"]}
+                if last.get("action"):
+                    result["action"] = last["action"]
         else:
             finished = None
             alive = (
@@ -456,6 +499,7 @@ def read_job_logs(jobs_dir: Path, project: str, *, limit: int = 20) -> list[JobI
                 started_at=start,
                 finished_at=finished,
                 result=result,
+                error=error,
             )
         )
     return out

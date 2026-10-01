@@ -266,6 +266,11 @@ ERRORS: dict[str, ErrorKind] = {
         409, "the project has no slot to collect into: add one in the settings", "settings"
     ),
     "collection_not_running": ErrorKind(409, "no collection is running"),
+    "checkpoint_not_found": ErrorKind(
+        404,
+        "there is no paused collection {checkpoint} to resume (it ended, or started again)",
+        "reload",
+    ),
     "person_not_found": ErrorKind(404, "there is no person {person}", "reload"),
     "invalid_record": ErrorKind(
         422,

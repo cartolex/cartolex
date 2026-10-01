@@ -40,7 +40,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .http import Cancelled, Fetched
+from .http import Cancelled, Fetched, Page
 from .openalex import Years, bare_doi, short_id
 
 __all__ = [
@@ -566,6 +566,15 @@ class SnapshotSource:
     def works_by_institutions(self, roots: Sequence[str], years: Years) -> Fetched:
         found = self.snapshot.works(lineage=[r for r in roots if r], years=years)
         return self._fetched(_sorted(found.values()))
+
+    def institution_work_pages(
+        self, roots: Sequence[str], years: Years, *, cursor: str | None = None, read: int = 0
+    ) -> Iterator[Page]:
+        """The works of :meth:`works_by_institutions` as one page (the snapshot is on this
+        computer: there is no cursor to keep)."""
+        fetched = self.works_by_institutions(roots, years)
+        items = list(fetched.data)
+        yield Page(items, "*", None, len(items), len(items), fetched.retrieved_at)
 
     def works_of_authors(
         self, author_ids: Sequence[str], years: Years

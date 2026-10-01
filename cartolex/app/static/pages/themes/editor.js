@@ -11,6 +11,7 @@ import { batch, html, useEffect, useMemo, useState } from '../../core/preact.js'
 import { formatDate, locale, t } from '../../core/i18n.js';
 import { usePage, usePageTitle } from '../../core/page.js';
 import { runtime } from '../../core/runtime.js';
+import { errorFromResponse, jobError } from '../../core/errors.js';
 import { ACTIVE } from '../../core/stores/jobs.js';
 import {
   Button, ConfirmDialog, EmptyState, ErrorCard, Icon, IconButton, MenuButton, ProgressBar,
@@ -148,11 +149,13 @@ export function ThemesEditor() {
       toast({ kind: 'success', title: t('themes.apply.done') });
     } else {
       const failed = job.result && job.result.failed;
-      setApplyError({
-        code: failed ? failed.code : 'job_failed', message: failed ? failed.message : (job.error || ''),
+      const cause = jobError(job);
+      setApplyError(failed ? {
+        code: failed.code, params: failed.params || {}, message: failed.message,
         next: { label: '', action: 'report' }, status: null, method: null, path: null, requestId: null,
-        time: job.finished_at || new Date().toISOString(), technical: job.error || null,
-      });
+        time: job.finished_at || new Date().toISOString(), technical: cause ? cause.technical : null,
+      } : { ...(cause || errorFromResponse({ error: { code: 'job_failed' } })),
+        next: { label: '', action: 'report' } });
     }
   }, [jobs, applyJob]);
 

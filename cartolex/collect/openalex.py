@@ -15,11 +15,14 @@ request                                       kind                        sends
 ``institutions?filter=lineage:``              ``institution_units``       identifiers
 ``works?filter=author.id:``                   ``works_by_author``         identifiers
 ``works?filter=authorships.institutions.``    ``works_by_institution``    identifiers
-``lineage:``
+``lineage:`` (page by page, three fields)
 ``works?filter=doi:``                         ``works_by_doi``            DOIs, 50 at a time
 ============================================= =========================== ==============
 
-Lists use cursor paging at the documented maximum of 100 per page.
+Lists use cursor paging at the documented maximum of 100 per page. The works of
+an institution, which can number in the millions, are read page by page
+(:func:`institution_work_pages`) with only the fields the proposal reads
+(:data:`INSTITUTION_WORK_FIELDS`), so that nothing grows with their number.
 :class:`OpenAlexApi` gathers these requests behind the methods every finder
 uses, so that the snapshot (:class:`cartolex.collect.snapshot.SnapshotSource`)
 can stand in for the API.
@@ -28,14 +31,15 @@ can stand in for the API.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from typing import Any, Protocol
 
-from .http import CursorPaging, Fetched, HttpClient, NotFound
+from .http import CursorPaging, Fetched, HttpClient, NotFound, Page
 
 __all__ = [
     "AUTHOR_BATCH",
     "DOI_BATCH",
+    "INSTITUTION_WORK_FIELDS",
     "PAGING",
     "PER_PAGE",
     "OpenAlexApi",
@@ -43,6 +47,7 @@ __all__ = [
     "author",
     "institution",
     "institution_units",
+    "institution_work_pages",
     "parse_institution_ref",
     "authors_by_orcid",
     "bare_doi",
@@ -64,6 +69,9 @@ PER_PAGE = 100
 DOI_BATCH = 50
 #: Author records asked for in one request, when many people's works are needed at once.
 AUTHOR_BATCH = 50
+#: The fields of a work an institution's proposal reads (``select``: a quarter of a full
+#: record's size or less).
+INSTITUTION_WORK_FIELDS = "id,publication_year,authorships"
 _ID = re.compile(r"([AWIST]\d+)$", re.IGNORECASE)
 _INSTITUTION = re.compile(r"(?:^|/|\b)(I\d{2,})\b", re.IGNORECASE)
 #: A ROR id: ``0``, six characters of Crockford's base 32, two check digits.
@@ -227,6 +235,34 @@ def works_by_institutions(
         sends=["identifier"],
         paging=PAGING,
         validate=_check_list,
+    )
+
+
+def institution_work_pages(
+    client: HttpClient,
+    roots: Sequence[str],
+    *,
+    years: tuple[int, int] | None = None,
+    cursor: str | None = None,
+    read: int = 0,
+) -> Iterator[Page]:
+    """The works signed at *roots* or below, within *years*, one page at a time (from *cursor*
+    when the list is resumed, *read* works later), with :data:`INSTITUTION_WORK_FIELDS` only."""
+    ids = sorted({r for r in roots if r})
+    if not ids:
+        raise ValueError("no institution to ask for")
+    filters = ["authorships.institutions.lineage:" + "|".join(ids), *_window(years)]
+    return client.pages(
+        SERVICE,
+        "works",
+        {"filter": ",".join(filters), "select": INSTITUTION_WORK_FIELDS, "per_page": PER_PAGE},
+        kind="works_by_institution",
+        sends=["identifier"],
+        paging=PAGING,
+        validate=_check_list,
+        cursor=cursor,
+        read=read,
+        per_page=PER_PAGE,
     )
 
 
@@ -399,6 +435,10 @@ class OpenAlexSource(Protocol):
 
     def works_by_institutions(self, roots: Sequence[str], years: Years) -> Fetched: ...
 
+    def institution_work_pages(
+        self, roots: Sequence[str], years: Years, *, cursor: str | None = None, read: int = 0
+    ) -> Iterator[Page]: ...
+
     def works_of_authors(
         self, author_ids: Sequence[str], years: Years
     ) -> dict[str, list[dict[str, Any]]]: ...
@@ -432,6 +472,13 @@ class OpenAlexApi:
 
     def works_by_institutions(self, roots: Sequence[str], years: Years) -> Fetched:
         return works_by_institutions(self.client, roots, years=api_window(years))
+
+    def institution_work_pages(
+        self, roots: Sequence[str], years: Years, *, cursor: str | None = None, read: int = 0
+    ) -> Iterator[Page]:
+        return institution_work_pages(
+            self.client, roots, years=api_window(years), cursor=cursor, read=read
+        )
 
     def works_of_authors(
         self, author_ids: Sequence[str], years: Years

@@ -650,3 +650,17 @@ nothing in the engine names a particular deployment, source or procedure.
   manifest's capability `ai_handoff` is now `ai_copilot`,
   `/api/handoff/proposals…` is `/api/ai/proposals…` and
   `/api/themes/handoff/proposals…` is `/api/themes/ai/proposals…`.
+- **Large institutions, failures that say why, jobs that pause.** The people
+  of an institution are proposed from its works read page by page, with three
+  fields, into per-author aggregates: memory no longer grows with the works
+  (a run of 10⁵ works peaked at 5.4 GB, now at 0.13 GB). Every 100 pages the
+  cursor and the aggregates are checkpointed in the slot's `raw/checkpoints/`;
+  Stop, or a page that still fails after its retries, ends the job `paused`
+  (a new state) with its cause, and Resume (`resume` on the collection start,
+  `--resume` on the command line) gives the proposal an uninterrupted run
+  gives. A list above 100,000 works asks for confirmation after its first
+  page, with its requests, time and days of budget, and the snapshot and
+  narrowing as other routes; the progress shows works, requests, rate and ETA.
+  A failed job's log line, card and copied diagnostic carry its cause (code,
+  params, exception, message, step), and a collection writes its egress lines
+  whatever its end. `JobInfo.error` is now that record, not a sentence.

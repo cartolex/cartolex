@@ -8,8 +8,8 @@
  * tab). It pauses while the tab is hidden. When a job ends, `onFinished` is
  * called once (the shell refreshes the project state and shows a toast).
  *
- * A failed job stays in the list until the person dismisses it; dismissed ids
- * are kept with the preferences.
+ * A failed or paused job stays in the list until the person dismisses it (or
+ * resumes it); dismissed ids are kept with the preferences.
  */
 import { computed, signal } from '../preact.js';
 
@@ -45,7 +45,8 @@ export function createJobsStore({ api, dismissed, onFinished, timing = {}, enabl
   /** The job the header shows: the first active one, else the latest failure or build waiting
    * for a copilot not dismissed. */
   const headline = computed(() => active.value[0]
-    || visible.value.find((j) => ['failed', 'interrupted', 'waiting'].includes(j.state)) || null);
+    || visible.value.find((j) => ['failed', 'interrupted', 'waiting', 'paused'].includes(j.state))
+    || null);
 
   const apply = (list) => {
     for (const job of list) {
@@ -123,6 +124,21 @@ export function createJobsStore({ api, dismissed, onFinished, timing = {}, enabl
     /** Ask the server to cancel a job. */
     async cancel(id) {
       const result = await api.post(`/api/jobs/${encodeURIComponent(id)}/cancel`, {});
+      await this.refresh();
+      return result;
+    },
+    /** Whether a paused job can be resumed from here (a collection names its action). */
+    resumable(job) {
+      const pause = job && job.result && job.result.pause;
+      return Boolean(job && job.state === 'paused' && job.kind === 'collection'
+        && pause && pause.checkpoint && job.result.action);
+    },
+    /** Resume a paused collection from its checkpoint (the person consented to it before). */
+    async resume(job) {
+      const result = await api.post('/api/collection/start', {
+        action: job.result.action, resume: job.result.pause.checkpoint, consent: true,
+      });
+      if (result.ok) this.dismiss(job.id);
       await this.refresh();
       return result;
     },

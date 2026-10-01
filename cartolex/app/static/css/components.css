@@ -1791,8 +1791,38 @@ a.cx-button:hover {
   justify-items: start;
 }
 
-.cx-job__progress .cx-progress {
+.cx-job__progress .cx-progress,
+.cx-job__result .cx-progress,
+.cx-job__result .cx-error-card {
   width: 100%;
+}
+
+.cx-job--paused .cx-job__state {
+  color: var(--cx-warning);
+}
+
+.cx-job__facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--cx-space-1) var(--cx-space-3);
+  margin: 0;
+  font-size: var(--cx-text-s);
+  font-variant-numeric: tabular-nums;
+}
+
+.cx-job__facts dt {
+  color: var(--cx-text-muted);
+}
+
+.cx-job__facts dd {
+  margin: 0;
+}
+
+.cx-job__routes {
+  margin: 0;
+  padding-left: var(--cx-space-4);
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
 }
 
 .cx-job__meta {

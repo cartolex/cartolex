@@ -18,7 +18,8 @@ import { Icon } from './icons.js';
 
 function words(error, actionable) {
   const code = error.code || 'unexpected';
-  const known = (part) => (has(`error.${code}.${part}`) ? t(`error.${code}.${part}`) : '');
+  const params = error.params || {};
+  const known = (part) => (has(`error.${code}.${part}`) ? t(`error.${code}.${part}`, params) : '');
   const statusGroup = error.status >= 500 ? 'server' : error.status >= 400 ? 'request' : 'unexpected';
   const next = error.next && error.next.action ? error.next : null;
   const kind = next ? actionKind(next.action) : 'none';

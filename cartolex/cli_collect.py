@@ -11,7 +11,8 @@
     cartolex collect harvest FOLDER [--years FIRST-LAST] [--people ID…] [SERVICES]
     cartolex collect snapshot FOLDER SNAPSHOT [--years …] [--people ID…] [SERVICES]
     cartolex collect institutions FOLDER (--search NAME | --institution ID…) [--years …]
-                                  [--min-works N] [--level TYPE=LEVEL…] [--snapshot DIR] [SERVICES]
+                                  [--min-works N] [--level TYPE=LEVEL…] [--resume] [--snapshot DIR]
+                                  [SERVICES]
     cartolex collect institutions FOLDER --take all|A…|A1+A2… [--role ROLE]
     cartolex collect collaborators FOLDER [--rounds N] [--seeds ID…] [--cap N]
                                    [--max-authors N] [--snapshot DIR] [SERVICES]
@@ -407,14 +408,22 @@ def _institutions_run(args: argparse.Namespace, project: Any, client: Any) -> di
             )
         print(f"{len(found)} institution(s); propose people with: --institution ID (or its ROR)")
         return {"institutions": len(found)}
-    proposal = propose_people(
-        project,
-        source,
-        args.institution,
-        years=_years(args.years),
-        min_works=args.min_works,
-        levels=_levels(args.level),
-    )
+    from cartolex.project.checkpoints import JobPaused
+
+    try:
+        proposal = propose_people(
+            project,
+            source,
+            args.institution,
+            years=_years(args.years),
+            min_works=args.min_works,
+            levels=_levels(args.level),
+            resume=args.resume,
+        )
+    except JobPaused as paused:
+        print(f"paused: {paused.message}")
+        print("go on with the same command and --resume")
+        return {"paused": paused.code, **paused.progress}
     for line in proposal.lines(show=args.show):
         print(line)
     print("take people with: --take all, or --take RECORD… (A1+A2 takes two records as one)")
@@ -706,6 +715,11 @@ def add_parser(sub: Any) -> None:
         "--level", nargs="+", metavar="TYPE=LEVEL", help="the level of a type of institution"
     )
     it.add_argument("--show", type=int, default=50, help="people shown (default 50)")
+    it.add_argument(
+        "--resume",
+        action="store_true",
+        help="go on with a reading of works that paused (stopped, or a page kept failing)",
+    )
     it.add_argument(
         "--take",
         nargs="+",

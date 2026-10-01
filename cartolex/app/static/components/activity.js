@@ -2,22 +2,24 @@
 /**
  * Activity: the header indicator (« Building · keywords 45 % ») and the
  * drawer listing jobs with their progress, a cancel button, their results,
- * and their errors (which stay until dismissed).
+ * their errors and their pauses (which stay until dismissed or resumed).
  */
 import { html, useEffect } from '../core/preact.js';
 import { formatDate, formatDuration, formatPercent, has, t } from '../core/i18n.js';
-import { errorFromResponse } from '../core/errors.js';
+import { errorFromResponse, jobError } from '../core/errors.js';
 import { runtime } from '../core/runtime.js';
 import { Button } from './button.js';
 import { Drawer } from './dialog.js';
 import { EmptyState } from './empty-state.js';
 import { ErrorCard } from './error-card.js';
+import { PausedJob } from './job-pause.js';
 import { ProgressBar } from './progress.js';
 import { StatusDot, stageName } from './status.js';
 
 const DOT = {
   queued: 'running', running: 'running', cancelling: 'running', succeeded: 'up_to_date',
-  waiting: 'needs_update', failed: 'failed', interrupted: 'failed', cancelled: 'skipped',
+  waiting: 'needs_update', paused: 'needs_update', failed: 'failed', interrupted: 'failed',
+  cancelled: 'skipped',
 };
 
 function kindWord(job, form) {
@@ -60,6 +62,7 @@ export function jobHeadline(job) {
     return t('activity.failed', { kind: kindWord(job, 'noun') });
   }
   if (job.state === 'waiting') return t('activity.waiting', { step: waitingStep(job) });
+  if (job.state === 'paused') return t('activity.paused', { kind: kindWord(job, 'noun') });
   if (job.state === 'queued') return t('activity.queued', { verb: kindWord(job, 'verb') });
   const p = job.progress || {};
   const fraction = typeof p.stage_fraction === 'number' ? p.stage_fraction : p.fraction;
@@ -88,10 +91,10 @@ function JobItem({ job, jobs }) {
   const p = job.progress || {};
   const running = job.state === 'running' || job.state === 'queued' || job.state === 'cancelling';
   const title = jobTitle(job);
-  // The API gives a job's error as the error shape, or as a sentence.
-  const error = !job.error ? null : typeof job.error === 'string'
-    ? errorFromResponse({ error: { code: `job_${job.state}`, message: job.error } })
-    : errorFromResponse({ error: job.error }, { status: job.error.status });
+  // The API gives a job's error as a record with its cause, or as a sentence.
+  const error = jobError(job);
+  // A job that keeps checkpoints pauses when stopped: its button says so.
+  const pauses = p.code === 'institution_works';
   return html`<li class=${`cx-job cx-job--${job.state}`} data-job=${job.id}>
     <div class="cx-job__head">
       <${StatusDot} state=${DOT[job.state] || 'never_built'} />
@@ -105,11 +108,12 @@ function JobItem({ job, jobs }) {
         ${t('tracker.phase', { phase: p.phase, phases: p.phases })}${' · '}
         ${stageName({ id: p.stage, name: p.name })}${' · '}${formatPercent(p.stage_fraction || 0)}
         ${p.code === 'improve_texts' ? html`${' · '}${t('tracker.improve', p.params)}` : null}
+        ${pauses ? html`${' · '}${t('tracker.institution_works', p.params)}` : null}
         ${p.eta_s ? html`${' · '}${t('tracker.eta', { eta: formatDuration(p.eta_s) })}` : null}
       </p>` : null}
       ${job.cancellable !== false ? html`<${Button} size="s" variant="secondary"
         loading=${job.state === 'cancelling'} onClick=${() => jobs.cancel(job.id)}>
-        ${t('job.cancel')}<//>` : null}
+        ${t(pauses ? 'job.pause' : 'job.cancel')}<//>` : null}
     </div>` : null}
     ${job.state === 'succeeded' ? html`<div class="cx-job__result">
       <p class="cx-job__meta">${t('job.finished_at', { time: formatDate(job.finished_at, 'time', 'short') })}
@@ -129,6 +133,7 @@ function JobItem({ job, jobs }) {
           ${t('common.dismiss')}<//>
       </div>
     </div>` : null}
+    ${job.state === 'paused' ? html`<${PausedJob} job=${job} jobs=${jobs} />` : null}
     ${job.state === 'cancelled' ? html`<div class="cx-job__result">
       <p class="cx-job__meta">${t(job.result && job.result.ran && job.result.ran.length
         ? 'job.cancelled_after' : 'job.cancelled_nothing')}</p>
