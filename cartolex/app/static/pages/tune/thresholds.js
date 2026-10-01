@@ -102,6 +102,6 @@ export function ThresholdsPreview({ ctx, data, edits }) {
         <${Names} title=${t('tune.thresholds.entering', { n: v.entering })} items=${view.vocabulary_entering} icon="plus" />
         <${Names} title=${t('tune.thresholds.out_of_vocabulary', { n: v.leaving })} items=${view.vocabulary_leaving} icon="dash" />
       </div>`}
-    <p class="cx-settings__muted">${t('tune.thresholds.note')}</p>
+    ${same ? null : html`<p class="cx-settings__muted">${t('tune.thresholds.note')}</p>`}
   </section>`;
 }

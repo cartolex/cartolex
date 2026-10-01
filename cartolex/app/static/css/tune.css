@@ -391,3 +391,7 @@
 .cx-thresholds__term {
   font-weight: 600;
 }
+
+.cx-thresholds > .cx-method-subtitle {
+  margin-top: 0;
+}

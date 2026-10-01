@@ -97,9 +97,9 @@ function TuneBody({ ctx, app, id, panel, preview }) {
     ${params.data ? html`<p class="cx-settings__note">${t(`tune.lead.${id}`)}</p>
       ${layout && layout.data ? html`<${MapSettings} ctx=${ctx} app=${app} view=${layout.data} preview=${preview} />
         <h4 class="cx-method-subtitle">${t('method.map.placement')}</h4>` : null}
+      ${id === 'keywords' ? html`<${ThresholdsPreview} ctx=${ctx} data=${params.data} edits=${editor.edits} />` : null}
       ${rows.length ? html`<${ParamTable} rows=${rows} edits=${editor.edits} setEdit=${editor.setEdit}
         label=${t(`tune.title.${id}`)} tiers />` : html`<p class="cx-settings__muted">${t('method.params.none')}</p>`}
-      ${id === 'keywords' ? html`<${ThresholdsPreview} ctx=${ctx} data=${params.data} edits=${editor.edits} />` : null}
       ${id === 'texts' ? html`<${WholeBuild} data=${params.data} global=${global} setGlobal=${setGlobal} />` : null}
       <${ParamActions} editor=${combined} onSave=${save} />
       <div class="cx-tune__rebuild">
