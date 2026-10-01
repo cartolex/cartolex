@@ -317,7 +317,8 @@ which puts together the outline (`outline.js`, `rows.js`, `review.js`), the
 treemap and map panels (`treemap.js`, `map.js`, `centre.js`), the side panel
 (`panel.js`), the actions and operations (`actions.js`, `operations.js`,
 `dialogs.js`), the draft store (`store.js`), the versions (`versions.js`) and
-the AI copilot (`copilot.js`, its review in `proposal.js`), over the tree's model (`model.js`,
+the AI copilot (`copilot.js`, its review in `proposal.js`), the playground (`playground/`:
+the grouping's settings tried before adopting them), over the tree's model (`model.js`,
 `labels.js`). Static modules cost nothing after the first load (they are
 cached), so the budget of a navigation counts API calls only.
 

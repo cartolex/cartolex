@@ -130,6 +130,56 @@ node. Both read the tree being edited, so they follow each change; they are
 asked only while shown, a quarter of a second after the last change, and cost
 a few milliseconds on S.
 
+## Playground
+
+The centre column's third tab, « Playground » (`playground/`: `panel.js`,
+`controls.js`, `store.js`, `icicle.js`, `balance.js`, `adopt.js`), lets the
+curator try the grouping's settings and see the tree **before** adopting it or
+sending it to AI. While it is shown it takes the outline's and the side
+panel's room.
+
+- **Controls** along the top, each the shared `ParamControl` of its parameter:
+  the levels (1 to 4), the keywords per topic and the top themes, or the size
+  of each level by hand; the comb and its θ (« Calibrated », with the θ the
+  calibration kept); the space (people or texts). They start from the
+  project's parameters (`GET /api/params`, read when the tab opens) and stay
+  for the visit; a save of the « Tune » panel shows here, and the other way
+  round.
+- **The tree as columns**, one per level: each node a block whose height
+  follows its keyword count, the top level in its hue family and the levels
+  below in tints of it, with its name, its keywords and « N its own ». A level
+  of more than 60 nodes shows the largest and « + N more ». A block opens its
+  most used keywords in a popover. Keys: one tab stop, ↑ ↓ within a level,
+  ← → to the parent and the first child, Enter or Space, Escape.
+- **The side panel**: the balance across levels (per level, the share of the
+  keywords on its nodes, and the keywords on each node, median and middle
+  half, against the target: few keywords on the top level, about as many on
+  each node of a level); against the editor's tree (themes split and merged,
+  keywords that would move to another theme, be set aside or placed); then
+  « Adopt as my draft » and « Send to AI ».
+
+A change regroups **in the background** (`POST /api/themes/playground`, a job
+of the `preview` group), 0.4 s after the last change, cached by the settings
+and the runs it read; a newer change supersedes the job (the request names it,
+the server cancels it) and the newest settings are asked for when it ends.
+Nothing is saved. The preview runs the build's own runners, `themes.group`'s
+and, when the space's unit changes, `themes.space`'s, into a scratch folder
+(`cartolex.app.playground`): it is what a build with those settings proposes.
+**Stability** per node (the copilot kit's measure) is not shown: it regroups a
+space fitted again three times, many times a preview's cost.
+
+« **Adopt as my draft** » writes the settings to `params.json` as the Tune
+panel's Save does, builds `themes.group` (a build that would also run other
+stages goes to the pre-flight sheet instead), carries the curator's work onto
+its proposal (`POST /api/themes/carry`, `cartolex.project.themes_carry`:
+names, set-asides, attributions and reviews kept wherever a node continues,
+a node of the proposal holding more than half of an old node's keywords and
+taking more than half of its own from it) and puts it in place of the
+editor's tree as one step of the undo list: the draft, saved by Save as any
+other edit; the « new grouping » question does not come back for it.
+« **Send to AI** » adopts, then opens the copilot's dialog on the draft (the
+theme curation has no API route).
+
 ## Apply
 
 « Save and apply » saves if needed and starts `POST /api/themes/apply` in the

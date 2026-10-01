@@ -2651,6 +2651,6 @@
   "playground.step.building": "Construindo o agrupamento com eles…",
   "playground.step.carrying": "Levando seus nomes e escolhas para ele…",
   "playground.adopted": "O novo agrupamento é o seu rascunho",
-  "playground.adopted_text": "Mantidos: {names, number} nomes, {aside, number} deixadas de lado, {attributions, number} atribuições ({dropped, number} descartadas). Salve para mantê-lo; desfaça para voltar.",
+  "playground.adopted_text": "Mantidos: {names, plural, one {# nome} other {# nomes}}, {aside, plural, one {# palavra-chave deixada de lado} other {# palavras-chave deixadas de lado}}, {attributions, plural, one {# atribuição} other {# atribuições}} ({dropped, number} descartadas). Salve para mantê-lo; desfaça para voltar.",
   "playground.adopt.entry": "Adotar o agrupamento experimentado"
 }

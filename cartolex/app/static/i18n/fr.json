@@ -2651,6 +2651,6 @@
   "playground.step.building": "Construction du regroupement avec eux…",
   "playground.step.carrying": "Report de vos noms et de vos choix…",
   "playground.adopted": "Le nouveau regroupement est votre brouillon",
-  "playground.adopted_text": "Conservés : {names, number} noms, {aside, number} mis de côté, {attributions, number} attributions ({dropped, number} abandonnées). Enregistrez pour le garder ; annulez pour revenir.",
+  "playground.adopted_text": "Conservés : {names, plural, one {# nom} other {# noms}}, {aside, plural, one {# mot-clé mis de côté} other {# mots-clés mis de côté}}, {attributions, plural, one {# attribution} other {# attributions}} ({dropped, number} abandonnées). Enregistrez pour le garder ; annulez pour revenir.",
   "playground.adopt.entry": "Adopter le regroupement du bac à sable"
 }

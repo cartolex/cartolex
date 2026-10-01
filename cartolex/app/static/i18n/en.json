@@ -2651,6 +2651,6 @@
   "playground.step.building": "Building the grouping with them…",
   "playground.step.carrying": "Carrying your names and choices onto it…",
   "playground.adopted": "The new grouping is your draft",
-  "playground.adopted_text": "Kept: {names, number} names, {aside, number} set aside, {attributions, number} attributions ({dropped, number} dropped). Save to keep it; undo to go back.",
+  "playground.adopted_text": "Kept: {names, plural, one {# name} other {# names}}, {aside, plural, one {# keyword set aside} other {# keywords set aside}}, {attributions, plural, one {# attribution} other {# attributions}} ({dropped, number} dropped). Save to keep it; undo to go back.",
   "playground.adopt.entry": "Adopt the grouping of the playground"
 }
