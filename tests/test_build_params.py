@@ -391,3 +391,28 @@ def test_the_types_read_follow_the_slot_kind_unless_set():
     assert {"article", "preprint", "review", "book", "chapter", "thesis", "report",
             "communication"} <= set(by_kind.value["collection"])  # fmt: skip
     assert not {"dataset", "software", "peer-review", "other"} & set(by_kind.value["collection"])
+
+
+def test_every_parameter_has_a_tier_from_the_one_table():
+    from cartolex.build.stages import PARAM_TIERS
+
+    tiers = {(s.id, p.name): p.tier for s in STAGES for p in s.params}
+    assert set(tiers.values()) <= {"essential", "intermediate", "advanced"}
+    assert tiers == {(sid, n): t for sid, names in PARAM_TIERS.items() for n, t in names.items()}
+
+
+def test_a_keyed_list_takes_one_list_or_one_per_slot_kind():
+    parts, types = (
+        STAGES["corpus.assemble"].param("parts"),
+        STAGES["corpus.assemble"].param("doc_types"),
+    )
+    assert parts.shape == "grid" and parts.problem(["title"]) is None
+    by_kind = {"collection": ["title"], "folder": ["full"], "corpus": ["title", "abstract"]}
+    assert parts.problem(by_kind) is None
+    assert "each of" in parts.problem({"collection": ["title"]})
+    assert "fewer than" in parts.problem({**by_kind, "folder": []})
+    assert "folder" in parts.problem({**by_kind, "folder": None})
+    assert types.problem({"collection": ["article"], "folder": None, "corpus": None}) is None
+    chosen = ParamsFile.model_validate({"stages": {"corpus.assemble": {"parts": by_kind}}})
+    given = resolve_params(STAGES["corpus.assemble"], chosen, ProjectSizes(), year=YEAR)
+    assert given.values["parts"].value == by_kind

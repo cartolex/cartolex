@@ -33,6 +33,8 @@ __all__ = [
     "PARTS_BY_SLOT_KIND",
     "RULES",
     "SIZE_NAMES",
+    "TIERS",
+    "WIDGETS",
     "CrossCheck",
     "ParamSpec",
     "ParamsError",
@@ -47,6 +49,31 @@ __all__ = [
 ]
 
 ParamType = Literal["int", "float", "bool", "str", "list", "ints", "floats"]
+
+#: How prominent a parameter is on the screens (display only): the few a curator turns
+#: (``essential``), those shown under « More » (``intermediate``), and the rest.
+Tier = Literal["essential", "intermediate", "advanced"]
+TIERS: tuple[str, ...] = ("essential", "intermediate", "advanced")
+
+#: The control a parameter is edited with (see :attr:`ParamSpec.shape`).
+Widget = Literal[
+    "switch", "choice", "slider", "number", "text", "chips", "order", "range", "levels", "grid"
+]
+WIDGETS: tuple[str, ...] = (
+    "switch",
+    "choice",
+    "slider",
+    "number",
+    "text",
+    "chips",
+    "order",
+    "range",
+    "levels",
+    "grid",
+)
+
+#: Whole-number ranges at most this wide get a slider; wider ones a number field.
+SLIDER_SPAN = 500
 
 #: The sizes a rule may use, in the order they are shown.
 SIZE_NAMES = ("people", "texts", "characters", "kept_keywords", "mapped_units")
@@ -247,6 +274,15 @@ class ParamSpec:
 
     *section* is the parameter's place on the method screen: the heading it is
     shown under, within its stage's step (``""``: the step's first rows).
+
+    The rest is for display and never changes what a value may be, except *keys*.
+    *tier* says how prominent the parameter is (the assignment lives in one table,
+    ``cartolex.build.stages.PARAM_TIERS``). *widget* names its control when its type
+    does not say enough (:attr:`shape` infers the others). *keys* makes a ``list``
+    parameter keyed as well: its value is either one list for every key, or an object
+    giving each key (a slot kind) its own list (``null`` for a key when *nullable*).
+    *suggestions* are the items a control offers for a list without *choices*; any
+    other item is still allowed.
     """
 
     name: str
@@ -260,8 +296,18 @@ class ParamSpec:
     nullable: bool = False
     items: tuple[int, int] | None = None
     section: str = ""
+    tier: Tier = "advanced"
+    widget: Widget | None = None
+    keys: tuple[str, ...] | None = None
+    suggestions: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
+        if self.tier not in TIERS:
+            raise ValueError(f"parameter {self.name!r}: unknown tier {self.tier!r}")
+        if self.widget is not None and self.widget not in WIDGETS:
+            raise ValueError(f"parameter {self.name!r}: unknown widget {self.widget!r}")
+        if self.keys is not None and self.type != "list":
+            raise ValueError(f"parameter {self.name!r}: only a list parameter can be keyed")
         if self.rule is not None and self.rule not in RULES:
             raise ValueError(f"parameter {self.name!r}: unknown rule {self.rule!r}")
         if self.rule is None:
@@ -269,8 +315,47 @@ class ParamSpec:
             if problem:
                 raise ValueError(f"parameter {self.name!r}: its default {problem}")
 
+    @property
+    def shape(self) -> str:
+        """The control that edits this parameter: :attr:`widget`, else inferred from the type.
+
+        ``switch`` a bool; ``grid`` a keyed list (keys × items); ``range`` two numbers;
+        ``chips`` another list; ``choice`` a value among *choices*; ``slider`` a number
+        with both bounds (a whole number only when at most :data:`SLIDER_SPAN` apart);
+        ``number`` another number; ``text`` a text.
+        """
+        if self.widget is not None:
+            return self.widget
+        if self.type == "bool":
+            return "switch"
+        if self.keys is not None:
+            return "grid"
+        if self.type in ("ints", "floats") and self.items == (2, 2):
+            return "range"
+        if self.type in ("list", "ints", "floats"):
+            return "chips"
+        if self.choices is not None:
+            return "choice"
+        if self.type in ("int", "float"):
+            bounded = self.minimum is not None and self.maximum is not None
+            if bounded and (self.type == "float" or self.maximum - self.minimum <= SLIDER_SPAN):
+                return "slider"
+            return "number"
+        return "text"
+
     def problem(self, value: Any) -> str | None:
         """Why *value* cannot be this parameter's value, or ``None`` when it can."""
+        if self.keys is not None and isinstance(value, Mapping):
+            if sorted(value) != sorted(self.keys):
+                return f"{value!r} does not give each of {list(self.keys)} its own value"
+            for key, item in value.items():
+                problem = self._problem(item)
+                if problem:
+                    return f"{key}: {problem}"
+            return None
+        return self._problem(value)
+
+    def _problem(self, value: Any) -> str | None:
         t = self.type
         if value is None and self.nullable:
             return None
