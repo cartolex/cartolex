@@ -124,7 +124,7 @@ when the parameter is nullable, for each kind) and `suggestions`, the items a
 control offers for an open list. `GET /api/params` gives them with each
 parameter (`tier`, `widget`, `keys`, `suggestions`).
 
-| stage | parameter | default | allowed | on the method screen |
+| stage | parameter | default | allowed | in a « Tune » panel |
 | --- | --- | --- | --- | --- |
 | `corpus.assemble` | `parts` | rule `parts_by_slot_kind`: title, abstract for a collection slot; title, abstract, full for a folder or a corpus slot | title, abstract, body, full: one list for every slot, or an object giving each slot kind (`collection`, `folder`, `corpus`) its own | Texts |
 | `corpus.assemble` | `doc_types` | rule `doc_types_by_slot_kind`: article, book, chapter, communication, preprint, proceedings, report, review, thesis for a collection slot; every type for a folder or a corpus slot; a slot's own `doc_types` replace it | document types: one list for every slot without its own, or an object giving each slot kind its own (`null`: every type) | Texts |
@@ -220,11 +220,11 @@ default is the value the engine had before it became a parameter, so existing
 results stay what they are. A parameter a stage's `run.json` does not record
 (the run was made before it was declared) is not a change when its value is its
 default: the stage stays up to date (a value set in `params.json` is a change,
-« parameter X is new »), and the method screen does not mark it as not built.
+« parameter X is new »), and the « Tune » panels do not mark it as not built.
 `tests/test_build_params.py` holds the inventory: every declared parameter is a
 row of the table above, has its one-line explanation in every interface
 language (`param.<stage>.<name>`), and its section (`ParamSpec.section`, the
-heading it is shown under on the method screen, `method.section.<id>`).
+heading it is shown under in a « Tune » panel, `method.section.<id>`).
 
 What became a parameter:
 
@@ -247,8 +247,8 @@ What became a parameter:
 | `atlas.placement` | `K`, `LINK_RADIUS` | 8, 0.25 | `map.layout.neighbours`, `.link_radius` |
 | `atlas.driver` | `AtlasDefaults.traj_min_docs_per_bin` | 1 | `map.trajectories.min_texts_per_window` |
 | `atlas.driver` | the trajectories' `length_alpha` | 2 | follows `keywords.extract.length_bonus` |
-| `app.method` | the layout parameters the method screen offered (`n_neighbors`, `min_dist`, `perplexity`) | | every parameter of a map version's method: UMAP's `metric`, `n_epochs`, `spread`, `set_op_mix_ratio`, `local_connectivity`, `repulsion_strength`, `negative_sample_rate`; t-SNE's `metric` |
-| `atlas.tree_layout` | `FILL`, `GAP`, `LEAN`, `SHARP` | 0.62, 0.04, 0.4, 8 | the tree layout's `fill`, `gap`, `lean`, `sharp` (map versions, method screen) |
+| `app.method` | the layout parameters the method screen offered (now the map's « Tune » panel) (`n_neighbors`, `min_dist`, `perplexity`) | | every parameter of a map version's method: UMAP's `metric`, `n_epochs`, `spread`, `set_op_mix_ratio`, `local_connectivity`, `repulsion_strength`, `negative_sample_rate`; t-SNE's `metric` |
+| `atlas.tree_layout` | `FILL`, `GAP`, `LEAN`, `SHARP` | 0.62, 0.04, 0.4, 8 | the tree layout's `fill`, `gap`, `lean`, `sharp` (map versions, the map's « Tune » panel) |
 
 What stays a constant, and why:
 
@@ -274,7 +274,7 @@ What stays a constant, and why:
 | `lexicon.theme_comb` | `TEXT_CHUNK` | 2000 | texts read at a time |
 | `atlas.driver`, `build.engine` | `traj_top_k_terms`, the projected sets' `top_k` and `near_terms` | 8, 10, 10 | how many keywords a window or a projected person lists |
 | `atlas.driver` | `TRAJECTORY_CHUNK`, `atlas.blocks.BLOCK_CELLS` | 1000, 2²⁴ | chunk sizes |
-| `app.method` | `NEIGHBOURS`, `PREVIEW_SAMPLE`, `SCORE_BINS` | 10, 800, 24 | the method screen's measures, not results |
+| `app.method` | `NEIGHBOURS`, `PREVIEW_SAMPLE`, `SCORE_BINS` | 10, 800, 24 | the « Tune » panels' measures, not results |
 | `build.params` | the rules' constants (`SPACE_DIMENSIONS`, `SPACE_FROM_PEOPLE`, `SPACE_MAX_DIMENSIONS`, the depth formula, the parts and document types by slot kind) | | defaults computed by a rule: the parameter they set (`dimensions`, `depth`, `parts`, `doc_types`) takes any value |
 
 ## Run records and fingerprints
