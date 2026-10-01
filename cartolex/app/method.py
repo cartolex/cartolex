@@ -335,6 +335,21 @@ def _preview_base(runtime: Any, ctx: Any, rows: list[dict[str, Any]], run_id: st
             with open(path, encoding="utf-8", newline="") as fh:
                 for r in csv.DictReader(fh):
                     refined.append((r["term"], float(r.get("score") or 0), r.get("lang") or ""))
+        # The kept keywords (the app's count: the terms of the people's keywords) and the
+        # people each is listed for; a person whose list is full takes their next term when
+        # one of theirs leaves the vocabulary.
+        holders: dict[str, list[int]] = {}
+        listed: Counter = Counter()
+        people_csv = ctx.layout.stage("keywords.build") / "keywords_by_researcher_restricted.csv"
+        if build_run is not None and people_csv.is_file():
+            ids: dict[tuple[str, str, str], int] = {}
+            with open(people_csv, encoding="utf-8", newline="") as fh:
+                for r in csv.DictReader(fh):
+                    who = ids.setdefault((r["last_name"], r["first_name"], r["unit"]), len(ids))
+                    holders.setdefault(r["term"].casefold(), []).append(who)
+                    listed[who] += 1
+        per_person = _value(build, "keywords_per_person") or 0
+        full = {who for who, n in listed.items() if n >= per_person}
         n_people = 0
         npz = ctx.layout.stage("keywords.extract") / "term_people.npz"
         if npz.is_file():
@@ -354,6 +369,8 @@ def _preview_base(runtime: Any, ctx: Any, rows: list[dict[str, Any]], run_id: st
             "rows_of": Counter(lower),
             "n_people": n_people or int(max((r["people"] for r in rows), default=0)),
             "refined": refined,
+            "holders": holders,
+            "full": full,
             "build_run": build_run,
         }
 
@@ -374,8 +391,9 @@ def _named(rows: list[dict[str, Any]], index: Any, causes: Any = None) -> list[d
 def keywords_preview(runtime: Any, ctx: Any, values: Mapping[str, Any]) -> dict[str, Any]:
     """What the keywords' thresholds *values* (any of :data:`PREVIEW_THRESHOLDS`; a missing one
     keeps the last build's) would keep of the last build's candidates and vocabulary: the counts
-    by band, the vocabulary's size, the candidates that would leave and the vocabulary entries
-    that would enter or leave (the strongest first). A value only a new extraction can show
+    by band, the kept keywords (the app's count of the vocabulary: exact, or a range when lists
+    that lose a term would take their next one), the candidates that would leave, the kept
+    keywords that would leave and the scored terms that could enter (the strongest first). A value only a new extraction can show
     (a looser window: candidates outside the last one were never kept) is named in ``needs``
     and the last build's value is used in its place. Nothing is written."""
     import time
@@ -434,8 +452,10 @@ def keywords_preview(runtime: Any, ctx: Any, values: Mapping[str, Any]) -> dict[
     order = base["order"]
     leaving = order[drop[order]]
 
-    # The vocabulary: the scored list keywords.build keeps, cut at the cap; a term all of whose
-    # candidates (one per language) leave leaves it too.
+    # The vocabulary, counted as the app counts it: the kept keywords, the terms of the
+    # people's keywords (each person's strongest terms of the scored list keywords.build
+    # keeps, cut at the cap). A term all of whose candidates (one per language) leave
+    # leaves the scored list too.
     refined = base["refined"]
     dropped = Counter(base["lower"][i] for i in np.flatnonzero(drop))
     gone = {t for t, n in dropped.items() if n == base["rows_of"][t]}
@@ -445,12 +465,27 @@ def keywords_preview(runtime: Any, ctx: Any, values: Mapping[str, Any]) -> dict[
 
     cap_before = built["max_keywords"] or len(refined)
     cap_after = used["max_keywords"] or len(refined)
-    before = [t for t, _, _ in refined[:cap_before]]
+    before = {t.casefold() for t, _, _ in refined[:cap_before]}
     kept_after = [e for e in refined if alive(e[0])][:cap_after]
-    after = {t for t, _, _ in kept_after}
-    was_in = set(before)
-    entering = [e for e in kept_after if e[0] not in was_in]
-    out_of = [e for e in refined[:cap_before] if e[0] not in after]
+    after = {t.casefold() for t, _, _ in kept_after}
+    scored = {t.casefold() for t, _, _ in refined}
+    holders = base["holders"]
+    # A kept keyword stays while it stays in the scored list (a term outside it, a kept one
+    # by hand, stays too): removing terms only lifts the others in each person's ranking.
+    leave = {t for t in holders if t in scored and t not in after}
+    stay = len(holders) - len(leave)
+    # Each full list that loses a term takes its next one, which only a rebuild names: one of
+    # the scored terms nobody lists yet may enter. A term new to the scored list (a larger
+    # cap) may also push a kept one out of a list: the low end is then unknown.
+    could = [e for e in kept_after if e[0].casefold() not in holders]
+    freed = sum(1 for t in leave for who in holders[t] if who in base["full"])
+    new_terms = len(after - before)
+    if new_terms:
+        low, high = None, stay + len(could)
+    else:
+        low, high = stay, stay + min(len(could), freed)
+    strength = {t.casefold(): (sc, t, lang) for t, sc, lang in refined}
+    out_of = sorted((strength[t] for t in leave), key=lambda e: -e[0])
 
     def entries(items: list[tuple[str, float, str]]) -> list[dict[str, Any]]:
         return [
@@ -473,14 +508,16 @@ def keywords_preview(runtime: Any, ctx: Any, values: Mapping[str, Any]) -> dict[
         "bands": bands,
         "leaving": _named(rows, leaving, causes),
         "vocabulary": {
-            "available": base["build_run"] is not None and bool(refined),
-            "before": len(before),
-            "after": len(after),
-            "entering": len(entering),
-            "leaving": len(out_of),
+            "available": base["build_run"] is not None and bool(holders),
+            "before": len(holders),
+            "after": high if low == high else None,
+            "after_low": low,
+            "after_high": high,
+            "leaving": len(leave),
+            "could_enter": high - stay,
         },
-        "vocabulary_entering": entries(entering),
-        "vocabulary_leaving": entries(out_of),
+        "vocabulary_entering": entries(could) if high > stay else [],
+        "vocabulary_leaving": entries([(t, sc, lang) for sc, t, lang in out_of]),
         "ms": round((time.perf_counter() - started) * 1000, 2),
     }
 
