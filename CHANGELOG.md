@@ -577,6 +577,19 @@ nothing in the engine names a particular deployment, source or procedure.
   already reviews: theme operations applied and saved as a version, or keyword
   decisions to accept. `cartolex.lexicon` loads its public names on first use,
   so a light module of it no longer loads the extraction.
+- **Parameters on their pages; the Recipe.** Each step's parameters moved
+  from the method screen to a « Tune » panel on the page they shape (texts on
+  the corpus screen's Texts tab, keywords, the space and the grouping on the
+  theme editor, the map's layout and placement on the atlas), collapsed and
+  read only when opened, its header saying « defaults » or « N changed »
+  (`GET /api/project/state` adds `changed_params`), with the step's
+  diagnostics, « rebuild from here », and a note on a page whose outputs need
+  an update naming the stage to rebuild from. Every parameter has a short
+  label in English, French and Portuguese. The Build page's Recipe tab lists
+  every value with its origin and whether it differs from its default, links
+  each to its panel, and exports Markdown or CSV (`GET /api/recipe`,
+  `GET /api/recipe/export`). `/method` now sends to the Recipe or to a step's
+  page and has left the settings menu.
 - **The method screen.** `/method` (the header's settings menu) shows the build
   step by step — texts, keywords, space, grouping, layout — each with its
   parameters (value, origin, limits, a mark when a value differs from its

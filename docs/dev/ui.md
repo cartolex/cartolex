@@ -375,24 +375,44 @@ stale, open, download as one zip) and figures, tables and files
 a build or an export is a job followed through the jobs poller (see
 {doc}`site`).
 
-The method screen (`pages/method.js`, route `/method`, in the header's
-settings menu) loads `pages/method/screen.js`: the steps of the build in
-pipeline order (texts, keywords, space, grouping, layout), each with the
-shape of its stages' state, one step at a time (`/method?step=<id>`). A step
-shows its parameters (`params.js`, shared with the settings' build options:
-each a ParamField, the essential ones first, then « More » and « Advanced »
-folded, saved with `If-Match`); the layout step also shows the map's layout
-(`map-settings.js`: the method, its parameters by tier and the seed of the
-pinned map version, saved as a new version, pinned), what
+The parameters live on the pages of the steps they shape, each in a
+« Tune » panel (`pages/tune/panel.js`, `TunePanel({ctx, id})`): `keywords`
+on the keywords screen (`keywords.extract`, `keywords.build`, the AI
+clean-up's switch), `themes` on the theme editor (`themes.space`, its
+`space_unit` first, and `themes.group`), `map` on the atlas (the pinned map
+version's layout, `map-settings.js`: the method, its parameters by tier and
+its seed, saved as a new version, pinned; then `map.layout` and
+`map.trajectories`) and `texts` on the corpus screen's Texts tab
+(`corpus.assemble`, and the build's seed and pinned year): the texts are
+collected and listed there, and the Build page has no step of its own for
+them. A panel is collapsed by default (`?tune=1` opens it); its header says
+« defaults » or « N changed », from the project state's `changed_params`, so
+a closed panel reads nothing. Opened, it reads `GET /api/params` and its
+step's diagnostics (`GET /api/method/<step>`): the essential parameters,
+then « More » and « Advanced » folded (a fold holding a changed value opens
+by itself), each a ParamField under its short label
+(`param.label.<stage>.<name>`, the code name beside it, small); save and
+undo (`params.js`, shared with the settings' build options, `If-Match`; a
+save refreshes the project state); « Rebuild from here », the pre-flight
+sheet with the panel's first stage forced (`/build?force=<stage>`); and what
 the step produced (`texts.js`, `keywords.js`, `space.js`, `grouping.js`,
-`layout.js`, from `GET /api/method/<step>`) and « rebuild from here », the
-pre-flight sheet with that stage forced (`/build?force=<stage>`). The figures
-(`charts.js`: stacked bars, lines with marks, a dendrogram) are SVG drawn
-from the numbers, each an image with a name and a caption, its numbers
-folded under it. The layout step previews a method on a sample of the people
-beside the map (a job the first time, then cached) and can turn it into a
-map version, pinned and drawn. Opening a step reads `GET /api/params` and its
-diagnostic (the keywords step also one page of `GET /api/keywords`).
+`layout.js`; on the map, the layout's preview on a sample of the people
+beside the map, a job the first time, then cached, which can become a map
+version). The figures (`charts.js`: stacked bars, lines with marks, a
+dendrogram) are SVG drawn from the numbers, each an image with a name and a
+caption, its numbers folded under it. When a stage a page's outputs depend
+on needs an update, the panel's note says so, names the first such stage and
+offers to rebuild from it.
+
+The Build page has two tabs: the build (the pre-flight sheet, the tracker,
+the result) and the **Recipe** (`build/recipe.js`, `/build?tab=recipe`),
+read-only: every parameter of every stage with its value, its default, its
+origin (a rule with its reason, `params.json`, the map version), a mark when
+it differs, filters « changed only » and by tier, a link to the panel that
+edits it, and « Download as Markdown » or « CSV » (`GET /api/recipe/export`).
+It reads `GET /api/recipe` only. `/method` and `/method?step=<id>`, the old
+method screen's addresses, send to the Recipe or to the step's page with its
+panel open (`pages/method.js`, a page placed `hidden`).
 
 ### The map, from the app and from the offline site
 

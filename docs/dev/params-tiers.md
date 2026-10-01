@@ -1,7 +1,7 @@
 # The tiers of the parameters
 
 Every parameter of the build has a tier that says how prominent it is on the
-screens; it changes nothing else. A step shows its **essential** parameters
+screens; it changes nothing else. A page's « Tune » panel shows its **essential** parameters
 first: the few a curator turns. **Intermediate** ones are folded under
 « More », **advanced** ones under « Advanced ». The assignment is one table,
 `PARAM_TIERS` in `cartolex/build/stages.py`, which must list every parameter of
@@ -74,12 +74,14 @@ This table was approved by the owner on 1 October 2026.
 | `map.trajectories` | `window_years` | essential | the time window of the trajectories |
 | `map.trajectories` | `min_texts_per_window` | intermediate | which windows are placed |
 
-The seed and the pinned year are set once for the whole build, on the texts
-step.
+The seed and the pinned year are set once for the whole build, in the texts'
+« Tune » panel (the corpus screen's Texts tab). Every parameter also has a
+short label in the interface's catalogues (`param.label.<stage>.<name>`, and
+`param.label.layout.<name>` for a map version's), shown with its code name.
 
 ## The map's layout (a map version, `maps.json`)
 
-The layout step shows them beside its own parameters; they are saved as a new
+The map's « Tune » panel shows them beside `map.layout`'s parameters; they are saved as a new
 map version, pinned, not in `params.json`.
 
 | method | parameter | tier | reason |

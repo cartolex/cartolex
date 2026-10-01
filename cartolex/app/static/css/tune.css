@@ -69,8 +69,15 @@
 .cx-tune__body:not([hidden]) {
   max-height: min(70vh, 56rem);
   overflow: auto;
-  padding: 0 var(--cx-space-4) var(--cx-space-4);
+  padding: var(--cx-space-3) var(--cx-space-4) var(--cx-space-4);
   border-top: var(--cx-rule-width) solid var(--cx-rule);
+}
+
+/* full-height pages (the map, the theme editor, the lists) keep room for their own views */
+.cx-atlas .cx-tune__body:not([hidden]),
+.cx-themes .cx-tune__body:not([hidden]),
+.cx-corpus-tab .cx-tune__body:not([hidden]) {
+  max-height: 45vh;
 }
 
 .cx-tune__subtitle {

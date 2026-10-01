@@ -25,6 +25,8 @@ const PAGE_OF_PANEL = { texts: 'people', keywords: 'keywords', themes: 'themes',
 function valueWords(row, value) {
   if (row.group === 'layout' && row.name === 'method' && value) return t(`settings.layout.method.${value}`);
   if (row.group === 'build' && row.name === 'pinned_year' && value === null) return t('method.global.this_year');
+  // a year and a seed are identifiers: no thousands separator
+  if ((row.name === 'pinned_year' || row.name.endsWith('seed')) && typeof value === 'number') return String(value);
   return shownValue({ name: row.name }, value);
 }
 
