@@ -93,12 +93,13 @@ does not make their keywords look broad.
    aside. A keyword with fewer than 5 texts of evidence keeps its topic.
 4. **θ, calibrated.** The owner's target: about as many keywords per node on
    every level, so that the few top-level nodes hold few keywords. The θ kept
-   is the one of 0.100, 0.125, …, 0.250 whose levels come closest (the sum,
+   is the one of 0.025, 0.050, …, 0.250 whose levels come closest (the sum,
    over the levels above the finest, of the absolute log ratio of their
    keywords per node to the finest level's); at depth 1, where nothing can
    be balanced, 0.2. The band is what the measures below support: above
    0.25 the small world loses specific keywords, below 0.1 it keeps the
-   broad ones. These are the people's space's values; a space of texts has
+   broad ones; the grid reached down to 0.1 until a real project's balance
+   chose that floor (below), and now starts at 0.025. These are the people's space's values; a space of texts has
    its own (*The comb on a space of texts*, below): the grid, θ at depth 1
    and where a keyword may move (`comb_sideways`) follow
    `themes.space.space_unit` by rules (`comb_grid_by_space`,
@@ -281,7 +282,8 @@ Three remedies were measured (`tools/theme_comb_study.py comb|relative
   itself 508 of the L world's (precision 0.14);
 - **within the parent** (`within_parent`, kept): below the top level a keyword
   may move only to a node under its own node's parent, at the top level to any
-  node; with the grid one step higher (0.125 to 0.275) and θ 0.3 at depth 1.
+  node; with the grid one step higher (0.125 to 0.275 when measured, 0.025 to
+  0.275 since, below) and θ 0.3 at depth 1.
 
 The texts' calibration against the people's (keywords of the reference
 language; the whole vocabulary in brackets; calibrated θ):
@@ -341,6 +343,25 @@ the text space sets aside 522 keywords as too broad (the people's 545, the
 people's calibration on the text space 289), 317 of them also set aside by
 the people's space (58 % of its, against 39 % before); 1 675 keywords go up to
 a theme (the people's 1 293) and 1 017 stay on the topics (1 376).
+
+**The default sizes and the grid's floor.** At those sizes (20 keywords per
+topic) the comb lifted half the placed keywords or more to the themes (48 %
+on the people's space, 62 % on the texts'), leaving 60 % and 65 % of the
+topics with fewer than 5 keywords (the grouping made none that small), and
+the calibration sat at the floor of both grids (`tools/theme_sizes_study.py`).
+With `keywords_per_group` 40 and the grids reaching down to 0.025, the
+balance's own minimum is inside the band. On the real project (15 › 80):
+
+| space | θ | lifted to a theme | topics < 5 keywords | set aside | stability: themes · topics (uncombed Jaccard, median) |
+| --- | --- | --- | --- | --- | --- |
+| people | 0.075 | 24 % | 20 of 80 | 184 (5.7 %) | 0.55 · 0.47 |
+| texts | 0.05 | 18 % | 8 of 80 | 16 (0.5 %) | 0.35 · 0.36 |
+
+On the L demo world (15 › 72): people θ 0.225, 19 % lifted, 5 of 72 topics
+below 5 keywords (0.47 · 0.47); texts θ 0.275, the top of its grid, 8.5 %
+lifted, 26 of 72 (0.92 · 0.53), 5 of them already that small before the comb.
+At the low θ a real project's balance asks for, the text space sets almost
+nothing aside (16 keywords, 10 of them among the people's space's 184).
 
 ## Structure suggestions: measured, not shipped
 
