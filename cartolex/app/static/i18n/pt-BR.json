@@ -2594,5 +2594,10 @@
   "stage.corpus.improve": "completar os resumos",
   "stage.corpus.institutions": "ler os trabalhos das instituições",
   "stage.corpus.collaborators": "ler os colaboradores",
-  "stage.corpus.retry": "coletar de novo o que falhou"
+  "stage.corpus.retry": "coletar de novo o que falhou",
+  "job.pause.collect_budget_paused": "O orçamento diário do OpenAlex se esgotou. O que foi lido está guardado: retome quando ele voltar.",
+  "job.budget.back": "O orçamento volta: {time}",
+  "job.budget.key": "Sem chave, o orçamento diário é pequeno: uma chave gratuita do OpenAlex o multiplica por dez. Defina-a em Configurações, Fontes de dados.",
+  "job.budget.open_settings": "Abrir as configurações de fontes",
+  "job.size.rough": "Estimativa aproximada a partir da primeira página: o tempo restante é medido de novo durante a leitura."
 }

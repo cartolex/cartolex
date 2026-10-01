@@ -220,3 +220,34 @@ def test_memory_stays_bounded_on_a_hundred_thousand_works() -> None:
     growth = float(line.split("peak growth ")[1].split(" MB")[0])
     # Before: ~530 MB per 10⁴ works read, all kept until the end. Now: the authors only.
     assert growth < 20, line
+
+
+def test_the_time_left_follows_the_recent_rate(server, tmp_path, monkeypatch) -> None:
+    # Five slow pages (10 s each), then fast ones (1 s): the estimate follows the fast ones.
+    ticks = iter([0.0, *(10.0 * i for i in range(1, 6)), *(50.0 + i for i in range(1, 9))])
+    monkeypatch.setattr(inst, "_clock", lambda: next(ticks))
+    monkeypatch.setattr(inst, "ETA_WINDOW", 3)
+    seen = []
+    _propose(_project(tmp_path / "p"), server, progress=seen.append)
+    tenth = seen[9]
+    assert tenth["works"] == 1_000 and tenth["rate"] == 100.0  # 300 works in the last 3 s
+    assert tenth["eta_s"] == 2.5
+
+
+def test_a_spent_budget_pauses_with_the_reset_time(app_client, server) -> None:
+    server.faults.add(
+        "status",
+        service="openalex",
+        path=r"^works\?",
+        status=429,
+        times=None,
+        headers={"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1790000000"},
+    )
+    try:
+        job = _start(app_client, {"action": "institutions", "institutions": [ROOT_ID]})
+    finally:
+        server.faults.clear()
+    pause = job["result"]["pause"]
+    assert job["state"] == "paused" and pause["code"] == "collect_budget_paused", job
+    assert pause["params"]["resets_at"] == "2026-09-21T14:13:20+00:00"
+    assert pause["params"]["keyed"] is False

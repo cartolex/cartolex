@@ -589,6 +589,8 @@ class ServiceCollection(BaseCollection):
                     days=None if self.local else max(1, math.ceil(cost / budget)),
                     keyed=keyed,
                 )
+            elif paused.code == "collect_budget_paused":
+                paused.params["keyed"] = bool(self.settings.api_key("openalex"))
             raise
         done.append("proposal")
         return {

@@ -131,6 +131,10 @@ MESSAGES: dict[str, MessageKind] = {
         "{seconds} s; confirm to go on, or narrow the years or the units, or read the OpenAlex "
         "snapshot instead"
     ),
+    "collect_budget_paused": MessageKind(
+        "the daily budget is spent; {works} of {total} works are kept: resume once it comes "
+        "back ({resets_at})"
+    ),
     "collect_stopped": MessageKind("stopped after {works} of {total} works; resume to go on"),
     "collect_paused": MessageKind(
         "a page still failed after its retries; {works} of {total} works are kept: resume to go on"

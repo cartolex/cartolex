@@ -2594,5 +2594,10 @@
   "stage.corpus.improve": "fill in the abstracts",
   "stage.corpus.institutions": "read the works of the institutions",
   "stage.corpus.collaborators": "read the collaborators",
-  "stage.corpus.retry": "collect again what failed"
+  "stage.corpus.retry": "collect again what failed",
+  "job.pause.collect_budget_paused": "OpenAlex’s daily budget is spent. What was read is kept: resume once it comes back.",
+  "job.budget.back": "The budget comes back: {time}",
+  "job.budget.key": "Without a key the daily budget is small: a free OpenAlex key raises it tenfold. Set it in Settings, Data sources.",
+  "job.budget.open_settings": "Open the sources settings",
+  "job.size.rough": "A rough estimate from the first page: the time left is measured again while reading."
 }

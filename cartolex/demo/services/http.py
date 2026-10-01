@@ -109,6 +109,8 @@ class Fault:
     path: str | None = None
     status: int = 503
     retry_after: str | None = None
+    #: Other headers of a ``status`` fault's answer (``X-RateLimit-Reset``…).
+    headers: dict[str, str] = field(default_factory=dict)
     delay: float = 5.0
     times: int | None = 1
     skip: int = 0
@@ -243,6 +245,7 @@ class DemoServer:
         if fault is not None:
             if fault.kind == "status":
                 extra = {"Retry-After": fault.retry_after} if fault.retry_after else {}
+                extra.update(fault.headers)
                 self._send(h, json_reply(fault.status, {"error": "injected failure"}, **extra))
                 return
             if fault.kind == "drop":

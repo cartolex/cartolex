@@ -48,10 +48,10 @@ import math
 import sys
 import time
 from array import array
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -120,6 +120,11 @@ CURSOR_VALIDITY_S = 7 * 24 * 3600.0
 #: Above this many works the app asks before reading them: a day of OpenAlex's free budget
 #: without a key (1,000 list requests of 100 works).
 CONFIRM_WORKS = 100_000
+#: Pages the running time left is measured over: the rate of the last ones, so that the
+#: estimate follows the run (a slower service, a throttled stretch) rather than its start.
+ETA_WINDOW = 20
+#: The clock the rate is measured with (a test replaces it).
+_clock = time.monotonic
 
 
 @dataclass
@@ -652,8 +657,9 @@ def propose_people(
     resumed = resume and reading.cursor is not None
     units = {iid: Unit.of(r) for iid, r in sorted(reading.unit_records.items())}
     inside = set(reading.inside)
-    started = time.monotonic()
-    read_at_start = reading.read
+    started = _clock()
+    # (time, works read) at the start and after each recent page: the running rate.
+    marks: deque[tuple[float, int]] = deque([(started, reading.read)], maxlen=ETA_WINDOW + 1)
     while True:
         fresh_pages = 0
         try:
@@ -669,9 +675,9 @@ def propose_people(
                 reading.read = page.read
                 reading.total = page.total
                 reading.pages += 1
+                marks.append((_clock(), reading.read))
                 if progress is not None:
-                    elapsed = max(1e-6, time.monotonic() - started)
-                    rate = (reading.read - read_at_start) / elapsed
+                    rate = _rate(marks)
                     left = max(0, (reading.total or reading.read) - reading.read)
                     progress(
                         {
@@ -688,7 +694,7 @@ def propose_people(
                 total = reading.total or 0
                 if confirm_above is not None and not reading.confirmed and total > confirm_above:
                     reading.confirmed = True
-                    elapsed = max(1e-3, time.monotonic() - started)
+                    elapsed = max(1e-3, _clock() - started)
                     requests = math.ceil(total / PER_PAGE)
                     raise _pause(
                         cp,
@@ -719,9 +725,21 @@ def propose_people(
                 fresh = _start_reading(source, institutions, reading.options)
                 fresh.notes = [*reading.notes, _note("cursor_refused")]
                 fresh.confirmed = True
-                reading, resumed, read_at_start = fresh, False, 0
+                reading, resumed = fresh, False
+                marks.clear()
+                marks.append((_clock(), 0))
                 cp.clear()
                 continue
+            if exc.status == 429:
+                raise _pause(
+                    cp,
+                    reading,
+                    "collect_budget_paused",
+                    f"the service's daily budget is spent after {reading.read} of "
+                    f"{reading.total} works; they are kept: resume once it comes back",
+                    cause=exc,
+                    resets_at=iso(_budget_back(exc)),
+                ) from exc
             raise _pause(
                 cp,
                 reading,
@@ -738,6 +756,22 @@ def propose_people(
     proposal = _finish(project, reading, units, years, min_works, levels, slot, source, now)
     cp.clear()
     return proposal
+
+
+def _rate(marks: Sequence[tuple[float, int]]) -> float:
+    """Works a second over the recent pages in *marks* (time, works read)."""
+    (t0, w0), (t1, w1) = marks[0], marks[-1]
+    return (w1 - w0) / max(1e-6, t1 - t0)
+
+
+def _budget_back(exc: BaseException) -> datetime:
+    """When a spent daily budget comes back: the time the service gave, else the next
+    midnight UTC (when OpenAlex renews its budgets)."""
+    resets_at = getattr(exc, "resets_at", None)
+    if resets_at is not None:
+        return resets_at
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    return today + timedelta(days=1)
 
 
 def _note(code: str, **params: Any) -> dict[str, Any]:

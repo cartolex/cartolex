@@ -33,7 +33,7 @@ import random
 import time
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import quote, urlsplit, urlunsplit
@@ -115,9 +115,12 @@ class ServiceError(CollectError):
         advice: str,
         *,
         retry_after: float | None = None,
+        resets_at: datetime | None = None,
     ) -> None:
         self.host, self.status, self.what, self.advice = host, status, what, advice
         self.retry_after = retry_after
+        #: When the service said its budget comes back (``X-RateLimit-Reset``), in UTC.
+        self.resets_at = resets_at
         shown = f"status {status}" if status is not None else "no answer"
         super().__init__(f"{host}: {what} ({shown}); {advice}")
 
@@ -311,6 +314,30 @@ def _retry_after(value: str | None, now: datetime) -> float | None:
     if when.tzinfo is None:
         when = when.replace(tzinfo=timezone.utc)
     return max(0.0, (when - now).total_seconds())
+
+
+def _rate_reset(value: str | None, now: datetime) -> datetime | None:
+    """When an ``X-RateLimit-Reset`` header says the budget comes back: seconds from now, a
+    Unix time (above 10^9) or an HTTP date."""
+    if not value:
+        return None
+    value = value.strip()
+    try:
+        number = float(value)
+    except ValueError:
+        seconds = _retry_after(value, now)
+        return None if seconds is None else now + timedelta(seconds=seconds)
+    if number > 1e9:
+        return datetime.fromtimestamp(number, timezone.utc)
+    return now + timedelta(seconds=max(0.0, number))
+
+
+def _spent(value: str | None) -> bool:
+    """Whether an ``X-RateLimit-Remaining`` header says nothing is left."""
+    try:
+        return value is not None and float(value) <= 0
+    except ValueError:
+        return False
 
 
 # ── the cache ────────────────────────────────────────────────────────────────
@@ -932,6 +959,7 @@ class HttpClient:
         kinds = self._sends(svc, sends)
         # The last failure: its class, status, what happened and what to do.
         failure: tuple[type[ServiceError], int | None, str, str, float | None] | None = None
+        resets_at: datetime | None = None
         for attempt in range(1, policy.max_attempts + 1):
             self.check_cancel()
             self._wait(self._bucket(svc, host).reserve(), f"pacing requests to {host}")
@@ -965,7 +993,21 @@ class HttpClient:
             else:
                 status = response.status_code
                 if status in _RETRIED_STATUS:
-                    asked = _retry_after(response.headers.get("Retry-After"), self._now())
+                    now = self._now()
+                    asked = _retry_after(response.headers.get("Retry-After"), now)
+                    if status == 429:
+                        resets_at = _rate_reset(response.headers.get("X-RateLimit-Reset"), now)
+                    if status == 429 and _spent(response.headers.get("X-RateLimit-Remaining")):
+                        # A spent daily budget: retrying before it comes back only costs time.
+                        raise ServiceUnavailable(
+                            host,
+                            status,
+                            "the daily budget is spent",
+                            "it comes back at the time the service gives (else midnight UTC), "
+                            "or set an API key",
+                            retry_after=(resets_at - now).total_seconds() if resets_at else asked,
+                            resets_at=resets_at,
+                        )
                     if asked is not None and asked > policy.max_retry_after:
                         raise ServiceUnavailable(
                             host,
@@ -973,6 +1015,7 @@ class HttpClient:
                             f"the service asks to wait {asked:.0f} s",
                             "its rate or daily budget is spent; try again after that time",
                             retry_after=asked,
+                            resets_at=resets_at or now + timedelta(seconds=asked),
                         )
                     failure = (
                         ServiceUnavailable,
@@ -1036,4 +1079,5 @@ class HttpClient:
             what,
             f"gave up after {policy.max_attempts} attempts; {advice}",
             retry_after=asked,
+            resets_at=resets_at if status == 429 else None,
         )
