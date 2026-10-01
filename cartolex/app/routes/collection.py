@@ -49,10 +49,12 @@ class CollectOptions(BaseModel):
     seeds: Annotated[list[PersonId] | None, Field(max_length=100_000)] = None
     cap: Annotated[int | None, Field(ge=1, le=100_000)] = None
     max_authors: Annotated[int | None, Field(ge=2, le=10_000)] = None
+    #: The checkpoint of a paused collection to resume (its options come from it).
+    resume: Annotated[str | None, Field(pattern=r"^[a-z_]{1,40}-[0-9a-f]{16}$")] = None
     consent: bool = False
 
     def options(self) -> dict[str, Any]:
-        return self.model_dump(exclude={"action", "consent"}, exclude_none=True)
+        return self.model_dump(exclude={"action", "consent", "resume"}, exclude_none=True)
 
 
 @routes.get("/api/collection/plan", action="collection.read")
@@ -84,6 +86,12 @@ def start(request: Request, ctx: ProjectDep, body: CollectOptions | None = None)
     body = body or CollectOptions()
     project = ctx.project
     action, options = body.action, body.options()
+    if body.resume:
+        # A paused collection goes on with the options it was started with.
+        found = service.resume_options(project, body.resume)
+        if found is None:
+            raise ApiError.of("checkpoint_not_found", checkpoint=body.resume)
+        options = {**found, "resume": True}
     summary = service.plan(project, action, options)
     if summary.get("consent_needed") and not body.consent:
         hosts = ", ".join(h["host"] for h in summary["leaves_the_computer"]) or "nobody"

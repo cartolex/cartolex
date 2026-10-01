@@ -647,7 +647,7 @@ def propose_people(
                 notes.append(_note("checkpoint_unreadable"))
     if reading is None:
         cp.clear()
-        reading = _start_reading(source, institutions, options)
+        reading = _start_reading(source, institutions, {**options, "min_works": min_works})
         reading.notes = notes
     resumed = resume and reading.cursor is not None
     units = {iid: Unit.of(r) for iid, r in sorted(reading.unit_records.items())}
@@ -716,7 +716,7 @@ def propose_people(
         except ServiceError as exc:
             if resumed and fresh_pages == 0 and isinstance(exc, RequestRefused):
                 # The service no longer takes the saved cursor: start again, cleanly.
-                fresh = _start_reading(source, institutions, options)
+                fresh = _start_reading(source, institutions, reading.options)
                 fresh.notes = [*reading.notes, _note("cursor_refused")]
                 fresh.confirmed = True
                 reading, resumed, read_at_start = fresh, False, 0

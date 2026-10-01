@@ -19,7 +19,16 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-__all__ = ["MESSAGES", "attempt_message", "empty", "message", "reason_message", "skip_message"]
+__all__ = [
+    "MESSAGES",
+    "attempt_message",
+    "empty",
+    "job_error",
+    "job_pause",
+    "message",
+    "reason_message",
+    "skip_message",
+]
 
 
 @dataclass(frozen=True)
@@ -101,6 +110,31 @@ MESSAGES: dict[str, MessageKind] = {
     "stage_refused": MessageKind("the stage could not run: {detail}"),
     "language_model_missing": MessageKind("a language model is missing: {detail}"),
     "stage_failed": MessageKind("the stage failed ({error_type}): {detail}"),
+    # why a job failed (``error`` of a failed job, :func:`job_error`)
+    "job_failed": MessageKind("the job failed ({error_type}): {detail}"),
+    "collect_budget_spent": MessageKind(
+        "{host} refused more requests (status {status}): its rate or its daily budget is spent; "
+        "wait, or set an API key"
+    ),
+    "collect_service_unavailable": MessageKind(
+        "{host} gave no usable answer after every attempt ({what}); try again later"
+    ),
+    "collect_incomplete": MessageKind("{host} cut a page of a list short; collect again"),
+    "collect_malformed": MessageKind("{host} gave an answer that could not be read ({what})"),
+    "collect_refused": MessageKind(
+        "{host} refused a request (status {status}); copy a diagnostic and report it"
+    ),
+    "collect_cache_miss": MessageKind("an answer is not in the cache: collect without cache-only"),
+    # why a job paused (``result.pause`` of a paused job; it can be resumed)
+    "collect_size_confirm": MessageKind(
+        "{total} works are signed there: reading them takes about {requests} requests and "
+        "{seconds} s; confirm to go on, or narrow the years or the units, or read the OpenAlex "
+        "snapshot instead"
+    ),
+    "collect_stopped": MessageKind("stopped after {works} of {total} works; resume to go on"),
+    "collect_paused": MessageKind(
+        "a page still failed after its retries; {works} of {total} works are kept: resume to go on"
+    ),
     # the overview's health panel (``GET /api/overview``)
     "health_map_stale": MessageKind(
         "the map was drawn from inputs that changed since; building the map restores it",
@@ -217,3 +251,66 @@ def reason_message(kind: str, subject: str, detail: str) -> dict[str, Any]:
 def with_message(entry: Mapping[str, Any], code: str, **params: Any) -> dict[str, Any]:
     """*entry* with a message's code, params and English text added."""
     return {**entry, **message(code, **params)}
+
+
+def _cause_code(exc: BaseException) -> tuple[str, dict[str, Any]]:
+    """The code and params of an exception that ended a job."""
+    from cartolex.collect.http import (
+        CacheMiss,
+        IncompleteResults,
+        MalformedResponse,
+        RequestRefused,
+        ServiceError,
+        ServiceUnavailable,
+    )
+
+    if isinstance(exc, ServiceError):
+        params = {"host": exc.host, "status": exc.status, "what": exc.what}
+        if exc.retry_after is not None:
+            params["wait_s"] = round(exc.retry_after)
+        if isinstance(exc, ServiceUnavailable) and exc.status == 429:
+            return "collect_budget_spent", params
+        if isinstance(exc, IncompleteResults):
+            return "collect_incomplete", params
+        if isinstance(exc, MalformedResponse):
+            return "collect_malformed", params
+        if isinstance(exc, RequestRefused):
+            return "collect_refused", params
+        return "collect_service_unavailable", params
+    if isinstance(exc, CacheMiss):
+        return "collect_cache_miss", {}
+    return "job_failed", {"error_type": type(exc).__name__, "detail": str(exc).strip()[:300]}
+
+
+#: What a failed job's record keeps of its last progress: where it was, never a name.
+_STEP_KEYS = ("stage", "fraction", "stage_fraction", "phase", "phases", "code", "params")
+
+
+def job_error(exc: BaseException, progress: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """Why a job failed, for its log, its card and the diagnostic: the code, params and words
+    of the cause, the exception's class and a short message, the step the job was in and how
+    far it got. (Messages of cartolex name no person; the message is cut at 300 characters.)"""
+    code, params = _cause_code(exc)
+    out = message(code, **params)
+    out["exception"] = type(exc).__name__
+    out["detail"] = str(exc).strip()[:300]
+    if progress:
+        step = {k: progress[k] for k in _STEP_KEYS if progress.get(k) is not None}
+        out["step"] = step.get("stage")
+        out["progress"] = step
+    return out
+
+
+def job_pause(paused: Any) -> dict[str, Any]:
+    """Why a job paused (a :class:`~cartolex.project.checkpoints.JobPaused`): the code, params
+    and words, the checkpoint to resume from, how far it got, and the cause, if any."""
+    params = dict(paused.params)
+    out = (
+        message(paused.code, **params)
+        if paused.code in MESSAGES
+        else {"code": paused.code, "params": params, "message": paused.message}
+    )
+    out["checkpoint"] = paused.checkpoint
+    out["progress"] = dict(paused.progress)
+    out["cause"] = job_error(paused.cause) if paused.cause is not None else None
+    return out

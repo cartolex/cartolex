@@ -29,6 +29,7 @@ demo services of a demo world on this computer).
 
 from __future__ import annotations
 
+import math
 import threading
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timezone
@@ -329,19 +330,36 @@ class ServiceCollection(BaseCollection):
             result = runner(project, opts, self._client_factory(project, control, clients), done)
         except Cancelled:
             result = {"outcome": "cancelled", "ran": list(done)}
-        egress = EgressRecord()
-        for c in clients:
-            egress.merge(c.egress)
-        summary = egress.summary()
-        for entry in summary:
-            control.event(
-                "egress",
-                service=entry["service"],
-                host=entry["host"],
-                requests=entry["requests"],
-                sends=list(entry["sends"]),
-            )
+        finally:
+            # What left the computer is recorded whatever the end: a failed or paused job
+            # sent requests too.
+            egress = EgressRecord()
+            for c in clients:
+                egress.merge(c.egress)
+            summary = egress.summary()
+            for entry in summary:
+                control.event(
+                    "egress",
+                    service=entry["service"],
+                    host=entry["host"],
+                    requests=entry["requests"],
+                    sends=list(entry["sends"]),
+                )
         return {**result, "action": action, "egress": summary}
+
+    def resume_options(self, project: Project, checkpoint: str) -> dict[str, Any] | None:
+        """The options of the paused collection *checkpoint*, to resume it (``None``: none)."""
+        from cartolex.collect.institutions import checkpoint_options
+
+        found = checkpoint_options(project, checkpoint)
+        if found is None:
+            return None
+        out: dict[str, Any] = {"institutions": list(found.get("institutions") or ())}
+        if found.get("years"):
+            out["years"] = list(found["years"])
+        if found.get("min_works"):
+            out["min_works"] = int(found["min_works"])
+        return out
 
     def _client_factory(
         self, project: Project, control: JobControl, clients: list[HttpClient]
@@ -526,18 +544,51 @@ class ServiceCollection(BaseCollection):
                 "summary_code": "institutions_found",
                 "summary_params": {"n": len(found)},
             }
+        from cartolex.collect.institutions import CONFIRM_WORKS
+        from cartolex.collect.privacy import OPENALEX_BUDGETS, OPENALEX_PRICES
+        from cartolex.project.checkpoints import JobPaused
+
         years = tuple(opts["years"]) if opts.get("years") else None
-        proposal = propose_people(
-            project,
-            source,
-            list(opts.get("institutions") or ()),
-            years=years,  # type: ignore[arg-type]
-            min_works=int(opts.get("min_works") or 2),
-        )
+        api = source.client
+
+        def progress(p: Mapping[str, Any]) -> None:
+            total = p.get("total") or 0
+            api.progress(
+                p["works"] / total if total else 0.0,
+                f"{p['works']} of {total} works read, {p['pages']} requests",
+                code="institution_works",
+                params={k: p[k] for k in ("works", "total", "pages", "authors", "rate")},
+                eta_s=p.get("eta_s"),
+            )
+
+        try:
+            proposal = propose_people(
+                project,
+                source,
+                list(opts.get("institutions") or ()),
+                years=years,  # type: ignore[arg-type]
+                min_works=int(opts.get("min_works") or 2),
+                resume=bool(opts.get("resume")),
+                confirm_above=CONFIRM_WORKS,
+                progress=progress,
+            )
+        except JobPaused as paused:
+            if paused.code == "collect_size_confirm":
+                requests = int(paused.params.get("requests") or 0)
+                keyed = bool(self.settings.api_key("openalex"))
+                budget = OPENALEX_BUDGETS["with a free key" if keyed else "without a key"]
+                cost = requests * OPENALEX_PRICES["list"]
+                paused.params.update(
+                    cost_usd=None if self.local else round(cost, 2),
+                    days=None if self.local else max(1, math.ceil(cost / budget)),
+                    keyed=keyed,
+                )
+            raise
         done.append("proposal")
         return {
             "proposed": len(proposal.people),
             "works": proposal.works,
+            "notes": proposal.notes,
             "summary": f"{len(proposal.people)} people proposed",
             "summary_code": "people_proposed",
             "summary_params": {"n": len(proposal.people)},

@@ -4,14 +4,15 @@
 Usage::
 
     python tools/large_collect_probe.py --works 100000 [--fault status:503:skip=40:times=9]
-        [--select-check] [--keep DIR]
+        [--yes] [--keep DIR]
 
 Starts the fake OpenAlex of :mod:`cartolex.demo.services.large` in a child
 process (its memory is not counted), creates a project, and runs the
 institutions action as the app runs it: :class:`~cartolex.app.collect_service.ServiceCollection`
 through a :class:`~cartolex.app.jobs.LocalJobRunner`. It prints the job's end
 state, its error or pause, the time, the peak memory of this process and the
-rates per 10⁴ works, and the job log's last lines.
+rates per 10⁴ works, and the job log's last lines. With ``--yes``, a list large
+enough to ask for confirmation is confirmed (resumed) at once.
 
 A fault is ``kind:status[:skip=N][:times=N][:retry_after=S]`` (kinds of
 :class:`~cartolex.demo.services.http.FaultPlan`), applied to the works pages.
@@ -71,6 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fault", action="append", default=[])
     parser.add_argument("--keep", type=Path, default=None)
     parser.add_argument("--min-works", type=int, default=2)
+    parser.add_argument("--yes", action="store_true", help="confirm a large list at once")
     args = parser.parse_args(argv)
 
     from cartolex.app.collect_service import ServiceCollection
@@ -95,27 +97,29 @@ def main(argv: list[str] | None = None) -> int:
         runner = LocalJobRunner()
         before = _rss_mb()
         start = time.monotonic()
-        info = runner.submit(
-            project="large",
-            jobs_dir=project.layout.jobs,
-            kind="collection",
-            work=lambda control: dict(
-                collection.collect(
-                    project,
-                    control,
-                    "institutions",
-                    {"institutions": [ROOT_ID], "min_works": args.min_works},
-                )
-            ),
-            title="collect: institutions",
-            title_code="collect_institutions",
-        )
+        options = {"institutions": [ROOT_ID], "min_works": args.min_works}
         peak_seen = before
         while True:
-            done = runner.wait(info.id, timeout=0.5)
-            peak_seen = max(peak_seen, _rss_mb())
-            if done is not None and done.state not in ("queued", "running", "cancelling"):
+            info = runner.submit(
+                project="large",
+                jobs_dir=project.layout.jobs,
+                kind="collection",
+                work=lambda control, o=dict(options): dict(
+                    collection.collect(project, control, "institutions", o)
+                ),
+                title="collect: institutions",
+                title_code="collect_institutions",
+            )
+            while True:
+                done = runner.wait(info.id, timeout=0.5)
+                peak_seen = max(peak_seen, _rss_mb())
+                if done is not None and done.state not in ("queued", "running", "cancelling"):
+                    break
+            pause = (done.result or {}).get("pause") or {}
+            if not (args.yes and pause.get("code") == "collect_size_confirm"):
                 break
+            print(f"confirmed: {pause['message']}")
+            options["resume"] = True
         seconds = time.monotonic() - start
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
         after = _rss_mb()

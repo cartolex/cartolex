@@ -138,13 +138,37 @@ same interface. One job runs per project at a time: a second build or
 collection is refused with 409 `busy`, naming the running job. A job's states
 are `queued`, `running`, `cancelling`, `succeeded`, `waiting` (a build that
 ended at an AI step whose route is a copilot, waiting for its result: not a
-failure), `failed`, `cancelled` and `interrupted`. A cancel stops at the next safe point, and the result says
-« nothing changed » or « finished before the cancel ».
+failure), `paused` (a long job stopped with its state saved, to be resumed: not
+a failure), `failed`, `cancelled` and `interrupted`. A cancel stops at the next safe point, and the result says
+« nothing changed » or « finished before the cancel »; a job that keeps
+checkpoints pauses instead.
+
+A failed job says why. Its `error` is
+`{code, params, message, exception, detail, step, progress}`: the cause's
+code (`collect_budget_spent`, `collect_service_unavailable`,
+`collect_incomplete`, `collect_malformed`, `collect_refused`,
+`collect_cache_miss`, else `job_failed`) with its params and English words,
+the exception's class and a short message (300 characters at most), the stage
+it was in and its last progress. The interface's error card shows the code's
+words, and « Copy a diagnostic » carries the class, the message and the step.
+
+A paused job's `result` is `{outcome: "paused", pause}`; `pause` is
+`{code, params, message, checkpoint, progress, cause}`: why it paused
+(`collect_size_confirm`, `collect_stopped`, `collect_paused`), how far it got,
+the checkpoint to resume from, and the error that stopped it (shaped as a
+failed job's `error`), if any. The work of a job raises
+`cartolex.project.checkpoints.JobPaused` after saving a `Checkpoint`; a new
+job given the checkpoint goes on from it (for a collection,
+`POST /api/collection/start {action, resume: <checkpoint>, consent: true}`).
+The institutions' proposal is the first job built this way; the people import's
+identification, the harvest, the text providers' improvement and the
+collaborators' rounds are long collections that should use it next.
 
 Every job writes `logs/jobs/<job id>.jsonl` in its project: a `job` line (its
 kind, the process, a digest of the machine's name and its boot), the build's own events (phases,
-stage ends with counts and times) and a `job-end` line — never a name or a
-text. After a restart, a job whose log has no end and whose process is gone is
+stage ends with counts and times) and a `job-end` line (its state, and the
+`error` of a failed job or the `pause` of a paused one) — never a name or a
+text; a collection adds one `egress` line per host whatever its end. After a restart, a job whose log has no end and whose process is gone is
 `interrupted`, never `running`.
 
 ## Logs and the diagnostic
@@ -234,7 +258,7 @@ version, so it can be undone too).
 | `GET /api/texts` | texts with their parts (part, language, provider), richest content (`title`, `abstract`, `full`), people; filters `slot`, `year`, `language`, `content`, `provider`, `person`, `q` (title or DOI); counts per content and provider, and `duplicates`: the copies of a work the corpus reads once (same normalised title, years at most one apart, a shared author; each copy's `copy_of` names the text read) |
 | `GET /api/texts/{id}` | one text: each part by provider with a preview, its people, the records merged into it (`sources/merges.json`), its versions (preprints) and the conflicts between finders |
 | `GET /api/collection/plan?action=`, `POST /api/collection/plan {action, …}` | what an action would do and **what leaves the computer**: each host with its purpose, what it is sent, the requests and their cost at the service's prices; what never leaves; what is kept and where; notes (`code`, `params`, `message`; the OpenAlex daily budget is `note_openalex_budget` or `note_openalex_budget_key` with `usd` and `days`); the estimate; `consent_needed` |
-| `POST /api/collection/start {action, …, consent}`, `GET /api/collection`, `POST /api/collection/cancel` | the collection job: `identify`, `harvest`, `institutions`, `collaborators` or `retry` (`collect` for a stand-in); when the plan asks consent, the start carries `consent: true` (else 409 `consent_needed`, with the plan) |
+| `POST /api/collection/start {action, …, consent, resume}`, `GET /api/collection`, `POST /api/collection/cancel` | the collection job: `identify`, `harvest`, `institutions`, `collaborators` or `retry` (`collect` for a stand-in); when the plan asks consent, the start carries `consent: true` (else 409 `consent_needed`, with the plan). `resume` names the checkpoint of a paused job (its `result.pause.checkpoint`): the job goes on from it with the options it was started with (404 `checkpoint_not_found` when there is none). The institutions' job reports `code: institution_works` progress (`params`: `works`, `total`, `pages`, `authors`, `rate` in works a second; `eta_s`) and pauses after its first page when more than 100,000 works are announced (`collect_size_confirm`: `total`, `requests`, `seconds`, `cost_usd`, `days` of the daily budget, `keyed`), until resumed; the cancel pauses it too |
 | `GET /api/collection/identities?state=pending&clear=&finder=` | the identity queue: each person with every finder's candidate records (OpenAlex with the ORCID registry as evidence, HAL, SciELO), their score, evidence (each line `text` and `points`, with `code` and `params` when the record has them) and detail (with `detail_code` and `detail_params`); the single clear match flagged (`clear`); counts of clear, unclear and without candidate |
 | `POST /api/collection/identities/{person_id} {decision: accept \| none \| id, record}`, `POST /api/collection/identities/accept {person_ids}` | decide one identity, or accept the single clear match of many (the others are `left`) |
 | `GET /api/collection/coverage` | coverage per class and role; the four states and their first blocking causes; states by organisation; texts by year (with an abstract, titles only) and by language; the slots' summary |
@@ -425,6 +449,7 @@ catalogues give each code its text in every interface language.
 | `collection_unavailable` | 409 | collecting texts is not available in this version | — | `none` |
 | `no_slot` | 409 | the project has no slot to collect into: add one in the settings | — | `settings` |
 | `collection_not_running` | 409 | no collection is running | — | `none` |
+| `checkpoint_not_found` | 404 | there is no paused collection {checkpoint} to resume (it ended, or started again) | `checkpoint` | `reload` |
 | `person_not_found` | 404 | there is no person {person} | `person` | `reload` |
 | `invalid_record` | 422 | a record is scheme:id (orcid:0000-0002-1825-0097, openalex:A123…) or an ORCID iD | — | `fix-input` |
 | `not_a_candidate` | 409 | this record is not a candidate of this person; paste an id instead | — | `fix-input` |
@@ -512,6 +537,16 @@ the English `message` the same way; an empty result also names its next action.
 | `stage_refused` | the stage could not run: {detail} | `detail` | — |
 | `language_model_missing` | a language model is missing: {detail} | `detail` | — |
 | `stage_failed` | the stage failed ({error_type}): {detail} | `error_type`, `detail` | — |
+| `job_failed` | the job failed ({error_type}): {detail} | `error_type`, `detail` | — |
+| `collect_budget_spent` | {host} refused more requests (status {status}): its rate or its daily budget is spent; wait, or set an API key | `host`, `status`, `what`, `wait_s` | — |
+| `collect_service_unavailable` | {host} gave no usable answer after every attempt ({what}); try again later | `host`, `status`, `what` | — |
+| `collect_incomplete` | {host} cut a page of a list short; collect again | `host`, `status`, `what` | — |
+| `collect_malformed` | {host} gave an answer that could not be read ({what}) | `host`, `status`, `what` | — |
+| `collect_refused` | {host} refused a request (status {status}); copy a diagnostic and report it | `host`, `status`, `what` | — |
+| `collect_cache_miss` | an answer is not in the cache: collect without cache-only | — | — |
+| `collect_size_confirm` | {total} works are signed there: reading them takes about {requests} requests and {seconds} s; confirm to go on, or narrow the years or the units, or read the OpenAlex snapshot instead | `works`, `total`, `pages`, `requests`, `seconds`, `cost_usd`, `days`, `keyed` | — |
+| `collect_stopped` | stopped after {works} of {total} works; resume to go on | `works`, `total`, `pages` | — |
+| `collect_paused` | a page still failed after its retries; {works} of {total} works are kept: resume to go on | `works`, `total`, `pages` | — |
 | `health_map_stale` | the map was drawn from inputs that changed since; building the map restores it | — | `build` |
 | `health_model_missing` | the language model {model} for {language} is not installed; the keyword extraction needs it | `model`, `language` | `settings` |
 | `health_too_large` | {stage} needs about {need_mb} MB of memory and this machine has about {budget_mb} MB | `stage`, `need_mb`, `budget_mb` | `settings` |

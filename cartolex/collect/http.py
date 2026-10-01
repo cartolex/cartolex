@@ -830,8 +830,10 @@ class HttpClient:
             items = list(paging.items(data))
             nxt = paging.next_cursor(data)
             count += len(items)
-            last = not nxt or not items
-            yield Page(items, current, None if last else nxt, paging.total(data), count, retrieved)
+            total = paging.total(data)
+            # The last page: no cursor, nothing on it, or every item announced read.
+            last = not nxt or not items or (total is not None and count >= total)
+            yield Page(items, current, None if last else nxt, total, count, retrieved)
             if last:
                 return
             if nxt in seen:

@@ -102,6 +102,10 @@ class CollectionService(Protocol):
         """Run *action* (in a job): progress and cancel through *control*."""
         ...
 
+    def resume_options(self, project: Project, checkpoint: str) -> dict[str, Any] | None:
+        """The options of the paused collection *checkpoint* (to resume it), or ``None``."""
+        ...
+
     def candidates(
         self, project: Project, person_ids: Sequence[str]
     ) -> dict[str, list[dict[str, Any]]]:
@@ -161,6 +165,9 @@ class BaseCollection:
         options: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any]:
         raise ApiError.of("collection_unavailable")
+
+    def resume_options(self, project: Project, checkpoint: str) -> dict[str, Any] | None:
+        return None
 
     def candidates(
         self, project: Project, person_ids: Sequence[str]
