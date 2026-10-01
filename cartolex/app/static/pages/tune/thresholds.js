@@ -2,9 +2,10 @@
 /**
  * The keywords' thresholds previewed in their « Tune » panel: as `min_people`, `min_texts`,
  * `max_share` or `max_keywords` moves (edited or saved and not built yet), how many of the last
- * build's candidates and vocabulary entries they keep, and the strongest that would leave or
- * enter (`GET /api/method/keywords/preview`, read from the stored candidates; nothing is
- * saved). A value only a new extraction can show (a looser window) is said so instead.
+ * build's candidates and kept keywords they keep (the vocabulary as the step's header counts it:
+ * exact, or a range when people's lists would take their next term, which only a rebuild names),
+ * and the strongest that would leave or could enter (`GET /api/method/keywords/preview`, read
+ * from the stored candidates; nothing is saved). A value only a new extraction can show (a looser window) is said so instead.
  * Asked again a moment after the last change; a late answer to an older value is dropped.
  */
 
@@ -40,6 +41,14 @@ function wanted(data, edits) {
 }
 
 const stageOf = (name) => THRESHOLDS.find(([, n]) => n === name)[0];
+
+/** The kept keywords after: exact, a range, or only a ceiling. */
+function Range({ before, low, high }) {
+  const after = low === null || low === undefined
+    ? t('tune.thresholds.at_most', { high })
+    : t('tune.thresholds.range', { low, high });
+  return html`<span class="cx-thresholds__delta">${formatNumber(before)} → <strong>${after}</strong></span>`;
+}
 
 /** A count before and after. */
 function Delta({ before, after }) {
@@ -93,15 +102,17 @@ export function ThresholdsPreview({ ctx, data, edits }) {
           <div><dt>${t('method.keywords.candidates')}</dt><dd><${Delta} before=${c.before} after=${c.after} /></dd></div>
           ${BANDS.filter((b) => view.bands[b] && view.bands[b].before).map((b) => html`<div key=${b}>
             <dt><${BandMark} band=${b} /></dt><dd><${Delta} before=${view.bands[b].before} after=${view.bands[b].after} /></dd></div>`)}
-          ${v.available ? html`<div><dt>${t('tune.thresholds.vocabulary')}</dt>
-            <dd><${Delta} before=${v.before} after=${v.after} /></dd></div>` : null}
+          ${v.available ? html`<div><dt>${t('method.keywords.vocabulary')}</dt>
+            <dd>${v.after === null ? html`<${Range} before=${v.before} low=${v.after_low} high=${v.after_high} />`
+              : html`<${Delta} before=${v.before} after=${v.after} />`}</dd></div>` : null}
         </dl>
       </div>
       <div class="cx-thresholds__lists">
         <${Names} title=${t('tune.thresholds.leaving', { n: c.leaving })} items=${view.leaving} icon="dash" cause />
-        <${Names} title=${t('tune.thresholds.entering', { n: v.entering })} items=${view.vocabulary_entering} icon="plus" />
         <${Names} title=${t('tune.thresholds.out_of_vocabulary', { n: v.leaving })} items=${view.vocabulary_leaving} icon="dash" />
-      </div>`}
+        <${Names} title=${t('tune.thresholds.entering', { n: v.could_enter })} items=${view.vocabulary_entering} icon="plus" />
+      </div>
+      ${v.available && v.after === null ? html`<p class="cx-settings__muted">${t('tune.thresholds.range_note')}</p>` : null}`}
     ${same ? null : html`<p class="cx-settings__muted">${t('tune.thresholds.note')}</p>`}
   </section>`;
 }

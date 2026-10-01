@@ -109,6 +109,9 @@ def test_the_keywords_thresholds_preview_on_the_stored_candidates(client, built)
         "max_keywords": 10_000,
     }
     assert same["candidates"]["after"] == same["candidates"]["before"] and not same["needs"]
+    # the vocabulary is counted as the step's header counts it: the kept keywords
+    header = client.get("/api/method/keywords").json()["vocabulary"]["kept_keywords"]
+    assert same["vocabulary"]["before"] == same["vocabulary"]["after"] == header
 
     stricter = client.get("/api/method/keywords/preview", params={"min_people": 5}).json()
     gone = stricter["candidates"]["leaving"]
@@ -117,7 +120,8 @@ def test_the_keywords_thresholds_preview_on_the_stored_candidates(client, built)
     named = stricter["leaving"]
     assert named and all(r["people"] < 5 and r["cause"] == "min_people" for r in named)
     assert [r["score_len"] for r in named] == sorted((r["score_len"] for r in named), reverse=True)
-    assert stricter["vocabulary"]["after"] <= stricter["vocabulary"]["before"]
+    v = stricter["vocabulary"]
+    assert v["leaving"] > 0 and v["after_low"] == header - v["leaving"] <= v["after_high"]
 
     # a looser window needs a new extraction: named, and the last build's value kept
     looser = client.get("/api/method/keywords/preview", params={"min_people": 2}).json()
@@ -127,7 +131,7 @@ def test_the_keywords_thresholds_preview_on_the_stored_candidates(client, built)
 
     # the vocabulary's cap, both ways, on the full scored list
     cap = client.get("/api/method/keywords/preview", params={"max_keywords": 50}).json()
-    assert cap["vocabulary"]["after"] == 50 and len(cap["vocabulary_leaving"]) == 8
+    assert cap["vocabulary"]["after_high"] <= 50 and len(cap["vocabulary_leaving"]) == 8
     assert params.read_bytes() == before  # nothing saved
 
 
