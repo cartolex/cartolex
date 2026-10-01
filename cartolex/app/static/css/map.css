@@ -167,7 +167,25 @@
   display: grid;
   grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr) minmax(16rem, 22rem);
   gap: var(--cx-space-3);
-  min-height: 0;
+  min-height: 22rem;
+}
+
+/* The « Tune » panel open: the page scrolls, the panel's body scrolls within a part of the
+   window, and the map keeps a height of its own below it (never squeezed under its frame). */
+.cx-atlas:has(> .cx-tune.is-open) {
+  height: auto;
+}
+
+@media (min-width: 1101px) {
+  .cx-atlas:has(> .cx-tune.is-open) > .cx-atlas__body {
+    flex: none;
+    height: max(26rem, calc(100vh - var(--cx-header-height) - 10rem));
+  }
+}
+
+.cx-atlas > .cx-tune.is-open > .cx-tune__body {
+  max-height: 45vh;
+  overflow: auto;
 }
 
 .cx-atlas-tree {
@@ -221,13 +239,9 @@
 
 .cx-atlas__frame {
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: 20rem;
   border: var(--cx-rule-width) solid var(--cx-rule);
   border-radius: var(--cx-radius-m);
-}
-
-.cx-atlas__frame .cx-map-frame__box {
-  min-height: 20rem;
 }
 
 .cx-atlas-card__title {
@@ -603,7 +617,7 @@
     height: 16rem;
   }
 
-  .cx-atlas__frame .cx-map-frame__box {
+  .cx-atlas__frame {
     height: 60vh;
   }
 }

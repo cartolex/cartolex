@@ -2228,7 +2228,8 @@ a.cx-button:hover {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 0;
+  /* no `min-height: 0`: a frame is never shorter than its box, or the canvas would be drawn
+     below the frame's border, and the legend (sized on the frame) would scroll over it */
 }
 
 .cx-map-frame__box {
