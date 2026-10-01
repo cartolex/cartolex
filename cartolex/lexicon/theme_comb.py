@@ -71,11 +71,12 @@ __all__ = [
 MIN_TEXTS = 5
 #: θ at depth 1, where no balance between levels can choose it.
 DEFAULT_THETA = 0.2
-#: The θ values the calibration tries (outside this band the demo worlds lose
-#: specific keywords, or keep broad ones: see the measures).
-THETA_GRID = tuple(float(x) for x in np.round(np.arange(0.10, 0.251, 0.025), 3))
+#: The θ values the calibration tries (above 0.25 the demo worlds lose specific keywords;
+#: the floor is low enough that the balance of a real project's levels, which asks for
+#: 0.05 to 0.075, is inside the band: see the measures).
+THETA_GRID = tuple(float(x) for x in np.round(np.arange(0.025, 0.251, 0.025), 3))
 #: The θ values the calibration tries on a space fitted on the texts.
-TEXT_THETA_GRID = tuple(float(x) for x in np.round(np.arange(0.125, 0.276, 0.025), 3))
+TEXT_THETA_GRID = tuple(float(x) for x in np.round(np.arange(0.025, 0.276, 0.025), 3))
 #: θ at depth 1 on a space fitted on the texts.
 TEXT_THETA = 0.3
 #: Where a keyword may go on each level (:func:`comb`): to any node (``anywhere``); below

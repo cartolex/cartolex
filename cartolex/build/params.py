@@ -286,8 +286,8 @@ RULES: dict[str, Rule] = {
         ),
         Rule(
             "comb_grid_by_space",
-            "the θ values calibrated for the space's unit: 0.1 to 0.25 by 0.025 on the "
-            "people's space, 0.125 to 0.275 on the texts'",
+            "the θ values calibrated for the space's unit: 0.025 to 0.25 by 0.025 on the "
+            "people's space, 0.025 to 0.275 on the texts'",
             (),
             _by_space("grid"),
             reads=(("themes.space", "space_unit"),),

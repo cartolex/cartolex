@@ -1112,7 +1112,7 @@ STAGES = Registry(
                     "keywords_per_group",
                     "int",
                     "about this many keywords in each group of the finest level",
-                    default=20,
+                    default=40,
                     minimum=2,
                     maximum=10_000,
                 ),

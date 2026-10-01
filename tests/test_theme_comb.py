@@ -63,7 +63,7 @@ def test_a_keyword_goes_up_to_the_node_its_texts_share_or_aside_when_everywhere(
 def test_the_calibration_keeps_a_theta_of_its_band():
     P, n = keyword_spread(_texts(), FINEST, 4)
     combed = calibrate(P, n, FINEST, level_maps(LEVELS))
-    assert 0.1 <= combed.theta <= 0.25 and combed.counts(2)[0] == 1
+    assert 0.025 <= combed.theta <= 0.25 and combed.counts(2)[0] == 1
 
 
 def test_a_combed_proposal_places_keywords_on_any_level_and_names_without_repeats():

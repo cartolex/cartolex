@@ -83,7 +83,7 @@ def test_cartolex_stages_declare_every_stage_in_order():
     assert [s.id for s in STAGES if s.needs_consent] == ["keywords.triage"]
     assert STAGES["themes.group"].param("depth").rule == "theme_depth"
     assert STAGES["themes.group"].param("top_groups").default == 15
-    assert STAGES["themes.group"].param("keywords_per_group").default == 20
+    assert STAGES["themes.group"].param("keywords_per_group").default == 40
     assert STAGES.upstream_of("map.layout") >= {"corpus.assemble", "themes.apply"}
     assert STAGES.downstream_of("map.layout") == {"map.trajectories", "overlays.position"}
     for stage in STAGES:
@@ -245,7 +245,7 @@ def test_effective_values_say_where_they_come_from():
     assert {k: values[k] for k in ("depth", "top_groups", "keywords_per_group", "level_sizes")} == {
         "depth": (2, "rule", "theme_depth"),
         "top_groups": (12, "params.json", None),
-        "keywords_per_group": (20, "default", None),
+        "keywords_per_group": (40, "default", None),
         "level_sizes": (None, "default", None),
     }
     by_space = {"comb_grid", "comb_sideways", "comb_theta_one_level"}
@@ -258,8 +258,8 @@ def test_effective_values_say_where_they_come_from():
     on_people = resolve_params(stage, people, sizes, year=YEAR).values
     assert on_people["comb_sideways"].value == "anywhere"
     assert on_people["comb_theta_one_level"].value == 0.2
-    assert on_people["comb_grid"].value == [0.1, 0.125, 0.15, 0.175, 0.2, 0.225, 0.25]
-    assert values["comb_grid"][0] == [0.125, 0.15, 0.175, 0.2, 0.225, 0.25, 0.275]
+    assert on_people["comb_grid"].value == [0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2, 0.225, 0.25]
+    assert values["comb_grid"][0] == [0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2, 0.225, 0.25, 0.275]
     fake = make_registry(Controls(log=None))["themes.group"]  # a stage that uses the seed
     seeded = resolve_params(fake, params, sizes, year=YEAR)
     assert (seeded.values["seed"].value, seeded.values["seed"].source) == (11, "params.json")
