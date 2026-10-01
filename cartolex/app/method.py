@@ -23,6 +23,7 @@ from .messages import empty
 
 __all__ = [
     "LAYOUT_DEFAULTS",
+    "LAYOUT_METHODS",
     "PREVIEW_SAMPLE",
     "STEPS",
     "grouping_view",
@@ -33,6 +34,7 @@ __all__ = [
     "space_view",
     "step_view",
     "texts_view",
+    "unavailable_methods",
 ]
 
 #: The steps of the method screen, in pipeline order, and the stages of each.
@@ -54,31 +56,69 @@ _METRICS = ["cosine", "euclidean"]
 #: The layout parameters the screen offers per method, with the engine's defaults
 #: (``cartolex.atlas.driver.AtlasDefaults``, ``cartolex.atlas.tree_layout``) and their
 #: limits: every parameter a map version's method takes (``cartolex.build.engine.LAYOUT_METHODS``)
-#: but the UMAP recipe (``layout``), which a preview of the people cannot show.
+#: but the UMAP recipe (``layout``), which a preview of the people cannot show. ``tier``
+#: says how prominent each is on the screens (docs/dev/params-tiers.md).
 LAYOUT_DEFAULTS: dict[str, list[dict[str, Any]]] = {
     "umap": [
-        {"name": "n_neighbors", "type": "int", "default": 25, "minimum": 2, "maximum": 200},
-        {"name": "min_dist", "type": "float", "default": 0.3, "minimum": 0.0, "maximum": 1.0},
-        {"name": "metric", "type": "str", "default": "cosine", "choices": _METRICS},
+        {
+            "name": "n_neighbors",
+            "tier": "essential",
+            "type": "int",
+            "default": 25,
+            "minimum": 2,
+            "maximum": 200,
+        },
+        {
+            "name": "min_dist",
+            "tier": "essential",
+            "type": "float",
+            "default": 0.3,
+            "minimum": 0.0,
+            "maximum": 1.0,
+        },
+        {
+            "name": "metric",
+            "tier": "advanced",
+            "type": "str",
+            "default": "cosine",
+            "choices": _METRICS,
+        },
         {
             "name": "n_epochs",
+            "tier": "advanced",
             "type": "int",
             "default": None,
             "minimum": 10,
             "maximum": 5000,
             "nullable": True,
         },
-        {"name": "spread", "type": "float", "default": 1.0, "minimum": 0.1, "maximum": 10.0},
+        {
+            "name": "spread",
+            "tier": "advanced",
+            "type": "float",
+            "default": 1.0,
+            "minimum": 0.1,
+            "maximum": 10.0,
+        },
         {
             "name": "set_op_mix_ratio",
+            "tier": "advanced",
             "type": "float",
             "default": 1.0,
             "minimum": 0.0,
             "maximum": 1.0,
         },
-        {"name": "local_connectivity", "type": "int", "default": 1, "minimum": 1, "maximum": 50},
+        {
+            "name": "local_connectivity",
+            "tier": "advanced",
+            "type": "int",
+            "default": 1,
+            "minimum": 1,
+            "maximum": 50,
+        },
         {
             "name": "repulsion_strength",
+            "tier": "advanced",
             "type": "float",
             "default": 1.0,
             "minimum": 0.0,
@@ -86,6 +126,7 @@ LAYOUT_DEFAULTS: dict[str, list[dict[str, Any]]] = {
         },
         {
             "name": "negative_sample_rate",
+            "tier": "advanced",
             "type": "int",
             "default": 5,
             "minimum": 1,
@@ -93,14 +134,55 @@ LAYOUT_DEFAULTS: dict[str, list[dict[str, Any]]] = {
         },
     ],
     "tsne": [
-        {"name": "perplexity", "type": "float", "default": 30.0, "minimum": 2.0, "maximum": 200.0},
-        {"name": "metric", "type": "str", "default": "cosine", "choices": _METRICS},
+        {
+            "name": "perplexity",
+            "tier": "essential",
+            "type": "float",
+            "default": 30.0,
+            "minimum": 2.0,
+            "maximum": 200.0,
+        },
+        {
+            "name": "metric",
+            "tier": "advanced",
+            "type": "str",
+            "default": "cosine",
+            "choices": _METRICS,
+        },
     ],
     "tree": [
-        {"name": "fill", "type": "float", "default": 0.62, "minimum": 0.05, "maximum": 1.0},
-        {"name": "gap", "type": "float", "default": 0.04, "minimum": 0.0, "maximum": 1.0},
-        {"name": "lean", "type": "float", "default": 0.4, "minimum": 0.0, "maximum": 1.0},
-        {"name": "sharp", "type": "float", "default": 8.0, "minimum": 0.0, "maximum": 100.0},
+        {
+            "name": "fill",
+            "tier": "essential",
+            "type": "float",
+            "default": 0.62,
+            "minimum": 0.05,
+            "maximum": 1.0,
+        },
+        {
+            "name": "gap",
+            "tier": "intermediate",
+            "type": "float",
+            "default": 0.04,
+            "minimum": 0.0,
+            "maximum": 1.0,
+        },
+        {
+            "name": "lean",
+            "tier": "intermediate",
+            "type": "float",
+            "default": 0.4,
+            "minimum": 0.0,
+            "maximum": 1.0,
+        },
+        {
+            "name": "sharp",
+            "tier": "advanced",
+            "type": "float",
+            "default": 8.0,
+            "minimum": 0.0,
+            "maximum": 100.0,
+        },
     ],
 }
 
@@ -418,10 +500,32 @@ def grouping_view(runtime: Any, ctx: Any) -> dict[str, Any]:
 # ── the layout ───────────────────────────────────────────────────────────────
 
 
-def _methods() -> list[str]:
+#: Every layout method, in the order the screens list them.
+LAYOUT_METHODS = ("umap", "tsne", "tree")
+
+
+def unavailable_methods() -> dict[str, dict[str, Any]]:
+    """The layout methods this installation cannot draw, each with the reason and the fix: the
+    error ``layout_method_unavailable`` (``code``, ``params``, ``message``, ``next``)."""
     from cartolex.atlas.reducers import opentsne_available
 
-    return ["umap", "tsne", "tree"] if opentsne_available() else ["umap", "tree"]
+    from .errors import body_of
+
+    if opentsne_available():
+        return {}
+    reason = body_of(
+        "layout_method_unavailable",
+        method="tsne",
+        package="openTSNE",
+        command='pip install "cartolex[tsne]"',
+    )
+    return {"tsne": reason["error"]}
+
+
+def _methods() -> list[str]:
+    """The layout methods this installation can draw."""
+    missing = unavailable_methods()
+    return [m for m in LAYOUT_METHODS if m not in missing]
 
 
 def _top_themes(ctx: Any, people: list[str]) -> tuple[list[int], list[dict[str, Any]]]:
@@ -453,7 +557,8 @@ def layout_view(runtime: Any, ctx: Any) -> dict[str, Any]:
     space = _record(ctx, "themes.space")
     out: dict[str, Any] = {
         "run": record.run_id if record is not None else None,
-        "methods": _methods(),
+        "methods": list(LAYOUT_METHODS),
+        "unavailable": unavailable_methods(),
         "parameters": LAYOUT_DEFAULTS,
         "pinned": None
         if version is None

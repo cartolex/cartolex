@@ -105,3 +105,43 @@ def test_a_map_version_takes_layout_parameters_and_params_say_their_default(clie
     group = next(s for s in params["stages"] if s["id"] == "themes.group")
     depth = next(p for p in group["params"] if p["name"] == "depth")
     assert depth["value"] == 2 and depth["default_value"] == 1 and depth["differs"] is True
+
+
+def test_params_carry_their_tier_and_control_and_a_grid_round_trips(client):
+    view = client.get("/api/params")
+    params = {(s["id"], p["name"]): p for s in view.json()["stages"] for p in s["params"]}
+    assert all(p["tier"] in ("essential", "intermediate", "advanced") for p in params.values())
+    widgets = {k[1]: p["widget"] for k, p in params.items()}
+    assert widgets["parts"] == "grid" and widgets["provider_priority"] == "order"
+    assert widgets["level_sizes"] == "levels" and widgets["comb"] == "switch"
+    assert params[("corpus.assemble", "parts")]["keys"] == ["collection", "folder", "corpus"]
+    parts = {"collection": ["title"], "folder": ["title", "full"], "corpus": ["full"]}
+    body = {
+        "seed": 0,
+        "pinned_year": 2026,
+        "stages": {
+            "corpus.assemble": {"parts": parts, "provider_priority": ["hal", "openalex"]},
+            "themes.group": {"depth": 2, "level_sizes": [4, 12]},
+        },
+    }
+    saved = client.put("/api/params", json=body, headers={"If-Match": etag(view)})
+    assert saved.status_code == 200, saved.text
+    again = {(s["id"], p["name"]): p for s in saved.json()["stages"] for p in s["params"]}
+    assert again[("corpus.assemble", "parts")]["value"] == parts
+    assert again[("corpus.assemble", "provider_priority")]["value"] == ["hal", "openalex"]
+    assert again[("themes.group", "level_sizes")]["value"] == [4, 12]
+
+
+def test_tsne_is_listed_switched_off_with_its_reason_when_missing(client, monkeypatch):
+    import cartolex.atlas.reducers as reducers
+
+    monkeypatch.setattr(reducers, "opentsne_available", lambda: False)
+    for path in ("/api/method/layout", "/api/map/versions"):
+        view = client.get(path).json()
+        assert view["methods"] == ["umap", "tsne", "tree"]
+        reason = view["unavailable"]["tsne"]
+        assert reason["code"] == "layout_method_unavailable"
+        assert reason["params"]["package"] == "openTSNE" and "cartolex[tsne]" in reason["message"]
+    refused = client.post("/api/method/layout/preview", json={"method": "tsne"})
+    assert refused.status_code == 422
+    assert refused.json()["error"]["params"]["command"] == 'pip install "cartolex[tsne]"'

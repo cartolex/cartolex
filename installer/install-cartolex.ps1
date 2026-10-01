@@ -9,6 +9,9 @@
 # Python 3.10 or later installed on this computer. HTTPS_PROXY, HTTP_PROXY and NO_PROXY
 # are followed.
 #
+# cartolex is installed with the t-SNE layout (the extra "tsne", openTSNE); where that
+# cannot be installed, without it.
+#
 # For testing: CARTOLEX_WHEEL=C:\path\cartolex-*.whl (or a wheel next to this file)
 # installs that file instead of the pinned release; CARTOLEX_ROUTE=system skips uv.
 
@@ -71,12 +74,15 @@ if (-not $Wheel) {
 }
 if ($Wheel) {
     if (-not (Test-Path $Wheel)) { Stop-Install "the wheel $Wheel does not exist" }
+    $Wheel = (Resolve-Path $Wheel).Path
     $Spec = $Wheel
+    $FullSpec = 'cartolex[tsne] @ ' + ([System.Uri]$Wheel).AbsoluteUri
     Say "installing the wheel $Wheel"
 } elseif ($Pin.StartsWith('@')) {
     Stop-Install 'this copy of the installer names no version: use the kit of a release'
 } else {
     $Spec = "cartolex==$Pin"
+    $FullSpec = "cartolex[tsne]==$Pin"
     Say "installing cartolex $Pin"
 }
 
@@ -112,7 +118,10 @@ function Install-WithUv([string]$Uv) {
         if (Test-Path $EnvDir) { Remove-Item -Recurse -Force $EnvDir }
         if ((Invoke-Logged $Uv @('venv', '--quiet', '--python', $UvPythonVersion, $EnvDir)) -ne 0) { return $false }
     }
-    if ((Invoke-Logged $Uv @('pip', 'install', '--python', $EnvPython, '--upgrade', $Spec)) -ne 0) { return $false }
+    if ((Invoke-Logged $Uv @('pip', 'install', '--python', $EnvPython, '--upgrade', $FullSpec)) -ne 0) {
+        Say 'the t-SNE layout (openTSNE) cannot be installed here; installing cartolex without it'
+        if ((Invoke-Logged $Uv @('pip', 'install', '--python', $EnvPython, '--upgrade', $Spec)) -ne 0) { return $false }
+    }
     # cartolex models add installs with uv when the environment has no pip.
     $saved = $env:PATH
     $env:PATH = (Split-Path -Parent $Uv) + ';' + $env:PATH
@@ -154,7 +163,10 @@ function Install-WithPython {
     if ($LASTEXITCODE -ne 0) {
         if ((Invoke-Logged $EnvPython @('-m', 'ensurepip', '--upgrade')) -ne 0) { return $false }
     }
-    if ((Invoke-Logged $EnvPython @('-m', 'pip', 'install', '--upgrade', $Spec)) -ne 0) { return $false }
+    if ((Invoke-Logged $EnvPython @('-m', 'pip', 'install', '--upgrade', $FullSpec)) -ne 0) {
+        Say 'the t-SNE layout (openTSNE) cannot be installed here; installing cartolex without it'
+        if ((Invoke-Logged $EnvPython @('-m', 'pip', 'install', '--upgrade', $Spec)) -ne 0) { return $false }
+    }
     return ((Invoke-Logged $Cartolex (@('models', 'add') + $Models + @('--yes'))) -eq 0)
 }
 

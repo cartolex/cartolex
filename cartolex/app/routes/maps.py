@@ -37,13 +37,18 @@ def _view(ctx: Any) -> dict[str, Any]:
 
     maps, fp = read_maps(ctx.layout)
     versions = [{**v.model_dump(mode="json"), "pinned": v.id == maps.pinned} for v in maps.versions]
-    from cartolex.atlas.reducers import opentsne_available
     from cartolex.build.engine import TSNE_FROM_PEOPLE
 
-    tsne = opentsne_available()
+    from ..method import LAYOUT_METHODS, unavailable_methods
+
+    missing = unavailable_methods()
     return {
-        "methods": ["umap", "tsne", "tree"] if tsne else ["umap", "tree"],
-        "default_method": {"tsne_from_people": TSNE_FROM_PEOPLE, "tsne_available": tsne},
+        "methods": list(LAYOUT_METHODS),
+        "unavailable": missing,
+        "default_method": {
+            "tsne_from_people": TSNE_FROM_PEOPLE,
+            "tsne_available": "tsne" not in missing,
+        },
         "pinned": maps.pinned,
         "versions": versions[::-1],
         "version": version_of(fp),
@@ -52,11 +57,17 @@ def _view(ctx: Any) -> dict[str, Any]:
 
 
 def _check_layout_params(maps: Any, body: VersionAction) -> None:
-    """Refuse a layout parameter the method does not take (422 ``layout_param_unknown``)."""
+    """Refuse a method this installation cannot draw (422 ``layout_method_unavailable``) and a
+    layout parameter the method does not take (422 ``layout_param_unknown``)."""
     from cartolex.build.engine import LAYOUT_METHODS
     from cartolex.project.maps import pinned
 
+    from ..method import unavailable_methods
+
     method = body.method or pinned(maps).layout.method
+    missing = unavailable_methods().get(method) if body.method else None
+    if missing is not None:
+        raise ApiError.of("layout_method_unavailable", **missing["params"])
     known = sorted(LAYOUT_METHODS.get(method, ({}, None))[0])
     for key in body.params:
         if key not in known:
