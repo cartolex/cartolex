@@ -598,6 +598,38 @@ def run_build(ctx: StageContext) -> dict[str, int]:
     }
 
 
+#: A space of texts warns when at least this share of its keywords is not in the reference
+#: language: each language's keywords may then form themes of their own (on the demo's L
+#: world, 21 % of French keywords make one theme of French keywords only). Untested on a
+#: real bilingual corpus.
+SPACE_LANGUAGE_SHARE = 0.10
+
+
+def space_languages(paths: Any, reference: str) -> tuple[int, int]:
+    """The keywords of the space, and how many of them are not in *reference* (a keyword's
+    language: the one the vocabulary gives its form, else its concept's; unknown: counted in
+    *reference*)."""
+    import pandas as pd
+
+    terms = pd.read_csv(paths.atlas_terms_csv, usecols=["term"], dtype=str, keep_default_na=False)
+    refined = pd.read_csv(paths.refined_terms_csv, dtype=str, keep_default_na=False)
+    if "lang" not in refined.columns:
+        return len(terms), 0
+    lang = dict(zip(refined["concept"].str.lower(), refined["lang"], strict=True))
+    lang.update(zip(refined["term"].str.lower(), refined["lang"], strict=True))
+    other = sum(1 for t in terms["term"] if lang.get(t.lower(), reference) not in ("", reference))
+    return len(terms), other
+
+
+def space_languages_apart(counts: Mapping[str, Any], unit: str) -> float | None:
+    """The share of a text space's keywords outside the reference language when it reaches
+    :data:`SPACE_LANGUAGE_SHARE` (``themes.space``'s *counts*), else ``None``."""
+    total, other = counts.get("terms") or 0, counts.get("terms_other_language") or 0
+    if unit != "text" or not total or other / total < SPACE_LANGUAGE_SHARE:
+        return None
+    return other / total
+
+
 def run_space(ctx: StageContext) -> dict[str, int]:
     """``themes.space``: the person × keyword matrix and its SVD space."""
     from ..atlas import driver
@@ -620,7 +652,16 @@ def run_space(ctx: StageContext) -> dict[str, int]:
         ctx.warn(
             f"the space has {got} dimensions, not {wanted}: no more than the people or keywords"
         )
-    return {"terms": _rows(rctx.paths.atlas_terms_csv), "dimensions": got}
+    reference = ctx.project.config.languages.reference
+    total, other = space_languages(rctx.paths, reference)
+    counts = {"terms": total, "dimensions": got, "terms_other_language": other}
+    share = space_languages_apart(counts, unit)
+    if share is not None:
+        ctx.warn(
+            f"{share:.0%} of the keywords are not in {reference}: in a space of texts, themes may "
+            "split by language; the people's space may suit this corpus better"
+        )
+    return counts
 
 
 def theme_levels(params: Mapping[str, Any], kept_keywords: int) -> tuple[int, ...]:
@@ -658,6 +699,7 @@ def comb_options(params: Mapping[str, Any]) -> Any:
         one_level=float(params.get("comb_theta_one_level", base.one_level)),
         min_texts=int(params.get("comb_min_texts", base.min_texts)),
         max_cells=int(params.get("comb_max_cells", base.max_cells)),
+        sideways=str(params.get("comb_sideways", base.sideways)),
     )
 
 

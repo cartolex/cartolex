@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections import Counter
 
 import pytest
 from browser_harness import write_measures
@@ -72,6 +73,12 @@ def wait_status(ui, pattern: str, timeout: float = 5000) -> None:
 
 def name_of(node: dict) -> str:
     return node["names"].get("en") or next(iter(node["names"].values()), node["id"])
+
+
+def aside_row(ui, tray, term: str):
+    """The row of the set-aside tray whose keyword is *term* (not one containing it)."""
+    exact = ui.page.locator(".cx-themes-row__term", has_text=re.compile(rf"^{re.escape(term)}$"))
+    return tray.locator("[role=treeitem]").filter(has=exact)
 
 
 def row(ui, text: str):
@@ -218,7 +225,7 @@ def test_merge_split_set_aside_and_put_back(editor):
     wait_status(ui, "3 unsaved changes")
     page.get_by_role("tab", name=re.compile("^Set aside")).click()
     tray = page.get_by_role("tree", name="Keywords set aside")
-    tray.locator("[role=treeitem]", has_text=term).click(button="right")
+    aside_row(ui, tray, term).click(button="right")
     menu_item(ui, "Put back").click()
     wait_status(ui, "4 unsaved changes")
     assert tree_after(ui)[term] is not None
@@ -276,7 +283,7 @@ def test_borderline_keywords_and_suggested_places_by_the_keyboard(editor):
     tray.locator("[role=treeitem]").first.wait_for()
     # the tray is virtualised and also holds the proposal's keywords too broad for any
     # theme: scroll it until the keyword is drawn
-    item = tray.locator("[role=treeitem]", has_text=aside[0])
+    item = aside_row(ui, tray, aside[0])
     for step in range(21):
         if item.count():
             break
@@ -286,7 +293,7 @@ def test_borderline_keywords_and_suggested_places_by_the_keyboard(editor):
             step / 20,
         )
         page.wait_for_timeout(50)
-    tray.locator("[role=treeitem]", has_text=aside[0]).click()
+    aside_row(ui, tray, aside[0]).click()
     page.locator(".cx-themes-suggest button").first.wait_for()
     page.keyboard.press("1")
     wait_status(ui, "4 unsaved changes")
@@ -484,8 +491,15 @@ def test_every_action_by_the_keyboard_alone(editor):
     page = ui.page
     keys = page.keyboard
     t = tree(ui)
+    # the first theme with two topics at least (Home, then down to it)
     tops = [n for n in t["nodes"] if n["parent"] is None]
-    topics = [n for n in t["nodes"] if n["parent"] == tops[0]["id"]]
+    under = {top["id"]: [n for n in t["nodes"] if n["parent"] == top["id"]] for top in tops}
+    first = next(i for i, top in enumerate(tops) if len(under[top["id"]]) >= 2)
+    # the rows above it: each earlier (open) theme, its (closed) topics and its own keywords
+    on = Counter(t["keywords"].values())
+    above = sum(1 + len(under[top["id"]]) + on[top["id"]] for top in tops[:first])
+    tops = tops[first:] + tops[:first]
+    topics = under[tops[0]["id"]]
     count = iter(range(1, 100))
 
     def changed() -> None:
@@ -508,8 +522,13 @@ def test_every_action_by_the_keyboard_alone(editor):
             " ? 'node' : 'keyword') : 'none'; }"
         )
 
+    def home() -> None:  # to that theme
+        keys.press("Home")
+        for _ in range(above):
+            keys.press("ArrowDown")
+
     outline(ui).focus()
-    keys.press("Home")
+    home()
     keys.press("F2")  # rename the first theme
     dialog(ui).wait_for()
     keys.press("Control+a")
@@ -524,7 +543,7 @@ def test_every_action_by_the_keyboard_alone(editor):
     keys.press("Enter")
     closed()
     changed()
-    keys.press("Home")
+    home()
     keys.press("ArrowDown")
     keys.press("ArrowRight")  # open the topic
     keys.press("ArrowDown")

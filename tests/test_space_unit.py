@@ -65,3 +65,15 @@ def test_a_demo_world_can_give_people_two_unrelated_subjects():
         for w in (w for w in world.works if p.person_id in w.authors):
             assert not set(p.themes) <= set(w.themes), "a text never holds both subjects"
     assert generate("S", 0).two_subjects == 0.0
+
+
+def test_a_text_space_with_many_keywords_of_another_language_says_so():
+    from cartolex.build.engine import SPACE_LANGUAGE_SHARE, space_languages_apart
+
+    n = 1000
+    many = {"terms": n, "terms_other_language": round(n * SPACE_LANGUAGE_SHARE)}
+    assert space_languages_apart(many, "text") == SPACE_LANGUAGE_SHARE
+    assert space_languages_apart(many, "person") is None
+    few = {"terms": n, "terms_other_language": round(n * SPACE_LANGUAGE_SHARE) - 1}
+    assert space_languages_apart(few, "text") is None
+    assert space_languages_apart({}, "text") is None

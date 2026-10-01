@@ -3,7 +3,7 @@
 
 Usage (on a demo project built up to ``themes.group``, see ``--build``)::
 
-    python tools/theme_comb_study.py --build S FOLDER       # write and build a demo world
+    python tools/theme_comb_study.py build FOLDER --size S [--two-subjects 0.3] [--space text]
     python tools/theme_comb_study.py comb FOLDER --sizes 3,12,25
     python tools/theme_comb_study.py structure FOLDER --sizes 12,25
     python tools/theme_comb_study.py names FOLDER --sizes 3,12,25
@@ -31,7 +31,7 @@ sys.path.insert(0, str(ROOT))
 YEAR = 2026
 
 
-def build(size: str, root: Path) -> None:
+def build(size: str, root: Path, *, two_subjects: float = 0.0, space: str | None = None) -> None:
     import shutil
 
     from cartolex.build import build as run_build
@@ -40,10 +40,12 @@ def build(size: str, root: Path) -> None:
 
     if root.exists():
         shutil.rmtree(root)
-    project = write_project(generate(size, 0), root)
+    project = write_project(generate(size, 0, two_subjects=two_subjects), root)
     try:
         params, fp = project.read_params()
-        stages = {"corpus.assemble": {"recency_years": 0}}
+        stages: dict = {"corpus.assemble": {"recency_years": 0}}
+        if space is not None:
+            stages["themes.space"] = {"space_unit": space}
         project.save_params(
             params.model_copy(update={"stages": stages}), expected=fp, action="study"
         )
@@ -56,7 +58,7 @@ def build(size: str, root: Path) -> None:
 class Space:
     """The keywords of a built demo project, their vectors, texts and truth."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, two_subjects: float = 0.0) -> None:
         from cartolex.atlas.model_files import load_embeddings, load_lexical_data, load_vectorizer
         from cartolex.demo.writers import lexicon_truth
         from cartolex.lexicon.theme_comb import document_keywords
@@ -87,9 +89,23 @@ class Space:
         size = project["name"].split()[2].rstrip(",")
         from cartolex.demo import generate
 
-        world = generate(size, 0, languages=",".join(langs))
+        world = generate(size, 0, languages=",".join(langs), two_subjects=two_subjects)
         theme_of_work = {w.work_id: w.themes[0] for w in world.works}
         self.doc_theme = [theme_of_work[Path(p).stem] for p in files]
+        language_of_work = {w.work_id: w.language for w in world.works}
+        doc_lang = np.array([language_of_work[Path(p).stem] for p in files])
+        # each keyword's language: that of most of its texts
+        Dc = self.D.tocsc()
+        self.language = np.array(
+            [
+                Counter(doc_lang[Dc.indices[Dc.indptr[j] : Dc.indptr[j + 1]]]).most_common(1)[0][0]
+                if Dc.indptr[j + 1] > Dc.indptr[j]
+                else ""
+                for j in range(Dc.shape[1])
+            ]
+        )
+        #: the keywords the measures judge (``--language``: those of one language)
+        self.judged = np.ones(len(self.terms), dtype=bool)
         self.purity, self.main_theme = self._purity()
         self.pairs = derived / "keywords.build" / "keywords_global_refined_pairs.csv"
         truth: dict[str, dict] = {}
@@ -146,14 +162,21 @@ BROAD = {"cross-theme", "method-any", "method-natural", "method-social", "driver
 
 
 def comb_report(
-    space: Space, sizes: list[int], thetas, min_texts: int, label: str, *, relative: bool = True
+    space: Space,
+    sizes: list[int],
+    thetas,
+    min_texts: int,
+    label: str,
+    *,
+    relative: bool = True,
+    sideways: str = "anywhere",
 ) -> dict:
     from cartolex.lexicon.theme_comb import comb, keyword_spread
 
     levels, finest = space.tree(sizes)
     maps = _maps(levels, len(levels[-1].rows))
     P, n = keyword_spread(space.D, finest, len(levels[-1].rows))
-    c = comb(P, n, finest, maps, thetas, min_texts=min_texts, relative=relative)
+    c = comb(P, n, finest, maps, thetas, min_texts=min_texts, relative=relative, sideways=sideways)
     return summarise(space, sizes, c, maps, finest, label)
 
 
@@ -179,7 +202,7 @@ def summarise(space, sizes, c, maps, finest, label) -> dict:
     counts = c.counts(depth)
     per_node = {lv: counts[lv] / sizes[lv - 1] for lv in range(1, depth + 1)}
     n_texts = np.asarray(space.D.sum(axis=0)).ravel()
-    enough = n_texts >= 5
+    enough = (n_texts >= 5) & space.judged
     spec = enough & (space.purity >= 0.8)
     broad = enough & (space.purity < 0.5)
     # the level of the themes: the one whose size is closest to the texts' number of themes
@@ -497,12 +520,29 @@ def main(argv=None) -> int:
     ap.add_argument("--size", default="S")
     ap.add_argument("--sizes", default="12,25")
     ap.add_argument("--min-texts", type=int, default=5)
+    ap.add_argument("--two-subjects", type=float, default=0.0, help="the world's two-subject share")
+    ap.add_argument("--grid", help="comb: the calibration's θ values (default: the engine's)")
+    ap.add_argument("--one-level", type=float, help="comb: θ at depth 1 (default: the engine's)")
+    ap.add_argument(
+        "--language",
+        help="judge only the keywords whose texts are mostly in this language (a text space "
+        "groups each language apart: its broad keywords stay on a node of their language)",
+    )
+    ap.add_argument(
+        "--sideways",
+        choices=["anywhere", "within_parent", "up_only"],
+        default="anywhere",
+        help="comb, relative: where a keyword may move on each level (the engine's comb_sideways)",
+    )
+    ap.add_argument("--space", choices=["person", "text"], help="build: the space's unit")
     ap.add_argument("--kinds", action="store_true", help="print the placements by kind of keyword")
     args = ap.parse_args(argv)
     if args.what == "build":
-        build(args.size, args.folder)
+        build(args.size, args.folder, two_subjects=args.two_subjects, space=args.space)
         return 0
-    space = Space(args.folder)
+    space = Space(args.folder, args.two_subjects)
+    if args.language:
+        space.judged = space.language == args.language
     sizes = [int(x) for x in args.sizes.split(",")]
     kinds = Counter(k for k, _ in space.truth.values())
     print(f"{len(space.terms)} keywords, {space.D.shape[0]} texts; truth: {dict(kinds)}")
@@ -518,7 +558,17 @@ def main(argv=None) -> int:
         levels, finest = space.tree(sizes)
         maps = _maps(levels, len(levels[-1].rows))
         P, n = keyword_spread(space.D, finest, len(levels[-1].rows))
-        c = calibrate(P, n, finest, maps, min_texts=args.min_texts)
+        grid = [float(x) for x in args.grid.split(",")] if args.grid else None
+        c = calibrate(
+            P,
+            n,
+            finest,
+            maps,
+            min_texts=args.min_texts,
+            sideways=args.sideways,
+            **({"grid": grid} if grid else {}),
+            **({"default_theta": args.one_level} if args.one_level else {}),
+        )
         r = summarise(space, sizes, c, maps, finest, f"calibrated relative θ {c.theta}")
         print_comb(r)
         if args.kinds:
@@ -530,8 +580,17 @@ def main(argv=None) -> int:
         levels, finest = space.tree(sizes)
         maps = _maps(levels, len(levels[-1].rows))
         P, n = keyword_spread(space.D, finest, len(levels[-1].rows))
-        for th in (0.1, 0.15, 0.2, 0.25, 0.3, 0.4):
-            c = comb(P, n, finest, maps, th, min_texts=args.min_texts, relative=True)
+        for th in (0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7):
+            c = comb(
+                P,
+                n,
+                finest,
+                maps,
+                th,
+                min_texts=args.min_texts,
+                relative=True,
+                sideways=args.sideways,
+            )
             print_comb(summarise(space, sizes, c, maps, finest, f"relative θ {th}"))
     if args.what == "grid":
         from cartolex.lexicon.theme_comb import comb, keyword_spread

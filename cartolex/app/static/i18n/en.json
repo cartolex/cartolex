@@ -2100,7 +2100,7 @@
   "method.keywords.score": "Score",
   "method.keywords.count": "Candidates",
   "method.keywords.reasons": "Why each candidate is in its band",
-  "method.space.lead": "Each dimension keeps a share of the variance of the people's keywords. More dimensions keep finer themes, and more noise.",
+  "method.space.lead": "The space is fitted on the texts (keywords are near when the same texts use them; the default) or on the people (when the same people use them). Each dimension keeps a share of the variance of their keywords. More dimensions keep finer themes, and more noise.",
   "method.space.dimensions": "Dimensions",
   "method.space.wanted": "Dimensions asked for",
   "method.space.explained_total": "Variance kept",
@@ -2542,5 +2542,11 @@
   "recipe.col.edit": "Tuned on",
   "recipe.edit_on": "Tune « {name} » on {page}",
   "recipe.none": "No parameter is changed",
-  "recipe.group.layout_version": "The map's layout (map version {version})"
+  "recipe.group.layout_version": "The map's layout (map version {version})",
+  "message.health_space_languages": "{share, number}% of the keywords are not in {language}: in a space of texts, the themes may split by language; the people’s space may suit this corpus better.",
+  "overview.action.health_space_languages": "Open the method",
+  "param.themes.group.comb_sideways": "where a keyword may move on each level, to the group holding most of its use: anywhere; within its group's parent (anywhere at the top level); or only up its own group's ancestors",
+  "param.item.comb_sideways.anywhere": "anywhere",
+  "param.item.comb_sideways.within_parent": "within its parent",
+  "param.item.comb_sideways.up_only": "only up"
 }

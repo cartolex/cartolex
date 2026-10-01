@@ -2100,7 +2100,7 @@
   "method.keywords.score": "Score",
   "method.keywords.count": "Candidats",
   "method.keywords.reasons": "Pourquoi chaque candidat est dans sa bande",
-  "method.space.lead": "Chaque dimension garde une part de la variance des mots-clés des personnes. Plus de dimensions gardent des thèmes plus fins, et plus de bruit.",
+  "method.space.lead": "L’espace est ajusté sur les textes (des mots-clés sont proches quand les mêmes textes les emploient ; par défaut) ou sur les personnes (quand les mêmes personnes les emploient). Chaque dimension garde une part de la variance de leurs mots-clés. Plus de dimensions gardent des thèmes plus fins, et plus de bruit.",
   "method.space.dimensions": "Dimensions",
   "method.space.wanted": "Dimensions demandées",
   "method.space.explained_total": "Variance gardée",
@@ -2542,5 +2542,11 @@
   "recipe.col.edit": "Se règle dans",
   "recipe.edit_on": "Régler « {name} » dans {page}",
   "recipe.none": "Aucun paramètre n'est modifié",
-  "recipe.group.layout_version": "Le placement de la carte (version de carte {version})"
+  "recipe.group.layout_version": "Le placement de la carte (version de carte {version})",
+  "message.health_space_languages": "{share, number} % des mots-clés ne sont pas en {language} : dans un espace des textes, les thèmes peuvent se séparer par langue ; l’espace des personnes peut mieux convenir à ce corpus.",
+  "overview.action.health_space_languages": "Ouvrir la méthode",
+  "param.themes.group.comb_sideways": "où un mot-clé peut aller à chaque niveau, vers le groupe qui porte l'essentiel de son usage : partout ; sous le parent de son groupe (partout au niveau du haut) ; ou seulement vers le haut, parmi les ancêtres de son groupe",
+  "param.item.comb_sideways.anywhere": "partout",
+  "param.item.comb_sideways.within_parent": "sous son parent",
+  "param.item.comb_sideways.up_only": "vers le haut seulement"
 }

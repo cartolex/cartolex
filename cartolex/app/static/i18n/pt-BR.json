@@ -2100,7 +2100,7 @@
   "method.keywords.score": "Pontuação",
   "method.keywords.count": "Candidatos",
   "method.keywords.reasons": "Por que cada candidato está na sua faixa",
-  "method.space.lead": "Cada dimensão guarda uma parte da variância das palavras-chave das pessoas. Mais dimensões guardam temas mais finos, e mais ruído.",
+  "method.space.lead": "O espaço é ajustado sobre os textos (palavras-chave ficam próximas quando os mesmos textos as usam; o padrão) ou sobre as pessoas (quando as mesmas pessoas as usam). Cada dimensão guarda uma parte da variância das suas palavras-chave. Mais dimensões guardam temas mais finos, e mais ruído.",
   "method.space.dimensions": "Dimensões",
   "method.space.wanted": "Dimensões pedidas",
   "method.space.explained_total": "Variância guardada",
@@ -2542,5 +2542,11 @@
   "recipe.col.edit": "Ajusta-se em",
   "recipe.edit_on": "Ajustar « {name} » em {page}",
   "recipe.none": "Nenhum parâmetro foi alterado",
-  "recipe.group.layout_version": "A disposição do mapa (versão do mapa {version})"
+  "recipe.group.layout_version": "A disposição do mapa (versão do mapa {version})",
+  "message.health_space_languages": "{share, number}% das palavras-chave não estão em {language}: num espaço dos textos, os temas podem se separar por língua; o espaço das pessoas pode convir melhor a este corpus.",
+  "overview.action.health_space_languages": "Abrir o método",
+  "param.themes.group.comb_sideways": "para onde uma palavra-chave pode ir em cada nível, rumo ao grupo que concentra a maior parte do seu uso: para qualquer lugar; sob o pai do seu grupo (qualquer lugar no nível de cima); ou só para cima, entre os ancestrais do seu grupo",
+  "param.item.comb_sideways.anywhere": "em qualquer lugar",
+  "param.item.comb_sideways.within_parent": "sob o seu pai",
+  "param.item.comb_sideways.up_only": "só para cima"
 }

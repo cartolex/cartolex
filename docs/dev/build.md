@@ -95,7 +95,7 @@ Each stage's `run.json` records every effective value and its origin:
 "parameters": {
   "depth": {"value": 2, "from": "rule", "rule": "theme_depth"},
   "top_groups": {"value": 12, "from": "params.json", "rule": null},
-  "keywords_per_group": {"value": 20, "from": "default", "rule": null},
+  "keywords_per_group": {"value": 40, "from": "default", "rule": null},
   "level_sizes": {"value": null, "from": "default", "rule": null}
 }
 ```
@@ -160,14 +160,14 @@ parameter (`tier`, `widget`, `keys`, `suggestions`).
 | `keywords.build` | `keywords_per_person` | 30 | 1–10 000 | Keywords › Keywords of people and organisations |
 | `keywords.build` | `keywords_per_organisation` | 50 | 1–10 000 | Keywords › Keywords of people and organisations |
 | `keywords.build` | `keywords_of_field` | 200 | 1–100 000 | Keywords › Keywords of people and organisations |
-| `themes.space` | `space_unit` | person | person, text: what the space is fitted on (an option under study, see {doc}`themes-engine`) | Space |
+| `themes.space` | `space_unit` | rule `space_unit_texts`: text | person, text: what the space is fitted on (the texts by default; the people's space may suit a corpus in several languages better, see {doc}`themes-engine`) | Space |
 | `themes.space` | `dimensions` | rule `space_dimensions` | 2–1000; a space never has more dimensions than people or keywords (the run says so) | Space |
 | `themes.space` | `svd_seed` | 42 | 0–2³² − 1 | Space › The SVD |
 | `themes.space` | `svd_iterations` | 5 | 1–100 | Space › The SVD |
 | `themes.space` | `svd_algorithm` | randomized | randomized, arpack (at as many dimensions as the matrix's smaller side, the randomized solver runs, with a warning) | Space › The SVD |
 | `themes.group` | `depth` | rule `theme_depth` | 1–4 | Grouping |
 | `themes.group` | `top_groups` | 15 | 2–500, fewer than the kept keywords | Grouping |
-| `themes.group` | `keywords_per_group` | 20 | 2–10 000; the levels must grow from the top | Grouping |
+| `themes.group` | `keywords_per_group` | 40 | 2–10 000; the levels must grow from the top | Grouping |
 | `themes.group` | `level_sizes` | none | 1 to 4 whole numbers, the groups per level from the top; when set, they replace `depth`, `top_groups` and `keywords_per_group` | Grouping |
 | `themes.group` | `cluster_dimensions` | 50 | 2–1000 (at most the space's dimensions are used) | Grouping › Ward's grouping |
 | `themes.group` | `exact_ward_limit` | 15 000 | 2–1 000 000 points; exact Ward holds about 8·n² bytes | Grouping › Ward's grouping |
@@ -175,8 +175,9 @@ parameter (`tier`, `widget`, `keys`, `suggestions`).
 | `themes.group` | `micro_seed` | 0 | 0–2³² − 1 | Grouping › Ward's grouping |
 | `themes.group` | `comb` | true | true, false; true puts each keyword of the proposal on the level its texts support and sets aside the keywords too broad for any theme ({doc}`themes-engine`) | Grouping › The comb |
 | `themes.group` | `comb_theta` | none: calibrated on `comb_grid` | 0–1, or none | Grouping › The comb |
-| `themes.group` | `comb_grid` | 0.1, 0.125, 0.15, 0.175, 0.2, 0.225, 0.25 | 1 to 100 numbers, 0–1 | Grouping › The comb |
-| `themes.group` | `comb_theta_one_level` | 0.2 | 0–1 | Grouping › The comb |
+| `themes.group` | `comb_grid` | rule `comb_grid_by_space`: 0.025 to 0.275 by 0.025 on the texts' space, 0.025 to 0.25 on the people's | 1 to 100 numbers, 0–1 | Grouping › The comb |
+| `themes.group` | `comb_theta_one_level` | rule `comb_theta_one_level_by_space`: 0.3 on the texts' space, 0.2 on the people's | 0–1 | Grouping › The comb |
+| `themes.group` | `comb_sideways` | rule `comb_sideways_by_space`: within_parent on the texts' space, anywhere on the people's | anywhere, within_parent (below the top level, only to a group under the same parent), up_only | Grouping › The comb |
 | `themes.group` | `comb_min_texts` | 5 | 1–100 000 | Grouping › The comb |
 | `themes.group` | `comb_max_cells` | 50 000 000 | ≥ 1 keywords × finest groups | Grouping › The comb |
 | `themes.group` | `own_name_floor` | 0.5 | 0–1 | Grouping › Names |
@@ -242,7 +243,7 @@ What became a parameter:
 | `atlas.reducers` | `TruncatedSVD` seed, power iterations, solver | 42, 5, randomized | `themes.space.svd_seed`, `.svd_iterations`, `.svd_algorithm` |
 | `atlas.driver` | `AtlasDefaults.clustering_n_components` | 50 | `themes.group.cluster_dimensions` |
 | `atlas.clustering` | `EXACT_WARD_LIMIT`, `micro_cluster_count` (min(points, limit)), `MICRO_SEED` | 15 000, the rule, 0 | `themes.group.exact_ward_limit`, `.micro_clusters`, `.micro_seed` |
-| `lexicon.theme_comb` | θ (calibrated), `THETA_GRID`, `DEFAULT_THETA`, `MIN_TEXTS`, `MAX_CELLS` | calibrated, 0.1–0.25 by 0.025, 0.2, 5, 5·10⁷ | `themes.group.comb_theta`, `.comb_grid`, `.comb_theta_one_level`, `.comb_min_texts`, `.comb_max_cells` |
+| `lexicon.theme_comb` | θ (calibrated), `CALIBRATION` (`THETA_GRID`, `TEXT_THETA_GRID`, `DEFAULT_THETA`, `TEXT_THETA`, `SIDEWAYS`), `MIN_TEXTS`, `MAX_CELLS` | calibrated; per space unit: people 0.025–0.25 by 0.025, θ 0.2 at depth 1, anywhere; texts 0.025–0.275, θ 0.3, within the parent; 5, 5·10⁷ | `themes.group.comb_theta`, `.comb_grid`, `.comb_sideways`, `.comb_theta_one_level`, `.comb_min_texts`, `.comb_max_cells` |
 | `lexicon.theme_tree` | `OWN_NAME_FLOOR` | 0.5 | `themes.group.own_name_floor` |
 | `atlas.placement` | `K`, `LINK_RADIUS` | 8, 0.25 | `map.layout.neighbours`, `.link_radius` |
 | `atlas.driver` | `AtlasDefaults.traj_min_docs_per_bin` | 1 | `map.trajectories.min_texts_per_window` |
@@ -490,7 +491,7 @@ made with.
 | `themes.space.dimensions`, `.space_unit` | `run_svd(svd_n_components=…, space_unit=…)` |
 | `themes.space.svd_seed`, `.svd_iterations`, `.svd_algorithm` | `run_svd(svd_seed=…, svd_iterations=…, svd_algorithm=…)`: scikit-learn's `TruncatedSVD(random_state, n_iter, algorithm)` |
 | `themes.group.cluster_dimensions`, `.exact_ward_limit`, `.micro_clusters`, `.micro_seed` | `run_clustering(n_components=…, ward=WardOptions(limit, micro, seed))`; the same `WardOptions` cut the levels above (`level_groups(ward=…)`) |
-| `themes.group.comb_theta`, `.comb_grid`, `.comb_theta_one_level`, `.comb_min_texts`, `.comb_max_cells`, `.own_name_floor` | `draft_themes(comb_options=CombOptions(theta, grid, one_level, min_texts, max_cells), own_floor=…)`; the method screen's calibration and the comb's suggestions on a curated tree read the options the grouping recorded (`cartolex.build.engine.comb_options`), and the copilot's themes bundle carries them (`data/context.json`, `grouping`) for its kit's grouping, comb and names |
+| `themes.group.comb_theta`, `.comb_grid`, `.comb_sideways`, `.comb_theta_one_level`, `.comb_min_texts`, `.comb_max_cells`, `.own_name_floor` | `draft_themes(comb_options=CombOptions(theta, grid, one_level, min_texts, max_cells, sideways), own_floor=…)`; the method screen's calibration and the comb's suggestions on a curated tree read the options the grouping recorded (`cartolex.build.engine.comb_options`), and the copilot's themes bundle carries them (`data/context.json`, `grouping`) for its kit's grouping, comb and names |
 | the theme levels | every level: `draft_themes(level_sizes=…)`; the finest: `run_clustering(n_concepts=…)`; at depth 2 the top level of the two-level draft: `draft_subfields(n_subfields=…)` |
 | `map.layout.neighbours`, `.link_radius` | `run_umap(neighbours=…, link_radius=…)`, `run_trajectories(…)`, `load_positioning_models(…)`: `MapAnchors(k, link_radius)` |
 | `map.trajectories.window_years`, `.min_texts_per_window` | `run_trajectories(bin_years=…, min_docs_per_bin=…)`, with `length_alpha` from `keywords.extract.length_bonus` |

@@ -322,6 +322,12 @@ class Registry:
                         f"{stage.id}.{spec.name}: the rule {spec.rule} needs {sorted(missing)}, "
                         "which no upstream stage reports"
                     )
+                for sid, name in RULES[spec.rule].reads:
+                    if sid not in before or name not in {p.name for p in self._stages[sid].params}:
+                        raise ValueError(
+                            f"{stage.id}.{spec.name}: the rule {spec.rule} reads {sid}.{name}, "
+                            "which no upstream stage declares"
+                        )
 
     def __iter__(self) -> Iterator[Stage]:
         return iter(self._stages.values())
@@ -455,10 +461,6 @@ def _range_grows(values: Mapping[str, Any], _: ProjectSizes, __: ProjectFile) ->
     return None
 
 
-#: The θ values the comb's calibration tries by default (``THETA_GRID``: 0.1 to 0.25).
-_COMB_GRID = [0.1, 0.125, 0.15, 0.175, 0.2, 0.225, 0.25]
-
-
 def _ai_configured(_: Mapping[str, Any], __: ProjectSizes, config: ProjectFile) -> str | None:
     if config.identity.ai is None:
         return "the AI clean-up needs a provider and a model in project.json (identity.ai)"
@@ -570,6 +572,7 @@ PARAM_TIERS: dict[str, dict[str, str]] = {
         "micro_seed": _A,
         "comb_grid": _A,
         "comb_theta_one_level": _A,
+        "comb_sideways": _A,
         "comb_min_texts": _A,
         "comb_max_cells": _A,
         "own_name_floor": _A,
@@ -1036,7 +1039,7 @@ STAGES = Registry(
                     "str",
                     "what the space is fitted on: the people (keywords are near when the same "
                     "people use them) or the texts (near when the same texts use them)",
-                    default="person",
+                    rule="space_unit_texts",
                     choices=("person", "text"),
                 ),
                 ParamSpec(
@@ -1109,7 +1112,7 @@ STAGES = Registry(
                     "keywords_per_group",
                     "int",
                     "about this many keywords in each group of the finest level",
-                    default=20,
+                    default=40,
                     minimum=2,
                     maximum=10_000,
                 ),
@@ -1187,7 +1190,7 @@ STAGES = Registry(
                     "comb_grid",
                     "floats",
                     "the θ values the calibration tries",
-                    default=_COMB_GRID,
+                    rule="comb_grid_by_space",
                     minimum=0.0,
                     maximum=1.0,
                     items=(1, 100),
@@ -1197,9 +1200,19 @@ STAGES = Registry(
                     "comb_theta_one_level",
                     "float",
                     "θ for a tree of one level, where no balance between levels can choose it",
-                    default=0.2,
+                    rule="comb_theta_one_level_by_space",
                     minimum=0.0,
                     maximum=1.0,
+                    section="comb",
+                ),
+                ParamSpec(
+                    "comb_sideways",
+                    "str",
+                    "where a keyword may move on each level, to the group holding most of its "
+                    "use: anywhere; within its group's parent (anywhere at the top level); or "
+                    "only up its own group's ancestors",
+                    rule="comb_sideways_by_space",
+                    choices=("anywhere", "within_parent", "up_only"),
                     section="comb",
                 ),
                 ParamSpec(

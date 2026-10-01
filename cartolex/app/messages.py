@@ -124,6 +124,12 @@ MESSAGES: dict[str, MessageKind] = {
         "Open the settings",
         "settings",
     ),
+    "health_space_languages": MessageKind(
+        "{share}% of the keywords are not in {language}: in a space of texts, themes may split "
+        "by language; the people's space may suit this corpus better",
+        "Open the method",
+        "open:/method",
+    ),
     "health_snowball_cap": MessageKind(
         "the last proposal of collaborators in {slot} stopped at the cap of {cap} people",
         "Open the settings",

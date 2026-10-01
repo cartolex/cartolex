@@ -152,112 +152,132 @@
  },
  "integrity": [
   {
-   "concept_id": 85,
+   "concept_id": 69,
    "domain_id": "a",
-   "ratio": 0.8606956362586939
+   "ratio": 1.0403019169014036
   },
   {
-   "concept_id": 15,
+   "concept_id": 3,
    "domain_id": "b",
-   "ratio": 1.0213673201517284
+   "ratio": 1.2235802346184241
   },
   {
-   "concept_id": 16,
+   "concept_id": 7,
    "domain_id": "b",
-   "ratio": 1.0007339050686654
+   "ratio": 1.0160078793549083
   },
   {
-   "concept_id": 24,
+   "concept_id": 9,
    "domain_id": "b",
-   "ratio": 1.042938113775438
+   "ratio": 0.5906598489673385
   },
   {
-   "concept_id": 31,
+   "concept_id": 11,
    "domain_id": "b",
-   "ratio": 1.0034315825931217
+   "ratio": 1.022591820255492
   },
   {
-   "concept_id": 41,
+   "concept_id": 12,
    "domain_id": "b",
-   "ratio": 1.0054520620390417
+   "ratio": 1.65749456265787
   },
   {
-   "concept_id": 49,
+   "concept_id": 22,
    "domain_id": "b",
-   "ratio": 1.0019110525252775
+   "ratio": 0.8900107395284467
   },
   {
-   "concept_id": 59,
+   "concept_id": 23,
    "domain_id": "b",
-   "ratio": 0.43270319472755625
+   "ratio": "nan"
+  },
+  {
+   "concept_id": 33,
+   "domain_id": "b",
+   "ratio": 1.2515875315852778
+  },
+  {
+   "concept_id": 40,
+   "domain_id": "b",
+   "ratio": 1.0064011277150036
+  },
+  {
+   "concept_id": 53,
+   "domain_id": "b",
+   "ratio": 1.522796380900131
   },
   {
    "concept_id": 62,
    "domain_id": "b",
-   "ratio": 0.6900748746497946
+   "ratio": 1.03379602828364
   },
   {
-   "concept_id": 69,
+   "concept_id": 63,
    "domain_id": "b",
-   "ratio": 0.7818691515664287
+   "ratio": 3.4771867093837447
   },
   {
-   "concept_id": 70,
+   "concept_id": 64,
    "domain_id": "b",
-   "ratio": 1.5062216774975856
+   "ratio": 1.089629729811985
   },
   {
-   "concept_id": 74,
+   "concept_id": 65,
    "domain_id": "b",
-   "ratio": 1.0859508574288008
+   "ratio": 1.1414386127774112
   },
   {
-   "concept_id": 82,
+   "concept_id": 68,
    "domain_id": "b",
-   "ratio": 1.0016160069949975
+   "ratio": 1.0210980742144382
   },
   {
-   "concept_id": 103,
+   "concept_id": 71,
    "domain_id": "b",
-   "ratio": 1.0006654844119744
+   "ratio": 1.020285553782709
   },
   {
-   "concept_id": 107,
+   "concept_id": 78,
    "domain_id": "b",
-   "ratio": 0.8217247414749405
+   "ratio": 0.5903742385129249
   },
   {
-   "concept_id": 109,
+   "concept_id": 88,
    "domain_id": "b",
-   "ratio": 1.923716629170974
+   "ratio": 1.1670491618720198
   },
   {
-   "concept_id": 122,
+   "concept_id": 95,
    "domain_id": "b",
-   "ratio": 1.1121737025752259
+   "ratio": 3.297956730912942
   },
   {
-   "concept_id": 127,
+   "concept_id": 102,
    "domain_id": "b",
-   "ratio": 0.8438273145026186
+   "ratio": 0.983079198066797
+  },
+  {
+   "concept_id": 113,
+   "domain_id": "b",
+   "ratio": 1.000076370125008
+  },
+  {
+   "concept_id": 135,
+   "domain_id": "b",
+   "ratio": 1.0045388177105716
+  },
+  {
+   "concept_id": 138,
+   "domain_id": "b",
+   "ratio": 1.1584449164655426
   },
   {
    "concept_id": 139,
    "domain_id": "b",
-   "ratio": 1.0031021989214097
-  },
-  {
-   "concept_id": 140,
-   "domain_id": "b",
-   "ratio": 1.0411312288642405
-  },
-  {
-   "concept_id": 142,
-   "domain_id": "b",
-   "ratio": 1.0012333569246106
+   "ratio": 1.3043645180626326
   }
  ],
- "mean_pairwise_cosine_anchors": 0.10405560113731276,
+ "mean_pairwise_cosine_anchors": 0.10549037012323219,
  "mixing": [
   [
    0.8000000000000002,

@@ -49,7 +49,18 @@ def depths(built, tmp_path_factory) -> dict[int, Path]:
     for depth in (2, 3):
         root = tmp_path_factory.mktemp(f"themes-d{depth}") / "project"
         shutil.copytree(built, root)
-        assert cli(["params", str(root), "--set", f"themes.group.depth={depth}"]) == 0
+        assert (
+            cli(
+                [
+                    "params",
+                    str(root),
+                    "--set",
+                    f"themes.group.depth={depth}",
+                    "themes.group.keywords_per_group=20",
+                ]
+            )
+            == 0
+        )
         assert cli(["build", str(root)]) == 0
         out[depth] = root
     return out
