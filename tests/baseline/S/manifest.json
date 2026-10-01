@@ -4,7 +4,7 @@
    "applied": {
     "file": "apply/applied.json.gz",
     "kind": "json",
-    "sha256": "c1734a8c9f9e19220d2e25af3be9b1df9c137c55f902565b123e562df7319293"
+    "sha256": "6b4d3c6831ebf1d28234a0ebd1566acec4aa22806fff7d1ec054dbd12bd8e313"
    },
    "lexicon_weights": {
     "columns": [
@@ -30,7 +30,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 132,
-    "sha256": "55583e78f43d417e7f553bb05165442b75f6aa3b8696305ecfb079de2577b792"
+    "sha256": "a645f477cc9e2623c4fce56cde38e284224553530ed07364644697a00641f138"
    },
    "person_weights": {
     "columns": [
@@ -50,8 +50,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 377,
-    "sha256": "974fcd54259f588e55dd91ab70eefa9360d38c77b165ce0cd6c860462e33c3ab"
+    "rows": 290,
+    "sha256": "a42f422a34a037e4624c44607d42914c0438089cc7a40c331560e25b5b84fd5c"
    },
    "returned_matches_file": {
     "file": "apply/returned_matches_file.json",
@@ -292,7 +292,7 @@
    "taxonomy": {
     "file": "bundle/taxonomy.json",
     "kind": "json",
-    "sha256": "3603737931c53443eabaa635c8953614477a133b909eeefab96c588ee7cd06a3"
+    "sha256": "c32b8d8348427aa361ac48a893e3c652338b32a7d7fea0b5b647776dd185afec"
    },
    "vocabulary": {
     "columns": [
@@ -319,14 +319,14 @@
    "zip": {
     "file": "bundle/zip.json",
     "kind": "json",
-    "sha256": "9b9166a2d4ec5348aea3bbb0178de36f5f687ba0a6cbfe3ce8b16f20f6184de6"
+    "sha256": "e13907e45489ce373e08ccb6509ae73fab96e20aaae04f99db81aa6734c011f4"
    }
   },
   "draft": {
    "draft": {
     "file": "draft/draft.json.gz",
     "kind": "json",
-    "sha256": "10bfa7f3e1910fd770eb4db278d27fc96373519240d797e85332b870b505eab3"
+    "sha256": "85f910c41f7cd1021e4b661e39e1831d53a31e6a2e08238ba6a0a8681eefbdf5"
    }
   },
   "extract": {
@@ -442,18 +442,18 @@
     "kind": "table",
     "ordered": false,
     "rows": 131,
-    "sha256": "4cfa3e75b316f768008ee502753ca72b04a1d5f786cd19e90e1b4ea2f9d0d58a"
+    "sha256": "765c29f485442e2106de7ee5312e7fde27795057be3c4faa6f8bd733fbe1982b"
    },
    "proto_subfields": {
     "file": "group/proto_subfields.json",
     "kind": "json",
-    "sha256": "9fb03c4cd744eeda66ba9b0dad56b2e52d8e7d778fdd7ae78614bb339814cea2"
+    "sha256": "0ccc0f7a230b1b5c50eb36291c9550ea334df6dada7ece6925223cda2970b717"
    },
    "term_labels": {
     "count": 132,
     "file": "group/term_labels.json",
     "kind": "labels",
-    "sha256": "d5ce2eae6d107b1aa816551cb62e5e900a95802f43c4be1e055148e6410a8359"
+    "sha256": "b15909fd06c9cae7a0ece1aee4cc306b0f6bd49d0bc78ccb8ec5a0b71dee75a0"
    },
    "term_scores": {
     "file": "group/term_scores.npy",
@@ -470,12 +470,12 @@
    "clustered_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "232a7a0aa07c69ba4ac26c2a2ff3c35a1700e78c9c8d6ca46e53eb890843da9c"
+    "sha256": "a61e9b6ba021d7bc0287d5a130e0048048e722b3f3c9fd9f23daaee3ecdfbcbc"
    },
    "diagnostics": {
     "file": "layout/diagnostics.json",
     "kind": "json",
-    "sha256": "4f41ce81b59c04876c9375bd2f6aa8487a94cef658a3bf15429f85bfab0fc4b7"
+    "sha256": "dfdcfbebba0b53c58c45ea9065bf69d4dffa02bb403bad9e2c1ee29c019df3ea"
    },
    "groups": {
     "columns": [
@@ -507,18 +507,18 @@
     "kind": "table",
     "ordered": true,
     "rows": 6,
-    "sha256": "75d4396a26a2a504ccb729f016078072212bf3a6d1796a511fc7afb839915eb1"
+    "sha256": "e46043c24a831d88bf8b33f188bc61770e42daa7474cf3bf9ada597151941eac"
    },
    "person_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "f07ecfe0f1d2b7b405d0823e515ee0ebdbf6232e7ece9efea94dbe905e210c2c"
+    "sha256": "4d5e4868276e37e6c961e51b36cd2b1a5fc11976f7009fda4ccfc121262a2cc9"
    },
    "person_xy": {
     "file": "layout/person_xy.npy",
     "kind": "array",
     "role": "layout",
-    "sha256": "ccabad85b11bbbe1785ffb019ad0003072757d719635d9f333812d92fc0c7d15",
+    "sha256": "103e02c8a57446ab4ade7ac49fdd218461bba2552cc2e4e9eb8c8b8d0af8f02a",
     "shape": [
      37,
      2
@@ -528,13 +528,13 @@
    "term_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "0543ad6c3797f5a8d72dba964c2510d1ce02b28b528e9ce29b1e79fe564723de"
+    "sha256": "66cd5c42bc0cd5847b95c37523bdd5060d2a4e5d1bbe92684920721224a8d844"
    },
    "term_xy": {
     "file": "layout/term_xy.npy",
     "kind": "array",
     "role": "layout",
-    "sha256": "d8d5c7f84fc1fc002d635e1c3d3d17ec6acb729dc2fbe7abc1456ef0049fcead",
+    "sha256": "97c5ee0bb35823cd56e8f07c542b3d91921ca131a0f6ec3f8ecb82915c7e5a86",
     "shape": [
      132,
      2
@@ -547,7 +547,7 @@
     "file": "projection/applicants_coords.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "5ba95ab5a7771e2e6e7149c18ac25c7de1c6cad88104a7b5b57b74f2d747e212",
+    "sha256": "9ad01261f34303e9b57a52cd331ea87204e594fea126e23237a0399565332703",
     "shape": [
      4,
      20
@@ -557,7 +557,7 @@
    "applicants_details": {
     "file": "projection/applicants_details.json",
     "kind": "json",
-    "sha256": "632b3999477e7c455d7e0cc84919a833bed21dff939d49a6a69c883c83e237bf"
+    "sha256": "eb2eaca26f796ffad4c2d367b1e11aa4e26ba8e0ffd0a3630e83410df0bf12b1"
    },
    "applicants_items": {
     "count": 4,
@@ -569,7 +569,7 @@
     "file": "projection/applicants_xy.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "e20f0d9d61404661117806ead55b3282f984eded9f5b8d344d31fe86a35b7f05",
+    "sha256": "46d5d5681ea6dd5066072b5c4bbbcea3f4ebe17a2b1ab6b83e1ee1afb29ecca8",
     "shape": [
      4,
      2
@@ -607,7 +607,7 @@
     "file": "space/explained_variance_ratio.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "283bc45304d6a235067fed98023b15783bdaa7f97a3a350fe1323da38de48efb",
+    "sha256": "30359ae144cdc441694b523e53132cc6076cab66aaf9a59c6cdc26d5afdc4cd6",
     "shape": [
      20
     ],
@@ -640,7 +640,7 @@
     "file": "space/person_coords.npy",
     "kind": "array",
     "role": "embedding",
-    "sha256": "c0c6c4fd3a7af13bbc460a8fae512ddb5f112895dd233373df11c2178e0ab395",
+    "sha256": "453954c4a52b9543d6cbf3cacfd6d3557d01b451cc0c0d78d183307c3bcc7408",
     "shape": [
      37,
      20
@@ -650,7 +650,7 @@
    "person_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "ac3a18124fbf390f7225fc36430b1f8b80b6a3baf87c37a195c2e9fb395a8155"
+    "sha256": "23cc6c4f0e30024a7aaf49894970aa197a95964f5f2ebed495248a7afa534f0e"
    },
    "persons": {
     "count": 37,
@@ -662,7 +662,7 @@
     "file": "space/singular_values.npy",
     "kind": "array",
     "role": "spectrum",
-    "sha256": "3898d1e3090815ba1d9ae7a437d7583608a52028515e141f650be8946844b8f3",
+    "sha256": "ff89223d7c57ac0d26254bdccb4e4146c4723a81b55273ec26c6808e1813d1f3",
     "shape": [
      20
     ],
@@ -672,7 +672,7 @@
     "file": "space/term_coords.npy",
     "kind": "array",
     "role": "embedding",
-    "sha256": "1f8e3efefb76a5c07303cb94d0ead3b4bf72a410002ba8abe038a5851e21d7aa",
+    "sha256": "f30e6f6bfdeff4f6338c0b896a3e4e81353246c6923c8b97dc3fed0c27f76cc5",
     "shape": [
      132,
      20
@@ -682,7 +682,7 @@
    "term_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "597a76ba9b31750dc79eb1310913693ca8c1e96fa8b8e52627db0e9c16e21f19"
+    "sha256": "0dcfe5cbb07c40b016743c891e09345cd1ad8ca818a72181766254eb459aba13"
    },
    "terms": {
     "count": 132,
@@ -719,12 +719,12 @@
     "kind": "table",
     "ordered": false,
     "rows": 140,
-    "sha256": "03f465392731a3269ed158a1e7b67995c637c93eac56eeb51031569284100fad"
+    "sha256": "6c067cae9db2aacc8557cfa30bec0b70283c1cd319f9344dcf44ec3144a986a2"
    },
    "windows": {
     "file": "trajectories/windows.json.gz",
     "kind": "json",
-    "sha256": "6004cd7defcc2b80c60f89638afc231a621dea334d7028dc6d5b2a906ddcea32"
+    "sha256": "503e169a3abfae2f5a6775d23b4bba8ca5593301278a6b0b51ec366da8fbcfc3"
    }
   },
   "triage": {
@@ -756,11 +756,11 @@
   }
  },
  "baseline": {
-  "date": "2026-09-29",
-  "reason": "Candidates from three texts, a work read once: a keyword candidate must also occur in at least 3 distinct texts (keywords.extract.min_texts, default 3), so phrases of one or two co-authored texts leave the extraction and every later stage follows; the S world then keeps fewer keywords than the default 150 topics, so the reference groups them into one topic fewer than its keywords (the same in both modes; L keeps 150); corpus.assemble reads one text per work (no duplicate in the demo worlds, so the corpus is unchanged)."
+  "date": "2026-10-01",
+  "reason": "The space is fitted on the texts, as a project's themes.space does by default since the rule space_unit_texts (the workspace run follows it: run_svd(space_unit='text')); the clustering, the layout, the draft, its application, the trajectories, the projection, the bundle and the merge follow. The comb's calibration and the default sizes (keywords_per_group 40, the grids from 0.025) do not reach these runs: the reference sets the level sizes and turns the comb off."
  },
  "environment": {
-  "engine_fingerprint": "e28138d8ba9e6056f9ccb75c4ea0445a8adf06efcdc5b3076e200100d9651dca",
+  "engine_fingerprint": "84fa888e6a9c7b6d813d61ca4453c30c695629a646ad2da5355c8a65be529c77",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {
@@ -818,7 +818,9 @@
    "keywords": {
     "recency_years": 0
    },
-   "svd": {},
+   "svd": {
+    "space_unit": "text"
+   },
    "umap": {}
   },
   "now_year": 2026,

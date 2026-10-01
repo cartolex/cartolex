@@ -1,132 +1,132 @@
 cluster,size,terms
-0,1,seaside town perceptions
-1,1,tourist beach planning
-2,1,wild coast management
-3,1,estuary social uses
-4,1,naval dockyard history
-5,1,fishing village history
-6,1,coastal wetland planning
-7,1,mooring concession zoning
-8,1,sea bathing representations
-9,1,shipwreck memory
-10,1,beach access rights
-11,1,science-policy interface
-12,1,disaster memory
-13,1,wild coast governance
-14,1,coastal setback enforcement
-15,1,coastal setback legal status
+0,1,coastal path valuation
+1,1,science-policy interface
+2,1,maritime law
+3,1,territorial identity
+4,1,beach valuation
+5,1,naval dockyard history
+6,1,mooring area planning
+7,1,sea bathing representations
+8,1,coastal setback legal status
+9,1,sea bathing heritage
+10,1,fishing village history
+11,1,wild coast management
+12,1,estuary governance
+13,1,tourist beach planning
+14,1,beach access rights
+15,1,wild coast governance
 16,1,harbour access rights
-17,1,public maritime domain compensation schemes
-18,1,harbour valuation
-19,1,shoreline access
-20,1,stakeholder participation
-21,1,aquaculture lease public inquiry
-22,1,local ecological knowledge
-23,1,deliberative democracy
-24,1,hake biomass
-25,1,policy instruments
-26,1,front vertical structure
-27,1,sediment budget
-28,1,pot fishery bycatch rates
-29,1,shellfish aquaculture
-30,1,fisheries governance
-31,1,mooring area planning
-32,1,beach valuation
-33,1,crab recruitment
-34,1,foraminifera palaeoecology
-35,1,sea ice extent trends
-36,1,estuarine core stratigraphy
-37,1,submerged forest records
-38,1,abrupt climate events
-39,1,diatom frustule abundance changes
-40,1,chironomid preservation
-41,1,contourite drifts
-42,1,diatom frustule stable isotopes
-43,1,monsoon intensity variability
-44,1,internal wave persistence
-45,1,chironomid stable isotopes
-46,1,shell middens
-47,1,deep-water circulation trends
-48,1,diatom frustule preservation
-49,1,coastal dune sequence stratigraphy
-50,1,enso variability
-51,1,coral climate archives
-52,1,planktonic foraminifera
-53,1,barrier evolution
-54,1,brominated compound exposure
-55,1,hydrocarbon bioaccumulation
-56,1,fish embryo immunotoxicity
-57,1,sediment contamination
-58,1,oyster larvae neurotoxicity
-59,1,silver nanoparticle exposure
-60,1,copper toxicity
-61,1,thermal discharges
-62,1,microplastic ingestion
-63,1,urea measurements
-64,1,sinking particle flux
-65,1,copepod growth rates
-66,1,dissolved inorganic carbon distribution
-67,1,antibiotic bioaccumulation
-68,1,contaminant fate modelling
-69,1,hydrocarbon degradation
-70,1,freshwater marsh morphology
-71,1,freshwater marsh vegetation
-72,1,estuarine water quality
-73,1,floodplain mapping
-74,1,delta plain biogeochemistry
-75,1,nutrient retention
-76,1,blue carbon ecosystems
-77,1,internal wave vertical structure
-78,1,mixed layer persistence
-79,1,front transport
-80,1,tidal currents
-81,1,eddy variability
-82,1,topographic steering
-83,1,sea surface salinity
-84,1,tidal eddy dissipation
-85,2,"radar backscatter, sea surface temperature"
-86,1,inherent optical properties
-87,1,front forcing mechanisms
-88,1,tidal rectification
-89,1,cross-shelf flow dissipation
-90,1,tidal resonance
-91,1,cold pool transport
-92,1,nonlinear tidal constituents
-93,1,tidal asymmetry
-94,1,shelf sea heat budget
-95,1,slope currents
-96,1,mussel mortality
-97,1,skate maturity
-98,1,norway lobster exploitation status
-99,1,oyster farming memory
-100,1,sea bathing heritage
-101,1,maritime law
-102,1,oyster basin regulation
-103,1,cephalopod reproduction
-104,1,maerl bed fragmentation
-105,1,cephalopod growth
-106,1,thermal tolerance
-107,1,ocean warming impacts
-108,1,seagrass decline
-109,1,coral cover
-110,1,beam trawl selectivity
-111,1,coastal tourism
-112,1,land-use conflicts
-113,1,coastal path valuation
-114,1,estuary governance
-115,1,planned relocation
-116,1,territorial identity
-117,1,artificial light pollution
-118,1,gillnet seabed contact
-119,1,tuna diet
-120,1,common cuttlefish catch
-121,1,john dory landings
-122,1,tuna size structure
-123,1,coastal flood intensity
-124,1,wave climate
-125,1,port infrastructure flood risk
-126,1,sea-level rise
-127,1,storm trends
-128,1,coastal risk perception
-129,1,tourist resort damage
-130,1,storm surge return levels
+17,1,fisheries governance
+18,1,shipwreck memory
+19,1,estuary social uses
+20,1,harbour valuation
+21,1,policy instruments
+22,1,coastal setback enforcement
+23,1,oyster farming memory
+24,1,deliberative democracy
+25,1,public maritime domain compensation schemes
+26,1,shoreline access
+27,1,stakeholder participation
+28,1,planned relocation
+29,1,disaster memory
+30,1,local ecological knowledge
+31,1,mooring concession zoning
+32,1,aquaculture lease public inquiry
+33,1,seaside town perceptions
+34,1,coastal wetland planning
+35,1,oyster basin regulation
+36,1,fish embryo immunotoxicity
+37,1,thermal discharges
+38,1,sediment contamination
+39,1,contaminant fate modelling
+40,1,hydrocarbon bioaccumulation
+41,1,copper toxicity
+42,1,antibiotic bioaccumulation
+43,1,brominated compound exposure
+44,1,microplastic ingestion
+45,1,oyster larvae neurotoxicity
+46,1,hydrocarbon degradation
+47,1,silver nanoparticle exposure
+48,1,diatom frustule abundance changes
+49,1,sea ice extent trends
+50,1,monsoon intensity variability
+51,1,chironomid preservation
+52,1,diatom frustule stable isotopes
+53,1,chironomid stable isotopes
+54,1,diatom frustule preservation
+55,1,abrupt climate events
+56,1,estuarine core stratigraphy
+57,1,coral climate archives
+58,1,planktonic foraminifera
+59,1,enso variability
+60,1,coastal dune sequence stratigraphy
+61,1,submerged forest records
+62,1,deep-water circulation trends
+63,1,shell middens
+64,1,barrier evolution
+65,1,contourite drifts
+66,1,delta plain biogeochemistry
+67,1,freshwater marsh morphology
+68,1,freshwater marsh vegetation
+69,2,"estuarine water quality, nutrient retention"
+70,1,floodplain mapping
+71,1,blue carbon ecosystems
+72,1,tidal eddy dissipation
+73,1,tidal resonance
+74,1,front vertical structure
+75,1,nonlinear tidal constituents
+76,1,tidal asymmetry
+77,1,cold pool transport
+78,1,tidal rectification
+79,1,front forcing mechanisms
+80,1,mixed layer persistence
+81,1,sea-level rise
+82,1,storm trends
+83,1,port infrastructure flood risk
+84,1,wave climate
+85,1,coastal flood intensity
+86,1,tourist resort damage
+87,1,coastal risk perception
+88,1,cephalopod reproduction
+89,1,coral cover
+90,1,maerl bed fragmentation
+91,1,cephalopod growth
+92,1,thermal tolerance
+93,1,seagrass decline
+94,1,ocean warming impacts
+95,1,cross-shelf flow dissipation
+96,1,topographic steering
+97,1,shelf sea heat budget
+98,1,eddy variability
+99,1,inherent optical properties
+100,1,sea surface salinity
+101,1,radar backscatter
+102,1,sea surface temperature
+103,1,storm surge return levels
+104,1,dissolved inorganic carbon distribution
+105,1,urea measurements
+106,1,internal wave vertical structure
+107,1,slope currents
+108,1,copepod growth rates
+109,1,sediment budget
+110,1,foraminifera palaeoecology
+111,1,artificial light pollution
+112,1,sinking particle flux
+113,1,coastal tourism
+114,1,land-use conflicts
+115,1,shellfish aquaculture
+116,1,front transport
+117,1,tidal currents
+118,1,internal wave persistence
+119,1,john dory landings
+120,1,norway lobster exploitation status
+121,1,hake biomass
+122,1,skate maturity
+123,1,mussel mortality
+124,1,tuna diet
+125,1,tuna size structure
+126,1,pot fishery bycatch rates
+127,1,common cuttlefish catch
+128,1,gillnet seabed contact
+129,1,beam trawl selectivity
+130,1,crab recruitment

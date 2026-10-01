@@ -4,13 +4,13 @@
    "anchor_meta": {
     "file": "merge/anchor_meta.json.gz",
     "kind": "json",
-    "sha256": "1fc4db62be5b8d65237ea84527ee33159621f173b0a6f5904f7f7146e54ff5a2"
+    "sha256": "31dfe3b856bb2c94e613f4549bd2bae6685f545806d2c70978deacbb5c7237f5"
    },
    "anchors": {
     "file": "merge/anchors.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "dc3d99db7d3a6e5971ebe390b1f12317c67867e2ddcfb4c62a5eb1eb6ca8249a",
+    "sha256": "209b08f8268b308cac0bc7ee4df905b096a5ab9f26646dc9bbd27d2c4d5a1ed4",
     "shape": [
      281,
      20
@@ -21,7 +21,7 @@
     "file": "merge/concept_weights.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "e77cde81e85a353998dc1be3843a3006dee3be06d52cb8309c0c9975600d08e1",
+    "sha256": "3ab42d26f1d1b05c22159ff2a4c85fb0d8ffea8a5bad9334b8225868e8fcc31f",
     "shape": [
      76,
      281
@@ -56,12 +56,12 @@
    "metrics": {
     "file": "merge/metrics.json",
     "kind": "json",
-    "sha256": "626c068c7db9259f25e184a8bf9508bee32592325f2fd1bc4544e8261cd496b6"
+    "sha256": "99aeb5b9984f979483ebc15bee61d18666fa2ec6f922f9c300859f5655681646"
    },
    "naive_table": {
     "file": "merge/naive_table.json.gz",
     "kind": "json",
-    "sha256": "af864e651fd721dda71cfac264914e0eacd3b6b9d37bd888568dcceb005992bf"
+    "sha256": "e3581055300bb7a734af088cf66556375df76fe58d51f2241aa292c2dce773e6"
    },
    "person_coords": {
     "file": "merge/person_coords.npy",
@@ -145,12 +145,12 @@
    "table": {
     "file": "merge/table.json.gz",
     "kind": "json",
-    "sha256": "d572fd586644a394a76243c39a5b93dda00b0696aa7f6fabf6393a8bd02f2c86"
+    "sha256": "60f36dc10adf85855dc803cf4f0a64110e6c95239b8c54d5eefd8004d456aa39"
    },
    "table_first_pass": {
     "file": "merge/table_first_pass.json.gz",
     "kind": "json",
-    "sha256": "d572fd586644a394a76243c39a5b93dda00b0696aa7f6fabf6393a8bd02f2c86"
+    "sha256": "60f36dc10adf85855dc803cf4f0a64110e6c95239b8c54d5eefd8004d456aa39"
    },
    "weights_macro": {
     "file": "merge/weights_macro.npy.gz",
@@ -177,11 +177,11 @@
   }
  },
  "baseline": {
-  "date": "2026-09-29",
-  "reason": "Candidates from three texts, a work read once: a keyword candidate must also occur in at least 3 distinct texts (keywords.extract.min_texts, default 3), so phrases of one or two co-authored texts leave the extraction and every later stage follows; the S world then keeps fewer keywords than the default 150 topics, so the reference groups them into one topic fewer than its keywords (the same in both modes; L keeps 150); corpus.assemble reads one text per work (no duplicate in the demo worlds, so the corpus is unchanged)."
+  "date": "2026-10-01",
+  "reason": "The space is fitted on the texts, as a project's themes.space does by default since the rule space_unit_texts (the workspace run follows it: run_svd(space_unit='text')); the clustering, the layout, the draft, its application, the trajectories, the projection, the bundle and the merge follow. The comb's calibration and the default sizes (keywords_per_group 40, the grids from 0.025) do not reach these runs: the reference sets the level sizes and turns the comb off."
  },
  "environment": {
-  "engine_fingerprint": "e28138d8ba9e6056f9ccb75c4ea0445a8adf06efcdc5b3076e200100d9651dca",
+  "engine_fingerprint": "84fa888e6a9c7b6d813d61ca4453c30c695629a646ad2da5355c8a65be529c77",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {
@@ -231,9 +231,9 @@
      "entity_terms": "a81953cd664581beb4a8616eccb9b975d1311d075b49a4f1de034dfa0d223896",
      "meta": "8e6105e590f841d57805d81cbc0a1c7f8de4bdfa924d6ddf70765e50779b4861",
      "round_trip": "dcf25b6dab889b23bbb35a08fcb976ca4d3e85ab72fb3cba9167564c800beb84",
-     "taxonomy": "3603737931c53443eabaa635c8953614477a133b909eeefab96c588ee7cd06a3",
+     "taxonomy": "c32b8d8348427aa361ac48a893e3c652338b32a7d7fea0b5b647776dd185afec",
      "vocabulary": "ebea5155dc7794975592e68356b5e045fb53ec787a9c9c4943cb64e313d4a8d7",
-     "zip": "9b9166a2d4ec5348aea3bbb0178de36f5f687ba0a6cbfe3ce8b16f20f6184de6"
+     "zip": "e13907e45489ce373e08ccb6509ae73fab96e20aaae04f99db81aa6734c011f4"
     },
     "domain_id": "a",
     "truth_sha256": "db5e4195056421cfcd019c0b96b8c03877231c66502551fef476c256de7f9fbf",
@@ -245,9 +245,9 @@
      "entity_terms": "8a22bcdf32bb51d355f4ca1d880c36ae30424145ad1cc73ccfce206b1a983cd6",
      "meta": "a73ca1ad1219b02d06247174f7cbb87998962aad66b308ce79819a15111dcdd2",
      "round_trip": "dcf25b6dab889b23bbb35a08fcb976ca4d3e85ab72fb3cba9167564c800beb84",
-     "taxonomy": "6253fbf8d42aa201865fd976a78a18b583b623c5971c0fc03bb687b9b4e45126",
+     "taxonomy": "7f6dc8e8c20fa7aafb89b7a6bbed36da188443116f3b6f04491278422fc80927",
      "vocabulary": "95092aa49beeab02ef98b41a15e09994aeb9030d2282101e0a401830200180a0",
-     "zip": "5921a0d72f657b4750df17c49d0eac321288a5634072f9ae40d51d84ef9cd8b9"
+     "zip": "2505eb02f3ece534adde07ef799dd2667bf7706fda0df220e06c65d6f1dc108e"
     },
     "domain_id": "b",
     "truth_sha256": "5779bec6c1d1e8bf368a7e5cd73186eb7418739ff157beccb771c2466d90327e",
@@ -263,7 +263,9 @@
    "keywords": {
     "recency_years": 0
    },
-   "svd": {},
+   "svd": {
+    "space_unit": "text"
+   },
    "umap": {}
   },
   "now_year": 2026,

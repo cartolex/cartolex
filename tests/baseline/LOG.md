@@ -118,3 +118,16 @@ Each entry says when the stored baseline (`tests/baseline/`) was rewritten, why,
 - Reason: Candidates from three texts, a work read once: a keyword candidate must also occur in at least 3 distinct texts (keywords.extract.min_texts, default 3), so phrases of one or two co-authored texts leave the extraction and every later stage follows; the S world then keeps fewer keywords than the default 150 topics, so the reference groups them into one topic fewer than its keywords (the same in both modes; L keeps 150); corpus.assemble reads one text per work (no duplicate in the demo worlds, so the corpus is unchanged).
 - Engine: 1.0.0.dev0, source fingerprint `e28138d8ba9e6056`
 - L: against the previous baseline, 12 stages: 1 identical, 11 different (extract, triage, build, space, group, layout, draft, apply, trajectories, projection, bundle)
+
+## 2026-10-01 — S, merge
+
+- Reason: The space is fitted on the texts, as a project's themes.space does by default since the rule space_unit_texts (the workspace run follows it: run_svd(space_unit='text')); the clustering, the layout, the draft, its application, the trajectories, the projection, the bundle and the merge follow. The comb's calibration and the default sizes (keywords_per_group 40, the grids from 0.025) do not reach these runs: the reference sets the level sizes and turns the comb off.
+- Engine: 1.0.0.dev0, source fingerprint `84fa888e6a9c7b6d`
+- S: against the previous baseline, 12 stages: 4 identical, 8 different (space, group, layout, draft, apply, trajectories, projection, bundle)
+- merge: against the previous baseline, 1 stage: 0 identical, 1 different (merge)
+
+## 2026-10-01 — L
+
+- Reason: The space is fitted on the texts, as a project's themes.space does by default since the rule space_unit_texts (the workspace run follows it: run_svd(space_unit='text')); the clustering, the layout, the draft, its application, the trajectories, the projection and the bundle follow. The comb's calibration and the default sizes (keywords_per_group 40, the grids from 0.025) do not reach this run: the reference sets the level sizes and turns the comb off.
+- Engine: 1.0.0.dev0, source fingerprint `84fa888e6a9c7b6d`
+- L: against the previous baseline, 12 stages: 4 identical, 8 different (space, group, layout, draft, apply, trajectories, projection, bundle)

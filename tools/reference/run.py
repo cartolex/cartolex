@@ -547,7 +547,9 @@ ENGINE_SETTINGS: dict[str, dict] = {
         "kw_recency_years": 0,
     },
     # the atlas driver's run_svd(**...), run_clustering(**...), run_umap(**...)
-    "svd": {},
+    # The space is fitted on the texts, as a project's themes.space does by default (the
+    # rule space_unit_texts); the driver's own default stays the people.
+    "svd": {"space_unit": "text"},
     "clustering": {},
     "umap": {},
 }

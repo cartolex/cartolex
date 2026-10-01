@@ -2,13 +2,13 @@
  "corona": false,
  "k": 15,
  "layout_engine": "umap",
- "mixing_index": 0.605208888303161,
+ "mixing_index": 0.4376838900817441,
  "n_points": 2995,
  "n_researchers": 343,
  "n_terms": 2652,
- "quality_score": 1.5743966442815251,
- "radial_ratio": 1.0222625376544363,
- "researcher_neighbours_of_terms": 0.06277023629964806,
- "term_neighbours_of_researchers": 0.9284742468415939,
- "trustworthiness": 0.9914502936328006
+ "quality_score": 1.242773772000844,
+ "radial_ratio": 1.1743893832836343,
+ "researcher_neighbours_of_terms": 0.04396681749622926,
+ "term_neighbours_of_researchers": 0.7568513119533529,
+ "trustworthiness": 0.9794792652027343
 }

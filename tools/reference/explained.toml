@@ -62,7 +62,7 @@ reference = "S"
 stage = "space"
 upstream = "build"
 step = "2a1"
-reason = "The SVD input is built from another vocabulary (see build). The hash-only person table also lost the two always-empty roster attribute columns (step 1d)."
+reason = "The SVD input is built from another vocabulary (see build). The hash-only person table also lost the two always-empty roster attribute columns (step 1d). The space is fitted on the texts (themes.space.space_unit text, the rule space_unit_texts): the TF-IDF of the texts, each read once and folded onto the keywords, instead of the people × keywords matrix; the people are placed through that SVD as a projected person is, so every coordinate, singular value and explained variance changes."
 
 [[difference]]
 reference = "S"
@@ -156,7 +156,7 @@ reference = "L"
 stage = "space"
 upstream = "build"
 step = "2a1"
-reason = "The SVD input is built from another vocabulary (see build). The hash-only person table also lost the two always-empty roster attribute columns (step 1d)."
+reason = "The SVD input is built from another vocabulary (see build). The hash-only person table also lost the two always-empty roster attribute columns (step 1d). The space is fitted on the texts (themes.space.space_unit text, the rule space_unit_texts): the TF-IDF of the texts, each read once and folded onto the keywords, instead of the people × keywords matrix; the people are placed through that SVD as a projected person is, so every coordinate, singular value and explained variance changes."
 
 [[difference]]
 reference = "L"
@@ -212,4 +212,4 @@ reference = "merge"
 stage = "merge"
 upstream = "bundle"
 step = "2a1"
-reason = "Both cohorts' bundles changed with the noun-phrase candidates (see the S comparison), so the reconciliation, the pooled matrix, the joint space and the metrics follow; the reconciliation tables are also in the map_reconcile/2 format (step 1c)."
+reason = "Both cohorts' bundles changed with the noun-phrase candidates and the space fitted on the texts (see the S comparison), so the reconciliation, the pooled matrix, the joint space and the metrics follow; the reconciliation tables are also in the map_reconcile/2 format (step 1c)."
