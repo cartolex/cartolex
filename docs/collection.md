@@ -305,6 +305,21 @@ daily budget; the **snapshot** holds the same records, to download once:
 (Checked on 28 September 2026 on OpenAlex's help pages, « Snapshot » and
 « Snapshot data format », dated 24 September 2026.)
 
+**In the app**, give the snapshot's folder once in Settings › Data sources
+(its full path; it is kept on this computer, never in a project). The app checks
+it against its manifests and says whether it is ready, incomplete (a download
+that stopped midway: run the download command again) or not found (a disk not
+plugged in). A harvest, an institutions' reading, a round of collaborators and a
+retry then offer two ways of reading OpenAlex, each with its time: the API, or
+the snapshot on this computer. The faster is chosen for you, and you can switch
+before starting. Each reading goes through the whole snapshot, so the API stays
+faster for a small collection; the snapshot wins from a national size, where the
+API's daily budget would spread the requests over days. The first reading
+measures how fast this computer reads it, and the next estimates use that speed.
+When an institution announces more works than the API can read in a day, the
+pause offers « Read the snapshot instead ». Identities are always searched on
+OpenAlex: a search by name needs the API.
+
 **Indexing the snapshot.** Without an index, every reading goes through the
 whole snapshot: hours on an external disk, however few people it is for. Index it
 once per release:

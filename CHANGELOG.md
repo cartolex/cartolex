@@ -733,6 +733,17 @@ nothing in the engine names a particular deployment, source or procedure.
   memory holds about a quarter of a kilobyte per work found instead of 35 KB,
   a person's question is a lookup instead of a scan of every work, and an
   institution's works come in pages of 100 that a cursor resumes.
+- **The OpenAlex snapshot in the app.** Settings › Data sources keeps the folder
+  of a snapshot downloaded to this computer (`PUT /api/machine/snapshot`,
+  `<data dir>/snapshot.json`, never in a project), checked against its
+  manifests: ready, incomplete (parts missing or cut short, an entity absent) or
+  missing (a disk not plugged in). A harvest, an institutions' reading, a round
+  of collaborators or a retry then offers two ways of reading OpenAlex, each with
+  its time: the API (its requests, and the days its daily budget spreads them
+  over) or the snapshot (the bytes a job reads, at the speed this computer last
+  read it); the faster is chosen, and the plan's `openalex` block says which.
+  A large institution's pause offers « Read the snapshot instead ». Consent is
+  asked only when something leaves the computer.
 - **A retry on a snapshot says what still goes online.** Its plan kept the
   snapshot for the identities' searches by name too, so the notice left out the
   OpenAlex requests they still send; they are counted again, with a note that

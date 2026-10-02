@@ -186,3 +186,83 @@ def test_two_quick_decisions_on_a_slow_machine_are_both_saved(corpus_app, open_a
     left = _get(ui, "/api/collection/identities?state=pending&finder=openalex&limit=1")["total"]
     _until(lambda: queue.locator(REAL_ROW).count() == left, timeout=15)
     assert queue.locator(".cx-error-card").count() == 0
+
+
+@pytest.fixture()
+def snapshot_app(tmp_path, services):
+    """The app on a project whose people are confirmed, with a mini snapshot to save."""
+    from app_harness import AppServer
+
+    from cartolex.app.collect_service import ServiceCollection
+    from cartolex.collect import local_settings
+    from cartolex.collect.people_import import import_people
+    from cartolex.collect.resolve import confirm
+    from cartolex.demo.services import write_snapshot
+    from cartolex.project import Project
+    from cartolex.project.tables import read_source_table
+
+    bib = services.bibliography
+    project = Project.init(tmp_path / "project", name="Coast", domain_title="Coastal systems")
+    rows = bib.people_rows()
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=list(rows[0]))
+    writer.writeheader()
+    writer.writerows(rows)
+    import_people(project, out.getvalue())
+    by_name = {(t.last_name, t.first_name): t for t in bib.truth.values()}
+    for p in read_source_table(project.layout.table("people"), "people").to_pylist():
+        truth = by_name[(p["last_name"], p["first_name"])]
+        if truth.records:
+            confirm(project, p["person_id"], truth.records)
+    project.close()
+    write_snapshot(bib, tmp_path / "openalex", per_part=20)
+    collection = ServiceCollection(local_settings(services.endpoints()), local=True)
+    server = AppServer(tmp_path / "project", tmp_path / "app", collection=collection)
+    yield server, tmp_path / "openalex"
+    server.stop()
+
+
+def test_the_snapshot_is_saved_then_offered_beside_the_api(snapshot_app, open_app, axe_source):
+    server, folder = snapshot_app
+    ui = open_app(server, bypass_csp=True)
+    page = ui.page
+
+    # ── Settings › Data sources: the folder, checked against its manifests ──
+    ui.navigate("/settings?section=sources")
+    page.get_by_label("Snapshot folder").fill(str(folder))
+    page.get_by_role("button", name="Save the folder").click()
+    page.get_by_text("Ready: release of").wait_for()
+    toast = page.locator(".cx-toast", has_text="Snapshot folder saved on this computer")
+    toast.get_by_role("button", name="Dismiss").click()  # it covers the page a moment
+    toast.wait_for(state="detached")
+    page.evaluate("window.scrollTo(0, 0)")  # scrolled, the sticky bar covers the side links
+    violations = blocking(run_axe(ui, axe_source))
+    assert violations == [], "\n".join(violations)
+
+    # ── a harvest offers both ways of reading OpenAlex; the API plans again ──
+    ui.navigate("/people")
+    page.locator(f".cx-corpus {REAL_ROW}").first.wait_for()
+    page.get_by_role("button", name="Collect").click()
+    page.get_by_role("menuitem", name="Harvest texts").click()
+    page.get_by_role("button", name="What leaves the computer").click()
+    route = page.get_by_role("group", name="Read OpenAlex from")
+    route.wait_for()
+    snapshot = route.get_by_role("radio", name="the snapshot of")
+    api = route.get_by_role("radio", name="its API, online")
+    assert snapshot.is_checked() or api.is_checked()
+    snapshot.check()
+    _until(
+        lambda: (
+            "OpenAlex is read from the snapshot" in page.locator(".cx-corpus-notice").inner_text()
+        )
+    )
+    api.check()
+    _until(
+        lambda: (
+            "OpenAlex is read from the snapshot"
+            not in page.locator(".cx-corpus-notice").inner_text()
+        )
+    )
+    assert api.is_checked() and not snapshot.is_checked()
+    violations = blocking(run_axe(ui, axe_source))
+    assert violations == [], "\n".join(violations)

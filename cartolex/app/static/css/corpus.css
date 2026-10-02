@@ -537,6 +537,45 @@
   margin-top: var(--cx-space-3);
 }
 
+/* How OpenAlex is read (its API, or a snapshot of this computer): radio buttons. */
+.cx-corpus-route {
+  margin: 0 0 var(--cx-space-3);
+  padding: 0;
+  border: 0;
+}
+
+.cx-corpus-route__legend {
+  margin-bottom: var(--cx-space-1);
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-corpus-route__option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cx-space-2);
+  padding: var(--cx-space-1) 0;
+  cursor: pointer;
+}
+
+.cx-corpus-route__option input {
+  margin-top: 0.3em;
+  accent-color: var(--cx-accent);
+}
+
+.cx-corpus-route__option.is-disabled {
+  cursor: default;
+}
+
+.cx-corpus-route__option.is-disabled .cx-corpus-route__label {
+  color: var(--cx-text-muted);
+}
+
+.cx-corpus-route__help {
+  display: block;
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}
+
 .cx-corpus-form {
   display: grid;
   gap: var(--cx-space-3);

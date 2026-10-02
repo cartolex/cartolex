@@ -22,6 +22,13 @@ text providers). Its actions:
 ``retry``
     the collections that failed, for those people only.
 
+With an OpenAlex snapshot folder saved on this computer
+(:class:`~cartolex.app.machine.MachineSnapshot`), the plan of a harvest, an
+institutions' reading, a round of collaborators or a retry offers two ways of
+reading OpenAlex, each with its time: the API, or the snapshot read on this
+computer (nothing sent to OpenAlex). The faster is preselected; the request's
+``openalex`` (``api`` or ``snapshot``) chooses.
+
 Every message has a code for the interface's catalogues beside its English words.
 The command line gives the settings (``cartolex app --services demo`` runs the
 demo services of a demo world on this computer).
@@ -30,6 +37,7 @@ demo services of a demo world on this computer).
 from __future__ import annotations
 
 import math
+import os
 import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
@@ -45,10 +53,22 @@ if TYPE_CHECKING:
     from cartolex.project import Project
 
     from .jobs import JobControl
+    from .machine import MachineSnapshot
 
-__all__ = ["ACTIONS", "KEYED_SERVICES", "ServiceCollection", "clear_match", "raw_stamp"]
+__all__ = [
+    "ACTIONS",
+    "KEYED_SERVICES",
+    "SNAPSHOT_ACTIONS",
+    "ServiceCollection",
+    "clear_match",
+    "raw_stamp",
+]
 
 ACTIONS = ("identify", "harvest", "institutions", "collaborators", "retry")
+#: The actions a snapshot can answer (identities are searched by name: online only).
+SNAPSHOT_ACTIONS = ("harvest", "institutions", "collaborators", "retry")
+#: Snapshot parts a job reads at once, in worker processes (at most one per processor).
+SNAPSHOT_JOBS = 4
 #: The services collection can send a key to.
 KEYED_SERVICES = ("openalex",)
 #: What the plan says each service is sent, as codes the interface words.
@@ -138,6 +158,7 @@ class ServiceCollection(BaseCollection):
         if label:
             self.name = label
         self.scielo = scielo
+        self._snapshot: MachineSnapshot | None = None
         self._lock = threading.Lock()
         self._queue: dict[str, Any] = {}
 
@@ -148,6 +169,12 @@ class ServiceCollection(BaseCollection):
         serves the next plan and the next job; a key given at launch wins.
         """
         self._saved_key = saved_key
+
+    def use_snapshot(self, snapshot: MachineSnapshot) -> None:
+        """Offer the OpenAlex snapshot folder saved on this computer to the collections that
+        can read it (read each time a plan is made, so a folder saved while the app runs
+        serves the next one)."""
+        self._snapshot = snapshot
 
     @property
     def settings(self) -> CollectSettings:
@@ -198,17 +225,25 @@ class ServiceCollection(BaseCollection):
         base_action = {"identify": "resolve", "retry": "coverage"}.get(action, action)
         if action == "institutions" and not (opts.get("search") or opts.get("institutions")):
             raise ApiError.of("institutions_missing")
-        base = plan_collection(
-            project,
-            base_action,
-            self.settings,
-            people=people,
-            institutions=tuple(opts.get("institutions") or ()),
-            search=opts.get("search") or None,
-            rounds=int(opts.get("rounds") or 1),
-            seeds=len(opts["seeds"]) if opts.get("seeds") else None,
-            cap=opts.get("cap"),
-        )
+
+        def planned(snapshot: str | None = None) -> Any:
+            return plan_collection(
+                project,
+                base_action,
+                self.settings,
+                people=people,
+                institutions=tuple(opts.get("institutions") or ()),
+                search=opts.get("search") or None,
+                rounds=int(opts.get("rounds") or 1),
+                seeds=len(opts["seeds"]) if opts.get("seeds") else None,
+                cap=opts.get("cap"),
+                snapshot=snapshot,
+            )
+
+        base = planned()
+        route = self._route(action, opts, base)
+        if route is not None and route["chosen"] == "snapshot":
+            base = planned(route["snapshot"]["release"])
         hosts = [
             self._host_json(
                 h.service,
@@ -271,6 +306,7 @@ class ServiceCollection(BaseCollection):
             "options": {k: v for k, v in opts.items() if k != "consent"},
             "services": self.describe(),
             "people": n_people,
+            "openalex": route,
             "leaves_the_computer": hosts,
             "never_leaves": never_leaves()
             + [{"code": "never_lists", "message": base.never_sent[2]}],
@@ -278,13 +314,108 @@ class ServiceCollection(BaseCollection):
                 {"code": f"stored_{i}", "message": text} for i, text in enumerate(STORED, start=1)
             ],
             "notes": notes,
-            "consent_needed": True,
+            # Consent is asked when something leaves the computer.
+            "consent_needed": bool(hosts),
             "estimate": {
-                "seconds": round(seconds, 1),
+                "seconds": round(seconds + (route["snapshot"]["seconds"] or 0), 1)
+                if route is not None and route["chosen"] == "snapshot"
+                else round(seconds, 1),
                 "requests": sum(h["requests"] for h in hosts),
                 "cost_usd": sum(h["cost_usd"] or 0 for h in hosts) or None,
             },
         }
+
+    def _route(self, action: str, opts: Mapping[str, Any], api_plan: Any) -> dict[str, Any] | None:
+        """The two ways of reading OpenAlex for *action* when a snapshot folder is saved, or
+        ``None`` (no folder, an action a snapshot does not answer, nothing asked of OpenAlex).
+
+        ``api``: the requests' time at OpenAlex's rate and the days of daily budget they
+        take (an institutions' estimate is a floor: its works are counted as they are read).
+        ``snapshot``: the folder, its state and release, the bytes a job reads and their
+        time at the speed this computer last read it. ``chosen`` is the way asked, else
+        ``preselected``: the snapshot when it is ready and faster.
+        """
+        from cartolex.collect.privacy import OPENALEX_BUDGETS
+
+        store = self._snapshot
+        if store is None or action not in SNAPSHOT_ACTIONS:
+            return None
+        status = store.status()
+        openalex = next((h for h in api_plan.hosts if h.service == "openalex"), None)
+        if status is None and opts.get("openalex") == "snapshot":
+            raise ApiError.of("snapshot_unavailable", state="none")
+        if status is None or openalex is None or not openalex.requests:
+            return None  # nothing asked of OpenAlex: nothing to read either way
+        rate = self.settings.service("openalex").rate.per_second
+        api_seconds = openalex.requests / rate if rate else 0.0
+        days = 0
+        if openalex.cost_usd and not self.local:
+            keyed = bool(self.settings.api_key("openalex"))
+            budget = OPENALEX_BUDGETS["with a free key" if keyed else "without a key"]
+            days = max(1, math.ceil(openalex.cost_usd / budget))
+        search = action == "institutions" and not opts.get("institutions")
+        snapshot: dict[str, Any] = {
+            "folder": status["folder"],
+            "state": status["state"],
+            "release": status.get("release"),
+            "bytes": None,
+            "seconds": None,
+            "rate_measured": status["rate_measured"],
+            "indexed": False,
+        }
+        check = store.check() if status["state"] != "missing" else None
+        if check is not None:
+            rounds = int(opts.get("rounds") or 1)
+            read = check.read_bytes(action, rounds=rounds, search=search)
+            seconds = read / status["read_rate"]
+            index = store.index() if check.indexed else None
+            snapshot["indexed"] = index is not None
+            if index is not None and not search:
+                # Through the index: the members the keys asked take, at most a whole reading.
+                members = self._members(index, action, api_plan.people, opts)
+                per, measured = store.member_seconds()
+                works = index.data["entities"]["works"]
+                if members * per < seconds:
+                    seconds = members * per
+                    read = int(members * works["bytes"] / max(1, works["members"]))
+                    snapshot["rate_measured"] = measured
+            snapshot.update(bytes=read, seconds=round(seconds, 1))
+        ready = status["state"] == "ready" and snapshot["seconds"] is not None
+        # The API's time counts the days its daily budget makes the requests wait.
+        api_time = max(api_seconds, (days - 1) * 86400.0)
+        preselected = "snapshot" if ready and snapshot["seconds"] < api_time else "api"
+        asked = opts.get("openalex")
+        if asked == "snapshot" and not ready:
+            raise ApiError.of("snapshot_unavailable", state=status["state"])
+        return {
+            "chosen": asked or preselected,
+            "preselected": preselected,
+            "api": {
+                "requests": int(openalex.requests),
+                "seconds": round(api_seconds, 1),
+                "days": days if days > 1 else None,
+                "cost_usd": None if self.local else openalex.cost_usd,
+                "at_least": action == "institutions" and not search,
+            },
+            "snapshot": snapshot,
+        }
+
+    @staticmethod
+    def _members(index: Any, action: str, people: int, opts: Mapping[str, Any]) -> int:
+        """About how many members of an indexed snapshot a job reads: the works of its
+        people (or seeds and collaborators, a round's two passes) and their author records;
+        an institutions' reading, the works signed at each institution named."""
+        n = max(1, int(people or 0))
+        if action == "institutions":
+            named = len(opts.get("institutions") or ()) or 1
+            return index.estimate("works", "institution", named, quantile="p99")
+        if action == "collaborators":
+            rounds = int(opts.get("rounds") or 1)
+            cap = int(opts.get("cap") or 200)
+            return rounds * (
+                index.estimate("works", "author", n) + index.estimate("works", "author", cap)
+            )
+        return index.estimate("works", "author", n) + index.estimate("authors", "id", n)
 
     def _host_json(
         self,
@@ -361,9 +492,12 @@ class ServiceCollection(BaseCollection):
         opts = dict(options or {})
         clients: list[HttpClient] = []
         done: list[str] = []
+        opened: list[Any] = []  # the snapshot sources the job read
+        read: dict[str, Any] | None = None
         runner = getattr(self, f"_run_{action}")
         try:
-            result = runner(project, opts, self._client_factory(project, control, clients), done)
+            factory = self._client_factory(project, control, clients)
+            result = runner(project, opts, factory, done, opened)
         except Cancelled:
             result = {"outcome": "cancelled", "ran": list(done)}
         except JobPaused as paused:
@@ -384,7 +518,67 @@ class ServiceCollection(BaseCollection):
                     requests=entry["requests"],
                     sends=list(entry["sends"]),
                 )
-        return {**result, "action": action, "egress": summary}
+            for source in opened:  # read on this computer: what, how much, how fast
+                report = source.snapshot.report
+                read = {
+                    "release": source.snapshot.release(),
+                    "bytes": report.bytes,
+                    "seconds": round(report.seconds, 1),
+                    "passes": report.passes,
+                    "members": report.members,  # read through the index (0: whole parts)
+                }
+                control.event("snapshot", **read)
+                if self._snapshot is not None:
+                    self._snapshot.record_rate(report.bytes, report.seconds, report.members)
+                source.close()
+        out = {**result, "action": action, "egress": summary}
+        if read is not None:
+            out["snapshot"] = read
+        return out
+
+    def _openalex(
+        self, project: Project, opts: Mapping[str, Any], client: HttpClient, opened: list[Any]
+    ) -> Any:
+        """OpenAlex for a job: the API through *client*, or the snapshot its plan chose (read
+        in worker processes, its progress and cancel those of *client*; what its passes find
+        waits in the project's cache until the job ends)."""
+        if opts.get("openalex") != "snapshot":
+            from cartolex.collect.openalex import OpenAlexApi
+
+            return OpenAlexApi(client)
+        from cartolex.collect.http import Cancelled
+        from cartolex.collect.snapshot import Snapshot, SnapshotSource
+
+        status = self._snapshot.status() if self._snapshot is not None else None
+        if status is None or status["state"] != "ready":
+            raise ApiError.of("snapshot_unavailable", state=(status or {}).get("state", "none"))
+
+        def cancelled() -> bool:
+            try:
+                client.check_cancel()
+            except Cancelled:
+                return True
+            return False
+
+        snapshot = Snapshot(
+            status["folder"],
+            progress=client.progress,
+            cancel=cancelled,
+            jobs=min(SNAPSHOT_JOBS, os.cpu_count() or 1),
+        )
+        source = SnapshotSource(snapshot, spill=project.layout.cache / "snapshot")
+        opened.append(source)
+        return source
+
+    def _snapshot_instead(self, action: str) -> dict[str, Any]:
+        """For a pause that asks to confirm a large reading: the snapshot that could be read
+        instead (its release and time), when one is ready (else nothing)."""
+        status = self._snapshot.status() if self._snapshot is not None else None
+        check = self._snapshot.check() if status and status["state"] == "ready" else None
+        if check is None:
+            return {}
+        seconds = check.read_bytes(action) / status["read_rate"]  # type: ignore[index]
+        return {"snapshot_release": check.release, "snapshot_seconds": round(seconds, 1)}
 
     def resume_options(self, project: Project, checkpoint: str) -> dict[str, Any] | None:
         """The options of the paused collection *checkpoint*, to resume it (``None``: none)."""
@@ -444,7 +638,12 @@ class ServiceCollection(BaseCollection):
         return slot, (int(first), int(last))
 
     def _run_identify(
-        self, project: Project, opts: Mapping[str, Any], client: Any, done: list[str]
+        self,
+        project: Project,
+        opts: Mapping[str, Any],
+        client: Any,
+        done: list[str],
+        opened: list[Any],
     ) -> dict[str, Any]:
         from cartolex.collect.decisions import read_people as decisions_of
         from cartolex.collect.finders import people_refs
@@ -510,7 +709,12 @@ class ServiceCollection(BaseCollection):
         return out
 
     def _run_harvest(
-        self, project: Project, opts: Mapping[str, Any], client: Any, done: list[str]
+        self,
+        project: Project,
+        opts: Mapping[str, Any],
+        client: Any,
+        done: list[str],
+        opened: list[Any],
     ) -> dict[str, Any]:
         from cartolex.collect.finders import people_refs
         from cartolex.collect.harvest import harvest
@@ -519,11 +723,13 @@ class ServiceCollection(BaseCollection):
         people = opts.get("people") or None
         years = tuple(opts["years"]) if opts.get("years") else None
         phases = 1 + bool(opts.get("hal", True)) + bool(opts.get("abstracts"))
+        first = client(0, phases, "harvest")
         report = harvest(
             project,
-            client(0, phases, "harvest"),
+            first,
             people=people,
             years=years,  # type: ignore[arg-type]
+            source=self._openalex(project, opts, first, opened),
         )
         done.append("openalex")
         out: dict[str, Any] = {
@@ -567,12 +773,18 @@ class ServiceCollection(BaseCollection):
         return out
 
     def _run_institutions(
-        self, project: Project, opts: Mapping[str, Any], client: Any, done: list[str]
+        self,
+        project: Project,
+        opts: Mapping[str, Any],
+        client: Any,
+        done: list[str],
+        opened: list[Any],
     ) -> dict[str, Any]:
         from cartolex.collect.institutions import find_institutions, propose_people
-        from cartolex.collect.openalex import OpenAlexApi
 
-        source = OpenAlexApi(client(0, 1, "institutions"))
+        api = client(0, 1, "institutions")
+        source = self._openalex(project, opts, api, opened)
+        snapshot = opts.get("openalex") == "snapshot"
         if opts.get("search"):
             found = find_institutions(source, str(opts["search"]))
             done.append("search")
@@ -588,7 +800,6 @@ class ServiceCollection(BaseCollection):
         from cartolex.project.checkpoints import JobPaused
 
         years = tuple(opts["years"]) if opts.get("years") else None
-        api = source.client
 
         def progress(p: Mapping[str, Any]) -> None:
             total = p.get("total") or 0
@@ -608,7 +819,8 @@ class ServiceCollection(BaseCollection):
                 years=years,  # type: ignore[arg-type]
                 min_works=int(opts.get("min_works") or 2),
                 resume=bool(opts.get("resume")),
-                confirm_above=CONFIRM_WORKS,
+                # A snapshot costs nothing per work: no size to confirm.
+                confirm_above=None if snapshot else CONFIRM_WORKS,
                 progress=progress,
             )
         except JobPaused as paused:
@@ -621,6 +833,7 @@ class ServiceCollection(BaseCollection):
                     cost_usd=None if self.local else round(cost, 2),
                     days=None if self.local else max(1, math.ceil(cost / budget)),
                     keyed=keyed,
+                    **self._snapshot_instead("institutions"),
                 )
             elif paused.code == "collect_budget_paused":
                 paused.params["keyed"] = bool(self.settings.api_key("openalex"))
@@ -636,15 +849,20 @@ class ServiceCollection(BaseCollection):
         }
 
     def _run_collaborators(
-        self, project: Project, opts: Mapping[str, Any], client: Any, done: list[str]
+        self,
+        project: Project,
+        opts: Mapping[str, Any],
+        client: Any,
+        done: list[str],
+        opened: list[Any],
     ) -> dict[str, Any]:
-        from cartolex.collect.openalex import OpenAlexApi
         from cartolex.collect.snowball import snowball
 
         years = tuple(opts["years"]) if opts.get("years") else None
+        first = client(0, 1, "collaborators")
         report = snowball(
             project,
-            OpenAlexApi(client(0, 1, "collaborators")),
+            self._openalex(project, opts, first, opened),
             rounds=int(opts.get("rounds") or 1),
             seeds=opts.get("seeds") or None,
             years=years,  # type: ignore[arg-type]
@@ -662,11 +880,22 @@ class ServiceCollection(BaseCollection):
         }
 
     def _run_retry(
-        self, project: Project, opts: Mapping[str, Any], client: Any, done: list[str]
+        self,
+        project: Project,
+        opts: Mapping[str, Any],
+        client: Any,
+        done: list[str],
+        opened: list[Any],
     ) -> dict[str, Any]:
         from cartolex.collect.coverage import retry_failed
 
-        reports = retry_failed(project, client(0, 1, "retry"), people=opts.get("people") or None)
+        first = client(0, 1, "retry")
+        reports = retry_failed(
+            project,
+            first,
+            people=opts.get("people") or None,
+            source=self._openalex(project, opts, first, opened),
+        )
         done.append("retry")
         retried = sorted(k for k in reports if k != "not retried")
         return {

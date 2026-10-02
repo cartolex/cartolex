@@ -339,6 +339,25 @@ export function formatNumber(value, options = {}) {
   return cached('number', options, (loc, o) => new Intl.NumberFormat(loc, o)).format(n);
 }
 
+const BYTE_UNITS = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'];
+
+/**
+ * A size in bytes in the interface language, in the largest unit under a thousand
+ * (« 741 GB », « 741 Go »); with *perSecond*, a speed (« 69 MB/s »).
+ */
+export function formatBytes(bytes, { perSecond = false } = {}) {
+  let value = Number(bytes);
+  if (!Number.isFinite(value)) return '';
+  let i = 0;
+  while (value >= 1000 && i < BYTE_UNITS.length - 1) {
+    value /= 1000;
+    i += 1;
+  }
+  const unit = perSecond ? `${BYTE_UNITS[i]}-per-second` : BYTE_UNITS[i];
+  return formatNumber(value, { style: 'unit', unit, unitDisplay: 'short',
+    maximumFractionDigits: value < 10 ? 1 : 0 });
+}
+
 /** A fraction (0…1) as a percentage in the interface language (« 45 % », « 45% »). */
 export function formatPercent(fraction, options = { maximumFractionDigits: 0 }) {
   const n = Number(fraction);

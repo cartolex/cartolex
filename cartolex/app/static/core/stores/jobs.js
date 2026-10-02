@@ -133,10 +133,13 @@ export function createJobsStore({ api, dismissed, onFinished, timing = {}, enabl
       return Boolean(job && job.state === 'paused' && job.kind === 'collection'
         && pause && pause.checkpoint && job.result.action);
     },
-    /** Resume a paused collection from its checkpoint (the person consented to it before). */
-    async resume(job) {
+    /**
+     * Resume a paused collection from its checkpoint (the person consented to it before);
+     * *extra* changes how (`{openalex: 'snapshot'}`: the snapshot of this computer instead).
+     */
+    async resume(job, extra = {}) {
       const result = await api.post('/api/collection/start', {
-        action: job.result.action, resume: job.result.pause.checkpoint, consent: true,
+        action: job.result.action, resume: job.result.pause.checkpoint, consent: true, ...extra,
       });
       if (result.ok) this.dismiss(job.id);
       await this.refresh();

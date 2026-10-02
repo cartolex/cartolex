@@ -269,6 +269,12 @@ ERRORS: dict[str, ErrorKind] = {
     ),
     "unknown_role": ErrorKind(422, "{role} is not a role", "fix-input"),
     "collection_unavailable": ErrorKind(409, "collecting texts is not available in this version"),
+    "snapshot_unavailable": ErrorKind(
+        409,
+        "the OpenAlex snapshot of this computer is not ready to be read ({state}): plug in "
+        "its disk, finish its download, or read OpenAlex from the API",
+        "none",
+    ),
     "no_slot": ErrorKind(
         409, "the project has no slot to collect into: add one in the settings", "settings"
     ),
@@ -376,6 +382,15 @@ ERRORS: dict[str, ErrorKind] = {
     # settings
     "keys_hosted": ErrorKind(
         409, "on a hosted service the keys are set by whoever runs it", "none"
+    ),
+    "snapshot_hosted": ErrorKind(
+        409, "on a hosted service there is no OpenAlex snapshot folder of this computer", "none"
+    ),
+    "snapshot_invalid": ErrorKind(
+        422,
+        "{folder} cannot be the OpenAlex snapshot ({reason}): give the full path of a folder "
+        "holding data/jsonl/works, authors and institutions",
+        "fix-input",
     ),
     "stopword_both": ErrorKind(422, "a word is both added and removed: {words}", "fix-input"),
     "rejects_hosted": ErrorKind(

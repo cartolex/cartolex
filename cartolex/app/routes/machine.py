@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT
-"""This computer: the keys saved on it (never in a project) and its limits."""
+"""This computer: the keys and the OpenAlex snapshot folder saved on it (never in a project),
+and its limits."""
 
 from __future__ import annotations
 
@@ -10,7 +11,7 @@ from fastapi import Request
 from pydantic import BaseModel, Field
 
 from ..errors import ApiError
-from ..machine import KEY_SERVICES
+from ..machine import KEY_SERVICES, SnapshotRefused
 from ..routing import Routes, runtime_of
 
 routes = Routes(tags=["machine"])
@@ -38,6 +39,7 @@ def _view(runtime: Any) -> dict[str, Any]:
         "keys_saved_in": "this computer" if runtime.keys.path is not None else "memory",
         "ai_api": runtime.ai_access() is not None,
         "openalex": OPENALEX_BUDGET,
+        "snapshot": None if runtime.settings.hosted else runtime.snapshot.status(),
         "limits": {
             "cpus": os.cpu_count(),
             "available_memory_mb": None if available is None else round(available),
@@ -55,7 +57,8 @@ def _view(runtime: Any) -> dict[str, Any]:
 @routes.get("/api/machine", action="machine.read", resource="app")
 def machine(request: Request) -> dict[str, Any]:
     """The keys saved on this computer (whether set, where from, their last four characters),
-    whether the AI clean-up can run by API, OpenAlex's daily budget and this computer's limits."""
+    whether the AI clean-up can run by API, OpenAlex's daily budget, the OpenAlex snapshot
+    folder saved here (its state, release, sizes and read speed) and this computer's limits."""
     return _view(runtime_of(request))
 
 
@@ -73,4 +76,24 @@ def save_key(request: Request, body: KeyBody) -> dict[str, Any]:
     if runtime.settings.hosted:
         raise ApiError.of("keys_hosted")
     runtime.keys.save(body.service, body.key)
+    return _view(runtime)
+
+
+class SnapshotBody(BaseModel):
+    """The folder of a downloaded OpenAlex snapshot, its full path; ``null`` removes it."""
+
+    folder: Annotated[str | None, Field(min_length=1, max_length=4096)] = None
+
+
+@routes.put("/api/machine/snapshot", action="machine.write", resource="app")
+def save_snapshot(request: Request, body: SnapshotBody) -> dict[str, Any]:
+    """Save or remove the OpenAlex snapshot folder of this computer (never in a project);
+    refused when the folder holds no snapshot, and when hosted."""
+    runtime = runtime_of(request)
+    if runtime.settings.hosted:
+        raise ApiError.of("snapshot_hosted")
+    try:
+        runtime.snapshot.save(body.folder)
+    except SnapshotRefused as exc:
+        raise ApiError.of("snapshot_invalid", folder=body.folder or "", reason=exc.reason) from None
     return _view(runtime)

@@ -49,6 +49,9 @@ class CollectOptions(BaseModel):
     seeds: Annotated[list[PersonId] | None, Field(max_length=100_000)] = None
     cap: Annotated[int | None, Field(ge=1, le=100_000)] = None
     max_authors: Annotated[int | None, Field(ge=2, le=10_000)] = None
+    #: How OpenAlex is read: its API, or the snapshot folder saved on this computer (by
+    #: default, the faster of the two the plan offers).
+    openalex: Literal["api", "snapshot"] | None = None
     #: The checkpoint of a paused collection to resume (its options come from it).
     resume: Annotated[str | None, Field(pattern=r"^[a-z_]{1,40}-[0-9a-f]{16}$")] = None
     consent: bool = False
@@ -92,10 +95,14 @@ def start(request: Request, ctx: ProjectDep, body: CollectOptions | None = None)
         if found is None:
             raise ApiError.of("checkpoint_not_found", checkpoint=body.resume)
         options = {**found, "resume": True}
+        if body.openalex:  # resumed another way (a snapshot reading keeps its own checkpoint)
+            options["openalex"] = body.openalex
     summary = service.plan(project, action, options)
     if summary.get("consent_needed") and not body.consent:
         hosts = ", ".join(h["host"] for h in summary["leaves_the_computer"]) or "nobody"
         raise ApiError.of("consent_needed", hosts=hosts, extra={"plan": summary})
+    if summary.get("openalex"):  # the job reads OpenAlex the way its plan said
+        options = {**options, "openalex": summary["openalex"]["chosen"]}
 
     def work(control: JobControl) -> dict[str, Any]:
         return dict(service.collect(project, control, action, options))
