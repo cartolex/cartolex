@@ -91,14 +91,15 @@ def clear_match(candidates: Sequence[Mapping[str, Any]], threshold: float) -> bo
 
 
 def raw_stamp(project: Project) -> tuple[Any, ...]:
-    """What collected records depend on: the raw folders of every slot and ``people.csv``."""
+    """What collected records depend on: the raw folders of every slot (not the checkpoints
+    of a reading, saved as it goes) and ``people.csv``."""
     layout = project.layout
     out: list[Any] = [str(layout.root)]
     for slot in project.config.slots:
         raw = layout.sources / slot.id / "raw"
         if not raw.is_dir():
             continue
-        for kind in sorted(p for p in raw.iterdir() if p.is_dir()):
+        for kind in sorted(p for p in raw.iterdir() if p.is_dir() and p.name != "checkpoints"):
             out.append((slot.id, kind.name, kind.stat().st_mtime_ns))
     try:
         st = layout.people_csv.stat()

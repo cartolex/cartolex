@@ -45,18 +45,32 @@ class Cache:
         self._items: OrderedDict[Any, Any] = OrderedDict()
         self._size = size
         self._lock = threading.Lock()
+        #: The keys being computed, each with the lock the others wait on.
+        self._computing: dict[Any, threading.Lock] = {}
 
     def get(self, key: Any, compute: Callable[[], Any]) -> Any:
+        """The value kept for *key*, else computed once: requests asking for it meanwhile wait
+        for that computation instead of making their own."""
         with self._lock:
             if key in self._items:
                 self._items.move_to_end(key)
                 return self._items[key]
-        value = compute()
-        with self._lock:
-            self._items[key] = value
-            self._items.move_to_end(key)
-            while len(self._items) > self._size:
-                self._items.popitem(last=False)
+            computing = self._computing.setdefault(key, threading.Lock())
+        with computing:
+            with self._lock:
+                if key in self._items:
+                    self._items.move_to_end(key)
+                    return self._items[key]
+            try:
+                value = compute()
+            finally:
+                with self._lock:
+                    self._computing.pop(key, None)
+            with self._lock:
+                self._items[key] = value
+                self._items.move_to_end(key)
+                while len(self._items) > self._size:
+                    self._items.popitem(last=False)
         return value
 
     def peek(self, key: Any) -> Any:
