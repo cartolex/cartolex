@@ -1,3 +1,5 @@
+<p><img src="cartolex/app/static/brand/mark.svg" width="128" height="128" alt=""></p>
+
 # cartolex
 
 A generic **lexical cartography engine**: given a corpus of raw text documents per
