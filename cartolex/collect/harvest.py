@@ -6,7 +6,10 @@ records in ``decisions/people.csv`` say where their works are:
 
 * ``openalex:A…`` — every work of these author records, in the year window,
   through cursor pages of 100, and the records themselves (their
-  affiliations, with years);
+  affiliations, with years). From the API, the records of several people
+  are asked for together, up to 50 a request, and each person gets the works
+  their own records sign: what a request per person would give, in fewer
+  requests;
 * ``orcid:…`` — the works the person declared in the registry, fetched from
   the index by DOI, 50 at a time, and the registry record (employments).
 
@@ -33,8 +36,8 @@ last error.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Sequence
-from dataclasses import dataclass, field
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
 
@@ -42,9 +45,19 @@ from cartolex.project import Project
 from cartolex.project.tables import read_source_table
 
 from .decisions import read_people, slot_window
-from .http import CacheMiss, Cancelled, CollectError, HttpClient, ServiceError
+from .http import CacheMiss, Cancelled, CollectError, Fetched, HttpClient, ServiceError
 from .names import name_similarity, words
-from .openalex import OpenAlexApi, OpenAlexSource, bare_doi, doc_type, short_id
+from .openalex import (
+    AUTHOR_BATCH,
+    OpenAlexApi,
+    OpenAlexSource,
+    Years,
+    _work_authors,
+    author_batches,
+    bare_doi,
+    doc_type,
+    short_id,
+)
 from .orcid import declared_works, employments, registry_record
 from .outcomes import MAX_FAILURES_IN_A_ROW, failure_record, stops_the_job, write_failures
 from .people_import import _collection_slot
@@ -119,6 +132,53 @@ def _in_window(work: dict[str, Any], years: tuple[int | None, int | None] | None
     return (first is None or year >= first) and (last is None or year <= last)
 
 
+class _BatchedWorks:
+    """An OpenAlex source whose people's works are asked for a batch of people at a time.
+
+    :meth:`load` asks for every work of a batch's records in one list; each person's
+    question is then answered with the works their own records sign, in the list's order.
+    A batch whose list fails, or holds a work none of its records signs (a record merged
+    into another), is not kept: its people are asked for one by one, and a failure is
+    recorded with the person. Every other question goes to the source.
+    """
+
+    def __init__(self, source: OpenAlexSource) -> None:
+        self.source = source
+        self.label = source.label
+        self._ids: frozenset[str] = frozenset()
+        self._years: Years = None
+        self._works: list[tuple[dict[str, Any], set[str]]] = []
+        self._fetched: Fetched | None = None
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.source, name)
+
+    def load(self, author_ids: Iterable[str], years: Years) -> None:
+        """Ask for the works of *author_ids* within *years* in one list (not for one record)."""
+        self._ids, self._works, self._fetched = frozenset(), [], None
+        ids = frozenset(a for a in author_ids if a)
+        if len(ids) < 2:
+            return
+        try:
+            fetched = self.source.works_by_authors(sorted(ids), years)
+        except (ServiceError, CacheMiss):
+            return
+        works = [(w, _work_authors(w) & ids) for w in fetched.data]
+        if any(not signed for _w, signed in works):
+            return
+        self._ids, self._years, self._works, self._fetched = ids, years, works, fetched
+
+    def works_by_authors(self, author_ids: Sequence[str], years: Years) -> Fetched:
+        wanted = {a for a in author_ids if a}
+        if self._fetched is None or not wanted <= self._ids or years != self._years:
+            return self.source.works_by_authors(author_ids, years)
+        return replace(self._fetched, data=[w for w, signed in self._works if signed & wanted])
+
+
+def _openalex_ids(records: Sequence[str]) -> list[str]:
+    return [r.split(":", 1)[1] for r in records if r.startswith("openalex:")]
+
+
 def _targets(project: Project, people: Sequence[str] | None) -> list[tuple[dict, list[str]]]:
     rows = read_source_table(project.layout.table("people"), "people").to_pylist()
     decisions = read_people(project.layout)
@@ -151,6 +211,7 @@ def harvest(
     slot: str | None = None,
     now: datetime | None = None,
     source: OpenAlexSource | None = None,
+    batch: int = AUTHOR_BATCH,
 ) -> HarvestReport:
     """Collect the works of every confirmed person (or of *people*) and rebuild the tables.
 
@@ -158,7 +219,9 @@ def harvest(
     ``None``; by default the slot's ``years``. *source* answers the OpenAlex
     requests (default: the API through *client*; a
     :class:`~cartolex.collect.snapshot.SnapshotSource` reads a snapshot); the
-    registry is always asked through *client*. A cancel keeps the people
+    registry is always asked through *client*. From a source asked request by
+    request, the works of up to *batch* records of consecutive people are asked
+    for in one list (``1``: each person's on their own). A cancel keeps the people
     harvested before it; the person being harvested when it came is left out
     whole. A person whose collection fails is recorded and the others go on.
     """
@@ -176,6 +239,12 @@ def harvest(
     registry: dict[str, Any] = {}
     if hasattr(source, "prefetch") and targets:
         _prefetch(client, source, targets, registry)
+    batched = _BatchedWorks(source) if batch > 1 and not hasattr(source, "prefetch") else None
+    starts: dict[int, list[str]] = {}
+    if batched is not None:
+        groups = [_openalex_ids(records) for _person, records in targets]
+        starts = {b[0]: [a for i in b for a in groups[i]] for b in author_batches(groups, batch)}
+    asked = batched if batched is not None else source
     window = list(years) if years else None
     oa_out = RawWriter(
         layout, slot, "openalex", {"years": window, "people": {}, "source": source.label}, now=now
@@ -191,9 +260,11 @@ def harvest(
             client.check_cancel()
             pid = person["person_id"]
             client.progress(k / max(1, len(targets)), f"person {k + 1} of {len(targets)}")
+            if batched is not None and k in starts:
+                batched.load(starts[k], years)
             try:
                 oa_lines, orcid_lines, meta = _harvest_person(
-                    client, source, person, records, years, report, registry
+                    client, asked, person, records, years, report, registry
                 )
             except (ServiceError, CacheMiss) as exc:
                 report.failures.append(failure_record(pid, "harvest", exc, now=now))
@@ -276,7 +347,7 @@ def _harvest_person(
     registry: dict[str, Any],
 ) -> tuple[list[dict], list[dict], dict[str, Any]]:
     pid = person["person_id"]
-    oa_ids = [r.split(":", 1)[1] for r in records if r.startswith("openalex:")]
+    oa_ids = _openalex_ids(records)
     orcids = [r.split(":", 1)[1] for r in records if r.startswith("orcid:")]
     names = [[person["last_name"], person["first_name"] or ""]] + [
         [a["last_name"], a["first_name"] or ""] for a in person.get("aliases") or []

@@ -45,6 +45,7 @@ __all__ = [
     "OpenAlexApi",
     "OpenAlexSource",
     "author",
+    "author_batches",
     "institution",
     "institution_units",
     "institution_work_pages",
@@ -284,6 +285,28 @@ def works_of_authors(
             for aid in _work_authors(work) & batch:
                 out[aid].append(work)
     return out, answers
+
+
+def author_batches(groups: Sequence[Sequence[str]], size: int = AUTHOR_BATCH) -> list[list[int]]:
+    """Groups of author records (one per person), packed in order into batches of at most
+    *size* records; each batch lists the indices of its groups.
+
+    A group that would take a batch past *size* starts the next one, a group larger than
+    *size* is a batch of its own, and a group without records joins the batch it falls in.
+    """
+    batches: list[list[int]] = []
+    current: list[int] = []
+    ids: set[str] = set()
+    for i, group in enumerate(groups):
+        new = set(group) - ids
+        if current and len(ids) + len(new) > size:
+            batches.append(current)
+            current, ids, new = [], set(), set(group)
+        current.append(i)
+        ids |= new
+    if current:
+        batches.append(current)
+    return batches
 
 
 def _work_authors(work: dict[str, Any]) -> set[str]:

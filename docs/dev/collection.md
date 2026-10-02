@@ -336,7 +336,14 @@ works found only. `Snapshot.report` counts the bytes, lines, lines parsed and
 seconds. `harvest(…, source=…)`, `propose_people(project, source, …)` and
 `snowball(project, source, …)` take either source and write the same raw runs,
 hence the same tables (the tests compare them on the demo world, from the mini
-snapshot `write_snapshot` writes).
+snapshot `write_snapshot` writes). From the API, the harvest asks for the
+works of consecutive people's records together, up to `batch` records a list
+(`AUTHOR_BATCH`, 50; `author_batches` packs them), and gives each person the
+works their own records sign, in the list's order: the tables of a harvest
+person by person (`batch=1`), in about one request per 100 works instead of
+at least one per person. A batch whose list fails, or holds a work none of its
+records signs (a record merged into another), is asked for person by person,
+where a failure is recorded with the person.
 
 ## People from institutions
 

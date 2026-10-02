@@ -148,7 +148,10 @@ cartolex collect harvest my-project [--years 2012-2026] [--refresh | --cache-onl
 
 For each confirmed person, the harvest collects every work of their OpenAlex
 records and every work they declared in the registry (fetched from OpenAlex by
-DOI), unites them, and removes duplicates by DOI, then by title and year. Each
+DOI), unites them, and removes duplicates by DOI, then by title and year. The
+works of several people's records are asked for together, up to 50 records a
+request: a large list of people costs about one request per 100 works, not
+one or more per person. Each
 work becomes a text with its title and abstract, the language of each detected;
 its authorships name every project person on it at their rank, with the
 institutions it states for them, which date their affiliations. Employments

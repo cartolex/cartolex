@@ -26,6 +26,7 @@ from cartolex.project.tables import read_source_table
 
 from .decisions import read_people
 from .names import variants
+from .openalex import author_batches
 from .services import CollectSettings
 from .tables import new_run_id
 
@@ -180,8 +181,9 @@ def plan_collection(
     name), OpenAlex is read on this computer: only the registry is asked.
 
     Request counts are estimates: a resolution makes one search per name
-    variant and per stated institution, a harvest at least one list per person
-    and record kind (more for people with many works), an institution one list
+    variant and per stated institution, a harvest at least one list per 50
+    OpenAlex records of consecutive people and one per registry record (more
+    for people with many works), an institution one list
     of its units and at least one of its works, a round of collaborators a
     list per 50 records. Answers already in the cache are not sent again, so
     the real count can be lower.
@@ -268,12 +270,14 @@ def plan_collection(
                 n_oa = sum(1 for r in records if r.startswith("openalex:"))
                 n_orcid = sum(1 for r in records if r.startswith("orcid:"))
                 add("openalex", "singleton", n_oa)
-                if n_oa:
-                    add("openalex", "list")
                 if n_orcid:
                     add("orcid", "works", n_orcid)
                     add("orcid", "record", n_orcid)
                     add("openalex", "list", n_orcid)
+        if action == "harvest":  # the works of several people's records in one list
+            groups = [[r for r in p["_records"] if r.startswith("openalex:")] for p in targets]
+            batches = author_batches(groups)
+            add("openalex", "list", sum(1 for b in batches if any(groups[i] for i in b)))
         for name in ("openalex", "orcid"):
             sends.setdefault(name, SENDS[(action, name)])
     plan = CollectionPlan(action=action, people=n_people)

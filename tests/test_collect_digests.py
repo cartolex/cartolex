@@ -15,6 +15,7 @@ from cartolex.collect.tables import raw_folder, read_runs, rebuild_sources
 from cartolex.demo import generate
 from cartolex.demo.services import DemoServices
 from cartolex.project.layout import SOURCE_TABLES
+from cartolex.project.tables import read_source_table
 
 
 @pytest.fixture(scope="module")
@@ -32,6 +33,12 @@ def harvested(services, tmp_path):
     report = harvest(project, client(services, project))
     yield project, bib, ids, report
     project.close()
+
+
+def _texts(project) -> list[dict]:
+    """The texts, without the time each was received."""
+    rows = read_source_table(project.layout.table("texts"), "texts").to_pylist()
+    return [{k: v for k, v in r.items() if k != "retrieved_at"} for r in rows]
 
 
 def _bytes(project) -> dict[str, bytes]:
@@ -90,13 +97,14 @@ def test_a_rebuild_reads_only_the_new_runs_whole(harvested, services, monkeypatc
     assert entry["records"] > 0 and set(entry["people"]) == set(runs[0].header["people"])
     # A new harvest of one person: its runs are read whole, the earlier ones are not.
     person = sorted(runs[0].header["people"])[0]
-    before = _bytes(project)
+    before = _texts(project)
     harvest(project, client(services, project), people=[person])
     assert reads["openalex"] == 1
     fresh = _bytes(project)
     rebuild_sources(project.layout, project.config, incremental=False)
     assert _bytes(project) == fresh
-    assert fresh["texts"] == before["texts"]  # the same works, harvested again
+    # The same works, harvested again; asked for on their own now, so received later.
+    assert _texts(project) == before
 
 
 def test_a_run_superseded_for_everyone_is_not_read(harvested, services, monkeypatch) -> None:

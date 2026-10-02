@@ -1,13 +1,16 @@
 # SPDX-License-Identifier: MIT
-"""Harvest details: parts and languages, ranks, the year window, cut pages, cancel, re-harvests."""
+"""Harvest details: parts and languages, ranks, the year window, cut pages, cancel, re-harvests,
+people asked for together."""
 
 from __future__ import annotations
+
+from datetime import datetime, timezone
 
 import pytest
 from _collect_world import client, confirm_truth, demo_project, world_ids
 
-from cartolex.collect.harvest import harvest
-from cartolex.collect.http import Cancelled, IncompleteResults
+from cartolex.collect.harvest import _BatchedWorks, harvest
+from cartolex.collect.http import Cancelled, Fetched, IncompleteResults
 from cartolex.collect.resolve import confirm
 from cartolex.collect.tables import raw_folder
 from cartolex.demo import generate
@@ -138,3 +141,43 @@ def test_a_harvest_sends_identifiers_never_names(confirmed, services) -> None:
     sent = {e["service"]: set(e["sends"]) for e in http.egress.summary()}
     assert sent["openalex"] <= {"identifier", "DOI"}
     assert sent["orcid"] == {"identifier"}
+
+
+def _rows(project) -> dict[str, list[dict]]:
+    """The source tables, without the times the answers were received."""
+    return {
+        n: [{k: v for k, v in r.items() if k != "retrieved_at"} for r in _table(project, n)]
+        for n in SOURCE_TABLES
+    }
+
+
+def _sent(http) -> int:
+    return sum(n for (service, _host), n in http.egress.requests.items() if service == "openalex")
+
+
+def test_people_asked_for_together_give_the_tables_of_one_by_one(confirmed, services) -> None:
+    project, _bib, _ids = confirmed
+    alone = client(services)  # no cache: every request is sent
+    harvest(project, alone, batch=1)
+    one_by_one = _rows(project)
+    together = client(services)
+    harvest(project, together)
+    assert _rows(project) == one_by_one
+    assert _sent(together) < _sent(alone)
+
+
+def test_a_batch_with_a_work_none_of_its_records_signs_is_asked_person_by_person() -> None:
+    class Source:
+        label = "api"
+        asked: list[list[str]] = []
+
+        def works_by_authors(self, ids, years):
+            self.asked.append(sorted(ids))
+            merged = {"id": "W1", "authorships": [{"author": {"id": "https://openalex.org/A9"}}]}
+            return Fetched([merged], datetime.now(timezone.utc), False)
+
+    source = Source()
+    batched = _BatchedWorks(source)
+    batched.load(["A1", "A2"], None)
+    batched.works_by_authors(["A1"], None)
+    assert source.asked == [["A1", "A2"], ["A1"]]
