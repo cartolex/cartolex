@@ -137,3 +137,22 @@ def test_strict_mode_counts_what_inline_exceptions_hide(repo: Path, deny: Path, 
     assert vocab_scan.main(["--root", str(repo), "--list", str(deny)]) == 0
     assert vocab_scan.main(["--root", str(repo), "--list", str(deny), "--strict"]) == 1
     assert "a.py:1: banned term #1" in capsys.readouterr().out
+
+
+def test_a_file_unchanged_since_the_last_scan_keeps_its_result(repo: Path, deny: Path) -> None:
+    cache = repo.parent / "scan-cache.json"
+    patterns = vocab_scan.load_patterns(deny)
+    (repo / "a.txt").write_text("quuxcorp\n", encoding="utf-8")
+    (repo / "b.txt").write_text("clean\n", encoding="utf-8")
+    first = vocab_scan.scan_tree(repo, patterns, cache=cache)
+    assert [(h.where, h.line, h.pattern) for h in first] == [("a.txt", 1, 2)]
+    assert "quuxcorp" not in cache.read_text(encoding="utf-8")  # numbers, never terms
+    assert vocab_scan.scan_tree(repo, patterns, cache=cache) == first
+    # A changed file is scanned again; another list makes every file scanned again.
+    (repo / "b.txt").write_text("clean\nzorblax\n", encoding="utf-8")
+    again = vocab_scan.scan_tree(repo, patterns, cache=cache)
+    assert sorted((h.where, h.line, h.pattern) for h in again) == [("a.txt", 1, 2), ("b.txt", 2, 1)]
+    only = deny.with_name("only.txt")
+    only.write_text("zorblax\n", encoding="utf-8")
+    other = vocab_scan.scan_tree(repo, vocab_scan.load_patterns(only), cache=cache)
+    assert [(h.where, h.pattern) for h in other] == [("b.txt", 1)]

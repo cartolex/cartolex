@@ -33,6 +33,8 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import hashlib
+import json
 import os
 import re
 import subprocess
@@ -151,24 +153,65 @@ def is_binary(data: bytes) -> bool:
 
 
 def scan_tree(
-    root: Path, patterns: list[tuple[int, re.Pattern[str]]], honour_inline: bool = True
+    root: Path,
+    patterns: list[tuple[int, re.Pattern[str]]],
+    honour_inline: bool = True,
+    cache: Path | None = None,
 ) -> list[Hit]:
-    """Scan file paths and text contents of the working tree."""
+    """Scan file paths and text contents of the working tree.
+
+    With *cache* (a JSON file), a file whose path and content did not change since the
+    last scan with the same patterns, exceptions and mode keeps the hits it had then (the
+    file holds content digests, places and pattern numbers, never a term).
+    """
     allows = load_file_allows(root)
+    setting = hashlib.sha256(
+        json.dumps(
+            [[rx.pattern for _n, rx in patterns], sorted(map(str, allows)), honour_inline]
+        ).encode("utf-8")
+    ).hexdigest()
+    memo: dict[str, list] = {}
+    if cache is not None and cache.is_file():
+        try:
+            saved = json.loads(cache.read_text(encoding="utf-8"))
+            if saved.get("setting") == setting:
+                memo = saved.get("files") or {}
+        except ValueError:
+            memo = {}
+    kept: dict[str, list] = {}
     hits: list[Hit] = []
     for rel in tracked_files(root):
         rel_s = rel.as_posix()
-        allowed: set[int] = set()
-        for glob, numbers in allows:
-            if fnmatch.fnmatch(rel_s, glob):
-                allowed |= numbers
-        hits += [
-            Hit(rel_s + " (path)", 0, h.pattern)
-            for h in scan_text(rel_s, rel_s, patterns, allowed, honour_inline=False)
-        ]
         data = (root / rel).read_bytes()
-        if is_binary(data):
-            continue
+        key = hashlib.sha256(rel_s.encode("utf-8") + b"\0" + data).hexdigest()
+        if key in memo:
+            found = [Hit(*h) for h in memo[key]]
+        else:
+            found = _scan_file(rel_s, data, patterns, allows, honour_inline)
+        kept[key] = [[h.where, h.line, h.pattern] for h in found]
+        hits += found
+    if cache is not None:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(json.dumps({"setting": setting, "files": kept}), encoding="utf-8")
+    return hits
+
+
+def _scan_file(
+    rel_s: str,
+    data: bytes,
+    patterns: list[tuple[int, re.Pattern[str]]],
+    allows: list[tuple[str, set[int]]],
+    honour_inline: bool,
+) -> list[Hit]:
+    allowed: set[int] = set()
+    for glob, numbers in allows:
+        if fnmatch.fnmatch(rel_s, glob):
+            allowed |= numbers
+    hits = [
+        Hit(rel_s + " (path)", 0, h.pattern)
+        for h in scan_text(rel_s, rel_s, patterns, allowed, honour_inline=False)
+    ]
+    if not is_binary(data):
         hits += scan_text(
             data.decode("utf-8", errors="replace"), rel_s, patterns, allowed, honour_inline
         )
@@ -269,6 +312,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--paths", nargs="+", metavar="PATH", help="scan these files or folders instead of the tree"
     )
+    parser.add_argument(
+        "--cache",
+        type=Path,
+        metavar="FILE",
+        help="keep each file's result here: unchanged files are not scanned again",
+    )
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
@@ -287,7 +336,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.paths:
         hits = scan_paths([Path(x) for x in args.paths], patterns)
     else:
-        hits = scan_tree(root, patterns, honour_inline=not args.strict)
+        hits = scan_tree(root, patterns, honour_inline=not args.strict, cache=args.cache)
     if args.commits:
         hits += scan_commits(root, args.commits, patterns)
     if args.tags:
