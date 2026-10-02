@@ -15,6 +15,7 @@ from cartolex.collect.resolve import confirm
 from cartolex.collect.tables import raw_folder
 from cartolex.demo import generate
 from cartolex.demo.services import DemoServices
+from cartolex.demo.services.openalex import AUTHORS_SHOWN
 from cartolex.project.layout import SOURCE_TABLES
 from cartolex.project.tables import read_source_table
 
@@ -181,3 +182,18 @@ def test_a_batch_with_a_work_none_of_its_records_signs_is_asked_person_by_person
     batched.load(["A1", "A2"], None)
     batched.works_by_authors(["A1"], None)
     assert source.asked == [["A1", "A2"], ["A1"]]
+
+
+def test_works_whose_authors_a_list_cuts_are_read_whole(confirmed, services) -> None:
+    project, _bib, _ids = confirmed
+    harvest(project, client(services))  # no work of this world has its authors cut
+    whole = _rows(project)
+    openalex = services.server.services["openalex"]
+    openalex.authors_shown = 1  # a list names each work's first author only
+    try:
+        for batch in (1, 50):
+            harvest(project, client(services), batch=batch)
+            assert _rows(project) == whole
+    finally:
+        openalex.authors_shown = AUTHORS_SHOWN
+

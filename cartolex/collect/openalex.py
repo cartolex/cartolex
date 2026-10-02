@@ -32,11 +32,13 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Iterator, Sequence
+from dataclasses import replace
 from typing import Any, Protocol
 
 from .http import CursorPaging, Fetched, HttpClient, NotFound, Page
 
 __all__ = [
+    "AUTHORS_SHOWN",
     "AUTHOR_BATCH",
     "DOI_BATCH",
     "INSTITUTION_WORK_FIELDS",
@@ -46,6 +48,7 @@ __all__ = [
     "OpenAlexSource",
     "author",
     "author_batches",
+    "complete_authors",
     "institution",
     "institution_units",
     "institution_work_pages",
@@ -57,6 +60,7 @@ __all__ = [
     "search_authors",
     "search_institutions",
     "short_id",
+    "work",
     "works_by_authors",
     "works_by_dois",
     "works_by_institutions",
@@ -70,6 +74,9 @@ PER_PAGE = 100
 DOI_BATCH = 50
 #: Author records asked for in one request, when many people's works are needed at once.
 AUTHOR_BATCH = 50
+#: The most authors a work names in a list answer: OpenAlex cuts the list there, and the
+#: work's own record (free of charge) names them all.
+AUTHORS_SHOWN = 100
 #: The fields of a work an institution's proposal reads (``select``: a quarter of a full
 #: record's size or less).
 INSTITUTION_WORK_FIELDS = "id,publication_year,authorships"
@@ -178,6 +185,42 @@ def author(client: HttpClient, author_id: str) -> Fetched | None:
         )
     except NotFound:
         return None
+
+
+def work(client: HttpClient, work_id: str) -> Fetched | None:
+    """One work's own record (free of charge), every author named; ``None`` when it is gone."""
+    try:
+        return client.get_json(
+            SERVICE,
+            f"works/{work_id}",
+            kind="work",
+            sends=["identifier"],
+            validate=_check_entity,
+        )
+    except NotFound:
+        return None
+
+
+def _authors_cut(record: dict[str, Any]) -> bool:
+    return bool(record.get("is_authors_truncated")) or (
+        len(record.get("authorships") or []) >= AUTHORS_SHOWN
+    )
+
+
+def complete_authors(client: HttpClient, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The works of a list answer, each whose authors the list cut replaced by its own record.
+
+    A list names a work's first :data:`AUTHORS_SHOWN` authors only: without the others,
+    the people further down the list would not be found on the work.
+    """
+    out = list(records)
+    for i, record in enumerate(out):
+        wid = short_id(record.get("id")) if _authors_cut(record) else None
+        if wid:
+            found = work(client, wid)
+            if found is not None:
+                out[i] = found.data
+    return out
 
 
 def parse_institution_ref(text: str) -> str | None:
@@ -352,7 +395,7 @@ def works_by_authors(
     if not ids:
         raise ValueError("no author record to ask for")
     filters = ["author.id:" + "|".join(ids), *_window(years)]
-    return client.get_all(
+    fetched = client.get_all(
         SERVICE,
         "works",
         {"filter": ",".join(filters), "per_page": PER_PAGE},
@@ -361,6 +404,7 @@ def works_by_authors(
         paging=PAGING,
         validate=_check_list,
     )
+    return replace(fetched, data=complete_authors(client, fetched.data))
 
 
 def record_dois(client: HttpClient, author_id: str) -> set[str]:
@@ -392,7 +436,7 @@ def works_by_dois(client: HttpClient, dois: Iterable[str]) -> list[tuple[dict[st
             paging=PAGING,
             validate=_check_list,
         )
-        out += [(w, fetched) for w in fetched.data]
+        out += [(w, fetched) for w in complete_authors(client, fetched.data)]
     return out
 
 

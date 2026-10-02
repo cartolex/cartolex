@@ -32,6 +32,8 @@ __all__ = ["OpenAlexService"]
 
 ROOT = "https://openalex.org/"
 MAX_PER_PAGE = 100
+#: The authors a work names in a list answer, as OpenAlex cuts them (its own record names all).
+AUTHORS_SHOWN = 100
 _TOPIC_ID = {t.id: f"T999{i + 1:04d}" for i, t in enumerate(THEMES)}
 _WORD = re.compile(r"\w+")
 
@@ -73,6 +75,8 @@ class OpenAlexService:
 
     def __init__(self, bib: Bibliography) -> None:
         self.bib = bib
+        #: The authors a work names in a list answer (tests lower it to see works cut).
+        self.authors_shown = AUTHORS_SHOWN
         #: Open-access copies (world work → link), from the sources layer.
         self._oa = sources_layer(bib).oa_links
         self._works = {w.id: self._work_json(w) for w in bib.works.values()}
@@ -397,8 +401,17 @@ class OpenAlexService:
                 raise _BadQuery("basic paging only reaches the first 10,000 results")
             page_rows = rows[(page - 1) * per_page : page * per_page]
             meta["page"] = page
+        if entity == "works":
+            page_rows = [self._cut_authors(row) for row in page_rows]
         results = [self._project(row, query.get("select")) for row in page_rows]
         return json_reply(200, {"meta": meta, "results": results, "group_by": []})
+
+    def _cut_authors(self, row: dict[str, Any]) -> dict[str, Any]:
+        """A work as a list shows it: its first :attr:`authors_shown` authors only."""
+        if len(row.get("authorships") or []) <= self.authors_shown:
+            return row
+        return {**row, "authorships": row["authorships"][: self.authors_shown],
+                "is_authors_truncated": True}  # fmt: skip
 
     @staticmethod
     def _project(row: dict[str, Any], select: str | None) -> dict[str, Any]:

@@ -151,7 +151,9 @@ records and every work they declared in the registry (fetched from OpenAlex by
 DOI), unites them, and removes duplicates by DOI, then by title and year. The
 works of several people's records are asked for together, up to 50 records a
 request: a large list of people costs about one request per 100 works, not
-one or more per person. Each
+one or more per person. A list names a work's first 100 authors only: a work
+with more (a large collaboration) is read again on its own, free of charge, so
+that the people further down its list are found on it. Each
 work becomes a text with its title and abstract, the language of each detected;
 its authorships name every project person on it at their rank, with the
 institutions it states for them, which date their affiliations. Employments

@@ -343,7 +343,11 @@ works their own records sign, in the list's order: the tables of a harvest
 person by person (`batch=1`), in about one request per 100 works instead of
 at least one per person. A batch whose list fails, or holds a work none of its
 records signs (a record merged into another), is asked for person by person,
-where a failure is recorded with the person.
+where a failure is recorded with the person. A list answer names a work's
+first 100 authors only (`AUTHORS_SHOWN`): `complete_authors` replaces every
+work that shows that many, or says its authors are cut, by its own record
+(`work(client, id)`, free of charge), so that the people further down are found
+on it; the demo services cut their lists the same way (`authors_shown`).
 
 ## People from institutions
 
