@@ -533,10 +533,42 @@ def build_index(
     if limit < len(todo):
         return report
     say("index: sorting the postings")
-    _finish(root, folder, parts, plan, report)
+    # A bucket in memory is a few hundred megabytes: fewer sorts at once than cuts.
+    _finish(root, folder, parts, plan, report, jobs=max(1, min(jobs, 8)))
     report.complete = True
     report.seconds = time.perf_counter() - started
     return report
+
+
+def _sort_bucket(spilled: str, out: str, key: str) -> tuple[int, int, np.ndarray]:
+    """Sort one bucket of postings by key and write it (``out.keys.npy``, ``out.refs.npy``):
+    its postings, its distinct keys, and a sample of how many members a key takes. A pair
+    met twice (a part cut again after a stop) stays twice: a lookup gathers each member
+    once. Runs in a worker."""
+    path = Path(spilled)
+    rows = np.fromfile(path, dtype=_POSTING) if path.is_file() else np.empty(0, _POSTING)
+    order = np.argsort(rows["key"], kind="stable")
+    keys, refs = rows["key"][order], rows["ref"][order]
+    del rows, order
+    np.save(out + ".keys.npy", keys, allow_pickle=False)
+    np.save(out + ".refs.npy", refs, allow_pickle=False)
+    if not len(keys):
+        return 0, 0, np.empty(0, np.int64)
+    starts = np.flatnonzero(np.r_[True, keys[1:] != keys[:-1]])
+    counts = np.diff(np.r_[starts, len(keys)])
+    return len(keys), len(counts), counts[:: max(1, len(counts) // 20000)]
+
+
+def _map(function: Callable[..., Any], tasks: Sequence[tuple[Any, ...]], jobs: int) -> list[Any]:
+    """*function* on each of *tasks*, in that many worker processes (in order)."""
+    if jobs <= 1 or len(tasks) <= 1:
+        return [function(*t) for t in tasks]
+    import multiprocessing
+    from concurrent.futures import ProcessPoolExecutor
+
+    context = multiprocessing.get_context("spawn")
+    with ProcessPoolExecutor(max_workers=jobs, mp_context=context) as pool:
+        return list(pool.map(function, *zip(*tasks, strict=True)))
 
 
 def _finish(
@@ -545,6 +577,7 @@ def _finish(
     parts: Mapping[str, Sequence[tuple[str, int]]],
     plan: Mapping[str, Any],
     report: BuildReport,
+    jobs: int = 1,
 ) -> None:
     """Every part is cut: sort each bucket of postings, gather the members' tables, and
     write ``index.json`` (the index is then complete)."""
@@ -563,28 +596,21 @@ def _finish(
         np.save(folder / entity / "first.npy", first, allow_pickle=False)
         shutil.rmtree(folder / entity / "parts")
         keys: dict[str, Any] = {}
+        tasks = []
         for key in KEYS[entity]:
             out = folder / entity / key
             out.mkdir(parents=True, exist_ok=True)
-            postings = distinct = 0
-            per_key: list[np.ndarray] = []
-            for bucket in range(BUCKETS):
-                spilled = folder / "spill" / f"{entity}.{key}" / f"{bucket:02d}.bin"
-                rows = np.fromfile(spilled, dtype=_POSTING) if spilled.is_file() else (
-                    np.empty(0, _POSTING))  # fmt: skip
-                rows = np.unique(rows)  # sorted by key, then member; each pair once
-                np.save(out / f"{bucket:02d}.keys.npy", rows["key"], allow_pickle=False)
-                np.save(out / f"{bucket:02d}.refs.npy", rows["ref"], allow_pickle=False)
-                postings += len(rows)
-                if len(rows):
-                    starts = np.flatnonzero(np.r_[True, rows["key"][1:] != rows["key"][:-1]])
-                    counts = np.diff(np.r_[starts, len(rows)])
-                    distinct += len(counts)
-                    per_key.append(counts[:: max(1, len(counts) // 20000)])
-            sample = np.concatenate(per_key) if per_key else np.zeros(1, np.int64)
+            tasks += [(str(folder / "spill" / f"{entity}.{key}" / f"{b:02d}.bin"),
+                       str(out / f"{b:02d}"), key) for b in range(BUCKETS)]  # fmt: skip
+        sorted_ = _map(_sort_bucket, tasks, jobs)
+        for key in KEYS[entity]:
+            mine = [r for (_, _, k), r in zip(tasks, sorted_, strict=True) if k == key]
+            sample = np.concatenate([r[2] for r in mine]) if mine else np.zeros(1, np.int64)
+            if not len(sample):
+                sample = np.zeros(1, np.int64)
             keys[key] = {
-                "postings": int(postings),
-                "distinct": int(distinct),
+                "postings": int(sum(r[0] for r in mine)),
+                "distinct": int(sum(r[1] for r in mine)),
                 "members_per_key": {
                     q: float(np.percentile(sample, p))
                     for q, p in (("p50", 50), ("p90", 90), ("p99", 99))
