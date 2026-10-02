@@ -2579,6 +2579,7 @@
   "job.size.narrow": "Narrow it: fewer years, units below the institution, or more works at least.",
   "job.size.snapshot": "From a national size up, read the OpenAlex snapshot instead:",
   "tracker.institution_works": "{works, number} of {total, number} works · {pages, number} requests · {rate, number} works/s",
+  "tracker.harvest_people": "{n, number} of {total, number} people · {texts, number} texts received · {requests, number} requests",
   "gallery.activity.paused": "A job paused",
   "gallery.activity.large": "A large collection running",
   "stage.corpus.identify": "find identities",

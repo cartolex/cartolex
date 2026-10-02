@@ -207,16 +207,27 @@ def _services(args: argparse.Namespace) -> Iterator[Any]:
 
 
 class _Printer:
-    """Progress lines: when the message changes, at most every two seconds."""
+    """Progress lines: when the message changes, at most every two seconds, with the time
+    left when the job knows it."""
 
     def __init__(self) -> None:
         self.last = ("", 0.0)
 
-    def __call__(self, fraction: float, message: str) -> None:
+    def __call__(self, fraction: float, message: str, **detail: Any) -> None:
         now = time.monotonic()
         if message != self.last[0] and (now - self.last[1] >= 2.0 or fraction >= 1.0):
-            print(f"[{fraction:4.0%}] {message}", flush=True)
+            eta = detail.get("eta_s")
+            left = f" (about {_duration(eta)} left)" if eta else ""
+            print(f"[{fraction:4.0%}] {message}{left}", flush=True)
             self.last = (message, now)
+
+
+def _duration(seconds: float) -> str:
+    if seconds < 90:
+        return f"{seconds:.0f} s"
+    if seconds < 90 * 60:
+        return f"{seconds / 60:.0f} min"
+    return f"{seconds / 3600:.1f} h"
 
 
 def _run(args: argparse.Namespace, action: str) -> int:

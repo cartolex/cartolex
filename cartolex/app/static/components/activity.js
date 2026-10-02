@@ -108,6 +108,7 @@ function JobItem({ job, jobs }) {
         ${t('tracker.phase', { phase: p.phase, phases: p.phases })}${' · '}
         ${stageName({ id: p.stage, name: p.name })}${' · '}${formatPercent(p.stage_fraction || 0)}
         ${p.code === 'improve_texts' ? html`${' · '}${t('tracker.improve', p.params)}` : null}
+        ${p.code === 'harvest_people' ? html`${' · '}${t('tracker.harvest_people', p.params)}` : null}
         ${pauses ? html`${' · '}${t('tracker.institution_works', p.params)}` : null}
         ${p.eta_s ? html`${' · '}${t('tracker.eta', { eta: formatDuration(p.eta_s) })}` : null}
       </p>` : null}

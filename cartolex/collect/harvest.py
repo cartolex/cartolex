@@ -35,6 +35,7 @@ last error.
 
 from __future__ import annotations
 
+import time
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field, replace
@@ -254,12 +255,13 @@ def harvest(
     )
     report.run_id = oa_out.run_id
     in_a_row = 0
+    started = time.monotonic()
     last_error: CollectError | None = None
     try:
         for k, (person, records) in enumerate(targets):
             client.check_cancel()
             pid = person["person_id"]
-            client.progress(k / max(1, len(targets)), f"person {k + 1} of {len(targets)}")
+            _report_progress(client, k, len(targets), report, started)
             if batched is not None and k in starts:
                 batched.load(starts[k], years)
             try:
@@ -309,6 +311,27 @@ def harvest(
     if report.stopped and last_error is not None:
         raise last_error
     return report
+
+
+def _report_progress(
+    client: HttpClient, done: int, total: int, report: HarvestReport, started: float
+) -> None:
+    """How far the harvest is: the people done, the texts received, the requests sent, and
+    the time left at the pace so far."""
+    elapsed = time.monotonic() - started
+    texts = sum(report.works.values())
+    client.progress(
+        done / max(1, total),
+        f"person {done + 1} of {total}, {texts} texts received",
+        code="harvest_people",
+        params={
+            "n": done,
+            "total": total,
+            "texts": texts,
+            "requests": sum(client.egress.requests.values()),
+        },
+        eta_s=round(elapsed / done * (total - done)) if done and elapsed >= 5 else None,
+    )
 
 
 def _prefetch(

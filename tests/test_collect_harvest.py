@@ -197,3 +197,13 @@ def test_works_whose_authors_a_list_cuts_are_read_whole(confirmed, services) -> 
     finally:
         openalex.authors_shown = AUTHORS_SHOWN
 
+
+def test_the_harvest_says_how_many_people_are_done_and_the_time_left(confirmed, services) -> None:
+    project, _bib, _ids = confirmed
+    seen: list[dict] = []
+    http = client(services, progress=lambda fraction, message, **detail: seen.append(detail))
+    report = harvest(project, http)
+    lines = [d for d in seen if d.get("code") == "harvest_people"]
+    assert [d["params"]["n"] for d in lines] == list(range(report.people))
+    assert lines[-1]["params"]["total"] == report.people
+    assert lines[-1]["params"]["requests"] > 0

@@ -2579,6 +2579,7 @@
   "job.size.narrow": "Resserrez : moins d’années, des unités sous l’institution, ou davantage de travaux au minimum.",
   "job.size.snapshot": "À partir d’une taille nationale, lisez plutôt l’instantané d’OpenAlex :",
   "tracker.institution_works": "{works, number} travaux sur {total, number} · {pages, number} requêtes · {rate, number} travaux/s",
+  "tracker.harvest_people": "{n, number} personnes sur {total, number} · {texts, number} textes reçus · {requests, number} requêtes",
   "gallery.activity.paused": "Une tâche en pause",
   "gallery.activity.large": "Une grande collecte en cours",
   "stage.corpus.identify": "trouver les identités",
