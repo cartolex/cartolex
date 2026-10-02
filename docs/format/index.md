@@ -68,10 +68,13 @@ schemas
 An application that opens a project for writing creates `.lock` with its process
 id, host name, application name and start time, and removes it when it closes.
 The file is created atomically; if it already exists, opening fails and names
-the holder. A lock whose process no longer runs on the same host is reported as
-**stale**, with the command that removes it; it is never removed silently, and
-a lock held on another host is never judged stale. Reading a project needs no
-lock.
+the holder. A lock whose process no longer runs on the same host (the
+application was force-quit, its terminal closed, the computer stopped) is
+**taken over**: the opener replaces it while holding `.lock.takeover`, a file
+created atomically beside it, so two openers never both take it. A process id
+now used by another process (the opener itself, or a process started after the
+lock was taken) counts as gone. A lock held on another host is never taken over:
+its process cannot be checked from there. Reading a project needs no lock.
 
 ## Writing a file: atomic writes
 

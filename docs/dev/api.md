@@ -88,8 +88,8 @@ route answers 409 `no_project` with the next action `open-project`.
 Every error has the same shape (V2-016): a stable `code`, its `params`, a
 `message` in plain English, and `next`, what to do: a `label` and an `action`
 key the interface maps to a route or a command (`reload`, `retry`, `confirm`,
-`fix-input`, `open-project`, `sign-in`, `wait`, `build`, `unlock`,
-`settings`, `report`, `none`). The server does not translate: the interface
+`fix-input`, `open-project`, `sign-in`, `wait`, `build`, `settings`,
+`report`, `none`). The server does not translate: the interface
 shows the text of the code from its catalogues (English, French, Portuguese),
 filled with the params, and falls back on `message`. Every code is declared
 once, with its English text, in `cartolex.app.errors.ERRORS` (listed below);
@@ -396,7 +396,7 @@ catalogues give each code its text in every interface language.
 | `not_a_project` | 404 | {path} holds no cartolex project | `path` | `open-project` |
 | `unsupported_format` | 409 | the project is in format {found}; this cartolex reads {expected} | `found`, `expected` | `open-project` |
 | `locked` | 409 | the project is open in {app} (process {pid} on {host}, since {since}) | `app`, `pid`, `host`, `since` | `open-project` |
-| `stale_lock` | 409 | the project's lock is stale: {app} (process {pid}, since {since}) no longer runs on this computer; remove it if no other window has the project open | `app`, `pid`, `since` | `unlock` |
+| `locked_here` | 409 | the project is open in another {app} on this computer (process {pid}, since {since}); close that one (its browser tab does not stop it: close the terminal it runs in), then try again | `app`, `pid`, `since` | `retry` |
 | `project_exists` | 409 | the folder already holds a project, or is not empty: {path} | `path` | `fix-input` |
 | `project_folder_missing` | 422 | choose the folder of the new project | — | `fix-input` |
 | `project_folder_relative` | 422 | the project's folder is a full path: {path} | `path` | `fix-input` |

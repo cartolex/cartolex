@@ -181,7 +181,7 @@ and merge; else `onRetry`), `settings`, `open-project` and `build` (their
 pages; `build` opens the pre-flight sheet, `/build`), `wait` (the Activity drawer), `report` (unfolds the details and copies
 the diagnostic), and an address (`open:<path>` or a path, for extensions).
 `confirm` and `fix-input` get a button only when the page passes `onAction`;
-`unlock`, `sign-in` and `none` are told in words, without a button. In a
+`sign-in` and `none` are told in words, without a button. In a
 language other than English the catalogue's words for the action
 (`error.action.<action>`) replace the server's label.
 

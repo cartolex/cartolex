@@ -35,7 +35,7 @@ from cartolex.build import (
     status,
 )
 from cartolex.build.machine import resident_memory_mb
-from cartolex.project import Project, StaleLock, remove_stale_lock
+from cartolex.project import Project
 from cartolex.project.models import AIIdentity, Measures, RunRecord
 from cartolex.project.tables import write_decision_csv
 
@@ -410,10 +410,8 @@ def _kill(root: Path, log: Path, step: str) -> None:
 
 
 def _reopen(root: Path) -> Project:
-    """Open after a kill: the lock is reported stale, removed on purpose, then repairs run."""
-    with pytest.raises(StaleLock):
-        Project.open(root, write=True)
-    remove_stale_lock(Project.open(root).layout)
+    """Open after a kill: the lock left behind is taken over, then repairs run."""
+    assert (root / ".lock").exists()
     return Project.open(root, write=True)
 
 

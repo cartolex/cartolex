@@ -15,7 +15,7 @@ from .files import (
     write_decision,
 )
 from .layout import SOURCE_TABLES, ProjectLayout
-from .lock import LockHeld, ProjectLock, StaleLock, remove_stale_lock
+from .lock import LockHeld, ProjectLock, remove_stale_lock
 from .models import LANGUAGES, STAGE_IDS
 from .project import FORMAT, IdentityFrozen, NotAProject, Project, UnsupportedFormat
 
@@ -30,7 +30,6 @@ __all__ = [
     "Project",
     "ProjectLayout",
     "ProjectLock",
-    "StaleLock",
     "StaleWrite",
     "UnsupportedFormat",
     "atomic_write_bytes",

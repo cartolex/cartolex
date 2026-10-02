@@ -45,7 +45,7 @@ __all__ = [
 #: The exports written as files (by a job): their file name's stem.
 EXPORT_KINDS = {"map_bundle": "map-bundle", "project": "project"}
 #: What the project's zip leaves out (folder names at any depth, then paths from the root).
-_SKIP_NAMES = {".lock", ".staging", ".journal.json", "__pycache__"}
+_SKIP_NAMES = {".lock", ".lock.takeover", ".staging", ".journal.json", "__pycache__"}
 _SKIP_PATHS = ("cache", "outputs/exports")
 
 

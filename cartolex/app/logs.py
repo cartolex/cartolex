@@ -59,10 +59,10 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging(stream: IO[str] | None = None, level: int = logging.INFO) -> logging.Handler:
-    """Send the app's logs (``cartolex.app``) and the server's to *stream* as JSON lines."""
+    """Send the logs of the app, of its projects and of the server to *stream* as JSON lines."""
     handler = logging.StreamHandler(stream or sys.stderr)
     handler.setFormatter(JsonFormatter())
-    for name in ("cartolex.app", "uvicorn.error"):
+    for name in ("cartolex.app", "cartolex.project", "uvicorn.error"):
         logger = logging.getLogger(name)
         logger.handlers = [handler]
         logger.setLevel(level)

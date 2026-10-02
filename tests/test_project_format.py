@@ -17,7 +17,6 @@ from cartolex.project import (
     NotAProject,
     Project,
     ProjectLayout,
-    StaleLock,
     StaleWrite,
     UnsupportedFormat,
     fingerprint,
@@ -97,17 +96,46 @@ def test_open_refuses_what_is_not_a_project_or_a_newer_major(tmp_path):
         Project.open(tmp_path)
 
 
-def test_a_stale_lock_is_reported_never_stolen(tmp_path):
+def _left_by(layout, pid, since="2026-01-01T00:00:00Z"):
+    lock = {"pid": pid, "host": socket.gethostname(), "app": "cartolex", "since": since}
+    layout.lock.write_text(json.dumps(lock))
+
+
+def test_a_lock_left_by_a_process_gone_is_taken_over(tmp_path):
     project = _new(tmp_path)
     layout = project.layout
     project.close()
-    dead = {"pid": 2**22 + 12345, "host": socket.gethostname(), "app": "cartolex", "since": "x"}
-    layout.lock.write_text(json.dumps(dead))
-    with pytest.raises(StaleLock, match="cartolex project unlock"):
-        Project.open(layout.root, write=True)
-    assert layout.lock.exists()
-    assert remove_stale_lock(layout).pid == dead["pid"]
+    _left_by(layout, 2**22 + 12345)
+    project = Project.open(layout.root, write=True)
+    assert project._lock.replaced.pid == 2**22 + 12345
+    assert project.lock_info.pid == os.getpid()
+    assert not layout.lock.with_name(".lock.takeover").exists()
+    project.close()
+    assert not layout.lock.exists()
+
+
+def test_a_lock_naming_this_process_is_only_held_while_it_holds_it(tmp_path):
+    """A former process that had this process's id (a relaunch, a container) is gone."""
+    project = _new(tmp_path)
+    with pytest.raises(LockHeld):
+        Project.open(project.layout.root, write=True)
+    project.close()
+    _left_by(project.layout, os.getpid())
+    Project.open(project.layout.root, write=True).close()
+
+
+@pytest.mark.skipif(not Path("/proc/self/stat").exists(), reason="process start times from /proc")
+def test_a_reused_process_id_is_gone_and_a_live_holder_here_is_named(tmp_path):
+    project = _new(tmp_path)
+    layout = project.layout
+    project.close()
+    _left_by(layout, os.getppid(), since="2020-01-01T00:00:00Z")  # started after it
     Project.open(layout.root, write=True).close()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _left_by(layout, os.getppid(), since=now)
+    with pytest.raises(LockHeld, match="another cartolex on this computer") as info:
+        Project.open(layout.root, write=True)
+    assert info.value.here
 
 
 def test_a_lock_from_another_host_is_never_judged_stale(tmp_path):
@@ -118,7 +146,7 @@ def test_a_lock_from_another_host_is_never_judged_stale(tmp_path):
     layout.lock.write_text(json.dumps(other))
     with pytest.raises(LockHeld) as info:
         Project.open(layout.root, write=True)
-    assert not isinstance(info.value, StaleLock)
+    assert not info.value.here
     with pytest.raises(LockHeld):
         remove_stale_lock(layout)
 

@@ -22,8 +22,8 @@ export const runtime = {
 /**
  * The next actions of the API's errors (`error.next.action`) the interface
  * runs by itself, and where each goes. `confirm` and `fix-input` belong to the
- * page that made the request (an ErrorCard's `onAction`); `unlock`, `sign-in`
- * and `none` are said in words, with no button. Extensions may also name an
+ * page that made the request (an ErrorCard's `onAction`); `sign-in` and
+ * `none` are said in words, with no button. Extensions may also name an
  * address: `open:<path>` or a path.
  */
 export const APP_ACTIONS = new Set(['retry', 'reload', 'settings', 'open-project', 'build', 'wait']);

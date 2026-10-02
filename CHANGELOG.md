@@ -674,3 +674,13 @@ nothing in the engine names a particular deployment, source or procedure.
   A failed job's log line, card and copied diagnostic carry its cause (code,
   params, exception, message, step), and a collection writes its egress lines
   whatever its end. `JobInfo.error` is now that record, not a sentence.
+- **A project reopens after a force-quit.** A lock left by a process that no
+  longer runs on this computer (the app force-quit, its terminal closed, a
+  crash) is taken over when the project is opened, instead of refusing until
+  `cartolex project unlock` removed it; the repairs of a killed build run as
+  before. Two openers never both take it (`.lock.takeover`), a process id
+  reused by another process counts as gone, and a lock held on another
+  computer is still never taken. The error `stale_lock` and the next action
+  `unlock` are gone; a project open in another cartolex on the same computer
+  is `locked_here`, which says to close that one (a closed browser tab does
+  not stop it) and offers Try again.

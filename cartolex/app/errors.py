@@ -59,7 +59,6 @@ NEXT_ACTIONS: dict[str, str] = {
     "sign-in": "open the app again from the cartolex command (a new launch link)",
     "wait": "wait for the running job, or cancel it",
     "build": "build the stages the message names",
-    "unlock": "remove a stale lock (cartolex project unlock FOLDER)",
     "settings": "change the setting the message names",
     "report": "copy a diagnostic and report the problem",
     "none": "nothing to do",
@@ -74,7 +73,6 @@ _DEFAULT_LABELS = {
     "sign-in": "Open the app again",
     "wait": "See the running job",
     "build": "Build",
-    "unlock": "Remove the stale lock",
     "settings": "Open the settings",
     "report": "Copy a diagnostic",
     "none": "Close",
@@ -153,11 +151,12 @@ ERRORS: dict[str, ErrorKind] = {
         "open-project",
         "Close it there, or open another project",
     ),
-    "stale_lock": ErrorKind(
+    "locked_here": ErrorKind(
         409,
-        "the project's lock is stale: {app} (process {pid}, since {since}) no longer runs on "
-        "this computer; remove it if no other window has the project open",
-        "unlock",
+        "the project is open in another {app} on this computer (process {pid}, since {since}); "
+        "close that one (its browser tab does not stop it: close the terminal it runs in), "
+        "then try again",
+        "retry",
     ),
     "project_exists": ErrorKind(
         409, "the folder already holds a project, or is not empty: {path}", "fix-input"
@@ -510,7 +509,7 @@ def _translate(exc: Exception) -> ApiError | None:
     """The API error for an exception of cartolex's packages, or ``None``."""
     from cartolex.build import BuildBusy
     from cartolex.build.params import ParamsError
-    from cartolex.project import LockHeld, NotAProject, StaleLock, StaleWrite, UnsupportedFormat
+    from cartolex.project import LockHeld, NotAProject, StaleWrite, UnsupportedFormat
     from cartolex.project.project import FORMAT, IdentityFrozen
     from cartolex.project.tables import TableError
     from cartolex.project.themes import ThemeEditError
@@ -524,14 +523,9 @@ def _translate(exc: Exception) -> ApiError | None:
             headers={"ETag": etag_of(exc.found)},
             extra={"current": version_of(exc.found)},
         )
-    if isinstance(exc, StaleLock):
+    if isinstance(exc, LockHeld) and exc.here and exc.info is not None:
         info = exc.info
-        return ApiError.of(
-            "stale_lock",
-            app=info.app if info else "",
-            pid=info.pid if info else "",
-            since=info.since if info else "",
-        )
+        return ApiError.of("locked_here", app=info.app, pid=info.pid, since=info.since)
     if isinstance(exc, LockHeld):
         info = exc.info
         return ApiError.of(

@@ -32,7 +32,7 @@ from cartolex.cli import main as cli
 from cartolex.context import EnginePaths
 from cartolex.demo import generate
 from cartolex.demo.project import write_project
-from cartolex.project import Project, StaleLock, remove_stale_lock
+from cartolex.project import Project
 from cartolex.project.models import AIIdentity, StopwordsFile
 from cartolex.project.tables import decision_csv_bytes, read_decision_csv
 
@@ -452,9 +452,7 @@ def test_a_killed_build_of_real_stages_loses_nothing(built, tmp_path):
         timeout=300,
     )
     assert proc.returncode == 77, proc.stderr[-2000:]
-    with pytest.raises(StaleLock):
-        Project.open(root, write=True)
-    remove_stale_lock(Project.open(root).layout)
+    assert (root / ".lock").exists()  # left by the killed process, taken over
     project = Project.open(root, write=True)
     kept = json.loads(project.layout.run_json("themes.space").read_text())
     assert kept["run_id"] == old_run  # the previous results are still in place
