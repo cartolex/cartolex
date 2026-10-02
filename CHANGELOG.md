@@ -699,3 +699,22 @@ nothing in the engine names a particular deployment, source or procedure.
   computer waking from sleep gives the pages time to call again.
   `--idle-stop MINUTES` changes the delay; `0` or `--no-browser` keeps it
   running.
+- **The saved OpenAlex key is used.** A key saved in Settings › Data sources
+  now serves the app's collection (read each time a job starts, so saving it
+  needs no restart) and `cartolex collect` (after `--openalex-key` and
+  `$OPENALEX_API_KEY`, from the app's folder, `--data-dir`); before, only a key
+  given in the environment at launch was sent, and collections ran within the
+  keyless budget.
+- **The harvest asks for people together.** From the API, the works of up to
+  50 records of consecutive people are asked for in one list and shared out
+  by the records that sign them: about one request per 100 works instead of at
+  least one per person, for the same tables (`harvest(…, batch=1)` keeps one
+  list per person). A batch that fails is asked for person by person.
+- **Large collaborations read whole.** A list answer names a work's first
+  100 authors only; a work showing that many is read again on its own (free of
+  charge), so that the people further down its list are found on it.
+- **The harvest's progress.** It says how many people are done, the texts
+  received, the requests sent and the time left (`code: harvest_people`).
+- **Views computed once.** Requests asking at once for a view of the corpus
+  screen wait for one computation instead of each making its own, and a
+  reading's checkpoints no longer make the views computed again.
