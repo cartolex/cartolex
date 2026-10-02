@@ -718,3 +718,18 @@ nothing in the engine names a particular deployment, source or procedure.
 - **Views computed once.** Requests asking at once for a view of the corpus
   screen wait for one computation instead of each making its own, and a
   reading's checkpoints no longer make the views computed again.
+- **Raw runs compressed.** A run is now gzip-compressed JSON lines
+  (`<run id>.jsonl.gz`, `docs/format/sources.md`); runs written before, plain
+  `.jsonl`, are read the same way. A national harvest's runs take about a
+  tenth of the space.
+- **The fields of a work.** The harvest and the collaborators' rounds ask for
+  the fields cartolex reads and a few small ones kept for later
+  (`WORK_FIELDS`: other identifiers, retraction and paratext, bibliographic
+  details, where an open copy is, the references, the index's own topic, kept
+  to compare with and never read to build anything); a record holds half of a
+  whole one, for the same price.
+- **Snapshots at a national size.** What a snapshot pass finds waits on disk,
+  compressed and indexed (`RecordStore`, the project's `cache/snapshot/`):
+  memory holds about a quarter of a kilobyte per work found instead of 35 KB,
+  a person's question is a lookup instead of a scan of every work, and an
+  institution's works come in pages of 100 that a cursor resumes.
