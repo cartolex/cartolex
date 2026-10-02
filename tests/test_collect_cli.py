@@ -66,6 +66,27 @@ def test_the_whole_flow_from_the_command_line(tmp_path, capsys) -> None:
         assert events[0]["event"] == "start" and events[-1]["event"] == "end"
 
 
+def test_the_key_saved_in_the_app_serves_the_command_line(tmp_path, capsys, monkeypatch) -> None:
+    from cartolex.app.machine import MachineKeys
+    from cartolex.app.server import default_data_dir
+
+    monkeypatch.delenv("OPENALEX_API_KEY", raising=False)
+    folder, people = tmp_path / "p", tmp_path / "people.csv"
+    assert demo_main(["services", "--size", "XS", "--people-list", str(people), "--list-only"]) == 0
+    main(["init", str(folder), "--name", "Demo", "--field", "Coasts"])
+    assert main(["collect", "people", str(folder), str(people)]) == 0
+    resolve = ["collect", "resolve", str(folder), "--services", "demo", "--dry-run"]
+    capsys.readouterr()
+    assert main(resolve) == 0
+    assert "your API key" not in capsys.readouterr().out
+    MachineKeys(default_data_dir()).save("openalex", "oa-test-12345678")
+    assert main(resolve) == 0
+    assert "your API key" in capsys.readouterr().out
+    # Another folder of the app: its saved key, not the default folder's.
+    assert main([*resolve, "--data-dir", str(tmp_path / "elsewhere")]) == 0
+    assert "your API key" not in capsys.readouterr().out
+
+
 def test_usage_errors_exit_with_one(tmp_path, capsys) -> None:
     folder = tmp_path / "p"
     main(["init", str(folder), "--name", "Demo", "--field", "Coasts"])

@@ -5,9 +5,10 @@ A key is personal and belongs to a machine: a project folder is shared, synced
 and backed up, so no key is ever written there. The app keeps them in its own
 folder (``<data_dir>/keys.json``, readable by its owner only), or in memory
 when it has no folder. An environment variable given at launch
-(``MISTRAL_API_KEY``, ``OPENALEX_API_KEY``) wins over a key saved here. A
-hosted service has its keys set by whoever runs it: none are saved from the
-interface.
+(``MISTRAL_API_KEY``, ``OPENALEX_API_KEY``) wins over a key saved here. The
+AI clean-up and the collection read the saved key each time they start, so a
+key saved while the app runs serves the next one. A hosted service has its
+keys set by whoever runs it: none are saved from the interface.
 """
 
 from __future__ import annotations

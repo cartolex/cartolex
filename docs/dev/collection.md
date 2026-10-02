@@ -307,8 +307,13 @@ and lists what is sent and what never is; `record_job` writes the job's record
 
 The command line (`cartolex.cli_collect`) reads the contact address and the
 OpenAlex key from `--contact` / `$CARTOLEX_CONTACT` and `--openalex-key` /
-`$OPENALEX_API_KEY`, and passes them in as settings; `--services demo` starts
-the demo services of `--world SIZE:SEED` for the command.
+`$OPENALEX_API_KEY`, else the key saved in the app's settings
+(`cartolex.app.machine.MachineKeys` in `--data-dir` or the default folder), and
+passes them in as settings; `--services demo` starts the demo services of
+`--world SIZE:SEED` for the command. In the app, `ServiceCollection.settings`
+adds the key saved on this computer each time it is read, for a service the
+launch gave none (`use_saved_keys`, bound by the app's runtime unless it is
+hosted).
 
 ## Sources of OpenAlex records: the API or the snapshot
 

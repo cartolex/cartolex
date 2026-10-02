@@ -27,7 +27,8 @@
 ``--dry-run`` (print the estimate and what would leave the computer, send
 nothing), ``--refresh`` / ``--cache-only``, ``--contact EMAIL`` (default:
 ``$CARTOLEX_CONTACT``), ``--openalex-key KEY`` (default:
-``$OPENALEX_API_KEY``), and ``--services demo`` to run against the demo
+``$OPENALEX_API_KEY``, else the key saved in the app's settings, in its folder
+``--data-dir`` or the default one), and ``--services demo`` to run against the demo
 services of a demo world (``--world SIZE:SEED``, default ``S:0``) or
 ``--services URL`` for demo services already running. The environment is
 read here, at the edge, and passed in as settings.
@@ -172,13 +173,22 @@ def _confirm(args: argparse.Namespace) -> int:
 # ── verbs that reach a service ───────────────────────────────────────────────
 
 
+def _saved_key(args: argparse.Namespace, service: str) -> str | None:
+    """The key saved for *service* in the app's settings, in its folder (``--data-dir``, else
+    the default one), or ``None``."""
+    from cartolex.app.machine import MachineKeys
+    from cartolex.app.server import default_data_dir
+
+    return MachineKeys(args.data_dir or default_data_dir()).get(service)
+
+
 @contextlib.contextmanager
 def _services(args: argparse.Namespace) -> Iterator[Any]:
     """The settings of the job: real services, demo services started here, or running ones."""
     from cartolex.collect.services import CollectSettings, local_settings
 
     contact = args.contact or os.environ.get("CARTOLEX_CONTACT") or None
-    key = args.openalex_key or os.environ.get("OPENALEX_API_KEY") or None
+    key = args.openalex_key or os.environ.get("OPENALEX_API_KEY") or _saved_key(args, "openalex")
     keys = {"openalex": key} if key else {}
     if args.services in (None, "real"):
         yield CollectSettings(contact=contact, api_keys=keys, user_agent="cartolex")
@@ -625,7 +635,13 @@ def _service_options(p: argparse.ArgumentParser) -> None:
         "--cache-only", action="store_true", help="use cached answers only, never the network"
     )
     p.add_argument("--contact", help="your e-mail address, sent to services that ask for one")
-    p.add_argument("--openalex-key", help="an OpenAlex API key (default: $OPENALEX_API_KEY)")
+    p.add_argument(
+        "--openalex-key",
+        help="an OpenAlex API key (default: $OPENALEX_API_KEY, else the key saved in the app)",
+    )
+    p.add_argument(
+        "--data-dir", type=Path, help="the app's own folder, where its settings keep the keys"
+    )
     p.add_argument(
         "--services",
         help="'demo' (the demo services of --world), or the URL of running demo services",

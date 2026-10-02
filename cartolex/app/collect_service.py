@@ -32,6 +32,7 @@ from __future__ import annotations
 import math
 import threading
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
@@ -45,9 +46,11 @@ if TYPE_CHECKING:
 
     from .jobs import JobControl
 
-__all__ = ["ACTIONS", "ServiceCollection", "clear_match", "raw_stamp"]
+__all__ = ["ACTIONS", "KEYED_SERVICES", "ServiceCollection", "clear_match", "raw_stamp"]
 
 ACTIONS = ("identify", "harvest", "institutions", "collaborators", "retry")
+#: The services collection can send a key to.
+KEYED_SERVICES = ("openalex",)
 #: What the plan says each service is sent, as codes the interface words.
 SEND_CODES = {
     "names": "sends_names",
@@ -110,7 +113,9 @@ class ServiceCollection(BaseCollection):
 
     *settings* are the jobs' (contact address, keys, endpoints); *local* says the
     services run on this computer (the demo services), which the plan says;
-    *scielo* is the SciELO collection searched when an action does not name one.
+    *scielo* is the SciELO collection searched when an action does not name one;
+    *saved_key* gives the key saved on this computer for a service (see
+    :meth:`use_saved_keys`).
     """
 
     available = True
@@ -124,14 +129,41 @@ class ServiceCollection(BaseCollection):
         local: bool = False,
         label: str | None = None,
         scielo: str | None = None,
+        saved_key: Callable[[str], str | None] | None = None,
     ) -> None:
-        self.settings = settings
+        self._settings = settings
+        self._saved_key = saved_key
         self.local = local
         if label:
             self.name = label
         self.scielo = scielo
         self._lock = threading.Lock()
         self._queue: dict[str, Any] = {}
+
+    def use_saved_keys(self, saved_key: Callable[[str], str | None]) -> None:
+        """Take the keys saved on this computer (the app's settings) through *saved_key*.
+
+        They are read each time the settings are, so a key saved while the app runs
+        serves the next plan and the next job; a key given at launch wins.
+        """
+        self._saved_key = saved_key
+
+    @property
+    def settings(self) -> CollectSettings:
+        """The jobs' settings, with the key saved for each keyed service the launch left
+        without one."""
+        if self._saved_key is None:
+            return self._settings
+        missing = {}
+        for name in KEYED_SERVICES:
+            if self._settings.api_key(name):
+                continue
+            key = self._saved_key(name)
+            if key:
+                missing[name] = key
+        if not missing:
+            return self._settings
+        return replace(self._settings, api_keys={**self._settings.api_keys, **missing})
 
     # ── describing ──
     def describe(self) -> list[dict[str, Any]]:

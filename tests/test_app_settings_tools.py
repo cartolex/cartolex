@@ -57,6 +57,27 @@ def test_a_key_is_kept_on_this_computer_never_in_the_project(client):
     assert client.get("/api/app/manifest").json()["capabilities"]["ai_api"] is False
 
 
+def test_an_openalex_key_saved_serves_the_next_collection(tmp_path, monkeypatch):
+    from cartolex.app.collect_service import ServiceCollection
+    from cartolex.collect.services import CollectSettings
+
+    monkeypatch.delenv("OPENALEX_API_KEY", raising=False)
+    collection = ServiceCollection(CollectSettings())
+    app = create_app(
+        AppSettings(launch_token=TOKEN, data_dir=tmp_path / "data", collection=collection)
+    )
+    try:
+        assert collection.settings.api_key("openalex") is None
+        Client(app).put("/api/machine/keys", json={"service": "openalex", "key": "oa-test-1234"})
+        assert collection.settings.api_key("openalex") == "oa-test-1234"
+    finally:
+        app.state.cartolex.shutdown()
+    launched = ServiceCollection(
+        CollectSettings(api_keys={"openalex": "oa-launch"}), saved_key=lambda _: "oa-saved"
+    )
+    assert launched.settings.api_key("openalex") == "oa-launch"
+
+
 def test_stop_words_and_a_prompt_of_the_project(client):
     got = client.get("/api/settings/stopwords")
     both = client.put(

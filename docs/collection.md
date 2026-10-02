@@ -176,6 +176,14 @@ collection fails (a service that keeps failing, a page cut short) is reported
 with the cause and the others go on; after three failures in a row the
 harvest stops and keeps what it collected (see the coverage report below).
 
+**The OpenAlex key.** OpenAlex counts list requests against a daily budget:
+$0.10 a day without a key (about 100,000 works), $1 with a free key (about a
+million). Save the key once in the app (Settings › Data sources), or give it
+with `--openalex-key` or `$OPENALEX_API_KEY`, which win over the saved one. The
+command line uses the key saved in the app when it is given none (`--data-dir`
+names the app's folder when it is not the default one); a key saved while the
+app runs serves its next collection.
+
 ## From institutions
 
 A project can start from one or several institutions instead of a list:

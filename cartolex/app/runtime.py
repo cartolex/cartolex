@@ -126,6 +126,9 @@ class Runtime:
 
         #: The keys saved on this computer (none on a hosted service).
         self.keys = MachineKeys(settings.data_dir if not settings.hosted else None)
+        use_saved_keys = getattr(self.collection, "use_saved_keys", None)
+        if use_saved_keys is not None and not settings.hosted:
+            use_saved_keys(self.keys.get)  # a key saved in the settings serves the collection
         #: The rejection cache of this computer (none on a hosted service, or without a folder).
         self.rejects_folder = (
             Path(settings.data_dir) / "rejects"
