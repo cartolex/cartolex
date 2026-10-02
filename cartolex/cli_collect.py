@@ -360,13 +360,17 @@ def _source(args: argparse.Namespace, client: Any) -> Any:
             return True
         return False
 
+    from cartolex.project.layout import ProjectLayout
+
+    # What the passes find waits on disk in the project's cache, beside the project.
     return SnapshotSource(
         Snapshot(
             folder,
             progress=client.progress,
             cancel=cancelled,
             jobs=getattr(args, "jobs", None) or 1,
-        )
+        ),
+        spill=ProjectLayout(Path(args.folder)).cache / "snapshot",
     )
 
 

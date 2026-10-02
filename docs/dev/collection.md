@@ -332,8 +332,21 @@ works of many records, asked 50 records at a time). `OpenAlexApi(client)`
 sends the requests; `SnapshotSource(Snapshot(folder))`
 (`cartolex.collect.snapshot`) answers them from a downloaded snapshot. Its
 `prefetch(author_ids, dois)` reads everything a harvest will ask in one pass
-over the authors and one over the works; the institutions (a small entity)
-are read once and kept; other questions cost one pass each. A pass streams
+over the authors and one over the works; the institutions are read once;
+other questions cost one pass each. `Snapshot.scan_into(query, store)` puts
+what a pass finds in a `RecordStore` instead of memory: each record compressed
+on its own and appended to a temporary file (the source's `spill` folder, the
+project's `cache/snapshot/` from the command line), its place indexed by id, a
+later copy replacing the earlier one. The source keeps indexes only: the works
+by the authors and DOIs asked for (a person's question is a lookup, not a scan),
+the institutions' names, ROR ids and lineages. A `Query` may keep only some
+fields (`select`): the works with `WORK_FIELDS`, as the API is asked for them,
+those of an institution's reading with the fields it folds. That reading comes
+in pages of 100 from its own store, the cursor `snapshot:<works before>` resuming
+after a new pass. In worker processes, each part's matches come back in date
+order and are let go of once stored: memory holds the parts read ahead, never all
+of them. `works_of_authors` (the collaborators' rounds) still keeps its works in
+memory. A pass streams
 each part (`gzip`, line by line), tests the raw bytes of each line against
 what is wanted (author, institution or work ids, DOIs, RORs) and parses only
 the lines that may match; the deletion log is streamed the same way, for the

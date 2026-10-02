@@ -33,20 +33,25 @@ import gzip
 import io
 import json
 import re
+import tempfile
+import threading
 import time
-from collections.abc import Callable, Iterable, Iterator, Sequence
+import zlib
+from collections import defaultdict
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from .http import Cancelled, Fetched, Page
-from .openalex import Years, bare_doi, short_id
+from .openalex import INSTITUTION_WORK_FIELDS, PER_PAGE, WORK_FIELDS, Years, bare_doi, short_id
 
 __all__ = [
     "ENTITIES",
     "Partition",
     "Query",
+    "RecordStore",
     "ScanReport",
     "Snapshot",
     "SnapshotSource",
@@ -60,6 +65,10 @@ _WORK = re.compile(rb"openalex\.org/(W\d+)")
 _DOI = re.compile(rb'"doi"\s*:\s*"https?://(?:dx\.)?doi\.org/([^"]+)"', re.IGNORECASE)
 _ROR = re.compile(rb"ror\.org/(0[0-9a-z]{6}\d{2})")
 _DATE = re.compile(r"updated_date=(\d{4}-\d{2}-\d{2})")
+#: The fields of a work kept from a pass: what the API is asked for (a harvest's works), and
+#: what an institution's reading folds.
+_WORK_SELECT = tuple(WORK_FIELDS.split(","))
+_INSTITUTION_SELECT = tuple(INSTITUTION_WORK_FIELDS.split(","))
 
 
 @dataclass(frozen=True)
@@ -171,64 +180,108 @@ class Snapshot:
         """Every record of the query's entity that it accepts, by id, the newest partition's
         copy; deleted works are left out. With *jobs* above 1, the parts are read in that
         many worker processes."""
-        parts = self.partitions(query.entity)
-        total = sum(p.size for p in parts) or 1
         started = time.perf_counter()
         found: dict[str, dict[str, Any]] = {}
+        for records in self._part_records(query, what):
+            found.update(records)  # parts in date order: the newest copy wins
+        if query.entity == "works" and found:
+            gone = self.deleted(set(found))
+            self.report.deleted += len(gone)
+            for wid in gone:
+                del found[wid]
+        self.report.kept += len(found)
+        self.report.seconds += time.perf_counter() - started
+        return found
+
+    def scan_into(
+        self,
+        query: Query,
+        store: RecordStore,
+        *,
+        what: str = "",
+        seen: Callable[[str, dict[str, Any]], None] | None = None,
+    ) -> int:
+        """The records :meth:`scan` gives, put in *store* as each part is read instead of
+        kept in memory; *seen* receives each one as it is put (to index it). Returns how many
+        the store holds for this pass, the deleted works dropped."""
+        started = time.perf_counter()
+        kept: set[str] = set()
+        for records in self._part_records(query, what):
+            for rid, record in records.items():
+                store.put(rid, record)
+                if seen is not None:
+                    seen(rid, record)
+                kept.add(rid)
+        if query.entity == "works" and kept:
+            gone = self.deleted(kept)
+            self.report.deleted += len(gone)
+            for wid in gone:
+                store.drop(wid)
+            kept -= gone
+        self.report.kept += len(kept)
+        self.report.seconds += time.perf_counter() - started
+        return len(kept)
+
+    def _part_records(self, query: Query, what: str) -> Iterator[dict[str, dict[str, Any]]]:
+        """Each part's records, in date order, as soon as that part is read."""
+        parts = self.partitions(query.entity)
+        total = sum(p.size for p in parts) or 1
         report = self.report
         report.passes += 1
         message = f"snapshot: {query.entity} {what}".strip()
         if self.jobs > 1 and len(parts) > 1:
-            results = self._scan_parallel(parts, query, total, message)
+            results = self._parallel(parts, query, total, message)
         else:
-            results = []
-            done = 0
-            for part in parts:
-                results.append(
-                    _scan_part(
-                        str(part.path),
-                        query,
-                        lambda pos, done=done: self._tick((done + pos) / total, message),
-                    )
-                )
-                done += part.size
+            results = self._serial(parts, query, total, message)
         for part, (records, lines, parsed) in zip(parts, results, strict=True):
-            found.update(records)  # parts in date order: the newest copy wins
             report.lines += lines
             report.parsed += parsed
             report.bytes += part.size
             report.by_entity[query.entity] = report.by_entity.get(query.entity, 0) + part.size
-        if query.entity == "works" and found:
-            gone = self.deleted(set(found))
-            report.deleted += len(gone)
-            for wid in gone:
-                del found[wid]
-        report.kept += len(found)
-        report.seconds += time.perf_counter() - started
-        return found
+            yield records
 
-    def _scan_parallel(
+    def _serial(
         self, parts: list[Partition], query: Query, total: int, message: str
-    ) -> list[tuple[dict[str, dict[str, Any]], int, int]]:
+    ) -> Iterator[tuple[dict[str, dict[str, Any]], int, int]]:
+        done = 0
+        for part in parts:
+            yield _scan_part(
+                str(part.path),
+                query,
+                lambda pos, done=done: self._tick((done + pos) / total, message),
+            )
+            done += part.size
+
+    def _parallel(
+        self, parts: list[Partition], query: Query, total: int, message: str
+    ) -> Iterator[tuple[dict[str, dict[str, Any]], int, int]]:
+        """The parts read in worker processes, each part's result given back in date order
+        and let go of once given: memory holds the parts read ahead, never all of them."""
         import multiprocessing
-        from concurrent.futures import ProcessPoolExecutor, wait
+        from concurrent.futures import ProcessPoolExecutor
+        from concurrent.futures import TimeoutError as NotYet
 
         context = multiprocessing.get_context("spawn")
         with ProcessPoolExecutor(max_workers=self.jobs, mp_context=context) as pool:
-            futures = [pool.submit(_scan_part, str(p.path), query, None) for p in parts]
-            pending = set(futures)
-            done_bytes = 0
-            sizes = {f: p.size for f, p in zip(futures, parts, strict=True)}
-            while pending:
-                finished, pending = wait(pending, timeout=0.5)
-                done_bytes += sum(sizes[f] for f in finished)
-                try:
-                    self._tick(done_bytes / total, message)
-                except Cancelled:
-                    for f in pending:
-                        f.cancel()
-                    raise
-            return [f.result() for f in futures]
+            futures: list[Any] = [pool.submit(_scan_part, str(p.path), query, None) for p in parts]
+            done = [0]
+            for future, part in zip(futures, parts, strict=True):
+                future.add_done_callback(lambda _f, n=part.size: done.__setitem__(0, done[0] + n))
+            for i in range(len(futures)):
+                while True:
+                    try:
+                        result = futures[i].result(timeout=0.5)
+                        break
+                    except NotYet:
+                        try:
+                            self._tick(done[0] / total, message)
+                        except Cancelled:
+                            for f in futures[i:]:
+                                f.cancel()
+                            raise
+                futures[i] = None
+                self._tick(done[0] / total, message)
+                yield result
 
     def _tick(self, fraction: float, message: str) -> None:
         self._check_cancel()
@@ -320,6 +373,8 @@ class Query:
     names: tuple[str, ...] = ()
     years: tuple[int | None, int | None] | None = None
     everything: bool = False
+    #: The fields kept of each record accepted (all of them when empty).
+    select: tuple[str, ...] = ()
 
 
 def _tests(q: Query) -> tuple[Callable[[bytes], bool], Callable[[dict[str, Any]], bool]]:
@@ -404,6 +459,8 @@ def _scan_part(
             if isinstance(record, dict) and keep(record):
                 rid = short_id(record.get("id"))
                 if rid:
+                    if query.select:
+                        record = {k: record[k] for k in query.select if k in record}
                     found[rid] = record
     return found, lines, parsed
 
@@ -446,28 +503,110 @@ def _sorted(works: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(works, key=lambda w: (w.get("publication_date") or "", w.get("id") or ""))
 
 
+class RecordStore:
+    """Records kept on disk while a job reads a snapshot, so that memory holds their index only.
+
+    Each record is compressed on its own and appended to a temporary file (in *folder*, else
+    the system's temporary folder; it is gone once the store is closed or the program ends),
+    its place indexed by id; a later copy of a record replaces the earlier one.
+    """
+
+    def __init__(self, folder: Path | None = None) -> None:
+        if folder is not None:
+            Path(folder).mkdir(parents=True, exist_ok=True)
+        self._fh = tempfile.TemporaryFile(prefix="cartolex-snapshot-", dir=folder)
+        self._at: dict[str, tuple[int, int]] = {}
+        self._end = 0
+        self._lock = threading.Lock()
+
+    def put(self, rid: str, record: Mapping[str, Any]) -> None:
+        """Keep *record* under *rid* (replacing an earlier copy)."""
+        text = json.dumps(record, ensure_ascii=False, separators=(",", ":"))
+        data = zlib.compress(text.encode("utf-8"), 3)
+        with self._lock:
+            self._fh.seek(self._end)
+            self._fh.write(data)
+            self._at[rid] = (self._end, len(data))
+            self._end += len(data)
+
+    def get(self, rid: str | None) -> dict[str, Any] | None:
+        """The record kept under *rid*, read back from disk, or ``None``."""
+        with self._lock:
+            at = self._at.get(rid) if rid else None
+            if at is None:
+                return None
+            self._fh.seek(at[0])
+            data = self._fh.read(at[1])
+        return json.loads(zlib.decompress(data))
+
+    def drop(self, rid: str) -> None:
+        """Forget the record kept under *rid*."""
+        with self._lock:
+            self._at.pop(rid, None)
+
+    def ids(self) -> list[str]:
+        """The ids of the records kept."""
+        with self._lock:
+            return list(self._at)
+
+    def __len__(self) -> int:
+        return len(self._at)
+
+    def close(self) -> None:
+        """Let go of the file (its space is freed)."""
+        self._fh.close()
+
+
+@dataclass(frozen=True)
+class _Unit:
+    """What the institutions' questions read of one record, kept in memory: its searched
+    names (the display name and acronyms), ROR id, lineage and works count."""
+
+    names: tuple[str, ...]
+    ror: str
+    lineage: frozenset[str]
+    works: int
+
+
 class SnapshotSource:
     """The requests the finders make of OpenAlex, answered from a :class:`Snapshot`.
 
     A finder that knows everything it will ask for (the harvest) calls
     :meth:`prefetch` first: one pass over the authors and one over the works
-    for the whole job. Other questions cost one pass each; the institutions,
-    a small entity, are read once and kept.
+    for the whole job. Other questions cost one pass each; the institutions
+    are read once.
+
+    What the passes find is kept on disk (:class:`RecordStore`, in *spill*, else the
+    system's temporary folder) and memory holds indexes only: the records by id, the works
+    by the authors and DOIs asked for, the institutions' names and lineages. A work is
+    kept with the fields the API is asked for
+    (:data:`~cartolex.collect.openalex.WORK_FIELDS`), as the API gives it; the works an
+    institution's reading folds, with the fields that reading asks for.
     """
 
     label = "snapshot"
 
-    def __init__(self, snapshot: Snapshot) -> None:
+    def __init__(self, snapshot: Snapshot, *, spill: Path | None = None) -> None:
         self.snapshot = snapshot
         self.at = snapshot.retrieved_at()
-        self._authors: dict[str, dict[str, Any]] = {}
-        self._works: dict[str, dict[str, Any]] = {}
+        self.spill = spill
+        self._authors = RecordStore(spill)
+        self._works = RecordStore(spill)
+        self._by_author: dict[str, list[str]] = defaultdict(list)
+        self._by_doi: dict[str, list[str]] = defaultdict(list)
         self._fetched_authors: set[str] = set()
         self._fetched_dois: set[str] = set()
-        self._institutions: dict[str, dict[str, Any]] | None = None
+        self._institutions: RecordStore | None = None
+        self._units: dict[str, _Unit] = {}
 
     def _fetched(self, data: Any) -> Fetched:
         return Fetched(data, self.at, False)
+
+    def close(self) -> None:
+        """Let go of the records kept on disk."""
+        for store in (self._authors, self._works, self._institutions):
+            if store is not None:
+                store.close()
 
     # ── prefetch ──
     def prefetch(
@@ -479,9 +618,25 @@ class SnapshotSource:
         authors = sorted({a for a in author_ids if a} - self._fetched_authors)
         wanted_dois = sorted({d for d in (bare_doi(x) for x in dois) if d} - self._fetched_dois)
         if authors:
-            self._authors.update(self.snapshot.authors(authors))
+            query = Query("authors", ids=frozenset(authors))
+            self.snapshot.scan_into(query, self._authors, what="by id")
         if authors or wanted_dois:
-            self._works.update(self.snapshot.works(author_ids=authors, dois=wanted_dois))
+            asked, doi_set = {a.encode() for a in authors}, set(wanted_dois)
+
+            def index(rid: str, record: dict[str, Any]) -> None:
+                for aid in _authors_of(record) & asked:
+                    self._by_author[aid.decode()].append(rid)
+                doi = bare_doi(record.get("doi"))
+                if doi in doi_set:
+                    self._by_doi[doi].append(rid)
+
+            query = Query(
+                "works",
+                author_ids=frozenset(authors),
+                dois=frozenset(wanted_dois),
+                select=_WORK_SELECT,
+            )
+            self.snapshot.scan_into(query, self._works, what="works", seen=index)
         self._fetched_authors.update(authors)
         self._fetched_dois.update(wanted_dois)
 
@@ -504,64 +659,73 @@ class SnapshotSource:
         self._ensure(ids)
         wanted = {a.encode() for a in ids}
         first, last = years if years is not None else (None, None)
-        works = [
-            w for w in self._works.values() if _authors_of(w) & wanted and in_window(w, first, last)
-        ]
+        works = []
+        for wid in sorted({w for a in ids for w in self._by_author.get(a, ())}):
+            work = self._works.get(wid)
+            if work is not None and _authors_of(work) & wanted and in_window(work, first, last):
+                works.append(work)
         return self._fetched(_sorted(works))
 
     def works_by_dois(self, dois: Iterable[str]) -> list[tuple[dict[str, Any], Fetched]]:
         wanted = sorted({d for d in (bare_doi(x) for x in dois) if d})
         self._ensure(dois=wanted)
-        by_doi: dict[str, list[dict[str, Any]]] = {}
-        for w in self._works.values():
-            doi = bare_doi(w.get("doi"))
-            if doi in wanted:
-                by_doi.setdefault(doi, []).append(w)
         fetched = self._fetched(None)
-        return [(w, fetched) for d in wanted for w in _sorted(by_doi.get(d, []))]
+        out = []
+        for doi in wanted:
+            found = [self._works.get(w) for w in sorted(set(self._by_doi.get(doi, ())))]
+            works = [w for w in found if w is not None and bare_doi(w.get("doi")) == doi]
+            out += [(w, fetched) for w in _sorted(works)]
+        return out
 
-    def _all_institutions(self) -> dict[str, dict[str, Any]]:
+    def _all_institutions(self) -> RecordStore:
         if self._institutions is None:
-            self._institutions = self.snapshot.institutions(everything=True)
+            store, units = RecordStore(self.spill), {}
+
+            def index(rid: str, r: dict[str, Any]) -> None:
+                units[rid] = _Unit(
+                    names=(r.get("display_name") or "", *(r.get("display_name_acronyms") or [])),
+                    ror=(r.get("ror") or "").rsplit("/", 1)[-1].lower(),
+                    lineage=frozenset(
+                        i for i in (short_id(x) for x in r.get("lineage") or []) if i
+                    ),
+                    works=int(r.get("works_count") or 0),
+                )
+
+            query = Query("institutions", everything=True)
+            self.snapshot.scan_into(query, store, what="institutions", seen=index)
+            self._institutions, self._units = store, units
         return self._institutions
 
     def institution(self, ref: str) -> Fetched | None:
-        insts = self._all_institutions()
+        store = self._all_institutions()
         if ref.lower().startswith("ror:"):
             ror = ref[4:].lower()
-            found = next(
-                (
-                    r
-                    for _, r in sorted(insts.items())
-                    if (r.get("ror") or "").rsplit("/", 1)[-1].lower() == ror
-                ),
-                None,
-            )
+            rid = next((i for i, u in sorted(self._units.items()) if u.ror == ror), None)
         else:
-            found = insts.get(ref.upper())
+            rid = ref.upper()
+        found = store.get(rid)
         return self._fetched(found) if found is not None else None
 
     def search_institutions(self, name: str) -> list[dict[str, Any]]:
         wanted = set(_words(name))
         if not wanted:
             return []
-        hits = []
-        for _, r in sorted(self._all_institutions().items()):
-            shown = [r.get("display_name") or "", *(r.get("display_name_acronyms") or [])]
-            if any(wanted <= set(_words(s)) for s in shown):
-                hits.append(r)
-        return sorted(hits, key=lambda r: (-int(r.get("works_count") or 0), r.get("id") or ""))[:10]
+        store = self._all_institutions()
+        hits = [
+            (i, u)
+            for i, u in sorted(self._units.items())
+            if any(wanted <= set(_words(s)) for s in u.names)
+        ]
+        hits.sort(key=lambda hit: (-hit[1].works, hit[0]))
+        return [r for r in (store.get(i) for i, _u in hits[:10]) if r is not None]
 
     def institution_units(self, roots: Sequence[str]) -> Fetched:
         wanted = {r for r in roots if r}
         if not wanted:
             raise ValueError("no institution to ask for")
-        units = [
-            r
-            for _, r in sorted(self._all_institutions().items())
-            if wanted & {short_id(x) for x in r.get("lineage") or []}
-        ]
-        return self._fetched(units)
+        store = self._all_institutions()
+        found = (store.get(i) for i, u in sorted(self._units.items()) if wanted & u.lineage)
+        return self._fetched([r for r in found if r is not None])
 
     def works_by_institutions(self, roots: Sequence[str], years: Years) -> Fetched:
         found = self.snapshot.works(lineage=[r for r in roots if r], years=years)
@@ -570,11 +734,36 @@ class SnapshotSource:
     def institution_work_pages(
         self, roots: Sequence[str], years: Years, *, cursor: str | None = None, read: int = 0
     ) -> Iterator[Page]:
-        """The works of :meth:`works_by_institutions` as one page (the snapshot is on this
-        computer: there is no cursor to keep)."""
-        fetched = self.works_by_institutions(roots, years)
-        items = list(fetched.data)
-        yield Page(items, "*", None, len(items), len(items), fetched.retrieved_at)
+        """The works signed at *roots* in pages of 100, read in one pass and kept on disk
+        meanwhile, with the fields the reading folds. A page's cursor is the count of works
+        before it (``snapshot:<n>``): resuming from one reads the snapshot again and goes on
+        from there."""
+        store, dates = RecordStore(self.spill), {}
+
+        def date(rid: str, record: dict[str, Any]) -> None:
+            dates[rid] = record.get("publication_date") or ""
+
+        query = Query(
+            "works",
+            lineage=frozenset(r for r in roots if r),
+            years=tuple(years) if years is not None else None,  # type: ignore[arg-type]
+            select=(*_INSTITUTION_SELECT, "publication_date"),
+        )
+        try:
+            self.snapshot.scan_into(query, store, what="works", seen=date)
+            order = sorted(store.ids(), key=lambda w: (dates[w], w))
+            total = len(order)
+            start = _cursor_offset(cursor)
+            if start >= total:
+                yield Page([], cursor or "*", None, total, total, self.at)
+                return
+            for i in range(start, total, PER_PAGE):
+                end = min(total, i + PER_PAGE)
+                items = [r for r in (store.get(w) for w in order[i:end]) if r is not None]
+                after = f"snapshot:{end}" if end < total else None
+                yield Page(items, f"snapshot:{i}", after, total, end, self.at)
+        finally:
+            store.close()
 
     def works_of_authors(
         self, author_ids: Sequence[str], years: Years
@@ -588,6 +777,16 @@ class SnapshotSource:
                 if key in out:
                     out[key].append(w)
         return out
+
+
+def _cursor_offset(cursor: str | None) -> int:
+    """The works before the page a snapshot cursor names (0 for none, or another's)."""
+    if cursor and cursor.startswith("snapshot:"):
+        try:
+            return max(0, int(cursor.split(":", 1)[1]))
+        except ValueError:
+            return 0
+    return 0
 
 
 def read_deleted_log(path: Path) -> Iterator[tuple[str, str]]:

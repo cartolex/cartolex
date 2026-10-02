@@ -315,8 +315,12 @@ cartolex collect collaborators my-project --snapshot openalex-snapshot/
 The snapshot is read on your computer: nothing is sent to OpenAlex (the ORCID
 registry is still asked for what people declared). It is **streamed**: each
 part is read line by line and only the lines that may concern the people,
-institutions or identifiers asked for are parsed, so memory holds what is
-found, never a part. A harvest makes one pass over the authors and one over
+institutions or identifiers asked for are parsed. What is found waits on disk,
+compressed, in the project's `cache/snapshot/` (removed when the job ends),
+with the fields the API would have been asked for; memory holds an index of it
+(about a quarter of a kilobyte per work found) and the matches of the part
+being read, so a national harvest or institution fits in an ordinary
+computer's memory. A harvest makes one pass over the authors and one over
 the works for all its people; a round of collaborators two passes over the
 works. `--jobs 4` reads four parts at once, in worker processes. The tables are the same as from the API; a record's retrieval time is
 the snapshot's release date.

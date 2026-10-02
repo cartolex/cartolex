@@ -10,7 +10,7 @@ import pytest
 from _collect_world import client, confirm_truth, demo_project, world_ids
 
 from cartolex.collect.harvest import harvest
-from cartolex.collect.snapshot import Snapshot, SnapshotSource
+from cartolex.collect.snapshot import RecordStore, Snapshot, SnapshotSource
 from cartolex.demo import generate
 from cartolex.demo.services import DemoServices, write_snapshot
 from cartolex.project.layout import SOURCE_TABLES
@@ -126,3 +126,31 @@ def test_parts_read_in_worker_processes_give_the_same_records(services, snapshot
     assert together.institutions(lineage=[top.id]) == alone.institutions(lineage=[top.id])
     assert together.report.lines == alone.report.lines
     assert together.report.parsed == alone.report.parsed
+
+
+def test_a_store_keeps_records_on_disk_the_newest_copy_replacing_the_others(tmp_path) -> None:
+    store = RecordStore(tmp_path / "spill")
+    store.put("W1", {"id": "W1", "title": "first"})
+    store.put("W2", {"id": "W2", "title": "élan"})
+    store.put("W1", {"id": "W1", "title": "newer"})
+    store.drop("W2")
+    assert store.get("W1") == {"id": "W1", "title": "newer"}
+    assert store.get("W2") is None and store.ids() == ["W1"] and len(store) == 1
+    store.close()
+    assert list((tmp_path / "spill").iterdir()) == []  # nothing left behind
+
+
+def test_an_institutions_works_come_in_pages_and_resume_from_a_cursor(
+    services, snapshot_dir, monkeypatch
+) -> None:
+    monkeypatch.setattr("cartolex.collect.snapshot.PER_PAGE", 5)
+    top = next(i for i in services.bibliography.institutions.values() if i.ror)
+    source = SnapshotSource(Snapshot(snapshot_dir))
+    pages = list(source.institution_work_pages([top.id], None))
+    assert len(pages) > 2 and all(len(p.items) == 5 for p in pages[:-1])
+    assert pages[-1].next_cursor is None and pages[-1].read == pages[-1].total
+    works = [w["id"] for p in pages for w in p.items]
+    assert len(set(works)) == len(works) == pages[0].total
+    # From the second page's cursor, the works after the first page, in the same order.
+    rest = source.institution_work_pages([top.id], None, cursor=pages[0].next_cursor, read=5)
+    assert [w["id"] for p in rest for w in p.items] == works[5:]
