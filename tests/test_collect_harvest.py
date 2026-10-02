@@ -11,6 +11,7 @@ from _collect_world import client, confirm_truth, demo_project, world_ids
 
 from cartolex.collect.harvest import _BatchedWorks, harvest
 from cartolex.collect.http import Cancelled, Fetched, IncompleteResults
+from cartolex.collect.openalex import WORK_FIELDS
 from cartolex.collect.resolve import confirm
 from cartolex.collect.tables import raw_folder
 from cartolex.demo import generate
@@ -184,12 +185,14 @@ def test_a_batch_with_a_work_none_of_its_records_signs_is_asked_person_by_person
     assert source.asked == [["A1", "A2"], ["A1"]]
 
 
-def test_works_whose_authors_a_list_cuts_are_read_whole(confirmed, services) -> None:
+def test_works_whose_authors_a_list_cuts_are_read_whole(confirmed, services, monkeypatch) -> None:
     project, _bib, _ids = confirmed
     harvest(project, client(services))  # no work of this world has its authors cut
     whole = _rows(project)
+    # A list names each work's first two authors only; the harvest knows a list stops there.
     openalex = services.server.services["openalex"]
-    openalex.authors_shown = 1  # a list names each work's first author only
+    openalex.authors_shown = 2
+    monkeypatch.setattr("cartolex.collect.openalex.AUTHORS_SHOWN", 2)
     try:
         for batch in (1, 50):
             harvest(project, client(services), batch=batch)
@@ -207,3 +210,14 @@ def test_the_harvest_says_how_many_people_are_done_and_the_time_left(confirmed, 
     assert [d["params"]["n"] for d in lines] == list(range(report.people))
     assert lines[-1]["params"]["total"] == report.people
     assert lines[-1]["params"]["requests"] > 0
+
+
+def test_the_harvest_asks_only_for_the_fields_it_keeps(confirmed, services) -> None:
+    project, _bib, _ids = confirmed
+    start = len(services.requests)
+    harvest(project, client(services))
+    works = [
+        r for r in services.requests[start:]
+        if r.service == "openalex" and "works" in r.path.split("/")
+    ]  # fmt: skip
+    assert works and all(r.query.get("select") == WORK_FIELDS for r in works)

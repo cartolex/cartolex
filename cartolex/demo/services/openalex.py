@@ -313,14 +313,14 @@ class OpenAlexService:
             if entity not in ("authors", "works", "institutions"):
                 return json_reply(404, {"error": "Not found", "message": f"no route {entity}"})
             if len(parts) > 1:
-                return self._one(entity, "/".join(parts[1:]))
+                return self._one(entity, "/".join(parts[1:]), request.query.get("select"))
             return self._list(entity, request.query)
         except _BadQuery as exc:
             return json_reply(
                 400, {"error": "Invalid query parameters error.", "message": str(exc)}
             )
 
-    def _one(self, entity: str, ident: str) -> Reply:
+    def _one(self, entity: str, ident: str, select: str | None = None) -> Reply:
         found: dict[str, Any] | None = None
         if entity == "authors":
             if ident.lower().startswith("orcid:"):
@@ -349,7 +349,7 @@ class OpenAlexService:
             found = self._institutions.get(_short(ident))
         if found is None:
             return json_reply(404, {"error": "Not found", "message": f"no such {entity[:-1]}"})
-        return json_reply(200, found)
+        return json_reply(200, self._project(found, select))
 
     def _list(self, entity: str, query: dict[str, str]) -> Reply:
         per_page_text = query.get("per_page", query.get("per-page", "25"))

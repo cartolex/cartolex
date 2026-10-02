@@ -44,6 +44,7 @@ __all__ = [
     "INSTITUTION_WORK_FIELDS",
     "PAGING",
     "PER_PAGE",
+    "WORK_FIELDS",
     "OpenAlexApi",
     "OpenAlexSource",
     "author",
@@ -77,6 +78,37 @@ AUTHOR_BATCH = 50
 #: The most authors a work names in a list answer: OpenAlex cuts the list there, and the
 #: work's own record (free of charge) names them all.
 AUTHORS_SHOWN = 100
+#: The fields of a work asked for (``select``) by the harvest and the collaborators' rounds:
+#: what the tables and the rounds read (the records digested in :mod:`cartolex.collect.digests`),
+#: and a few small ones kept for later: the other identifiers (PMID, PMCID), retraction and
+#: paratext, the bibliographic details, where an open copy is, the references, the index's
+#: own topic (kept to compare with, never read to build anything) and the last update. A
+#: record holds half of what a whole one does; the classifications, locations, funding and
+#: citation metrics are left out.
+WORK_FIELDS = ",".join(
+    (
+        "id",
+        "doi",
+        "title",
+        "display_name",
+        "publication_year",
+        "publication_date",
+        "type",
+        "language",
+        "primary_location",
+        "authorships",
+        "abstract_inverted_index",
+        "ids",
+        "is_retracted",
+        "is_paratext",
+        "biblio",
+        "open_access",
+        "best_oa_location",
+        "referenced_works",
+        "primary_topic",
+        "updated_date",
+    )
+)
 #: The fields of a work an institution's proposal reads (``select``: a quarter of a full
 #: record's size or less).
 INSTITUTION_WORK_FIELDS = "id,publication_year,authorships"
@@ -193,6 +225,7 @@ def work(client: HttpClient, work_id: str) -> Fetched | None:
         return client.get_json(
             SERVICE,
             f"works/{work_id}",
+            {"select": WORK_FIELDS},
             kind="work",
             sends=["identifier"],
             validate=_check_entity,
@@ -398,7 +431,7 @@ def works_by_authors(
     fetched = client.get_all(
         SERVICE,
         "works",
-        {"filter": ",".join(filters), "per_page": PER_PAGE},
+        {"filter": ",".join(filters), "select": WORK_FIELDS, "per_page": PER_PAGE},
         kind="works_by_author",
         sends=["identifier"],
         paging=PAGING,
@@ -430,7 +463,7 @@ def works_by_dois(client: HttpClient, dois: Iterable[str]) -> list[tuple[dict[st
         fetched = client.get_all(
             SERVICE,
             "works",
-            {"filter": "doi:" + "|".join(batch), "per_page": PER_PAGE},
+            {"filter": "doi:" + "|".join(batch), "select": WORK_FIELDS, "per_page": PER_PAGE},
             kind="works_by_doi",
             sends=["DOI"],
             paging=PAGING,

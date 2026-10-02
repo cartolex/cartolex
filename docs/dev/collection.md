@@ -352,7 +352,13 @@ where a failure is recorded with the person. A list answer names a work's
 first 100 authors only (`AUTHORS_SHOWN`): `complete_authors` replaces every
 work that shows that many, or says its authors are cut, by its own record
 (`work(client, id)`, free of charge), so that the people further down are found
-on it; the demo services cut their lists the same way (`authors_shown`).
+on it; the demo services cut their lists the same way (`authors_shown`). The
+works are asked for with `select=WORK_FIELDS`: the fields the tables and the
+collaborators' rounds read (those `cartolex.collect.digests` keeps), and a few
+small ones kept for later (other identifiers, retraction and paratext,
+bibliographic details, where an open copy is, the references, the index's own
+topic, kept to compare with and never read to build anything, the last update);
+a record holds about half of a whole one.
 
 ## People from institutions
 
