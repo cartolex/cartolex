@@ -119,7 +119,7 @@ tables from every slot's raw records:
 ```text
 sources/<slot>/raw/
   ids.json                 the slot's id registry (cartolex-ids/1)
-  <kind>/<run id>.jsonl    one run: a header line, then one record per line (cartolex-raw/1)
+  <kind>/<run id>.jsonl.gz one run, gzip-compressed: a header line, then one record per line (cartolex-raw/1)
 ```
 
 - **Runs.** `RawWriter(layout, slot, kind, header)` writes a run to a
@@ -127,6 +127,11 @@ sources/<slot>/raw/
   job leaves no partial run. Run ids are `<UTC time to the microsecond>-<6 hex>`,
   and a new run's id always sorts after the slot's earlier runs of its kind, even
   when the clock repeats itself or goes back; runs are read in that order.
+  The records are compressed as they are written (a large harvest's works take
+  about a tenth of their plain size), and `close` writes the header as a gzip
+  member of its own before the records' member, copied as it is. `read_runs`
+  and `open_run` read compressed runs and the plain `.jsonl` runs of earlier
+  versions alike (`run_files` lists both).
 - **Ids.** `IdRegistry` gives `t000001`, `p000001`, `o000001` from natural keys
   (a DOI, a service record, an imported row) and remembers every key forever,
   so an id is never given twice and a new collection never renumbers

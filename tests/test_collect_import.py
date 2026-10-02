@@ -22,6 +22,7 @@ from cartolex.collect.people_import import (
     propose_mapping,
     read_list,
 )
+from cartolex.collect.tables import open_run
 from cartolex.demo import generate
 from cartolex.demo.services import build_bibliography
 from cartolex.project import Project
@@ -332,6 +333,7 @@ def test_raw_records_hold_no_absolute_path(tmp_path) -> None:
     (docs / "Ada Tavelin").mkdir(parents=True)
     (docs / "Ada Tavelin" / "notes.txt").write_text("Tidal flats and salt marshes.", "utf-8")
     import_folder(project, docs)
-    for path in (tmp_path / "p" / "sources").rglob("*.jsonl"):
-        assert str(tmp_path) not in path.read_text(encoding="utf-8")
+    for path in (tmp_path / "p" / "sources").rglob("*.jsonl*"):
+        with open_run(path) as fh:
+            assert str(tmp_path) not in fh.read()
     project.close()

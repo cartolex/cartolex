@@ -135,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         t0 = time.perf_counter()
         project = write_collection(base / "project", args.people, args.works)
-        raw = sum(p.stat().st_size for p in (base / "project" / "sources").rglob("*.jsonl"))
+        raw = sum(p.stat().st_size for p in (base / "project" / "sources").rglob("*.jsonl*"))
         print(f"collection written: {args.people} people, {raw / 1e6:.0f} MB of raw runs "
               f"({time.perf_counter() - t0:.0f} s)")  # fmt: skip
         timings = {}

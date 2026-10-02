@@ -7,6 +7,7 @@ remembered beyond the next attempt that reaches the person.
 
 from __future__ import annotations
 
+import gzip
 import json
 
 import pytest
@@ -23,7 +24,7 @@ from cartolex.collect.coverage import (
 from cartolex.collect.harvest import harvest
 from cartolex.collect.http import ServiceUnavailable
 from cartolex.collect.resolve import resolve
-from cartolex.collect.tables import raw_folder, rebuild_sources
+from cartolex.collect.tables import open_run, raw_folder, rebuild_sources
 from cartolex.demo import generate
 from cartolex.demo.services import DemoServices
 from cartolex.project.tables import read_source_table
@@ -96,15 +97,16 @@ def test_works_without_abstracts_are_counted_apart(services, collected) -> None:
     before = {c.person_id: c for c in person_coverage(project)}
     # An index that gives the works without their abstracts.
     folder = raw_folder(project.layout, "collected") / "openalex"
-    for path in folder.glob("*.jsonl"):
-        lines = path.read_text(encoding="utf-8").splitlines()
+    for path in folder.glob("*.jsonl.gz"):
+        with open_run(path) as fh:
+            lines = fh.read().splitlines()
         out = [lines[0]]
         for line in lines[1:]:
             rec = json.loads(line)
             if rec["type"] == "work":
                 rec["record"]["abstract_inverted_index"] = None
             out.append(json.dumps(rec, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
-        path.write_text("\n".join(out) + "\n", encoding="utf-8")
+        path.write_bytes(gzip.compress(("\n".join(out) + "\n").encode("utf-8")))
     rebuild_sources(project.layout, project.config)
     after = {c.person_id: c for c in person_coverage(project)}
     with_texts = [c for c in after.values() if c.texts]

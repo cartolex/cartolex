@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import gzip
 import shutil
 
 import pytest
@@ -11,7 +12,7 @@ from _collect_world import client, confirm_truth, demo_project, world_ids
 from cartolex.collect import tables as tables_mod
 from cartolex.collect.digests import DigestCache
 from cartolex.collect.harvest import harvest
-from cartolex.collect.tables import raw_folder, read_runs, rebuild_sources
+from cartolex.collect.tables import RAW_SUFFIX, open_run, raw_folder, read_runs, rebuild_sources
 from cartolex.demo import generate
 from cartolex.demo.services import DemoServices
 from cartolex.project.layout import SOURCE_TABLES
@@ -122,8 +123,9 @@ def test_a_run_superseded_for_everyone_is_not_read(harvested, services, monkeypa
 def test_a_run_changed_on_disk_is_digested_again(harvested) -> None:
     project, _bib, _ids, _ = harvested
     run = read_runs(project.layout, "collected", "openalex")[0]
-    lines = run.path.read_text(encoding="utf-8").splitlines()
-    run.path.write_text("\n".join(lines[:-1]) + "\n", encoding="utf-8")  # one work fewer
+    with open_run(run.path) as fh:
+        lines = fh.read().splitlines()
+    run.path.write_bytes(gzip.compress(("\n".join(lines[:-1]) + "\n").encode()))  # one work fewer
     report = rebuild_sources(project.layout, project.config)
     assert report.digested == 1
     fresh = _bytes(project)
@@ -131,7 +133,7 @@ def test_a_run_changed_on_disk_is_digested_again(harvested) -> None:
     assert _bytes(project) == fresh
     # A run removed takes its digest with it.
     run.path.unlink()
-    (raw_folder(project.layout, "collected") / "orcid" / f"{run.run_id}.jsonl").unlink()
+    (raw_folder(project.layout, "collected") / "orcid" / f"{run.run_id}{RAW_SUFFIX}").unlink()
     rebuild_sources(project.layout, project.config)
     assert not DigestCache(project.layout).index
     assert not list((project.layout.cache / "sources").rglob("*.jsonl.gz"))

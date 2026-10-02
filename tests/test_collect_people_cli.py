@@ -52,7 +52,7 @@ def test_from_one_institution_to_a_built_map(from_institution, capsys) -> None:
                  "--dry-run"]) == 0  # fmt: skip
     out = capsys.readouterr().out
     assert "institution identifiers" in out and "never leaves" in out
-    assert not list((folder / "sources").rglob("*.jsonl"))
+    assert not list((folder / "sources").rglob("*.jsonl*"))
     # The proposal, by its ROR id, then everyone proposed taken.
     assert main(["collect", "institutions", str(folder), "--institution",
                  f"https://ror.org/{inst.ror}", "--years", "2012-", *DEMO]) == 0  # fmt: skip

@@ -40,6 +40,8 @@ from typing import Any
 from cartolex.project.files import atomic_write_bytes, replace_path
 from cartolex.project.layout import ProjectLayout
 
+from .tables import open_run
+
 __all__ = ["DIGESTERS", "INDEX_FORMAT", "DigestCache", "digest_record"]
 
 INDEX_FORMAT = "cartolex-digests/1"
@@ -133,7 +135,7 @@ def _write_digest(raw_path: str, kind: str, out_path: str) -> tuple[int, list[st
     people: set[str] = set()
     n = 0
     try:
-        with open(raw_path, encoding="utf-8") as fh, gzip.open(tmp, "wt", encoding="utf-8") as gz:
+        with open_run(Path(raw_path)) as fh, gzip.open(tmp, "wt", encoding="utf-8") as gz:
             header = fh.readline()
             gz.write(header)
             named = json.loads(header).get("people")

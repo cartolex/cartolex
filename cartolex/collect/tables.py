@@ -2,8 +2,10 @@
 """Source writers: collected records → the six source tables, rebuilt from the raw records.
 
 Collection never writes a table row directly. Every finder stores what it
-received in the slot's raw folder, ``sources/<slot>/raw/<kind>/<run id>.jsonl``
-(a header line, then one record per line, written whole or not at all), and
+received in the slot's raw folder, ``sources/<slot>/raw/<kind>/<run id>.jsonl.gz``
+(gzip-compressed JSON lines: a header line, then one record per line, written
+whole or not at all; a run written before is a plain ``.jsonl``, read the same
+way), and
 :func:`rebuild_sources` turns every raw record of every slot into the tables of
 ``docs/format/sources.md``. Rebuilding twice from the same raw records gives
 the same bytes.
@@ -24,16 +26,19 @@ finder adds its own.
 from __future__ import annotations
 
 import contextlib
+import gzip
+import io
 import json
 import os
 import secrets
+import shutil
 import tempfile
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 import pyarrow as pa
 
@@ -50,6 +55,7 @@ from cartolex.project.tables import (
 __all__ = [
     "IDS_FORMAT",
     "RAW_FORMAT",
+    "RAW_SUFFIX",
     "IdRegistry",
     "RawRun",
     "RawWriter",
@@ -58,12 +64,17 @@ __all__ = [
     "SourceBuilder",
     "default_readers",
     "new_run_id",
+    "open_run",
     "raw_folder",
     "read_runs",
     "rebuild_sources",
 ]
 
 RAW_FORMAT = "cartolex-raw/1"
+#: A run file's name after its id: gzip-compressed JSON lines. Runs written before are plain
+#: ``.jsonl`` files, read the same way.
+RAW_SUFFIX = ".jsonl.gz"
+_RUN_SUFFIXES = (RAW_SUFFIX, ".jsonl")
 IDS_FORMAT = "cartolex-ids/1"
 #: The tables whose rows get ids, and their prefix.
 ID_PREFIX = {"texts": "t", "people": "p", "organisations": "o"}
@@ -96,13 +107,35 @@ def parse_time(text: str | None) -> datetime | None:
 # ── raw runs ─────────────────────────────────────────────────────────────────
 
 
+def run_files(folder: Path) -> list[tuple[str, Path]]:
+    """The run files of a kind's folder, compressed or plain, with their ids, in id order."""
+    out = []
+    for path in folder.iterdir() if folder.is_dir() else ():
+        name = path.name
+        if name.startswith("."):  # a run being written
+            continue
+        suffix = next((s for s in _RUN_SUFFIXES if name.endswith(s)), None)
+        if suffix is not None and path.is_file():
+            out.append((name[: -len(suffix)], path))
+    return sorted(out)
+
+
+def open_run(path: Path) -> IO[str]:
+    """A run file opened for reading as text, decompressed when it is compressed."""
+    if path.name.endswith(".gz"):
+        return gzip.open(path, "rt", encoding="utf-8")
+    return open(path, encoding="utf-8")
+
+
 class RawWriter:
     """Writes one raw run: a header line, then records; nothing is visible until :meth:`close`.
 
-    Records go to a temporary file in the target folder; :meth:`close` writes
-    the header (which may still change until then, :attr:`header`) and the
+    Records go, compressed, to a temporary file in the target folder; :meth:`close`
+    writes the header (which may still change until then, :attr:`header`) and the
     records into place in one rename, so a cancelled or failed job leaves no
-    partial run behind. Use it as a context manager: an exception discards the run.
+    partial run behind. The header is a gzip member of its own and the records' member
+    is copied after it as it is: the file reads as one stream. Use it as a context
+    manager: an exception discards the run.
     """
 
     def __init__(
@@ -120,13 +153,18 @@ class RawWriter:
         self.folder.mkdir(parents=True, exist_ok=True)
         # Runs are read in the order of their ids: a new run always comes after the others,
         # even when the clock gives the same time twice or goes back.
-        latest = max((p.stem for p in self.folder.glob("*.jsonl")), default="")
+        latest = max((run_id for run_id, _path in run_files(self.folder)), default="")
         if self.run_id <= latest:
             self.run_id = latest + "0"
-        self.path = self.folder / f"{self.run_id}.jsonl"
+        self.path = self.folder / f"{self.run_id}{RAW_SUFFIX}"
         fd, tmp = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".body", dir=self.folder)
         self._body = Path(tmp)
-        self._fh = os.fdopen(fd, "w", encoding="utf-8", newline="\n")
+        self._raw = os.fdopen(fd, "wb")
+        self._fh = io.TextIOWrapper(
+            gzip.GzipFile(fileobj=self._raw, mode="wb", compresslevel=6, mtime=0),
+            encoding="utf-8",
+            newline="\n",
+        )
         self.count = 0
         #: The header line, written when the run is closed.
         self.header: dict[str, Any] = {
@@ -150,13 +188,13 @@ class RawWriter:
         if self._fh.closed and not self._body.exists():
             return self.path  # discarded: nothing to write
         self._fh.close()
+        self._raw.close()
         fd, tmp = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".tmp", dir=self.folder)
         try:
-            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as out:
-                out.write(self._line(self.header))
-                with open(self._body, encoding="utf-8") as body:
-                    for line in body:
-                        out.write(line)
+            with os.fdopen(fd, "wb") as out:
+                out.write(gzip.compress(self._line(self.header).encode("utf-8"), 6, mtime=0))
+                with open(self._body, "rb") as body:
+                    shutil.copyfileobj(body, out, 1 << 20)
                 out.flush()
                 os.fsync(out.fileno())
             replace_path(tmp, self.path)
@@ -170,6 +208,8 @@ class RawWriter:
     def discard(self) -> None:
         with contextlib.suppress(Exception):
             self._fh.close()
+        with contextlib.suppress(Exception):
+            self._raw.close()
         self._body.unlink(missing_ok=True)
 
     def __enter__(self) -> RawWriter:
@@ -207,7 +247,7 @@ class RawRun:
 
     def raw_records(self) -> Iterator[dict[str, Any]]:
         """The records as the run holds them."""
-        with open(self.path, encoding="utf-8") as fh:
+        with open_run(self.path) as fh:
             next(fh, None)
             for n, line in enumerate(fh, start=2):
                 if not line.strip():
@@ -232,8 +272,8 @@ def read_runs(
         folder = root / k
         if not folder.is_dir():
             continue
-        for path in sorted(folder.glob("*.jsonl")):
-            with open(path, encoding="utf-8") as fh:
+        for run_id, path in run_files(folder):
+            with open_run(path) as fh:
                 first = fh.readline()
             try:
                 header = json.loads(first)
@@ -241,7 +281,7 @@ def read_runs(
                 raise ValueError(f"{path}: the header line is not valid JSON ({exc})") from exc
             if header.get("format") != RAW_FORMAT:
                 raise ValueError(f"{path}: not a raw run (format {header.get('format')!r})")
-            runs.append(RawRun(path, slot, k, path.stem, header, digests))
+            runs.append(RawRun(path, slot, k, run_id, header, digests))
     return sorted(runs, key=lambda r: (r.run_id, r.kind))
 
 

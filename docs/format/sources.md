@@ -161,13 +161,15 @@ the raw runs and the id registry are part of the format.
 ```text
 sources/<slot>/raw/
   ids.json                  the id registry (cartolex-ids/1)
-  <kind>/<run id>.jsonl     one run (cartolex-raw/1)
+  <kind>/<run id>.jsonl.gz  one run (cartolex-raw/1)
 sources/merges.json         every merge of texts across finders (cartolex-merges/1)
 ```
 
 **A run** is one job's material, written whole or not at all and never
-changed afterwards. It is a UTF-8 JSON-lines file: the first line is the
-**header**, an object with `format` (`cartolex-raw/1`), `kind` (the folder's
+changed afterwards. It is a gzip-compressed UTF-8 JSON-lines file
+(`.jsonl.gz`; the header and the records may be separate gzip members, read as
+one stream); a run written by an earlier version is a plain `.jsonl` file,
+read the same way. The first line is the **header**, an object with `format` (`cartolex-raw/1`), `kind` (the folder's
 name), `run_id` and what the job was asked (its window of years, its people);
 each further line is one **record**, an object. Run ids are
 `<UTC time to the microsecond>Z-<6 hex>` (`20260928T101200123456Z-3f2a1c`); a

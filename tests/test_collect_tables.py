@@ -10,10 +10,12 @@ from pathlib import Path
 import pytest
 
 from cartolex.collect.tables import (
+    RAW_SUFFIX,
     IdRegistry,
     RawRun,
     RawWriter,
     SourceBuilder,
+    open_run,
     parse_time,
     raw_folder,
     read_runs,
@@ -245,3 +247,17 @@ def test_a_new_run_always_comes_after_the_others(tmp_path) -> None:
     earlier = _write(project, FIRST[2:3], now=datetime(2020, 1, 1, tzinfo=timezone.utc))
     runs = read_runs(project.layout, "collected")
     assert [r.path for r in runs] == [first, second, earlier]
+
+
+def test_a_run_is_compressed_and_a_plain_one_is_still_read(tmp_path) -> None:
+    project = _project(tmp_path / "p")
+    path = _write(project, FIRST[:2])
+    assert path.name.endswith(RAW_SUFFIX) and path.read_bytes()[:2] == b"\x1f\x8b"
+    (run,) = read_runs(project.layout, "collected")
+    # A run written before, plain JSON lines, beside it: both are read, in id order.
+    with open_run(path) as fh:
+        plain = path.with_name(f"{'0' + run.run_id[1:]}.jsonl")
+        plain.write_text(fh.read().replace(run.run_id, plain.name[: -len(".jsonl")]), "utf-8")
+    old, new = read_runs(project.layout, "collected")
+    assert old.path == plain and new.path == path
+    assert list(old.records()) == list(new.records())

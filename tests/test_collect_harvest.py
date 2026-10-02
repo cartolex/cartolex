@@ -93,7 +93,7 @@ def test_a_page_cut_short_stops_the_harvest_and_changes_nothing(confirmed, servi
     services.faults.clear()
     assert _bytes(project) == before
     assert not (raw_folder(project.layout, "collected") / "openalex").exists() or not list(
-        (raw_folder(project.layout, "collected") / "openalex").glob("*.jsonl")
+        (raw_folder(project.layout, "collected") / "openalex").glob("*.jsonl*")
     )
 
 
