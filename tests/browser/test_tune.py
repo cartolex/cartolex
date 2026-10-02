@@ -272,6 +272,8 @@ def wait_preview(page, params: dict) -> None:
 
 
 def test_the_map_previews_a_layout_change_in_place(demo_s, app_for, open_app, tmp_path):
+    from playwright.sync_api import expect
+
     ui = open_app(app_for(demo_s))
     page = ui.page
     ui.navigate("/map?tune=1")
@@ -300,7 +302,7 @@ def test_the_map_previews_a_layout_change_in_place(demo_s, app_for, open_app, tm
     bar.get_by_role("button", name="Discard").click()
     bar.wait_for(state="detached")
     assert "is-preview" not in frame.get_attribute("class")
-    assert field.input_value() == "25"
+    expect(field).to_have_value("25")  # the field is set back once the bar is gone
     # keep: a new map version, pinned, then the build of the map
     field.fill("11")
     wait_preview(page, {"n_neighbors": 11})  # computed once: cached
