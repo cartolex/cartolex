@@ -92,6 +92,8 @@ dev = [
   # The test client of the app (starlette.testclient).
   "httpx>=0.27",
   "pytest>=7.0",
+  # The checks run the tests in worker processes (tools/check.py).
+  "pytest-xdist>=3.5,<4",
   # Exact pin: newer ruff releases also format Python blocks inside Markdown.
   "ruff==0.15.20",
   # The optional extras, tested on every supported Python.

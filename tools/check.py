@@ -8,14 +8,18 @@ Usage::
     python tools/check.py --full     # also the large reference comparison
     python tools/check.py --only tests --pythons 3.12
 
-Checks, in order: ``lint`` (ruff), ``vocab`` (banned terms in files and commit
+Checks: ``lint`` (ruff), ``vocab`` (banned terms in files and commit
 messages), ``js`` (static checks of the web interface: parse, imports, literal
 text, bans, vendored hashes, catalogues, contrast), ``tests`` (pytest on each
-Python, in parallel), ``browser`` (the web interface in headless Chromium:
+Python, in worker processes), ``browser`` (the web interface in headless Chromium:
 axe, keyboard, budgets, leaks), ``reference`` (the numeric comparison with the
-stored reference run), ``docs`` (strict Sphinx build). Settings live in ``tools/check.toml``. Virtual environments are kept in
-``.venvs/`` and rebuilt when ``pyproject.toml`` changes. Needs ``uv`` and
-Python 3.11 or later to run this script itself.
+stored reference run), ``docs`` (strict Sphinx build). They run at the same time,
+the browser checks last, alone, since their budgets measure time. The reference and
+the demo worlds' scan are skipped when nothing they read changed since they last
+passed (``--fresh``, ``--full`` and ``--heavy`` run them anyway). Settings live in
+``tools/check.toml``. Virtual environments are kept in ``.venvs/`` and rebuilt
+when ``pyproject.toml`` changes. Needs ``uv`` and Python 3.11 or later to run this
+script itself.
 """
 
 from __future__ import annotations
@@ -28,6 +32,7 @@ import shutil
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -42,6 +47,25 @@ LOGS = ROOT / ".cache" / "check"
 #: The browser checks' tools, installed into the quick Python's environment only.
 BROWSER_TOOLS = ROOT / "tools" / "requirements-browser.txt"
 ALL_CHECKS = ("lint", "vocab", "js", "tests", "browser", "reference", "docs")
+#: The extras of the quick Python's environment: lint, docs and the browser checks share it.
+DEV_EXTRAS = "dev,docs"
+#: Numerical libraries run one thread in each test worker: the workers share the cores.
+ONE_THREAD = {
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "NUMBA_NUM_THREADS": "1",
+}
+#: What the reference run reads: everything but the web application above it (the layering
+#: test keeps the packages below it from importing it), the reference tooling and the
+#: dependencies.
+REFERENCE_INPUTS = (
+    "cartolex/",
+    "tools/reference/",
+    "pyproject.toml",
+    "tools/requirements-models.txt",
+)
+REFERENCE_OUTSIDE = ("cartolex/app/",)
 
 
 @dataclass
@@ -61,6 +85,37 @@ def load_config() -> dict:
 
 def _file_hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def inputs_key(prefixes: tuple[str, ...], outside: tuple[str, ...] = (), *extra: str) -> str:
+    """A digest of the files git knows under *prefixes* (not under *outside*), as they are
+    in the working tree, and of the *extra* strings."""
+    out = subprocess.run(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", *prefixes],
+        cwd=ROOT,
+        capture_output=True,
+        check=True,
+    ).stdout.decode("utf-8")
+    digest = hashlib.sha256()
+    for rel in sorted({p for p in out.split("\0") if p}):
+        path = ROOT / rel
+        if any(rel.startswith(o) for o in outside) or not path.is_file():
+            continue
+        digest.update(rel.encode("utf-8") + b"\0" + path.read_bytes() + b"\0")
+    for text in extra:
+        digest.update(text.encode("utf-8") + b"\0")
+    return digest.hexdigest()
+
+
+def passed_with(name: str, key: str) -> bool:
+    """Whether the check *name* last passed on inputs of digest *key*."""
+    mark = LOGS / f"{name}.passed"
+    return mark.is_file() and mark.read_text(encoding="utf-8").strip() == key
+
+
+def record_pass(name: str, key: str) -> None:
+    (LOGS / f"{name}.passed").parent.mkdir(parents=True, exist_ok=True)
+    (LOGS / f"{name}.passed").write_text(key + "\n", encoding="utf-8")
 
 
 def ensure_venv(python: str, extras: str = "dev") -> Path:
@@ -125,11 +180,29 @@ def check_lint(dev: Path) -> Result:
     return Result("lint", "pass" if ok else "fail", detail, time.monotonic() - t0)
 
 
-def check_vocab(cfg: dict, dev: Path) -> Result:
-    """Banned terms in the tree, the configured commit range and generated demo worlds."""
+def _deny_list_text() -> str:
+    """The term list's text, for the digest of what the demo worlds' scan read."""
+    for path in (
+        os.environ.get("CARTOLEX_DENYLIST"),
+        str(Path.home() / ".config" / "cartolex-dev" / "deny-list.txt"),
+    ):
+        if path and Path(path).is_file():
+            return Path(path).read_text(encoding="utf-8", errors="replace")
+    return ""
+
+
+def check_vocab(cfg: dict, dev: Path, fresh: bool = False) -> Result:
+    """Banned terms in the tree, the configured commit range and generated demo worlds (these
+    only when the generator, the scanner, the list or the worlds changed since they passed)."""
     t0 = time.monotonic()
     vcfg = cfg.get("vocab", {})
-    cmd = [sys.executable, "tools/vocab_scan.py", "--strict"]
+    cmd = [
+        sys.executable,
+        "tools/vocab_scan.py",
+        "--strict",
+        "--cache",
+        str(LOGS / "vocab-tree.json"),
+    ]
     if vcfg.get("commits"):
         cmd += ["--commits", vcfg["commits"]]
     if vcfg.get("tags"):
@@ -140,6 +213,15 @@ def check_vocab(cfg: dict, dev: Path) -> Result:
     # Invented names can collide with real ones by chance: scan the demo worlds that
     # tests, the reference run and the docs use, exactly as they are generated, with every
     # name their demo services invent (outside co-authors, homonyms, institutions).
+    key = inputs_key(
+        ("cartolex/demo/", "tools/vocab_scan.py"),
+        (),
+        _deny_list_text(),
+        json.dumps(vcfg.get("demo_worlds", [])),
+    )
+    if not fresh and passed_with("vocab-demo", key):
+        detail = f"{tail} · demo worlds: unchanged since they passed"
+        return Result("vocab", "pass" if rc == 0 else "fail", detail, time.monotonic() - t0)
     worlds = LOGS / "demo-worlds"
     shutil.rmtree(worlds, ignore_errors=True)
     for spec in vcfg.get("demo_worlds", []):
@@ -173,6 +255,8 @@ def check_vocab(cfg: dict, dev: Path) -> Result:
         )
         tail2 = "demo worlds: " + tail2.removeprefix("vocab: ")
     ok = rc == 0 and rc2 == 0
+    if rc2 == 0:
+        record_pass("vocab-demo", key)
     detail = tail + (f" · {tail2}" if tail2 else "")
     return Result("vocab", "pass" if ok else "fail", detail, time.monotonic() - t0)
 
@@ -215,8 +299,9 @@ def check_js(dev: Path) -> Result:
     return Result("js", "pass" if rc == 0 else "fail", detail, time.monotonic() - t0)
 
 
-def check_browser(dev: Path, quick: bool) -> Result:
-    """The web interface in headless Chromium (tests/browser); --quick leaves out slow tests."""
+def check_browser(dev: Path, quick: bool, workers: int = 1) -> Result:
+    """The web interface in headless Chromium (tests/browser), in *workers* processes;
+    --quick leaves out slow tests."""
     t0 = time.monotonic()
     why = ensure_browser_tools(dev)
     if why:
@@ -234,6 +319,7 @@ def check_browser(dev: Path, quick: bool) -> Result:
         "tests/browser",
         "-m",
         "browser and not slow" if quick else "browser",
+        *(["-n", str(workers), "--dist", "loadscope"] if workers > 1 else []),
     ]
     env = {
         **os.environ,
@@ -277,14 +363,23 @@ def _measures_summary(data: dict) -> str:
     return " · ".join(parts)
 
 
-def check_tests(pythons: list[str], jobs: int, heavy: str | None = None) -> Result:
-    """pytest on every Python, at most *jobs* at a time; one summary per version.
+def check_tests(
+    venvs: list[tuple[str, Path]],
+    jobs: int,
+    heavy: str | None = None,
+    workers: int = 1,
+    dist: str = "loadscope",
+) -> Result:
+    """pytest on every Python of *venvs*, at most *jobs* at a time, each in *workers*
+    processes sharing the tests by *dist* (``loadscope``: a module's tests, hence its
+    fixtures, on one worker); one summary per version.
 
     *heavy* names the Python that also runs the tests marked ``heavy`` (large
     measures, memory-capped, an hour or more): only with ``--heavy``, before a release.
     """
     t0 = time.monotonic()
-    pending = [(py, ensure_venv(py)) for py in pythons]
+    pythons = [py for py, _venv in venvs]
+    pending = list(venvs)
     running: list[tuple[str, subprocess.Popen, Path]] = []
     parts: dict[str, str] = {}
     ok = True
@@ -307,6 +402,7 @@ def check_tests(pythons: list[str], jobs: int, heavy: str | None = None) -> Resu
                 "-m",
                 "not browser",
                 *(["--heavy"] if py == heavy else []),
+                *(["-n", str(workers), "--dist", dist] if workers > 1 else []),
             ]
             # Each Python keeps its bytecode out of the source tree, so suites running
             # side by side never see each other's cache files. The tree under test comes
@@ -314,6 +410,7 @@ def check_tests(pythons: list[str], jobs: int, heavy: str | None = None) -> Resu
             # shared by several checkouts may have its editable install in another one.
             env = {
                 **os.environ,
+                **(ONE_THREAD if workers > 1 else {}),
                 "PYTHONPYCACHEPREFIX": str(ROOT / ".cache" / "pycache" / py),
                 "PYTHONPATH": os.pathsep.join(
                     p for p in (str(ROOT), os.environ.get("PYTHONPATH", "")) if p
@@ -335,13 +432,18 @@ def check_tests(pythons: list[str], jobs: int, heavy: str | None = None) -> Resu
     return Result("tests", "pass" if ok else "fail", summary, time.monotonic() - t0)
 
 
-def check_reference(full: bool) -> Result:
-    """The numeric comparison with the stored reference run."""
+def check_reference(full: bool, fresh: bool = False) -> Result:
+    """The numeric comparison with the stored reference run, unless nothing it reads changed
+    since it last passed (*fresh* runs it anyway)."""
     t0 = time.monotonic()
     script = ROOT / "tools" / "reference" / "check_reference.py"
     if not script.is_file():
         return Result("reference", "skip", "no reference tooling yet", 0.0)
     sizes = ["S", "L"] if full else ["S"]
+    key = inputs_key(REFERENCE_INPUTS, REFERENCE_OUTSIDE, ",".join(sizes))
+    if not fresh and passed_with("reference", key):
+        detail = f"{'+'.join(sizes)}: nothing it reads changed since it passed"
+        return Result("reference", "pass", detail, time.monotonic() - t0)
     parts, ok = [], True
     for size in sizes:
         # The engine on the demo workspace, then the same world built as a project.
@@ -352,15 +454,16 @@ def check_reference(full: bool) -> Result:
             )
             parts.append(f"{label}: {tail}")
             ok &= rc == 0
+    if ok:
+        record_pass("reference", key)
     return Result("reference", "pass" if ok else "fail", " · ".join(parts), time.monotonic() - t0)
 
 
-def check_docs() -> Result:
+def check_docs(venv: Path) -> Result:
     """Strict Sphinx build: any warning fails."""
     t0 = time.monotonic()
     if not (ROOT / "docs" / "conf.py").is_file():
         return Result("docs", "skip", "no docs/conf.py", 0.0)
-    venv = ensure_venv("3.12", extras="dev,docs")
     out = ROOT / "docs" / "_build" / "html"
     shutil.rmtree(out, ignore_errors=True)
     rc, tail = run(
@@ -385,6 +488,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--pythons", help="comma-separated versions, e.g. 3.10,3.12")
     parser.add_argument("--only", nargs="+", choices=ALL_CHECKS, help="run only these checks")
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="run the reference and the demo worlds' scan even when nothing they read changed",
+    )
     args = parser.parse_args(argv)
 
     # Every tool this script starts reads and writes UTF-8, whatever the system's code page
@@ -401,27 +509,43 @@ def main(argv: list[str] | None = None) -> int:
         pythons = [cfg.get("tests", {}).get("quick", "3.12")]
     wanted = args.only or list(ALL_CHECKS)
 
-    results: list[Result] = []
-    # The quick Python's environment runs lint, the demo worlds of vocab, js and browser;
-    # it is made only when one of them runs (CI jobs ask for one check each).
-    needs_dev = {"lint", "vocab", "js", "browser"} & set(wanted)
-    dev = ensure_venv(cfg.get("tests", {}).get("quick", "3.12")) if needs_dev else Path()
-    for name in wanted:
-        if name == "lint":
-            results.append(check_lint(dev))
-        elif name == "vocab":
-            results.append(check_vocab(cfg, dev))
-        elif name == "js":
-            results.append(check_js(dev))
-        elif name == "browser":
-            results.append(check_browser(dev, args.quick))
-        elif name == "tests":
-            heavy = cfg.get("tests", {}).get("quick", "3.12") if args.heavy else None
-            results.append(check_tests(pythons, int(cfg.get("tests", {}).get("jobs", 2)), heavy))
-        elif name == "reference":
-            results.append(check_reference(args.full))
-        elif name == "docs":
-            results.append(check_docs())
+    tcfg = cfg.get("tests", {})
+    quick = tcfg.get("quick", "3.12")
+    fresh = args.fresh or args.full or args.heavy
+    # The environments first, one after the other: two checks never build one at once. The
+    # quick Python's runs lint, the demo worlds of vocab, js, the browser checks and the docs.
+    needs_dev = {"lint", "vocab", "js", "browser", "docs"} & set(wanted)
+    dev = ensure_venv(quick, DEV_EXTRAS) if needs_dev else Path()
+    venvs = (
+        [(py, ensure_venv(py, DEV_EXTRAS if py == quick else "dev")) for py in pythons]
+        if "tests" in wanted
+        else []
+    )
+    heavy = quick if args.heavy else None
+    # The heavy measures time and memory: one process then.
+    workers = 1 if args.heavy else int(tcfg.get("workers", 1))
+    runs = {
+        "lint": lambda: check_lint(dev),
+        "vocab": lambda: check_vocab(cfg, dev, fresh),
+        "js": lambda: check_js(dev),
+        "tests": lambda: check_tests(
+            venvs, int(tcfg.get("jobs", 2)), heavy, workers, tcfg.get("dist", "loadscope")
+        ),
+        "reference": lambda: check_reference(args.full, fresh),
+        "docs": lambda: check_docs(dev),
+        "browser": lambda: check_browser(
+            dev, args.quick, int(cfg.get("browser", {}).get("workers", 1))
+        ),
+    }
+    done: dict[str, Result] = {}
+    together = [n for n in wanted if n != "browser"]
+    with ThreadPoolExecutor(max_workers=max(1, len(together))) as pool:
+        futures = {n: pool.submit(runs[n]) for n in together}
+        for name, future in futures.items():
+            done[name] = future.result()
+    if "browser" in wanted:  # alone: its budgets measure time
+        done["browser"] = runs["browser"]()
+    results = [done[n] for n in wanted]
 
     width = max(len(r.name) for r in results)
     for r in results:

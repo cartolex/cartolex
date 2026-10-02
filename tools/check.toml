@@ -21,3 +21,13 @@ quick = "3.12"
 # How many Python versions are tested at the same time (memory: each run can
 # take a few GB with the large scientific libraries).
 jobs = 2
+# Worker processes of one Python's tests (pytest-xdist; 1: in one process), and how the
+# tests are shared among them: `loadscope` gives a module's tests, hence the demo projects
+# its fixtures build, to one worker. Each worker's numerical libraries run one thread.
+workers = 12
+dist = "loadscope"
+
+[browser]
+# Worker processes of the browser checks (each with its own Chromium). They run after the
+# other checks, alone, since their budgets measure time.
+workers = 4

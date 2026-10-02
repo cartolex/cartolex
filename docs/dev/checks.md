@@ -9,12 +9,26 @@ python tools/check.py --quick    # lint, vocabulary, tests on one Python, small 
 python tools/check.py --full     # also the large reference comparison
 python tools/check.py --heavy    # also the heavy measures (memory-capped, an hour or more), before a release
 python tools/check.py --only tests --pythons 3.10,3.14   # other versions
+python tools/check.py --fresh    # without skipping what did not change
 ```
 
 It prints one line per check (`PASS`, `FAIL` or `SKIP`, the time taken and a
 summary) and keeps each check's full output in `.cache/check/`. It needs
 [uv](https://docs.astral.sh/uv/) and Python 3.11 or later to run itself;
 settings are in `tools/check.toml`.
+
+**How long it takes.** The checks run at the same time, the browser checks last
+and alone (their budgets measure time); the tests run in worker processes
+(`workers`, pytest-xdist, a module's tests on one worker so that its demo
+projects are built once, one numerical thread per worker), and so do the
+browser checks. Two checks are skipped when nothing they read changed since they
+last passed: the reference comparison (everything under `cartolex/` but the web
+application, the reference tooling, `pyproject.toml`, the pinned models) and the
+scan of the generated demo worlds (their generator, the scanner, the list of
+terms); the vocabulary scan of the tree keeps each unchanged file's result
+(`.cache/check/vocab-tree.json`). `--fresh`, `--full` and `--heavy` run
+everything. A change is checked with `--quick`; the whole check runs once
+before changes are merged.
 
 ## The checks
 
