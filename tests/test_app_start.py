@@ -52,3 +52,30 @@ def test_the_demo_project_is_created_and_opened(client, tmp_path):
     assert again.status_code == 409 and again.json()["error"]["code"] == "project_exists"
     recent = client.get("/api/projects/recent").json()["items"]
     assert recent[0]["path"] == str(root.resolve())
+
+
+def test_a_project_held_elsewhere_opens_anyway_and_its_holder_stops_saving(client, tmp_path):
+    from cartolex.project import LockLost, Project, write_decision
+
+    root = tmp_path / "held"
+    Project.init(root, name="Held", domain_title="A field").close()
+    elsewhere = {
+        "pid": 1,
+        "host": "another-computer",
+        "app": "cartolex",
+        "since": "2026-01-01T00:00:00Z",
+    }
+    (root / ".lock").write_text(json.dumps(elsewhere))
+    refused = client.post("/api/projects/open", json={"path": str(root)})
+    error = refused.json()["error"]
+    assert refused.status_code == 409 and error["code"] == "locked"
+    assert error["next"]["action"] == "confirm" and error["params"]["host"] == "another-computer"
+    opened = client.post("/api/projects/open", json={"path": str(root), "force": True})
+    assert opened.status_code == 200, opened.text
+    # the other computer, still running, overrides it back: this app stops saving
+    (root / ".lock").write_text(json.dumps(elsewhere))
+    project = client.app.state.cartolex.projects.current().project
+    with pytest.raises(LockLost):
+        write_decision(project.layout, project.layout.params_json, b"{}", expected=None, action="x")
+    project.close()
+    assert json.loads((root / ".lock").read_text())["host"] == "another-computer"

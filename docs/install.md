@@ -131,7 +131,17 @@ t-SNE, switched off, with the reason and the command that installs it.
 `cartolex` starts the app on a free port of this computer and opens it in
 your browser with a link that works once. The start screen offers a demo
 project (an invented research community, see {doc}`demo`) or a new one. Stop
-the app with Ctrl-C in its terminal.
+the app with Ctrl-C in its terminal, or close its terminal; it also stops by
+itself two minutes after its last browser tab closed, once no build or
+collection runs (`--idle-stop MINUTES` changes the delay, `0` keeps it running).
+
+**A project open elsewhere.** One app at a time writes a project. If another
+cartolex has it open, opening it says so: close that one first (its terminal,
+not only its tab). A project left locked by an app that was force-quit or
+crashed opens without a question. If the other app is stuck, or runs on a
+computer that is off, **Open anyway** overrides its lock after a warning
+(`cartolex project unlock --force FOLDER` on the command line); the other app
+then stops saving to the project.
 
 Without a browser, `cartolex app --no-browser` prints the link;
 `cartolex api` serves the app for hosting ({doc}`hosting`). The command line

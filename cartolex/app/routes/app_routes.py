@@ -7,10 +7,11 @@ import os
 import platform
 import sys
 from importlib.metadata import PackageNotFoundError, version
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from ..manifest import build_manifest, manifest_schema
 from ..routing import Routes, principal_of, runtime_of
@@ -100,6 +101,21 @@ def _version(dist: str) -> str | None:
         return version(dist)
     except PackageNotFoundError:
         return None
+
+
+class PresenceBody(BaseModel):
+    """A page of the interface: its own id, and whether it is closing."""
+
+    page: Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")]
+    bye: bool = False
+
+
+@routes.post("/api/presence", action="app.session", resource="app")
+def presence(request: Request, body: PresenceBody) -> dict[str, Any]:
+    """A page says it is open, or closing (the local app stops when none is open)."""
+    runtime = runtime_of(request)
+    runtime.presence.ping(body.page, bye=body.bye)
+    return {"pages": runtime.presence.pages()}
 
 
 @routes.get("/api/diagnostic", action="app.diagnostic", resource="app")

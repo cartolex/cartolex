@@ -54,6 +54,10 @@ class AppSettings:
     **Services.** :attr:`job_runner`, :attr:`collection`, :attr:`site_builder`
     default to the local runner and the stubs; :attr:`registry` to cartolex's
     stages with :attr:`ai_access` (the AI key given to the build).
+
+    **Stopping when unused.** :attr:`idle_stop_s` (local only): the server stops
+    once no page of the interface has been open for that many seconds and no
+    job runs (:mod:`cartolex.app.presence`); ``None`` keeps it running.
     """
 
     mode: Literal["local", "hosted"] = "local"
@@ -80,6 +84,7 @@ class AppSettings:
     build_budget_mb: float | None = None
     build_year: int | None = None
     heartbeat_s: float = 5.0
+    idle_stop_s: float | None = None
 
     def __post_init__(self) -> None:
         if self.mode not in ("local", "hosted"):
@@ -93,6 +98,8 @@ class AppSettings:
             raise ValueError(f"the default locale {self.default_locale!r} is not in locales")
         if self.max_upload_mb <= 0 or self.max_archive_mb <= 0 or self.max_request_kb <= 0:
             raise ValueError("size limits are positive")
+        if self.idle_stop_s is not None and (self.hosted or self.idle_stop_s <= 0):
+            raise ValueError("idle_stop_s is a positive number of seconds, for a local app only")
 
     @property
     def hosted(self) -> bool:

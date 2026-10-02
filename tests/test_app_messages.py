@@ -63,6 +63,7 @@ def test_errors_are_built_from_the_catalogue_with_their_params():
         - {
             "stale",
             "locked_here",
+            "lock_lost",
             "locked",
             "not_a_project",
             "unsupported_format",

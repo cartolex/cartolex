@@ -145,8 +145,14 @@ class Project:
 
     # ── opening ──
     @classmethod
-    def open(cls, root: Path, *, write: bool = False, app: str = "cartolex") -> Project:
+    def open(
+        cls, root: Path, *, write: bool = False, app: str = "cartolex", force: bool = False
+    ) -> Project:
         """Open the project in *root*; take its lock when *write* is true.
+
+        *force* overrides a lock whose holder may still run
+        (:meth:`~cartolex.project.lock.ProjectLock.acquire`): only when a person
+        asked for it, knowing what it risks.
 
         A writer first repairs what a killed build may have left half done (see
         :func:`cartolex.project.generations.recover`); :attr:`recovered` says what.
@@ -156,7 +162,7 @@ class Project:
             raise NotAProject(f"{root} holds no project.json")
         _check_format(layout.project_json)
         config = read_model(layout.project_json, ProjectFile)
-        lock = ProjectLock(layout, app).acquire() if write else None
+        lock = ProjectLock(layout, app).acquire(force=force) if write else None
         project = cls(layout, config, lock)  # type: ignore[arg-type]
         if lock is not None:
             try:
@@ -180,6 +186,11 @@ class Project:
     @property
     def writable(self) -> bool:
         return self._lock is not None
+
+    @property
+    def lock_replaced(self) -> LockInfo | None:
+        """The holder whose lock this project took over or overrode when opened (``None``: none)."""
+        return self._lock.replaced if self._lock is not None else None
 
     @property
     def lock_info(self) -> LockInfo | None:

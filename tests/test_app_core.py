@@ -59,6 +59,7 @@ def test_the_fixture_is_a_valid_manifest_and_the_app_serves_its_shape(tmp_path):
             "ai_api": False,
             "ai_copilot": True,
             "hosted": False,
+            "idle_stop": False,
         }
     finally:
         app.state.cartolex.shutdown()

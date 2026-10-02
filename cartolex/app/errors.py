@@ -147,16 +147,24 @@ ERRORS: dict[str, ErrorKind] = {
     ),
     "locked": ErrorKind(
         409,
-        "the project is open in {app} (process {pid} on {host}, since {since})",
-        "open-project",
-        "Close it there, or open another project",
+        "the project is open in {app} (process {pid} on {host}, since {since}); close it there, "
+        "or open it anyway if that computer is off or the app is stuck",
+        "confirm",
+        "Open anyway",
     ),
     "locked_here": ErrorKind(
         409,
         "the project is open in another {app} on this computer (process {pid}, since {since}); "
         "close that one (its browser tab does not stop it: close the terminal it runs in), "
-        "then try again",
-        "retry",
+        "or open it anyway if it is stuck",
+        "confirm",
+        "Open anyway",
+    ),
+    "lock_lost": ErrorKind(
+        409,
+        "this app no longer holds the project: {app} (process {pid} on {host}, since {since}) "
+        "opened it anyway; nothing more is saved here, open the project again",
+        "open-project",
     ),
     "project_exists": ErrorKind(
         409, "the folder already holds a project, or is not empty: {path}", "fix-input"
@@ -509,7 +517,7 @@ def _translate(exc: Exception) -> ApiError | None:
     """The API error for an exception of cartolex's packages, or ``None``."""
     from cartolex.build import BuildBusy
     from cartolex.build.params import ParamsError
-    from cartolex.project import LockHeld, NotAProject, StaleWrite, UnsupportedFormat
+    from cartolex.project import LockHeld, LockLost, NotAProject, StaleWrite, UnsupportedFormat
     from cartolex.project.project import FORMAT, IdentityFrozen
     from cartolex.project.tables import TableError
     from cartolex.project.themes import ThemeEditError
@@ -522,6 +530,15 @@ def _translate(exc: Exception) -> ApiError | None:
             file=exc.path.name,
             headers={"ETag": etag_of(exc.found)},
             extra={"current": version_of(exc.found)},
+        )
+    if isinstance(exc, LockLost):
+        info = exc.info
+        return ApiError.of(
+            "lock_lost",
+            app=info.app if info else "?",
+            pid=info.pid if info else "?",
+            host=info.host if info else "?",
+            since=info.since if info else "?",
         )
     if isinstance(exc, LockHeld) and exc.here and exc.info is not None:
         info = exc.info
@@ -582,7 +599,7 @@ def install_handlers(app: FastAPI) -> None:
 
     from cartolex.build import BuildBusy
     from cartolex.build.params import ParamsError
-    from cartolex.project import LockHeld, NotAProject, StaleWrite, UnsupportedFormat
+    from cartolex.project import LockHeld, LockLost, NotAProject, StaleWrite, UnsupportedFormat
     from cartolex.project.project import IdentityFrozen
     from cartolex.project.tables import TableError
     from cartolex.project.themes import ThemeEditError
@@ -595,6 +612,7 @@ def install_handlers(app: FastAPI) -> None:
     for cls in (
         StaleWrite,
         LockHeld,
+        LockLost,
         NotAProject,
         UnsupportedFormat,
         IdentityFrozen,

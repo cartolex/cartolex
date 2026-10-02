@@ -35,6 +35,8 @@ StartPoint = Literal["people", "institutions", "collaborators", "folder", "corpu
 
 class OpenBody(BaseModel):
     path: Annotated[str, Field(min_length=1, max_length=4096)]
+    #: Override a lock held elsewhere (the person confirmed the warning).
+    force: bool = False
 
 
 class CreateBody(BaseModel):
@@ -91,10 +93,10 @@ def current(request: Request) -> dict[str, Any]:
 
 @routes.post("/api/projects/open", action="projects.open", resource="app")
 def open_project(request: Request, body: OpenBody) -> dict[str, Any]:
-    """Open a project folder (locally), closing the one open before."""
+    """Open a project folder (locally), closing the one open before; ``force`` overrides its lock."""
     host = _local(request)
     _busy(request)
-    handle = host.open(Path(body.path))
+    handle = host.open(Path(body.path), force=body.force)
     return _describe(handle, local=True)
 
 

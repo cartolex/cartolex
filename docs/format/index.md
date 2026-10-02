@@ -74,7 +74,11 @@ application was force-quit, its terminal closed, the computer stopped) is
 created atomically beside it, so two openers never both take it. A process id
 now used by another process (the opener itself, or a process started after the
 lock was taken) counts as gone. A lock held on another host is never taken over:
-its process cannot be checked from there. Reading a project needs no lock.
+its process cannot be checked from there. A person may still **override** a lock
+(its holder is stuck, or its computer is off): the opener replaces it the same
+way. The application it replaced checks, before each decision write and each
+swap of results, that `.lock` still names it, and stops writing when it does
+not. Reading a project needs no lock.
 
 ## Writing a file: atomic writes
 

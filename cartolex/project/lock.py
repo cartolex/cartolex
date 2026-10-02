@@ -9,6 +9,12 @@ opener replaces it, under a short-lived ``.lock.takeover`` file so two openers
 never both take it. A process id that now belongs to another process (this one,
 or one started after the lock was taken) counts as gone. A lock held on another
 host is never taken over (its process cannot be checked from here).
+
+A person may still **override** a lock (``force``: the holder is stuck, or
+runs on a computer that is off). The holder it replaced, if it still runs,
+then finds the lock no longer names it: :func:`ensure_held` (called before
+every decision write and every swap of results) raises :class:`LockLost`, so
+it stops writing instead of mixing its writes with the new holder's.
 """
 
 from __future__ import annotations
@@ -28,7 +34,15 @@ from pathlib import Path
 
 from .layout import ProjectLayout
 
-__all__ = ["LockHeld", "LockInfo", "ProjectLock", "read_lock", "remove_stale_lock"]
+__all__ = [
+    "LockHeld",
+    "LockInfo",
+    "LockLost",
+    "ProjectLock",
+    "ensure_held",
+    "read_lock",
+    "remove_stale_lock",
+]
 
 _log = logging.getLogger("cartolex.project")
 
@@ -41,8 +55,9 @@ _UNREADABLE_AGE = 30.0
 _TAKEOVER_AGE = 10.0
 _TAKEOVER_WAIT = 15.0  # longer than _TAKEOVER_AGE: a dead taker's file is always cleared
 
-#: The lock files this process holds (a holder with this process's id is only alive if listed).
-_HELD: set[str] = set()
+#: The lock files this process holds, with what it wrote in them (a holder with this
+#: process's id is only alive if listed).
+_HELD: dict[str, LockInfo] = {}
 _HELD_GUARD = threading.Lock()
 
 
@@ -71,6 +86,36 @@ class LockHeld(RuntimeError):
     def here(self) -> bool:
         """Whether the holder runs on this computer."""
         return self.info is not None and self.info.host == socket.gethostname()
+
+
+class LockLost(RuntimeError):
+    """This process held the project, and another application overrode its lock."""
+
+    def __init__(self, path: Path, info: LockInfo | None) -> None:
+        self.path, self.info = path, info
+        who = (
+            f"{info.app} (process {info.pid} on {info.host}, since {info.since})"
+            if info
+            else "no application (the lock was removed)"
+        )
+        super().__init__(
+            f"the project's lock now names {who}: this application no longer writes to it; "
+            f"open the project again: {path}"
+        )
+
+
+def ensure_held(path: Path) -> None:
+    """Refuse to write when this process held the lock at *path* and lost it.
+
+    A process that never took this lock (a reader, a tool) is not checked.
+    """
+    with _HELD_GUARD:
+        mine = _HELD.get(_key(path))
+    if mine is None:
+        return
+    now = read_lock(path)
+    if now != mine:
+        raise LockLost(path, now)
 
 
 def read_lock(path: Path) -> LockInfo | None:
@@ -197,11 +242,13 @@ def _takeover(path: Path) -> Generator[None, None, None]:
         mark.unlink(missing_ok=True)
 
 
-def _remove_if_gone(path: Path, seen: LockInfo | None) -> bool:
+def _remove_if_gone(path: Path, seen: LockInfo | None, *, force: bool = False) -> bool:
     """Remove the lock at *path* if it is still *seen* and its holder is gone.
 
     Runs under the takeover file, so no other taker replaces the lock between
-    the check and the removal. Returns whether a lock was removed.
+    the check and the removal. *force* removes it even if its holder runs (an
+    override, asked for by a person who was warned). Returns whether a lock was
+    removed.
     """
     with _takeover(path):
         if not path.exists():
@@ -209,11 +256,10 @@ def _remove_if_gone(path: Path, seen: LockInfo | None) -> bool:
         now = read_lock(path)
         if now != seen:
             return False
-        if now is None:
-            if not _left_half_written(path):
+        if not force:
+            gone = _left_half_written(path) if now is None else _holder_gone(path, now)
+            if not gone:
                 return False
-        elif not _holder_gone(path, now):
-            return False
         path.unlink(missing_ok=True)
         return True
 
@@ -228,7 +274,12 @@ class ProjectLock:
         #: The holder of a lock left behind that :meth:`acquire` replaced (``None``: none).
         self.replaced: LockInfo | None = None
 
-    def acquire(self) -> ProjectLock:
+    def acquire(self, *, force: bool = False) -> ProjectLock:
+        """Take the lock; a lock left behind is taken over, and with *force* any lock.
+
+        *force* overrides a holder that may still run (see the module's text):
+        only for a person who was told what it risks.
+        """
         info = LockInfo(
             pid=os.getpid(),
             host=socket.gethostname(),
@@ -239,34 +290,48 @@ class ProjectLock:
             try:
                 fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
             except FileExistsError:
-                held = read_lock(self.path)
-                if held is None:
-                    gone = _left_half_written(self.path)
-                else:
-                    gone = _holder_gone(self.path, held)
-                if not gone:
-                    raise LockHeld(self.path, held) from None
-                if _remove_if_gone(self.path, held):
-                    self.replaced = held
-                    who = f"{held.app} (process {held.pid}, since {held.since})" if held else "?"
-                    _log.warning(
-                        f"removed the lock left by {who}, which no longer runs",
-                        extra={
-                            "event": "lock_taken_over",
-                            "path": str(self.path),
-                            "previous_pid": held.pid if held else None,
-                            "previous_since": held.since if held else None,
-                        },
-                    )
+                fd = None
+            if fd is None:
+                self._clear(read_lock(self.path), force=force)
                 continue
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 json.dump(asdict(info), fh)
                 fh.write("\n")
             self.info = info
             with _HELD_GUARD:
-                _HELD.add(_key(self.path))
+                _HELD[_key(self.path)] = info
             return self
         raise LockHeld(self.path, read_lock(self.path))
+
+    def _clear(self, held: LockInfo | None, *, force: bool) -> None:
+        """Remove the lock *held* if its holder is gone (or *force*); else raise LockHeld."""
+        if force:
+            gone = True
+        elif held is None:
+            gone = _left_half_written(self.path)
+        else:
+            gone = _holder_gone(self.path, held)
+        if not gone:
+            raise LockHeld(self.path, held)
+        if not _remove_if_gone(self.path, held, force=force):
+            return  # another opener changed it first: look again
+        self.replaced = held
+        who = (
+            f"{held.app} (process {held.pid} on {held.host}, since {held.since})"
+            if held
+            else "an unreadable lock"
+        )
+        _log.warning(
+            f"overrode the lock of {who}"
+            if force
+            else f"removed the lock left by {who}, which no longer runs",
+            extra={
+                "event": "lock_overridden" if force else "lock_taken_over",
+                "path": str(self.path),
+                "previous_pid": held.pid if held else None,
+                "previous_since": held.since if held else None,
+            },
+        )
 
     def release(self) -> None:
         if self.info is None:
@@ -275,7 +340,7 @@ class ProjectLock:
         if held == self.info:
             self.path.unlink(missing_ok=True)
         with _HELD_GUARD:
-            _HELD.discard(_key(self.path))
+            _HELD.pop(_key(self.path), None)
         self.info = None
 
     def __enter__(self) -> ProjectLock:
@@ -285,13 +350,14 @@ class ProjectLock:
         self.release()
 
 
-def remove_stale_lock(layout: ProjectLayout) -> LockInfo | None:
+def remove_stale_lock(layout: ProjectLayout, *, force: bool = False) -> LockInfo | None:
     """Remove a lock whose process is gone (the explicit ``unlock`` command).
 
     Opening a project already takes such a lock over; this removes it without
     opening. An unreadable lock file is removed (it names no holder to protect).
     Refuses when the holder still runs on this host, or when it was taken on
-    another host (it cannot be checked from here). Returns the removed holder.
+    another host (it cannot be checked from here), unless *force* (an override:
+    see the module's text). Returns the removed holder.
     """
     if not layout.lock.exists():
         raise FileNotFoundError(f"no lock at {layout.lock}")
@@ -299,6 +365,7 @@ def remove_stale_lock(layout: ProjectLayout) -> LockInfo | None:
     if held is None:
         layout.lock.unlink()
         return None
-    if not _holder_gone(layout.lock, held) or not _remove_if_gone(layout.lock, held):
+    gone = force or _holder_gone(layout.lock, held)
+    if not gone or not _remove_if_gone(layout.lock, held, force=force):
         raise LockHeld(layout.lock, held)
     return held

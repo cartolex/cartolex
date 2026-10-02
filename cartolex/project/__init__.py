@@ -15,7 +15,7 @@ from .files import (
     write_decision,
 )
 from .layout import SOURCE_TABLES, ProjectLayout
-from .lock import LockHeld, ProjectLock, remove_stale_lock
+from .lock import LockHeld, LockLost, ProjectLock, remove_stale_lock
 from .models import LANGUAGES, STAGE_IDS
 from .project import FORMAT, IdentityFrozen, NotAProject, Project, UnsupportedFormat
 
@@ -26,6 +26,7 @@ __all__ = [
     "SOURCE_TABLES",
     "STAGE_IDS",
     "LockHeld",
+    "LockLost",
     "NotAProject",
     "Project",
     "ProjectLayout",

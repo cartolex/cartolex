@@ -26,6 +26,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from .layout import ProjectLayout
+from .lock import ensure_held
 
 #: Serialises decision writes inside one process (the project lock covers other processes).
 _DECISION_LOCK = threading.Lock()
@@ -164,9 +165,12 @@ def write_decision(
     *expected* is the fingerprint the writer read (``None``: it read no file).
     The previous version, if any, is copied to the file's history folder as
     ``<UTC time>-<action><suffix>`` before the new version replaces it. Returns
-    the new fingerprint. Raises :class:`StaleWrite` when the file changed.
+    the new fingerprint. Raises :class:`StaleWrite` when the file changed, and
+    :class:`~cartolex.project.lock.LockLost` when this process's lock on the
+    project was overridden.
     """
     path = Path(path)
+    ensure_held(layout.lock)
     with _DECISION_LOCK:
         return _write_decision(layout, path, data, expected=expected, action=action, now=now)
 

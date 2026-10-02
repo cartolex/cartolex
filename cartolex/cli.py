@@ -4,7 +4,7 @@
 ::
 
     cartolex                                   (the app: same as `cartolex app`)
-    cartolex app [FOLDER] [--port N] [--no-browser] [--services demo [--world SIZE:SEED]]
+    cartolex app [FOLDER] [--port N] [--no-browser] [--idle-stop MINUTES] [--services demo …]
     cartolex api [FOLDER] [--host H] [--port N] [--allowed-host NAME…] [--projects-root DIR]
     cartolex init FOLDER --name NAME --field TITLE [--description TEXT] [--languages en,fr]
     cartolex status FOLDER
@@ -12,7 +12,7 @@
     cartolex params FOLDER [--set STAGE.NAME=VALUE …]
     cartolex versions FOLDER [--pin ID | --try-another --seed N]
     cartolex project validate FOLDER
-    cartolex project unlock FOLDER
+    cartolex project unlock FOLDER [--force]
     cartolex models list
     cartolex models add LANG… [--yes]
     cartolex collect people|folder|corpus|resolve|confirm|harvest|duplicates|merge FOLDER …
@@ -21,7 +21,8 @@
 Each verb prints what it did and exits with 0 on success, 1 when the project
 refuses the action or a build fails (the message says why), 2 on a usage error,
 130 when a build was cancelled. ``cartolex app`` starts the app on a free
-loopback port and opens the browser with a launch link that works once;
+loopback port and opens the browser with a launch link that works once; it
+stops by itself two minutes after its last page closed (``--idle-stop``).
 ``cartolex api`` serves it without a browser, for hosting. ``cartolex build``
 and the app read the AI key from
 ``MISTRAL_API_KEY``, asks before a stage that reaches the network or costs money
@@ -88,7 +89,13 @@ def _validate(args: argparse.Namespace) -> int:
 def _unlock(args: argparse.Namespace) -> int:
     from cartolex.project import ProjectLayout, remove_stale_lock
 
-    held = remove_stale_lock(ProjectLayout(args.folder))
+    if args.force:
+        print(
+            "warning: if the application holding the lock still runs, both will write to the "
+            "project and work may be lost; it stops saving once it sees the lock is gone",
+            file=sys.stderr,
+        )
+    held = remove_stale_lock(ProjectLayout(args.folder), force=args.force)
     who = f"{held.app} (process {held.pid}, since {held.since})" if held else "an unreadable lock"
     print(f"removed the stale lock of {who}")
     return 0
@@ -381,9 +388,22 @@ def _app_settings(args: argparse.Namespace, *, hosted: bool, stack: object = Non
         data_dir=data_dir,
         allowed_hosts=tuple(getattr(args, "allowed_host", None) or ()),
         secure_cookies=bool(getattr(args, "secure_cookies", False)),
+        idle_stop_s=None if hosted else _idle_stop(args),
         ai_access=AIAccess(api_key=key) if key else None,
         collection=_collection(args, stack) if stack is not None else None,  # type: ignore[arg-type]
     )
+
+
+#: Minutes the app keeps running after its last page closed (when it opened the browser).
+IDLE_STOP_MINUTES = 2.0
+
+
+def _idle_stop(args: argparse.Namespace) -> float | None:
+    """Seconds before an unused app stops (``None``: never): off by default without a browser."""
+    minutes = getattr(args, "idle_stop", None)
+    if minutes is None:
+        minutes = 0 if getattr(args, "no_browser", True) else IDLE_STOP_MINUTES
+    return minutes * 60 if minutes > 0 else None
 
 
 def _app(args: argparse.Namespace) -> int:
@@ -509,6 +529,13 @@ def _parser(extensions: Sequence[Extension] = ()) -> argparse.ArgumentParser:
     app.add_argument("folder", type=Path, nargs="?", help="the project to open")
     app.add_argument("--port", type=int, default=0, help="the port (default: a free one)")
     app.add_argument("--no-browser", action="store_true", help="print the link, open nothing")
+    app.add_argument(
+        "--idle-stop",
+        type=float,
+        metavar="MINUTES",
+        help=f"stop this long after the last page closed (default {IDLE_STOP_MINUTES:g}, "
+        "0 or --no-browser: never)",
+    )
     app.add_argument("--data-dir", type=Path, help="the app's own folder (recent projects)")
     _services_options(app)
     app.set_defaults(run=_app)
@@ -615,6 +642,11 @@ def _parser(extensions: Sequence[Extension] = ()) -> argparse.ArgumentParser:
     validate.set_defaults(run=_validate)
     unlock = psub.add_parser("unlock", help="remove a lock whose process is gone")
     unlock.add_argument("folder", type=Path)
+    unlock.add_argument(
+        "--force",
+        action="store_true",
+        help="remove it even if its holder may still run (it is stuck, or its computer is off)",
+    )
     unlock.set_defaults(run=_unlock)
 
     models = sub.add_parser("models", help="the language models extraction needs")
@@ -686,6 +718,14 @@ def main(argv: list[str] | None = None, *, extensions: Sequence[Extension] = ())
         KeyError,
     ) as exc:
         print(f"error: {exc}", file=sys.stderr)
+        from cartolex.project import LockHeld
+
+        if isinstance(exc, LockHeld):
+            print(
+                "if it is stuck, or its computer is off, override the lock with: "
+                f"cartolex project unlock --force {exc.path.parent}",
+                file=sys.stderr,
+            )
         return 1
 
 

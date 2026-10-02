@@ -2,13 +2,14 @@
  * The start screen (`/start`): the project open now, the recent projects, a
  * folder to open, the demo project, and a new project (`/start?new=1`). Opening
  * or creating a project reloads the interface on the project's first page, so
- * every screen starts from the new project's manifest.
+ * every screen starts from the new project's manifest. A project another
+ * cartolex holds can be opened anyway, after a warning (`force`).
  */
 
 import { html, useState } from '../../core/preact.js';
 import { formatDate, t } from '../../core/i18n.js';
 import { usePage, usePageTitle } from '../../core/page.js';
-import { Button, Card, EmptyState, FormField, Input } from '../../components/index.js';
+import { Button, Card, ConfirmDialog, EmptyState, FormField, Input } from '../../components/index.js';
 import { Block, State, refusal, useResource } from '../settings/common.js';
 import { NewProject } from './new.js';
 
@@ -17,14 +18,35 @@ export function restartAt(path) {
   window.location.assign(path || '/');
 }
 
+/** The errors of a project held by another cartolex: it may be opened anyway. */
+const HELD = new Set(['locked', 'locked_here']);
+
+/** The warning before overriding the lock of *error* (`locked` or `locked_here`). */
+function OverrideWarning({ error }) {
+  const params = error.params || {};
+  const since = params.since ? formatDate(params.since, 'datetime') : '?';
+  return html`
+    <p>${error.code === 'locked_here'
+      ? t('start.override.here', { since, pid: params.pid })
+      : t('start.override.elsewhere', { since, host: params.host })}</p>
+    <p>${t('start.override.after')}</p>`;
+}
+
 function Recent({ ctx, recent }) {
   const [problem, setProblem] = useState(null);
+  const [held, setHeld] = useState(null);
+  const [asking, setAsking] = useState(false);
   const [path, setPath] = useState('');
-  const open = async (folder) => {
+  const open = async (folder, force = false) => {
     setProblem(null);
-    const result = await ctx.api.post('/api/projects/open', { path: folder });
-    if (result.ok) restartAt('/');
-    else setProblem(refusal(result.error));
+    setHeld(null);
+    const result = await ctx.api.post('/api/projects/open', { path: folder, force });
+    if (result.ok) {
+      restartAt('/');
+      return;
+    }
+    setProblem(refusal(result.error));
+    if (!force && result.error && HELD.has(result.error.code)) setHeld({ folder, error: result.error });
   };
   const items = recent.data ? recent.data.items || [] : [];
   return html`<${Block} title=${t('start.recent')} resource=${recent} class="cx-settings__wide">
@@ -51,6 +73,17 @@ function Recent({ ctx, recent }) {
       <${Button} type="submit" disabled=${!path.trim()}>${t('start.open')}<//>
     </form>
     ${problem ? html`<p class="cx-settings__problem" role="alert"><${State} kind="warning">${problem}<//></p>` : null}
+    ${held ? html`<div class="cx-settings__actions">
+      <${Button} variant="secondary" onClick=${() => setAsking(true)}>${t('start.override')}<//>
+    </div>` : null}
+    <${ConfirmDialog} open=${asking && Boolean(held)} danger title=${t('start.override.title')}
+      confirmLabel=${t('start.override.yes')} cancelLabel=${t('common.cancel')}
+      onAnswer=${(yes) => {
+        setAsking(false);
+        if (yes && held) open(held.folder, true);
+      }}>
+      ${held ? html`<${OverrideWarning} error=${held.error} />` : null}
+    <//>
   <//>`;
 }
 

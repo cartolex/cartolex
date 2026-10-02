@@ -36,6 +36,7 @@ from typing import Any
 
 from .files import _fsync_dir, atomic_write_bytes, json_bytes, replace_path
 from .layout import ProjectLayout
+from .lock import ensure_held
 from .models import STAGE_IDS
 
 __all__ = [
@@ -152,6 +153,7 @@ def swap_in(
     of each step once it is done.
     """
     probe = probe or _noop
+    ensure_held(layout.lock)  # a holder whose lock was overridden places nothing
     if layout.journal.exists():
         recover(layout)
     staging = layout.staging(stage_id, run_id)

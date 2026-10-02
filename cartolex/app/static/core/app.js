@@ -9,7 +9,8 @@
  *   5. route: mount the page of the current address
  *
  * then refresh the project state (the status dots already show the cached
- * one) and start the jobs poller.
+ * one) and start the jobs poller. A local app that stops when unused also
+ * hears from the page while it is open (`presence.js`).
  */
 import { html, render, signal } from './preact.js';
 import { ApiClient, readCookie } from './api.js';
@@ -19,6 +20,7 @@ import { loadLocale, locale, missingKeys, pickLocale, t } from './i18n.js';
 import { Router } from './router.js';
 import { runtime } from './runtime.js';
 import { Shell } from './shell.js';
+import { startPresence } from './presence.js';
 import { createJobsStore } from './stores/jobs.js';
 import { createPrefs, applyTheme } from './stores/prefs.js';
 import { createProjectStore } from './stores/project.js';
@@ -101,6 +103,13 @@ export async function boot(root) {
     csrfToken: () => csrf.csrf_token || readCookie(csrf.csrf_cookie || 'cartolex_csrf'),
     language: () => locale.value,
   });
+  if (manifest.capabilities && manifest.capabilities.idle_stop) {
+    // A client of its own: the presence calls stay out of the pages' request budgets.
+    startPresence(new ApiClient({
+      csrfHeader: csrf.csrf_header || 'X-Cartolex-CSRF',
+      csrfToken: () => csrf.csrf_token || readCookie(csrf.csrf_cookie || 'cartolex_csrf'),
+    }));
+  }
   const toaster = createToaster();
   runtime.toast = toaster.show;
   const registries = createRegistries();

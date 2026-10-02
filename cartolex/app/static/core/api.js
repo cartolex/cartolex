@@ -90,9 +90,10 @@ export class ApiClient {
    * @param {string} method
    * @param {string} path
    * @param {{body?: any, signal?: AbortSignal, ifMatch?: string, query?: object,
-   *          headers?: object}} [options]
+   *          headers?: object, keepalive?: boolean}} [options] `keepalive`: the request
+   *          outlives the page (a goodbye sent while it closes)
    */
-  async request(method, path, { body, signal, ifMatch, query, headers = {} } = {}) {
+  async request(method, path, { body, signal, ifMatch, query, headers = {}, keepalive = false } = {}) {
     const url = this.base + path + queryString(query);
     const init = {
       method,
@@ -100,6 +101,7 @@ export class ApiClient {
       headers: { Accept: 'application/json', ...headers },
       signal,
     };
+    if (keepalive) init.keepalive = true;
     const language = this.language();
     if (language) init.headers['Accept-Language'] = language;
     if (body !== undefined) {

@@ -683,4 +683,19 @@ nothing in the engine names a particular deployment, source or procedure.
   computer is still never taken. The error `stale_lock` and the next action
   `unlock` are gone; a project open in another cartolex on the same computer
   is `locked_here`, which says to close that one (a closed browser tab does
-  not stop it) and offers Try again.
+  not stop it).
+- **Open anyway.** A project another cartolex holds (`locked`, `locked_here`,
+  next action `confirm`) can be opened anyway from the start screen, after a
+  warning that names the holder and what may be lost (`POST
+  /api/projects/open {path, force}`, `cartolex project unlock --force`). The
+  application whose lock was overridden checks before each decision write and
+  each swap of results that the lock still names it, and otherwise stops
+  writing with `lock_lost`; opening the project there again reopens it.
+- **The app stops when no page is open.** `cartolex app` stops two minutes
+  after its last browser tab closed, once no job runs, instead of running on
+  unseen with its project locked. Each page says it is open (`POST
+  /api/presence` every 30 s, and once more on closing; manifest capability
+  `idle_stop`); a page not heard for ten minutes counts as closed, and a
+  computer waking from sleep gives the pages time to call again.
+  `--idle-stop MINUTES` changes the delay; `0` or `--no-browser` keeps it
+  running.

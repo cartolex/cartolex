@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 from .auth import ANONYMOUS, LOCAL_USER, Principal, hosted_authorizer, local_authorizer
 from .jobs import LocalJobRunner
+from .presence import Presence
 from .projects import HostedProjects, LocalProjects, ProjectHost
 from .security import Session, SessionStore, same_secret
 
@@ -120,6 +121,8 @@ class Runtime:
             else LocalProjects(settings.data_dir, hooks)
         )
         self.jobs: JobRunner = settings.job_runner or LocalJobRunner()
+        #: The pages of the interface heard from lately (the local app stops when none is open).
+        self.presence = Presence()
         self.collection: CollectionService = settings.collection or UnavailableCollection()
         self.site_builder: SiteBuilder = settings.site_builder or default_site_builder()
         from .machine import MachineKeys

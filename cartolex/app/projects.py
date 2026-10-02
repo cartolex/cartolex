@@ -161,14 +161,26 @@ class LocalProjects(ProjectHost):
         current = self.current()
         return current.id if current else None
 
-    def open(self, root: Path) -> ProjectHandle:
-        """Open the project in *root* for writing and make it the current one."""
+    def open(self, root: Path, *, force: bool = False) -> ProjectHandle:
+        """Open the project in *root* for writing and make it the current one.
+
+        *force* overrides a lock held elsewhere (the person was warned). The
+        project open now is kept unless another application overrode its lock:
+        it is then opened again.
+        """
+        from cartolex.project.lock import LockLost, ensure_held
+
         root = Path(root).expanduser()
         with self._lock:
             current = self._current
             if current is not None and current.layout.root.resolve() == root.resolve():
-                return current
-            project = Project.open(root, write=True)
+                try:
+                    ensure_held(current.layout.lock)
+                    return current
+                except LockLost:
+                    current.project.close()
+                    self._current = current = None
+            project = Project.open(root, write=True, force=force)
             try:
                 self._opened(project)
             except BaseException:

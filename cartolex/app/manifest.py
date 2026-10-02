@@ -97,6 +97,10 @@ class Capabilities(BaseModel):
         description="the AI clean-up outside the app: the copilot bundle (export, then import)"
     )
     hosted: bool = Field(description="a hosted service (many projects, a host's sign-in)")
+    idle_stop: bool = Field(
+        default=False,
+        description="the app stops when no page is open: pages say they are (POST /api/presence)",
+    )
 
 
 class ProjectInfo(_Model):
@@ -237,6 +241,7 @@ def build_manifest(runtime: Runtime, principal: Principal, project: dict | None)
         ai_api=bool(ai is not None and (ai.api_key or ai.client_factory)),
         ai_copilot=True,
         hosted=settings.hosted,
+        idle_stop=settings.idle_stop_s is not None,
         **combined.capabilities,
     )
     return Manifest(

@@ -4,10 +4,13 @@
 :func:`serve` binds the socket itself (port 0 picks a free one), starts
 uvicorn on it with the app's JSON logs, and, locally, opens the browser at the
 launch link once the server listens. The link is also printed: it works once.
+With ``settings.idle_stop_s``, a watcher stops the server once no page has been
+open that long and no job runs (:mod:`cartolex.app.presence`).
 """
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import socket
 import sys
@@ -18,6 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .logs import configure_logging
+from .presence import stop_when_unused
 
 if TYPE_CHECKING:
     from .extensions import Extension
@@ -98,12 +102,42 @@ def serve(
         if announce:
             print(f"cartolex is running: {url}", flush=True)
             print("this link opens it once; press Ctrl-C to stop", flush=True)
+            if settings.idle_stop_s is not None:
+                print(
+                    _minutes(
+                        settings.idle_stop_s, "it stops by itself {} after its last page closes"
+                    ),
+                    flush=True,
+                )
         if open_browser:
             webbrowser.open(url)
 
+    def stop_unused() -> None:
+        if announce:
+            with contextlib.suppress(OSError, ValueError):  # the terminal may be gone
+                print(
+                    _minutes(settings.idle_stop_s or 0, "no page open for {}: cartolex stopped"),
+                    flush=True,
+                )
+        server.should_exit = True
+
+    stopped = threading.Event()
     threading.Thread(target=announce_when_ready, name="cartolex-announce", daemon=True).start()
+    if settings.idle_stop_s is not None:
+        threading.Thread(
+            target=stop_when_unused,
+            args=(runtime.presence, runtime.jobs, settings.idle_stop_s, stop_unused, stopped),
+            name="cartolex-idle-stop",
+            daemon=True,
+        ).start()
     try:
         server.run(sockets=[sock])
     finally:
+        stopped.set()
         sock.close()
     return 0
+
+
+def _minutes(seconds: float, text: str) -> str:
+    minutes = max(1, round(seconds / 60))
+    return text.format(f"{minutes} minute" + ("s" if minutes > 1 else ""))
