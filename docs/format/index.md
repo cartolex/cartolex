@@ -15,6 +15,7 @@ sources
 decisions
 derived
 schemas
+snapshot-index
 ```
 
 ## The folder

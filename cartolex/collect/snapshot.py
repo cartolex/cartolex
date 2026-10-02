@@ -18,7 +18,10 @@ without deletions holds it twice, the newest partition wins.
 :class:`Snapshot` **streams** the partitions: a part is read line by line, each
 line is tested against what is wanted (author, institution or work ids, DOIs)
 on its raw bytes, and only the lines that may match are parsed, so memory
-holds the matches, never a partition. Deleted works are dropped, the deletion
+holds the matches, never a partition. With an index of the snapshot
+(:mod:`cartolex.collect.snapshot_index`), a query reads only the members of the
+parts that may hold what it asks, tested the same way: the same records come
+back for a fraction of the reading. Deleted works are dropped, the deletion
 log being read the same way. :class:`SnapshotSource` answers the requests the
 finders make of OpenAlex (:class:`cartolex.collect.openalex.OpenAlexSource`)
 from it, so that the harvest, the institutions' proposal and the collaborators'
@@ -49,11 +52,13 @@ from .openalex import INSTITUTION_WORK_FIELDS, PER_PAGE, WORK_FIELDS, Years, bar
 
 __all__ = [
     "ENTITIES",
+    "EntityCheck",
     "Partition",
     "Query",
     "RecordStore",
     "ScanReport",
     "Snapshot",
+    "SnapshotCheck",
     "SnapshotSource",
 ]
 
@@ -87,6 +92,8 @@ class ScanReport:
 
     passes: int = 0
     bytes: int = 0
+    #: Members of indexed parts read (0: every pass read whole parts).
+    members: int = 0
     lines: int = 0
     parsed: int = 0
     kept: int = 0
@@ -96,6 +103,104 @@ class ScanReport:
 
     def lines_per_second(self) -> float:
         return self.lines / self.seconds if self.seconds else 0.0
+
+
+@dataclass(frozen=True)
+class EntityCheck:
+    """One entity of a snapshot against its manifest: the parts it lists, their bytes, and
+    those missing here or of another size; without a manifest, the parts found."""
+
+    entity: str
+    parts: int
+    bytes: int
+    missing: int = 0
+    listed: bool = True
+
+
+@dataclass(frozen=True)
+class SnapshotCheck:
+    """A snapshot folder against its manifests (:meth:`Snapshot.check`)."""
+
+    root: Path
+    release: str
+    entities: dict[str, EntityCheck]
+    #: The index (:func:`cartolex.collect.snapshot_index.index_state`), or ``None``.
+    index: dict[str, Any] | None = None
+
+    @property
+    def indexed(self) -> bool:
+        """An index of this release is complete: a query reads only what it asks."""
+        return bool(
+            self.index
+            and self.index["state"] == "complete"
+            and self.index["release"] == self.release
+        )
+
+    @property
+    def absent(self) -> list[str]:
+        """The entities cartolex reads that the folder has no part of."""
+        return [e for e in ENTITIES if e not in self.entities]
+
+    @property
+    def missing(self) -> int:
+        """Parts the manifests list that are missing here or of another size."""
+        return sum(e.missing for e in self.entities.values())
+
+    @property
+    def complete(self) -> bool:
+        """Every entity cartolex reads is there, with every part its manifest lists."""
+        return not self.absent and not self.missing
+
+    def bytes_of(self, *entities: str) -> int:
+        """The compressed bytes of *entities*' parts."""
+        return sum(self.entities[e].bytes for e in entities if e in self.entities)
+
+    def read_bytes(self, action: str, *, rounds: int = 1, search: bool = False) -> int:
+        """About how many bytes a job reads: a harvest (or a retry of one) one pass over the
+        authors and one over the works; an institutions' reading the institutions and a pass
+        over the works (a search by name, the institutions only); a round of collaborators
+        two passes over the works."""
+        works = self.bytes_of("works")
+        institutions = self.bytes_of("institutions")
+        if action in ("harvest", "retry"):
+            return self.bytes_of("authors") + works
+        if action == "institutions":
+            return institutions if search else institutions + works
+        if action == "collaborators":
+            return 2 * max(1, rounds) * works
+        raise ValueError(f"a snapshot does not answer {action!r}")
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "release": self.release,
+            "complete": self.complete,
+            "absent": self.absent,
+            "missing": self.missing,
+            "bytes": {e: c.bytes for e, c in self.entities.items()},
+            "parts": {e: c.parts for e, c in self.entities.items()},
+            "index": self.index,
+            "indexed": self.indexed,
+        }
+
+
+def _listed_parts(manifest: Path) -> list[tuple[str, int]] | None:
+    """The parts an entity's manifest lists, as ``(updated_date=…/part_….gz, bytes)``, or
+    ``None`` without a readable manifest (the files are ``files``, before 2026 ``entries``)."""
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    files = (data.get("files") or data.get("entries")) if isinstance(data, dict) else None
+    if not isinstance(files, list):
+        return None
+    out = []
+    for f in files:
+        try:
+            date, name = str(f["url"]).rsplit("/", 2)[1:]
+            out.append((f"{date}/{name}", int(f["meta"]["content_length"])))
+        except (KeyError, TypeError, ValueError):
+            return None
+    return out
 
 
 class Snapshot:
@@ -113,10 +218,13 @@ class Snapshot:
         progress: Callable[[float, str], None] | None = None,
         cancel: Callable[[], bool] | None = None,
         jobs: int = 1,
+        use_index: bool = True,
     ) -> None:
         self.root = Path(root)
         #: Worker processes reading parts at once (1: in this process).
         self.jobs = max(1, int(jobs))
+        self.use_index = use_index
+        self._index: Any = None  # opened at the first query: SnapshotIndex, or False
         if not self.root.is_dir():
             raise FileNotFoundError(f"{self.root} is not a folder")
         self._progress = progress
@@ -175,6 +283,54 @@ class Snapshot:
         """Bytes of the part files of *entities* (compressed)."""
         return sum(p.size for e in entities for p in self.partitions(e))
 
+    def check(self) -> SnapshotCheck:
+        """The folder against the manifests: each entity's parts and bytes, and the parts
+        listed but missing here or of another size (a download that stopped midway). An
+        entity without a manifest counts the parts found. Every part is looked at (its
+        size), none is read."""
+        from .snapshot_index import index_state, indexed_sizes
+
+        cut = indexed_sizes(self.root)  # the parts an index cut: their sizes changed
+        out: dict[str, EntityCheck] = {}
+        for entity in ENTITIES:
+            folder = self.entity_dir(entity)
+            if folder is None:
+                continue
+            listed = _listed_parts(folder / "manifest.json")
+            if listed is None:
+                found = self.partitions(entity)
+                out[entity] = EntityCheck(entity, len(found), sum(p.size for p in found),
+                                          listed=False)  # fmt: skip
+                continue
+            missing = 0
+            for rel, size in listed:
+                try:
+                    found = (folder / rel).stat().st_size
+                except OSError:
+                    missing += 1
+                    continue
+                missing += found != size and found != cut.get((entity, rel))
+            out[entity] = EntityCheck(entity, len(listed), sum(n for _, n in listed), missing)
+        return SnapshotCheck(self.root, self.release(), out, index_state(self.root))
+
+    @property
+    def index(self) -> Any:
+        """The snapshot's complete index of this release, or ``None`` (then every query
+        reads whole parts); one whose parts changed size since is not used."""
+        if self._index is None:
+            self._index = False
+            if self.use_index:
+                from .snapshot_index import SnapshotIndex
+
+                found = SnapshotIndex.open(self.root, self.release())
+                if found is not None and not any(
+                    found.stale(self.entity_dir(e), e)
+                    for e in found.data["entities"]
+                    if self.entity_dir(e) is not None
+                ):
+                    self._index = found
+        return self._index or None
+
     # ── streaming ──
     def scan(self, query: Query, *, what: str = "") -> dict[str, dict[str, Any]]:
         """Every record of the query's entity that it accepts, by id, the newest partition's
@@ -223,28 +379,47 @@ class Snapshot:
         return len(kept)
 
     def _part_records(self, query: Query, what: str) -> Iterator[dict[str, dict[str, Any]]]:
-        """Each part's records, in date order, as soon as that part is read."""
+        """Each part's records, in date order, as soon as that part is read: with an index,
+        only the members that may hold what *query* asks, of the parts that have some."""
         parts = self.partitions(query.entity)
-        total = sum(p.size for p in parts) or 1
+        index = self.index
+        spans: dict[str, list[tuple[int, int]]] | None = None
+        if index is not None and index.supports(query):
+            spans = index.members(query)
+            parts = [p for p in parts if _rel(p) in spans]
+        sizes = [p.size if spans is None else sum(n for _, n in spans[_rel(p)]) for p in parts]
+        total = sum(sizes) or 1
         report = self.report
         report.passes += 1
         message = f"snapshot: {query.entity} {what}".strip()
         if self.jobs > 1 and len(parts) > 1:
-            results = self._parallel(parts, query, total, message)
+            results = self._parallel(parts, query, total, message, spans)
         else:
-            results = self._serial(parts, query, total, message)
-        for part, (records, lines, parsed) in zip(parts, results, strict=True):
+            results = self._serial(parts, query, total, message, spans)
+        for part, size, (records, lines, parsed) in zip(parts, sizes, results, strict=True):
             report.lines += lines
             report.parsed += parsed
-            report.bytes += part.size
-            report.by_entity[query.entity] = report.by_entity.get(query.entity, 0) + part.size
+            report.bytes += size
+            report.members += len(spans[_rel(part)]) if spans is not None else 0
+            report.by_entity[query.entity] = report.by_entity.get(query.entity, 0) + size
             yield records
 
     def _serial(
-        self, parts: list[Partition], query: Query, total: int, message: str
+        self,
+        parts: list[Partition],
+        query: Query,
+        total: int,
+        message: str,
+        spans: Mapping[str, list[tuple[int, int]]] | None = None,
     ) -> Iterator[tuple[dict[str, dict[str, Any]], int, int]]:
         done = 0
         for part in parts:
+            if spans is not None:
+                members = spans[_rel(part)]
+                self._tick(done / total, message)
+                yield _scan_members(str(part.path), members, query)
+                done += sum(n for _, n in members)
+                continue
             yield _scan_part(
                 str(part.path),
                 query,
@@ -253,7 +428,12 @@ class Snapshot:
             done += part.size
 
     def _parallel(
-        self, parts: list[Partition], query: Query, total: int, message: str
+        self,
+        parts: list[Partition],
+        query: Query,
+        total: int,
+        message: str,
+        spans: Mapping[str, list[tuple[int, int]]] | None = None,
     ) -> Iterator[tuple[dict[str, dict[str, Any]], int, int]]:
         """The parts read in worker processes, each part's result given back in date order
         and let go of once given: memory holds the parts read ahead, never all of them."""
@@ -263,10 +443,16 @@ class Snapshot:
 
         context = multiprocessing.get_context("spawn")
         with ProcessPoolExecutor(max_workers=self.jobs, mp_context=context) as pool:
-            futures: list[Any] = [pool.submit(_scan_part, str(p.path), query, None) for p in parts]
+            futures: list[Any] = [
+                pool.submit(_scan_part, str(p.path), query, None)
+                if spans is None
+                else pool.submit(_scan_members, str(p.path), spans[_rel(p)], query)
+                for p in parts
+            ]
+            sizes = [p.size if spans is None else sum(n for _, n in spans[_rel(p)]) for p in parts]
             done = [0]
-            for future, part in zip(futures, parts, strict=True):
-                future.add_done_callback(lambda _f, n=part.size: done.__setitem__(0, done[0] + n))
+            for future, size in zip(futures, sizes, strict=True):
+                future.add_done_callback(lambda _f, n=size: done.__setitem__(0, done[0] + n))
             for i in range(len(futures)):
                 while True:
                     try:
@@ -449,20 +635,54 @@ def _scan_part(
             lines += 1
             if tick is not None and lines % 20000 == 1:
                 tick(raw.tell())
-            if not maybe(line):
-                continue
-            parsed += 1
-            try:
-                record = json.loads(line)
-            except ValueError:
-                continue
-            if isinstance(record, dict) and keep(record):
-                rid = short_id(record.get("id"))
-                if rid:
-                    if query.select:
-                        record = {k: record[k] for k in query.select if k in record}
-                    found[rid] = record
+            parsed += _take(line, maybe, keep, query, found)
     return found, lines, parsed
+
+
+def _take(
+    line: bytes,
+    maybe: Callable[[bytes], bool],
+    keep: Callable[[dict[str, Any]], bool],
+    query: Query,
+    found: dict[str, dict[str, Any]],
+) -> bool:
+    """Test one raw line; when it may match, parse it and keep the record if it does.
+    Returns whether it was parsed."""
+    if not maybe(line):
+        return False
+    try:
+        record = json.loads(line)
+    except ValueError:
+        return True
+    if isinstance(record, dict) and keep(record):
+        rid = short_id(record.get("id"))
+        if rid:
+            if query.select:
+                record = {k: record[k] for k in query.select if k in record}
+            found[rid] = record
+    return True
+
+
+def _scan_members(
+    path: str, members: Sequence[tuple[int, int]], query: Query
+) -> tuple[dict[str, dict[str, Any]], int, int]:
+    """The records *query* accepts in the *members* of an indexed part (their ``(offset,
+    length)``), tested line by line as :func:`_scan_part` does. Runs in a worker too."""
+    from .snapshot_index import read_spans
+
+    maybe, keep = _tests(query)
+    found: dict[str, dict[str, Any]] = {}
+    lines = parsed = 0
+    for block in read_spans(path, members):
+        for line in block.split(b"\n")[:-1]:  # a member holds whole lines
+            lines += 1
+            parsed += _take(line, maybe, keep, query, found)
+    return found, lines, parsed
+
+
+def _rel(part: Partition) -> str:
+    """A part's path below its entity's folder (``updated_date=…/part_….gz``)."""
+    return f"{part.path.parent.name}/{part.path.name}"
 
 
 def in_window(work: dict[str, Any], first: int | None, last: int | None) -> bool:

@@ -305,6 +305,26 @@ daily budget; the **snapshot** holds the same records, to download once:
 (Checked on 28 September 2026 on OpenAlex's help pages, « Snapshot » and
 « Snapshot data format », dated 24 September 2026.)
 
+**Indexing the snapshot.** Without an index, every reading goes through the
+whole snapshot: hours on an external disk, however few people it is for. Index it
+once per release:
+
+```bash
+cartolex collect snapshot-index openalex-snapshot/            # hours; Ctrl-C stops it
+cartolex collect snapshot-index openalex-snapshot/            # the same command goes on
+cartolex collect snapshot-index openalex-snapshot/ --status   # how far it is
+```
+
+Indexing reads the works and the authors once and cuts each of their files into
+small gzip blocks of the same lines (the files keep about their size and their
+content, and any tool reads them as before), then records which blocks hold the
+works of each author, institution and DOI, and each author's record
+({doc}`format/snapshot-index`). A collection then reads only the blocks that may
+hold what it asks for, and finds the same records: a lab's harvest takes minutes
+instead of hours. A national harvest reads most blocks anyway. The files no
+longer match OpenAlex's sizes: download a new release into a new folder rather
+than syncing over an indexed one.
+
 ```bash
 cartolex collect snapshot my-project openalex-snapshot/ --dry-run
 cartolex collect snapshot my-project openalex-snapshot/          # the harvest, from it

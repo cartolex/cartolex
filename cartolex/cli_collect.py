@@ -10,6 +10,7 @@
     cartolex collect confirm FOLDER PERSON [RECORD…] [--none]
     cartolex collect harvest FOLDER [--years FIRST-LAST] [--people ID…] [SERVICES]
     cartolex collect snapshot FOLDER SNAPSHOT [--years …] [--people ID…] [SERVICES]
+    cartolex collect snapshot-index SNAPSHOT [--jobs N] [--status]
     cartolex collect institutions FOLDER (--search NAME | --institution ID…) [--years …]
                                   [--min-works N] [--level TYPE=LEVEL…] [--resume] [--snapshot DIR]
                                   [SERVICES]
@@ -523,6 +524,43 @@ def _snapshot(args: argparse.Namespace) -> int:
     return _run(args, "harvest")
 
 
+def _snapshot_index(args: argparse.Namespace) -> int:
+    """Index a snapshot (or say how far its index is): once per release, hours on an
+    external disk; stopped (Ctrl-C), the same command goes on from where it was."""
+    import os
+    import time
+
+    from cartolex.collect.snapshot_index import build_index, index_state
+
+    if args.status:
+        state = index_state(args.snapshot)
+        if state is None:
+            print(f"{args.snapshot}: not indexed")
+        else:
+            print(f"{args.snapshot}: {state['state']}, release {state['release']}, "
+                  f"{state['done']} of {state['parts']} part(s) cut")  # fmt: skip
+        return 0
+    jobs = args.jobs or max(1, (os.cpu_count() or 2) - 2)
+    shown = [-1.0, 0.0]
+
+    def progress(fraction: float, message: str) -> None:
+        now = time.monotonic()
+        if fraction - shown[0] >= 0.005 or now - shown[1] >= 60:
+            print(f"[{100 * fraction:5.1f}%] {message}", flush=True)
+            shown[:] = [fraction, now]
+
+    print(f"indexing {args.snapshot} with {jobs} worker(s); Ctrl-C stops, the same command "
+          "goes on", flush=True)  # fmt: skip
+    try:
+        report = build_index(args.snapshot, jobs=jobs, progress=progress)
+    except KeyboardInterrupt:
+        print("stopped: run the same command to go on")
+        return 130
+    for line in report.lines():
+        print(line)
+    return 0 if report.complete else 1
+
+
 def _coverage_retry(args: argparse.Namespace, project: Any, client: Any) -> dict[str, Any]:
     from cartolex.collect.coverage import retry_failed
 
@@ -731,6 +769,17 @@ def add_parser(sub: Any) -> None:
     sn.add_argument("--years", help="FIRST-LAST, FIRST- or YEAR (default: the slot's window)")
     _service_options(sn)
     sn.set_defaults(run=_snapshot)
+
+    si = verbs.add_parser(
+        "snapshot-index",
+        help="index a downloaded OpenAlex snapshot, so that a collection reads only what it asks",
+    )
+    si.add_argument("snapshot", type=Path, help="the snapshot folder you downloaded")
+    si.add_argument(
+        "--jobs", type=int, default=None, help="parts cut at once (default: processors less two)"
+    )
+    si.add_argument("--status", action="store_true", help="say how far the index is, and stop")
+    si.set_defaults(run=_snapshot_index)
 
     it = verbs.add_parser(
         "institutions", help="propose the people of institutions and their units, then take them"

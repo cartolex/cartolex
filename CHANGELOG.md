@@ -737,3 +737,14 @@ nothing in the engine names a particular deployment, source or procedure.
   snapshot for the identities' searches by name too, so the notice left out the
   OpenAlex requests they still send; they are counted again, with a note that
   only the harvests are read from the snapshot.
+- **An index of the snapshot.** `cartolex collect snapshot-index SNAPSHOT`
+  cuts each part of the works and the authors into small gzip members of the
+  same lines and records which members hold the works of each author,
+  institution, DOI and work id, and each author's record
+  (`cartolex.collect.snapshot_index`, `docs/format/snapshot-index.md`). A query
+  then reads only those members and tests their lines as a whole reading does:
+  the same records, for a fraction of the reading. The build runs in worker
+  processes, replaces a part only once its new copy is synced, and resumes from
+  its last sync point; an index of another release, incomplete, or whose parts
+  changed size since is not used. The app's estimates go through it, and
+  Settings › Data sources says whether the snapshot is indexed.
