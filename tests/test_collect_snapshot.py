@@ -154,3 +154,38 @@ def test_an_institutions_works_come_in_pages_and_resume_from_a_cursor(
     # From the second page's cursor, the works after the first page, in the same order.
     rest = source.institution_work_pages([top.id], None, cursor=pages[0].next_cursor, read=5)
     assert [w["id"] for p in rest for w in p.items] == works[5:]
+
+
+def test_a_retry_on_the_snapshot_still_says_identities_are_searched_online(
+    services, tmp_path
+) -> None:
+    from cartolex.collect import local_settings
+    from cartolex.collect.coverage import person_coverage
+    from cartolex.collect.privacy import plan_collection
+    from cartolex.collect.resolve import resolve
+
+    bib = services.bibliography
+    project = demo_project(tmp_path / "p", bib)
+    ids = world_ids(project, bib)
+    found = [pid for pid, wid in ids.items() if bib.world.person(wid).openalex_id]
+    searched, harvested = found[0], found[1]
+    confirm_truth(project, bib, {p: w for p, w in ids.items() if p != searched})
+    # One person's identity search fails, another's harvest.
+    services.faults.add("status", service="openalex", path=r"^authors\?", status=503, times=None)
+    resolve(project, client(services, project), people=[searched], auto=False)
+    services.faults.clear()
+    aid = bib.world.person(ids[harvested]).openalex_id
+    services.faults.add("status", service="openalex", path=rf"^works\?.*{aid}", status=503,
+                        times=None)  # fmt: skip
+    harvest(project, client(services, project))
+    services.faults.clear()
+    failed = {c.failure["finder"] for c in person_coverage(project) if c.state == "failed"}
+    assert failed == {"resolve", "harvest"}
+
+    settings = local_settings(services.endpoints())
+    plan = plan_collection(project, "coverage", settings, snapshot="2026-01-14")
+    openalex = next(h for h in plan.hosts if h.service == "openalex")
+    assert openalex.requests > 0 and "names" in openalex.sends  # the searches still go online
+    codes = [n["code"] for n in plan.coded_notes]
+    assert "note_snapshot_harvests" in codes and "note_snapshot" not in codes
+    project.close()

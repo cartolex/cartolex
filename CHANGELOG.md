@@ -733,3 +733,7 @@ nothing in the engine names a particular deployment, source or procedure.
   memory holds about a quarter of a kilobyte per work found instead of 35 KB,
   a person's question is a lookup instead of a scan of every work, and an
   institution's works come in pages of 100 that a cursor resumes.
+- **A retry on a snapshot says what still goes online.** Its plan kept the
+  snapshot for the identities' searches by name too, so the notice left out the
+  OpenAlex requests they still send; they are counted again, with a note that
+  only the harvests are read from the snapshot.

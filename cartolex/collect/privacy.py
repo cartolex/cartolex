@@ -209,7 +209,14 @@ def plan_collection(
         n_people = len(failed)
         for finder, pids in sorted(by_finder.items()):
             if finder in ("resolve", "harvest"):
-                sub = plan_collection(project, finder, settings, people=pids, snapshot=snapshot)
+                # A snapshot answers a harvest; identities are still searched by name, online.
+                sub = plan_collection(
+                    project,
+                    finder,
+                    settings,
+                    people=pids,
+                    snapshot=snapshot if finder == "harvest" else None,
+                )
                 for h in sub.hosts:
                     counts[h.service][f"{finder}"] = counts[h.service].get(finder, 0) + h.requests
                     sends[h.service] = tuple(dict.fromkeys(sends.get(h.service, ()) + h.sends))
@@ -281,7 +288,22 @@ def plan_collection(
         for name in ("openalex", "orcid"):
             sends.setdefault(name, SENDS[(action, name)])
     plan = CollectionPlan(action=action, people=n_people)
-    if snapshot is not None and counts["openalex"]:
+    if snapshot is not None and action == "coverage":
+        # The harvests' part was planned on the snapshot above, the identities' online.
+        if "harvest" in by_finder and "resolve" in by_finder:
+            notes.append((
+                "note_snapshot_harvests",
+                f"the harvests are read from the snapshot {snapshot} on this computer; "
+                "identities are still searched on OpenAlex",
+                {"snapshot": str(snapshot)},
+            ))  # fmt: skip
+        elif "harvest" in by_finder:
+            notes.append((
+                "note_snapshot",
+                f"OpenAlex is read from the snapshot {snapshot} on this computer: nothing is sent to it",
+                {"snapshot": str(snapshot)},
+            ))  # fmt: skip
+    elif snapshot is not None and counts["openalex"]:
         counts["openalex"] = {}
         notes.append((
             "note_snapshot",

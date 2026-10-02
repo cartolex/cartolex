@@ -2664,5 +2664,6 @@
   "playground.step.carrying": "Report de vos noms et de vos choix…",
   "playground.adopted": "Le nouveau regroupement est votre brouillon",
   "playground.adopted_text": "Conservés : {names, plural, one {# nom} other {# noms}}, {aside, plural, one {# mot-clé mis de côté} other {# mots-clés mis de côté}}, {attributions, plural, one {# attribution} other {# attributions}} ({dropped, number} abandonnées). Enregistrez pour le garder ; annulez pour revenir.",
-  "playground.adopt.entry": "Adopter le regroupement du bac à sable"
+  "playground.adopt.entry": "Adopter le regroupement du bac à sable",
+  "corpus.note.note_snapshot_harvests": "Les moissons sont lues dans l’instantané {snapshot} sur cet ordinateur ; les identités sont toujours cherchées sur OpenAlex."
 }
