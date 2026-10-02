@@ -39,6 +39,26 @@ def test_the_kit_pins_the_release_and_keeps_each_system_s_conventions(tmp_path: 
         installer_zip.build_kit("1.2.3; rm -rf /", tmp_path)
 
 
+def test_a_test_build_carries_its_wheel_and_says_what_it_is(tmp_path: Path) -> None:
+    wheel = tmp_path / "cartolex-1.2.3-py3-none-any.whl"
+    wheel.write_bytes(b"PK fake wheel")
+    path = installer_zip.build_kit(
+        "1.2.3", tmp_path / "out", wheel=wheel, label="3f2a1c", about="from commit 3f2a1c"
+    )
+    assert path.name == "cartolex-installer-1.2.3-3f2a1c.zip"
+    with zipfile.ZipFile(path) as zf:
+        data = {i.filename.split("/", 1)[1]: zf.read(i) for i in zf.infolist()}
+    assert data[wheel.name] == b"PK fake wheel"
+    assert set(data) == set(installer_zip.FILES) | {wheel.name, "build.txt"}
+    assert b"test build 3f2a1c" in data["build.txt"] and b"from commit 3f2a1c" in data["build.txt"]
+    other = tmp_path / "cartolex-9.9.9-py3-none-any.whl"
+    other.write_bytes(b"PK")
+    with pytest.raises(ValueError, match="not a cartolex 1.2.3 wheel"):
+        installer_zip.build_kit("1.2.3", tmp_path / "out", wheel=other)
+    with pytest.raises(ValueError, match="not a build label"):
+        installer_zip.build_kit("1.2.3", tmp_path / "out", wheel=wheel, label="../x")
+
+
 @pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
 def test_the_shell_launchers_parse() -> None:
     for name in ("install-cartolex.sh", "Install cartolex.command"):

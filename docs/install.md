@@ -63,7 +63,10 @@ needs are astral.sh (uv, first route only), pypi.org and
 files.pythonhosted.org (the packages), github.com and
 objects.githubusercontent.com (uv, its Python and the language models).
 The kit bundles nothing: it is built with `python tools/installer_zip.py`
-(see {doc}`dev/checks`).
+(see {doc}`dev/checks`). A **test build** of the kit, for people who try a
+version before its release, carries the cartolex wheel beside the launchers,
+which install it instead of fetching cartolex, and a `build.txt` naming the
+build: `python tools/installer_zip.py --wheel <the wheel> --label <name>`.
 
 ## With uv
 
