@@ -153,3 +153,29 @@ def test_a_stopped_build_resumes_and_a_changed_part_sets_the_index_aside(origina
     shutil.copy(original / part.relative_to(folder), part)
     assert Snapshot(folder).index is None
     assert Snapshot(folder).works(lineage=lineage) == whole.works(lineage=lineage)
+
+
+def test_a_few_keys_are_found_through_the_fences(services, original, tmp_path, monkeypatch):
+    from cartolex.collect import snapshot_index as module
+    from cartolex.collect.snapshot import Query
+
+    folder = tmp_path / "openalex"
+    shutil.copytree(original, folder)
+    monkeypatch.setattr(module, "FENCE", 2)  # keys with many members span several fences
+    build_index(folder, block_bytes=BLOCK)
+    whole = Snapshot(original)
+    people = sorted(p.openalex_id for p in services.bibliography.world.people if p.openalex_id)
+    lineage = sorted(whole.institutions(everything=True))[:3]
+    query = Query("works", author_ids=frozenset(people), lineage=frozenset(lineage))
+    monkeypatch.setattr(module, "WHOLE_BUCKET", 10**9)  # every bucket through its fence
+    by_fence = SnapshotIndex.open(folder).members(query)
+    monkeypatch.setattr(module, "WHOLE_BUCKET", 1)  # every bucket read whole
+    assert SnapshotIndex.open(folder).members(query) == by_fence and by_fence
+    # An index built without fences makes them at its first lookup.
+    for fence in (folder / "cartolex-index").rglob("*.fence.npy"):
+        fence.unlink()
+    monkeypatch.setattr(module, "WHOLE_BUCKET", 10**9)
+    assert SnapshotIndex.open(folder).members(query) == by_fence
+    assert any((folder / "cartolex-index").rglob("*.fence.npy"))
+    found = Snapshot(folder).works(author_ids=people, lineage=lineage)
+    assert found == whole.works(author_ids=people, lineage=lineage)

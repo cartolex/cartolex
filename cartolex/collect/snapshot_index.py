@@ -18,6 +18,7 @@ Its files, beside the data::
     <folder>/cartolex-index/<entity>/first.npy          each part's first member
     <folder>/cartolex-index/<entity>/<key>/NN.keys.npy  the keys of bucket NN, sorted
     <folder>/cartolex-index/<entity>/<key>/NN.refs.npy  the member of each (part, member)
+    <folder>/cartolex-index/<entity>/<key>/NN.fence.npy every 4096th key, to find one in two reads
     <folder>/cartolex-index/journal.jsonl               while building: the parts done
 
 Building (:func:`build_index`) reads and rewrites the works and the authors once, which
@@ -79,6 +80,10 @@ KEYS: dict[str, tuple[str, ...]] = {
 SYNC_EVERY = 16
 #: Members closer than this in a part are read in one go.
 _GAP = 256 << 10
+#: A bucket's fence holds every FENCE-th key: a key is then found in a slice that long.
+FENCE = 4096
+#: From this many keys asked of one bucket, the bucket is read whole rather than key by key.
+WHOLE_BUCKET = 64
 
 _POSTING = np.dtype([("key", "<u8"), ("ref", "<u4")])
 _BLOCK = np.dtype([("offset", "<u8"), ("length", "<u4")])
@@ -556,6 +561,7 @@ def _sort_bucket(spilled: str, out: str, key: str) -> tuple[int, int, np.ndarray
     del rows, order
     np.save(out + ".keys.npy", keys, allow_pickle=False)
     np.save(out + ".refs.npy", refs, allow_pickle=False)
+    np.save(out + ".fence.npy", np.ascontiguousarray(keys[::FENCE]), allow_pickle=False)
     if not len(keys):
         return 0, 0, np.empty(0, np.int64)
     starts = np.flatnonzero(np.r_[True, keys[1:] != keys[:-1]])
@@ -666,6 +672,7 @@ class SnapshotIndex:
         self.data = dict(data)
         self.release = str(data["release"])
         self._blocks: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+        self._fences: dict[Path, np.ndarray] = {}
 
     @classmethod
     def open(cls, root: Path | str, release: str | None = None) -> SnapshotIndex | None:
@@ -721,22 +728,72 @@ class SnapshotIndex:
         except ValueError:  # an empty array cannot be mapped
             return np.load(path, allow_pickle=False)
 
+    def _fence(self, base: Path) -> np.ndarray:
+        """The fence of the bucket at *base* (``…/NN``): read once, kept in memory; made from
+        the bucket's keys when the index was built without fences (kept beside them)."""
+        fence = self._fences.get(base)
+        if fence is None:
+            path = base.with_name(base.name + ".fence.npy")
+            try:
+                fence = np.load(path, allow_pickle=False)
+            except (OSError, ValueError):
+                keys = self._load(base.with_name(base.name + ".keys.npy"), False)
+                fence = np.ascontiguousarray(keys[::FENCE])
+                try:
+                    tmp = path.with_name(path.name + ".part")
+                    with open(tmp, "wb") as fh:
+                        np.save(fh, fence, allow_pickle=False)
+                    os.replace(tmp, path)
+                except OSError:
+                    pass  # a folder that cannot be written: the fence stays in memory
+            self._fences[base] = fence
+        return fence
+
+    @staticmethod
+    def _bound(keys: np.ndarray, fence: np.ndarray, value: int, side: str) -> int:
+        """Where *value* goes in *keys* (``np.searchsorted``), reading one fence's slice."""
+        i = int(np.searchsorted(fence, value, side))  # type: ignore[call-overload]
+        start, stop = max(0, (i - 1) * FENCE), min(len(keys), i * FENCE + 1)
+        return start + int(np.searchsorted(np.asarray(keys[start:stop]), value, side))  # type: ignore[call-overload]
+
     def _refs(self, entity: str, key: str, wanted: np.ndarray) -> np.ndarray:
+        """The members that hold any of the *wanted* keys (sorted, unique). A bucket asked
+        many keys is read whole; asked a few, each key is found through the bucket's fence,
+        a few reads where they lie."""
         found: list[np.ndarray] = []
         folder = self.folder / entity / key
         buckets = wanted % BUCKETS
         for bucket in np.unique(buckets):
             values = wanted[buckets == bucket]
-            # Many keys: the bucket's keys in memory; a few: searched where they lie.
-            keys = self._load(folder / f"{int(bucket):02d}.keys.npy", len(values) <= 2000)
+            base = folder / f"{int(bucket):02d}"
+            whole = len(values) >= WHOLE_BUCKET
+            keys = self._load(base.with_name(base.name + ".keys.npy"), not whole)
             if not len(keys):
                 continue
-            refs = self._load(folder / f"{int(bucket):02d}.refs.npy", True)
-            lo = np.searchsorted(keys, values, "left")
-            hi = np.searchsorted(keys, values, "right")
+            refs = self._load(base.with_name(base.name + ".refs.npy"), not whole)
+            if whole:
+                lo = np.searchsorted(keys, values, "left")
+                hi = np.searchsorted(keys, values, "right")
+            else:
+                fence = self._fence(base)
+                lo = np.array([self._bound(keys, fence, int(v), "left") for v in values])
+                hi = np.array([self._bound(keys, fence, int(v), "right") for v in values])
             for a, b in zip(lo[hi > lo], hi[hi > lo], strict=True):
                 found.append(np.asarray(refs[a:b]))
         return np.unique(np.concatenate(found)) if found else np.empty(0, np.uint32)
+
+    def ensure_fences(self) -> int:
+        """Make the fences an index built without them lacks (each bucket's keys read once);
+        returns how many were made."""
+        made = 0
+        for entity, keys in KEYS.items():
+            for key in keys:
+                for bucket in range(BUCKETS):
+                    base = self.folder / entity / key / f"{bucket:02d}"
+                    if not base.with_name(base.name + ".fence.npy").is_file():
+                        self._fence(base)
+                        made += 1
+        return made
 
     def _table(self, entity: str) -> tuple[np.ndarray, np.ndarray]:
         if entity not in self._blocks:

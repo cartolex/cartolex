@@ -767,3 +767,9 @@ nothing in the engine names a particular deployment, source or procedure.
   national harvest. A reading now keeps at most two parts per worker ahead
   of the one it gives back (`READ_AHEAD`), and a stop drops the parts not
   started.
+- **A few keys are found in the index in a few reads.** A key was searched
+  where its bucket lies on disk: on a hard disk, two dozen reads a key, half a
+  minute for a few hundred people. Each bucket now has a fence (every 4096th
+  key, `NN.fence.npy`, kept in memory), so a key takes a slice of 4096 keys and
+  its members; a bucket asked many keys is read whole. An index built without
+  fences makes them at its first lookup (or `SnapshotIndex.ensure_fences()`).

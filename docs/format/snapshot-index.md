@@ -24,6 +24,7 @@ they are small and read whole.
   works/first.npy               the number of each part's first member (u8, one more than parts)
   works/<key>/NN.keys.npy       bucket NN of a key (key modulo 64): the keys, sorted (u8)
   works/<key>/NN.refs.npy       beside each key, a member that holds it (u4: part << 20 | member)
+  works/<key>/NN.fence.npy      every 4096th key of the bucket (u8), kept in memory to find a key
   authors/…                     the same, for the authors
   building.json, journal.jsonl  while a build runs or after it stopped (gone once complete)
   spill/                        the postings found so far, while building
@@ -51,7 +52,10 @@ hash in lower case); the authors have `id`. Numbers are the digits of an id
 
 ## Reading
 
-A query by ids, authors, institutions or DOIs looks its keys up in their buckets,
+A query by ids, authors, institutions or DOIs looks its keys up in their buckets
+(a bucket asked many keys is read whole; asked a few, each key is found through the
+bucket's fence, in a slice of 4096 keys, so a few reads where they lie; an index built
+without fences makes them at its first lookup),
 gathers the members that hold one, and reads those members of those parts only
 (members close together in one read); each line is then tested exactly as a
 reading of the whole part tests it, so the records found are the same. A search
