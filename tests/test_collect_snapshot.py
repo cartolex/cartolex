@@ -189,3 +189,32 @@ def test_a_retry_on_the_snapshot_still_says_identities_are_searched_online(
     codes = [n["code"] for n in plan.coded_notes]
     assert "note_snapshot_harvests" in codes and "note_snapshot" not in codes
     project.close()
+
+
+def test_a_parallel_reading_reads_only_a_few_parts_ahead(services, tmp_path, monkeypatch) -> None:
+    from concurrent.futures import ProcessPoolExecutor
+
+    from cartolex.collect import snapshot as module
+    from cartolex.collect.snapshot import Query
+
+    folder = tmp_path / "openalex"
+    write_snapshot(services.bibliography, folder, per_part=5)  # many small parts
+    submitted: list[str] = []
+    real = ProcessPoolExecutor.submit
+
+    def spy(self, fn, *args, **kwargs):
+        submitted.append(args[0])
+        return real(self, fn, *args, **kwargs)
+
+    monkeypatch.setattr(ProcessPoolExecutor, "submit", spy)
+    snap = Snapshot(folder, jobs=2)
+    parts = snap.partitions("works")
+    ahead = 2 * module.READ_AHEAD
+    assert len(parts) > ahead + 2
+    reading = snap._parallel(parts, Query("works", everything=True), 1, "works")
+    first = next(reading)
+    # The first part is given back with only a few others read ahead, not all of them.
+    assert len(submitted) == ahead + 1 and first[0]
+    rest = list(reading)
+    assert len(rest) + 1 == len(parts) == len(submitted)
+    assert submitted == [str(p.path) for p in parts]

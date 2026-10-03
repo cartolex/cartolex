@@ -64,6 +64,9 @@ __all__ = [
 
 #: The entities cartolex reads.
 ENTITIES = ("works", "authors", "institutions")
+#: Parts read ahead of the one given back, per worker process (bounds the memory a reading
+#: holds when its results are taken more slowly than they come).
+READ_AHEAD = 2
 _AUTHOR = re.compile(rb"openalex\.org/(A\d+)")
 _INSTITUTION = re.compile(rb"openalex\.org/(I\d+)")
 _WORK = re.compile(rb"openalex\.org/(W\d+)")
@@ -436,38 +439,46 @@ class Snapshot:
         spans: Mapping[str, list[tuple[int, int]]] | None = None,
     ) -> Iterator[tuple[dict[str, dict[str, Any]], int, int]]:
         """The parts read in worker processes, each part's result given back in date order
-        and let go of once given: memory holds the parts read ahead, never all of them."""
+        and let go of once given. At most :data:`READ_AHEAD` parts per worker are read ahead
+        of the one given back: however slow the reader of the results, memory holds a few
+        parts' records, never all of them. Stopped, the parts not started are dropped."""
         import multiprocessing
-        from concurrent.futures import ProcessPoolExecutor
+        from concurrent.futures import Future, ProcessPoolExecutor
         from concurrent.futures import TimeoutError as NotYet
 
+        sizes = [p.size if spans is None else sum(n for _, n in spans[_rel(p)]) for p in parts]
+        ahead = max(1, self.jobs * READ_AHEAD)
+        done = [0]
         context = multiprocessing.get_context("spawn")
-        with ProcessPoolExecutor(max_workers=self.jobs, mp_context=context) as pool:
-            futures: list[Any] = [
-                pool.submit(_scan_part, str(p.path), query, None)
-                if spans is None
-                else pool.submit(_scan_members, str(p.path), spans[_rel(p)], query)
-                for p in parts
-            ]
-            sizes = [p.size if spans is None else sum(n for _, n in spans[_rel(p)]) for p in parts]
-            done = [0]
-            for future, size in zip(futures, sizes, strict=True):
-                future.add_done_callback(lambda _f, n=size: done.__setitem__(0, done[0] + n))
-            for i in range(len(futures)):
+        pool = ProcessPoolExecutor(max_workers=self.jobs, mp_context=context)
+        futures: dict[int, Future[Any]] = {}
+
+        def submit(i: int) -> None:
+            part = parts[i]
+            if spans is None:
+                future = pool.submit(_scan_part, str(part.path), query, None)
+            else:
+                future = pool.submit(_scan_members, str(part.path), spans[_rel(part)], query)
+            future.add_done_callback(lambda _f, n=sizes[i]: done.__setitem__(0, done[0] + n))
+            futures[i] = future
+
+        try:
+            queued = 0
+            for i in range(len(parts)):
+                while queued < len(parts) and queued <= i + ahead:
+                    submit(queued)
+                    queued += 1
                 while True:
                     try:
                         result = futures[i].result(timeout=0.5)
                         break
                     except NotYet:
-                        try:
-                            self._tick(done[0] / total, message)
-                        except Cancelled:
-                            for f in futures[i:]:
-                                f.cancel()
-                            raise
-                futures[i] = None
+                        self._tick(done[0] / total, message)
+                del futures[i]
                 self._tick(done[0] / total, message)
                 yield result
+        finally:
+            pool.shutdown(wait=True, cancel_futures=True)
 
     def _tick(self, fraction: float, message: str) -> None:
         self._check_cancel()

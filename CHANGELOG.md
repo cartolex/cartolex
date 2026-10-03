@@ -759,3 +759,11 @@ nothing in the engine names a particular deployment, source or procedure.
   its last sync point; an index of another release, incomplete, or whose parts
   changed size since is not used. The app's estimates go through it, and
   Settings › Data sources says whether the snapshot is indexed.
+- **A parallel reading of a snapshot holds a few parts, not all.** With
+  `--jobs`, every part was queued at once and their results given back in
+  date order: when the results were taken more slowly than the workers read
+  (a computer short of memory starts swapping, and slows down further), the
+  parts read ahead piled up in memory without bound, tens of gigabytes on a
+  national harvest. A reading now keeps at most two parts per worker ahead
+  of the one it gives back (`READ_AHEAD`), and a stop drops the parts not
+  started.
