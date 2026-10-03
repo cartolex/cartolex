@@ -434,6 +434,7 @@ def build_index(
     total = sum(size for *_, size in todo) or 1
     read = 0
     since_sync = 0
+    replaced: set[Path] = set()  # the folders where parts were replaced since the last point
 
     def say(message: str) -> None:
         if progress is not None:
@@ -453,6 +454,7 @@ def build_index(
                 spill.add(entity, key, number, found)
             )
         os.replace(tmp, part)  # the new copy is synced: it replaces the part
+        replaced.add(part.parent)
         _append_journal(folder, {"entity": entity, "path": rel, "part": number,
                                  "size": int(result["size"]), "members": len(blocks),
                                  "lines": int(result["lines"])})  # fmt: skip
@@ -466,13 +468,15 @@ def build_index(
 
     def sync_point() -> None:
         nonlocal since_sync
-        for table in (folder / e / "parts" for e in KEYS):
+        # The replacements, the members' tables, the postings, then the journal's point.
+        for table in [*replaced, *(folder / e / "parts" for e in KEYS)]:
             if table.is_dir():
                 fd = os.open(table, os.O_RDONLY)
                 try:
                     os.fsync(fd)
                 finally:
                     os.close(fd)
+        replaced.clear()
         sizes = spill.sync()
         _append_journal(folder, {"sync": True, "spill": sizes}, sync=True)
         since_sync = 0
