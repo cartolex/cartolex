@@ -773,3 +773,8 @@ nothing in the engine names a particular deployment, source or procedure.
   key, `NN.fence.npy`, kept in memory), so a key takes a slice of 4096 keys and
   its members; a bucket asked many keys is read whole. An index built without
   fences makes them at its first lookup (or `SnapshotIndex.ensure_fences()`).
+- **Through the index, members close together are read in one go.** Two
+  members needed of a part were read apart once more than 256 KB lay between
+  them: on a hard disk, a national harvest (a fifth of the members) spent its
+  time seeking, at a tenth of the disk's speed. A gap shorter than a megabyte
+  (what a seek costs in reading) is now read through.

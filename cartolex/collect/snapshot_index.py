@@ -78,8 +78,9 @@ KEYS: dict[str, tuple[str, ...]] = {
 }
 #: Parts between two points where everything written is synced (and can be trusted).
 SYNC_EVERY = 16
-#: Members closer than this in a part are read in one go.
-_GAP = 256 << 10
+#: Members closer than this in a part are read in one go: on a hard disk a seek costs about
+#: what reading a megabyte does, so a gap shorter than that is read through.
+_GAP = 1 << 20
 #: A bucket's fence holds every FENCE-th key: a key is then found in a slice that long.
 FENCE = 4096
 #: From this many keys asked of one bucket, the bucket is read whole rather than key by key.
