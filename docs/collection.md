@@ -292,6 +292,8 @@ and its rarity; 1 is the same vocabulary, 0 no word in common.
 
 ## Large collections: the OpenAlex snapshot
 
+When it is worth it, what it takes and how to run it well: {doc}`large-projects`.
+
 From a national size up, asking OpenAlex person by person costs days of its
 daily budget; the **snapshot** holds the same records, to download once:
 

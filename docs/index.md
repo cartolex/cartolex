@@ -10,6 +10,7 @@ keywords, themes and a two-dimensional atlas, with an offline site to share it.
 install
 demo
 collection
+large-projects
 privacy
 build
 sizes
