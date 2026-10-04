@@ -183,6 +183,16 @@ class RawWriter:
         self._fh.write(self._line(record))
         self.count += 1
 
+    def add_line(self, line: str) -> None:
+        """Append one record already written as :meth:`line` writes it (in a worker)."""
+        self._fh.write(line)
+        self.count += 1
+
+    @staticmethod
+    def line(record: Mapping[str, Any]) -> str:
+        """A record as a run holds it: one line of JSON, keys sorted."""
+        return RawWriter._line(record)
+
     def close(self) -> Path:
         """Write the header and the records into place; returns the run's path."""
         if self._fh.closed and not self._body.exists():

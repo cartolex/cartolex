@@ -42,9 +42,10 @@ the last error as its cause.
 
 from __future__ import annotations
 
+import os
 import time
 from collections import defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
@@ -99,6 +100,11 @@ __all__ = [
 CHUNK_PEOPLE = 2000
 #: A harvest closes its run after this many seconds, even with fewer people in it.
 CHUNK_SECONDS = 600.0
+#: From a source that can gather a person's records unparsed (a snapshot), people are put
+#: together in worker processes when a harvest has more than this many to do.
+PARALLEL_FROM = 200
+#: People sent to a worker at once.
+PARALLEL_BATCH = 64
 #: The kind of a paused harvest's checkpoint (``sources/<slot>/raw/checkpoints/``).
 CHECKPOINT_KIND = "harvest"
 
@@ -261,6 +267,7 @@ def harvest(
     resume: bool = False,
     chunk_people: int = CHUNK_PEOPLE,
     chunk_seconds: float = CHUNK_SECONDS,
+    jobs: int | None = None,
 ) -> HarvestReport:
     """Collect the works of every confirmed person (or of *people*) and rebuild the tables.
 
@@ -280,6 +287,10 @@ def harvest(
     came is left out whole); *resume* goes on from that checkpoint with the people not
     yet done. A source read in passes (a snapshot) keeps what its passes found for a
     resumed job too, when it can (``keep_findings``).
+
+    From a source that gathers a person's records without parsing them (a snapshot:
+    ``person_inputs``), people are put together in *jobs* worker processes (by default,
+    every processor but two, from :data:`PARALLEL_FROM` people on); the runs are the same.
     """
     now = now or datetime.now(timezone.utc)
     layout = project.layout
@@ -362,20 +373,19 @@ def harvest(
     in_a_row = 0
     started = time.monotonic()
     last_error: CollectError | None = None
+    todo = [(k, p, r) for k, (p, r) in enumerate(targets) if p["person_id"] not in done]
+    workers = jobs if jobs is not None else _workers(source, len(todo))
+    if workers > 1 and hasattr(source, "person_inputs"):
+        outcomes = _assembled_in_workers(client, source, todo, years, registry, report, workers)
+    else:
+        outcomes = _assembled_here(client, asked, todo, years, report, registry, batched, starts)
     try:
-        for k, (person, records) in enumerate(targets):
+        for k, person, outcome in outcomes:
             pid = person["person_id"]
-            if pid in done:
-                continue
             client.check_cancel()
             _report_progress(client, k, len(targets), report, started, before=report.resumed)
-            if batched is not None and k in starts:
-                batched.load(starts[k], years)
-            try:
-                oa_lines, orcid_lines, meta = _harvest_person(
-                    client, asked, person, records, years, report, registry
-                )
-            except (ServiceError, CacheMiss) as exc:
+            if outcome[0] == "error":
+                exc = outcome[1]
                 failure = failure_record(pid, "harvest", exc, now=now)
                 report.failures.append(failure)
                 chunk["failures"].append(failure)  # not done: a resumed harvest asks again
@@ -388,17 +398,18 @@ def harvest(
                     )
                     break
                 continue
+            _, oa_lines, orcid_lines, meta, works = outcome
             in_a_row = 0
             for line in oa_lines:
-                chunk["oa"].add(line)
+                chunk["oa"].add_line(line)
             for line in orcid_lines:
-                chunk["orcid"].add(line)
+                chunk["orcid"].add_line(line)
             chunk["oa"].header["people"][pid] = meta
             if meta["orcids"]:
                 chunk["orcid"].header["people"][pid] = {"orcids": meta["orcids"]}
             chunk["people"].append(pid)
             report.people += 1
-            report.works[pid] = sum(1 for x in oa_lines if x["type"] == "work")
+            report.works[pid] = works
             full = len(chunk["people"]) >= chunk_people
             if full or time.monotonic() - chunk["since"] >= chunk_seconds:
                 close_chunk()
@@ -408,6 +419,8 @@ def harvest(
     except BaseException:
         close_chunk(keep=False)  # the runs closed before are kept, with their checkpoint
         raise
+    finally:
+        outcomes.close()  # workers still busy are let go of
     close_chunk()
     if report.people:
         report.rebuild = rebuild_sources(layout, project.config)
@@ -455,6 +468,147 @@ def _report_progress(
     )
 
 
+def _workers(source: Any, people: int) -> int:
+    if not hasattr(source, "person_inputs") or people <= PARALLEL_FROM:
+        return 1
+    return max(1, (os.cpu_count() or 2) - 2)
+
+
+Outcome = tuple[int, dict[str, Any], tuple[Any, ...]]
+
+
+def _assembled_here(
+    client: HttpClient,
+    source: Any,
+    todo: Sequence[tuple[int, dict[str, Any], list[str]]],
+    years: tuple[int | None, int | None] | None,
+    report: HarvestReport,
+    registry: dict[str, Any],
+    batched: Any,
+    starts: Mapping[int, list[str]],
+) -> Iterator[Outcome]:
+    """Each person's outcome, in order, put together in this process: ``("ok", run lines of
+    OpenAlex, of the registry, the person's header, works)`` or ``("error", exception)``."""
+    for k, person, records in todo:
+        if batched is not None and k in starts:
+            batched.load(starts[k], years)
+        try:
+            oa, orcid, meta = _harvest_person(
+                client, source, person, records, years, report, registry
+            )
+        except (ServiceError, CacheMiss) as exc:
+            yield k, person, ("error", exc)
+            continue
+        works = sum(1 for x in oa if x["type"] == "work")
+        yield k, person, ("ok", [RawWriter.line(x) for x in oa],
+                          [RawWriter.line(x) for x in orcid], meta, works)  # fmt: skip
+
+
+def _assembled_in_workers(
+    client: HttpClient,
+    source: Any,
+    todo: Sequence[tuple[int, dict[str, Any], list[str]]],
+    years: tuple[int | None, int | None] | None,
+    registry: dict[str, Any],
+    report: HarvestReport,
+    workers: int,
+) -> Iterator[Outcome]:
+    """The outcomes :func:`_assembled_here` gives, in the same order, the people put together
+    in *workers* processes: this process gathers each one's records unparsed and asks the
+    registry (whose failures are the person's), a worker parses them and writes the lines."""
+    import multiprocessing
+    from collections import deque
+    from concurrent.futures import ProcessPoolExecutor
+
+    from .snapshot import ignore_stop_signals
+
+    context = multiprocessing.get_context("spawn")
+    pool = ProcessPoolExecutor(workers, mp_context=context, initializer=ignore_stop_signals)
+    queue: deque[tuple[list[tuple[Any, ...]], Any]] = deque()
+    try:
+        for start in range(0, len(todo), PARALLEL_BATCH):
+            block, payloads = [], []
+            for k, person, records in todo[start : start + PARALLEL_BATCH]:
+                prepared = _person_payload(client, source, person, records, years, registry)
+                block.append((k, person, prepared))
+                if prepared[0] == "inputs":
+                    payloads.append(prepared[1])
+            queue.append((block, pool.submit(_assemble_batch, payloads)))
+            while len(queue) > 2 * workers:
+                yield from _given_back(queue.popleft(), report)
+        while queue:
+            yield from _given_back(queue.popleft(), report)
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
+
+
+def _person_payload(
+    client: HttpClient,
+    source: Any,
+    person: dict[str, Any],
+    records: list[str],
+    years: tuple[int | None, int | None] | None,
+    registry: dict[str, Any],
+) -> tuple[str, Any]:
+    """What a worker needs to put one person together, or the registry's failure."""
+    orcids = [r.split(":", 1)[1] for r in records if r.startswith("orcid:")]
+    declared: dict[str, Any] = {}
+    full: dict[str, Any] = {}
+    try:
+        for orcid in orcids:
+            got = registry[orcid] if orcid in registry else declared_works(client, orcid)
+            declared[orcid] = got
+            if got is not None:
+                full[orcid] = registry_record(client, orcid)
+    except (ServiceError, CacheMiss) as exc:
+        return "error", exc
+    dois = {w.doi for got in declared.values() if got is not None for w in got[0] if w.doi}
+    inputs = source.person_inputs(_openalex_ids(records), dois, years)
+    return "inputs", {"person": person, "records": records, "years": years,
+                      "declared": declared, "full": full, "inputs": inputs}  # fmt: skip
+
+
+def _given_back(
+    entry: tuple[list[tuple[Any, ...]], Any], report: HarvestReport
+) -> Iterator[Outcome]:
+    block, future = entry
+    results = iter(future.result())
+    for k, person, prepared in block:
+        if prepared[0] == "error":
+            yield k, person, prepared
+            continue
+        oa, orcid, meta, works, counts, notes = next(results)
+        report.declared_dois += counts[0]
+        report.out_of_window += counts[1]
+        report.dois_not_indexed += counts[2]
+        report.notes += notes
+        yield k, person, ("ok", oa, orcid, meta, works)
+
+
+def _assemble_batch(payloads: list[dict[str, Any]]) -> list[tuple[Any, ...]]:
+    """In a worker: each person of *payloads* put together, their run lines written."""
+    from .snapshot import PackedSource
+
+    out = []
+    for payload in payloads:
+        mine = HarvestReport()
+        oa, orcid, meta = _harvest_person(
+            None,  # type: ignore[arg-type]  (the registry was asked before)
+            PackedSource(payload["inputs"]),
+            payload["person"],
+            payload["records"],
+            payload["years"],
+            mine,
+            payload["declared"],
+            registry_records=payload["full"],
+        )
+        works = sum(1 for x in oa if x["type"] == "work")
+        counts = (mine.declared_dois, mine.out_of_window, mine.dois_not_indexed)
+        out.append(([RawWriter.line(x) for x in oa], [RawWriter.line(x) for x in orcid], meta,
+                    works, counts, mine.notes))  # fmt: skip
+    return out
+
+
 def _prefetch(
     client: HttpClient,
     source: Any,
@@ -489,6 +643,7 @@ def _harvest_person(
     years: tuple[int | None, int | None] | None,
     report: HarvestReport,
     registry: dict[str, Any],
+    registry_records: Mapping[str, Any] | None = None,
 ) -> tuple[list[dict], list[dict], dict[str, Any]]:
     pid = person["person_id"]
     oa_ids = _openalex_ids(records)
@@ -545,7 +700,10 @@ def _harvest_person(
                 "record": fetched.data,
             }
         )
-        rec = registry_record(client, orcid)
+        if registry_records is not None and orcid in registry_records:
+            rec = registry_records[orcid]
+        else:
+            rec = registry_record(client, orcid)
         if rec is not None:
             orcid_lines.append(
                 {

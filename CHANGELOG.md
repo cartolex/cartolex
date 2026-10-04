@@ -810,3 +810,8 @@ nothing in the engine names a particular deployment, source or procedure.
   harvest. Each work's year is now kept beside its place, and a work outside
   the window is left without being read: the per-person step takes about half
   the time.
+- **People put together in worker processes.** From a snapshot, a harvest of
+  more than 200 people gathers each person's records unparsed, in order, and
+  worker processes parse them and write the run lines; the runs are the same.
+  Measured on 2,000 real people: 1.7 ms a work instead of 2.5; this process's
+  share still bounds it (to be measured further).

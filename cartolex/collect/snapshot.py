@@ -746,6 +746,42 @@ def _words(text: str) -> list[str]:
     return words(text)
 
 
+def unpack(data: bytes) -> dict[str, Any]:
+    """A record as a :class:`RecordStore` keeps it (compressed JSON), parsed."""
+    return json.loads(zlib.decompress(data))
+
+
+class PackedSource:
+    """One person's answers from what :meth:`SnapshotSource.person_inputs` gathered, in a
+    worker process: the same answers :class:`SnapshotSource` gives for that person."""
+
+    label = "snapshot"
+
+    def __init__(self, inputs: Mapping[str, Any]) -> None:
+        self.at = inputs["at"]
+        self._authors = {a: None if d is None else unpack(d) for a, d in inputs["authors"].items()}
+        self._works = [unpack(d) for d in inputs["works"]]
+        self._dois = {k: [unpack(d) for d in v if d is not None] for k, v in inputs["dois"].items()}
+
+    def author(self, author_id: str) -> Fetched | None:
+        record = self._authors.get(author_id)
+        return None if record is None else Fetched(record, self.at, False)
+
+    def works_by_authors(self, author_ids: Sequence[str], years: Years) -> Fetched:
+        wanted = {a.encode() for a in author_ids if a}
+        first, last = years if years is not None else (None, None)
+        works = [w for w in self._works if _authors_of(w) & wanted and in_window(w, first, last)]
+        return Fetched(_sorted(works), self.at, False)
+
+    def works_by_dois(self, dois: Iterable[str]) -> list[tuple[dict[str, Any], Fetched]]:
+        fetched = Fetched(None, self.at, False)
+        out = []
+        for doi in sorted({d for d in (bare_doi(x) for x in dois) if d}):
+            works = [w for w in self._dois.get(doi, ()) if bare_doi(w.get("doi")) == doi]
+            out += [(w, fetched) for w in _sorted(works)]
+        return out
+
+
 def _year_of(work: Mapping[str, Any]) -> int | None:
     """A work's publication year: its date's, else its year (what :func:`in_window` reads)."""
     date = work.get("publication_date")
@@ -836,13 +872,17 @@ class RecordStore:
 
     def get(self, rid: str | None) -> dict[str, Any] | None:
         """The record kept under *rid*, read back from disk, or ``None``."""
+        data = self.get_raw(rid)
+        return None if data is None else json.loads(zlib.decompress(data))
+
+    def get_raw(self, rid: str | None) -> bytes | None:
+        """The record kept under *rid* as stored (compressed JSON: :func:`unpack`), or ``None``."""
         with self._lock:
             at = self._at.get(rid) if rid else None
             if at is None:
                 return None
             self._fh.seek(at[0])
-            data = self._fh.read(at[1])
-        return json.loads(zlib.decompress(data))
+            return self._fh.read(at[1])
 
     def drop(self, rid: str) -> None:
         """Forget the record kept under *rid*."""
@@ -1102,6 +1142,32 @@ class SnapshotSource:
             if work is not None and _authors_of(work) & wanted and in_window(work, first, last):
                 works.append(work)
         return self._fetched(_sorted(works))
+
+    def person_inputs(
+        self, author_ids: Sequence[str], dois: Iterable[str], years: Years
+    ) -> dict[str, Any]:
+        """What :class:`PackedSource` needs to answer one person's questions, as stored
+        (compressed, not parsed: a worker process parses them): their author records, their
+        works in *years*, the works of *dois*."""
+        ids = sorted({a for a in author_ids if a})
+        wanted = sorted({d for d in (bare_doi(x) for x in dois) if d})
+        self._ensure(ids, wanted)
+        first, last = years if years is not None else (None, None)
+        works = []
+        for wid in sorted({w for a in ids for w in self._by_author.get(a, ())}):
+            year = self._years.get(wid)
+            if year is not None and ((first and year < first) or (last and year > last)):
+                continue
+            works.append(self._works.get_raw(wid))
+        return {
+            "at": self.at,
+            "authors": {a: self._authors.get_raw(a) for a in ids},
+            "works": [w for w in works if w is not None],
+            "dois": {
+                d: [self._works.get_raw(w) for w in sorted(set(self._by_doi.get(d, ())))]
+                for d in wanted
+            },  # fmt: skip
+        }
 
     def works_by_dois(self, dois: Iterable[str]) -> list[tuple[dict[str, Any], Fetched]]:
         wanted = sorted({d for d in (bare_doi(x) for x in dois) if d})

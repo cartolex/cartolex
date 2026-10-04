@@ -274,3 +274,17 @@ def test_a_harvest_stopped_while_reading_the_snapshot_goes_on(
     assert again.report.by_entity["works"] < sum(p.size for p in again.partitions("works"))
     assert tables_without_times(project) == tables_without_times(out["whole"])
     assert not kept.exists() and stopped.value.checkpoint
+
+
+def test_people_put_together_in_workers_give_the_same_tables(services, snapshot_dir, tmp_path):
+    bib = services.bibliography
+    out = {}
+    for jobs in (1, 2):
+        project = demo_project(tmp_path / f"jobs{jobs}", bib)
+        confirm_truth(project, bib, world_ids(project, bib))
+        source = SnapshotSource(Snapshot(snapshot_dir), spill=tmp_path / f"spill{jobs}")
+        report = harvest(project, client(services, project), source=source, jobs=jobs)
+        source.close()
+        out[jobs] = (tables_without_times(project), report.people, report.declared_dois)
+        project.close()
+    assert out[2] == out[1] and out[1][0]["texts"]
