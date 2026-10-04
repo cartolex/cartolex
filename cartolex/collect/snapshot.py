@@ -746,6 +746,15 @@ def _words(text: str) -> list[str]:
     return words(text)
 
 
+def _year_of(work: Mapping[str, Any]) -> int | None:
+    """A work's publication year: its date's, else its year (what :func:`in_window` reads)."""
+    date = work.get("publication_date")
+    if isinstance(date, str) and date[:4].isdigit():
+        return int(date[:4])
+    year = work.get("publication_year")
+    return year if isinstance(year, int) else None
+
+
 def _authors_of(work: dict[str, Any]) -> set[bytes]:
     return {
         (short_id((a.get("author") or {}).get("id")) or "").encode()
@@ -984,6 +993,8 @@ class SnapshotSource:
         self._works = RecordStore(spill)
         self._by_author: dict[str, list[str]] = defaultdict(list)
         self._by_doi: dict[str, list[str]] = defaultdict(list)
+        #: Each work's publication year, to leave out of a window before reading it back.
+        self._years: dict[str, int] = {}
         self._fetched_authors: set[str] = set()
         self._fetched_dois: set[str] = set()
         self._institutions: RecordStore | None = None
@@ -1041,6 +1052,9 @@ class SnapshotSource:
             asked, doi_set = {a.encode() for a in authors}, set(wanted_dois)
 
             def index(rid: str, record: dict[str, Any]) -> None:
+                year = _year_of(record)
+                if year is not None:
+                    self._years[rid] = year
                 for aid in _authors_of(record) & asked:
                     self._by_author[aid.decode()].append(rid)
                 doi = bare_doi(record.get("doi"))
@@ -1081,6 +1095,9 @@ class SnapshotSource:
         first, last = years if years is not None else (None, None)
         works = []
         for wid in sorted({w for a in ids for w in self._by_author.get(a, ())}):
+            year = self._years.get(wid)
+            if year is not None and ((first and year < first) or (last and year > last)):
+                continue  # out of the window: not read back (the window is whole years)
             work = self._works.get(wid)
             if work is not None and _authors_of(work) & wanted and in_window(work, first, last):
                 works.append(work)

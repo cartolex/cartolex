@@ -803,3 +803,10 @@ nothing in the engine names a particular deployment, source or procedure.
   minutes): resumed, it skips the passes it finished and the parts it read,
   then indexes again what it kept. The folder is removed when the harvest
   completes.
+- **A harvest from a snapshot reads back only the works in its window.** The
+  passes keep every work of the people asked (a window is applied to each
+  question), and a harvest read each one back, decompressed and parsed it,
+  before leaving out those outside its years: two in three, on a national
+  harvest. Each work's year is now kept beside its place, and a work outside
+  the window is left without being read: the per-person step takes about half
+  the time.
