@@ -130,3 +130,24 @@ def test_an_indexed_snapshot_is_read_through_its_index(client, snapshot_dir, tmp
     done = client.wait_job(started.json()["job"]["id"])
     assert done["state"] == "succeeded", done
     assert done["result"]["texts"] > 0 and done["result"]["snapshot"]["members"] > 0
+
+
+def test_a_paused_harvest_is_resumed_from_the_app(client, services):
+    services.faults.add("status", service="openalex", path=r"^works\?", status=503, times=None)
+    body = {"action": "harvest", "openalex": "api", "hal": False, "consent": True}
+    try:
+        started = client.post("/api/collection/start", json=body)
+        paused = client.wait_job(started.json()["job"]["id"])
+    finally:
+        services.faults.clear()
+    assert paused["state"] == "paused", paused
+    pause = paused["result"]["pause"]
+    assert pause["code"] == "harvest_paused" and pause["checkpoint"]
+    resumed = client.post(
+        "/api/collection/start",
+        json={"action": "harvest", "resume": pause["checkpoint"], "consent": True, "hal": False},
+    )
+    assert resumed.status_code == 202, resumed.text
+    done = client.wait_job(resumed.json()["job"]["id"])
+    assert done["state"] == "succeeded", done
+    assert client.get("/api/collection/coverage").json()["states"]["good"] > 0
