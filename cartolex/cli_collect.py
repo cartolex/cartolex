@@ -8,8 +8,8 @@
     cartolex collect corpus FOLDER INDEX [--root DIR] [--slot ID]
     cartolex collect resolve FOLDER [--auto] [--threshold X] [--people ID…] [--again] [SERVICES]
     cartolex collect confirm FOLDER PERSON [RECORD…] [--none]
-    cartolex collect harvest FOLDER [--years FIRST-LAST] [--people ID…] [SERVICES]
-    cartolex collect snapshot FOLDER SNAPSHOT [--years …] [--people ID…] [SERVICES]
+    cartolex collect harvest FOLDER [--years FIRST-LAST] [--people ID…] [--resume] [SERVICES]
+    cartolex collect snapshot FOLDER SNAPSHOT [--years …] [--people ID…] [--resume] [SERVICES]
     cartolex collect snapshot-index SNAPSHOT [--jobs N] [--status]
     cartolex collect institutions FOLDER (--search NAME | --institution ID…) [--years …]
                                   [--min-works N] [--level TYPE=LEVEL…] [--resume] [--snapshot DIR]
@@ -231,9 +231,16 @@ def _duration(seconds: float) -> str:
     return f"{seconds / 3600:.1f} h"
 
 
+_RESUME_HARVEST = (
+    "go on with a harvest of the same people that paused (stopped, or failures in a row): "
+    "the people it wrote are skipped"
+)
+
+
 def _run(args: argparse.Namespace, action: str) -> int:
     from cartolex.collect.http import Cancelled, HttpClient
     from cartolex.collect.privacy import plan_collection, record_job
+    from cartolex.project.checkpoints import JobPaused
 
     mode = "refresh" if args.refresh else ("cache_only" if args.cache_only else "normal")
     with _services(args) as settings:
@@ -274,6 +281,12 @@ def _run(args: argparse.Namespace, action: str) -> int:
         except Cancelled as exc:
             print(str(exc))
             outcome, status = "cancelled", 130
+        except JobPaused as paused:
+            print(f"paused: {paused.message}")
+            if paused.cause is not None:
+                print(f"cause: {paused.cause}")
+            print("go on with the same command and --resume")
+            outcome, status = "paused", 75
         except Exception:
             outcome = "failed"
             raise
@@ -398,6 +411,7 @@ def _harvest(args: argparse.Namespace, project: Any, client: Any) -> dict[str, A
         people=args.people or None,
         years=_years(args.years),
         source=_source(args, client),
+        resume=getattr(args, "resume", False),
     )
     for line in report.lines():
         print(line)
@@ -765,6 +779,7 @@ def add_parser(sub: Any) -> None:
     ha = verbs.add_parser("harvest", help="collect the works of every confirmed person")
     ha.add_argument("folder", type=Path)
     ha.add_argument("--years", help="FIRST-LAST, FIRST- or YEAR (default: the slot's window)")
+    ha.add_argument("--resume", action="store_true", help=_RESUME_HARVEST)
     _service_options(ha)
     ha.set_defaults(run=lambda a: _run(a, "harvest"))
 
@@ -774,6 +789,7 @@ def add_parser(sub: Any) -> None:
     sn.add_argument("folder", type=Path)
     sn.add_argument("snapshot", type=Path, help="the snapshot folder you downloaded")
     sn.add_argument("--years", help="FIRST-LAST, FIRST- or YEAR (default: the slot's window)")
+    sn.add_argument("--resume", action="store_true", help=_RESUME_HARVEST)
     _service_options(sn)
     sn.set_defaults(run=_snapshot)
 

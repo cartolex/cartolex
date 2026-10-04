@@ -27,6 +27,7 @@ from cartolex.collect.resolve import resolve
 from cartolex.collect.tables import open_run, raw_folder, rebuild_sources
 from cartolex.demo import generate
 from cartolex.demo.services import DemoServices
+from cartolex.project.checkpoints import JobPaused
 from cartolex.project.tables import read_source_table
 
 
@@ -161,8 +162,9 @@ def test_a_service_failure_is_never_no_data(services, collected) -> None:
 def test_a_failing_service_stops_after_three_people(services, collected) -> None:
     project, _bib, _ids = collected
     services.faults.add("status", service="openalex", path=r"^authors/", status=503, times=None)
-    with pytest.raises(ServiceUnavailable):
+    with pytest.raises(JobPaused) as stopped:  # it goes on later with --resume
         harvest(project, client(services, project))
+    assert isinstance(stopped.value.cause, ServiceUnavailable)
     services.faults.clear()
     failed = [c for c in person_coverage(project) if c.state == "failed"]
     assert len(failed) == 3

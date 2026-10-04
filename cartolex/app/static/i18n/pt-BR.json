@@ -2707,5 +2707,7 @@
   "settings.snapshot.index_none": "Não indexado: cada coleta lê o snapshot inteiro, horas num disco externo. Indexado uma vez por versão (também leva horas; os arquivos são cortados em pequenos blocos das mesmas linhas), uma coleta lê só o que pede:",
   "settings.snapshot.index_building": "Em indexação, ou parado no meio: {done} de {total} arquivos feitos. O mesmo comando continua:",
   "settings.snapshot.index_label": "Comando de indexação",
-  "corpus.route.snapshot_indexed": "lê cerca de {size} pelo índice, cerca de {time}; nada é enviado ao OpenAlex"
+  "corpus.route.snapshot_indexed": "lê cerca de {size} pelo índice, cerca de {time}; nada é enviado ao OpenAlex",
+  "job.pause.harvest_stopped": "Pausado a seu pedido. Os trabalhos de {n} de {total} pessoas ficam guardados: retome para continuar.",
+  "job.pause.harvest_paused": "Coletas falharam várias vezes seguidas. Os trabalhos de {n} de {total} pessoas ficam guardados: retome para continuar, agora ou mais tarde."
 }

@@ -180,11 +180,17 @@ cartolex collect window my-project 2015-      # from 2015 on (2015-2024, 2020, n
 
 (`years` of the slot in `project.json`; by default, every year). Answers are
 cached in the project: `--refresh` fetches again, `--cache-only` works offline
-from what was fetched before and says what is missing. Ctrl-C stops after the
-current request: the people harvested before it are kept. A person whose
-collection fails (a service that keeps failing, a page cut short) is reported
-with the cause and the others go on; after three failures in a row the
-harvest stops and keeps what it collected (see the coverage report below).
+from what was fetched before and says what is missing. A harvest writes what
+it collected every 2,000 people or 10 minutes, whichever comes first: whatever
+happens to the job afterwards (a stop, a crash, a computer switched off), those
+people are kept. Ctrl-C stops it after the current request; it pauses, and the
+same command with `--resume` goes on with the people not yet done. A person
+whose collection fails (a service that keeps failing, a page cut short) is
+reported with the cause and the others go on; after three failures in a row (a
+spent daily budget, a service down) the harvest pauses the same way, and
+`--resume` goes on later, asking again for the people whose collection failed
+(see the coverage report below). In the app, a paused harvest has « Resume »
+in the Activity drawer.
 
 **The OpenAlex key.** OpenAlex counts list requests against a daily budget:
 $0.10 a day without a key (about 100,000 works), $1 with a free key (about a

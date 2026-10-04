@@ -139,6 +139,12 @@ MESSAGES: dict[str, MessageKind] = {
     "collect_paused": MessageKind(
         "a page still failed after its retries; {works} of {total} works are kept: resume to go on"
     ),
+    "harvest_stopped": MessageKind(
+        "the harvest was stopped; {n} of {total} people are kept: resume to go on"
+    ),
+    "harvest_paused": MessageKind(
+        "the harvest stopped after failures in a row; {n} of {total} people are kept: resume to go on"
+    ),
     # the overview's health panel (``GET /api/overview``)
     "health_map_stale": MessageKind(
         "the map was drawn from inputs that changed since; building the map restores it",

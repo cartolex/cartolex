@@ -782,3 +782,10 @@ nothing in the engine names a particular deployment, source or procedure.
   project's `cache/snapshot/`, then was read back record by record in no
   particular order: on a hard disk, a national harvest spent a day seeking
   there. `--spill DIR` keeps it on another disk, a fast internal one.
+- **A long harvest keeps what it collected.** A harvest was one run, written
+  whole or not at all: after hours, a crash, a computer switched off or a
+  service stop lost everything. It now writes a run every 2,000 people or 10
+  minutes, with a checkpoint of the people done. A stop or three failures in a
+  row (a spent daily budget) pause it (`harvest_stopped`, `harvest_paused`),
+  and `--resume`, or « Resume » in the app, goes on with the people not yet
+  done, those whose collection failed included.

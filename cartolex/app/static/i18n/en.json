@@ -2707,5 +2707,7 @@
   "settings.snapshot.index_none": "Not indexed: each collection reads the whole snapshot, hours on an external disk. Indexed once per release (hours too; its files are cut into small blocks of the same lines), a collection reads only what it asks for:",
   "settings.snapshot.index_building": "Being indexed, or stopped midway: {done} of {total} parts done. The same command goes on:",
   "settings.snapshot.index_label": "Indexing command",
-  "corpus.route.snapshot_indexed": "reads about {size} through its index, about {time}; nothing is sent to OpenAlex"
+  "corpus.route.snapshot_indexed": "reads about {size} through its index, about {time}; nothing is sent to OpenAlex",
+  "job.pause.harvest_stopped": "Paused at your request. The works of {n} of {total} people are kept: resume to go on.",
+  "job.pause.harvest_paused": "Collections failed several times in a row. The works of {n} of {total} people are kept: resume to go on, now or later."
 }

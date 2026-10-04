@@ -581,9 +581,20 @@ class ServiceCollection(BaseCollection):
         return {"snapshot_release": check.release, "snapshot_seconds": round(seconds, 1)}
 
     def resume_options(self, project: Project, checkpoint: str) -> dict[str, Any] | None:
-        """The options of the paused collection *checkpoint*, to resume it (``None``: none)."""
+        """The options of the paused collection *checkpoint*, to resume it (``None``: none):
+        an institutions' reading, or a harvest (its people, window and source)."""
+        from cartolex.collect.harvest import harvest_checkpoint_options
         from cartolex.collect.institutions import checkpoint_options
 
+        harvested = harvest_checkpoint_options(project, checkpoint)
+        if harvested is not None:
+            again: dict[str, Any] = {}
+            if harvested.get("people"):
+                again["people"] = list(harvested["people"])
+            if harvested.get("years"):
+                again["years"] = list(harvested["years"])
+            again["openalex"] = "snapshot" if harvested.get("source") == "snapshot" else "api"
+            return again
         found = checkpoint_options(project, checkpoint)
         if found is None:
             return None
@@ -730,6 +741,7 @@ class ServiceCollection(BaseCollection):
             people=people,
             years=years,  # type: ignore[arg-type]
             source=self._openalex(project, opts, first, opened),
+            resume=bool(opts.get("resume")),
         )
         done.append("openalex")
         out: dict[str, Any] = {

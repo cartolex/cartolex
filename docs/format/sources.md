@@ -192,7 +192,10 @@ always sorts after the earlier ones. A file whose header is not
 | `failures` | any finder | one per person whose collection failed: finder, service, status, cause, time | none: the coverage report reads them |
 
 A harvest names its people in its header; a person's latest harvest replaces
-their earlier ones. Other kinds add up, the first record of a text, part or
+their earlier ones. A long harvest writes several runs, one per chunk of people,
+each naming its own; a paused one keeps its checkpoint (the people done, the
+options to resume with) in `sources/<slot>/raw/checkpoints/harvest-<key>.json.gz`,
+removed once the harvest completes. Other kinds add up, the first record of a text, part or
 authorship winning and later ones only filling what it lacks, except a text
 provider's part, which replaces the same service's part as a finder. A reader
 that meets a kind it does not know skips it and says so.

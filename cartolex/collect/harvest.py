@@ -21,16 +21,23 @@ authorships name every project person on it, at their rank, with ``last`` and
 states for them, which also date their affiliations.
 
 Everything received is kept in ``sources/<slot>/raw/openalex/`` and
-``raw/orcid/``, one run per harvest; the tables are rebuilt from these runs, a
-person's latest run replacing their earlier ones.
+``raw/orcid/``; the tables are rebuilt from these runs, a person's latest run
+replacing their earlier ones. A long harvest writes a run every
+:data:`CHUNK_PEOPLE` people or :data:`CHUNK_SECONDS` seconds, whichever comes
+first, and saves a checkpoint of the people done: whatever happens to the job
+afterwards, those runs are kept. A harvest stopped (a cancel, or failures in a
+row) raises :class:`~cartolex.project.checkpoints.JobPaused` with that
+checkpoint; given ``resume=True``, the same harvest (same people, records,
+window and source) goes on with the people not yet done, those whose
+collection failed included.
 
 The years default to the slot's window (``years`` in ``project.json``). The
 OpenAlex part comes from the API, or from a downloaded snapshot
 (:mod:`cartolex.collect.snapshot`), read in one pass for the whole job: the
 runs written are the same. A person whose collection fails is recorded with
 the cause (:mod:`cartolex.collect.outcomes`) and the others go on; after three
-failures in a row the harvest stops, keeps what it collected, and raises the
-last error.
+failures in a row the harvest stops, keeps what it collected, and pauses with
+the last error as its cause.
 """
 
 from __future__ import annotations
@@ -43,6 +50,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from cartolex.project import Project
+from cartolex.project.checkpoints import Checkpoint, JobPaused, work_key
 from cartolex.project.tables import read_source_table
 
 from .decisions import read_people, slot_window
@@ -69,18 +77,49 @@ from .tables import (
     SourceBuilder,
     iso,
     parse_time,
+    raw_folder,
     rebuild_sources,
 )
 from .text import DETECTED_LANGUAGES, abstract_from_inverted_index, detect_language, strip_markup
 
 __all__ = [
+    "CHUNK_PEOPLE",
+    "CHUNK_SECONDS",
     "HarvestReport",
     "current_runs",
     "harvest",
+    "harvest_checkpoint_options",
     "read_openalex_runs",
     "read_orcid_runs",
     "work_text",
 ]
+
+
+#: People a harvest writes per run: a run closed is kept whatever happens to the job after.
+CHUNK_PEOPLE = 2000
+#: A harvest closes its run after this many seconds, even with fewer people in it.
+CHUNK_SECONDS = 600.0
+#: The kind of a paused harvest's checkpoint (``sources/<slot>/raw/checkpoints/``).
+CHECKPOINT_KIND = "harvest"
+
+
+def _checkpoint_folder(project: Project, slot: str) -> Any:
+    return raw_folder(project.layout, slot) / "checkpoints"
+
+
+def harvest_checkpoint_options(
+    project: Project, checkpoint_id: str, *, slot: str | None = None
+) -> dict[str, Any] | None:
+    """The options of the paused harvest *checkpoint_id* (to resume it), or ``None``."""
+    slot = _collection_slot(project, slot, "collection")
+    try:
+        cp = Checkpoint.by_id(_checkpoint_folder(project, slot), checkpoint_id)
+    except ValueError:
+        return None
+    if cp.kind != CHECKPOINT_KIND:
+        return None
+    saved = cp.load()
+    return None if saved is None else dict(saved.state.get("options") or {})
 
 
 @dataclass
@@ -95,7 +134,11 @@ class HarvestReport:
     notes: list[str] = field(default_factory=list)
     rebuild: RebuildReport | None = None
     cancelled: bool = False
+    #: The first run this job wrote (``run_ids``: every one, a run per chunk of people).
     run_id: str = ""
+    run_ids: list[str] = field(default_factory=list)
+    #: People an earlier, stopped run of the same harvest had done (skipped when resuming).
+    resumed: int = 0
     #: People whose harvest failed, with the cause (see :mod:`cartolex.collect.outcomes`).
     failures: list[dict[str, Any]] = field(default_factory=list)
     #: Why the harvest stopped before the end, if it did.
@@ -105,6 +148,8 @@ class HarvestReport:
 
     def lines(self) -> list[str]:
         out = [f"{self.people} person(s) harvested, {sum(self.works.values())} work(s) received"]
+        if self.resumed:
+            out.append(f"{self.resumed} person(s) harvested before, by the stopped run resumed")
         out += [f"failed: {f['person_id']}: {f['cause']}" for f in self.failures]
         if self.stopped:
             out.append(self.stopped)
@@ -213,6 +258,9 @@ def harvest(
     now: datetime | None = None,
     source: OpenAlexSource | None = None,
     batch: int = AUTHOR_BATCH,
+    resume: bool = False,
+    chunk_people: int = CHUNK_PEOPLE,
+    chunk_seconds: float = CHUNK_SECONDS,
 ) -> HarvestReport:
     """Collect the works of every confirmed person (or of *people*) and rebuild the tables.
 
@@ -222,9 +270,16 @@ def harvest(
     :class:`~cartolex.collect.snapshot.SnapshotSource` reads a snapshot); the
     registry is always asked through *client*. From a source asked request by
     request, the works of up to *batch* records of consecutive people are asked
-    for in one list (``1``: each person's on their own). A cancel keeps the people
-    harvested before it; the person being harvested when it came is left out
-    whole. A person whose collection fails is recorded and the others go on.
+    for in one list (``1``: each person's on their own). A person whose collection
+    fails is recorded and the others go on.
+
+    A run is written every *chunk_people* people or *chunk_seconds* seconds, with a
+    checkpoint of the people done. A cancel, or :data:`MAX_FAILURES_IN_A_ROW` failures
+    in a row, closes the run being written and raises
+    :class:`~cartolex.project.checkpoints.JobPaused` (the person being harvested when it
+    came is left out whole); *resume* goes on from that checkpoint with the people not
+    yet done. A source read in passes (a snapshot) keeps what its passes found for a
+    resumed job too, when it can (``keep_findings``).
     """
     now = now or datetime.now(timezone.utc)
     layout = project.layout
@@ -237,31 +292,83 @@ def harvest(
     report = HarvestReport()
     source = source or OpenAlexApi(client)
     report.source = source.label
+    window = list(years) if years else None
+    # The work this harvest is: a resumed one must be asked the same.
+    asked_for = [[p["person_id"], sorted(r)] for p, r in targets]
+    key = work_key({"slot": slot, "years": window, "source": source.label, "people": asked_for})
+    cp = Checkpoint(_checkpoint_folder(project, slot), CHECKPOINT_KIND, key)
+    done: set[str] = set()
+    if resume:
+        saved = cp.load(now=now)
+        done = set(saved.state.get("done") or ()) if saved is not None else set()
+    else:
+        cp.clear()
+    report.resumed = len(done)
+    options = {"people": list(people) if people else None, "years": window,
+               "source": source.label}  # fmt: skip
+
+    def checkpoint() -> None:
+        cp.save({"options": options, "done": sorted(done), "runs": report.run_ids,
+                 "total": len(targets)}, now=now)  # fmt: skip
+
+    def paused(code: str, message: str, cause: BaseException | None = None) -> JobPaused:
+        n = len(done)
+        return JobPaused(code, f"{message}; {n} of {len(targets)} people are kept: resume to go on",
+                         cp.id, params={"n": n, "total": len(targets)},
+                         progress={"people": n, "total": len(targets)}, cause=cause)  # fmt: skip
+
     registry: dict[str, Any] = {}
-    if hasattr(source, "prefetch") and targets:
-        _prefetch(client, source, targets, registry)
+    if hasattr(source, "keep_findings"):
+        source.keep_findings(key, resume=resume)
+    try:
+        if hasattr(source, "prefetch") and targets:
+            _prefetch(client, source, targets, registry)
+    except Cancelled:
+        checkpoint()
+        raise paused("harvest_stopped", "the harvest stopped while reading the snapshot") from None
     batched = _BatchedWorks(source) if batch > 1 and not hasattr(source, "prefetch") else None
     starts: dict[int, list[str]] = {}
     if batched is not None:
         groups = [_openalex_ids(records) for _person, records in targets]
         starts = {b[0]: [a for i in b for a in groups[i]] for b in author_batches(groups, batch)}
     asked = batched if batched is not None else source
-    window = list(years) if years else None
-    oa_out = RawWriter(
-        layout, slot, "openalex", {"years": window, "people": {}, "source": source.label}, now=now
-    )
-    orcid_out = RawWriter(
-        layout, slot, "orcid", {"years": window, "people": {}}, run_id=oa_out.run_id
-    )
-    report.run_id = oa_out.run_id
+    chunk: dict[str, Any] = {}
+
+    def open_chunk() -> None:
+        oa = RawWriter(layout, slot, "openalex",
+                       {"years": window, "people": {}, "source": source.label}, now=now)  # fmt: skip
+        orcid = RawWriter(layout, slot, "orcid", {"years": window, "people": {}},
+                          run_id=oa.run_id)  # fmt: skip
+        chunk.update(oa=oa, orcid=orcid, people=[], failures=[], since=time.monotonic())
+
+    def close_chunk(*, keep: bool = True) -> None:
+        """Write the chunk's runs and failures, then the checkpoint (or drop them all)."""
+        oa, orcid = chunk["oa"], chunk["orcid"]
+        for writer in (oa, orcid):
+            if keep and writer.header["people"]:
+                writer.close()
+            else:
+                writer.discard()
+        if not keep:
+            return
+        if oa.header["people"]:
+            report.run_ids.append(oa.run_id)
+            report.run_id = report.run_id or oa.run_id
+        write_failures(layout, slot, "harvest", chunk["failures"], now=now)
+        done.update(chunk["people"])
+        checkpoint()
+
+    open_chunk()
     in_a_row = 0
     started = time.monotonic()
     last_error: CollectError | None = None
     try:
         for k, (person, records) in enumerate(targets):
-            client.check_cancel()
             pid = person["person_id"]
-            _report_progress(client, k, len(targets), report, started)
+            if pid in done:
+                continue
+            client.check_cancel()
+            _report_progress(client, k, len(targets), report, started, before=report.resumed)
             if batched is not None and k in starts:
                 batched.load(starts[k], years)
             try:
@@ -269,7 +376,9 @@ def harvest(
                     client, asked, person, records, years, report, registry
                 )
             except (ServiceError, CacheMiss) as exc:
-                report.failures.append(failure_record(pid, "harvest", exc, now=now))
+                failure = failure_record(pid, "harvest", exc, now=now)
+                report.failures.append(failure)
+                chunk["failures"].append(failure)  # not done: a resumed harvest asks again
                 in_a_row += 1
                 last_error = exc
                 if stops_the_job(client, exc) or in_a_row >= MAX_FAILURES_IN_A_ROW:
@@ -281,43 +390,51 @@ def harvest(
                 continue
             in_a_row = 0
             for line in oa_lines:
-                oa_out.add(line)
+                chunk["oa"].add(line)
             for line in orcid_lines:
-                orcid_out.add(line)
-            oa_out.header["people"][pid] = meta
+                chunk["orcid"].add(line)
+            chunk["oa"].header["people"][pid] = meta
             if meta["orcids"]:
-                orcid_out.header["people"][pid] = {"orcids": meta["orcids"]}
+                chunk["orcid"].header["people"][pid] = {"orcids": meta["orcids"]}
+            chunk["people"].append(pid)
             report.people += 1
             report.works[pid] = sum(1 for x in oa_lines if x["type"] == "work")
+            full = len(chunk["people"]) >= chunk_people
+            if full or time.monotonic() - chunk["since"] >= chunk_seconds:
+                close_chunk()
+                open_chunk()
     except Cancelled:
         report.cancelled = True
     except BaseException:
-        oa_out.discard()
-        orcid_out.discard()
+        close_chunk(keep=False)  # the runs closed before are kept, with their checkpoint
         raise
-    for writer in (oa_out, orcid_out):
-        if writer.header["people"]:
-            writer.close()
-        else:
-            writer.discard()
-    write_failures(layout, slot, "harvest", report.failures, now=now)
+    close_chunk()
     if report.people:
         report.rebuild = rebuild_sources(layout, project.config)
     client.progress(1.0, "harvest done")
     if report.cancelled:
-        raise Cancelled(
-            f"harvest cancelled after {report.people} of {len(targets)} people; their works are kept"
-        )
+        raise paused("harvest_stopped", "the harvest was stopped; their works are kept")
     if report.stopped and last_error is not None:
-        raise last_error
+        raise paused(
+            "harvest_paused", f"{report.stopped} ({last_error})", cause=last_error
+        ) from last_error
+    cp.clear()
+    if hasattr(source, "forget_findings"):
+        source.forget_findings()
     return report
 
 
 def _report_progress(
-    client: HttpClient, done: int, total: int, report: HarvestReport, started: float
+    client: HttpClient,
+    done: int,
+    total: int,
+    report: HarvestReport,
+    started: float,
+    *,
+    before: int = 0,
 ) -> None:
     """How far the harvest is: the people done, the texts received, the requests sent, and
-    the time left at the pace so far."""
+    the time left at the pace so far (*before*: people done by a stopped run, not timed)."""
     elapsed = time.monotonic() - started
     texts = sum(report.works.values())
     client.progress(
@@ -330,7 +447,11 @@ def _report_progress(
             "texts": texts,
             "requests": sum(client.egress.requests.values()),
         },
-        eta_s=round(elapsed / done * (total - done)) if done and elapsed >= 5 else None,
+        eta_s=(
+            round(elapsed / (done - before) * (total - done))
+            if done > before and elapsed >= 5
+            else None
+        ),
     )
 
 

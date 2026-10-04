@@ -10,13 +10,14 @@ import pytest
 from _collect_world import client, confirm_truth, demo_project, world_ids
 
 from cartolex.collect.harvest import _BatchedWorks, harvest
-from cartolex.collect.http import Cancelled, Fetched, IncompleteResults
+from cartolex.collect.http import Fetched, IncompleteResults
 from cartolex.collect.openalex import WORK_FIELDS
 from cartolex.collect.resolve import confirm
 from cartolex.collect.tables import raw_folder
 from cartolex.demo import generate
 from cartolex.demo.services import DemoServices
 from cartolex.demo.services.openalex import AUTHORS_SHOWN
+from cartolex.project.checkpoints import JobPaused
 from cartolex.project.layout import SOURCE_TABLES
 from cartolex.project.tables import read_source_table
 
@@ -89,8 +90,9 @@ def test_a_page_cut_short_stops_the_harvest_and_changes_nothing(confirmed, servi
     project, _bib, _ids = confirmed
     before = _bytes(project)
     services.faults.add("cut_page", service="openalex", path=r"^works\?", times=None)
-    with pytest.raises(IncompleteResults):
+    with pytest.raises(JobPaused) as stopped:  # it goes on later, with --resume
         harvest(project, client(services, project))
+    assert isinstance(stopped.value.cause, IncompleteResults)
     services.faults.clear()
     assert _bytes(project) == before
     assert not (raw_folder(project.layout, "collected") / "openalex").exists() or not list(
@@ -106,8 +108,9 @@ def test_a_cancel_keeps_the_people_harvested_before_it(confirmed, services) -> N
         calls["n"] += 1
         return calls["n"] > 12
 
-    with pytest.raises(Cancelled, match="their works are kept"):
+    with pytest.raises(JobPaused, match="their works are kept") as stopped:
         harvest(project, client(services, project, cancel=cancel))
+    assert stopped.value.code == "harvest_stopped" and stopped.value.checkpoint
     partial = {a["person_id"] for a in _table(project, "authorships")}
     assert partial
     harvest(project, client(services, project))
@@ -221,3 +224,71 @@ def test_the_harvest_asks_only_for_the_fields_it_keeps(confirmed, services) -> N
         if r.service == "openalex" and "works" in r.path.split("/")
     ]  # fmt: skip
     assert works and all(r.query.get("select") == WORK_FIELDS for r in works)
+
+
+def _reference(services, tmp_path) -> dict[str, list[dict]]:
+    """The tables an uninterrupted harvest of the same world writes, without retrieval times."""
+    bib = services.bibliography
+    project = demo_project(tmp_path / "reference", bib)
+    confirm_truth(project, bib, world_ids(project, bib))
+    harvest(project, client(services, project))
+    out = _tables_without_times(project)
+    project.close()
+    return out
+
+
+def _tables_without_times(project) -> dict[str, list[dict]]:
+    return {n: [{k: v for k, v in r.items() if k != "retrieved_at"} for r in _table(project, n)]
+            for n in SOURCE_TABLES}  # fmt: skip
+
+
+def test_a_harvest_in_small_runs_writes_the_same_tables(confirmed, services, tmp_path) -> None:
+    project, _bib, _ids = confirmed
+    report = harvest(project, client(services, project), chunk_people=2)
+    runs = list((raw_folder(project.layout, "collected") / "openalex").glob("*.jsonl*"))
+    assert len(runs) == len(report.run_ids) > 2
+    assert _tables_without_times(project) == _reference(services, tmp_path)
+    # Finished, it leaves no checkpoint behind.
+    assert not list((raw_folder(project.layout, "collected") / "checkpoints").glob("harvest-*"))
+
+
+def test_a_stopped_harvest_goes_on_from_its_checkpoint(confirmed, services, tmp_path) -> None:
+    project, _bib, _ids = confirmed
+    calls = {"n": 0}
+
+    def cancel() -> bool:
+        calls["n"] += 1
+        return calls["n"] > 12
+
+    with pytest.raises(JobPaused) as stopped:
+        harvest(project, client(services, project, cancel=cancel), chunk_people=2)
+    done = stopped.value.params["n"]
+    assert 0 < done < stopped.value.params["total"]
+    report = harvest(project, client(services, project), chunk_people=2, resume=True)
+    assert report.resumed == done and report.people == stopped.value.params["total"] - done
+    assert _tables_without_times(project) == _reference(services, tmp_path)
+
+
+def test_a_crash_keeps_the_runs_closed_before_it(confirmed, services, tmp_path, monkeypatch):
+    import importlib
+
+    module = importlib.import_module("cartolex.collect.harvest")  # not the function
+
+    project, _bib, _ids = confirmed
+    real, seen = module._harvest_person, {"n": 0}
+
+    def crashing(*args, **kwargs):
+        seen["n"] += 1
+        if seen["n"] == 6:
+            raise RuntimeError("the computer stopped")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(module, "_harvest_person", crashing)
+    with pytest.raises(RuntimeError):
+        harvest(project, client(services, project), chunk_people=2)
+    kept = list((raw_folder(project.layout, "collected") / "openalex").glob("*.jsonl*"))
+    assert len(kept) == 2  # two chunks of two people closed; the fifth was not
+    monkeypatch.setattr(module, "_harvest_person", real)
+    report = harvest(project, client(services, project), chunk_people=2, resume=True)
+    assert report.resumed == 4
+    assert _tables_without_times(project) == _reference(services, tmp_path)
