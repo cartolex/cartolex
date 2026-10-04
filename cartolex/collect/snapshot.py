@@ -450,7 +450,9 @@ class Snapshot:
         ahead = max(1, self.jobs * READ_AHEAD)
         done = [0]
         context = multiprocessing.get_context("spawn")
-        pool = ProcessPoolExecutor(max_workers=self.jobs, mp_context=context)
+        pool = ProcessPoolExecutor(
+            max_workers=self.jobs, mp_context=context, initializer=ignore_stop_signals
+        )
         futures: dict[int, Future[Any]] = {}
 
         def submit(i: int) -> None:
@@ -630,6 +632,15 @@ def _tests(q: Query) -> tuple[Callable[[bytes], bool], Callable[[dict[str, Any]]
         return False
 
     return maybe, keep
+
+
+def ignore_stop_signals() -> None:
+    """In a worker process: Ctrl-C and SIGTERM are for the main process, which stops the
+    workers itself (a stop reaches every process of the group or service)."""
+    import signal
+
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
 
 
 def _scan_part(

@@ -142,3 +142,28 @@ def test_the_snapshot_coverage_and_a_window(tmp_path, capsys) -> None:
     assert main(["collect", "coverage", str(folder), "--exclude", pid]) == 0
     assert main(["collect", "window", str(folder), "none"]) == 0
     assert Project.open(folder).config.slots[0].years is None
+
+
+def test_a_stop_signal_stops_a_collection_cleanly(tmp_path, monkeypatch, capsys) -> None:
+    import os
+    import signal
+
+    from cartolex import cli_collect
+
+    folder, people = tmp_path / "p", tmp_path / "people.csv"
+    demo_main(["services", "--size", "XS", "--people-list", str(people), "--list-only"])
+    main(["init", str(folder), "--name", "Demo", "--field", "Coasts"])
+    main(["collect", "people", str(folder), str(people)])
+    capsys.readouterr()
+
+    def runner(args, project, client):
+        os.kill(os.getpid(), signal.SIGTERM)  # a service manager stopping the job
+        client.check_cancel()  # the next request: the job stops there, cleanly
+        raise AssertionError("not stopped")
+
+    monkeypatch.setitem(cli_collect.RUNNERS, "harvest", runner)
+    xs = ["--services", "demo", "--world", "XS:0"]
+    before = signal.getsignal(signal.SIGTERM)
+    assert main(["collect", "harvest", str(folder), *xs]) == 130
+    assert "stopping after the current request" in capsys.readouterr().out
+    assert signal.getsignal(signal.SIGTERM) == before  # the handler is put back

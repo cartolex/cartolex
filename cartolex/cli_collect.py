@@ -262,7 +262,9 @@ def _run(args: argparse.Namespace, action: str) -> int:
             print("stopping after the current request (Ctrl-C again to stop at once)", flush=True)
             cancel.set()
 
+        # Ctrl-C, or a service manager stopping the job (SIGTERM): a clean stop first.
         previous = signal.signal(signal.SIGINT, on_interrupt)
+        previous_term = signal.signal(signal.SIGTERM, on_interrupt)
         started = datetime.now(timezone.utc)
         client = HttpClient(
             settings,
@@ -292,6 +294,7 @@ def _run(args: argparse.Namespace, action: str) -> int:
             raise
         finally:
             signal.signal(signal.SIGINT, previous)
+            signal.signal(signal.SIGTERM, previous_term)
             counts.update({f"requests_{k}": v for k, v in client.counts.items()})
             record_job(
                 project,
@@ -545,6 +548,7 @@ def _snapshot_index(args: argparse.Namespace) -> int:
     import os
     import time
 
+    from cartolex.collect.http import Cancelled
     from cartolex.collect.snapshot_index import build_index, index_state
 
     if args.status:
@@ -566,11 +570,24 @@ def _snapshot_index(args: argparse.Namespace) -> int:
 
     print(f"indexing {args.snapshot} with {jobs} worker(s); Ctrl-C stops, the same command "
           "goes on", flush=True)  # fmt: skip
+    stop = threading.Event()
+
+    def on_interrupt(signum: int, frame: object) -> None:
+        if stop.is_set():
+            raise KeyboardInterrupt
+        print("stopping after the parts being cut (Ctrl-C again to stop at once)", flush=True)
+        stop.set()
+
+    previous = signal.signal(signal.SIGINT, on_interrupt)
+    previous_term = signal.signal(signal.SIGTERM, on_interrupt)
     try:
-        report = build_index(args.snapshot, jobs=jobs, progress=progress)
-    except KeyboardInterrupt:
+        report = build_index(args.snapshot, jobs=jobs, progress=progress, cancel=stop.is_set)
+    except (KeyboardInterrupt, Cancelled):
         print("stopped: run the same command to go on")
         return 130
+    finally:
+        signal.signal(signal.SIGINT, previous)
+        signal.signal(signal.SIGTERM, previous_term)
     for line in report.lines():
         print(line)
     return 0 if report.complete else 1

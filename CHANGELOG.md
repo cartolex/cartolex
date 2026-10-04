@@ -789,3 +789,9 @@ nothing in the engine names a particular deployment, source or procedure.
   row (a spent daily budget) pause it (`harvest_stopped`, `harvest_paused`),
   and `--resume`, or « Resume » in the app, goes on with the people not yet
   done, those whose collection failed included.
+- **A stop signal stops a collection cleanly.** Only Ctrl-C (SIGINT) asked a
+  collection to stop after the current request; SIGTERM, which `kill` and a
+  service manager send, ended it at once, and reached its worker processes
+  too. A collection and an index build now take SIGTERM as they take Ctrl-C
+  (a second one stops at once), and the snapshot's worker processes ignore
+  both, leaving the stop to the main process.

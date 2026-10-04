@@ -183,7 +183,9 @@ cached in the project: `--refresh` fetches again, `--cache-only` works offline
 from what was fetched before and says what is missing. A harvest writes what
 it collected every 2,000 people or 10 minutes, whichever comes first: whatever
 happens to the job afterwards (a stop, a crash, a computer switched off), those
-people are kept. Ctrl-C stops it after the current request; it pauses, and the
+people are kept. Ctrl-C stops it after the current request (so does SIGTERM:
+`kill`, or a service manager stopping the job; its worker processes leave the
+stop to it, and a second signal stops at once); it pauses, and the
 same command with `--resume` goes on with the people not yet done. A person
 whose collection fails (a service that keeps failing, a page cut short) is
 reported with the cause and the others go on; after three failures in a row (a

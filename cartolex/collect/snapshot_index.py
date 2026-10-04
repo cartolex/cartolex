@@ -226,6 +226,12 @@ class BuildReport:
         return out
 
 
+def _quiet() -> None:
+    from .snapshot import ignore_stop_signals
+
+    ignore_stop_signals()
+
+
 def _cut_part(
     source: str, target: str, entity: str, block_bytes: int, level: int
 ) -> dict[str, Any]:
@@ -495,7 +501,9 @@ def build_index(
             from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 
             context = multiprocessing.get_context("spawn")
-            with ProcessPoolExecutor(max_workers=jobs, mp_context=context) as pool:
+            with ProcessPoolExecutor(
+                max_workers=jobs, mp_context=context, initializer=_quiet
+            ) as pool:
                 queue = list(work)
                 running: dict[Any, tuple[str, int, str]] = {}
                 while queue or running:
@@ -578,7 +586,7 @@ def _map(function: Callable[..., Any], tasks: Sequence[tuple[Any, ...]], jobs: i
     from concurrent.futures import ProcessPoolExecutor
 
     context = multiprocessing.get_context("spawn")
-    with ProcessPoolExecutor(max_workers=jobs, mp_context=context) as pool:
+    with ProcessPoolExecutor(max_workers=jobs, mp_context=context, initializer=_quiet) as pool:
         return list(pool.map(function, *zip(*tasks, strict=True)))
 
 
