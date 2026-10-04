@@ -218,3 +218,59 @@ def test_a_parallel_reading_reads_only_a_few_parts_ahead(services, tmp_path, mon
     rest = list(reading)
     assert len(rest) + 1 == len(parts) == len(submitted)
     assert submitted == [str(p.path) for p in parts]
+
+
+def test_a_store_on_file_comes_back_as_it_was_at_its_checkpoint(tmp_path) -> None:
+    path = tmp_path / "works.records"
+    store = RecordStore(path=path)
+    store.put("W1", {"a": 1})
+    store.put("W2", {"a": 2})
+    store.drop("W1")
+    sizes = store.checkpoint()
+    store.put("W3", {"a": 3})  # after the checkpoint: lost with the job that wrote it
+    store.close()
+    again = RecordStore(path=path, sizes=sizes)
+    assert again.ids() == ["W2"] and again.get("W2") == {"a": 2} and again.get("W3") is None
+    assert list(again.records()) == [("W2", {"a": 2})]
+    again.put("W4", {"a": 4})
+    assert again.get("W4") == {"a": 4}
+    again.close()
+
+
+def test_a_harvest_stopped_while_reading_the_snapshot_goes_on(
+    services, snapshot_dir, tmp_path, monkeypatch
+) -> None:
+    from cartolex.collect import snapshot as module
+    from cartolex.project.checkpoints import JobPaused
+
+    monkeypatch.setattr(module, "SAVE_EVERY_PARTS", 1)
+    bib = services.bibliography
+    out = {}
+    for name in ("whole", "stopped"):
+        project = demo_project(tmp_path / name, bib)
+        confirm_truth(project, bib, world_ids(project, bib))
+        out[name] = project
+    spill = tmp_path / "spill"
+    reference = SnapshotSource(Snapshot(snapshot_dir), spill=spill / "reference")
+    harvest(out["whole"], client(services, out["whole"]), source=reference)
+    reference.close()
+
+    project = out["stopped"]
+    # Stopped once the authors are read and the first part of the works.
+    snap = Snapshot(snapshot_dir, cancel=lambda: snap.report.by_entity.get("works", 0) > 0)
+    source = SnapshotSource(snap, spill=spill)
+    with pytest.raises(JobPaused, match="reading the snapshot") as stopped:
+        harvest(project, client(services, project), source=source)
+    source.close()
+    kept = next(spill.glob("snapshot-*"))
+    state = json.loads((kept / "state.json").read_text())
+    assert state["passes"]["authors"]["done"] and len(state["passes"]["works"]["parts"]) == 1
+
+    again = Snapshot(snapshot_dir)
+    source = SnapshotSource(again, spill=spill)
+    harvest(project, client(services, project), source=source, resume=True)
+    source.close()
+    assert "authors" not in again.report.by_entity  # read before the stop: not again
+    assert again.report.by_entity["works"] < sum(p.size for p in again.partitions("works"))
+    assert tables_without_times(project) == tables_without_times(out["whole"])
+    assert not kept.exists() and stopped.value.checkpoint

@@ -35,13 +35,15 @@ import csv
 import gzip
 import io
 import json
+import os
 import re
+import shutil
 import tempfile
 import threading
 import time
 import zlib
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -64,6 +66,9 @@ __all__ = [
 
 #: The entities cartolex reads.
 ENTITIES = ("works", "authors", "institutions")
+#: A resumable prefetch writes its state down every this many parts, or this many seconds.
+SAVE_EVERY_PARTS = 32
+SAVE_EVERY_SECONDS = 120.0
 #: Parts read ahead of the one given back, per worker process (bounds the memory a reading
 #: holds when its results are taken more slowly than they come).
 READ_AHEAD = 2
@@ -359,18 +364,26 @@ class Snapshot:
         *,
         what: str = "",
         seen: Callable[[str, dict[str, Any]], None] | None = None,
+        skip: Collection[str] = (),
+        after_part: Callable[[str], None] | None = None,
     ) -> int:
         """The records :meth:`scan` gives, put in *store* as each part is read instead of
         kept in memory; *seen* receives each one as it is put (to index it). Returns how many
-        the store holds for this pass, the deleted works dropped."""
+        the store holds for this pass, the deleted works dropped.
+
+        A pass resumed leaves out the parts in *skip* (``updated_date=…/part_….gz``, read
+        by a run before, their records in *store*); *after_part* is told each part once its
+        records are in *store*."""
         started = time.perf_counter()
-        kept: set[str] = set()
-        for records in self._part_records(query, what):
+        kept: set[str] = set(store.ids()) if skip else set()
+        for rel, records in self._records_by_part(query, what, skip=skip):
             for rid, record in records.items():
                 store.put(rid, record)
                 if seen is not None:
                     seen(rid, record)
                 kept.add(rid)
+            if after_part is not None:
+                after_part(rel)
         if query.entity == "works" and kept:
             gone = self.deleted(kept)
             self.report.deleted += len(gone)
@@ -382,9 +395,17 @@ class Snapshot:
         return len(kept)
 
     def _part_records(self, query: Query, what: str) -> Iterator[dict[str, dict[str, Any]]]:
-        """Each part's records, in date order, as soon as that part is read: with an index,
-        only the members that may hold what *query* asks, of the parts that have some."""
-        parts = self.partitions(query.entity)
+        """Each part's records, in date order, as soon as that part is read."""
+        for _rel_path, records in self._records_by_part(query, what):
+            yield records
+
+    def _records_by_part(
+        self, query: Query, what: str, *, skip: Collection[str] = ()
+    ) -> Iterator[tuple[str, dict[str, dict[str, Any]]]]:
+        """Each part's records, in date order, as soon as that part is read, with the part
+        (``updated_date=…/part_….gz``): with an index, only the members that may hold what
+        *query* asks, of the parts that have some; the parts in *skip* left out."""
+        parts = [p for p in self.partitions(query.entity) if _rel(p) not in skip]
         index = self.index
         spans: dict[str, list[tuple[int, int]]] | None = None
         if index is not None and index.supports(query):
@@ -405,7 +426,7 @@ class Snapshot:
             report.bytes += size
             report.members += len(spans[_rel(part)]) if spans is not None else 0
             report.by_entity[query.entity] = report.by_entity.get(query.entity, 0) + size
-            yield records
+            yield _rel(part), records
 
     def _serial(
         self,
@@ -751,15 +772,46 @@ class RecordStore:
     Each record is compressed on its own and appended to a temporary file (in *folder*, else
     the system's temporary folder; it is gone once the store is closed or the program ends),
     its place indexed by id; a later copy of a record replaces the earlier one.
+
+    Given a *path* instead, the records go to that file and their places to a journal beside
+    it (``<path>.index``, a line per record kept or dropped), both kept after the store is
+    closed: :meth:`checkpoint` writes them down and says their sizes, and a store opened
+    again with those *sizes* holds what it held then (what came after is cut off).
     """
 
-    def __init__(self, folder: Path | None = None) -> None:
-        if folder is not None:
-            Path(folder).mkdir(parents=True, exist_ok=True)
-        self._fh = tempfile.TemporaryFile(prefix="cartolex-snapshot-", dir=folder)
+    def __init__(
+        self,
+        folder: Path | None = None,
+        *,
+        path: Path | None = None,
+        sizes: Sequence[int] | None = None,
+    ) -> None:
         self._at: dict[str, tuple[int, int]] = {}
         self._end = 0
         self._lock = threading.Lock()
+        self._journal: Any = None
+        if path is None:
+            if folder is not None:
+                Path(folder).mkdir(parents=True, exist_ok=True)
+            self._fh = tempfile.TemporaryFile(prefix="cartolex-snapshot-", dir=folder)
+            return
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        journal = path.with_name(path.name + ".index")
+        if sizes is None or not path.is_file() or not journal.is_file():
+            sizes = (0, 0)
+        self._fh = open(path, "r+b" if path.is_file() else "w+b")  # noqa: SIM115 (kept open)
+        self._fh.truncate(sizes[0])
+        self._journal = open(journal, "r+b" if journal.is_file() else "w+b")  # noqa: SIM115
+        self._journal.truncate(sizes[1])
+        self._journal.seek(0)
+        for line in self._journal:
+            rid, offset, length = line.decode("utf-8").rstrip("\n").split("\t")
+            if int(length):
+                self._at[rid] = (int(offset), int(length))
+            else:
+                self._at.pop(rid, None)
+        self._end = sizes[0]
 
     def put(self, rid: str, record: Mapping[str, Any]) -> None:
         """Keep *record* under *rid* (replacing an earlier copy)."""
@@ -769,6 +821,8 @@ class RecordStore:
             self._fh.seek(self._end)
             self._fh.write(data)
             self._at[rid] = (self._end, len(data))
+            if self._journal is not None:
+                self._journal.write(f"{rid}\t{self._end}\t{len(data)}\n".encode())
             self._end += len(data)
 
     def get(self, rid: str | None) -> dict[str, Any] | None:
@@ -785,6 +839,27 @@ class RecordStore:
         """Forget the record kept under *rid*."""
         with self._lock:
             self._at.pop(rid, None)
+            if self._journal is not None:
+                self._journal.write(f"{rid}\t0\t0\n".encode())
+
+    def checkpoint(self) -> tuple[int, int]:
+        """Write down the records and their journal (a store with a *path*); their sizes,
+        to open the store again as it is now."""
+        with self._lock:
+            for fh in (self._fh, self._journal):
+                fh.flush()
+                os.fsync(fh.fileno())
+            return self._end, self._journal.tell()
+
+    def records(self) -> Iterator[tuple[str, dict[str, Any]]]:
+        """Every record kept, with its id, in the order of the file (read straight through)."""
+        with self._lock:
+            places = sorted(self._at.items(), key=lambda item: item[1][0])
+        for rid, (offset, length) in places:
+            with self._lock:
+                self._fh.seek(offset)
+                data = self._fh.read(length)
+            yield rid, json.loads(zlib.decompress(data))
 
     def ids(self) -> list[str]:
         """The ids of the records kept."""
@@ -795,8 +870,10 @@ class RecordStore:
         return len(self._at)
 
     def close(self) -> None:
-        """Let go of the file (its space is freed)."""
+        """Let go of the file (its space is freed; a store with a *path* keeps its files)."""
         self._fh.close()
+        if self._journal is not None:
+            self._journal.close()
 
 
 @dataclass(frozen=True)
@@ -808,6 +885,77 @@ class _Unit:
     ror: str
     lineage: frozenset[str]
     works: int
+
+
+class _KeptPasses:
+    """The passes of one prefetch, their findings kept in files so that a stopped job goes on
+    (``state.json`` beside the stores: what was asked, and for each pass the parts read, the
+    stores' sizes, whether it ended). A state of another release or another question is set
+    aside: its files are dropped."""
+
+    def __init__(self, source: SnapshotSource, authors: Sequence[str], dois: Sequence[str]):
+        from cartolex.project.checkpoints import work_key
+
+        self.source = source
+        self.folder: Path = source._kept  # type: ignore[assignment]
+        self.folder.mkdir(parents=True, exist_ok=True)
+        self.path = self.folder / "state.json"
+        digest = work_key({"release": source.snapshot.release(), "authors": list(authors),
+                           "dois": list(dois)})  # fmt: skip
+        try:
+            state = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            state = {}
+        if state.get("digest") != digest:
+            for old in self.folder.iterdir():
+                old.unlink()
+            state = {"digest": digest, "passes": {}}
+        self.state = state
+
+    def _save(self) -> None:
+        tmp = self.path.with_name(self.path.name + ".part")
+        tmp.write_text(json.dumps(self.state), encoding="utf-8")
+        os.replace(tmp, self.path)
+
+    def run(
+        self,
+        name: str,
+        query: Query,
+        *,
+        what: str,
+        seen: Callable[[str, dict[str, Any]], None] | None = None,
+    ) -> RecordStore:
+        """The store of pass *name*, read (or read further) as *query* asks."""
+        mine = self.state["passes"].get(name) or {}
+        old = self.source._authors if name == "authors" else self.source._works
+        old.close()  # the temporary store made with the source, empty
+        store = RecordStore(path=self.folder / f"{name}.records", sizes=mine.get("sizes"))
+        if seen is not None:  # what a stopped job had read is indexed again
+            for rid, record in store.records():
+                seen(rid, record)
+        if mine.get("done"):
+            return store
+        parts: list[str] = list(mine.get("parts") or ())
+        last = [time.monotonic()]
+
+        def save(done: bool = False) -> None:
+            self.state["passes"][name] = {"parts": parts, "sizes": list(store.checkpoint()),
+                                          "done": done}  # fmt: skip
+            self._save()
+            last[0] = time.monotonic()
+
+        def after_part(rel: str) -> None:
+            parts.append(rel)
+            if (
+                len(parts) % SAVE_EVERY_PARTS == 0
+                or time.monotonic() - last[0] >= SAVE_EVERY_SECONDS
+            ):
+                save()
+
+        self.source.snapshot.scan_into(query, store, what=what, seen=seen, skip=set(parts),
+                                       after_part=after_part)  # fmt: skip
+        save(done=True)
+        return store
 
 
 class SnapshotSource:
@@ -840,6 +988,8 @@ class SnapshotSource:
         self._fetched_dois: set[str] = set()
         self._institutions: RecordStore | None = None
         self._units: dict[str, _Unit] = {}
+        #: Where the passes' findings are kept for a resumed job (:meth:`keep_findings`).
+        self._kept: Path | None = None
 
     def _fetched(self, data: Any) -> Fetched:
         return Fetched(data, self.at, False)
@@ -851,17 +1001,42 @@ class SnapshotSource:
                 store.close()
 
     # ── prefetch ──
+    def keep_findings(self, key: str, *, resume: bool) -> None:
+        """Keep what the passes of :meth:`prefetch` find in files, ``<spill>/snapshot-<key>/``
+        (the spill folder, else the system's temporary folder), with their state written every
+        :data:`SAVE_EVERY_PARTS` parts or :data:`SAVE_EVERY_SECONDS` seconds: a job stopped
+        later goes on from there (*resume*) instead of reading the snapshot again; without
+        *resume*, what an earlier job kept there is dropped. *key* names the job."""
+        folder = Path(self.spill or tempfile.gettempdir()) / f"snapshot-{key}"
+        if not resume and folder.exists():
+            shutil.rmtree(folder)
+        self._kept = folder
+
+    def forget_findings(self) -> None:
+        """Drop the findings kept for a resumed job (the job is over)."""
+        if self._kept is not None:
+            self._authors.close()
+            self._works.close()
+            shutil.rmtree(self._kept, ignore_errors=True)
+            self._kept = None
+
     def prefetch(
         self, *, author_ids: Iterable[str] = (), dois: Iterable[str] = (), years: Years = None
     ) -> None:
         """Read, in one pass per entity, the author records and the works a job will ask for.
 
-        The works are read without a window (each question applies its own)."""
+        The works are read without a window (each question applies its own). With findings
+        kept (:meth:`keep_findings`), a pass a stopped job finished is not read again, and
+        one it began goes on from its last saved part."""
         authors = sorted({a for a in author_ids if a} - self._fetched_authors)
         wanted_dois = sorted({d for d in (bare_doi(x) for x in dois) if d} - self._fetched_dois)
+        passes = _KeptPasses(self, authors, wanted_dois) if self._kept is not None else None
         if authors:
             query = Query("authors", ids=frozenset(authors))
-            self.snapshot.scan_into(query, self._authors, what="by id")
+            if passes is None:
+                self.snapshot.scan_into(query, self._authors, what="by id")
+            else:
+                self._authors = passes.run("authors", query, what="by id")
         if authors or wanted_dois:
             asked, doi_set = {a.encode() for a in authors}, set(wanted_dois)
 
@@ -878,7 +1053,10 @@ class SnapshotSource:
                 dois=frozenset(wanted_dois),
                 select=_WORK_SELECT,
             )
-            self.snapshot.scan_into(query, self._works, what="works", seen=index)
+            if passes is None:
+                self.snapshot.scan_into(query, self._works, what="works", seen=index)
+            else:
+                self._works = passes.run("works", query, what="works", seen=index)
         self._fetched_authors.update(authors)
         self._fetched_dois.update(wanted_dois)
 

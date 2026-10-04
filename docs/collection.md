@@ -369,7 +369,11 @@ works. `--jobs 4` reads four parts at once, in worker processes. `--spill DIR` k
 what the passes find in another folder than the project's `cache/snapshot/`: each
 person's records are then read back in no particular order, so when the project
 lives on a hard disk, a folder on a fast internal disk turns hours into minutes for a
-national harvest (about 17 GB for 170,000 people). The tables are the same as from the API; a record's retrieval time is
+national harvest (about 17 GB for 170,000 people). A harvest keeps what its passes
+find in `snapshot-<key>/` there, its state written every 32 parts or two minutes: stopped,
+it goes on with `--resume` from the last part written, without reading again the
+passes it finished; the folder is removed when the harvest completes (a harvest
+never resumed leaves it: delete it to free the space). The tables are the same as from the API; a record's retrieval time is
 the snapshot's release date.
 
 ## What was collected for whom: coverage

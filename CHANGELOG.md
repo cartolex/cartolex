@@ -795,3 +795,11 @@ nothing in the engine names a particular deployment, source or procedure.
   too. A collection and an index build now take SIGTERM as they take Ctrl-C
   (a second one stops at once), and the snapshot's worker processes ignore
   both, leaving the stop to the main process.
+- **A harvest stopped while reading the snapshot goes on from there.** What
+  the passes found waited in a temporary file, gone with the job: a stop
+  during hours of reading started them over. A harvest now keeps it in
+  `snapshot-<key>/` of the spill folder (`RecordStore` on a named file with a
+  journal of its records; the passes' state written every 32 parts or two
+  minutes): resumed, it skips the passes it finished and the parts it read,
+  then indexes again what it kept. The folder is removed when the harvest
+  completes.
