@@ -778,3 +778,7 @@ nothing in the engine names a particular deployment, source or procedure.
   them: on a hard disk, a national harvest (a fifth of the members) spent its
   time seeking, at a tenth of the disk's speed. A gap shorter than a megabyte
   (what a seek costs in reading) is now read through.
+- **`--spill DIR` for a snapshot reading.** What its passes find waited in the
+  project's `cache/snapshot/`, then was read back record by record in no
+  particular order: on a hard disk, a national harvest spent a day seeking
+  there. `--spill DIR` keeps it on another disk, a fast internal one.

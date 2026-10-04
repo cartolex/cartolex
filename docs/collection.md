@@ -357,7 +357,11 @@ with the fields the API would have been asked for; memory holds an index of it
 being read, so a national harvest or institution fits in an ordinary
 computer's memory. A harvest makes one pass over the authors and one over
 the works for all its people; a round of collaborators two passes over the
-works. `--jobs 4` reads four parts at once, in worker processes. The tables are the same as from the API; a record's retrieval time is
+works. `--jobs 4` reads four parts at once, in worker processes. `--spill DIR` keeps
+what the passes find in another folder than the project's `cache/snapshot/`: each
+person's records are then read back in no particular order, so when the project
+lives on a hard disk, a folder on a fast internal disk turns hours into minutes for a
+national harvest (about 17 GB for 170,000 people). The tables are the same as from the API; a record's retrieval time is
 the snapshot's release date.
 
 ## What was collected for whom: coverage

@@ -363,7 +363,8 @@ def _source(args: argparse.Namespace, client: Any) -> Any:
 
     from cartolex.project.layout import ProjectLayout
 
-    # What the passes find waits on disk in the project's cache, beside the project.
+    # What the passes find waits on disk: in the folder given, else in the project's cache.
+    spill = getattr(args, "spill", None) or ProjectLayout(Path(args.folder)).cache / "snapshot"
     return SnapshotSource(
         Snapshot(
             folder,
@@ -371,7 +372,7 @@ def _source(args: argparse.Namespace, client: Any) -> Any:
             cancel=cancelled,
             jobs=getattr(args, "jobs", None) or 1,
         ),
-        spill=ProjectLayout(Path(args.folder)).cache / "snapshot",
+        spill=Path(spill),
     )
 
 
@@ -703,6 +704,12 @@ def _service_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--people", nargs="+", metavar="ID", help="only these people")
     p.add_argument(
         "--jobs", type=int, default=1, help="snapshot parts read at once, in worker processes"
+    )
+    p.add_argument(
+        "--spill",
+        type=Path,
+        help="where a snapshot reading keeps what it finds meanwhile (default: the project's "
+        "cache/snapshot); a disk fast at random reads helps a national harvest",
     )
 
 

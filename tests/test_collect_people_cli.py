@@ -123,9 +123,11 @@ def test_the_snapshot_coverage_and_a_window(tmp_path, capsys) -> None:
     assert main(["collect", "snapshot", str(folder), str(snap), *xs, "--dry-run"]) == 0
     out = capsys.readouterr().out
     assert "api.openalex.org" not in out and "snapshot" in out
-    assert main(["collect", "snapshot", str(folder), str(snap), *xs]) == 0
+    spill = tmp_path / "fast-disk"  # what the passes find waits there, not in the project
+    assert main(["collect", "snapshot", str(folder), str(snap), *xs, "--spill", str(spill)]) == 0
     out = capsys.readouterr().out
     assert "harvested" in out and "sent to openalex" not in out
+    assert spill.is_dir() and not (folder / "cache" / "snapshot").exists()
     texts = read_source_table(folder / "sources" / "tables" / "texts.parquet", "texts").to_pylist()
     assert texts and min(t["year"] for t in texts) >= 2015
     assert main(["collect", "coverage", str(folder), "--json"]) == 0
