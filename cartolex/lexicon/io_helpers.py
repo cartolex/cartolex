@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from .lang_utils import detect_language_text
-from .utils import canonicalize_names
 
 if TYPE_CHECKING:
     from cartolex.context import RunContext
@@ -91,46 +90,50 @@ def _attribute_value(raw: object) -> str:
 def write_roster(*, index_csvs: Iterable[Path], out_csv: Path) -> int:
     """Write the deduplicated person roster read from *index_csvs* to *out_csv*.
 
-    Reads the per-document / per-person corpus indexes and collapses them to a
-    single row per canonical (last_name, first_name, unit). Every other column
-    of an index that does not describe a document (:data:`DOCUMENT_COLUMNS`) is
-    a person attribute: the roster keeps the first non-empty value seen for each
-    person, in the order the columns first appear, so any attribute can later
-    colour or filter the persons by its name. This roster (the full set of
-    researchers with any corpus document) is required by the atlas stages, and
-    is independent of the keyword recency and document-type windows. Returns
-    the number of researchers written; raises :class:`CorpusError` when no
+    Reads the people of each corpus slot (the folder of each index: a packed corpus's
+    ``people.csv``, or the rows of a per-document index) and collapses them to a single
+    row per canonical (last_name, first_name, unit). Every other column that does not
+    describe a document (:data:`DOCUMENT_COLUMNS`) is a person attribute: the roster keeps
+    the first non-empty value seen for each person, in the order the columns first
+    appear, so any attribute can later colour or filter the persons by its name. This
+    roster (the full set of researchers with any corpus document) is required by the
+    atlas stages, and is independent of the keyword recency and document-type windows.
+    Returns the number of researchers written; raises :class:`CorpusError` when no
     index yields a person.
     """
+    from .corpus_store import identity, is_packed, slot_people, unit_value
+
     attributes: list[str] = []
     merged: dict[tuple[str, str, str], dict[str, str]] = {}
 
     for idx in index_csvs:
-        if not idx.exists():
+        idx = Path(idx)
+        if not (idx.exists() or is_packed(idx.parent)):
             continue
         try:
-            df = pd.read_csv(idx, dtype=str)
+            columns, rows = slot_people(idx)
         except Exception as exc:
             logger.warning("Skipping %s while building researcher index: %s", idx.name, exc)
             continue
-        if not set(IDENTITY_COLUMNS).issubset(df.columns):
+        if not set(IDENTITY_COLUMNS).issubset(columns):
             logger.warning("Skipping %s: missing identity columns for researcher index", idx.name)
             continue
-        own = [c for c in df.columns if c not in IDENTITY_COLUMNS and c not in DOCUMENT_COLUMNS]
+        own = [
+            c
+            for c in columns
+            if c not in IDENTITY_COLUMNS and c not in DOCUMENT_COLUMNS and c != "person_id"
+        ]
         attributes += [c for c in own if c not in attributes]
-        for _, row in df.iterrows():
-            last = str(row.get("last_name", "") or "").strip()
-            first = str(row.get("first_name", "") or "").strip()
-            unit = _normalize_unit(row.get("unit", ""))
-            key = (
-                canonicalize_names(last),
-                canonicalize_names(first),
-                canonicalize_names(unit),
+        for row in rows:
+            last = (row.get("last_name") or "").strip()
+            first = (row.get("first_name") or "").strip()
+            unit = unit_value(row.get("unit") or "")
+            person = merged.setdefault(
+                identity(last, first, unit), {"last_name": last, "first_name": first, "unit": unit}
             )
-            person = merged.setdefault(key, {"last_name": last, "first_name": first, "unit": unit})
             for col in own:
                 if not person.get(col):
-                    person[col] = _attribute_value(row.get(col))
+                    person[col] = (row.get(col) or "").strip()
 
     if not merged:
         raise CorpusError(
@@ -145,133 +148,6 @@ def write_roster(*, index_csvs: Iterable[Path], out_csv: Path) -> int:
     return len(merged)
 
 
-def _load_index_as_store(
-    index_csv: Path,
-    source_tag: str,
-    *,
-    df: pd.DataFrame | None = None,
-    progress_state: dict[str, int] | None = None,
-    progress_callback: Callable[[int, str], None] | None = None,
-    recency_years: int | None = None,
-    allowed_doc_types: set[str] | None = None,
-    now_year: int | None = None,
-) -> dict[tuple[str, str, str], dict[str, object]]:
-    if df is None:
-        if not index_csv.exists():
-            raise FileNotFoundError(f"Index CSV not found (requested): {index_csv}")
-        df = pd.read_csv(index_csv)
-
-    required = {"last_name", "first_name", "unit", "txt_path"}
-    missing = required.difference(df.columns)
-    if missing:
-        logger.warning(
-            "Skipping %s: missing columns %s in %s", source_tag, sorted(missing), index_csv.name
-        )
-        return {}
-
-    # Consumer-side filters. Rows whose doc_type / doc_year is absent or
-    # blank are never excluded, preserving backward compatibility with legacy
-    # per-person indexes and undated (e.g. manual) corpora.
-    allowed = (
-        {t.strip().lower() for t in allowed_doc_types} if allowed_doc_types is not None else None
-    )
-    cutoff_year = _filter_window(recency_years, now_year)
-
-    store: dict[tuple[str, str, str], dict[str, object]] = {}
-    n_type_filtered = 0
-
-    last_pct = -1
-    if progress_state:
-        last_pct = progress_state.get("last_pct", -1)
-        total = max(progress_state.get("total", 0), 1)
-        seen = progress_state.get("seen", 0)
-        if progress_callback:
-            pct = int((seen / total) * 100)
-            if pct != last_pct:
-                last_pct = pct
-                progress_state["last_pct"] = pct
-                progress_callback(pct, f"Loading {source_tag} index ({seen}/{total})")
-
-    for _, row in df.iterrows():
-        if progress_state is not None:
-            progress_state["seen"] = progress_state.get("seen", 0) + 1
-            total = max(progress_state.get("total", 0), 1)
-            seen = progress_state["seen"]
-            if progress_callback:
-                pct = int((seen / total) * 100)
-                if pct != last_pct:
-                    last_pct = pct
-                    progress_state["last_pct"] = pct
-                    progress_callback(pct, f"Loading {source_tag} ({seen}/{total})")
-
-        if allowed is not None:
-            raw_type = row.get("doc_type", "")
-            # A blank cell reads back as NaN: it is a document without a type.
-            dtype = "" if pd.isna(raw_type) else str(raw_type).strip().lower()
-            if dtype and dtype not in allowed:
-                n_type_filtered += 1
-                continue
-        if cutoff_year is not None:
-            dyear = str(row.get("doc_year", "")).strip()
-            if dyear:
-                try:
-                    parsed_year: int | None = int(float(dyear))
-                except ValueError:
-                    parsed_year = None
-                if parsed_year is not None and parsed_year < cutoff_year:
-                    continue
-
-        last = str(row.get("last_name", "")).strip()
-        first = str(row.get("first_name", "")).strip()
-        unit = _normalize_unit(row.get("unit", ""))
-
-        key = (
-            canonicalize_names(last),
-            canonicalize_names(first),
-            canonicalize_names(unit),
-        )
-
-        txt_path_raw = str(row["txt_path"])
-        # Resolve relative paths against the index CSV's parent directory (project root).
-        # Absolute paths (legacy) are used as-is for backward compatibility.
-        txt_path = Path(txt_path_raw)
-        if not txt_path.is_absolute():
-            txt_path = (index_csv.parent / txt_path).resolve()
-        if not txt_path.exists():
-            logger.warning("(%s) missing text file %s", source_tag, txt_path)
-            continue
-
-        text = txt_path.read_text(encoding="utf-8", errors="ignore")
-
-        if key not in store:
-            store[key] = {
-                "last_name": last,
-                "first_name": first,
-                "unit": unit,
-                "text_parts": [text],
-                "txt_paths": [str(txt_path)],
-                "sources": {source_tag},
-            }
-        else:
-            store[key]["text_parts"] = list(store[key]["text_parts"]) + [text]
-            store[key]["txt_paths"] = list(store[key]["txt_paths"]) + [str(txt_path)]
-            store[key]["sources"] = set(store[key]["sources"]) | {source_tag}
-
-    if n_type_filtered:
-        # Loud on purpose: a doc-type filter silently swallowing a corpus is
-        # very hard to diagnose downstream (empty keyword tables, no error).
-        log = logger.error if not store else logger.warning
-        log(
-            "(%s) doc-type filter excluded %d row(s) (allowed doc_type: %s)%s",
-            source_tag,
-            n_type_filtered,
-            sorted(allowed or ()),
-            " — ALL rows were excluded; check the slot's doc_types" if not store else "",
-        )
-
-    return store
-
-
 def _load_slots(
     indexes: Sequence[SlotIndex],
     *,
@@ -279,65 +155,47 @@ def _load_slots(
     recency_years: int | None,
     now_year: int | None,
 ) -> dict[tuple[str, str, str], dict[str, object]]:
-    """Read the slot indexes in order and merge their documents by person.
+    """Read the slots' corpora in order and gather their documents by person.
 
-    A slot whose index is missing, unreadable or empty is skipped with a
-    warning; each slot's document types filter its own rows; the recency
-    window applies to every dated document. Raises :class:`CorpusError` when
-    no slot has a usable index.
+    A slot without a corpus is skipped with a warning; each slot's document types
+    filter its own pairs; the recency window applies to every dated document (see
+    :func:`cartolex.lexicon.corpus_store.load_corpus`). Each person's texts come in
+    the slots' order, with each text's id (the path of its file, or its id in a
+    packed corpus) in ``txt_paths``. Raises :class:`CorpusError` when no slot has a
+    corpus with documents.
     """
+    from .corpus_store import load_corpus
+
     if not indexes:
         raise CorpusError("No corpus slot to read: the settings declare none for this stage.")
-
-    merged: dict[tuple[str, str, str], dict[str, object]] = {}
-    progress_state = None
-    total_rows = 0
-    index_frames: list[tuple[Path, str, Collection[str] | None, pd.DataFrame]] = []
-    for tag, index_csv, doc_types in indexes:
-        if not index_csv.exists():
-            logger.warning("Skipping %s: index file %s not found", tag, index_csv.name)
-            continue
-        try:
-            df = pd.read_csv(index_csv)
-        except Exception as exc:
-            logger.warning("Skipping %s: cannot read %s: %s", tag, index_csv.name, exc)
-            continue
-        if df.empty:
-            logger.warning("Skipping %s: index file %s is empty", tag, index_csv.name)
-            continue
-        index_frames.append((index_csv, tag, doc_types, df))
-        total_rows += len(df)
-
-    if not index_frames:
+    corpus = load_corpus(indexes, recency_years=recency_years, now_year=now_year)
+    if not corpus.rows_read:
         raise CorpusError(
             "No valid corpus index files found (slots: "
             + ", ".join(f"{tag} → {index_csv.name}" for tag, index_csv, _ in indexes)
             + ")."
         )
-
     if progress_callback:
-        progress_state = {"seen": 0, "total": max(total_rows, 1), "last_pct": -1}
-
-    for index_csv, tag, doc_types, df in index_frames:
-        store = _load_index_as_store(
-            index_csv,
-            tag,
-            df=df,
-            progress_state=progress_state,
-            progress_callback=progress_callback,
-            recency_years=recency_years,
-            allowed_doc_types=set(doc_types) if doc_types is not None else None,
-            now_year=now_year,
-        )
-        for key, info in store.items():
-            if key not in merged:
-                merged[key] = info
-            else:
-                merged[key]["text_parts"] = list(merged[key]["text_parts"]) + list(
-                    info["text_parts"]
-                )
-                merged[key]["txt_paths"] = list(merged[key]["txt_paths"]) + list(info["txt_paths"])
-                merged[key]["sources"] = set(merged[key]["sources"]) | set(info["sources"])
+        progress_callback(0, "Reading the texts")
+    texts = dict(corpus.texts())
+    keys = corpus.text_keys()
+    merged: dict[tuple[str, str, str], dict[str, object]] = {}
+    for i, t in zip(corpus.person.tolist(), corpus.text.tolist(), strict=True):
+        person = corpus.people[i]
+        entry = merged.get(person.key)
+        if entry is None:
+            entry = merged[person.key] = {
+                "last_name": person.last_name,
+                "first_name": person.first_name,
+                "unit": person.unit,
+                "text_parts": [],
+                "txt_paths": [],
+                "sources": set(person.sources),
+            }
+        entry["text_parts"].append(texts[t])  # type: ignore[attr-defined]
+        entry["txt_paths"].append(keys[t])  # type: ignore[attr-defined]
+    if progress_callback:
+        progress_callback(100, "Texts read")
     return merged
 
 

@@ -984,60 +984,40 @@ TRAJECTORY_CHUNK = 1000
 _DOC_COLUMNS = ["last_name", "first_name", "unit", "doc_year", "doc_type"]
 
 
-def _per_document_index(indexes: Sequence[SlotIndex]) -> pd.DataFrame:
-    """The per-document rows of the trajectory slots, in order, with each text's path.
+def _per_document_index(indexes: Sequence[SlotIndex]) -> tuple[pd.DataFrame, Any]:
+    """The per-document rows of the trajectory slots, in order, with each text's index,
+    and the corpus they come from.
 
-    Reads the per-document index of each trajectory slot, in order, keeping only
-    the columns the trajectory stage needs and the absolute ``path`` of each
-    text. A slot's document types filter its rows (a row without a type always
-    passes). Indexes lacking the per-document schema (a year per document) are
-    skipped with a warning.
+    One row per (person, text) pair of each trajectory slot, in order, with the
+    columns the trajectory stage needs and the text's index in the corpus (``text``,
+    read by :func:`_with_texts`). A slot's document types filter its rows (a row
+    without a type always passes).
     """
-    frames: list[pd.DataFrame] = []
-    needed = {"last_name", "first_name", "unit", "doc_year", "txt_path"}
-    for slot_id, idx, doc_types in indexes:
-        if not idx.exists():
-            continue
-        df = pd.read_csv(idx)
-        if not needed.issubset(df.columns):
-            logger.warning(
-                "Index %s (slot %s) lacks per-document columns (doc_year, txt_path); "
-                "skipping it for trajectories.",
-                idx.name,
-                slot_id,
-            )
-            continue
-        if "doc_type" not in df.columns:
-            df["doc_type"] = ""
-        if doc_types is not None:
-            types = df["doc_type"].fillna("").astype(str).str.strip().str.lower()
-            df = df[(types == "") | types.isin(set(doc_types))]
-        paths = []
-        for value in df["txt_path"]:
-            p = Path(str(value))
-            paths.append(p if p.is_absolute() else idx.parent / p)
-        out = df[_DOC_COLUMNS].copy()
-        # An empty unit (a person without a group) reads back as NaN; keep it a
-        # blank string so researcher_id is "<last>||<first>||" and not "...||nan",
-        # matching make_researcher_id(last, first, "") on the bundle side.
-        out["unit"] = out["unit"].fillna("").astype(str)
-        out["path"] = paths
-        frames.append(out)
-    if not frames:
-        return pd.DataFrame(columns=[*_DOC_COLUMNS, "path"])
-    return pd.concat(frames, ignore_index=True)
+    from cartolex.lexicon.corpus_store import load_corpus
+
+    corpus = load_corpus(indexes)
+    people = corpus.people
+    who = corpus.person.tolist()
+    out = pd.DataFrame(
+        {
+            "last_name": [people[i].last_name for i in who],
+            "first_name": [people[i].first_name for i in who],
+            # A person without a group has an empty unit: researcher_id is "<last>||<first>||",
+            # matching make_researcher_id(last, first, "") on the bundle side.
+            "unit": [people[i].raw_unit for i in who],
+            "doc_year": [None if y < 0 else int(y) for y in corpus.year.tolist()],
+            "doc_type": corpus.pair_types(),
+            "text": corpus.text,
+        }
+    )
+    return out, corpus
 
 
-def _with_texts(rows: pd.DataFrame) -> pd.DataFrame:
-    """*rows* of :func:`_per_document_index` with their texts in place of their paths."""
-    texts: list[str] = []
-    for p in rows["path"]:
-        try:
-            texts.append(Path(p).read_text(encoding="utf-8", errors="ignore"))
-        except OSError:
-            texts.append("")
+def _with_texts(rows: pd.DataFrame, corpus: Any) -> pd.DataFrame:
+    """*rows* of :func:`_per_document_index` with their texts in place of their indexes."""
+    texts = dict(corpus.texts(rows["text"].to_numpy()))
     out = rows[_DOC_COLUMNS].copy()
-    out["text"] = texts
+    out["text"] = [texts.get(t, "") for t in rows["text"].tolist()]
     return out.reset_index(drop=True)
 
 
@@ -1046,7 +1026,7 @@ def _load_per_document_corpus(indexes: Sequence[SlotIndex]) -> pd.DataFrame:
 
     The rows of :func:`_per_document_index`, each with its text.
     """
-    return _with_texts(_per_document_index(indexes))
+    return _with_texts(*_per_document_index(indexes))
 
 
 def _researcher_chunks(index: pd.DataFrame, size: int) -> list[np.ndarray]:
@@ -1280,7 +1260,7 @@ def _run_trajectories(
     eff_types = tuple(doc_types) if doc_types else None
     eff_min = min_docs_per_bin if min_docs_per_bin is not None else d.traj_min_docs_per_bin
 
-    index = _per_document_index(slot_indexes(ctx, trajectory=True))
+    index, corpus = _per_document_index(slot_indexes(ctx, trajectory=True))
     if index.empty:
         logger.warning("Trajectories: no per-document corpus rows found; nothing to do.")
         return
@@ -1318,7 +1298,7 @@ def _run_trajectories(
     with windows_path.open("w", encoding="utf-8") as windows_out:
         windows_out.write("{")
         for c, rows in enumerate(chunks):
-            docs = _with_texts(index.iloc[rows])
+            docs = _with_texts(index.iloc[rows], corpus)
             traj = build_trajectory_matrix(
                 docs,
                 vectorizer=vectorizer,

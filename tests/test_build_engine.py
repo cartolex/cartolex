@@ -43,7 +43,12 @@ OK, SKIPPED = StageState.UP_TO_DATE, StageState.SKIPPED
 #: Files a stage writes besides the engine's (the corpus contract's texts and people maps,
 #: the placed sets), as prefixes of paths relative to the stage's folder.
 EXTRA_FILES = {
-    "corpus.assemble": ("manual/texts/", "manual/people.csv", "overlays/"),
+    "corpus.assemble": (
+        "manual/texts.parquet",
+        "manual/pairs.parquet",
+        "manual/people.csv",
+        "overlays/",
+    ),
     "overlays.position": ("applicants/positions.json",),
 }
 

@@ -370,12 +370,10 @@ def run_corpus(ctx: StageContext) -> dict[str, int]:
     for slot in config.slots:
         if not slot.fit:
             continue
-        with open(ctx.out / slot.id / "index.csv", encoding="utf-8", newline="") as fh:
+        with open(ctx.out / slot.id / "people.csv", encoding="utf-8", newline="") as fh:
             people |= {(r["last_name"], r["first_name"], r["unit"]) for r in csv.DictReader(fh)}
-        folder = ctx.out / slot.id / "texts"
-        files = list(folder.iterdir()) if folder.is_dir() else []
-        texts += len(files)
-        characters += sum(len(f.read_text(encoding="utf-8")) for f in files)
+        texts += summary.slots.get(slot.id, {}).get("texts", 0)
+        characters += summary.characters.get(ctx.out / slot.id, 0)
     if not people:
         raise StageRefused(
             "no mapped person has a text in a fit slot: set roles in decisions/people.csv"
@@ -1142,6 +1140,7 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
     import pandas as pd
 
     from ..atlas.model_files import load_embeddings
+    from ..lexicon.corpus_store import load_corpus
     from ..lexicon.positioning import (
         concept_svd_centroids,
         load_positioning_models,
@@ -1182,19 +1181,20 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
     sets = ctx.project.config.overlays
     for n_set, overlay in enumerate(sets):
         folder = corpus / overlay.id
-        index = folder / "index.csv"
-        if not index.exists():
+        if not (folder / "people.csv").exists():
             continue
         with open(folder / "people.csv", encoding="utf-8", newline="") as fh:
             who = {
                 (r["last_name"], r["first_name"], r["unit"]): r["person_id"]
                 for r in csv.DictReader(fh)
             }
+        found = load_corpus([(overlay.id, folder / "index.csv", None)], doc_types=False)
+        read = dict(found.texts())
         texts: dict[tuple[str, str, str], list[str]] = {}
-        with open(index, encoding="utf-8", newline="") as fh:
-            for row in csv.DictReader(fh):
-                key = (row["last_name"], row["first_name"], row["unit"])
-                texts.setdefault(key, []).append((folder / row["txt_path"]).read_text("utf-8"))
+        for i, t in zip(found.person.tolist(), found.text.tolist(), strict=True):
+            person = found.people[i]
+            key = (person.last_name, person.first_name, person.raw_unit)
+            texts.setdefault(key, []).append(read[t])
         items = []
         for i, key in enumerate(sorted(texts, key=lambda k: who.get(k, ""))):
             ctx.check_cancel()

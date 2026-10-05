@@ -67,8 +67,11 @@ __all__ = [
 
 #: The columns of an engine index, in order.
 INDEX_COLUMNS = ("last_name", "first_name", "unit", "txt_path", "doc_year", "doc_type")
-#: The columns of ``people.csv`` beside each index: who each engine identity is.
+#: The columns of ``people.csv``: who each engine identity is (then their attributes).
 PEOPLE_COLUMNS = ("person_id", "last_name", "first_name", "unit")
+#: A target folder's pairs (one row per person and text) and texts (one row per text).
+PAIRS_FILE = "pairs.parquet"
+TEXTS_FILE = "texts.parquet"
 #: The order parts are read in; ``full`` stands alone.
 PART_ORDER = ("title", "abstract", "body")
 
@@ -163,6 +166,8 @@ class CorpusSummary:
     texts_left_out_by_type: int = 0
     #: Extra copies of a work read once (see the module docstring).
     duplicate_texts: int = 0
+    #: The characters of the texts written, per target folder.
+    characters: dict[Path, int] = field(default_factory=dict)
 
 
 def render_text(parts: Sequence[tuple[str, str, str]], *, chosen: Sequence[str]) -> str:
@@ -243,7 +248,6 @@ def assemble_corpus(
     summary = CorpusSummary()
     slot_rank = {s.id: i for i, s in enumerate(config.slots)}
     fit_slots = [s.id for s in config.slots if s.fit]
-    written: dict[Path, set[str]] = defaultdict(set)
     kinds = {s.id: s.kind for s in config.slots}
     own_types = {s.id: set(s.doc_types) for s in config.slots if s.doc_types}
 
@@ -283,48 +287,45 @@ def assemble_corpus(
         return found
 
     def emit(
-        target: Path, members: list[str], slots: set[str] | None, src: _Loaded, bodies: set[str]
+        target: Path,
+        members: list[str],
+        slots: set[str] | None,
+        src: _Loaded,
+        bodies: set[str],
+        rows_of: Mapping[str, int],
     ) -> dict[str, int]:
-        rows = []
-        keys: list[tuple[str, str, str, str]] = []
         people, units, text_meta = src.people, src.units, src.text_meta
         attributes = sorted({k for pid in members for k in people[pid]["columns"]})
-        for pid in members:
-            person = people[pid]
-            n_before = len(rows)
-            for tid in texts_of(pid, slots, src):
-                if not readable(tid, src):
-                    summary.texts_left_out_by_type += 1
-                    continue
-                if tid not in bodies:
-                    summary.texts_without_parts += 1
-                    continue
-                rel = f"texts/{tid}.txt"
-                written[target].add(tid)
-                meta = text_meta[tid]
-                rows.append(
-                    (
-                        person["last_name"],
-                        person["first_name"] or "",
-                        units.get(pid, ""),
-                        rel,
-                        "" if meta["year"] is None else meta["year"],
-                        meta["doc_type"],
-                        *(person["columns"].get(a, "") for a in attributes),
-                    )
-                )
-            if len(rows) > n_before:
-                keys.append(
-                    (pid, person["last_name"], person["first_name"] or "", units.get(pid, ""))
-                )
-        columns = (*INDEX_COLUMNS, *(attribute_column(a) for a in attributes))
-        _write(target / "index.csv", _csv_bytes(rows, columns))
-        _write(target / "people.csv", _csv_bytes(keys, PEOPLE_COLUMNS))
-        return {
-            "rows": len(rows),
-            "texts": len(written[target]),
-            "people": len({(r[0], r[1], r[2]) for r in rows}),
-        }
+        keys: list[tuple[str, ...]] = []
+        identities: set[tuple[str, str, str]] = set()
+        texts: set[str] = set()
+        n_pairs = 0
+        with _PairsWriter(target / PAIRS_FILE) as pairs:
+            for pid in members:
+                person = people[pid]
+                n_before = n_pairs
+                for tid in texts_of(pid, slots, src):
+                    if not readable(tid, src):
+                        summary.texts_left_out_by_type += 1
+                        continue
+                    if tid not in bodies:
+                        summary.texts_without_parts += 1
+                        continue
+                    meta = text_meta[tid]
+                    pairs.add(pid, rows_of[tid], meta["year"], meta["doc_type"])
+                    texts.add(tid)
+                    n_pairs += 1
+                if n_pairs > n_before:
+                    unit = units.get(pid, "")
+                    first = person["first_name"] or ""
+                    keys.append(
+                        (pid, person["last_name"], first, unit,
+                         *(person["columns"].get(a, "") for a in attributes))
+                    )  # fmt: skip
+                    identities.add((person["last_name"], first, unit))
+        columns = (*PEOPLE_COLUMNS, *(attribute_column(a) for a in attributes))
+        _write(target / "people.csv", _csv_bytes(keys, columns))
+        return {"rows": n_pairs, "texts": len(texts), "people": len(identities)}
 
     # Who is read where: each target folder, its people and the slots they are read from.
     mapped = sorted(pid for pid, (role, _) in roles.items() if role == "mapped")
@@ -360,14 +361,19 @@ def assemble_corpus(
         1 for moved in copies.values() for kept in moved.values() if kept in read
     )
     bodies: dict[Path, set[str]] = {}
+    rows_of: dict[Path, dict[str, int]] = {}
     for tables, targets in by_tables.items():
         src = main if tables == layout.tables else next(p[4] for p in plans if p[5] == tables)
         meta = src.text_meta
-        bodies[tables] = _write_texts(
+        bodies[tables], rows, chars = _write_texts(
             tables, meta, targets, lambda tid, m=meta: parts_of(m[tid]["slot"]), provider_priority
         )
+        rows_of.update(rows)
+        summary.characters.update(chars)
     for name, target, members, slots, src, tables in plans:
-        summary.slots[name] = emit(target, members, slots, src, bodies[tables])
+        summary.slots[name] = emit(
+            target, members, slots, src, bodies[tables], rows_of.get(target, {})
+        )
     summary.skipped_people = sum(
         1 for role, _ in roles.values() if role not in ("mapped", "projected")
     )
@@ -543,14 +549,16 @@ def _write_texts(
     targets: list[tuple[Path, set[str]]],
     parts: Sequence[str] | Callable[[str], Sequence[str]],
     provider_priority: Sequence[str],
-) -> set[str]:
-    """Write each wanted text into the target folders that want it; return the texts with a body.
+) -> tuple[set[str], dict[Path, dict[str, int]], dict[Path, int]]:
+    """Write each wanted text into the ``texts.parquet`` of the target folders that want it.
 
     ``text_parts`` is read a batch of rows at a time, in its order (by
     ``text_id``): a text's parts are chosen (one per part and language, by
-    provider priority) and its file written once they are all read. Each batch
-    is checked like the whole table (columns, types, values, order, keys),
-    and the order across batches too.
+    provider priority) and the text written once they are all read, so each
+    target's texts are in ``text_id`` order. Each batch is checked like the
+    whole table (columns, types, values, order, keys), and the order across
+    batches too. Returns the texts with a body, each target's row of each text,
+    and each target's characters.
     """
     import pyarrow as pa
     import pyarrow.parquet as pq
@@ -560,6 +568,7 @@ def _write_texts(
     path = _table(tables, "text_parts")
     rank = {p: i for i, p in enumerate(provider_priority)}
     wanted_by = [(target, wanted) for target, wanted in targets if wanted]
+    writers = {target: _TextsWriter(target / TEXTS_FILE) for target, _ in wanted_by}
     bodies: set[str] = set()
     current: str | None = None
     pending: list[tuple[str, str, str, str]] = []
@@ -572,33 +581,121 @@ def _write_texts(
         body = render_text(_choose(pending, rank), chosen=chosen)
         if not body:
             return
-        data = None
         for target, wanted in wanted_by:
             if tid in wanted:
-                data = data if data is not None else body.encode("utf-8")
-                _write(target / f"texts/{tid}.txt", data)
+                writers[target].add(tid, body)
         bodies.add(tid)
 
     columns = ["text_id", "part", "language", "provider", "content"]
-    for batch in pq.ParquetFile(path).iter_batches(batch_size=PARTS_BATCH):
-        table = _check("text_parts", pa.Table.from_batches([batch]), str(path))
-        if table.num_rows == 0:
-            continue
-        first = tuple(table.slice(0, 1).select(list(_KEY)).to_pylist()[0].values())
-        if last_key is not None and _order(first) <= _order(last_key):
-            raise TableError(f"{path}: rows are not sorted by {', '.join(_KEY)}")
-        last_key = tuple(
-            table.slice(table.num_rows - 1, 1).select(list(_KEY)).to_pylist()[0].values()
-        )
-        for tid, part, lang, provider, content in zip(
-            *(table[c].to_pylist() for c in columns), strict=True
-        ):
-            if tid != current:
-                finish(current)
-                current, pending = tid, []
-            pending.append((part, lang, provider, content))
-    finish(current)
-    return bodies
+    try:
+        for batch in pq.ParquetFile(path).iter_batches(batch_size=PARTS_BATCH):
+            table = _check("text_parts", pa.Table.from_batches([batch]), str(path))
+            if table.num_rows == 0:
+                continue
+            first = tuple(table.slice(0, 1).select(list(_KEY)).to_pylist()[0].values())
+            if last_key is not None and _order(first) <= _order(last_key):
+                raise TableError(f"{path}: rows are not sorted by {', '.join(_KEY)}")
+            last_key = tuple(
+                table.slice(table.num_rows - 1, 1).select(list(_KEY)).to_pylist()[0].values()
+            )
+            for tid, part, lang, provider, content in zip(
+                *(table[c].to_pylist() for c in columns), strict=True
+            ):
+                if tid != current:
+                    finish(current)
+                    current, pending = tid, []
+                pending.append((part, lang, provider, content))
+        finish(current)
+    finally:
+        for writer in writers.values():
+            writer.close()
+    rows = {target: w.rows for target, w in writers.items()}
+    chars = {target: w.characters for target, w in writers.items()}
+    return bodies, rows, chars
+
+
+class _TextsWriter:
+    """A target's ``texts.parquet``: ``text_id`` and ``text``, a row group at a time."""
+
+    GROUP = 10_000
+
+    def __init__(self, path: Path) -> None:
+        import pyarrow as pa
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.path = path
+        self.schema = pa.schema([("text_id", pa.string()), ("text", pa.large_string())])
+        self.rows: dict[str, int] = {}
+        self.characters = 0
+        self._ids: list[str] = []
+        self._texts: list[str] = []
+        self._writer = None
+
+    def add(self, tid: str, text: str) -> None:
+        self.rows[tid] = len(self.rows)
+        self.characters += len(text)
+        self._ids.append(tid)
+        self._texts.append(text)
+        if len(self._ids) >= self.GROUP:
+            self._flush()
+
+    def _flush(self) -> None:
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        if self._writer is None:
+            self._writer = pq.ParquetWriter(self.path, self.schema, compression="zstd")
+        table = pa.table([pa.array(self._ids), pa.array(self._texts, pa.large_string())],
+                         schema=self.schema)  # fmt: skip
+        self._writer.write_table(table)
+        self._ids, self._texts = [], []
+
+    def close(self) -> None:
+        self._flush()
+        if self._writer is not None:
+            self._writer.close()
+
+
+class _PairsWriter:
+    """A target's ``pairs.parquet``: one row per (person, text), a row group at a time."""
+
+    GROUP = 100_000
+
+    def __init__(self, path: Path) -> None:
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.schema = pa.schema(
+            [("person_id", pa.string()), ("text", pa.int32()), ("doc_year", pa.int32()),
+             ("doc_type", pa.string())]
+        )  # fmt: skip
+        self._writer = pq.ParquetWriter(path, self.schema, compression="zstd")
+        self._columns: tuple[list, list, list, list] = ([], [], [], [])
+
+    def add(self, pid: str, row: int, year: int | None, doc_type: str) -> None:
+        for column, value in zip(self._columns, (pid, row, year, doc_type), strict=True):
+            column.append(value)
+        if len(self._columns[0]) >= self.GROUP:
+            self._flush()
+
+    def _flush(self) -> None:
+        import pyarrow as pa
+
+        if self._columns[0]:
+            self._writer.write_table(
+                pa.table([pa.array(c, f.type) for c, f in zip(self._columns, self.schema,
+                                                                strict=True)],
+                         schema=self.schema)
+            )  # fmt: skip
+            self._columns = ([], [], [], [])
+
+    def __enter__(self) -> _PairsWriter:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self._flush()
+        self._writer.close()
 
 
 _KEY = ("text_id", "part", "language", "provider")

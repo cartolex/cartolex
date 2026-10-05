@@ -535,6 +535,19 @@ def roster_names(folder: Path) -> list[tuple[str, str]]:
 
 
 def corpus_texts(folder: Path) -> Iterable[str]:
-    """The texts of an assembled corpus (every slot's ``texts/*.txt``)."""
-    for path in sorted(Path(folder).glob("*/texts/*.txt")):
-        yield path.read_text(encoding="utf-8", errors="replace")
+    """The texts of an assembled corpus (every slot's ``texts.parquet``, or ``texts/*.txt``
+    for a corpus written one file per text), a block at a time."""
+    import pyarrow.parquet as pq
+
+    for slot in sorted(p for p in Path(folder).iterdir() if p.is_dir()):
+        packed = slot / "texts.parquet"
+        if packed.exists():
+            pf = pq.ParquetFile(packed)
+            try:
+                for batch in pf.iter_batches(batch_size=2000, columns=["text"]):
+                    yield from (t or "" for t in batch.column(0).to_pylist())
+            finally:
+                pf.close()
+            continue
+        for path in sorted(slot.glob("texts/*.txt")):
+            yield path.read_text(encoding="utf-8", errors="replace")

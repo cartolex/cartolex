@@ -439,7 +439,7 @@ project exists (it imports neither `cartolex.build` nor `cartolex.project`).
 
 | stage | the engine's work |
 | --- | --- |
-| `corpus.assemble` | `cartolex.project.corpus.assemble_corpus`: one index and one text per document for each fit slot, and for each projected set, with `people.csv` naming the `person_id` behind each engine identity; each person's attributes (the filter columns of an imported list) follow the index's columns, so the roster, and the map, can colour and filter people by them (an attribute named like a column of the contract is written `person_<name>`) |
+| `corpus.assemble` | `cartolex.project.corpus.assemble_corpus`: a packed corpus for each fit slot, and for each projected set: `pairs.parquet` (one row per person and text), `people.csv` naming the `person_id` behind each engine identity, with each person's attributes (the filter columns of an imported list; an attribute named like a column of the contract is written `person_<name>`), so the roster, and the map, can colour and filter people by them, and `texts.parquet` (one row per text, each once); the engine reads it through `cartolex.lexicon.corpus_store` |
 | `keywords.extract` | extraction (`run_pipeline_stage_1`) |
 | `keywords.triage` | the AI triage (`run_pipeline_stage_2_llm`), through `AIAccess` |
 | `keywords.build` | consolidation (`run_pipeline_stage_3`), then the person roster; `decisions/keywords.csv` becomes the engine's exclusion, keep and merge files first |

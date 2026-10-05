@@ -347,14 +347,15 @@ def test_the_build_reads_only_the_published_version(tmp_path) -> None:
     rebuild_sources(project.layout, project.config, readers={"notes": _reader})
     out = tmp_path / "corpus"
     assemble_corpus(project.layout, project.config, out, parts=["title", "abstract"])
-    index = (out / "collected" / "index.csv").read_text().splitlines()
+    from cartolex.lexicon.corpus_store import index_rows
+
+    rows = index_rows(out / "collected" / "index.csv")
     texts = read_source_table(project.layout.table("texts"), "texts").to_pylist()
     preprints = {t["text_id"] for t in texts if t["version_of"]}
-    read = {line.split(",")[3].split("/")[1].removesuffix(".txt") for line in index[1:]}
+    read = {r["text_id"] for r in rows}
     assert preprints and not read & preprints
     assert len(read) == len(texts) - len(preprints)
-    body = (out / "collected" / "texts" / f"{next(iter(read - preprints))}.txt").read_text()
-    assert body.endswith("\n")
+    assert all(r["text"].endswith("\n") for r in rows)
 
 
 def test_full_texts_are_private_parts() -> None:

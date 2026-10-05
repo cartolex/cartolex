@@ -173,49 +173,49 @@ def corpus_texts(
     aliases_csv: Path,
     terms: Sequence[str],
 ) -> sparse.csr_matrix:
-    """``texts × terms`` over the texts of the corpus indexes, each text once.
+    """``texts × terms`` over the texts of the corpus slots (the folders of *index_csvs*),
+    each text once, in the order the slots first name them.
 
-    A text several people signed appears in the index once per person: it is
-    read once (by its file). Texts are read :data:`TEXT_CHUNK` at a time.
+    A text several people signed is read once. Texts are read :data:`TEXT_CHUNK` at a
+    time, in the order they are stored.
     """
     import pandas as pd
 
     from cartolex.atlas.model_files import load_vectorizer
 
-    files: list[Path] = []
-    seen: set[Path] = set()
-    for index in map(Path, index_csvs):
-        if not index.exists():
-            continue
-        df = pd.read_csv(index)
-        if "txt_path" not in df.columns:
-            continue
-        for value in df["txt_path"].dropna().astype(str):
-            p = Path(value)
-            p = (p if p.is_absolute() else index.parent / p).resolve()
-            if p not in seen:
-                seen.add(p)
-                files.append(p)
+    from .corpus_store import load_corpus
+
+    corpus = load_corpus(
+        [(f"slot{i}", Path(p), None) for i, p in enumerate(index_csvs)], doc_types=False
+    )
+    order = corpus.first_texts()
+    if not len(order):
+        return sparse.csr_matrix((0, len(terms)))
     vectorizer = load_vectorizer(vectorizer_json)
     al = pd.read_csv(aliases_csv, dtype=str, keep_default_na=False)
     alias = {
         a.strip().lower(): c.strip().lower()
         for a, c in zip(al["alias"], al["canonical"], strict=True)
     }
-    parts = []
-    for start in range(0, len(files), TEXT_CHUNK):
-        texts = []
-        for p in files[start : start + TEXT_CHUNK]:
-            try:
-                texts.append(p.read_text(encoding="utf-8", errors="ignore"))
-            except OSError:
-                texts.append("")
-        parts.append(
-            document_keywords(texts, vectorizer=vectorizer, alias_to_canon=alias, terms=terms)
-        )
-    if not parts:
-        return sparse.csr_matrix((0, len(terms)))
-    return sparse.vstack(parts, format="csr")
+    parts, read = [], []
+    chunk: list[str] = []
+
+    def flush() -> None:
+        if chunk:
+            parts.append(
+                document_keywords(chunk, vectorizer=vectorizer, alias_to_canon=alias, terms=terms)
+            )
+            chunk.clear()
+
+    for t, text in corpus.texts(order):
+        read.append(t)
+        chunk.append(text)
+        if len(chunk) >= TEXT_CHUNK:
+            flush()
+    flush()
+    D = sparse.vstack(parts, format="csr")
+    row_of = {t: i for i, t in enumerate(read)}
+    return D[np.array([row_of[t] for t in order.tolist()], dtype=np.int64)]
 
 
 # ── the spread and the comb ──────────────────────────────────────────────────

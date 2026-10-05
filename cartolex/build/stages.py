@@ -620,8 +620,9 @@ STAGES = Registry(
             project=("languages", "slots", "levels", "overlays"),
             # version 2: projected sets kept in folders of their own are gathered too;
             # version 3: people's attributes in the index, the parts and the document types
-            # by slot kind; version 4: one text per work (duplicate texts read once)
-            version=4,
+            # by slot kind; version 4: one text per work (duplicate texts read once);
+            # version 5: the packed corpus (pairs.parquet, people.csv, texts.parquet)
+            version=5,
             extra_inputs=_overlay_tables,
             params=(
                 ParamSpec(

@@ -83,6 +83,14 @@ Index columns (every slot):
 | `source` | no | the document's origin (written by the PDF corpus builder) |
 | any other column | no | a person attribute (a rank, a start year, …): the roster keeps its first non-empty value per person under the same name, to colour the person map (`color_persons_by`) or define cohorts (`cohort_by`) |
 
+**The packed form.** A slot's folder may instead hold a packed corpus, the form a
+cartolex project writes for corpora of millions of texts (the index's path then names
+the folder; `cartolex.lexicon.corpus_store` reads both forms alike):
+`pairs.parquet`, one row per (person, text) pair (`person_id`, `text`: the text's row in
+`texts.parquet`, `doc_year`, `doc_type`); `people.csv`, one row per person
+(`person_id`, `last_name`, `first_name`, `unit`, then attributes); `texts.parquet`, one
+row per text (`text_id`, `text`). A text several people wrote is stored once.
+
 ⚠️ **Recency gotcha:** if you provide `doc_year`, the default
 `KeywordsConfig.kw_recency_years = 5` excludes older documents from keyword
 construction. Set it to `0` to use the full history. Undated rows are never

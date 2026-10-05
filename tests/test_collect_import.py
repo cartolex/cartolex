@@ -306,23 +306,16 @@ def test_an_existing_corpus_comes_in_whole(tmp_path) -> None:
     assert report.texts == len({r["txt_path"] for r in original})
     out = tmp_path / "out"
     assemble_corpus(project.layout, project.config, out, parts=("title", "abstract", "full"))
-    with open(out / report.slot / "index.csv", encoding="utf-8") as fh:
-        rebuilt = list(csv.DictReader(fh))
+    from cartolex.lexicon.corpus_store import index_rows
 
-    def rows(index, folder):
+    def rows(index):
         return sorted(
-            (
-                r["last_name"],
-                r["first_name"],
-                r["unit"],
-                r["doc_year"],
-                r["doc_type"],
-                (folder / r["txt_path"]).read_text(encoding="utf-8"),
-            )
-            for r in index
+            (r["last_name"], r["first_name"], r["unit"], r["doc_year"], r["doc_type"], r["text"])
+            for r in index_rows(index)
         )
 
-    assert rows(rebuilt, out / report.slot) == rows(original, tmp_path / "ws")
+    rebuilt = rows(out / report.slot / "index.csv")
+    assert rebuilt == rows(tmp_path / "ws" / "manual_index.csv")
     project.close()
 
 

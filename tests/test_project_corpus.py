@@ -10,24 +10,17 @@ import pytest
 
 from cartolex.demo import generate
 from cartolex.demo.project import SLOT, write_project
+from cartolex.lexicon.corpus_store import index_rows
 from cartolex.project.corpus import assemble_corpus, render_text
 from cartolex.project.tables import decision_csv_bytes
 
 
 def _rows_with_texts(index_csv: Path) -> list[tuple]:
-    with open(index_csv, encoding="utf-8", newline="") as fh:
-        rows = list(csv.DictReader(fh))
     return [
-        (
-            r["last_name"],
-            r["first_name"],
-            r["unit"],
-            r["doc_year"],
-            r["doc_type"],
-            (index_csv.parent / r["txt_path"]).read_bytes(),
-        )
-        for r in rows
-    ]
+        (r["last_name"], r["first_name"], r["unit"], r["doc_year"], r["doc_type"],
+         r["text"].encode("utf-8"))
+        for r in index_rows(index_csv)
+    ]  # fmt: skip
 
 
 @pytest.fixture(scope="module")
@@ -166,14 +159,14 @@ def test_person_attributes_reach_the_engine_index(world_and_project, tmp_path):
     project = Project.open(base / "project")
     assemble_corpus(project.layout, project.config, tmp_path / "out")
     index = tmp_path / "out" / SLOT / "index.csv"
-    with open(index, encoding="utf-8", newline="") as fh:
+    with open(index.parent / "people.csv", encoding="utf-8", newline="") as fh:
         reader = csv.DictReader(fh)
-        rows = list(reader)
-    assert reader.fieldnames[:6] == [
-        "last_name", "first_name", "unit", "txt_path", "doc_year", "doc_type"
-    ] and reader.fieldnames[6:] == ["career_stage", "site"]  # fmt: skip
+        list(reader)
+    assert reader.fieldnames == [
+        "person_id", "last_name", "first_name", "unit", "career_stage", "site"
+    ]  # fmt: skip
     by_name = {(p.last_name, p.first_name): p for p in world.people}
-    for r in rows:
+    for r in index_rows(index):
         person = by_name[(r["last_name"], r["first_name"])]
         assert (r["career_stage"], r["site"]) == (person.career_stage, person.site)
     roster = tmp_path / "roster.csv"
@@ -238,11 +231,15 @@ def test_parts_by_slot_kind_read_documents_whole_and_collected_texts_by_their_ab
                           for t in ("t1", "t2")])  # fmt: skip
     out = tmp_path / "out"
     assemble_corpus(project.layout, project.config, out, parts=PARTS_BY_SLOT_KIND)
-    assert (out / "collected" / "texts" / "t1.txt").read_text() == "Flats\n\nTidal flats.\n"
-    assert (out / "documents" / "texts" / "t2.txt").read_text() == "A whole report.\n"
+
+    def text(folder, tid):
+        return next(r["text"] for r in index_rows(folder / "index.csv") if r["text_id"] == tid)
+
+    assert text(out / "collected", "t1") == "Flats\n\nTidal flats.\n"
+    assert text(out / "documents", "t2") == "A whole report.\n"
     everywhere = tmp_path / "all"
     assemble_corpus(project.layout, project.config, everywhere, parts=["title", "abstract", "full"])
-    assert (everywhere / "collected" / "texts" / "t1.txt").read_text() == "A whole paper.\n"
+    assert text(everywhere / "collected", "t1") == "A whole paper.\n"
     project.close()
 
 
@@ -296,10 +293,8 @@ def test_a_collection_reads_texts_not_datasets_unless_its_slot_says_so(tmp_path)
                           for t in texts])  # fmt: skip
 
     def read(out):
-        with open(out / "collected" / "index.csv", encoding="utf-8", newline="") as fh:
-            collected = {r["doc_type"] for r in csv.DictReader(fh)}
-        with open(out / "documents" / "index.csv", encoding="utf-8", newline="") as fh:
-            documents = {r["doc_type"] for r in csv.DictReader(fh)}
+        collected = {r["doc_type"] for r in index_rows(out / "collected" / "index.csv")}
+        documents = {r["doc_type"] for r in index_rows(out / "documents" / "index.csv")}
         return collected, documents
 
     summary = assemble_corpus(project.layout, project.config, tmp_path / "a",
@@ -366,11 +361,10 @@ def test_a_work_found_twice_is_read_once_as_its_version_of_record(tmp_path):
                           for t, _, _, _, a in texts for j, p in enumerate(a)])  # fmt: skip
     out = tmp_path / "out"
     summary = assemble_corpus(project.layout, project.config, out, parts=["title", "abstract"])
-    with open(out / "c" / "index.csv", encoding="utf-8", newline="") as fh:
-        read = sorted((r["last_name"], r["txt_path"]) for r in csv.DictReader(fh))
+    read = sorted((r["last_name"], r["text_id"]) for r in index_rows(out / "c" / "index.csv"))
     assert read == [
-        ("Namep1", "texts/a2.txt"), ("Namep1", "texts/s1.txt"), ("Namep1", "texts/s2.txt"),
-        ("Namep1", "texts/y1.txt"), ("Namep2", "texts/a2.txt"), ("Namep3", "texts/x1.txt"),
+        ("Namep1", "a2"), ("Namep1", "s1"), ("Namep1", "s2"),
+        ("Namep1", "y1"), ("Namep2", "a2"), ("Namep3", "x1"),
     ]  # fmt: skip
     assert summary.duplicate_texts == 3
     assert read_source_table(project.layout.table("texts"), "texts").num_rows == len(texts)
