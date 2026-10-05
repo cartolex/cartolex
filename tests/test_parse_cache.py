@@ -15,7 +15,7 @@ import pytest
 from cartolex.lexicon import extract_raw
 from cartolex.lexicon import language_models as lm
 from cartolex.lexicon.noun_phrases import PATTERN_VERSION, TextAnalysis
-from cartolex.lexicon.parse_cache import FORMAT, PART_SIZE, ParseCache, text_key
+from cartolex.lexicon.parse_cache import DB_NAME, FORMAT, ParseCache, text_key
 
 
 def analysis(word: str) -> TextAnalysis:
@@ -29,35 +29,29 @@ def test_round_trip(tmp_path: Path) -> None:
         runs=((("sand-gravel", "N", ("sand", "gravel")), ("beaches", "N")),),
         lemmas=(("beaches", "beach", 1), ("gravel", "gravel", 1), ("sand", "sand", 1)),
     )
-    written = cache.write(stored)
-    assert len(written) == 1
-    assert cache.dir == tmp_path / "en_core_web_md-3.8.0" / PATTERN_VERSION
+    assert cache.write(stored) == 4
+    assert cache.write(stored) == 0  # stored once, never changed
+    assert cache.path == tmp_path / "en_core_web_md-3.8.0" / PATTERN_VERSION / DB_NAME
     assert ParseCache(tmp_path, "en_core_web_md@3.8.0").read() == stored
-    # Only the wanted keys come back.
+    # Only the wanted keys come back, also to a reader that only reads.
     one = text_key("tide")
     assert set(cache.read({one})) == {one}
-
-
-def test_part_files_are_immutable_and_named_by_content(tmp_path: Path) -> None:
-    cache = ParseCache(tmp_path, "en_core_web_md@3.8.0")
-    first = cache.write({text_key("tide"): analysis("tide")})
-    again = cache.write({text_key("tide"): analysis("tide")})
-    assert first == again and len(list(cache.dir.iterdir())) == 1
-    lines = first[0].read_text(encoding="utf-8").splitlines()
-    header = json.loads(lines[0])
-    assert header == {
-        "format": FORMAT,
-        "model": "en_core_web_md@3.8.0",
-        "patterns": PATTERN_VERSION,
+    assert ParseCache(tmp_path, "en_core_web_md@3.8.0", readonly=True).read({one}) == {
+        one: analysis("tide")
     }
-    assert json.loads(lines[1])["sha256"] == text_key("tide")
 
 
-def test_large_writes_are_split_into_parts(tmp_path: Path) -> None:
+def test_many_texts_round_trip(tmp_path: Path) -> None:
     cache = ParseCache(tmp_path, "en_core_web_md@3.8.0")
-    stored = {text_key(f"t{i}"): analysis(f"t{i}") for i in range(PART_SIZE + 5)}
-    assert len(cache.write(stored)) == 2
+    stored = {text_key(f"t{i}"): analysis(f"t{i}") for i in range(1205)}
+    assert cache.write(stored) == len(stored)
     assert cache.read() == stored
+    assert cache.read(list(stored)[::3]) == {k: stored[k] for k in list(stored)[::3]}
+
+
+def test_a_reader_finds_nothing_before_anything_is_written(tmp_path: Path) -> None:
+    reader = ParseCache(tmp_path, "en_core_web_md@3.8.0", readonly=True)
+    assert reader.read({text_key("tide")}) == {} and not any(tmp_path.iterdir())
 
 
 def test_another_model_or_pattern_version_is_never_read(tmp_path: Path) -> None:
@@ -68,13 +62,14 @@ def test_another_model_or_pattern_version_is_never_read(tmp_path: Path) -> None:
         ParseCache(tmp_path, "en_core_web_md")
 
 
-def test_foreign_or_damaged_parts_are_skipped(tmp_path: Path, caplog) -> None:
+def test_parts_of_an_earlier_version_are_read_once(tmp_path: Path, caplog) -> None:
     cache = ParseCache(tmp_path, "en_core_web_md@3.8.0")
-    cache.write({text_key("tide"): analysis("tide")})
+    cache.dir.mkdir(parents=True)
+    header = {"format": FORMAT, "model": cache.model, "patterns": cache.patterns}
+    entry = {"sha256": text_key("tide"), **analysis("tide").to_json()}
+    (cache.dir / "part-good.jsonl").write_text(json.dumps(header) + "\n" + json.dumps(entry) + "\n")
     (cache.dir / "part-foreign.jsonl").write_text('{"format": "other"}\n{"sha256": "x"}\n')
-    (cache.dir / "part-damaged.jsonl").write_text(
-        json.dumps({"format": FORMAT, "model": cache.model, "patterns": cache.patterns}) + "\n{oops"
-    )
+    (cache.dir / "part-damaged.jsonl").write_text(json.dumps(header) + "\n{oops")
     with caplog.at_level("WARNING"):
         found = cache.read()
     assert found == {text_key("tide"): analysis("tide")}

@@ -56,13 +56,13 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
 from scipy import sparse
-from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
+from sklearn.feature_extraction.text import TfidfTransformer
 
 from .lexical_filters import is_malformed_term
 from .noun_phrases import (
@@ -87,11 +87,14 @@ __all__ = [
     "LEXICON_BANDS",
     "RAW_COLUMNS",
     "VOTES",
+    "Aggregates",
     "BandRules",
     "Candidate",
     "ScoredCandidates",
     "ScoringOptions",
     "TextUnit",
+    "aggregate_units",
+    "score_aggregates",
     "score_units",
 ]
 
@@ -278,6 +281,147 @@ def _percentiles(values: np.ndarray) -> np.ndarray:
     return ranks / max(len(values) - 1, 1)
 
 
+@dataclass
+class Aggregates:
+    """What the scoring needs of one language's texts, counted once per text.
+
+    ``keys`` are the candidate keys counted (the columns). ``parts`` holds, per
+    part name, each text's occurrences of each key (texts × keys; a text without
+    parts known has one, ``full``); ``P`` says who read each text (people × texts,
+    one per person and text: a text two people wrote counts for both);
+    ``organisations`` names the rows of ``org_texts`` (organisations × texts, one
+    per organisation and text). ``surfaces`` counts each key's surface forms once per
+    person and text; ``classes`` and ``containers`` count each key's unit classes
+    and the keys of the longer candidates around it, once per occurrence over
+    distinct texts; ``names`` its occurrences inside a known name, by kind.
+    ``volume`` is each person's number of candidate occurrences, every key counted
+    (the window's keys or not), and ``word_people`` how many people use each word in
+    any of their candidates (only the rule of common modifiers reads it).
+    """
+
+    keys: list[str]
+    parts: dict[str, sparse.csr_matrix]
+    P: sparse.csr_matrix
+    org_texts: sparse.csr_matrix
+    organisations: list[str]
+    surfaces: list[Counter[str]]
+    classes: list[Counter[str]]
+    containers: list[Counter[str]]
+    volume: np.ndarray
+    n_texts: int
+    names: list[Counter[str]] | None = None
+    word_people: Counter[str] | None = None
+
+
+def aggregate_units(
+    lang: str,
+    units: Sequence[TextUnit],
+    n_people: int,
+    options: ScoringOptions | None = None,
+    names: Mapping[int, Mapping[str, str]] | None = None,
+) -> Aggregates:
+    """The :class:`Aggregates` of analysed texts held in memory (one :class:`TextUnit` per
+    person and text): every key counted, the corpus lemma table computed from them."""
+    opts = options if options is not None else ScoringOptions()
+    lp = language_patterns(lang, of_complement=opts.of_complement)
+    analyses = [a for unit in units for _, part in unit.parts for a in part]
+    lemmas = lemma_table(analyses)
+    keyer = _Keyer(lp, lemmas)
+    foreign = foreign_words(lang) if opts.bands.stop_words else frozenset()
+    found: dict[int, list] = {}
+    for a in analyses:
+        if id(a) not in found:
+            found[id(a)] = spans(
+                a,
+                lp,
+                lemmas,
+                keyer=keyer,
+                foreign=foreign,
+                max_units=opts.max_units,
+                foreign_reading=opts.foreign_reading,
+            )
+    key_id: dict[str, int] = {}
+    surfaces: list[Counter[str]] = []
+    classes: list[Counter[str]] = []
+    containers: list[Counter[str]] = []
+    hits: list[Counter[str]] = []
+
+    def kid(key: str) -> int:
+        i = key_id.get(key)
+        if i is None:
+            i = key_id[key] = len(surfaces)
+            surfaces.append(Counter())
+            classes.append(Counter())
+            containers.append(Counter())
+            hits.append(Counter())
+        return i
+
+    text_row: dict[str, int] = {}
+    cells: dict[str, dict[tuple[int, int], int]] = {}
+    volume = np.zeros(n_people, dtype=float)
+    person_keys: list[set[str]] = [set() for _ in range(n_people)]
+    readers: set[tuple[int, int]] = set()
+    org_reads: set[tuple[str, int]] = set()
+    for unit in units:
+        first_time = unit.text not in text_row
+        row = text_row.setdefault(unit.text, len(text_row))
+        readers.add((unit.person, row))
+        org_reads.add((unit.organisation, row))
+        for part, part_analyses in unit.parts:
+            for a in part_analyses:
+                known = names.get(id(a)) if names else None
+                for span in found[id(a)]:
+                    i = kid(span.key)
+                    volume[unit.person] += 1
+                    person_keys[unit.person].add(span.key)
+                    surfaces[i][span.surface] += 1
+                    if not first_time:
+                        continue
+                    cell = cells.setdefault(part, {})
+                    cell[(row, i)] = cell.get((row, i), 0) + 1
+                    classes[i][span.classes] += 1
+                    containers[i].update(span.containers)
+                    if known:
+                        low = span.surface.lower()
+                        kind = next((k for n, k in known.items() if low in n), None)
+                        if kind is not None:
+                            hits[i][kind] += 1
+    n_rows, n_keys = len(text_row), len(key_id)
+
+    def matrix(entries: Mapping[tuple[int, int], int]) -> sparse.csr_matrix:
+        if not entries:
+            return sparse.csr_matrix((n_rows, n_keys))
+        (r, c), v = zip(*entries.keys(), strict=True), list(entries.values())
+        return sparse.csr_matrix((np.asarray(v, dtype=np.float64), (r, c)), shape=(n_rows, n_keys))
+
+    def incidence(pairs: Iterable[tuple[int, int]], n: int) -> sparse.csr_matrix:
+        pairs = sorted(pairs)
+        if not pairs:
+            return sparse.csr_matrix((n, n_rows))
+        r, c = zip(*pairs, strict=True)
+        return sparse.csr_matrix((np.ones(len(pairs)), (r, c)), shape=(n, n_rows))
+
+    orgs = sorted({o for o, _ in org_reads})
+    org_row = {o: i for i, o in enumerate(orgs)}
+    word_people: Counter[str] = Counter()
+    for keys in person_keys:
+        word_people.update({w for key in keys for w in key.split(" ")})
+    return Aggregates(
+        keys=list(key_id),
+        parts={part: matrix(entries) for part, entries in sorted(cells.items())},
+        P=incidence(readers, n_people),
+        org_texts=incidence(((org_row[o], t) for o, t in org_reads), len(orgs)),
+        organisations=orgs,
+        surfaces=surfaces,
+        classes=classes,
+        containers=containers,
+        volume=volume,
+        n_texts=n_rows,
+        names=hits if names else None,
+        word_people=word_people,
+    )
+
+
 def score_units(
     lang: str,
     units: Sequence[TextUnit],
@@ -304,162 +448,152 @@ def score_units(
     candidates mostly inside such names are set aside.
 
     Raises nothing when no candidate reaches the window: the table is empty.
+    The texts are counted by :func:`aggregate_units`, then scored by
+    :func:`score_aggregates`, which a corpus too large for memory reaches by
+    counting its texts a block at a time (:mod:`cartolex.lexicon.extract_stream`).
     """
-    opts = options if options is not None else ScoringOptions()
-    lp = language_patterns(lang, of_complement=opts.of_complement)
-    analyses = [a for unit in units for _, part in unit.parts for a in part]
-    lemmas = lemma_table(analyses)
-    keyer = _Keyer(lp, lemmas)
-    text_ids = {unit.text for unit in units}
-    if not analyses:
-        return _empty(lang, n_people, len(text_ids))
-
-    # Occurrences of each analysis, computed once (a shared text is analysed once).
-    foreign = foreign_words(lang) if opts.bands.stop_words else frozenset()
-    found: dict[int, list] = {}
-    for a in analyses:
-        if id(a) not in found:
-            found[id(a)] = spans(
-                a,
-                lp,
-                lemmas,
-                keyer=keyer,
-                foreign=foreign,
-                max_units=opts.max_units,
-                foreign_reading=opts.foreign_reading,
-            )
-
-    # Per person-text: counts per part (the window and the votes), surfaces.
-    person_counts: list[Counter[str]] = [Counter() for _ in range(n_people)]
-    surfaces: dict[str, Counter[str]] = {}
-    text_parts: dict[str, dict[str, Counter[str]]] = {}
-    for unit in units:
-        counts = person_counts[unit.person]
-        first_time = unit.text not in text_parts
-        per_part = text_parts.setdefault(unit.text, {}) if first_time else None
-        for part, part_analyses in unit.parts:
-            part_counter = per_part.setdefault(part, Counter()) if per_part is not None else None
-            for a in part_analyses:
-                for span in found[id(a)]:
-                    counts[span.key] += 1
-                    surfaces.setdefault(span.key, Counter())[span.surface] += 1
-                    if part_counter is not None:
-                        part_counter[span.key] += 1
-
-    docs = [list(c.elements()) for c in person_counts]
-    # Counts as floats: the TF-IDF then runs exactly as the historical
-    # TfidfVectorizer did (integer counts take another, not bit-identical path).
-    window = CountVectorizer(
-        analyzer=_features,
+    if not any(part for unit in units for _, part in unit.parts):
+        return _empty(lang, n_people, len({unit.text for unit in units}))
+    agg = aggregate_units(lang, units, n_people, options, names)
+    return score_aggregates(
+        lang,
+        agg,
+        n_people,
         min_df=min_df,
         max_df=max_df,
         max_features=max_features,
-        dtype=np.float64,
+        min_texts=min_texts,
+        options=options,
+        blacklist=blacklist,
     )
+
+
+def _window(
+    X: sparse.csr_matrix, n_rows: int, min_df: float, max_df: float, max_features: int | None
+) -> np.ndarray:
+    """The columns of *X* (people × keys, keys sorted) the window keeps, as
+    ``CountVectorizer`` keeps them: used by at least *min_df* people and at most *max_df*
+    (a count, or a share when a float), then the *max_features* most used."""
+    df = np.diff(X.tocsc().indptr)
+    high = max_df if isinstance(max_df, int | np.integer) else max_df * n_rows
+    low = min_df if isinstance(min_df, int | np.integer) else min_df * n_rows
+    if high < low:
+        raise ValueError("max_df corresponds to < documents than min_df")
+    mask = (df <= high) & (df >= low)
+    if max_features is not None and mask.sum() > max_features:
+        tfs = np.asarray(X.sum(axis=0)).ravel()
+        mask_inds = (-tfs[mask]).argsort()[:max_features]
+        new_mask = np.zeros(len(df), dtype=bool)
+        new_mask[np.where(mask)[0][mask_inds]] = True
+        mask = new_mask
+    return np.flatnonzero(mask)
+
+
+def _rows(M: sparse.spmatrix, n: int) -> sparse.csr_matrix:
+    """*M* with at least *n* rows (people without a text in this language: empty rows)."""
+    M = sparse.csr_matrix(M, dtype=np.float64)
+    if M.shape[0] < n:
+        M = sparse.vstack([M, sparse.csr_matrix((n - M.shape[0], M.shape[1]))], format="csr")
+    M.sort_indices()
+    return M
+
+
+def score_aggregates(
+    lang: str,
+    agg: Aggregates,
+    n_people: int,
+    *,
+    min_df: int = 3,
+    max_df: float = 0.6,
+    max_features: int | None = 1_000_000,
+    min_texts: int = 1,
+    options: ScoringOptions | None = None,
+    blacklist: Collection[str] = frozenset(),
+) -> ScoredCandidates:
+    """Score the candidates of one language from their counts (see :func:`score_units`).
+
+    The keys of *agg* need not be every candidate: a key that fewer than *min_df*
+    people can use (it is in too few texts) may be left out without changing the
+    result, since the window would leave it out.
+    """
+    opts = options if options is not None else ScoringOptions()
+    lp = language_patterns(lang, of_complement=opts.of_complement)
+    if not agg.keys or not any(T.nnz for T in agg.parts.values()):
+        return _empty(lang, n_people, agg.n_texts)
+    order = sorted(range(len(agg.keys)), key=agg.keys.__getitem__)  # the window's order
+    parts = {name: T.tocsc()[:, order].tocsr() for name, T in agg.parts.items()}
+    T = sum(parts.values()).tocsr()
+    X_all = _rows(agg.P @ T, n_people)
     try:
-        X_people = window.fit_transform(docs)
+        cols = _window(X_all, n_people, min_df, max_df, max_features)
     except ValueError:
-        return _empty(lang, n_people, len(text_ids))
-    vocabulary: dict[str, int] = window.vocabulary_
-    keys = window.get_feature_names_out()
+        return _empty(lang, n_people, agg.n_texts)
+    if not len(cols):
+        return _empty(lang, n_people, agg.n_texts)
+    X_people = X_all[:, cols].tocsr()
+    keys = [agg.keys[order[c]] for c in cols]
+    vocabulary = {k: j for j, k in enumerate(keys)}
+    source = [order[c] for c in cols]  # each column's key in the aggregates
+    parts = {name: P_[:, cols].tocsr() for name, P_ in parts.items()}
+    T = T[:, cols].tocsr()
 
     default = (
         opts.counting_unit == "person"
         and opts.vote == "frequency"
-        and all(opts.weight(p) == 1.0 for t in text_parts.values() for p in t)
+        and all(opts.weight(p) == 1.0 for p in parts)
     )
     if default:
-        # The historical scoring: one document per person, raw counts.
-        U = X_people
+        U = X_people  # the historical scoring: one document per person, raw counts
     else:
-        votes: dict[str, dict[int, float]] = {}
-        for text, parts in text_parts.items():
-            weighted: dict[str, dict[str, float]] = {}
-            for part, counter in parts.items():
-                w = opts.weight(part)
-                for key, n in counter.items():
-                    if key in vocabulary and w > 0:
-                        weighted.setdefault(key, {})[part] = w * n
-            row: dict[int, float] = {}
-            for key, per_part in weighted.items():
-                present = {p: opts.weight(p) for p in per_part}
-                row[vocabulary[key]] = _vote(per_part, present, opts.vote)
-            votes[text] = row
-        if opts.counting_unit == "person":
-            groups: dict[object, list[str]] = {}
-            for unit in units:
-                groups.setdefault(unit.person, []).append(unit.text)
-            rows = [groups.get(p, []) for p in range(n_people)]
-        elif opts.counting_unit == "text":
-            rows = [[t] for t in dict.fromkeys(unit.text for unit in units)]
+        weighted = sum(
+            (opts.weight(p) * M for p, M in parts.items() if opts.weight(p) > 0),
+            sparse.csr_matrix(T.shape),
+        ).tocsr()
+        if opts.vote == "frequency":
+            votes = weighted
+        elif opts.vote == "presence":
+            present = [
+                (M > 0).astype(np.float64) * opts.weight(p)
+                for p, M in parts.items()
+                if opts.weight(p) > 0
+            ]
+            votes = present[0]
+            for M in present[1:]:
+                votes = votes.maximum(M)
+            votes = sparse.csr_matrix(votes)
         else:
-            orgs: dict[str, dict[str, None]] = {}
-            for unit in units:
-                orgs.setdefault(unit.organisation, {})[unit.text] = None
-            rows = [list(texts) for _, texts in sorted(orgs.items())]
-        data, indices, indptr = [], [], [0]
-        for texts in rows:
-            acc: dict[int, float] = {}
-            for text in texts:
-                for col, v in votes.get(text, {}).items():
-                    acc[col] = acc.get(col, 0.0) + v
-            for col in sorted(acc):
-                indices.append(col)
-                data.append(acc[col])
-            indptr.append(len(indices))
-        U = sparse.csr_matrix(
-            (np.asarray(data, dtype=np.float64), indices, indptr), shape=(len(rows), len(keys))
-        )
+            votes = weighted.copy()
+            votes.data = np.where(votes.data >= 1.0, 1.0 + np.log(votes.data), votes.data)
+        if opts.counting_unit == "person":
+            U = _rows(agg.P @ votes, n_people)
+        elif opts.counting_unit == "text":
+            U = _rows(votes, 0)
+        else:
+            reads = sparse.csr_matrix(agg.org_texts, dtype=np.float64)
+            reads.data = np.ones_like(reads.data)  # a text counts once for an organisation
+            U = _rows(reads @ votes, 0)
+        U.eliminate_zeros()
     tfidf = TfidfTransformer().fit_transform(U)
     scores = np.asarray(tfidf.sum(axis=0)).ravel()
 
-    # Evidence over distinct texts: texts, occurrences, containers, classes.
-    n_texts: Counter[str] = Counter()
-    n_occ: Counter[str] = Counter()
-    inside: dict[str, Counter[str]] = {}
-    classes: dict[str, Counter[str]] = {}
-    name_hits: Counter[str] = Counter()
-    name_kind: dict[str, Counter[str]] = {}
-    seen_texts: set[str] = set()
-    for unit in units:
-        if unit.text in seen_texts:
-            continue
-        seen_texts.add(unit.text)
-        present: set[str] = set()
-        for _, part_analyses in unit.parts:
-            for a in part_analyses:
-                known = names.get(id(a)) if names else None
-                for span in found[id(a)]:
-                    if span.key not in vocabulary:
-                        continue
-                    present.add(span.key)
-                    n_occ[span.key] += 1
-                    classes.setdefault(span.key, Counter())[span.classes] += 1
-                    if span.containers:
-                        inside.setdefault(span.key, Counter()).update(
-                            c for c in span.containers if c in vocabulary
-                        )
-                    if known:
-                        low = span.surface.lower()
-                        kind = next((k for n, k in known.items() if low in n), None)
-                        if kind is not None:
-                            name_hits[span.key] += 1
-                            name_kind.setdefault(span.key, Counter())[kind] += 1
-        n_texts.update(present)
-    people_per_key = np.asarray((X_people > 0).sum(axis=0)).ravel()
-
+    n_texts_of = np.diff(T.tocsc().indptr)
+    n_occ = np.asarray(T.sum(axis=0)).ravel()
+    people_per_key = np.diff(X_people.tocsc().indptr)
     preps = set(lp.prepositions.values())
-    rows_out = []
+    rows_out: list[Candidate] = []
     candidates: dict[str, Candidate] = {}
     for col, key in enumerate(keys):
-        ranked = sorted(surfaces[key].items(), key=lambda kv: (-kv[1], kv[0]))
+        i = source[col]
+        ranked = sorted(agg.surfaces[i].items(), key=lambda kv: (-kv[1], kv[0]))
         term = ranked[0][0]
         if is_malformed_term(term) or _blocked(term, blacklist):
             continue
-        if n_texts.get(key, 0) < min_texts:
+        if n_texts_of[col] < min_texts:
             continue
-        cls = min(classes.get(key, Counter({"": 1})).items(), key=lambda kv: (-kv[1], kv[0]))[0]
-        occ = max(n_occ.get(key, 0), 1)
+        cls = min((agg.classes[i] or Counter({"": 1})).items(), key=lambda kv: (-kv[1], kv[0]))[0]
+        occ = max(int(n_occ[col]), 1)
+        inside = Counter({k: n for k, n in agg.containers[i].items() if k in vocabulary})
+        hits = agg.names[i] if agg.names is not None else Counter()
         cand = Candidate(
             key=key,
             term=term,
@@ -468,19 +602,19 @@ def score_units(
             words=0,
             forms=ranked,
             people=int(people_per_key[col]),
-            texts=int(n_texts.get(key, 0)),
-            occurrences=int(n_occ.get(key, 0)),
-            containers=sorted(inside.get(key, Counter()).items(), key=lambda kv: (-kv[1], kv[0])),
+            texts=int(n_texts_of[col]),
+            occurrences=int(n_occ[col]),
+            containers=sorted(inside.items(), key=lambda kv: (-kv[1], kv[0])),
             classes=cls,
             content_words=sum(1 for part in key.split(" ") if part not in preps),
-            name_share=name_hits.get(key, 0) / occ,
+            name_share=sum(hits.values()) / occ,
         )
-        if key in name_kind:
-            cand.name_kind = min(name_kind[key].items(), key=lambda kv: (-kv[1], kv[0]))[0]
+        if hits:
+            cand.name_kind = min(hits.items(), key=lambda kv: (-kv[1], kv[0]))[0]
         candidates[key] = cand
         rows_out.append(cand)
     if not rows_out:
-        return _empty(lang, n_people, len(text_ids))
+        return _empty(lang, n_people, agg.n_texts)
 
     terms = [c.term for c in rows_out]
     raw = np.asarray([c.score for c in rows_out], dtype=float)
@@ -488,8 +622,8 @@ def score_units(
     for c, sl, n in zip(rows_out, scores_len, lens, strict=True):
         c.score_len = float(sl)
         c.words = int(n)
-    _spread(rows_out, vocabulary, X_people, person_counts, opts.bands.even_people)
-    _assign_bands(lang, rows_out, candidates, person_counts, opts.bands)
+    _spread(rows_out, vocabulary, X_people, agg.volume, opts.bands.even_people)
+    _assign_bands(lang, rows_out, candidates, agg.word_people, n_people, opts.bands)
 
     df = pd.DataFrame(
         {
@@ -515,7 +649,7 @@ def score_units(
             c.term, by_column.indices[by_column.indptr[col] : by_column.indptr[col + 1]]
         )
     return ScoredCandidates(
-        lang, df[RAW_COLUMNS], candidates, n_people, len(text_ids), U.shape[0], people_of
+        lang, df[RAW_COLUMNS], candidates, n_people, agg.n_texts, U.shape[0], people_of
     )
 
 
@@ -523,19 +657,19 @@ def _spread(
     rows: Sequence[Candidate],
     vocabulary: Mapping[str, int],
     X_people: sparse.spmatrix,
-    person_counts: Sequence[Counter[str]],
+    volume: np.ndarray,
     floor: float,
 ) -> None:
     """Each single word's share of people, and its spread when that share reaches *floor*.
 
     See :class:`BandRules`. A word with ``n`` occurrences scattered at random over the texts reaches
     person ``i`` with probability ``1 − exp(−n·vᵢ)``, ``vᵢ`` being the person's
-    share of all candidate occurrences of the language; the spread is the
+    share of all candidate occurrences of the language (*volume*); the spread is the
     number of people who use the word over the sum of these probabilities
     (about 1 for a word used like any other, well below 1 for a word
     gathered in a few people's texts).
     """
-    volume = np.asarray([sum(c.values()) for c in person_counts], dtype=float)
+    volume = np.asarray(volume, dtype=float)
     volume = volume[volume > 0]
     if volume.size == 0:
         return
@@ -575,16 +709,16 @@ def _assign_bands(
     lang: str,
     rows: list[Candidate],
     candidates: Mapping[str, Candidate],
-    person_counts: Sequence[Counter[str]],
+    word_people: Counter[str] | None,
+    n_people: int,
     rules: BandRules,
 ) -> None:
-    """Put each candidate in its band, with its reason (see the module docstring)."""
+    """Put each candidate in its band, with its reason (see the module docstring);
+    *word_people* counts the people who use each word in any of their candidates (for
+    common modifiers)."""
     pct = _percentiles(np.asarray([c.score_len for c in rows], dtype=float))
-    # People who use each word in any of their candidates (for common modifiers).
-    n_people = max(len(person_counts), 1)
-    word_people: Counter[str] = Counter()
-    for counts in person_counts:
-        word_people.update({w for key in counts for w in key.split(" ")})
+    n_people = max(n_people, 1)
+    word_people = word_people or Counter()
     edge_first = lang == "en"  # the modifier comes first in English, last in French and Portuguese
     stops: frozenset[str] = frozenset()
     edges: dict[str, str] = {}

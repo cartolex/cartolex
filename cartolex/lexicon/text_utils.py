@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import re
 from collections import Counter
+from collections.abc import Callable, Iterable
 
 import numpy as np
 
@@ -61,6 +62,60 @@ def term_words(term: str) -> list[str]:
 _WORD_RE = re.compile(r"[^\W\d_]{2,}", re.UNICODE)
 
 
+def word_counts(docs: Iterable[str]) -> Counter[str]:
+    """How often each word (lower case, letters only) occurs in *docs*: the dictionary
+    :func:`heal_split_words` heals with."""
+    freq: Counter[str] = Counter()
+    for d in docs:
+        freq.update(m.group(0).lower() for m in _WORD_RE.finditer(d))
+    return freq
+
+
+def heal_text(text: str, real: Callable[[str], bool], *, max_passes: int = 2) -> tuple[str, int]:
+    """*text* with its split words rejoined (see :func:`heal_split_words`), *real* telling
+    whether a word (lower case) is a real word of the corpus; returns the text and the
+    number of merges."""
+
+    def should_merge(a: str, b: str) -> bool:
+        return real((a + b).lower()) and not (real(a.lower()) and real(b.lower()))
+
+    total = 0
+    for _ in range(max_passes):
+        toks = list(_WORD_RE.finditer(text))
+        if len(toks) < 2:
+            break
+        out: list[str] = []
+        prev_end = 0
+        i = 0
+        merged_any = False
+        while i < len(toks):
+            acc = toks[i].group(0)
+            acc_start = toks[i].start()
+            acc_end = toks[i].end()
+            # Greedily absorb following fragments while the gap is blank.
+            j = i + 1
+            while j < len(toks):
+                gap = text[acc_end : toks[j].start()]
+                nxt = toks[j].group(0)
+                if gap.strip() == "" and gap != "" and should_merge(acc, nxt):
+                    acc = acc + nxt
+                    acc_end = toks[j].end()
+                    total += 1
+                    merged_any = True
+                    j += 1
+                else:
+                    break
+            out.append(text[prev_end:acc_start])
+            out.append(acc)
+            prev_end = acc_end
+            i = j
+        out.append(text[prev_end:])
+        text = "".join(out)
+        if not merged_any:
+            break
+    return text, total
+
+
 def heal_split_words(
     docs: list[str], *, min_real: int = 5, max_passes: int = 2
 ) -> tuple[list[str], int]:
@@ -81,58 +136,19 @@ def heal_split_words(
 
     Case and surrounding text are preserved; the merge runs up to ``max_passes``
     times so words split into three pieces (``cel l ules``) also heal. Returns
-    the healed docs and the number of merges performed.
+    the healed docs and the number of merges performed. A large corpus counts its
+    words (:func:`word_counts`) and heals each text (:func:`heal_text`) apart.
     """
-    freq: Counter[str] = Counter()
-    for d in docs:
-        freq.update(m.group(0).lower() for m in _WORD_RE.finditer(d))
+    freq = word_counts(docs)
 
     def real(w: str) -> bool:
-        return freq.get(w.lower(), 0) >= min_real
+        return freq.get(w, 0) >= min_real
 
-    def should_merge(a: str, b: str) -> bool:
-        return real(a + b) and not (real(a) and real(b))
-
-    total = 0
-
-    def heal_one(text: str) -> str:
-        nonlocal total
-        for _ in range(max_passes):
-            toks = list(_WORD_RE.finditer(text))
-            if len(toks) < 2:
-                break
-            out: list[str] = []
-            prev_end = 0
-            i = 0
-            merged_any = False
-            while i < len(toks):
-                acc = toks[i].group(0)
-                acc_start = toks[i].start()
-                acc_end = toks[i].end()
-                # Greedily absorb following fragments while the gap is blank.
-                j = i + 1
-                while j < len(toks):
-                    gap = text[acc_end : toks[j].start()]
-                    nxt = toks[j].group(0)
-                    if gap.strip() == "" and gap != "" and should_merge(acc, nxt):
-                        acc = acc + nxt
-                        acc_end = toks[j].end()
-                        total += 1
-                        merged_any = True
-                        j += 1
-                    else:
-                        break
-                out.append(text[prev_end:acc_start])
-                out.append(acc)
-                prev_end = acc_end
-                i = j
-            out.append(text[prev_end:])
-            text = "".join(out)
-            if not merged_any:
-                break
-        return text
-
-    healed = [heal_one(d) for d in docs]
+    healed, total = [], 0
+    for d in docs:
+        text, n = heal_text(d, real, max_passes=max_passes)
+        healed.append(text)
+        total += n
     if total:
         logger.info("Healed %d split-word artifact(s) in the corpus.", total)
     return healed, total

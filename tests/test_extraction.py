@@ -163,7 +163,7 @@ def test_output_does_not_depend_on_workers_or_on_the_cache(tmp_path: Path, monke
     run_pipeline_stage_1(ctx)
     again = {lang: ctx.paths.raw_terms_csv(lang).read_bytes() for lang in ("fr", "pt", "en")}
     assert again == outputs["serial"]
-    assert any(ctx.paths.parse_cache_dir.rglob("part-*.jsonl"))
+    assert any(ctx.paths.parse_cache_dir.rglob("analyses.sqlite"))
 
 
 @pytest.mark.models("fr", "pt")

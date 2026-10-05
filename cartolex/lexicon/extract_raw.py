@@ -40,7 +40,6 @@ from .config import KeywordsConfig
 from .io_helpers import (
     CorpusError,
     PersonTexts,
-    load_texts_split_by_language,
     slot_indexes,
 )
 from .lexicon_store import (
@@ -424,6 +423,10 @@ def run_pipeline_stage_1(
 
 
 def _extract(ctx: RunContext, progress_callback: ProgressCallback | None) -> None:
+    from . import extract_stream
+    from .corpus_store import load_corpus
+    from .scoring import score_aggregates
+
     cfg = ctx.settings
     paths = ctx.paths
     paths.automatic_dir.mkdir(parents=True, exist_ok=True)
@@ -435,18 +438,35 @@ def _extract(ctx: RunContext, progress_callback: ProgressCallback | None) -> Non
 
     log(0, "Loading documents and splitting by language...")
     n_jobs = ctx.threads.workers(cfg.extraction_n_jobs)
-    people, _meta_df = load_texts_split_by_language(
-        slot_indexes(ctx),
-        progress_callback=lambda p, m: log(p * 20 // 100, m),
-        corpus_languages=cfg.corpus_languages,
-        n_jobs=n_jobs,
-        now_year=ctx.now_year,
-        recency_years=cfg.kw_recency_years or None,
+    indexes = slot_indexes(ctx)
+    if not indexes:
+        raise CorpusError("No corpus slot to read: the settings declare none for this stage.")
+    corpus = load_corpus(indexes, recency_years=cfg.kw_recency_years or None, now_year=ctx.now_year)
+    if not corpus.rows_read:
+        raise CorpusError(
+            "No valid corpus index files found (slots: "
+            + ", ".join(f"{tag} → {index.name}" for tag, index, _ in indexes)
+            + ")."
+        )
+    ex, words = extract_stream.prepare(
+        corpus,
+        cfg.corpus_languages,
+        scratch=paths.automatic_dir,
+        workers=n_jobs,
+        progress=lambda f, m: log(int(20 * f), m),
     )
-    texts_in = {
-        lang: sum(1 for person in people for _, paras in person.texts if paras.get(lang))
-        for lang in cfg.corpus_languages
-    }
+    try:
+        _score_languages(ctx, ex, words, n_jobs, log, score_aggregates)
+    finally:
+        ex.close()
+
+
+def _score_languages(ctx, ex, words, n_jobs, log, score_aggregates) -> None:  # noqa: ANN001
+    from . import extract_stream
+
+    cfg = ctx.settings
+    paths = ctx.paths
+    texts_in = {lang: ex.spills[lang].count for lang in cfg.corpus_languages}
     log(20, " | ".join(f"Texts {lang.upper()}: {n}" for lang, n in texts_in.items()))
 
     with_text = [lang for lang in cfg.corpus_languages if texts_in[lang]]
@@ -464,6 +484,7 @@ def _extract(ctx: RunContext, progress_callback: ProgressCallback | None) -> Non
     n_langs = max(len(cfg.corpus_languages), 1)
     global_parts: list[pd.DataFrame] = []
     users: dict[str, Mapping[str, np.ndarray]] = {}
+    options = options_of(cfg)
     for i, lang in enumerate(cfg.corpus_languages):
         lo = 25 + int(65 * i / n_langs)
         span = int(65 / n_langs)
@@ -481,19 +502,45 @@ def _extract(ctx: RunContext, progress_callback: ProgressCallback | None) -> Non
             continue
         log(lo, f"Extracting {lang.upper()} candidate terms...")
 
-        def parsed(done: int, total: int, lo: int = lo, span: int = span, lang: str = lang) -> None:
-            pct = lo + int(0.8 * span * done / max(total, 1))
-            log(pct, f"Parsed {done}/{total} new {lang.upper()} texts")
+        def step(f: float, m: str, lo: int = lo, span: int = span) -> None:
+            log(lo + int(0.9 * span * f), m)
 
         try:
-            units = language_units(
-                lang, people, cache_dir=paths.parse_cache_dir, n_jobs=n_jobs, progress=parsed
+            agg = extract_stream.language_aggregates(
+                ex,
+                lang,
+                words[lang],
+                cache_dir=paths.parse_cache_dir,
+                model=language_models.require(lang).identity,
+                options=options,
+                min_df=cfg.min_df,
+                workers=n_jobs,
+                progress=step,
             )
         finally:
             # A model holds a few hundred MB: only one is loaded at a time, and
             # none once the stage is over.
             language_models.release(lang)
-        scored = score_language(lang, units, len(people), cfg, blacklist=blacklist)
+        scored = score_aggregates(
+            lang,
+            agg,
+            ex.n_people,
+            min_df=cfg.min_df,
+            max_df=cfg.max_df,
+            max_features=cfg.max_features,
+            min_texts=cfg.min_texts,
+            options=options,
+            blacklist=blacklist,
+        )
+        if scored.empty:
+            logger.warning(
+                "[%s] No candidate term within the document-frequency window "
+                "(%d people, min_df=%s, max_df=%s).",
+                lang,
+                ex.n_people,
+                cfg.min_df,
+                cfg.max_df,
+            )
         df_lang = reject_band(scored.table, rejects.get(lang, {}))
         df_lang.to_csv(out_path, index=False)
         users[lang] = scored.people_of
@@ -519,6 +566,6 @@ def _extract(ctx: RunContext, progress_callback: ProgressCallback | None) -> Non
         .reset_index(drop=True)
     )
     df_global.to_csv(paths.global_terms_csv, index=False)
-    write_term_people(paths.term_people_npz, users, len(people))
+    write_term_people(paths.term_people_npz, users, ex.n_people)
     log(95, f"Saved {len(df_global)} deduplicated terms to {paths.global_terms_csv}")
     log(100, "Done.")
