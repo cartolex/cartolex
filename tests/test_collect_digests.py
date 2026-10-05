@@ -137,3 +137,20 @@ def test_a_run_changed_on_disk_is_digested_again(harvested) -> None:
     rebuild_sources(project.layout, project.config)
     assert not DigestCache(project.layout).index
     assert not list((project.layout.cache / "sources").rglob("*.jsonl.gz"))
+
+
+def test_a_heavy_run_digested_in_workers_gives_the_same_digest(harvested, tmp_path, monkeypatch):
+    import gzip
+
+    from cartolex.collect import digests as digests_mod
+
+    project, _bib, _ids, report = harvested
+    run = next(
+        p for p in (project.layout.sources / "collected" / "raw" / "openalex").glob("*.jsonl.gz")
+    )
+    monkeypatch.setattr(digests_mod, "SPLIT_LINES", 3)  # many small batches
+    one = digests_mod._write_digest(str(run), "openalex", str(tmp_path / "one.jsonl.gz"))
+    many = digests_mod._write_digest(str(run), "openalex", str(tmp_path / "many.jsonl.gz"), jobs=2)
+    assert many == one and one[0] > 3
+    text = {n: gzip.decompress((tmp_path / f"{n}.jsonl.gz").read_bytes()) for n in ("one", "many")}
+    assert text["many"] == text["one"]

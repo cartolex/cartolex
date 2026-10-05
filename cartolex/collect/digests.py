@@ -47,6 +47,10 @@ __all__ = ["DIGESTERS", "INDEX_FORMAT", "DigestCache", "digest_record"]
 INDEX_FORMAT = "cartolex-digests/1"
 #: Raw runs larger than this in all, when not yet digested, are digested in worker processes.
 PARALLEL_BYTES = 32_000_000
+#: A run heavier than this is digested in worker processes, its records in batches.
+SPLIT_BYTES = 256_000_000
+#: Lines of a run sent to a worker at once.
+SPLIT_LINES = 400
 
 
 # ── the digesters ────────────────────────────────────────────────────────────
@@ -124,9 +128,90 @@ def digest_record(kind: str, rec: dict[str, Any]) -> dict[str, Any] | None:
     return DIGESTERS[kind][1](rec)
 
 
-def _write_digest(raw_path: str, kind: str, out_path: str) -> tuple[int, list[str]]:
+def _digest_lines(kind: str, lines: list[str]) -> tuple[list[str], list[str], int]:
+    """In a worker: a batch of a run's record lines digested (the digest's lines), the people
+    they name, how many records they hold."""
+    digester = DIGESTERS[kind][1]
+    out, people, n = [], set(), 0
+    for line in lines:
+        if not line.strip():
+            continue
+        rec = json.loads(line)
+        n += 1
+        if rec.get("person_id"):
+            people.add(rec["person_id"])
+        slim = digester(rec)
+        if slim is not None:
+            out.append(json.dumps(slim, ensure_ascii=False, separators=(",", ":")) + "\n")
+    return out, sorted(people), n
+
+
+def _batches(fh: Any, size: int) -> Iterator[list[str]]:
+    batch: list[str] = []
+    for line in fh:
+        batch.append(line)
+        if len(batch) >= size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
+
+
+def _write_digest_split(
+    raw_path: str, kind: str, out_path: str, jobs: int
+) -> tuple[int, list[str]]:
+    import multiprocessing
+    from collections import deque
+
+    from .snapshot import ignore_stop_signals
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=f".{out.name}.", suffix=".tmp", dir=out.parent)
+    os.close(fd)
+    people: set[str] = set()
+    n = 0
+    context = multiprocessing.get_context("spawn")
+    pool = ProcessPoolExecutor(jobs, mp_context=context, initializer=ignore_stop_signals)
+    try:
+        with open_run(Path(raw_path)) as fh, gzip.open(tmp, "wt", encoding="utf-8") as gz:
+            header = fh.readline()
+            gz.write(header)
+            named = json.loads(header).get("people")
+            if isinstance(named, dict):
+                people.update(named)
+            queue: deque[Any] = deque()
+
+            def give_back() -> None:
+                nonlocal n
+                lines, names, count = queue.popleft().result()
+                gz.writelines(lines)
+                people.update(names)
+                n += count
+
+            for batch in _batches(fh, SPLIT_LINES):
+                queue.append(pool.submit(_digest_lines, kind, batch))
+                while len(queue) > 2 * jobs:
+                    give_back()
+            while queue:
+                give_back()
+        replace_path(tmp, out)
+    except BaseException:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(tmp)
+        raise
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
+    return n, sorted(people)
+
+
+def _write_digest(raw_path: str, kind: str, out_path: str, jobs: int = 1) -> tuple[int, list[str]]:
     """Digest one raw run into *out_path* (gzip JSON lines, written whole or not at all);
-    returns the records read and the people named. Runs in a worker process too."""
+    returns the records read and the people named. With *jobs* above 1, its records are
+    digested in that many worker processes, in batches given back in order (the same
+    digest). Runs in a worker process too (then with one job)."""
+    if jobs > 1:
+        return _write_digest_split(raw_path, kind, out_path, jobs)
     digester = DIGESTERS[kind][1]
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -163,7 +248,8 @@ class DigestCache:
     """The digests of a project's raw runs (see the module docstring).
 
     *jobs* is how many worker processes digest runs when many are new (``None``:
-    up to four, when the runs to digest weigh more than :data:`PARALLEL_BYTES`).
+    every processor but two, when the runs to digest weigh more than :data:`PARALLEL_BYTES`; a
+    single run heavier than :data:`SPLIT_BYTES` has its records digested in worker processes).
     """
 
     def __init__(
@@ -219,11 +305,17 @@ class DigestCache:
             return
         size = sum(r.path.stat().st_size for r in todo)
         jobs = self.jobs if self.jobs is not None else (
-            min(4, os.cpu_count() or 1) if size > PARALLEL_BYTES else 1
+            max(1, (os.cpu_count() or 2) - 2) if size > PARALLEL_BYTES else 1
         )  # fmt: skip
         if jobs <= 1 or len(todo) == 1:
             for run in todo:
-                self._record(run, *_write_digest(str(run.path), run.kind, str(self.path(run))))
+                # A heavy run: its records digested in worker processes.
+                heavy = run.path.stat().st_size > SPLIT_BYTES
+                split = (self.jobs or max(1, (os.cpu_count() or 2) - 2)) if heavy else 1
+                args = (str(run.path), run.kind, str(self.path(run)))
+                self._record(
+                    run, *(_write_digest(*args, split) if split > 1 else _write_digest(*args))
+                )
             return
         import multiprocessing
 

@@ -815,3 +815,11 @@ nothing in the engine names a particular deployment, source or procedure.
   worker processes parse them and write the run lines; the runs are the same.
   Measured on 2,000 real people: 1.7 ms a work instead of 2.5; this process's
   share still bounds it (to be measured further).
+- **Digests of a large harvest in worker processes.** Rebuilding the tables
+  digests each new run first (most of the time goes to detecting languages):
+  up to four runs at once, a run on one processor, about 5 ms a work, 17 hours
+  for a national harvest written as one run. Runs are now digested on every
+  processor but two, and a run heavier than 256 MB has its records digested in
+  worker processes, in batches given back in order (the same digest; 4.4 times
+  faster on 20,000 real works with 16 workers, this process's reading bounding
+  it).
