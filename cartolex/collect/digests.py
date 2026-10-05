@@ -307,15 +307,16 @@ class DigestCache:
         jobs = self.jobs if self.jobs is not None else (
             max(1, (os.cpu_count() or 2) - 2) if size > PARALLEL_BYTES else 1
         )  # fmt: skip
-        if jobs <= 1 or len(todo) == 1:
-            for run in todo:
-                # A heavy run: its records digested in worker processes.
-                heavy = run.path.stat().st_size > SPLIT_BYTES
-                split = (self.jobs or max(1, (os.cpu_count() or 2) - 2)) if heavy else 1
-                args = (str(run.path), run.kind, str(self.path(run)))
-                self._record(
-                    run, *(_write_digest(*args, split) if split > 1 else _write_digest(*args))
-                )
+        workers = self.jobs or max(1, (os.cpu_count() or 2) - 2)
+        # A heavy run, one after the other, its records digested in worker processes.
+        heavy = [r for r in todo if r.path.stat().st_size > SPLIT_BYTES and workers > 1]
+        for run in heavy:
+            args = (str(run.path), run.kind, str(self.path(run)))
+            self._record(run, *_write_digest(*args, workers))
+        light = [r for r in todo if r not in heavy]
+        if jobs <= 1 or len(light) <= 1:
+            for run in light:
+                self._record(run, *_write_digest(str(run.path), run.kind, str(self.path(run))))
             return
         import multiprocessing
 
@@ -323,7 +324,7 @@ class DigestCache:
         with ProcessPoolExecutor(max_workers=jobs, mp_context=context) as pool:
             futures = [
                 (run, pool.submit(_write_digest, str(run.path), run.kind, str(self.path(run))))
-                for run in todo
+                for run in light
             ]
             for run, future in futures:
                 self._record(run, *future.result())
