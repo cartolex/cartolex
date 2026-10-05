@@ -807,12 +807,15 @@ def _alphabetical(authorships: list[dict[str, Any]]) -> bool:
     """Four authors or more in alphabetical order of surname: first and last mean nothing."""
     if len(authorships) < 4:
         return False
-    surnames = []
-    for a in authorships:
+    previous = None
+    for a in authorships:  # in order, up to the first out of it (most lists stop at once)
         name = (a.get("author") or {}).get("display_name") or a.get("raw_author_name") or ""
         parts = words(name)
-        surnames.append(parts[-1] if parts else "")
-    return surnames == sorted(surnames)
+        surname = parts[-1] if parts else ""
+        if previous is not None and surname < previous:
+            return False
+        previous = surname
+    return True
 
 
 def read_openalex_runs(runs: list[RawRun], builder: SourceBuilder) -> None:
