@@ -32,6 +32,7 @@ import gzip
 import json
 import os
 import tempfile
+import zlib
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -49,8 +50,8 @@ INDEX_FORMAT = "cartolex-digests/1"
 PARALLEL_BYTES = 32_000_000
 #: A run heavier than this is digested in worker processes, its records in batches.
 SPLIT_BYTES = 256_000_000
-#: Lines of a run sent to a worker at once.
-SPLIT_LINES = 400
+#: Bytes of whole record lines sent to a worker at once (a gzip member of the digest).
+SPLIT_BLOCK = 16 << 20
 
 
 # ── the digesters ────────────────────────────────────────────────────────────
@@ -146,15 +147,49 @@ def _digest_lines(kind: str, lines: list[str]) -> tuple[list[str], list[str], in
     return out, sorted(people), n
 
 
-def _batches(fh: Any, size: int) -> Iterator[list[str]]:
-    batch: list[str] = []
-    for line in fh:
-        batch.append(line)
-        if len(batch) >= size:
-            yield batch
-            batch = []
-    if batch:
-        yield batch
+def _digest_block(kind: str, block: bytes) -> tuple[bytes, list[str], int]:
+    """In a worker: a block of a run's whole record lines digested, as a gzip member of its
+    own (the digest's lines), the people they name, how many records they hold."""
+    # Lines end at "\n" only: a record may hold other line separators (U+2028…) unescaped.
+    text = block.decode("utf-8")
+    lines, people, n = _digest_lines(kind, [line + "\n" for line in text.split("\n") if line])
+    return gzip.compress("".join(lines).encode("utf-8"), 6, mtime=0), people, n
+
+
+def _blocks(path: Path, size: int) -> Iterator[bytes]:
+    """A run's bytes, decompressed when it is compressed, in blocks of whole lines of about
+    *size* bytes (the header line is the first block)."""
+    unpack = zlib.decompressobj(31) if path.name.endswith(".gz") else None
+    pending = b""
+    header_done = False
+    with open(path, "rb") as fh:
+        while True:
+            chunk = fh.read(4 << 20)
+            if not chunk:
+                break
+            while chunk:
+                if unpack is None:
+                    pending += chunk
+                    chunk = b""
+                    continue
+                pending += unpack.decompress(chunk)
+                if unpack.eof:  # one member ends (the header's): another follows
+                    chunk = unpack.unused_data
+                    unpack = zlib.decompressobj(31)
+                else:
+                    chunk = b""
+            if not header_done and b"\n" in pending:
+                cut = pending.index(b"\n") + 1
+                yield pending[:cut]
+                pending, header_done = pending[cut:], True
+            while header_done and len(pending) >= size:
+                cut = pending.rfind(b"\n", 0, size) + 1 or pending.find(b"\n", size) + 1
+                if not cut:
+                    break
+                yield pending[:cut]
+                pending = pending[cut:]
+    if pending:
+        yield pending if pending.endswith(b"\n") else pending + b"\n"
 
 
 def _write_digest_split(
@@ -174,23 +209,24 @@ def _write_digest_split(
     context = multiprocessing.get_context("spawn")
     pool = ProcessPoolExecutor(jobs, mp_context=context, initializer=ignore_stop_signals)
     try:
-        with open_run(Path(raw_path)) as fh, gzip.open(tmp, "wt", encoding="utf-8") as gz:
-            header = fh.readline()
-            gz.write(header)
-            named = json.loads(header).get("people")
+        with open(tmp, "wb") as digest:
+            blocks = _blocks(Path(raw_path), SPLIT_BLOCK)
+            header = next(blocks, b"")
+            digest.write(gzip.compress(header, 6, mtime=0))
+            named = json.loads(header).get("people") if header.strip() else None
             if isinstance(named, dict):
                 people.update(named)
             queue: deque[Any] = deque()
 
             def give_back() -> None:
                 nonlocal n
-                lines, names, count = queue.popleft().result()
-                gz.writelines(lines)
+                member, names, count = queue.popleft().result()
+                digest.write(member)
                 people.update(names)
                 n += count
 
-            for batch in _batches(fh, SPLIT_LINES):
-                queue.append(pool.submit(_digest_lines, kind, batch))
+            for block in blocks:
+                queue.append(pool.submit(_digest_block, kind, block))
                 while len(queue) > 2 * jobs:
                     give_back()
             while queue:

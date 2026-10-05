@@ -148,9 +148,22 @@ def test_a_heavy_run_digested_in_workers_gives_the_same_digest(harvested, tmp_pa
     run = next(
         p for p in (project.layout.sources / "collected" / "raw" / "openalex").glob("*.jsonl.gz")
     )
-    monkeypatch.setattr(digests_mod, "SPLIT_LINES", 3)  # many small batches
+    monkeypatch.setattr(digests_mod, "SPLIT_BLOCK", 2000)  # many small blocks
     one = digests_mod._write_digest(str(run), "openalex", str(tmp_path / "one.jsonl.gz"))
     many = digests_mod._write_digest(str(run), "openalex", str(tmp_path / "many.jsonl.gz"), jobs=2)
     assert many == one and one[0] > 3
     text = {n: gzip.decompress((tmp_path / f"{n}.jsonl.gz").read_bytes()) for n in ("one", "many")}
     assert text["many"] == text["one"]
+
+
+def test_a_block_of_lines_ends_lines_at_newlines_only() -> None:
+    import gzip
+    import json
+
+    from cartolex.collect import digests as digests_mod
+
+    record = {"type": "author", "person_id": "p1", "record": {"display_name": "A B\x85C"}}
+    block = (json.dumps(record, ensure_ascii=False) + "\n").encode("utf-8")
+    member, people, n = digests_mod._digest_block("openalex", block * 2)
+    assert n == 2 and people == ["p1"]
+    assert len(gzip.decompress(member).decode("utf-8").split("\n")) == 3  # two lines
