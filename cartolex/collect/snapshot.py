@@ -656,12 +656,12 @@ def _tests(q: Query) -> tuple[Callable[[bytes], bool], Callable[[dict[str, Any]]
 
 
 def ignore_stop_signals() -> None:
-    """In a worker process: Ctrl-C and SIGTERM are for the main process, which stops the
-    workers itself (a stop reaches every process of the group or service)."""
+    """In a worker process: Ctrl-C, which a terminal sends to the whole process group, is
+    for the main process, which stops the workers itself. SIGTERM is left as it is: a worker
+    whose main process is gone ends with the service stopping it."""
     import signal
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    signal.signal(signal.SIGTERM, signal.SIG_IGN)
 
 
 def _scan_part(
