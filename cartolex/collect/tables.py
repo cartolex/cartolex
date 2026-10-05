@@ -27,33 +27,44 @@ from __future__ import annotations
 
 import contextlib
 import gzip
+import heapq
 import io
+import itertools
 import json
 import os
 import secrets
 import shutil
+import sqlite3
 import tempfile
+import zlib
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import IO, Any
+from typing import IO, TYPE_CHECKING, Any
 
 import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.parquet as pq
 
-from cartolex.project.files import atomic_write_bytes, replace_path
+from cartolex.project.files import replace_path
 from cartolex.project.layout import SOURCE_TABLES, ProjectLayout
 from cartolex.project.models import ProjectFile
 from cartolex.project.tables import (
-    SOURCE_SCHEMAS,
+    ROW_GROUP,
     read_decision_csv,
-    read_source_table,
-    write_source_table,
+    source_key,
+    write_source_rows,
 )
+from cartolex.scale import Budget
+
+if TYPE_CHECKING:
+    from .workstore import WorkStore
 
 __all__ = [
     "IDS_FORMAT",
+    "LEGACY_IDS_FORMAT",
     "RAW_FORMAT",
     "RAW_SUFFIX",
     "IdRegistry",
@@ -75,7 +86,9 @@ RAW_FORMAT = "cartolex-raw/1"
 #: ``.jsonl`` files, read the same way.
 RAW_SUFFIX = ".jsonl.gz"
 _RUN_SUFFIXES = (RAW_SUFFIX, ".jsonl")
-IDS_FORMAT = "cartolex-ids/1"
+IDS_FORMAT = "cartolex-ids/2"
+#: The format of a registry written before (``ids.json``): read, and replaced when saved.
+LEGACY_IDS_FORMAT = "cartolex-ids/1"
 #: The tables whose rows get ids, and their prefix.
 ID_PREFIX = {"texts": "t", "people": "p", "organisations": "o"}
 ID_WIDTH = 6
@@ -297,6 +310,21 @@ def read_runs(
 
 # ── ids ──────────────────────────────────────────────────────────────────────
 
+_IDS_SCHEMA = pa.schema([("table", pa.string()), ("key", pa.string()), ("id", pa.string())])
+_REG_TABLE = (
+    "CREATE TABLE IF NOT EXISTS reg_keys (tbl TEXT NOT NULL, key TEXT NOT NULL,"
+    " slot TEXT NOT NULL, id TEXT NOT NULL, PRIMARY KEY (tbl, key, slot)) WITHOUT ROWID"
+)
+
+
+def id_number(table: str, value: str) -> int | None:
+    """The number of an id of the registry's form (``t000042`` → 42), else ``None``."""
+    digits = value[1:]
+    if value[:1] != ID_PREFIX[table] or not (digits.isascii() and digits.isdigit()):
+        return None
+    number = int(digits)
+    return number if f"{number:0{ID_WIDTH}d}" == digits else None
+
 
 class IdRegistry:
     """The ids of every slot's registry: natural keys → ids, given once, never reused.
@@ -305,46 +333,133 @@ class IdRegistry:
     only; people and organisations are shared by every slot. A new id takes the
     next number after every number any registry ever gave, skipping ids already
     present in the tables.
+
+    A slot's registry is ``sources/<slot>/raw/ids.parquet`` (``cartolex-ids/2``): one row
+    per key (``table``, ``key``, ``id``) sorted by table and key, the next numbers in the
+    file's metadata. While the registry is open its keys live in an SQLite table (*db*:
+    a rebuild's scratch database, or one in memory), each table's loaded when first
+    needed: millions of keys cost disk, not memory. A registry of the first format
+    (``ids.json``) is read, and replaced when the registry is saved.
     """
 
-    def __init__(self, layout: ProjectLayout, slots: Sequence[str]) -> None:
+    def __init__(
+        self,
+        layout: ProjectLayout,
+        slots: Sequence[str],
+        *,
+        db: sqlite3.Connection | None = None,
+    ) -> None:
+        from .workstore import connect
+
         self.layout = layout
         self.slots = list(slots)
-        self._data: dict[str, dict[str, Any]] = {}
+        self._db = db if db is not None else connect(":memory:")
+        self._db.execute(_REG_TABLE)
+        self._next: dict[str, dict[str, int]] = {s: dict.fromkeys(ID_PREFIX, 1) for s in self.slots}
+        self._loaded: set[tuple[str, str]] = set()
         self._changed: set[str] = set()
+        self._given: dict[str, bytearray] = {}
+        self._given_other: dict[str, set[str]] = {t: set() for t in ID_PREFIX}
         for slot in self.slots:
             path = self.path(slot)
             if path.exists():
-                data = json.loads(path.read_text(encoding="utf-8"))
-                if data.get("format") != IDS_FORMAT:
-                    raise ValueError(f"{path}: not an id registry (format {data.get('format')!r})")
-            else:
-                data = {"format": IDS_FORMAT, "next": {}, "keys": {}}
-            data.setdefault("next", {})
-            data.setdefault("keys", {})
-            for table in ID_PREFIX:
-                data["next"].setdefault(table, 1)
-                data["keys"].setdefault(table, {})
-            self._data[slot] = data
-        self._given: dict[str, set[str]] = {
-            t: {i for d in self._data.values() for i in d["keys"][t].values()} for t in ID_PREFIX
-        }
+                meta = pq.read_schema(path).metadata or {}
+                fmt = meta.get(b"format", b"").decode()
+                if fmt != IDS_FORMAT:
+                    raise ValueError(f"{path}: not an id registry (format {fmt!r})")
+                self._advance(slot, json.loads(meta.get(b"next") or b"{}"))
+            elif self.legacy_path(slot).exists():
+                self._load_legacy(slot)
 
     def path(self, slot: str) -> Path:
+        return raw_folder(self.layout, slot) / "ids.parquet"
+
+    def legacy_path(self, slot: str) -> Path:
+        """A registry of the first format (``ids.json``), replaced when the registry is saved."""
         return raw_folder(self.layout, slot) / "ids.json"
 
+    def _advance(self, slot: str, numbers: Mapping[str, Any]) -> None:
+        for table, n in numbers.items():
+            if table in ID_PREFIX:
+                self._next[slot][table] = max(self._next[slot][table], int(n))
+
+    def _insert(self, rows: Iterable[tuple[str, str, str, str]]) -> int:
+        cur = self._db.executemany("INSERT OR IGNORE INTO reg_keys VALUES (?, ?, ?, ?)", rows)
+        return cur.rowcount
+
+    def _load_legacy(self, slot: str) -> None:
+        path = self.legacy_path(slot)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if data.get("format") != LEGACY_IDS_FORMAT:
+            raise ValueError(f"{path}: not an id registry (format {data.get('format')!r})")
+        self._advance(slot, data.get("next") or {})
+        for table, keys in (data.get("keys") or {}).items():
+            if table in ID_PREFIX:
+                self._insert((table, k, slot, v) for k, v in keys.items())
+        self._loaded.update((slot, t) for t in ID_PREFIX)
+        self._changed.add(slot)  # written in the new format at the next save
+
+    def _ensure(self, table: str) -> None:
+        """Load *table*'s keys of every slot, the first time they are needed."""
+        for slot in self.slots:
+            if (slot, table) in self._loaded:
+                continue
+            self._loaded.add((slot, table))
+            path = self.path(slot)
+            if not path.exists():
+                continue
+            pf = pq.ParquetFile(path)
+            for i in range(pf.num_row_groups):
+                stats = pf.metadata.row_group(i).column(0).statistics
+                if stats is not None and stats.has_min_max and not stats.min <= table <= stats.max:
+                    continue
+                group = pf.read_row_group(i, columns=["table", "key", "id"])
+                group = group.filter(pc.equal(group["table"], table))
+                keys, ids = group["key"].to_pylist(), group["id"].to_pylist()
+                self._insert((table, k, slot, v) for k, v in zip(keys, ids, strict=True))
+
+    def _mark(self, table: str, value: str) -> None:
+        number = id_number(table, value)
+        if number is None:
+            self._given_other[table].add(value)
+            return
+        mask = self._given[table]
+        if number >= len(mask):
+            mask.extend(bytes(max(number + 1 - len(mask), len(mask))))
+        mask[number] = 1
+
+    def is_given(self, table: str, value: str) -> bool:
+        """Whether some registry gave id *value* of *table*."""
+        if table not in self._given:
+            self._ensure(table)
+            self._given[table] = bytearray(1024)
+            for (given,) in self._db.execute("SELECT id FROM reg_keys WHERE tbl = ?", (table,)):
+                self._mark(table, given)
+        number = id_number(table, value)
+        if number is None:
+            return value in self._given_other[table]
+        mask = self._given[table]
+        return number < len(mask) and bool(mask[number])
+
     def given(self, table: str) -> set[str]:
-        """Every id of *table* some registry gave."""
-        return self._given[table]
+        """Every id of *table* some registry gave (a set: see :meth:`is_given` for one id)."""
+        self._ensure(table)
+        rows = self._db.execute("SELECT DISTINCT id FROM reg_keys WHERE tbl = ?", (table,))
+        return {v for (v,) in rows}
 
     def lookup(self, table: str, keys: Iterable[str], slot: str) -> str | None:
         """The id one of *keys* already has, or ``None``."""
+        self._ensure(table)
         scopes = [slot] if table == "texts" else self.slots
         for key in keys:
-            for s in scopes:
-                found = self._data[s]["keys"][table].get(key)
-                if found:
-                    return found
+            rows = self._db.execute(
+                "SELECT slot, id FROM reg_keys WHERE tbl = ? AND key = ?", (table, key)
+            ).fetchall()
+            if rows:
+                found = dict(rows)
+                for s in scopes:
+                    if found.get(s):
+                        return found[s]
         return None
 
     def assign(
@@ -360,32 +475,52 @@ class IdRegistry:
             raise ValueError(f"a {table} record needs at least one key")
         found = self.lookup(table, keys, slot)
         if found is None:
-            number = max(d["next"][table] for d in self._data.values())
+            number = max(n[table] for n in self._next.values())
             while True:
                 found = f"{ID_PREFIX[table]}{number:0{ID_WIDTH}d}"
                 number += 1
-                if found not in taken and found not in self._given[table]:
+                if found not in taken and not self.is_given(table, found):
                     break
-            for d in self._data.values():
-                d["next"][table] = max(d["next"][table], number)
-            self._changed.update(self._data)
-            self._given[table].add(found)
-        own = self._data[slot]["keys"][table]
-        for key in keys:
-            if own.get(key) != found and key not in own:
-                own[key] = found
-                self._changed.add(slot)
+            for n in self._next.values():
+                n[table] = max(n[table], number)
+            self._changed.update(self.slots)
+            self._mark(table, found)
+        if self._insert((table, key, slot, found) for key in keys):
+            self._changed.add(slot)
         return found
 
     def save(self) -> None:
-        """Write the registries that changed."""
+        """Write the registries that changed (in the new format, the old file removed)."""
         for slot in sorted(self._changed):
-            data = self._data[slot]
-            data["keys"] = {t: dict(sorted(data["keys"][t].items())) for t in sorted(data["keys"])}
-            data["next"] = dict(sorted(data["next"].items()))
-            text = json.dumps(data, ensure_ascii=False, indent=1, sort_keys=True) + "\n"
-            atomic_write_bytes(self.path(slot), text.encode("utf-8"))
+            for table in ID_PREFIX:
+                self._ensure(table)
+            self._write(slot)
+            self.legacy_path(slot).unlink(missing_ok=True)
         self._changed.clear()
+
+    def _write(self, slot: str) -> None:
+        path = self.path(slot)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        numbers = json.dumps(dict(sorted(self._next[slot].items())))
+        schema = _IDS_SCHEMA.with_metadata({"format": IDS_FORMAT, "next": numbers})
+        fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+        os.close(fd)
+        try:
+            with pq.ParquetWriter(tmp, schema, compression="zstd") as writer:
+                rows = self._db.execute(
+                    "SELECT tbl, key, id FROM reg_keys WHERE slot = ? ORDER BY tbl, key", (slot,)
+                )
+                while batch := rows.fetchmany(ROW_GROUP):
+                    columns = list(zip(*batch, strict=True))
+                    writer.write_table(
+                        pa.table([pa.array(c, pa.string()) for c in columns], schema=schema)
+                    )
+            with open(tmp, "rb") as fh:
+                os.fsync(fh.fileno())
+            replace_path(tmp, path)
+        except BaseException:
+            Path(tmp).unlink(missing_ok=True)
+            raise
 
 
 # ── the builder ──────────────────────────────────────────────────────────────
@@ -395,6 +530,23 @@ def _pairs(mapping: Mapping[str, Any] | None) -> list[tuple[str, Any]]:
     return sorted((str(k), v) for k, v in (mapping or {}).items())
 
 
+def _flag(value: bool | None) -> int | None:
+    return None if value is None else int(bool(value))
+
+
+def _unflag(value: int | None) -> bool | None:
+    return None if value is None else bool(value)
+
+
+def pack_text(content: str) -> bytes:
+    """A part's content as the scratch database keeps it (compressed)."""
+    return zlib.compress(content.encode("utf-8"), 1)
+
+
+def unpack_text(blob: bytes) -> str:
+    return zlib.decompress(blob).decode("utf-8")
+
+
 @dataclass
 class _Org:
     fields: dict[str, Any]
@@ -402,46 +554,76 @@ class _Org:
     parents: list[str] = field(default_factory=list)
 
 
+_UPSERT_AFFILIATION = """
+INSERT INTO affiliations (pid, oid, source, start_year, end_year) VALUES (?, ?, ?, ?, ?)
+ON CONFLICT (pid, oid, source) DO UPDATE SET
+    start_year = CASE WHEN excluded.start_year IS NULL THEN start_year
+                      WHEN start_year IS NULL THEN excluded.start_year
+                      ELSE MIN(start_year, excluded.start_year) END,
+    end_year = CASE WHEN excluded.end_year IS NULL THEN end_year
+                    WHEN end_year IS NULL THEN excluded.end_year
+                    ELSE MAX(end_year, excluded.end_year) END
+"""
+
+
 class SourceBuilder:
-    """Collects rows for the six tables while the readers run, then merges and checks them."""
+    """Collects rows for the six tables while the readers run, then merges and writes them.
+
+    What grows with the records lives in the rebuild's scratch database (*store*, a
+    :class:`~cartolex.collect.workstore.WorkStore`): every record of each text, the
+    texts' parts, the authorships and the affiliations. People and organisations stay in
+    memory. A part or an authorship stated twice keeps its first statement.
+    """
 
     def __init__(
         self,
         layout: ProjectLayout,
         config: ProjectFile,
         registry: IdRegistry,
-        existing: Mapping[str, pa.Table] | None = None,
+        store: WorkStore | None = None,
+        *,
+        jobs: int = 1,
     ) -> None:
+        from .workstore import WorkStore
+
         self.layout = layout
+        #: Worker processes a reader may use for a heavy run.
+        self.jobs = jobs
         self.config = config
         self.registry = registry
-        self.existing = dict(existing or {})
-        key_columns = {"texts": "text_id", "people": "person_id", "organisations": "org_id"}
-        #: Ids present in the old tables: a new id never takes one of them.
-        self._taken = {
-            t: set(self.existing[t][c].to_pylist()) if t in self.existing else set()
-            for t, c in key_columns.items()
+        self.store = store if store is not None else WorkStore()
+        self.db = self.store.db
+        #: The tables as they were before this rebuild (their files), read when needed.
+        self.existing: dict[str, Path] = {
+            name: layout.table(name) for name in SOURCE_TABLES if layout.table(name).exists()
         }
+        key_columns = {"texts": "text_id", "people": "person_id", "organisations": "org_id"}
+        #: Ids of the old tables that no registry gave (rows written by another tool): kept as
+        #: they are, and never given to a new row.
+        self._taken: dict[str, set[str]] = {t: self._foreign(t, c) for t, c in key_columns.items()}
         #: People of the old tables that no registry gave an id to (kept as they are).
-        self.foreign_people = self._taken["people"] - registry.given("people")
+        self.foreign_people = self._taken["people"]
         self.people: dict[str, dict[str, Any]] = {}
         self.orgs: dict[str, _Org] = {}
-        self.texts: dict[str, dict[str, Any]] = {}
-        self.parts: dict[tuple[str, str, str, str], dict[str, Any]] = {}
-        self.authorships: dict[tuple[str, str], dict[str, Any]] = {}
-        self.affiliations: dict[tuple[str, str, str], list[Any]] = {}
+        self._org_ids: dict[tuple[str, ...], str] = {}
+        self._org_calls: dict[tuple[Any, ...], str] = {}
+        self._org_last: dict[str, tuple[Any, ...]] = {}
+        #: What readers keep between records, by name (an institution read once).
+        self.memo: dict[str, dict[Any, Any]] = {}
         self.warnings: list[str] = []
         self.counts: dict[str, int] = {}
-        #: Every record that reached each text (its fields and keys), for the merge across
-        #: finders (:mod:`cartolex.collect.merge`), and the links finders stated between texts.
-        self.text_records: dict[str, list[dict[str, Any]]] = {}
+        #: The links finders stated between texts (``version_of_doi``).
         self.text_links: list[tuple[str, str, str]] = []
-        # Indexes kept as rows come in, so that a lookup never scans every row.
-        self._affiliated: dict[str, set[str]] = defaultdict(set)
         self._orgs_version = 0
         self._words_version = -1
         self._words_index: dict[tuple[str, ...], set[str]] = {}
         self._existing_idx: dict[str, Any] | None = None
+
+    def _foreign(self, table: str, column: str) -> set[str]:
+        if table not in self.existing:
+            return set()
+        values = pq.read_table(self.existing[table], columns=[column])[column].to_pylist()
+        return {v for v in values if v is not None and not self.registry.is_given(table, v)}
 
     def count(self, what: str, n: int = 1) -> None:
         self.counts[what] = self.counts.get(what, 0) + n
@@ -506,7 +688,22 @@ class SourceBuilder:
         location: Mapping[str, float] | None = None,
     ) -> str:
         """An organisation row; *parent_keys* name its parents by their keys."""
-        oid = self.registry.assign("organisations", keys, slot, taken=self._taken["organisations"])
+        call = (slot, tuple(keys), name, source, acronym, level, tuple(parent_keys),
+                tuple(sorted((ids or {}).items())), country,
+                tuple(sorted((location or {}).items())))  # fmt: skip
+        oid = self._org_calls.get(call)
+        if oid is not None and self._org_last.get(oid) == call:
+            # Stated again as it last was (every authorship names its organisations): only
+            # the time it was retrieved changes.
+            self.orgs[oid].fields["retrieved_at"] = retrieved_at
+            return oid
+        known = (slot, *keys)
+        oid = self._org_ids.get(known)
+        if oid is None:  # the registry is asked once per key
+            oid = self.registry.assign(
+                "organisations", keys, slot, taken=self._taken["organisations"]
+            )
+            self._org_ids[known] = oid
         fields = {
             "org_id": oid,
             "name": name,
@@ -527,6 +724,8 @@ class SourceBuilder:
             org.fields.update({k: v for k, v in fields.items() if v is not None})
             org.fields["ids"] = ids_merged
             org.parent_keys += [k for k in parent_keys if k not in org.parent_keys]
+        self._org_calls[call] = oid
+        self._org_last[oid] = call
         return oid
 
     def _existing_index(self) -> dict[str, Any]:
@@ -537,30 +736,42 @@ class SourceBuilder:
             names: dict[str, tuple[str, str]] = {}
             by_words: dict[tuple[str, ...], set[str]] = defaultdict(set)
             if "organisations" in self.existing:
-                given = self.registry.given("organisations")
-                table = self.existing["organisations"].select(
-                    ["org_id", "name", "acronym", "source"]
+                table = pq.read_table(
+                    self.existing["organisations"], columns=["org_id", "name", "acronym", "source"]
                 )
                 for row in table.to_pylist():
                     names.setdefault(row["org_id"], (row["name"], row["source"]))
-                    if row["org_id"] in given:
+                    if self.registry.is_given("organisations", row["org_id"]):
                         continue
                     for text in (row["name"], row["acronym"] or ""):
                         key = tuple(words(text))
                         if key:
                             by_words[key].add(row["org_id"])
-            affs: dict[str, set[str]] = defaultdict(set)
             if "affiliations" in self.existing:
-                table = self.existing["affiliations"].select(["person_id", "org_id"])
-                for row in table.to_pylist():
-                    affs[row["person_id"]].add(row["org_id"])
-            self._existing_idx = {"names": names, "words": by_words, "affiliations": affs}
+                pf = pq.ParquetFile(self.existing["affiliations"])
+                for batch in pf.iter_batches(batch_size=65_536, columns=["person_id", "org_id"]):
+                    pairs = zip(
+                        batch.column(0).to_pylist(), batch.column(1).to_pylist(), strict=True
+                    )
+                    self.db.executemany(
+                        "INSERT OR IGNORE INTO old_affiliations VALUES (?, ?)", pairs
+                    )
+            self._existing_idx = {"names": names, "words": by_words}
         return self._existing_idx
 
     def affiliated_orgs(self, person_id: str) -> list[tuple[str, str, str]]:
         """``(org_id, name, source)`` of every organisation *person_id* is affiliated with so far."""
         old = self._existing_index()
-        oids = set(self._affiliated.get(person_id, ())) | old["affiliations"].get(person_id, set())
+        oids = {
+            o
+            for (o,) in self.db.execute("SELECT oid FROM affiliations WHERE pid = ?", (person_id,))
+        }
+        oids |= {
+            o
+            for (o,) in self.db.execute(
+                "SELECT oid FROM old_affiliations WHERE pid = ?", (person_id,)
+            )
+        }
         out = []
         for oid in oids:
             org = self.orgs.get(oid)
@@ -602,16 +813,7 @@ class SourceBuilder:
 
         Rows with the same person, organisation and source are joined into one span.
         """
-        key = (person_id, org_id, source)
-        span = self.affiliations.get(key)
-        if span is None:
-            self.affiliations[key] = [start, end]
-            self._affiliated[person_id].add(org_id)
-            return
-        if start is not None:
-            span[0] = start if span[0] is None else min(span[0], start)
-        if end is not None:
-            span[1] = end if span[1] is None else max(span[1], end)
+        self.db.execute(_UPSERT_AFFILIATION, (person_id, org_id, source, start, end))
 
     def text(
         self,
@@ -629,11 +831,11 @@ class SourceBuilder:
         version_of: str | None = None,
         n_authors: int = 0,
     ) -> str:
-        """A text row; a text already built from another key keeps its id and gains the values
-        this record has (a value it lacks is kept from the earlier record)."""
+        """A text's record; returns the text's id. Every record of a text is kept: when the
+        tables are written, the merge (:mod:`cartolex.collect.merge`) gives the text its
+        fields from them all."""
         tid = self.registry.assign("texts", keys, slot, taken=self._taken["texts"])
-        fields = {
-            "text_id": tid,
+        record = {
             "slot": slot,
             "year": year,
             "date": date,
@@ -642,19 +844,19 @@ class SourceBuilder:
             "doi": doi.lower() if doi else None,
             "ids": dict(ids or {}),
             "version_of": version_of,
-            "n_authors": n_authors,
             "source": source,
-            "retrieved_at": retrieved_at,
+            "retrieved_at": retrieved_at.isoformat(),
+            "keys": list(keys),
         }
-        self.text_records.setdefault(tid, []).append({**fields, "keys": list(keys)})
-        row = self.texts.get(tid)
-        if row is None:
-            self.texts[tid] = dict(fields)
-        else:
-            merged_ids = {**row["ids"], **fields["ids"]}
-            row.update({k: v for k, v in fields.items() if v is not None})
-            row["ids"] = merged_ids
+        self.db.execute(
+            "INSERT INTO records (tid, n_authors, data) VALUES (?, ?, ?)",
+            (tid, n_authors, json.dumps(record, ensure_ascii=False, separators=(",", ":"))),
+        )
         return tid
+
+    def set_n_authors(self, text_id: str, n: int) -> None:
+        """The number of authors of *text_id*, known only once its records are read."""
+        self.db.execute("UPDATE records SET n_authors = ? WHERE tid = ?", (n, text_id))
 
     def link(self, text_id: str, relation: str, value: str) -> None:
         """A link a finder or provider states: ``version_of_doi`` (this text is a preprint whose
@@ -677,17 +879,21 @@ class SourceBuilder:
         first record of a part wins (readers give the newest first when it matters), unless
         *replace* is set: a text provider's part replaces the one the same service gave as a
         finder, and its runs are read oldest first, so the newest wins."""
-        if not content or (not replace and (text_id, part, language, provider) in self.parts):
+        if not content:
             return
-        self.parts[(text_id, part, language, provider)] = {
-            "text_id": text_id,
-            "part": part,
-            "language": language,
-            "provider": provider,
-            "format": format,
-            "content": content,
-            "retrieved_at": retrieved_at,
-        }
+        verb = "REPLACE" if replace else "IGNORE"
+        self.db.execute(
+            f"INSERT OR {verb} INTO parts VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                text_id,
+                part,
+                language,
+                provider,
+                format,
+                pack_text(content),
+                retrieved_at.isoformat() if retrieved_at else None,
+            ),
+        )
 
     def authorship(
         self,
@@ -700,16 +906,17 @@ class SourceBuilder:
         corresponding: bool | None = None,
     ) -> None:
         """Person *person_id* wrote *text_id*, at rank *position* (the first statement wins)."""
-        if (text_id, person_id) in self.authorships:
-            return
-        self.authorships[(text_id, person_id)] = {
-            "text_id": text_id,
-            "person_id": person_id,
-            "position": position,
-            "orgs": sorted(set(orgs)),
-            "last": last,
-            "corresponding": corresponding,
-        }
+        self.db.execute(
+            "INSERT OR IGNORE INTO authorships VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                text_id,
+                person_id,
+                position,
+                json.dumps(sorted(set(orgs))),
+                _flag(last),
+                _flag(corresponding),
+            ),
+        )
 
     # ── finishing ──
     def _resolve_parents(self) -> None:
@@ -759,77 +966,140 @@ class SourceBuilder:
             if not same and alias not in dest["aliases"]:
                 dest["aliases"].append(alias)
 
-    def finish(self) -> dict[str, pa.Table]:
-        """The six tables: rows built here, plus every row of the old tables no registry owns."""
+    def _kept(self, name: str) -> Iterator[dict[str, Any]]:
+        """The rows of the old table *name* that no registry owns, in key order."""
+        if name not in self.existing:
+            return
+        pf = pq.ParquetFile(self.existing[name])
+        try:
+            for batch in pf.iter_batches(batch_size=ROW_GROUP):
+                for row in pa.Table.from_batches([batch]).to_pylist():
+                    if not self._owned(name, row):
+                        yield row
+        finally:
+            pf.close()
+
+    def _owned(self, name: str, row: Mapping[str, Any]) -> bool:
+        """Whether a row of the old table *name* is one this rebuild makes again."""
+        given = self.registry.is_given
+        if name in ("texts", "text_parts", "authorships"):
+            return given("texts", row["text_id"])
+        if name == "people":
+            return given("people", row["person_id"])
+        if name == "organisations":
+            return given("organisations", row["org_id"])
+        return (
+            given("people", row["person_id"])
+            or given("organisations", row["org_id"])
+            or self.db.execute(
+                "SELECT 1 FROM affiliations WHERE pid = ? AND oid = ? AND source = ?",
+                (row["person_id"], row["org_id"], row["source"]),
+            ).fetchone()
+            is not None
+        )
+
+    def _built_texts(self) -> Iterator[dict[str, Any]]:
+        """The texts the merge kept, in id order, with their positions: a slot's texts in
+        year order (unknown years last), then by id."""
+        self.db.execute("DELETE FROM positions")
+        order = self.store.rows(
+            "SELECT tid, slot FROM texts_out ORDER BY slot, year IS NULL, COALESCE(year, 0),"
+            " COALESCE(date, ''), tid"
+        )
+        batch: list[tuple[str, int]] = []
+        current, i = None, 0
+        for tid, slot in order:
+            if slot != current:
+                current, i = slot, 0
+            batch.append((tid, i))
+            i += 1
+            if len(batch) >= ROW_GROUP:
+                self.db.executemany("INSERT INTO positions VALUES (?, ?)", batch)
+                batch = []
+        self.db.executemany("INSERT INTO positions VALUES (?, ?)", batch)
+        rows = self.store.rows(
+            "SELECT t.data, p.position FROM texts_out t JOIN positions p USING (tid) ORDER BY t.tid"
+        )
+        for data, position in rows:
+            row = json.loads(data)
+            row["retrieved_at"] = parse_time(row["retrieved_at"])
+            row["position"] = position
+            yield row
+
+    def _built_parts(self) -> Iterator[dict[str, Any]]:
+        for tid, part, language, provider, fmt, content, at in self.store.rows(
+            "SELECT tid, part, language, provider, format, content, retrieved_at FROM parts"
+            " ORDER BY tid, part, language, provider"
+        ):
+            yield {
+                "text_id": tid,
+                "part": part,
+                "language": language,
+                "provider": provider,
+                "format": fmt,
+                "content": unpack_text(content),
+                "retrieved_at": parse_time(at),
+            }
+
+    def _built_authorships(self) -> Iterator[dict[str, Any]]:
+        for tid, pid, position, orgs, last, corresponding in self.store.rows(
+            "SELECT tid, pid, position, orgs, last, corresponding FROM authorships"
+            " ORDER BY tid, pid"
+        ):
+            yield {
+                "text_id": tid,
+                "person_id": pid,
+                "position": position,
+                "orgs": json.loads(orgs),
+                "last": _unflag(last),
+                "corresponding": _unflag(corresponding),
+            }
+
+    def _built_affiliations(self) -> Iterator[dict[str, Any]]:
+        def row(r: tuple) -> dict[str, Any]:
+            pid, oid, source, start, end = r
+            return {
+                "person_id": pid,
+                "org_id": oid,
+                "start_year": start,
+                "end_year": end,
+                "source": source,
+            }
+
+        rows = self.store.rows(
+            "SELECT pid, oid, source, start_year, end_year FROM affiliations ORDER BY pid, oid, source"
+        )
+        for _key, group in itertools.groupby(rows, key=lambda r: (r[0], r[1])):
+            yield from sorted(map(row, group), key=lambda r: source_key("affiliations", r))
+
+    def write_tables(self) -> dict[str, int]:
+        """Write the six tables: rows built here, plus every row of the old tables no registry
+        owns; returns the rows of each. Call after :func:`~cartolex.collect.merge.merge_texts`."""
         self._resolve_parents()
-        built: dict[str, list[dict[str, Any]]] = {
-            "texts": list(self.texts.values()),
-            "text_parts": list(self.parts.values()),
-            "people": [dict(p, aliases=list(p["aliases"])) for p in self.people.values()],
-            "organisations": [o.fields for o in self.orgs.values()],
-            "affiliations": [
-                {
-                    "person_id": pid,
-                    "org_id": oid,
-                    "start_year": span[0],
-                    "end_year": span[1],
-                    "source": source,
-                }
-                for (pid, oid, source), span in self.affiliations.items()
-            ],
-            "authorships": list(self.authorships.values()),
+        people = {p["person_id"]: p for p in self._kept("people")}
+        people.update({pid: dict(p, aliases=list(p["aliases"])) for pid, p in self.people.items()})
+        self._aliases(people)
+        self._confirmed_ids(people)
+        organisations = {o["org_id"]: o for o in self._kept("organisations")}
+        organisations.update({oid: o.fields for oid, o in self.orgs.items()})
+        built = {
+            "texts": self._built_texts(),
+            "text_parts": self._built_parts(),
+            "people": iter(sorted(people.values(), key=lambda r: r["person_id"])),
+            "organisations": iter(sorted(organisations.values(), key=lambda r: r["org_id"])),
+            "affiliations": self._built_affiliations(),
+            "authorships": self._built_authorships(),
         }
-        registered = {t: self.registry.given(t) for t in ID_PREFIX}
-        owned_text = registered["texts"]
-        kept: dict[str, list[dict[str, Any]]] = {name: [] for name in SOURCE_TABLES}
-        for name, table in self.existing.items():
-            for row in table.to_pylist():
-                if name in ("texts", "text_parts", "authorships"):
-                    owned = row["text_id"] in owned_text
-                elif name == "people":
-                    owned = row["person_id"] in registered["people"]
-                elif name == "organisations":
-                    owned = row["org_id"] in registered["organisations"]
-                else:
-                    owned = (
-                        row["person_id"] in registered["people"]
-                        or row["org_id"] in registered["organisations"]
-                        or (row["person_id"], row["org_id"], row["source"]) in self.affiliations
-                    )
-                if not owned:
-                    kept[name].append(row)
-        people_all = {p["person_id"]: p for p in kept["people"] + built["people"]}
-        self._aliases(people_all)
-        self._confirmed_ids(people_all)
-        # Positions: a slot's texts in year order (unknown years last), then by id.
-        texts = kept["texts"] + built["texts"]
-        by_slot: dict[str, list[dict[str, Any]]] = {}
-        for row in built["texts"]:
-            by_slot.setdefault(row["slot"], []).append(row)
-        for rows in by_slot.values():
-            rows.sort(
-                key=lambda r: (r["year"] is None, r["year"] or 0, r["date"] or "", r["text_id"])
-            )
-            for i, row in enumerate(rows):
-                row["position"] = i
-        tables: dict[str, pa.Table] = {}
+        rows: dict[str, int] = {}
         for name in SOURCE_TABLES:
-            rows = texts if name == "texts" else kept[name] + built[name]
-            tables[name] = _to_table(name, rows)
-        return tables
-
-
-def _to_table(name: str, rows: list[dict[str, Any]]) -> pa.Table:
-    schema = SOURCE_SCHEMAS[name]
-    columns: dict[str, list[Any]] = {}
-    for fld in schema:
-        values = [r.get(fld.name) for r in rows]
-        if pa.types.is_map(fld.type):
-            values = [_pairs(v) if isinstance(v, Mapping) else v for v in values]
-        elif pa.types.is_list(fld.type):
-            values = [list(v) if v is not None else None for v in values]
-        columns[fld.name] = values
-    return pa.table({k: pa.array(v, type=schema.field(k).type) for k, v in columns.items()})
+            if name in ("people", "organisations"):
+                ordered: Iterable[dict[str, Any]] = built[name]
+            else:
+                ordered = heapq.merge(
+                    self._kept(name), built[name], key=lambda r, n=name: source_key(n, r)
+                )
+            rows[name] = write_source_rows(self.layout.table(name), name, ordered)
+        return rows
 
 
 # ── rebuilding ───────────────────────────────────────────────────────────────
@@ -896,6 +1166,7 @@ def rebuild_sources(
     finder_priority: Sequence[str] | None = None,
     incremental: bool = True,
     jobs: int | None = None,
+    scratch: Path | None = None,
 ) -> RebuildReport:
     """Rebuild the six source tables from every slot's raw runs and write them.
 
@@ -904,7 +1175,12 @@ def rebuild_sources(
     order, runs in time order. Texts found by several finders are then merged
     (:mod:`cartolex.collect.merge`, fields filled by *finder_priority*) and the
     merges listed in ``sources/merges.json``. Rebuilding from the same raw
-    records and the same kept rows writes the same bytes.
+    records and the same kept rows writes the same tables.
+
+    The rows are kept in a scratch database while the readers run
+    (:mod:`cartolex.collect.workstore`), in a folder of *scratch* (by default the
+    project's ``cache/``), removed at the end: memory does not grow with the
+    project, and the tables are written a row group at a time.
 
     With *incremental* (the default), a harvest's runs are read from their
     digests in ``cache/sources/`` (:mod:`cartolex.collect.digests`): only the
@@ -913,55 +1189,50 @@ def rebuild_sources(
     """
     from .digests import DIGESTERS, DigestCache
     from .harvest import current_runs
-    from .merge import FINDER_PRIORITY, merge_texts, write_merge_log
+    from .merge import FINDER_PRIORITY, merge_texts
+    from .workstore import WorkStore
 
     readers = dict(readers or default_readers())
     digests = DigestCache(layout, jobs=jobs) if incremental else None
     slots = [s.id for s in config.slots]
-    registry = IdRegistry(layout, slots)
-    existing = {
-        name: read_source_table(layout.table(name), name)
-        for name in SOURCE_TABLES
-        if layout.table(name).exists()
-    }
-    builder = SourceBuilder(layout, config, registry, existing)
     report = RebuildReport()
-    order = list(readers)
-    every_run: list[RawRun] = []
-    by_slot = {slot: read_runs(layout, slot, digests=digests) for slot in slots}
-    if digests is not None:
-        needed = []
-        for runs in by_slot.values():
-            every_run += runs
-            for kind in DIGESTERS:
-                of_kind = [r for r in runs if r.kind == kind]
-                current = current_runs(of_kind)
-                needed += [r for r in of_kind if r.run_id in current]
-        digests.prepare(needed)
-    for slot in slots:
-        runs = by_slot[slot]
-        report.runs += len(runs)
-        kinds = sorted(
-            {r.kind for r in runs},
-            key=lambda k: (k not in order, order.index(k) if k in order else 0, k),
-        )
-        for kind in kinds:
-            reader = readers.get(kind)
-            if reader is None:
-                report.skipped_kinds.append(f"{slot}/{kind}")
-                continue
-            reader([r for r in runs if r.kind == kind], builder)
-    merged = merge_texts(builder, priority=finder_priority or FINDER_PRIORITY)
-    tables = builder.finish()
-    registry.save()
-    for name, table in tables.items():
-        write_source_table(layout.table(name), name, table)
-        report.rows[name] = table.num_rows
-    write_merge_log(layout, merged)
-    if digests is not None:
-        digests.save(every_run)
-        report.digested = digests.digested
-    report.counts = dict(builder.counts)
-    report.warnings = list(builder.warnings)
-    report.merges = merged.counts()
+    with WorkStore(scratch if scratch is not None else layout.cache) as store:
+        registry = IdRegistry(layout, slots, db=store.db)
+        workers = jobs if jobs is not None else Budget.for_machine().workers
+        builder = SourceBuilder(layout, config, registry, store, jobs=workers)
+        order = list(readers)
+        every_run: list[RawRun] = []
+        by_slot = {slot: read_runs(layout, slot, digests=digests) for slot in slots}
+        if digests is not None:
+            needed = []
+            for runs in by_slot.values():
+                every_run += runs
+                for kind in DIGESTERS:
+                    of_kind = [r for r in runs if r.kind == kind]
+                    current = current_runs(of_kind)
+                    needed += [r for r in of_kind if r.run_id in current]
+            digests.prepare(needed)
+        for slot in slots:
+            runs = by_slot[slot]
+            report.runs += len(runs)
+            kinds = sorted(
+                {r.kind for r in runs},
+                key=lambda k: (k not in order, order.index(k) if k in order else 0, k),
+            )
+            for kind in kinds:
+                reader = readers.get(kind)
+                if reader is None:
+                    report.skipped_kinds.append(f"{slot}/{kind}")
+                    continue
+                reader([r for r in runs if r.kind == kind], builder)
+        merged = merge_texts(builder, priority=finder_priority or FINDER_PRIORITY)
+        report.rows = builder.write_tables()
+        registry.save()
+        merged.write_log(layout)
+        if digests is not None:
+            digests.save(every_run)
+            report.digested = digests.digested
+        report.counts = dict(builder.counts)
+        report.warnings = list(builder.warnings)
+        report.merges = merged.counts()
     return report

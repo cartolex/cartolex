@@ -42,6 +42,7 @@ the last error as its cause.
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from collections import defaultdict
@@ -749,44 +750,140 @@ def current_runs(runs: list[RawRun]) -> set[str]:
     return set(latest.values())
 
 
-def _current(runs: list[RawRun]) -> tuple[dict[str, dict], dict[str, list[tuple[RawRun, dict]]]]:
-    """Each person's latest run's header entry, and the lines of those runs, by person."""
+def _current(runs: list[RawRun]) -> tuple[dict[str, dict], dict[str, str]]:
+    """Each person's latest run's header entry, and the id of that run."""
     latest: dict[str, str] = {}
     meta: dict[str, dict] = {}
     for run in runs:
         for pid, entry in (run.header.get("people") or {}).items():
             latest[pid] = run.run_id
             meta[pid] = entry
-    lines: dict[str, list[tuple[RawRun, dict]]] = defaultdict(list)
+    return meta, latest
+
+
+#: A run heavier than this is read in worker processes (when the rebuild has several).
+PARALLEL_BYTES = 64 << 20
+#: Bytes of whole lines a worker reads at once.
+_BLOCK = 8 << 20
+
+_Maps = tuple[
+    Mapping[str, set[str]],
+    Mapping[str, list[str]],
+    Mapping[str, "str | None"],
+    Mapping[str, list[tuple[str, str]]],
+]
+_READING: dict[str, Any] = {}
+
+
+def _set_reading(latest: Mapping[str, str], maps: _Maps | None) -> None:
+    """In a worker: what every block needs, sent once."""
+    _READING.update(latest=latest, maps=maps)
+
+
+def _kept_line(rec: dict, maps: _Maps | None) -> dict:
+    if maps is not None and rec.get("type") == "work":
+        return _placed_work(rec, *maps)
+    return rec
+
+
+def _read_block(task: tuple[str, bytes]) -> list[tuple[str, dict]]:
+    """In a worker: the lines of a block of run *run_id* that belong to their person's latest
+    run, each work made smaller (:func:`_placed_work`)."""
+    run_id, block = task
+    latest, maps = _READING["latest"], _READING["maps"]
+    out = []
+    # Lines end at "\n" only: a record may hold other line separators (U+2028…) unescaped.
+    for line in block.decode("utf-8").split("\n"):
+        if not line.strip():
+            continue
+        rec = json.loads(line)
+        who = rec.get("person_id")
+        if latest.get(who) == run_id:
+            out.append((who, _kept_line(rec, maps)))
+    return out
+
+
+def _run_lines(
+    run: RawRun, latest: Mapping[str, str], maps: _Maps | None, jobs: int
+) -> Iterator[tuple[str, dict]]:
+    """``(person, line)`` for the lines of *run* that are their person's latest, in order;
+    a heavy run read in *jobs* worker processes."""
+    from cartolex.scale import ordered_map
+
+    from .digests import DIGESTERS, _blocks
+
+    digests = run.digests
+    fresh = digests is not None and run.kind in DIGESTERS and digests.fresh(run)
+    path = digests.path(run) if fresh else run.path
+    if jobs <= 1 or path.stat().st_size < PARALLEL_BYTES:
+        for rec in run.records():
+            who = rec.get("person_id")
+            if latest.get(who) == run.run_id:
+                yield who, _kept_line(rec, maps)
+        return
+    if not fresh and digests is not None and run.kind in DIGESTERS:
+        yield from _run_lines(run, latest, maps, 1)  # digested as it is read
+        return
+    blocks = _blocks(path, _BLOCK)
+    next(blocks, None)  # the header
+    tasks = ((run.run_id, block) for block in blocks)
+    for lines in ordered_map(
+        _read_block, tasks, workers=jobs, initializer=_set_reading, initargs=(latest, maps)
+    ):
+        yield from lines
+
+
+def _current_lines(
+    runs: list[RawRun],
+    latest: Mapping[str, str],
+    maps: _Maps | None = None,
+    jobs: int = 1,
+) -> Iterator[tuple[str, list[tuple[RawRun, dict]]]]:
+    """Each person's lines of their latest run, a person at a time: runs in time order, a
+    run's people in the order it holds them (a harvest writes each person's lines together).
+    Only one person's lines are in memory at once, each work with only its project people
+    when *maps* are given (:func:`_placed_work`)."""
     current = set(latest.values())
     for run in runs:
         if run.run_id not in current:
             continue
-        for rec in run.records():
-            if latest.get(rec.get("person_id")) == run.run_id:
-                lines[rec["person_id"]].append((run, rec))
-    return meta, lines
+        pid, lines = None, []
+        for who, rec in _run_lines(run, latest, maps, jobs):
+            if who != pid and lines:
+                yield pid, lines
+                lines = []
+            pid = who
+            lines.append((run, rec))
+        if lines:
+            yield pid, lines
 
 
 def _org(builder: SourceBuilder, slot: str, inst: dict[str, Any], at: datetime) -> str | None:
-    iid = short_id(inst.get("id"))
-    name = inst.get("display_name")
-    if not iid or not name:
+    seen = builder.memo.setdefault("openalex-institutions", {})
+    lineage = inst.get("lineage") or []
+    known = (slot, inst.get("id"), inst.get("display_name"), inst.get("ror"),
+             inst.get("country_code"), *lineage)  # fmt: skip
+    args = seen.get(known)
+    if args is None:  # the same institution comes back on many authorships: read it once
+        iid = short_id(inst.get("id"))
+        name = inst.get("display_name")
+        if not iid or not name:
+            seen[known] = args = {}
+        else:
+            ids = {"openalex": iid}
+            if inst.get("ror"):
+                ids["ror"] = str(inst["ror"]).rsplit("/", 1)[-1]
+            parents = [short_id(x) for x in lineage]
+            seen[known] = args = {
+                "keys": [f"openalex:{iid}"],
+                "name": name,
+                "ids": ids,
+                "country": inst.get("country_code") or None,
+                "parent_keys": [f"openalex:{p}" for p in parents if p and p != iid],
+            }
+    if not args:
         return None
-    ids = {"openalex": iid}
-    if inst.get("ror"):
-        ids["ror"] = str(inst["ror"]).rsplit("/", 1)[-1]
-    parents = [short_id(x) for x in inst.get("lineage") or []]
-    return builder.organisation(
-        slot=slot,
-        keys=[f"openalex:{iid}"],
-        name=name,
-        ids=ids,
-        country=inst.get("country_code") or None,
-        parent_keys=[f"openalex:{p}" for p in parents if p and p != iid],
-        source="openalex",
-        retrieved_at=at,
-    )
+    return builder.organisation(slot=slot, source="openalex", retrieved_at=at, **args)
 
 
 def _languages(title: str, abstract: str, declared: str | None) -> tuple[str, str]:
@@ -819,8 +916,11 @@ def _alphabetical(authorships: list[dict[str, Any]]) -> bool:
 
 
 def read_openalex_runs(runs: list[RawRun], builder: SourceBuilder) -> None:
-    """The reader of harvests: texts, parts, authorships, organisations, dated affiliations."""
-    meta, lines = _current(runs)
+    """The reader of harvests: texts, parts, authorships, organisations, dated affiliations.
+
+    The records are read a person at a time (:func:`_current_lines`): a harvest of
+    millions of records is never held in memory."""
+    meta, latest = _current(runs)
     owners: dict[str, set[str]] = defaultdict(set)
     for pid, entry in meta.items():
         for record in entry.get("records") or []:
@@ -833,11 +933,22 @@ def read_openalex_runs(runs: list[RawRun], builder: SourceBuilder) -> None:
             doi_owners[doi].append(pid)
     orcid_of = {pid: entry.get("orcid") for pid, entry in meta.items()}
     names_of = {pid: [tuple(n) for n in entry.get("names") or []] for pid, entry in meta.items()}
-    for pid in sorted(meta):
-        if not builder.known_person(pid):
-            builder.warnings.append(f"{pid} is no longer in the tables; their harvest is left out")
+    gone = {pid for pid in meta if not builder.known_person(pid)}
+    for pid in sorted(gone):
+        builder.warnings.append(f"{pid} is no longer in the tables; their harvest is left out")
+
+    # Workers placing the people on each work need the registry only of who declared DOIs.
+    declared = {p for pids in doi_owners.values() for p in pids}
+    maps: _Maps = (
+        owners,
+        doi_owners,
+        {p: orcid_of.get(p) for p in declared},
+        {p: names_of.get(p, []) for p in declared},
+    )
+    jobs = getattr(builder, "jobs", 1)
+    for pid, own in _current_lines(runs, latest, maps, jobs):
+        if pid in gone:
             continue
-        own = lines.get(pid, [])
         for run, rec in own:
             if rec["type"] != "author":
                 continue
@@ -858,7 +969,7 @@ def read_openalex_runs(runs: list[RawRun], builder: SourceBuilder) -> None:
         for run, rec in works:
             tid = _text(builder, run.slot, pid, rec)
             if tid is not None:
-                _link(builder, run.slot, tid, rec, owners, doi_owners, orcid_of, names_of)
+                _link(builder, run.slot, tid, rec)
                 builder.count("works read")
 
 
@@ -918,7 +1029,7 @@ def _text(builder: SourceBuilder, slot: str, pid: str, rec: dict[str, Any]) -> s
         date=work.get("publication_date") or None,
         doi=doi,
         ids={"openalex": wid},
-        n_authors=len(work.get("authorships") or []),
+        n_authors=rec["authors"]["n"],
     )
     builder.part(
         tid,
@@ -941,31 +1052,36 @@ def _text(builder: SourceBuilder, slot: str, pid: str, rec: dict[str, Any]) -> s
     return tid
 
 
-def _link(
-    builder: SourceBuilder,
-    slot: str,
-    tid: str,
+_AUTHOR_URL = "https://openalex.org/A"
+
+
+def _placed_work(
     rec: dict[str, Any],
-    owners: dict[str, set[str]],
-    doi_owners: dict[str, list[str]],
-    orcid_of: dict[str, str | None],
-    names_of: dict[str, list[tuple[str, str]]],
-) -> None:
-    """Every project person on this work, at their rank: by their records, else by their
-    registry (the work's DOI declared, and the ORCID or the name on the authorship)."""
+    owners: Mapping[str, set[str]],
+    doi_owners: Mapping[str, list[str]],
+    orcid_of: Mapping[str, str | None],
+    names_of: Mapping[str, list[tuple[str, str]]],
+) -> dict[str, Any]:
+    """A work's line with its authorships replaced by the project people on it, at their
+    rank: by their records, else by their registry (the work's DOI declared, and the ORCID
+    or the name on the authorship). A work can have thousands of authors; only the
+    authorships of project people are kept, so a person's works hold little memory."""
     work = rec["record"]
-    at = parse_time(rec["retrieved_at"])
     auths = work.get("authorships") or []
-    n = len(auths)
-    unknown_last = bool(work.get("is_authors_truncated")) or _alphabetical(auths)
-    flagged = any(a.get("is_corresponding") for a in auths)
-    year = work.get("publication_year") if isinstance(work.get("publication_year"), int) else None
     doi = bare_doi(work.get("doi"))
     at_rank: dict[str, int] = {}
     for k, a in enumerate(auths, start=1):
-        aid = short_id((a.get("author") or {}).get("id"))
-        for pid in sorted(owners.get(aid or "", ())):
+        aid = (a.get("author") or {}).get("id")
+        if not aid:
+            continue
+        # Most ids are written in full (``https://openalex.org/A123``): looked up as they are.
+        if aid.startswith(_AUTHOR_URL) and aid[len(_AUTHOR_URL) :].isdigit():
+            mine = owners.get(aid[len(_AUTHOR_URL) - 1 :])
+        else:
+            mine = owners.get(short_id(aid) or "")
+        for pid in sorted(mine or ()):
             at_rank.setdefault(pid, k)
+    missing: list[str] = []
     if doi:
         for pid in doi_owners.get(doi, ()):
             if pid in at_rank:
@@ -980,21 +1096,48 @@ def _link(
                     at_rank[pid] = k
                     break
             else:
-                builder.warnings.append(
-                    f"{pid}: a work declared in the registry does not show them among its authors"
-                )
-    for pid, k in sorted(at_rank.items(), key=lambda kv: kv[1]):
+                missing.append(pid)
+    placed = sorted(at_rank.items(), key=lambda kv: kv[1])
+    authors = {
+        "n": len(auths),
+        "unknown_last": bool(work.get("is_authors_truncated")) or _alphabetical(auths),
+        "flagged": any(a.get("is_corresponding") for a in auths),
+        "placed": placed,
+        "missing": missing,
+        "at": {
+            k: {
+                "institutions": auths[k - 1].get("institutions") or [],
+                "is_corresponding": auths[k - 1].get("is_corresponding"),
+            }
+            for _pid, k in placed
+        },
+    }
+    slim = {key: value for key, value in work.items() if key != "authorships"}
+    return {**rec, "record": slim, "authors": authors}
+
+
+def _link(builder: SourceBuilder, slot: str, tid: str, rec: dict[str, Any]) -> None:
+    """Every project person on this work (:func:`_placed_work`), at their rank."""
+    work = rec["record"]
+    authors = rec["authors"]
+    at = parse_time(rec["retrieved_at"])
+    year = work.get("publication_year") if isinstance(work.get("publication_year"), int) else None
+    for pid in authors["missing"]:
+        builder.warnings.append(
+            f"{pid}: a work declared in the registry does not show them among its authors"
+        )
+    for pid, k in authors["placed"]:
         if not builder.known_person(pid):
             continue
-        a = auths[k - 1]
-        orgs = [o for o in (_org(builder, slot, i, at) for i in a.get("institutions") or []) if o]
+        a = authors["at"][k]
+        orgs = [o for o in (_org(builder, slot, i, at) for i in a["institutions"]) if o]
         builder.authorship(
             tid,
             pid,
             position=k,
             orgs=orgs,
-            last=None if unknown_last else k == n,
-            corresponding=bool(a.get("is_corresponding")) if flagged else None,
+            last=None if authors["unknown_last"] else k == authors["n"],
+            corresponding=bool(a["is_corresponding"]) if authors["flagged"] else None,
         )
         for oid in orgs:
             builder.affiliation(pid, oid, year, year, "stated")
@@ -1003,11 +1146,11 @@ def _link(
 def read_orcid_runs(runs: list[RawRun], builder: SourceBuilder) -> None:
     """The reader of registry answers: the employments people declared, as dated affiliations
     to the organisations of the same name they are already affiliated with."""
-    meta, lines = _current(runs)
-    for pid in sorted(meta):
+    meta, latest = _current(runs)
+    for pid, own in _current_lines(runs, latest, None, getattr(builder, "jobs", 1)):
         if not builder.known_person(pid):
             continue
-        for _run, rec in lines.get(pid, []):
+        for _run, rec in own:
             if rec["type"] != "record":
                 continue
             for emp in employments(rec["record"]):

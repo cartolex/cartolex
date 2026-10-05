@@ -234,6 +234,25 @@ def test_merging_a_merged_result_changes_nothing(seed) -> None:
     assert set(second.merged_into) == set(first.texts)
 
 
+@pytest.mark.parametrize("seed", range(40))
+def test_a_text_alone_merges_as_merge_works_merges_it(seed) -> None:
+    from cartolex.collect.merge import FINDER_PRIORITY, _alone, _rank
+
+    records, _stated = _random_records(random.Random(2000 + seed))
+    rank = _rank(FINDER_PRIORITY)
+    for finder in ("openalex", "hal"):
+        alone = [replace(r, text_id="t000001") for r in records if r.source == finder][:4]
+        if not alone:
+            continue
+        quick = _alone("t000001", alone, rank)
+        full = merge_works(alone)
+        assert quick is not None and quick.texts == full.texts
+        assert quick.merged_into == full.merged_into and quick.counts() == full.counts()
+    mixed = [replace(r, text_id="t000001") for r in records[:3]]
+    if len({r.source for r in mixed}) > 1:
+        assert _alone("t000001", mixed, rank) is None  # several finders: merged in full
+
+
 # ── on the source tables ─────────────────────────────────────────────────────
 
 

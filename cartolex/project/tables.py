@@ -19,6 +19,7 @@ import csv
 import io
 import os
 import tempfile
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -32,15 +33,20 @@ from .files import atomic_write_bytes, replace_path
 __all__ = [
     "DECISION_TABLES",
     "PRIVATE_PARTS",
+    "ROW_GROUP",
     "SOURCE_KEYS",
     "SOURCE_SCHEMAS",
     "DecisionTable",
+    "SourceTableWriter",
     "TableError",
     "empty_table",
     "read_decision_csv",
     "read_source_table",
+    "rows_to_table",
     "shareable_parts",
+    "source_key",
     "write_decision_csv",
+    "write_source_rows",
     "write_source_table",
 ]
 
@@ -227,6 +233,10 @@ def _check(name: str, table: pa.Table, where: str) -> pa.Table:
     return table
 
 
+#: Rows per row group of a source table's Parquet file.
+ROW_GROUP = 64_000
+
+
 def write_source_table(path: Path, name: str, table: pa.Table) -> None:
     """Sort *table* by its key, check it and write it atomically as Parquet."""
     keys = SOURCE_KEYS[name]
@@ -241,7 +251,7 @@ def write_source_table(path: Path, name: str, table: pa.Table) -> None:
     fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     os.close(fd)
     try:
-        pq.write_table(ordered, tmp, compression="zstd", row_group_size=64_000)
+        pq.write_table(ordered, tmp, compression="zstd", row_group_size=ROW_GROUP)
         with open(tmp, "rb") as fh:
             os.fsync(fh.fileno())
         replace_path(tmp, path)
@@ -249,6 +259,119 @@ def write_source_table(path: Path, name: str, table: pa.Table) -> None:
         with contextlib.suppress(FileNotFoundError):
             os.unlink(tmp)
         raise
+
+
+def _column(fld: pa.Field, rows: Sequence[Mapping[str, object]]) -> pa.Array:
+    values = [r.get(fld.name) for r in rows]
+    if pa.types.is_map(fld.type):
+        values = [
+            sorted((str(k), v) for k, v in x.items()) if isinstance(x, Mapping) else x
+            for x in values
+        ]
+    elif pa.types.is_list(fld.type):
+        values = [list(x) if x is not None and not isinstance(x, list) else x for x in values]
+    return pa.array(values, type=fld.type)
+
+
+def rows_to_table(name: str, rows: Sequence[Mapping[str, object]]) -> pa.Table:
+    """Rows of source table *name* (dicts; a map column may be given as a dict) as an Arrow
+    table with its schema."""
+    schema = SOURCE_SCHEMAS[name]
+    return pa.table({fld.name: _column(fld, rows) for fld in schema})
+
+
+def source_key(name: str, row: Mapping[str, object]) -> tuple:
+    """A row's key as source table *name* is sorted: strings by code point, numbers by value,
+    an empty value last (Arrow's order)."""
+    return tuple(
+        (row.get(k) is None, row.get(k) if row.get(k) is not None else 0) for k in SOURCE_KEYS[name]
+    )
+
+
+class SourceTableWriter:
+    """Writes source table *name* a row group at a time, from rows already in key order.
+
+    Each row group is checked as :func:`write_source_table` checks a whole table, and the
+    key's order and uniqueness across row groups too: memory holds one row group, whatever
+    the table's size. The file appears whole, atomically, at :meth:`close`; leaving a
+    ``with`` block on an exception leaves the previous file in place.
+    """
+
+    def __init__(self, path: Path, name: str) -> None:
+        self.path, self.name = Path(path), name
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(
+            prefix=f".{self.path.name}.", suffix=".tmp", dir=self.path.parent
+        )
+        os.close(fd)
+        self._tmp = tmp
+        self._writer = pq.ParquetWriter(tmp, SOURCE_SCHEMAS[name], compression="zstd")
+        self._pending: list[Mapping[str, object]] = []
+        self._last: tuple | None = None
+        self.rows = 0
+
+    def add(self, row: Mapping[str, object]) -> None:
+        """Append one row (a dict with the table's columns)."""
+        self._pending.append(row)
+        if len(self._pending) >= ROW_GROUP:
+            self._flush()
+
+    def extend(self, rows: Iterable[Mapping[str, object]]) -> None:
+        """Append rows in key order."""
+        for row in rows:
+            self.add(row)
+
+    def _flush(self) -> None:
+        if not self._pending:
+            return
+        rows, self._pending = self._pending, []
+        first = source_key(self.name, rows[0])
+        if self._last is not None and not self._last < first:
+            keys = ", ".join(SOURCE_KEYS[self.name])
+            if first == self._last:
+                raise TableError(f"{self.path}: key {rows[0]!r} repeats")
+            raise TableError(f"{self.path}: rows are not sorted by {keys}")
+        table = _check(self.name, rows_to_table(self.name, rows), str(self.path))
+        self._last = source_key(self.name, rows[-1])
+        self._writer.write_table(table, row_group_size=ROW_GROUP)
+        self.rows += len(rows)
+
+    def close(self) -> int:
+        """Write the last row group and put the file in place; returns the rows written."""
+        try:
+            self._flush()
+            self._writer.close()
+            with open(self._tmp, "rb") as fh:
+                os.fsync(fh.fileno())
+            replace_path(self._tmp, self.path)
+        except BaseException:
+            self.discard()
+            raise
+        return self.rows
+
+    def discard(self) -> None:
+        """Forget the rows written: the previous file stays."""
+        with contextlib.suppress(Exception):
+            self._writer.close()
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(self._tmp)
+
+    def __enter__(self) -> SourceTableWriter:
+        return self
+
+    def __exit__(self, exc_type: object, *rest: object) -> None:
+        if exc_type is None:
+            self.close()
+        else:
+            self.discard()
+
+
+def write_source_rows(path: Path, name: str, rows: Iterable[Mapping[str, object]]) -> int:
+    """Write source table *name* from *rows* already in key order (see
+    :class:`SourceTableWriter`); returns the number of rows."""
+    with SourceTableWriter(path, name) as writer:
+        writer.extend(rows)
+    return writer.rows
 
 
 def read_source_table(path: Path, name: str, columns: list[str] | None = None) -> pa.Table:

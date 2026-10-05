@@ -160,7 +160,7 @@ the raw runs and the id registry are part of the format.
 
 ```text
 sources/<slot>/raw/
-  ids.json                  the id registry (cartolex-ids/1)
+  ids.parquet               the id registry (cartolex-ids/2)
   <kind>/<run id>.jsonl.gz  one run (cartolex-raw/1)
 sources/merges.json         every merge of texts across finders (cartolex-merges/1)
 ```
@@ -200,20 +200,26 @@ authorship winning and later ones only filling what it lacks, except a text
 provider's part, which replaces the same service's part as a finder. A reader
 that meets a kind it does not know skips it and says so.
 
-**The id registry**, `ids.json`, is a JSON object:
+**The id registry**, `ids.parquet`, is a Parquet table of three string columns,
+`table` (`texts`, `people` or `organisations`), `key` and `id`, one row per key,
+sorted by table then key; its metadata holds `format` (`cartolex-ids/2`) and
+`next`, the next number of each table as JSON (`{"organisations": 4, "people": 13,
+"texts": 57}`).
 
-```json
-{"format": "cartolex-ids/1",
- "next": {"organisations": 4, "people": 13, "texts": 57},
- "keys": {"people": {"import:3f1c…": "p000001", "openalex:A999…": "p000001"},
-          "organisations": {"openalex:I999…": "o000002"}, "texts": {"doi:10.5555/…": "t000001"}}}
-```
+| table | key | id |
+| --- | --- | --- |
+| `people` | `import:3f1c…` | `p000001` |
+| `people` | `openalex:A999…` | `p000001` |
+| `texts` | `doi:10.5555/…` | `t000001` |
 
-`keys` maps every natural key a slot has met (a DOI, a service record, an
-imported row) to the id it was given; `next` is the next number of each
-table. An id is given once and never again: text keys are looked up in their
-slot's registry, people and organisations in every slot's, and a new number
-comes after every number any registry gave.
+Each row maps a natural key a slot has met (a DOI, a service record, an
+imported row) to the id it was given. An id is given once and never again: text
+keys are looked up in their slot's registry, people and organisations in every
+slot's, and a new number comes after every number any registry gave. A
+registry of the first format, `ids.json` (`cartolex-ids/1`: a JSON object with
+`next` and `keys`, a mapping of key to id per table), is read and replaced by
+`ids.parquet` at the next rebuild; a version of cartolex that knows only the
+first format cannot open a project rebuilt since.
 
 **The merge log**, `sources/merges.json` (`cartolex-merges/1`), is rebuilt with
 the tables: `merges` (each with `slot`, the text `kept`, the texts `merged`,

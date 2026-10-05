@@ -118,7 +118,7 @@ tables from every slot's raw records:
 
 ```text
 sources/<slot>/raw/
-  ids.json                 the slot's id registry (cartolex-ids/1)
+  ids.parquet              the slot's id registry (cartolex-ids/2)
   <kind>/<run id>.jsonl.gz one run, gzip-compressed: a header line, then one record per line (cartolex-raw/1)
 ```
 
@@ -138,7 +138,9 @@ sources/<slot>/raw/
   anything. Text keys are looked up in their slot's registry only (a text
   belongs to one slot); people and organisations are shared by all slots. A
   new number comes after every number any registry gave, skipping ids already
-  in the tables.
+  in the tables. Its keys live in an SQLite table while it is open, each
+  table's loaded when first needed (a registry of tens of millions of keys
+  costs disk, not memory), and `save` writes `ids.parquet`.
 - **Readers.** A reader turns the runs of one kind of one slot into rows of a
   `SourceBuilder` (`person`, `organisation`, `affiliation`, `text`, `part`,
   `authorship`). `default_readers()` lists cartolex's; a finder adds its own
@@ -147,6 +149,24 @@ sources/<slot>/raw/
   gains the ones it lacked; affiliations of the same person, organisation and
   source join into one span of years. A slot's texts are numbered (`position`)
   by year, then date, then id.
+- **Memory.** What grows with the records lives in a scratch database while
+  the readers run (`cartolex.collect.workstore.WorkStore`, SQLite, in a folder
+  of `rebuild_sources(..., scratch=…)`, by default the project's `cache/`,
+  removed at the end): every record of each text, the texts' parts (compressed),
+  the authorships, the affiliations, the registry's keys. A part or an
+  authorship stated twice keeps its first statement (`INSERT OR IGNORE`), an
+  affiliation's span widens (`ON CONFLICT … DO UPDATE`). People and
+  organisations stay in memory. A harvest is read a person at a time, each work
+  reduced as it is read to the project people on it and their institutions
+  (`harvest._placed_work`: a work can have thousands of authors), and a heavy
+  run (64 MB and more) is read by worker processes in blocks of lines, given
+  back in order (`cartolex.scale.ordered_map`). The texts are then merged
+  group by group (`merge.merge_texts`, below), and the tables written a row
+  group at a time (`project.tables.SourceTableWriter`): memory holds the people,
+  the organisations and one person's or one group's rows, whatever the number
+  of records. Rebuilt this way, the tables are the same as when every row was
+  held in memory (checked on samples of a real collection of 50,000 and 200,000
+  records).
 - **Kept rows.** Rows whose ids no registry gave (tables written by another
   tool, the demo project) are kept as they are; the others are rebuilt. The
   same raw records and the same kept rows give the same bytes.
@@ -558,7 +578,14 @@ within each slot, the texts that are one work, by three rules in this order:
 | title and year, per person | two texts with an author in common, the same normalised title (at least three words) and years at most one apart | `title_year` |
 
 Every record of a text counts (its own DOI, title, year and people), not only
-the values the text kept. A merge is refused, and listed with its reason, when
+the values the text kept. The texts are first put in **groups**: the texts some
+candidate key could join (a DOI, a source link, a person and a normalised title,
+a DOI a provider states for a preprint, a text a record names as its version),
+found by sorting 64-bit hashes of the keys and taking the connected groups.
+Each group is merged by `merge_works`, the pure function of the rules, so memory
+holds one group at a time; a text alone whose records all come from one finder
+(most texts) takes its fields directly (`_alone`, tested to give what
+`merge_works` gives). A merge is refused, and listed with its reason, when
 the two sides carry different DOIs or, for the third rule, types that cannot
 be one work (a thesis and an article); records that reached one text through a
 shared finder key are listed as `key`.

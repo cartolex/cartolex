@@ -41,15 +41,24 @@ and :func:`write_merge_log` writes ``sources/merges.json``.
 
 from __future__ import annotations
 
+import bisect
+import hashlib
+import itertools
 import json
+import os
+import tempfile
+from array import array
 from collections import defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from cartolex.project.corpus import version_rank
-from cartolex.project.files import atomic_write_bytes
+from cartolex.project.files import atomic_write_bytes, replace_path
 from cartolex.project.layout import ProjectLayout
 
 from .finders import normalise_doi, normalise_title
@@ -60,6 +69,7 @@ __all__ = [
     "MERGE_LOG_FORMAT",
     "Conflict",
     "Merge",
+    "MergeLog",
     "MergeResult",
     "Refusal",
     "VersionLink",
@@ -506,119 +516,385 @@ def _edges(
 # ── applying to a source builder ─────────────────────────────────────────────
 
 
-def merge_texts(builder: Any, *, priority: Sequence[str] = FINDER_PRIORITY) -> MergeResult:
-    """Merge the texts a :class:`~cartolex.collect.tables.SourceBuilder` holds, in place.
+def _sortable(*parts: str | Sequence[str]) -> str:
+    """A string that sorts as the tuple of *parts* (strings, or tuples of strings) sorts."""
+    out = []
+    for part in parts:
+        if isinstance(part, str):
+            out.append(part + "\x00")
+        else:
+            out.append("".join(p + "\x01" for p in part) + "\x00")
+    return "".join(out)
 
-    Texts merged into another disappear; their parts and authorships move to
-    the text kept (a clash keeps the most recent part, the smallest position).
-    A published version without an abstract gets the abstract parts of its
-    preprint. Returns the merge result, for the log.
-    """
-    authors: dict[str, set[str]] = defaultdict(set)
-    for tid, pid in builder.authorships:
-        authors[tid].add(pid)
-    records: list[WorkRecord] = []
-    for tid, recs in builder.text_records.items():
-        for rec in recs:
-            records.append(
-                WorkRecord(
-                    text_id=tid,
-                    slot=rec["slot"],
-                    source=rec["source"],
-                    title=rec["title"],
-                    doc_type=rec["doc_type"],
-                    retrieved_at=rec["retrieved_at"],
-                    year=rec["year"],
-                    date=rec["date"],
-                    doi=rec["doi"],
-                    ids=dict(rec["ids"]),
-                    version_of=rec["version_of"],
-                    n_authors=rec["n_authors"] or 0,
-                    keys=tuple(rec.get("keys", ())),
-                    people=frozenset(authors.get(tid, ())),
-                )
+
+class MergeLog:
+    """What merging the texts of a rebuild gave, kept in the scratch database: each text's
+    fields (written to the texts table), the log's entries (``sources/merges.json``) and
+    the counts per rule."""
+
+    def __init__(self, store: Any) -> None:
+        self.store = store
+        self._counts: dict[str, int] = {}
+        #: Text id → the id it was merged into (texts that disappear).
+        self.moved: dict[str, str] = {}
+        #: Every version link, for the abstracts published versions take from their preprint.
+        self.versions: list[VersionLink] = []
+        self._seq = 0
+
+    def counts(self) -> dict[str, int]:
+        """Merges per rule, version links, refusals and conflicts."""
+        out = dict(self._counts)
+        for what in ("version links", "refused", "conflicts"):
+            out.setdefault(what, 0)
+        return out
+
+    def _entry(self, kind: str, sortkey: str, doc: Mapping[str, Any]) -> None:
+        self._seq += 1
+        text = json.dumps(doc, ensure_ascii=False, indent=1, sort_keys=True)
+        self.store.execute(
+            "INSERT INTO merge_log (kind, sortkey, seq, doc) VALUES (?, ?, ?, ?)",
+            (kind, sortkey, self._seq, text),
+        )
+
+    def conflict(self, c: Conflict) -> None:
+        doc = {**asdict(c), "kept": _plain(c.kept), "other": _plain(c.other)}
+        self._entry("conflicts", _sortable(c.text_id, c.field, c.other_from, repr(c.other)), doc)
+        self._counts["conflicts"] = self._counts.get("conflicts", 0) + 1
+
+    def fill(self, fill: Mapping[str, str]) -> None:
+        self._entry("fills", f"{self._seq:012d}", fill)
+
+    def add(self, result: MergeResult) -> None:
+        """Keep one group's result: its texts' fields, the moves, the log's entries."""
+        for tid, fields in result.texts.items():
+            data = json.dumps(_plain(fields), ensure_ascii=False, separators=(",", ":"))
+            self.store.execute(
+                "INSERT INTO texts_out VALUES (?, ?, ?, ?, ?)",
+                (tid, fields["slot"], fields["year"], fields["date"], data),
             )
-    stated = [
-        (tid, value) for tid, relation, value in builder.text_links if relation == "version_of_doi"
-    ]
-    result = merge_works(records, priority=priority, stated_versions=stated)
-    moved = {old: new for old, new in result.merged_into.items() if old != new}
-    for tid, fields in result.texts.items():
-        row = builder.texts.get(tid)
-        if row is None:
-            continue
-        row.update({k: v for k, v in fields.items() if k in row or k == "version_of"})
-    for old in moved:
-        builder.texts.pop(old, None)
-    if moved:
-        parts: dict[tuple[str, str, str, str], dict[str, Any]] = {}
-        origin: dict[tuple[str, str, str, str], str] = {}
-        for key in sorted(builder.parts, key=lambda k: (k[0] in moved, k)):
-            row = builder.parts[key]
-            new = (moved.get(key[0], key[0]), *key[1:])
-            if new in parts:
-                kept = parts[new]
-                newer = (row["retrieved_at"], row["content"]) > (
-                    kept["retrieved_at"],
-                    kept["content"],
-                )
-                if row["content"] != kept["content"]:
-                    winner, loser = (key[0], origin[new]) if newer else (origin[new], key[0])
-                    result.conflicts.append(
-                        Conflict(
-                            new[0],
-                            f"part {'/'.join(new[1:])}",
-                            f"from {winner}",
-                            "",
-                            f"from {loser}",
-                            "",
-                        )
+        self.moved.update({old: new for old, new in result.merged_into.items() if old != new})
+        for what, n in result.counts().items():
+            if what != "conflicts":
+                self._counts[what] = self._counts.get(what, 0) + n
+        for m in result.merges:
+            self._entry("merges", _sortable(m.slot, m.kept, m.merged, m.rule), asdict(m))
+        for v in result.versions:
+            self.versions.append(v)
+            self._entry("versions", _sortable(v.preprint), asdict(v))
+        for x in result.refused:
+            self._entry("refused", _sortable(x.slot, x.texts, x.rule), asdict(x))
+        for c in result.conflicts:
+            self.conflict(c)
+
+    def write_log(self, layout: ProjectLayout) -> None:
+        """Write ``sources/merges.json`` (as :func:`write_merge_log`), an entry at a time."""
+        path = layout.sources / "merges.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as out:
+                out.write("{\n")
+                names = ("conflicts", "fills", "format", "merges", "refused", "versions")
+                for i, name in enumerate(names):
+                    end = ",\n" if i < len(names) - 1 else "\n"
+                    if name == "format":
+                        out.write(f' "format": {json.dumps(MERGE_LOG_FORMAT)}{end}')
+                        continue
+                    docs = self.store.rows(
+                        "SELECT doc FROM merge_log WHERE kind = ? ORDER BY sortkey, seq", (name,)
                     )
+                    first = True
+                    for (doc,) in docs:
+                        out.write(f' "{name}": [\n' if first else ",\n")
+                        out.write("\n".join("  " + line for line in doc.split("\n")))
+                        first = False
+                    out.write(f' "{name}": []{end}' if first else f"\n ]{end}")
+                out.write("}\n")
+                out.flush()
+                os.fsync(out.fileno())
+            replace_path(tmp, path)
+        except BaseException:
+            Path(tmp).unlink(missing_ok=True)
+            raise
+
+
+def _hash(key: str) -> int:
+    return int.from_bytes(hashlib.blake2b(key.encode("utf-8"), digest_size=8).digest(), "little")
+
+
+def _candidate_keys(records: Sequence[WorkRecord], stated: Iterable[str]) -> set[str]:
+    """Every key by which a rule could join a text to another (more than the rules join:
+    a group of candidates is merged by :func:`merge_works`, which applies the rules)."""
+    keys: set[str] = set()
+    for r in records:
+        doi = normalise_doi(r.doi)
+        if doi:
+            keys.add(f"doi\x00{doi}")
+        for scheme in LINK_SCHEMES:
+            value = r.ids.get(scheme)
+            if value is not None:
+                keys.add(f"link\x00{scheme}\x00{value}")
+        title = normalise_title(r.title)
+        if r.year is not None and len(title.split()) >= MIN_TITLE_WORDS:
+            for pid in r.people:
+                keys.add(f"title\x00{pid}\x00{title}")
+    for doi in stated:  # a preprint meets the texts of its published version's DOI
+        d = normalise_doi(doi)
+        if d:
+            keys.add(f"doi\x00{d}")
+    return keys
+
+
+def _work_record(tid: str, n_authors: int | None, data: str, people: frozenset[str]) -> WorkRecord:
+    d = json.loads(data)
+    at = datetime.fromisoformat(d["retrieved_at"])
+    return WorkRecord(
+        text_id=tid,
+        slot=d["slot"],
+        source=d["source"],
+        title=d["title"],
+        doc_type=d["doc_type"],
+        retrieved_at=at if at.tzinfo else at.replace(tzinfo=timezone.utc),
+        year=d["year"],
+        date=d["date"],
+        doi=d["doi"],
+        ids=d["ids"],
+        version_of=d["version_of"],
+        n_authors=n_authors or 0,
+        keys=tuple(d["keys"]),
+        people=people,
+    )
+
+
+def _texts_records(store: Any, *, selected: bool = False) -> Iterator[tuple[str, list[WorkRecord]]]:
+    """Every text's records, text by text in id order, each with the people of the text
+    (only the texts in the ``selected`` table with *selected*)."""
+    where = " WHERE tid IN (SELECT tid FROM selected)" if selected else ""
+    authors = itertools.groupby(
+        store.rows(f"SELECT tid, pid FROM authorships{where} ORDER BY tid, pid"),
+        key=lambda r: r[0],
+    )
+    pending = next(authors, None)
+    records = store.rows(f"SELECT tid, n_authors, data FROM records{where} ORDER BY tid, seq")
+    for tid, rows in itertools.groupby(records, key=lambda r: r[0]):
+        while pending is not None and pending[0] < tid:
+            pending = next(authors, None)
+        people = frozenset()
+        if pending is not None and pending[0] == tid:
+            people = frozenset(pid for _t, pid in pending[1])
+        yield tid, [_work_record(tid, n, data, people) for _t, n, data in rows]
+
+
+def _groups(store: Any, stated: Mapping[str, list[str]]) -> tuple[list[str], np.ndarray]:
+    """The texts in id order, and for each, its group: the texts some candidate key joins."""
+    tids: list[str] = []
+    hashes, owners = array("Q"), array("q")
+    named: list[tuple[int, str]] = []  # a record naming the text it is a version of
+    for i, (tid, records) in enumerate(_texts_records(store)):
+        tids.append(tid)
+        for key in _candidate_keys(records, stated.get(tid, ())):
+            hashes.append(_hash(key))
+            owners.append(i)
+        named += [(i, r.version_of) for r in records if r.version_of]
+    n = len(tids)
+    a = b = np.zeros(0, dtype=np.int64)
+    if hashes:
+        h = np.frombuffer(hashes, dtype=np.uint64)
+        o = np.frombuffer(owners, dtype=np.int64)
+        order = np.lexsort((o, h))
+        h, o = h[order], o[order]
+        same = np.flatnonzero(h[1:] == h[:-1])
+        a, b = o[same], o[same + 1]
+    if named:  # the texts are in id order: the one named is found by bisection
+        pairs = [
+            (i, j) for i, t in named if (j := bisect.bisect_left(tids, t)) < n and tids[j] == t
+        ]
+        if pairs:
+            a = np.concatenate([a, np.array([p[0] for p in pairs], dtype=np.int64)])
+            b = np.concatenate([b, np.array([p[1] for p in pairs], dtype=np.int64)])
+    if not len(a):
+        return tids, np.arange(n)
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+
+    graph = coo_matrix((np.ones(len(a), dtype=np.int8), (a, b)), shape=(n, n))
+    _count, labels = connected_components(graph, directed=False)
+    return tids, labels
+
+
+def merge_texts(builder: Any, *, priority: Sequence[str] = FINDER_PRIORITY) -> MergeLog:
+    """Merge the texts a :class:`~cartolex.collect.tables.SourceBuilder` holds, in its
+    scratch database.
+
+    Texts are first put in groups: the texts some key could join (a DOI, a source link,
+    a person's title). Each group is merged by :func:`merge_works`, the texts of most
+    groups alone, so memory holds one group at a time. The texts kept go to the scratch
+    database's ``texts_out``; the texts merged into another disappear, their parts and
+    authorships moving to the text kept (a clash keeps the most recent part, the smallest
+    position). A published version without an abstract gets the abstract parts of its
+    preprint. Returns the log of the merges.
+    """
+    store = builder.store
+    log = MergeLog(store)
+    rank = _rank(priority)
+    stated: dict[str, list[str]] = defaultdict(list)
+    for tid, relation, value in builder.text_links:
+        if relation == "version_of_doi":
+            stated[tid].append(value)
+    tids, labels = _groups(store, stated)
+    sizes = np.bincount(labels, minlength=1) if len(labels) else np.zeros(0, dtype=np.int64)
+    members: dict[int, list[int]] = defaultdict(list)
+    for i in np.flatnonzero(sizes[labels] > 1) if len(labels) else ():
+        members[int(labels[i])].append(int(i))
+    for i, (tid, records) in enumerate(_texts_records(store)):
+        if tids[i] != tid:
+            raise RuntimeError("the texts' records changed while they were merged")
+        group = members.get(int(labels[i]))
+        if group is None:
+            alone = _alone(tid, records, rank)
+            if alone is None:
+                alone = merge_works(
+                    records, priority=priority, stated_versions=_stated([tid], stated)
+                )
+            log.add(alone)
+            continue
+        if group[0] != i:
+            continue  # merged with the group's first text
+        ids = [tids[j] for j in group]
+        store.execute("DELETE FROM selected")
+        store.executemany("INSERT INTO selected VALUES (?)", [(t,) for t in ids])
+        everything = [r for _t, recs in _texts_records(store, selected=True) for r in recs]
+        log.add(merge_works(everything, priority=priority, stated_versions=_stated(ids, stated)))
+    _move_rows(builder, log)
+    _drop_orphans(builder)
+    _fill_abstracts(store, log)
+    return log
+
+
+def _alone(tid: str, records: Sequence[WorkRecord], rank: Any) -> MergeResult | None:
+    """What :func:`merge_works` gives for a text no key joins to another, when one finder
+    gave all its records (most texts): its fields, nothing to log. ``None`` otherwise."""
+    if len({r.source for r in records}) != 1:
+        return None
+    fields, prov, _conflicts = _choose(records, rank)  # one finder: no conflict
+    fields["text_id"] = tid
+    return MergeResult(texts={tid: fields}, provenance={tid: prov}, merged_into={tid: tid})
+
+
+def _stated(tids: Iterable[str], stated: Mapping[str, list[str]]) -> list[tuple[str, str]]:
+    return [(t, doi) for t in tids for doi in stated.get(t, ())]
+
+
+def _move_rows(builder: Any, log: MergeLog) -> None:
+    """The parts and authorships of texts merged into another move to the text kept."""
+    from .tables import unpack_text
+
+    store = builder.store
+    origin: dict[tuple[str, str, str, str], str] = {}
+    for old in sorted(log.moved):
+        new = log.moved[old]
+        rows = store.execute(
+            "SELECT part, language, provider, format, content, retrieved_at FROM parts"
+            " WHERE tid = ? ORDER BY part, language, provider",
+            (old,),
+        ).fetchall()
+        for part, language, provider, fmt, content, at in rows:
+            key = (new, part, language, provider)
+            kept = store.execute(
+                "SELECT content, retrieved_at FROM parts"
+                " WHERE tid = ? AND part = ? AND language = ? AND provider = ?",
+                key,
+            ).fetchone()
+            if kept is not None:
+                mine, theirs = unpack_text(content), unpack_text(kept[0])
+                newer = (_time(at), mine) > (_time(kept[1]), theirs)
+                if mine != theirs:
+                    winner, loser = (
+                        (old, origin.get(key, new)) if newer else (origin.get(key, new), old)
+                    )
+                    log.conflict(
+                        Conflict(new, f"part {part}/{language}/{provider}", f"from {winner}", "",
+                                 f"from {loser}", "")
+                    )  # fmt: skip
                 if not newer:
                     continue
-            parts[new] = {**row, "text_id": new[0]}
-            origin[new] = key[0]
-        builder.parts = parts
-        authorships = {}
-        for key in sorted(builder.authorships, key=lambda k: (k[0] in moved, k)):
-            row = builder.authorships[key]
-            new = (moved.get(key[0], key[0]), key[1])
-            if new in authorships:
-                kept = authorships[new]
-                kept["position"] = min(kept["position"], row["position"])
-                kept["orgs"] = sorted(set(kept["orgs"]) | set(row["orgs"]))
-                for flag in ("last", "corresponding"):
-                    if kept[flag] is None:
-                        kept[flag] = row[flag]
-                continue
-            authorships[new] = {**row, "text_id": new[0]}
-        builder.authorships = authorships
-    # Parts and authorships of a text that no longer exists (its raw run was removed) go.
-    kept_ids = set()
-    if "texts" in builder.existing:
-        given = builder.registry.given("texts")
-        kept_ids = {t for t in builder.existing["texts"]["text_id"].to_pylist() if t not in given}
-    known = set(builder.texts) | kept_ids
-    for store in (builder.parts, builder.authorships):
-        for key in [k for k in store if k[0] not in known]:
-            del store[key]
-            builder.count("merge: rows of a missing text dropped")
-    # A published version without an abstract reads its preprint's.
-    for link in result.versions:
-        has = any(k[0] == link.published and k[1] == "abstract" for k in builder.parts)
+            store.execute(
+                "INSERT OR REPLACE INTO parts VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (*key, fmt, content, at),
+            )
+            origin[key] = old
+        store.execute("DELETE FROM parts WHERE tid = ?", (old,))
+    for old in sorted(log.moved):
+        new = log.moved[old]
+        rows = store.execute(
+            "SELECT pid, position, orgs, last, corresponding FROM authorships"
+            " WHERE tid = ? ORDER BY pid",
+            (old,),
+        ).fetchall()
+        for pid, position, orgs, last, corresponding in rows:
+            kept = store.execute(
+                "SELECT position, orgs, last, corresponding FROM authorships"
+                " WHERE tid = ? AND pid = ?",
+                (new, pid),
+            ).fetchone()
+            if kept is not None:
+                position = min(kept[0], position)
+                orgs = json.dumps(sorted(set(json.loads(kept[1])) | set(json.loads(orgs))))
+                last = kept[2] if kept[2] is not None else last
+                corresponding = kept[3] if kept[3] is not None else corresponding
+            store.execute(
+                "INSERT OR REPLACE INTO authorships VALUES (?, ?, ?, ?, ?, ?)",
+                (new, pid, position, orgs, last, corresponding),
+            )
+        store.execute("DELETE FROM authorships WHERE tid = ?", (old,))
+
+
+def _drop_orphans(builder: Any) -> None:
+    """Parts and authorships of a text that no longer exists (its raw run was removed) go."""
+    store = builder.store
+    store.execute("DELETE FROM kept_texts")
+    store.executemany("INSERT INTO kept_texts VALUES (?)", [(t,) for t in builder._taken["texts"]])
+    for table in ("parts", "authorships"):
+        cur = store.execute(
+            f"DELETE FROM {table} WHERE tid NOT IN (SELECT tid FROM texts_out)"
+            " AND tid NOT IN (SELECT tid FROM kept_texts)"
+        )
+        if cur.rowcount > 0:
+            builder.count("merge: rows of a missing text dropped", cur.rowcount)
+
+
+def _fill_abstracts(store: Any, log: MergeLog) -> None:
+    """A published version without an abstract reads its preprint's."""
+    for link in sorted(log.versions, key=lambda v: v.preprint):
+        has = store.execute(
+            "SELECT 1 FROM parts WHERE tid = ? AND part = 'abstract' LIMIT 1", (link.published,)
+        ).fetchone()
         if has:
             continue
-        for key, row in sorted(builder.parts.items()):
-            if key[0] == link.preprint and key[1] == "abstract":
-                builder.parts[(link.published, *key[1:])] = {**row, "text_id": link.published}
-                result.fills.append(
-                    {
-                        "text_id": link.published,
-                        "part": f"abstract/{key[2]}/{key[3]}",
-                        "from": link.preprint,
-                    }
-                )
-    return result
+        rows = store.execute(
+            "SELECT language, provider, format, content, retrieved_at FROM parts"
+            " WHERE tid = ? AND part = 'abstract' ORDER BY language, provider",
+            (link.preprint,),
+        ).fetchall()
+        for language, provider, fmt, content, at in rows:
+            store.execute(
+                "INSERT OR REPLACE INTO parts VALUES (?, 'abstract', ?, ?, ?, ?, ?)",
+                (link.published, language, provider, fmt, content, at),
+            )
+            log.fill(
+                {
+                    "text_id": link.published,
+                    "part": f"abstract/{language}/{provider}",
+                    "from": link.preprint,
+                }
+            )
+
+
+def _time(text: str | None) -> datetime:
+    if not text:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    ts = datetime.fromisoformat(text)
+    return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
 
 
 def write_merge_log(layout: ProjectLayout, results: Sequence[MergeResult] | MergeResult) -> None:

@@ -553,11 +553,11 @@ def read_hal_runs(runs: list[RawRun], builder: SourceBuilder) -> None:
     """Rows from the HAL runs of one slot: organisations for the structures, a text per
     deposit with its parts, and the authorship of the person it was found for."""
     for run in runs:
-        records = list(run.records())
-        for rec in records:
+        # Read twice rather than held: the structures first, then the deposits.
+        for rec in run.records():
             if rec.get("type") == "structure":
                 _structure_org(builder, run.slot, rec["doc"], parse_time(rec["retrieved_at"]))
-        for rec in records:
+        for rec in run.records():
             if rec.get("type") != "work":
                 continue
             at = parse_time(rec["retrieved_at"])

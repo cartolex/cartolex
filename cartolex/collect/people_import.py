@@ -1176,4 +1176,4 @@ def read_corpus_runs(runs: list[RawRun], builder: SourceBuilder) -> None:
             rank[tid] = rank.get(tid, 0) + 1
             builder.authorship(tid, pid, position=rank[tid])
     for tid, n in rank.items():
-        builder.texts[tid]["n_authors"] = n
+        builder.set_n_authors(tid, n)
