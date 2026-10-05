@@ -43,14 +43,26 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 ENGINE_PACKAGES = ("cartolex.lexicon", "cartolex.atlas", "cartolex.copilot")
 
 #: Modules inside ``cartolex`` the engine may import (the module or its children).
-ALLOWED_INTERNAL = ("cartolex.lexicon", "cartolex.atlas", "cartolex.copilot", "cartolex._data")
+ALLOWED_INTERNAL = (
+    "cartolex.lexicon",
+    "cartolex.atlas",
+    "cartolex.copilot",
+    "cartolex._data",
+    "cartolex.scale",
+)
 #: Modules the engine may import only for annotations or inside a function.
 ALLOWED_FOR_TYPES = ("cartolex.context",)
 
 #: Web frameworks: declared for the app, never imported by the engine or the packages below it.
 WEB_FRAMEWORKS = ("fastapi", "starlette", "uvicorn", "multipart", "python_multipart", "httpx")
 #: Packages the app is built on; they never import it (nor a web framework).
-BELOW_THE_APP = ("cartolex.project", "cartolex.build", "cartolex.demo", "cartolex.context")
+BELOW_THE_APP = (
+    "cartolex.project",
+    "cartolex.build",
+    "cartolex.demo",
+    "cartolex.context",
+    "cartolex.scale",
+)
 
 #: Import name of a declared distribution, where it differs from the distribution name.
 IMPORT_NAMES = {
@@ -89,6 +101,7 @@ COLLECT_ALLOWED = (
     "cartolex.collect",
     "cartolex.project",
     "cartolex._data",
+    "cartolex.scale",
     "cartolex.lexicon.pdf_text",
     "cartolex.lexicon.lang_utils",
 )
@@ -279,4 +292,20 @@ def test_the_demo_never_imports_collection() -> None:
         for name in sorted(_imports(py_file))
         if _within(name, ("cartolex.collect",))
     ]
+    assert not violations, "\n".join(violations)
+
+
+def test_the_shared_resources_import_nothing_of_cartolex() -> None:
+    declared = _declared_imports()
+    violations = []
+    for py_file in _package_files("cartolex.scale"):
+        for name in sorted(_imports(py_file)):
+            root = name.split(".")[0]
+            ok = (
+                _within(name, ("cartolex.scale",))
+                if root == "cartolex"
+                else (root in sys.stdlib_module_names or root in declared)
+            )
+            if not ok:
+                violations.append(f"{py_file.relative_to(REPO_ROOT)} imports {name}")
     assert not violations, "\n".join(violations)
