@@ -69,7 +69,8 @@ def test_a_missing_or_stray_file_is_reported(tmp_path: Path) -> None:
 
 
 def test_the_citation_files_agree_with_the_package_metadata() -> None:
-    """Authors, licence and repository are the same in pyproject, CITATION.cff and codemeta."""
+    """Authors, licence, repository and version are the same in pyproject, CITATION.cff and
+    codemeta."""
     import json
     import re
 
@@ -86,3 +87,5 @@ def test_the_citation_files_agree_with_the_package_metadata() -> None:
     assert meta["license"].endswith("/MIT")
     repo = re.search(r'Source = "([^"]+)"', pyproject).group(1)
     assert f'repository-code: "{repo}"' in cff and meta["codeRepository"] == repo
+    version = re.search(r'(?m)^version = "([^"]+)"', pyproject).group(1)
+    assert f'version: "{version}"' in cff and meta["version"] == version

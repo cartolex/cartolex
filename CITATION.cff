@@ -1,6 +1,7 @@
 cff-version: 1.2.0
 message: "If you use cartolex, please cite it as below."
 title: "cartolex"
+version: "1.0.0.dev0"
 abstract: >-
   cartolex maps a research field from the texts of the people who work in it:
   keywords, themes and a two-dimensional atlas, with an offline site to share it.
