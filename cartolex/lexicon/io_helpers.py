@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 
 from .lang_utils import detect_language_text
@@ -251,6 +252,112 @@ def load_documents_selected(
     if progress_callback:
         progress_callback(100, "Documents loaded.")
     return docs, pd.DataFrame(meta_rows)
+
+
+#: People whose documents a worker counts at a time.
+_COUNT_BLOCK = 1000
+_COUNTING: dict[str, object] = {}
+
+
+def _set_counting(params: dict) -> None:
+    from sklearn.feature_extraction.text import CountVectorizer
+
+    _COUNTING["vectorizer"] = CountVectorizer(**params)
+
+
+def _count_documents(docs: list[str]):  # noqa: ANN202
+    """In a worker: the documents' counts of the fixed vocabulary (sparse rows)."""
+    return _COUNTING["vectorizer"].fit_transform(docs)  # type: ignore[attr-defined]
+
+
+def count_documents_selected(
+    indexes: Sequence[SlotIndex],
+    count_params: dict,
+    *,
+    recency_years: int | None = None,
+    now_year: int | None = None,
+    workers: int = 1,
+    progress_callback: Callable[[int, str], None] | None = None,
+):  # noqa: ANN201
+    """What :func:`load_documents_selected` gives, counted: each person's document (their
+    texts joined, in order) as counts of a fixed vocabulary, and the same table.
+
+    *count_params* are a ``CountVectorizer``'s parameters with a fixed ``vocabulary``
+    (a document's counts do not depend on the others). The documents are made and
+    counted a block of people at a time, in *workers* worker processes: the
+    documents are never held together. Returns ``(counts, meta_df)``; the counts
+    are a ``float64`` CSR matrix, one row per person of the table.
+    """
+    from scipy import sparse
+
+    from cartolex.scale import ordered_map
+
+    from .corpus_store import load_corpus
+
+    if not indexes:
+        raise CorpusError("No corpus slot to read: the settings declare none for this stage.")
+    corpus = load_corpus(indexes, recency_years=recency_years, now_year=now_year)
+    if not corpus.rows_read:
+        raise CorpusError(
+            "No valid corpus index files found (slots: "
+            + ", ".join(f"{tag} → {index_csv.name}" for tag, index_csv, _ in indexes)
+            + ")."
+        )
+    if progress_callback:
+        progress_callback(0, "Reading the texts")
+    texts = dict(corpus.texts())
+    keys = corpus.text_keys()
+    pairs = corpus.pairs_of()
+    people = range(len(corpus.people))  # in the order the slots first name them
+    meta_rows: list[dict[str, str]] = []
+
+    def documents():  # noqa: ANN202
+        for i in people:
+            person = corpus.people[i]
+            own = [int(corpus.text[k]) for k in pairs[i]]
+            parts = [texts[t] for t in own if texts[t].strip()]
+            if not parts:
+                continue
+            meta_rows.append(
+                {
+                    "last_name": person.last_name,
+                    "first_name": person.first_name,
+                    "unit": person.unit,
+                    "txt_path": ";".join(keys[t] for t in own),
+                    "source": "+".join(sorted(set(person.sources))),
+                    "last_name_canon": person.key[0],
+                    "first_name_canon": person.key[1],
+                    "unit_canon": person.key[2],
+                    "doc_language": "",
+                }
+            )
+            yield "\n\n".join(parts)
+
+    def blocks():  # noqa: ANN202
+        block: list[str] = []
+        for doc in documents():
+            block.append(doc)
+            if len(block) >= _COUNT_BLOCK:
+                yield block
+                block = []
+        if block:
+            yield block
+
+    counted = []
+    for rows in ordered_map(
+        _count_documents, blocks(), workers=workers, initializer=_set_counting,
+        initargs=(count_params,),
+    ):  # fmt: skip
+        counted.append(rows)
+        if progress_callback:
+            progress_callback(min(99, 100 * len(meta_rows) // max(len(people), 1)), "Counting")
+    if counted:
+        counts = sparse.vstack(counted, format="csr")
+    else:
+        counts = sparse.csr_matrix((0, len(count_params["vocabulary"])), dtype=np.float64)
+    if progress_callback:
+        progress_callback(100, "Documents counted.")
+    return counts, pd.DataFrame(meta_rows)
 
 
 def _split_text_by_language(full_text: str, corpus_languages: tuple[str, ...]) -> dict[str, str]:

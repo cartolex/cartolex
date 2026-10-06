@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ..project.models import ProjectFile, ThemesFile
+from ..scale import Budget
 from .enginefiles import UNAVAILABLE, copy_amended, engine_paths
 from .execution import Cancelled, StageRefused
 from .params import theme_level_sizes
@@ -89,11 +90,16 @@ class EngineOptions:
     the terms other projects' AI answers put there, and the AI clean-up by API
     adds its ``never`` answers. ``None``: cartolex's list only. Like the other
     options, a change of the cache makes no result out of date.
+
+    *budget* is what the computer gives the stages (:class:`cartolex.scale.Budget`):
+    their worker processes and scratch folder (``None``: the computer's default).
+    The results never depend on it.
     """
 
     prompt_dir: Path | None = None
     stopword_overlay: Mapping[str, Mapping[str, Sequence[str]]] | None = None
     rejects_folder: Path | None = None
+    budget: Budget | None = None
 
 
 #: The options of the stage running in this context (set around a runner's call).
@@ -277,7 +283,7 @@ def run_context(
     ai_client: Callable[..., Any] | None = None,
 ) -> RunContext:
     """The engine's run context for this stage run."""
-    from ..context import RunContext
+    from ..context import RunContext, ThreadLimits
     from ..lexicon.stopwords_config import StopwordProfile
 
     year = _param(ctx, "corpus.assemble", "year", None)
@@ -285,6 +291,10 @@ def run_context(
     options = _OPTIONS.get() or EngineOptions()
     if options.prompt_dir is not None:
         extra["prompt_dir"] = Path(options.prompt_dir)
+    budget = _budget()
+    extra["threads"] = ThreadLimits(processes=budget.workers, memory_mb=budget.memory_mb)
+    if budget.scratch is not None:
+        extra["scratch"] = Path(budget.scratch)
     overrides = _merged_overrides(
         _overlay_overrides(options.stopword_overlay), stopword_overrides(ctx.project)
     )
@@ -300,8 +310,14 @@ def run_context(
     )
 
 
+def _budget() -> Budget:
+    """What the computer gives the stages (the options', else the computer's default)."""
+    options = _OPTIONS.get() or EngineOptions()
+    return options.budget if options.budget is not None else Budget.for_machine()
+
+
 def _settings(ctx: StageContext, **more: Any) -> KeywordsConfig:
-    fields = {}
+    fields: dict[str, Any] = {"extraction_n_jobs": _budget().workers}
     for (stage_id, name), field in ENGINE_SETTINGS.items():
         value = _param(ctx, stage_id, name, _MISSING)
         if value is not _MISSING:  # else the engine's default, which is the parameter's

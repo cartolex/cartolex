@@ -82,11 +82,17 @@ def build_trajectory_matrix(
     length_alpha: float = 2.0,
     top_k_terms: int = 8,
     min_docs_per_bin: int = 1,
+    counts: sparse.spmatrix | None = None,
 ) -> TrajectoryData:
     """Build per-(researcher, time-bin) fingerprints in the reference term space.
 
     *docs* must carry columns ``last_name, first_name, unit, doc_year, text``
-    (and ``doc_type`` when *doc_types* is given). Documents are filtered to
+    (and ``doc_type`` when *doc_types* is given); with *counts* (each document's
+    counts of the vectorizer's vocabulary, :func:`text_counts`), ``row`` (the
+    document's row of *counts*) and ``blank`` (whether its text is blank) instead of
+    ``text``. A bin's vector is the sum of its documents' counts, weighted as the
+    vectorizer weighs a document (each text counted alone: no word sequence spans
+    two texts). Documents are filtered to
     *doc_types* (``None``: every document), grouped into ``bin_years``-wide
     time-bins, folded onto the canonical concept vocabulary with the persisted
     *vectorizer* + *alias_to_canon* map, length-bonus weighted (matching the
@@ -94,7 +100,8 @@ def build_trajectory_matrix(
     is directly projectable through the persisted SVD/UMAP.
     """
     ref_terms = [str(t).lower() for t in ref_terms]
-    required = {"last_name", "first_name", "unit", "doc_year", "text"}
+    required = {"last_name", "first_name", "unit", "doc_year"}
+    required |= {"row", "blank"} if counts is not None else {"text"}
     if doc_types is not None:
         required.add("doc_type")
     missing = required.difference(docs.columns)
@@ -126,17 +133,23 @@ def build_trajectory_matrix(
     work["bin_start"] = [b[0] for b in bounds]
     work["bin_end"] = [b[1] for b in bounds]
 
+    if counts is None:
+        texts = work["text"].astype(str).tolist()
+        counts = text_counts(vectorizer, texts)
+        work["row"] = np.arange(len(texts))
+        work["blank"] = [not t.strip() for t in texts]
+    counts = sparse.csr_matrix(counts, dtype=np.float64)
     rows: list[dict] = []
-    texts: list[str] = []
+    members: list[tuple[int, int]] = []  # (bin, row of counts)
     group_cols = ["researcher_id", "last_name", "first_name", "unit", "bin_start", "bin_end"]
     for key, sub in work.groupby(group_cols, dropna=False, sort=True):
         rid, last, first, unit, bstart, bend = key
         if len(sub) < min_docs_per_bin:
             continue
-        text = "\n\n".join(t for t in sub["text"].astype(str) if t.strip())
-        if not text.strip():
+        own = [int(r) for r, b in zip(sub["row"], sub["blank"], strict=True) if not b]
+        if not own:
             continue
-        texts.append(text)
+        members += [(len(rows), r) for r in own]
         rows.append(
             {
                 "researcher_id": rid,
@@ -152,9 +165,14 @@ def build_trajectory_matrix(
     if not rows:
         return empty
 
-    # Fold bin texts onto the canonical concept space, then re-index to ref_terms.
+    # Each bin's counts, weighted as the vectorizer weighs a document (tf·idf, L2 norm);
+    # folded onto the canonical concept space, then re-indexed to ref_terms.
+    which = sparse.csr_matrix(
+        (np.ones(len(members)), ([b for b, _ in members], [r for _, r in members])),
+        shape=(len(rows), counts.shape[0]),
+    )
+    expanded = vectorizer._tfidf.transform(sparse.csr_matrix(which @ counts), copy=False)
     target_concepts = sorted(set(alias_to_canon.values()))
-    expanded = vectorizer.transform(texts)
     folded = fold_tfidf_to_canonical(
         X_expanded=expanded,
         expanded_terms=vectorizer.get_feature_names_out(),
@@ -190,6 +208,25 @@ def build_trajectory_matrix(
         "Built %d trajectory bins for %d researchers.", len(meta), meta["researcher_id"].nunique()
     )
     return TrajectoryData(B=sparse.vstack(parts, format="csr"), meta=meta, terms=ref_terms)
+
+
+def count_parameters(vectorizer: Any) -> dict[str, Any]:
+    """The parameters of a ``CountVectorizer`` that counts what *vectorizer* (a fitted
+    ``TfidfVectorizer``) weighs: the same text processing and vocabulary."""
+    params = dict(vectorizer.get_params())
+    for name in ("norm", "use_idf", "smooth_idf", "sublinear_tf"):
+        params.pop(name, None)
+    params["vocabulary"] = dict(vectorizer.vocabulary_)
+    return params
+
+
+def text_counts(vectorizer: Any, texts: list[str]) -> sparse.csr_matrix:
+    """Each text's counts of *vectorizer*'s vocabulary (a ``float64`` CSR row per text)."""
+    from sklearn.feature_extraction.text import CountVectorizer
+
+    return sparse.csr_matrix(
+        CountVectorizer(**count_parameters(vectorizer)).transform(texts), dtype=np.float64
+    )
 
 
 def project_trajectories(B: np.ndarray | sparse.spmatrix, svd_model, anchors) -> np.ndarray:

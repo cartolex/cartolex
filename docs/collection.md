@@ -378,6 +378,20 @@ passes it finished; the folder is removed when the harvest completes (a harvest
 never resumed leaves it: delete it to free the space). The tables are the same as from the API; a record's retrieval time is
 the snapshot's release date.
 
+**Rebuilding the tables of a large collection.** After a harvest, the source
+tables are rebuilt from every raw run. For millions of records the rows wait in a
+scratch database while the runs are read (a few GB of memory whatever the size);
+give it a folder on a fast internal disk when the project lives on a hard disk:
+
+```bash
+cartolex collect rebuild my-project --scratch /var/tmp/cartolex   # the tables again
+cartolex build my-project --scratch /var/tmp/cartolex --workers 12 # then the build
+```
+
+`--workers` sets how many worker processes read the runs (and, for `build`, run
+the stages' parallel steps); `--memory MB` caps the memory a build's workers may
+take in all. The results never depend on them.
+
 ## What was collected for whom: coverage
 
 ```bash

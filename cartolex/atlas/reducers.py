@@ -380,6 +380,60 @@ def text_tfidf(D: Any) -> Any:
     return normalize(D @ sparse.diags(idf), norm="l2", axis=1).tocsr()
 
 
+#: Above this many texts, the text space is the exact SVD through the keywords' Gram
+#: matrix (:func:`gram_svd`): memory then grows with the keywords, not the texts.
+GRAM_ABOVE = 500_000
+#: Texts accumulated at a time into the Gram matrix.
+GRAM_CHUNK = 200_000
+
+
+def gram_svd(T: Any, n_components: int, svd: TruncatedSVD) -> TruncatedSVD:
+    """*svd* fitted on *T* (texts × keywords) as an exact SVD, through the keywords' Gram matrix.
+
+    ``G = Tᵀ T`` is accumulated a block of texts at a time (keywords × keywords);
+    its leading eigenvectors are the components, the square roots of its
+    eigenvalues the singular values, with the components' signs chosen as
+    scikit-learn chooses them (the largest value of each component positive). The
+    explained variances are those of the texts' coordinates, as ``TruncatedSVD``
+    reports them. Memory holds the Gram matrix (8 bytes × keywords²) and one block
+    of texts, however many texts there are; the result is the exact decomposition
+    (the randomized solver approximates it).
+    """
+    from scipy.linalg import eigh
+
+    n, k = T.shape
+    G = np.zeros((k, k))
+    sums = np.zeros(k)
+    squares = np.zeros(k)
+    for start in range(0, n, GRAM_CHUNK):
+        block = T[start : start + GRAM_CHUNK]
+        G += (block.T @ block).toarray()
+        sums += np.asarray(block.sum(axis=0)).ravel()
+        squares += np.asarray(block.multiply(block).sum(axis=0)).ravel()
+    values, vectors = eigh(G, subset_by_index=[k - n_components, k - 1])
+    order = np.argsort(values)[::-1]
+    values, components = values[order], vectors[:, order].T
+    rows = np.arange(components.shape[0])
+    signs = np.sign(components[rows, np.argmax(np.abs(components), axis=1)])
+    signs[signs == 0] = 1.0
+    components *= signs[:, np.newaxis]
+    # The texts' coordinates: their mean and mean square, a block at a time.
+    first = np.zeros(n_components)
+    second = np.zeros(n_components)
+    for start in range(0, n, GRAM_CHUNK):
+        Z = T[start : start + GRAM_CHUNK] @ components.T
+        first += Z.sum(axis=0)
+        second += (Z * Z).sum(axis=0)
+    explained = second / n - (first / n) ** 2
+    total = float(np.sum(squares / n - (sums / n) ** 2))
+    svd.components_ = components
+    svd.singular_values_ = np.sqrt(np.clip(values, 0.0, None))
+    svd.explained_variance_ = explained
+    svd.explained_variance_ratio_ = explained / total if total > 0 else np.zeros_like(explained)
+    svd.n_features_in_ = k
+    return svd
+
+
 def compute_text_svd_embeddings(
     data: LexicalData,
     D: Any,
@@ -406,7 +460,11 @@ def compute_text_svd_embeddings(
     n_components = min(n_components, T.shape[0], T.shape[1])
     svd = _truncated_svd(n_components, random_state, n_iter, algorithm, T.shape)
     with threadpool_limits(limits=1, user_api="blas"):  # see compute_svd_embeddings
-        svd.fit(T)
+        if T.shape[0] > GRAM_ABOVE and n_components < T.shape[1]:
+            # Too many texts for the randomized solver's dense texts × components arrays.
+            svd = gram_svd(T, n_components, svd)
+        else:
+            svd.fit(T)
         Z_ind = svd.transform(normalize(data.X, norm="l2", axis=1))
     save_svd(svd, model_path)
     logger.info(

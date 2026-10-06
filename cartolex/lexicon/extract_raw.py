@@ -77,6 +77,8 @@ __all__ = [
 ]
 #: Texts per parser batch (and per task of a worker process).
 PARSE_BATCH = 64
+#: The memory a parsing worker process takes, with its language model (MB, measured).
+PARSE_WORKER_MB = 900
 #: Longest text parsed in one piece, in characters; a longer paragraph is cut
 #: at line breaks or sentence ends first.
 MAX_PIECE_CHARS = 10_000
@@ -425,7 +427,7 @@ def run_pipeline_stage_1(
 def _extract(ctx: RunContext, progress_callback: ProgressCallback | None) -> None:
     from . import extract_stream
     from .corpus_store import load_corpus
-    from .scoring import score_aggregates
+    from .scoring import score_aggregates, window_keys
 
     cfg = ctx.settings
     paths = ctx.paths
@@ -451,17 +453,17 @@ def _extract(ctx: RunContext, progress_callback: ProgressCallback | None) -> Non
     ex, words = extract_stream.prepare(
         corpus,
         cfg.corpus_languages,
-        scratch=paths.automatic_dir,
+        scratch=ctx.scratch if ctx.scratch is not None else paths.automatic_dir,
         workers=n_jobs,
         progress=lambda f, m: log(int(20 * f), m),
     )
     try:
-        _score_languages(ctx, ex, words, n_jobs, log, score_aggregates)
+        _score_languages(ctx, ex, words, n_jobs, log, score_aggregates, window_keys)
     finally:
         ex.close()
 
 
-def _score_languages(ctx, ex, words, n_jobs, log, score_aggregates) -> None:  # noqa: ANN001
+def _score_languages(ctx, ex, words, n_jobs, log, score_aggregates, window_keys) -> None:  # noqa: ANN001
     from . import extract_stream
 
     cfg = ctx.settings
@@ -514,7 +516,17 @@ def _score_languages(ctx, ex, words, n_jobs, log, score_aggregates) -> None:  # 
                 model=language_models.require(lang).identity,
                 options=options,
                 min_df=cfg.min_df,
-                workers=n_jobs,
+                # The other passes' workers hold the lemma table and the candidates kept.
+                workers=ctx.threads.workers_within(n_jobs, worker_mb=500),
+                window=lambda agg: window_keys(
+                    agg,
+                    ex.n_people,
+                    min_df=cfg.min_df,
+                    max_df=cfg.max_df,
+                    max_features=cfg.max_features,
+                ),
+                # A parsing worker holds its language's model (about 0.9 GB measured).
+                parse_workers=ctx.threads.workers_within(n_jobs, worker_mb=PARSE_WORKER_MB),
                 progress=step,
             )
         finally:

@@ -164,7 +164,7 @@ parameter (`tier`, `widget`, `keys`, `suggestions`).
 | `themes.space` | `dimensions` | rule `space_dimensions` | 2–1000; a space never has more dimensions than people or keywords (the run says so) | Space |
 | `themes.space` | `svd_seed` | 42 | 0–2³² − 1 | Space › The SVD |
 | `themes.space` | `svd_iterations` | 5 | 1–100 | Space › The SVD |
-| `themes.space` | `svd_algorithm` | randomized | randomized, arpack (at as many dimensions as the matrix's smaller side, the randomized solver runs, with a warning) | Space › The SVD |
+| `themes.space` | `svd_algorithm` | randomized | randomized, arpack (at as many dimensions as the matrix's smaller side, the randomized solver runs, with a warning); above 500,000 texts (`reducers.GRAM_ABOVE`) the space is the exact SVD through the keywords' Gram matrix, whose memory grows with the keywords, not the texts | Space › The SVD |
 | `themes.group` | `depth` | rule `theme_depth` | 1–4 | Grouping |
 | `themes.group` | `top_groups` | 15 | 2–500, fewer than the kept keywords | Grouping |
 | `themes.group` | `keywords_per_group` | 40 | 2–10 000; the levels must grow from the top | Grouping |
@@ -447,10 +447,21 @@ project exists (it imports neither `cartolex.build` nor `cartolex.project`).
 | `themes.group` | the term clustering (`run_clustering`, the finest level), the levels above it and the proposal tree (`draft_themes`); at depth 2 also the two-level draft (`draft_subfields`) |
 | `themes.apply` | `apply_themes` on the curated tree (below) or on the proposal, at any depth; at depth 2 also `apply_subfields` on the two-level document |
 | `map.layout` | the layout of the pinned map version (`run_umap`: the people fitted, the keywords placed by their nearest people), then the themes applied again on the map (each node gets a position) |
-| `map.trajectories` | `run_trajectories`: time bins and windows placed by their nearest people, with each window's weights on every theme level |
+| `map.trajectories` | `run_trajectories`: time bins and windows placed by their nearest people, with each window's weights on every theme level; each text's counts of the vocabulary are made once, a bin's vector is the sum of its texts' counts weighed as the vectorizer weighs a document, and the people are taken a chunk at a time in worker processes, the anchors normalised once and shared |
 | `overlays.position` | each projected set projected with `cartolex.lexicon.positioning` and placed by its nearest people, with its weights on every theme level: `<set>/positions.json` |
 
 The figures and the portable bundle are outputs, not build stages.
+
+**What the computer gives.** `EngineOptions.budget` (a `cartolex.scale.Budget`:
+memory, worker processes, scratch folder; by default `Budget.for_machine()`, 40 %
+of the memory up to 12 GB and three quarters of the processors less one) reaches
+every stage's `RunContext`: `threads` caps the worker processes and the memory
+they may take (`ThreadLimits.processes`, `memory_mb`), `extraction_n_jobs` asks
+for that many workers, and `scratch` holds the stages' temporary files (else the
+stage's own folder). The results never depend on it (`tests/test_build_workers.py`
+builds a project with one worker and with several and compares every file), so
+it enters no fingerprint. `cartolex build FOLDER --workers N --memory MB --scratch
+DIR` sets it from the command line.
 
 **Where the engine's files go.** `enginefiles.ENGINE_FILES` gives every field of
 `EnginePaths` a place: a file a stage writes (`Owned`, relative to its folder),

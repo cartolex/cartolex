@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer, TfidfVectorizer
 
 from cartolex.atlas.model_files import save_vectorizer
 
@@ -22,7 +22,7 @@ from .canonicalization import (
     fold_tfidf_to_canonical,
     nested_filter,
 )
-from .io_helpers import CorpusError, load_documents_selected, slot_indexes, write_roster
+from .io_helpers import CorpusError, count_documents_selected, slot_indexes, write_roster
 from .lexicon_store import (
     load_manual_blacklist,
     load_translation_map,
@@ -468,21 +468,34 @@ def _run_pipeline_core(
     # The corpus INDEX of each fit slot (files carrying a ``txt_path`` column),
     # in the settings' order: slot order is document order.
     fit_indexes = slot_indexes(ctx)
-    docs, meta_df = load_documents_selected(
-        fit_indexes,
-        progress_callback=_corpus_progress,
-        now_year=ctx.now_year,
-        recency_years=cfg.kw_recency_years or None,
-    )
-
-    report(73, f"Vectorizing {len(docs)} documents against {len(vocab_list)} terms...")
     vectorizer = TfidfVectorizer(
         lowercase=True,
         vocabulary=vocab_list,
         ngram_range=counting_ngram_range(cfg.ngram_range, term_alias_map),
     )
-
-    X = vectorizer.fit_transform(docs)
+    # What TfidfVectorizer.fit_transform does, its counting a block of people at a time in
+    # worker processes (a document's counts of a fixed vocabulary are its own).
+    params = vectorizer.get_params()
+    for name in ("norm", "use_idf", "smooth_idf", "sublinear_tf"):
+        params.pop(name)
+    counts, meta_df = count_documents_selected(
+        fit_indexes,
+        params,
+        now_year=ctx.now_year,
+        recency_years=cfg.kw_recency_years or None,
+        workers=ctx.threads.workers_within(cfg.extraction_n_jobs, worker_mb=400),
+        progress_callback=_corpus_progress,
+    )
+    report(73, f"Vectorized {counts.shape[0]} documents against {len(vocab_list)} terms...")
+    vectorizer._validate_vocabulary()
+    vectorizer._tfidf = TfidfTransformer(
+        norm=vectorizer.norm,
+        use_idf=vectorizer.use_idf,
+        smooth_idf=vectorizer.smooth_idf,
+        sublinear_tf=vectorizer.sublinear_tf,
+    )
+    vectorizer._tfidf.fit(counts)
+    X = vectorizer._tfidf.transform(counts, copy=False)
     feature_names = vectorizer.get_feature_names_out()
 
     # Plain-TF quantity track: X stores l2-normalised tf·idf; dividing each

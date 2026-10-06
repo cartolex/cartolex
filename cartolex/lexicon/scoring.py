@@ -96,6 +96,7 @@ __all__ = [
     "aggregate_units",
     "score_aggregates",
     "score_units",
+    "window_keys",
 ]
 
 #: What a document is when candidates are scored (see the module docstring).
@@ -296,7 +297,8 @@ class Aggregates:
     distinct texts; ``names`` its occurrences inside a known name, by kind.
     ``volume`` is each person's number of candidate occurrences, every key counted
     (the window's keys or not), and ``word_people`` how many people use each word in
-    any of their candidates (only the rule of common modifiers reads it).
+    any of their candidates (only the rule of common modifiers reads it). The evidence
+    may be given for the keys of the window only (:func:`window_keys`), by index.
     """
 
     keys: list[str]
@@ -304,9 +306,9 @@ class Aggregates:
     P: sparse.csr_matrix
     org_texts: sparse.csr_matrix
     organisations: list[str]
-    surfaces: list[Counter[str]]
-    classes: list[Counter[str]]
-    containers: list[Counter[str]]
+    surfaces: Sequence[Counter[str]] | Mapping[int, Counter[str]]
+    classes: Sequence[Counter[str]] | Mapping[int, Counter[str]]
+    containers: Sequence[Counter[str]] | Mapping[int, Counter[str]]
     volume: np.ndarray
     n_texts: int
     names: list[Counter[str]] | None = None
@@ -498,6 +500,46 @@ def _rows(M: sparse.spmatrix, n: int) -> sparse.csr_matrix:
     return M
 
 
+def _windowed(
+    agg: Aggregates, n_people: int, min_df: float, max_df: float, max_features: int | None
+) -> (
+    tuple[list[int], dict[str, sparse.csr_matrix], sparse.csr_matrix, sparse.csr_matrix, np.ndarray]
+    | None
+):
+    """The keys in the window's order, the counts in that order (per part, and summed),
+    the people's counts, and the window's columns; ``None`` when nothing reaches it."""
+    if not agg.keys or not any(T.nnz for T in agg.parts.values()):
+        return None
+    order = sorted(range(len(agg.keys)), key=agg.keys.__getitem__)  # the window's order
+    parts = {name: T.tocsc()[:, order].tocsr() for name, T in agg.parts.items()}
+    T = sum(parts.values()).tocsr()
+    X_all = _rows(agg.P @ T, n_people)
+    try:
+        cols = _window(X_all, n_people, min_df, max_df, max_features)
+    except ValueError:
+        return None
+    if not len(cols):
+        return None
+    return order, parts, T, X_all, cols
+
+
+def window_keys(
+    agg: Aggregates,
+    n_people: int,
+    *,
+    min_df: int = 3,
+    max_df: float = 0.6,
+    max_features: int | None = 1_000_000,
+) -> list[int]:
+    """The keys of *agg* (their indices) the window keeps: :func:`score_aggregates` needs
+    their evidence (surface forms, classes, containers), the others' it never reads."""
+    found = _windowed(agg, n_people, min_df, max_df, max_features)
+    if found is None:
+        return []
+    order, _parts, _T, _X, cols = found
+    return [order[c] for c in cols]
+
+
 def score_aggregates(
     lang: str,
     agg: Aggregates,
@@ -518,18 +560,10 @@ def score_aggregates(
     """
     opts = options if options is not None else ScoringOptions()
     lp = language_patterns(lang, of_complement=opts.of_complement)
-    if not agg.keys or not any(T.nnz for T in agg.parts.values()):
+    found = _windowed(agg, n_people, min_df, max_df, max_features)
+    if found is None:
         return _empty(lang, n_people, agg.n_texts)
-    order = sorted(range(len(agg.keys)), key=agg.keys.__getitem__)  # the window's order
-    parts = {name: T.tocsc()[:, order].tocsr() for name, T in agg.parts.items()}
-    T = sum(parts.values()).tocsr()
-    X_all = _rows(agg.P @ T, n_people)
-    try:
-        cols = _window(X_all, n_people, min_df, max_df, max_features)
-    except ValueError:
-        return _empty(lang, n_people, agg.n_texts)
-    if not len(cols):
-        return _empty(lang, n_people, agg.n_texts)
+    order, parts, T, X_all, cols = found
     X_people = X_all[:, cols].tocsr()
     keys = [agg.keys[order[c]] for c in cols]
     vocabulary = {k: j for j, k in enumerate(keys)}

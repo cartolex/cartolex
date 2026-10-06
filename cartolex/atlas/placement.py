@@ -51,8 +51,8 @@ __all__ = [
 K = 8
 #: The link radius, as a share of the map's radius.
 LINK_RADIUS = 0.25
-#: The point × anchor distances one chunk holds at most (2²²: 32 MB of float64).
-CHUNK_CELLS = 1 << 22
+#: The point × anchor distances one chunk holds at most (2²³: 64 MB of float64).
+CHUNK_CELLS = 1 << 23
 #: How far a fast distance may be from the exact one (far above the rounding of a product
 #: of unit vectors): every anchor this close to the k-th fast distance is ranked exactly.
 _MARGIN = 1e-9
@@ -181,6 +181,8 @@ def place(
     link_radius: float = LINK_RADIUS,
     chunk: int = 2048,
     exclude_self: bool = False,
+    unit_anchors: bool = False,
+    radius: float | None = None,
 ) -> Placement:
     """Place each row of *vectors* on the map of the anchors (see the module's notes).
 
@@ -190,10 +192,12 @@ def place(
     leave-one-out checks). *link_radius* is a share of the map's radius. Work
     proceeds in chunks of at most *chunk* rows and :data:`CHUNK_CELLS` distances,
     so memory stays bounded whatever the number of anchors; the positions do not
-    depend on the chunking.
+    depend on the chunking. With *unit_anchors* the anchors' vectors are already of
+    length one (:class:`MapAnchors` normalises them once), and *radius*, when given, is
+    the link radius itself (the share times the map's radius).
     """
     V = _unit_rows(np.atleast_2d(vectors))
-    A = _unit_rows(np.atleast_2d(anchor_vectors))
+    A = np.atleast_2d(anchor_vectors) if unit_anchors else _unit_rows(np.atleast_2d(anchor_vectors))
     XY = np.asarray(anchor_xy, dtype=np.float64)
     n_anchors = A.shape[0]
     if XY.shape != (n_anchors, 2):
@@ -201,7 +205,8 @@ def place(
     if V.shape[1] != A.shape[1]:
         raise ValueError(f"vectors have {V.shape[1]} dimensions, anchors {A.shape[1]}")
     k = max(1, min(k, n_anchors - (1 if exclude_self else 0)))
-    radius = link_radius * map_radius(XY)
+    if radius is None:
+        radius = link_radius * map_radius(XY)
     chunk = max(1, min(int(chunk), CHUNK_CELLS // max(1, n_anchors)))
     n = V.shape[0]
     xy = np.empty((n, 2))
@@ -235,16 +240,39 @@ def place(
 @dataclass(frozen=True)
 class MapAnchors:
     """A finished map's anchors: their vectors in the SVD space and their positions, and the
-    neighbours (*k*) and link radius a point is placed with."""
+    neighbours (*k*) and link radius a point is placed with.
+
+    The vectors are normalised once, when the anchors are made (*normalised*: they
+    already are, a memory-mapped file shared by worker processes, say).
+    """
 
     vectors: np.ndarray  # (n, dims)
     xy: np.ndarray  # (n, 2)
     k: int = K
     link_radius: float = LINK_RADIUS
+    normalised: bool = False
+
+    def __post_init__(self) -> None:
+        unit = self.vectors if self.normalised else _unit_rows(np.atleast_2d(self.vectors))
+        object.__setattr__(self, "_unit", unit)
+        object.__setattr__(self, "_radius", self.link_radius * map_radius(self.xy))
+
+    @property
+    def unit(self) -> np.ndarray:
+        """The anchors' vectors, of length one."""
+        return self._unit  # type: ignore[attr-defined]
 
     def place(self, vectors: np.ndarray) -> np.ndarray:
         """The map positions of *vectors* (``(n, 2)``; no rows give ``(0, 2)``)."""
         vectors = np.asarray(vectors, dtype=np.float64)
         if vectors.size == 0:
             return np.zeros((0, 2))
-        return place(vectors, self.vectors, self.xy, k=self.k, link_radius=self.link_radius).xy
+        return place(
+            vectors,
+            self._unit,  # type: ignore[attr-defined]
+            self.xy,
+            k=self.k,
+            link_radius=self.link_radius,
+            unit_anchors=True,
+            radius=self._radius,  # type: ignore[attr-defined]
+        ).xy

@@ -248,36 +248,51 @@ def _hash_task(items: list[tuple[int, int, str]]) -> list[tuple[int, np.ndarray]
     return out
 
 
-def _count_task(
-    items: list[tuple[int, int, str]],
-) -> list[tuple[int, int, int, dict[str, list]]]:
-    """In a worker: per text, its candidate occurrences (every key), and for each counted
-    key its occurrences, surface forms, classes and containers (counted keys only)."""
+def _count_task(items: list[tuple[int, int, str]]) -> list[tuple[int, int, dict[str, int]]]:
+    """In a worker: per text, its candidate occurrences (every key), and each counted key's
+    occurrences."""
+    kept = _STATE["kept"]
+    known: dict[str, bool] = {}
+    out = []
+    for t, _w, payload in items:
+        total = 0
+        per: dict[str, int] = {}
+        for s in _text_spans(payload):
+            total += 1
+            hit = known.get(s.key)
+            if hit is None:
+                hit = known[s.key] = _hash(s.key) in kept
+            if hit:
+                per[s.key] = per.get(s.key, 0) + 1
+        out.append((t, total, per))
+    return out
+
+
+def _evidence_task(items: list[tuple[int, int, str]]) -> list[tuple[int, dict[str, list]]]:
+    """In a worker: per text, each window key's surface forms, classes and containers (the
+    window's keys among them)."""
     kept = _STATE["kept"]
     known: dict[str, bool] = {}
 
-    def counted(key: str) -> bool:
+    def wanted(key: str) -> bool:
         hit = known.get(key)
         if hit is None:
             hit = known[key] = _hash(key) in kept
         return hit
 
     out = []
-    for t, w, payload in items:
-        total = 0
+    for _t, w, payload in items:
         per: dict[str, list] = {}
         for s in _text_spans(payload):
-            total += 1
-            if not counted(s.key):
+            if not wanted(s.key):
                 continue
             entry = per.get(s.key)
             if entry is None:
-                entry = per[s.key] = [0, Counter(), Counter(), Counter()]
-            entry[0] += 1
-            entry[1][s.surface] += 1
-            entry[2][s.classes] += 1
-            entry[3].update(c for c in s.containers if counted(c))
-        out.append((t, w, total, per))
+                entry = per[s.key] = [Counter(), Counter(), Counter()]
+            entry[0][s.surface] += 1
+            entry[1][s.classes] += 1
+            entry[2].update(c for c in s.containers if wanted(c))
+        out.append((w, per))
     return out
 
 
@@ -354,16 +369,22 @@ def language_aggregates(
     options: ScoringOptions,
     min_df: float,
     workers: int,
+    window: Callable[[Aggregates], Sequence[int]],
+    parse_workers: int | None = None,
     progress: Progress | None = None,
 ) -> Aggregates | None:
     """Passes 2 to 4 for one language (see the module docstring): its texts parsed, then
-    the candidates that can reach the window counted; ``None`` without text."""
+    the candidates that can reach the window counted, and the evidence (surface forms,
+    classes, containers) of those *window* keeps (*window* gives their indices among
+    the aggregates' keys); ``None`` without text. Each parsing worker holds a language
+    model: *parse_workers* (default *workers*) of them parse."""
     docs = ex.spills[lang]
     if not docs.count:
         return None
     report = progress or (lambda f, m: None)
     real = frozenset(w for w, n in words.items() if n >= MIN_REAL)
-    writer = ParseCache(cache_dir, model) if cache_dir is not None else None
+    # Created before the workers read it.
+    writer = ParseCache(cache_dir, model).open() if cache_dir is not None else None
     parsed = _Spill(ex.folder / f"analyses-{lang}.arrow")
     lemma_counts: Counter[tuple[str, str]] = Counter()
     healed = done = 0
@@ -371,7 +392,7 @@ def language_aggregates(
         for out, new, lemmas, n_healed in ordered_map(
             _parse_task,
             _blocks(docs.rows()),
-            workers=workers,
+            workers=parse_workers if parse_workers is not None else workers,
             initializer=_set_parsing,
             initargs=(lang, real, str(cache_dir) if cache_dir is not None else None, model),
         ):
@@ -416,8 +437,14 @@ def language_aggregates(
     del every, unique, inverse, reach
     logger.info("[%s] %d candidate(s) can reach the window.", lang, len(kept))
 
-    # 4. Their counts.
-    return _count(ex, lang, parsed, lemmas, options, kept, workers, report)
+    # 4. Their counts; 5. the evidence of those the window keeps.
+    agg = _count(ex, lang, parsed, lemmas, options, kept, workers, report)
+    del kept
+    keys = window(agg)
+    if keys:
+        _evidence(agg, keys, parsed, lang, lemmas, options, workers)
+    report(1.0, f"Counted the {lang.upper()} candidates")
+    return agg
 
 
 def _lemma_table(counts: Mapping[tuple[str, str], int]) -> dict[str, str]:
@@ -442,9 +469,6 @@ def _count(
     report: Progress,
 ) -> Aggregates:
     key_id: dict[str, int] = {}
-    surfaces: list[Counter[str]] = []
-    classes: list[Counter[str]] = []
-    containers: list[Counter[str]] = []
     rows, cols, vals = array("q"), array("q"), array("d")
     row_of: dict[int, int] = {}
     totals: list[float] = []
@@ -456,25 +480,18 @@ def _count(
         initializer=_set_keys,
         initargs=(lang, lemmas, options, kept),
     ):
-        for t, w, total, per in out:
+        for t, total, per in out:
             row = row_of[t] = len(row_of)
             totals.append(float(total))
-            for key, (n, forms, kinds, around) in per.items():
+            for key, n in per.items():
                 i = key_id.get(key)
                 if i is None:
-                    i = key_id[key] = len(surfaces)
-                    surfaces.append(Counter())
-                    classes.append(Counter())
-                    containers.append(Counter())
+                    i = key_id[key] = len(key_id)
                 rows.append(row)
                 cols.append(i)
                 vals.append(float(n))
-                for form, k in forms.items():
-                    surfaces[i][form] += k * w
-                classes[i].update(kinds)
-                containers[i].update(around)
         done += len(out)
-        report(0.75 + 0.25 * done / max(parsed.count, 1), f"Counted {done} {lang.upper()} texts")
+        report(0.75 + 0.2 * done / max(parsed.count, 1), f"Counted {done} {lang.upper()} texts")
     n_rows, n_keys = len(row_of), len(key_id)
     T = sparse.csr_matrix(
         (np.frombuffer(vals, dtype=np.float64), (np.frombuffer(rows, dtype=np.int64),
@@ -503,25 +520,60 @@ def _count(
         shape=(len(orgs), n_rows),
     )
     volume = np.asarray(P @ np.asarray(totals, dtype=float)).ravel()
+    keys = list(key_id)
     word_people = None
     if options.bands.generic_spread is not None:
         # Counted on the keys that can reach the window (the others are rare).
         used = (P @ T).tocsr()
-        keys = list(key_id)
         word_people = Counter()
         for r in range(used.shape[0]):
             cols_r = used.indices[used.indptr[r] : used.indptr[r + 1]]
             word_people.update({w for c in cols_r for w in keys[c].split(" ")})
     return Aggregates(
-        keys=list(key_id),
+        keys=keys,
         parts={"full": T},
         P=P,
         org_texts=org_texts,
         organisations=orgs,
-        surfaces=surfaces,
-        classes=classes,
-        containers=containers,
+        surfaces={},
+        classes={},
+        containers={},
         volume=volume,
         n_texts=n_rows,
         word_people=word_people,
     )
+
+
+def _evidence(
+    agg: Aggregates,
+    keys: Sequence[int],
+    parsed: _Spill,
+    lang: str,
+    lemmas: dict[str, str],
+    options: ScoringOptions,
+    workers: int,
+) -> None:
+    """The surface forms (with the texts' weights), classes and containers of the keys
+    *keys* (their indices), read again from the analyses."""
+    index = {agg.keys[i]: i for i in keys}
+    wanted = np.unique(np.fromiter((_hash(agg.keys[i]) for i in keys), dtype=np.uint64))
+    surfaces = {i: Counter() for i in keys}
+    classes = {i: Counter() for i in keys}
+    containers = {i: Counter() for i in keys}
+    for out in ordered_map(
+        _evidence_task,
+        _blocks(parsed.rows()),
+        workers=workers,
+        initializer=_set_keys,
+        initargs=(lang, lemmas, options, wanted),
+    ):
+        for w, per in out:
+            for key, (forms, kinds, around) in per.items():
+                i = index.get(key)
+                if i is None:  # a key sharing another's hash
+                    continue
+                for form, k in forms.items():
+                    surfaces[i][form] += k * w
+                classes[i].update(kinds)
+                containers[i].update(c for c in around.elements() if c in index)
+    agg.surfaces, agg.classes, agg.containers = surfaces, classes, containers

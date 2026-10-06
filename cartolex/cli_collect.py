@@ -11,6 +11,7 @@
     cartolex collect harvest FOLDER [--years FIRST-LAST] [--people ID…] [--resume] [SERVICES]
     cartolex collect snapshot FOLDER SNAPSHOT [--years …] [--people ID…] [--resume] [SERVICES]
     cartolex collect snapshot-index SNAPSHOT [--jobs N] [--status]
+    cartolex collect rebuild PROJECT [--workers N] [--scratch DIR]
     cartolex collect institutions FOLDER (--search NAME | --institution ID…) [--years …]
                                   [--min-works N] [--level TYPE=LEVEL…] [--resume] [--snapshot DIR]
                                   [SERVICES]
@@ -670,6 +671,28 @@ def _coverage(args: argparse.Namespace) -> int:
     return 0
 
 
+def _rebuild(args: argparse.Namespace) -> int:
+    import time
+
+    from cartolex.collect.tables import rebuild_sources
+
+    project = _open(args.folder)
+    try:
+        started = time.monotonic()
+        report = rebuild_sources(
+            project.layout, project.config, jobs=args.workers, scratch=args.scratch
+        )
+    finally:
+        project.close()
+    rows = ", ".join(f"{n} {name}" for name, n in report.rows.items())
+    print(f"tables rebuilt from {report.runs} run(s) in {time.monotonic() - started:.0f} s: {rows}")
+    for warning in report.warnings[:10]:
+        print(f"  {warning}")
+    if len(report.warnings) > 10:
+        print(f"  … and {len(report.warnings) - 10} other warning(s)")
+    return 0
+
+
 def _window(args: argparse.Namespace) -> int:
     from cartolex.collect.people_import import _collection_slot
     from cartolex.project.models import YearWindow
@@ -891,6 +914,14 @@ def add_parser(sub: Any) -> None:
     cv.add_argument("--snapshot", type=Path, help="retry from this snapshot folder")
     _service_options(cv)
     cv.set_defaults(run=_coverage)
+
+    rb = verbs.add_parser("rebuild", help="rebuild the source tables from the raw runs")
+    rb.add_argument("folder", type=Path)
+    rb.add_argument("--workers", type=int, help="worker processes reading heavy runs")
+    rb.add_argument(
+        "--scratch", type=Path, help="a folder on a fast local disk for the rebuild's database"
+    )
+    rb.set_defaults(run=_rebuild)
 
     wi = verbs.add_parser("window", help="set the years a collection slot collects by default")
     wi.add_argument("folder", type=Path)

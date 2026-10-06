@@ -150,9 +150,12 @@ def _build(args: argparse.Namespace) -> int:
     project = Project.open(args.folder, write=True)
     for note in project.recovered:
         print(note)
+    from cartolex.scale import Budget
+
+    budget = Budget.for_machine(memory_mb=args.memory, workers=args.workers, scratch=args.scratch)
     registry = engine_registry(
         AIAccess(api_key=os.environ.get("MISTRAL_API_KEY") or None),
-        EngineOptions(rejects_folder=_data_dir(args) / "rejects"),
+        EngineOptions(rejects_folder=_data_dir(args) / "rejects", budget=budget),
     )
     cancel = threading.Event()
 
@@ -180,6 +183,19 @@ def _build(args: argparse.Namespace) -> int:
     if result.outcome == "cancelled":
         return 130
     return 0 if result.outcome == "succeeded" and not result.refused else 1
+
+
+def _budget_options(parser: argparse.ArgumentParser) -> None:
+    """The resources a long job may use on this computer (the results do not depend on them)."""
+    parser.add_argument(
+        "--workers", type=int, help="worker processes (default: three quarters of the processors)"
+    )
+    parser.add_argument(
+        "--memory", type=int, metavar="MB", help="memory for the job (default: 40%%, at most 12 GB)"
+    )
+    parser.add_argument(
+        "--scratch", type=Path, help="a folder on a fast local disk for temporary files"
+    )
 
 
 def _data_dir(args: argparse.Namespace) -> Path:
@@ -587,6 +603,7 @@ def _parser(extensions: Sequence[Extension] = ()) -> argparse.ArgumentParser:
     bd.add_argument("--force", nargs="+", metavar="STAGE", help="run these even if up to date")
     bd.add_argument("--yes", action="store_true", help="accept the stages that ask consent")
     bd.add_argument("--data-dir", type=Path, help="the app's own folder, with the rejection cache")
+    _budget_options(bd)
     bd.set_defaults(run=_build)
 
     rj = sub.add_parser("rejects", help="the terms rejected automatically on this computer")

@@ -31,7 +31,7 @@ choices are in ``docs/dev/themes-engine.md``.
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -166,22 +166,43 @@ def document_keywords(
     return D.astype(np.float64)
 
 
+_READING: dict[str, Any] = {}
+
+
+def _set_reading(vectorizer_json: str, alias: dict[str, str], terms: list[str]) -> None:
+    from cartolex.atlas.model_files import load_vectorizer
+
+    _READING.update(vectorizer=load_vectorizer(Path(vectorizer_json)), alias=alias, terms=terms)
+
+
+def _read_chunk(texts: list[str]) -> sparse.csr_matrix:
+    """In a worker: :func:`document_keywords` of a block of texts."""
+    return document_keywords(
+        texts,
+        vectorizer=_READING["vectorizer"],
+        alias_to_canon=_READING["alias"],
+        terms=_READING["terms"],
+    )
+
+
 def corpus_texts(
     index_csvs: Iterable[Path],
     *,
     vectorizer_json: Path,
     aliases_csv: Path,
     terms: Sequence[str],
+    workers: int = 1,
 ) -> sparse.csr_matrix:
     """``texts × terms`` over the texts of the corpus slots (the folders of *index_csvs*),
     each text once, in the order the slots first name them.
 
     A text several people signed is read once. Texts are read :data:`TEXT_CHUNK` at a
-    time, in the order they are stored.
+    time, in the order they are stored, each block read in one of *workers* worker
+    processes (the rows do not depend on the blocks).
     """
     import pandas as pd
 
-    from cartolex.atlas.model_files import load_vectorizer
+    from cartolex.scale import ordered_map
 
     from .corpus_store import load_corpus
 
@@ -191,28 +212,33 @@ def corpus_texts(
     order = corpus.first_texts()
     if not len(order):
         return sparse.csr_matrix((0, len(terms)))
-    vectorizer = load_vectorizer(vectorizer_json)
     al = pd.read_csv(aliases_csv, dtype=str, keep_default_na=False)
     alias = {
         a.strip().lower(): c.strip().lower()
         for a, c in zip(al["alias"], al["canonical"], strict=True)
     }
-    parts, read = [], []
-    chunk: list[str] = []
+    read: list[int] = []
 
-    def flush() -> None:
+    def chunks() -> Iterator[list[str]]:
+        chunk: list[str] = []
+        for t, text in corpus.texts(order):
+            read.append(t)
+            chunk.append(text)
+            if len(chunk) >= TEXT_CHUNK:
+                yield chunk
+                chunk = []
         if chunk:
-            parts.append(
-                document_keywords(chunk, vectorizer=vectorizer, alias_to_canon=alias, terms=terms)
-            )
-            chunk.clear()
+            yield chunk
 
-    for t, text in corpus.texts(order):
-        read.append(t)
-        chunk.append(text)
-        if len(chunk) >= TEXT_CHUNK:
-            flush()
-    flush()
+    parts = list(
+        ordered_map(
+            _read_chunk,
+            chunks(),
+            workers=workers,
+            initializer=_set_reading,
+            initargs=(str(vectorizer_json), alias, list(terms)),
+        )
+    )
     D = sparse.vstack(parts, format="csr")
     row_of = {t: i for i, t in enumerate(read)}
     return D[np.array([row_of[t] for t in order.tolist()], dtype=np.int64)]

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import itertools
 import multiprocessing
 from collections import deque
 from collections.abc import Callable, Iterable, Iterator
@@ -21,10 +22,15 @@ AHEAD = 2
 def worker_setup() -> None:
     """In a worker process: Ctrl-C, which a terminal sends to the whole process group, is
     for the main process, which stops the workers itself; numerical libraries use one
-    thread (the workers are the parallelism)."""
+    thread (the workers are the parallelism); and when memory runs out (a job capped
+    below the computer's memory), a worker is stopped before the main process, which
+    then says why the job failed."""
+    import contextlib
     import signal
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
+    with contextlib.suppress(OSError), open("/proc/self/oom_score_adj", "w") as fh:
+        fh.write("800")
     try:
         from threadpoolctl import threadpool_limits
 
@@ -54,15 +60,19 @@ def ordered_map(
 
     *initializer* runs once in each worker (with *initargs*), to set what every item
     needs (a large lookup table is sent once per worker, not with each item). With
-    *workers* ≤ 1 everything runs here, in order, without processes. Leaving the loop
-    early cancels the items not started; an exception in *fn* is raised here.
+    *workers* ≤ 1, or a single item, everything runs here, in order, without
+    processes. Leaving the loop early cancels the items not started; an exception in
+    *fn* is raised here.
     """
-    if workers <= 1:
+    items = iter(items)
+    first = list(itertools.islice(items, 2))
+    if workers <= 1 or len(first) < 2:
         if initializer is not None:
             initializer(*initargs)
-        for item in items:
+        for item in itertools.chain(first, items):
             yield fn(item)
         return
+    items = itertools.chain(first, items)
     context = multiprocessing.get_context("spawn")
     pool = ProcessPoolExecutor(
         workers, mp_context=context, initializer=_start, initargs=(initializer, initargs)

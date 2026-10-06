@@ -295,29 +295,60 @@ patterns. The caller chooses the folder: `EnginePaths.parse_cache_dir`
 puts it under `cache/parse/`). Layout and format:
 
 ```text
-<folder>/<model name>-<model version>/<pattern version>/part-<digest>.jsonl
+<folder>/<model name>-<model version>/<pattern version>/analyses.sqlite
 ```
 
-Each part is UTF-8 JSON lines: a header line
-`{"format": "cartolex-parse/1", "model": "<name@version>", "patterns": "<version>"}`,
-then one line per text, `{"sha256": …, "runs": …, "lemmas": …}`. A run writes
-its new analyses into new parts of at most 1,000 texts, each written to a
-temporary file and renamed into place, never modified afterwards; a part's
-name is the digest of its content. A part whose header does not match, or
-that cannot be read, is skipped with a warning and its texts are parsed
-again. Another model version or pattern version lives in another folder, is
-never read and can be deleted.
+One SQLite table, `analyses (key TEXT PRIMARY KEY, data BLOB)`: the text's
+sha256 and its analysis as compressed JSON (`{"runs": …, "lemmas": …}`). One
+process writes at a time and any number read: the parsing workers look their
+texts up while the run stores the analyses they parse. An analysis is stored
+once and never changed. Another model version or pattern version lives in
+another folder, is never read and can be deleted. The parts an earlier version
+wrote (`part-<digest>.jsonl`: a header line `{"format": "cartolex-parse/1",
+"model": …, "patterns": …}`, then one line per text) are read into the database
+the first time it is opened for writing; a part whose header does not match,
+or that cannot be read, is skipped with a warning.
+
+## A text at a time, in worker processes
+
+The extraction never holds the corpus (`cartolex/lexicon/extract_stream.py`).
+It reads the window's pairs as compact arrays
+(`cartolex.lexicon.corpus_store.load_corpus`), and each text once, however many
+of its authors are in the project: a count the scoring weighs by person and
+text counts the text once per author (its *weight*, the pairs that name it).
+Four passes, each over blocks of texts (`TASK_TEXTS`) given to worker processes
+(`cartolex.scale.ordered_map`, results given back in order):
+
+1. **languages**: each text's paragraphs by language, and each language's words
+   counted with the texts' weights (the healing's dictionary);
+2. **parsing**, a language at a time: each text healed
+   (`text_utils.heal_text`, the corpus's real words sent once to every worker),
+   cut, and its pieces analysed from the parse cache or parsed; the words' lemmas
+   counted with the weights (the corpus lemma table). Each parsing worker holds
+   its language's model (about 0.9 GB, `PARSE_WORKER_MB`): their number is capped
+   by the run's memory (`ThreadLimits.workers_within`);
+3. **keys**: the candidates each text holds, a 64-bit hash each, summed with the
+   texts' weights; a candidate the texts of fewer than `min_df` people could hold
+   cannot enter the window and is not counted further (dropping it changes
+   nothing);
+4. **counts**: the other candidates' occurrences per text, their surface forms,
+   classes and containers, gathered into `scoring.Aggregates`.
+
+The analyses wait between passes in a scratch folder (`RunContext.scratch`, else
+the stage's own folder), read front to back. `scoring.score_aggregates` scores the
+counts: the same window, TF-IDF, evidence and bands as `score_units`, which keeps
+its interface (the lexicon lab's texts in memory) on top of the same function.
 
 ## Parallel parsing and determinism
 
-`KeywordsConfig.extraction_n_jobs` (capped by `RunContext.threads`) sets the
-number of worker processes for the language split and for parsing. Parsing
-workers are fresh interpreters (never forks of the running process), each
-with its own copy of the model, and take fixed batches of texts. The analysis
-of a text does not depend on the batch it is parsed in, and candidates are
-counted in a fixed order, so the output is the same, byte for byte, whatever
-the number of workers and whatever the cache holds
-(`tests/test_extraction.py`).
+`KeywordsConfig.extraction_n_jobs` (capped by `RunContext.threads`; a project's
+build sets both from the computer's budget, `cartolex.scale.Budget`) sets the
+number of worker processes. Workers are fresh interpreters (never forks of the
+running process), started only when there are several blocks of texts. The
+analysis of a text does not depend on the block it is parsed in, and every count
+is made in the texts' order, so the output is the same, byte for byte, whatever
+the number of workers and whatever the cache holds (`tests/test_extraction.py`;
+every stage of a project: `tests/test_build_workers.py`).
 
 ## The models and their licences
 

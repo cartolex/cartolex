@@ -155,6 +155,16 @@ class ParseCache:
         db = self._connect()
         if db is None:
             return {}
+        try:
+            return self._read(db, wanted, share)
+        except sqlite3.OperationalError:
+            if self.readonly:  # the database is being created: nothing to find yet
+                return {}
+            raise
+
+    def _read(
+        self, db: sqlite3.Connection, wanted: Collection[str] | None, share: dict | None
+    ) -> dict[str, TextAnalysis]:
         out: dict[str, TextAnalysis] = {}
         if wanted is None:
             for key, blob in db.execute("SELECT key, data FROM analyses ORDER BY key"):
@@ -183,6 +193,11 @@ class ParseCache:
         )
         db.commit()
         return db.total_changes - before
+
+    def open(self) -> ParseCache:
+        """Create the database now (before worker processes read it); returns the cache."""
+        self._connect()
+        return self
 
     def close(self) -> None:
         """Close the database (it opens again when needed)."""

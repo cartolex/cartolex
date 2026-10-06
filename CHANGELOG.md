@@ -8,6 +8,26 @@ line.
 A generic engine with an explicit API: every stage takes a run context, and
 nothing in the engine names a particular deployment, source or procedure.
 
+- **Projects of millions of texts on an ordinary computer.** Memory no longer
+  grows with the texts; their processing runs in worker processes, and the
+  results do not depend on how many.
+  - *Source tables*: rebuilt through a scratch SQLite database, a harvest read a
+    person at a time and each work reduced to the project people on it; the id
+    registry is `ids.parquet` (`cartolex-ids/2`; `ids.json` is read and
+    replaced). `cartolex collect rebuild FOLDER [--workers N] [--scratch DIR]`.
+  - *Corpus*: packed (`pairs.parquet`, `people.csv`, `texts.parquet`), read by
+    every stage through `cartolex.lexicon.corpus_store`, which also reads the
+    one-file-per-text contract.
+  - *Extraction*: each text read, parsed and counted once, in worker processes;
+    the parse cache is an SQLite file; scoring works from counts
+    (`scoring.score_aggregates`).
+  - *Text space*: above 500,000 texts, the exact SVD through the keywords' Gram
+    matrix.
+  - *Trajectories*: each text counted once, a bin's vector the sum of its texts'
+    counts; the people's chunks in worker processes.
+  - *Budget*: `cartolex.scale.Budget` (memory, workers, scratch folder) reaches
+    every stage; `cartolex build --workers --memory --scratch`.
+
 - **One namespace, packaged data.** The engine is `cartolex.lexicon` and
   `cartolex.atlas`; the stop-word lists and prompt templates ship in
   `cartolex/_data/` and are read with `importlib.resources`.

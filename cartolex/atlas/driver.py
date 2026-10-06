@@ -12,7 +12,9 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
-from collections.abc import Collection, Sequence
+import shutil
+import tempfile
+from collections.abc import Collection, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -399,6 +401,9 @@ def _run_svd(
         ctx.report(0.4, "reading the texts")
         D = corpus_texts(
             [index for _, index, _ in slot_indexes(ctx)],
+            workers=ctx.threads.workers_within(
+                ctx.settings.extraction_n_jobs, worker_mb=COUNT_WORKER_MB
+            ),
             vectorizer_json=paths.vectorizer_json,
             aliases_csv=paths.term_aliases_csv,
             terms=data.terms,
@@ -977,9 +982,14 @@ def _run_lexical_plots(
     logger.info("Static plots written to %s", paths.atlas_dir)
 
 
-#: The people whose texts one step of the trajectories reads at a time: the
-#: texts of a large project never sit in memory together.
+#: The people whose trajectories one step computes (in one worker process) at a time.
 TRAJECTORY_CHUNK = 1000
+#: The texts counted at a time (in one worker process) before the trajectories.
+TRAJECTORY_TEXTS = 2000
+#: The memory a worker process takes, in MB (measured): counting texts, placing a chunk
+#: of people's time windows (the anchors are shared, not counted).
+COUNT_WORKER_MB = 400
+TRAJECTORY_WORKER_MB = 1300
 
 _DOC_COLUMNS = ["last_name", "first_name", "unit", "doc_year", "doc_type"]
 
@@ -1212,6 +1222,140 @@ def run_trajectories(
         )
 
 
+_TRAJECTORIES: dict[str, Any] = {}
+_COUNTER: dict[str, Any] = {}
+
+
+def _set_counter(params: dict) -> None:
+    from sklearn.feature_extraction.text import CountVectorizer
+
+    _COUNTER["vectorizer"] = CountVectorizer(**params)
+
+
+def _count_texts(texts: list[str]) -> tuple[Any, np.ndarray]:
+    """In a worker: each text's counts of the vocabulary, and whether it is blank."""
+    from scipy import sparse
+
+    counted = sparse.csr_matrix(_COUNTER["vectorizer"].transform(texts), dtype=np.float64)
+    return counted, np.array([not t.strip() for t in texts], dtype=bool)
+
+
+def _trajectory_counts(
+    corpus: Any, vectorizer: Any, workers: int
+) -> tuple[Any, np.ndarray, np.ndarray]:
+    """Every text's counts of *vectorizer*'s vocabulary (rows), whether it is blank, and
+    each text's row (``-1``: no pair names it), computed once in *workers* processes."""
+    from scipy import sparse
+
+    from cartolex.atlas.trajectories import count_parameters
+    from cartolex.scale import ordered_map
+
+    wanted = np.unique(corpus.text)
+    order: list[int] = []
+
+    def chunks() -> Iterator[list[str]]:
+        block: list[str] = []
+        for t, text in corpus.texts(wanted):
+            order.append(t)
+            block.append(text)
+            if len(block) >= TRAJECTORY_TEXTS:
+                yield block
+                block = []
+        if block:
+            yield block
+
+    parts = list(
+        ordered_map(
+            _count_texts,
+            chunks(),
+            workers=workers,
+            initializer=_set_counter,
+            initargs=(count_parameters(vectorizer),),
+        )
+    )
+    n_features = len(vectorizer.vocabulary_)
+    counts = (
+        sparse.vstack([p for p, _ in parts], format="csr")
+        if parts
+        else sparse.csr_matrix((0, n_features))
+    )
+    blank = np.concatenate([b for _, b in parts]) if parts else np.zeros(0, dtype=bool)
+    row_of = np.full(corpus.n_texts, -1, dtype=np.int64)
+    row_of[np.asarray(order, dtype=np.int64)] = np.arange(len(order))
+    return counts, blank, row_of
+
+
+def _set_trajectories(setup: dict) -> None:
+    """In a worker: what every chunk of people needs, read once."""
+    from cartolex.atlas.model_files import load_vectorizer
+
+    terms = [str(t).lower() for t in setup["terms"]]
+    tree_path = Path(setup["tree"])
+    tree = None
+    if tree_path.exists():
+        from cartolex.lexicon.theme_tree import read_tree
+
+        tree = read_tree(tree_path, terms)
+    _TRAJECTORIES.update(
+        setup,
+        vectorizer=load_vectorizer(Path(setup["vectorizer"])),
+        svd=load_svd(Path(setup["svd"])),
+        anchor_map=MapAnchors(
+            np.load(setup["anchors"], mmap_mode="r", allow_pickle=False),
+            setup["xy"],
+            k=setup["k"],
+            link_radius=setup["link_radius"],
+            normalised=True,
+        ),
+        maps=_lexicon_maps(Path(setup["subfields"]), terms),
+        tree_obj=tree,
+    )
+
+
+def _trajectory_task(task: tuple[pd.DataFrame, Any]) -> tuple[pd.DataFrame, dict, list | None]:
+    """In a worker: one chunk of people's bins, points and windows."""
+    from cartolex.atlas.trajectories import (
+        build_trajectory_matrix,
+        build_trajectory_windows,
+        project_trajectories,
+    )
+
+    docs, counts = task
+    s = _TRAJECTORIES
+    traj = build_trajectory_matrix(
+        docs,
+        vectorizer=s["vectorizer"],
+        alias_to_canon=s["alias"],
+        ref_terms=s["terms"],
+        now_year=s["now"],
+        bin_years=s["bins"],
+        doc_types=s["types"],
+        length_alpha=s["alpha"],
+        top_k_terms=s["top_k"],
+        min_docs_per_bin=s["min_docs"],
+        counts=counts,
+    )
+    coords = project_trajectories(traj.B, s["svd"], s["anchor_map"])
+    out_df = traj.meta.copy()
+    out_df["umap_x"] = coords[:, 0] if len(out_df) else []
+    out_df["umap_y"] = coords[:, 1] if len(out_df) else []
+    # Time machine: each window projected through the SVD and placed on the map; the
+    # per-window subfield/concept weights are aggregated from each window's own terms
+    # through the applied lexicon (evidence-based, not SVD proximity).
+    term_to_concept, concept_to_subfield = s["maps"]
+    tree = s["tree_obj"]
+    windows = build_trajectory_windows(
+        traj,
+        svd_model=s["svd"],
+        anchors=s["anchor_map"],
+        term_to_concept=term_to_concept,
+        concept_to_subfield=concept_to_subfield,
+        describe=None if tree is None else tree.describe,
+    )
+    level_rows = _window_level_rows(tree, windows) if tree is not None else None
+    return out_df, windows, level_rows
+
+
 def _run_trajectories(
     ctx: RunContext,
     *,
@@ -1228,11 +1372,6 @@ def _run_trajectories(
     d = atlas_defaults(ctx)
     ctx.enforce_staleness("trajectories", force=force)
     from cartolex.atlas.plots import compute_cohort_trajectories, plot_cohort_trajectories
-    from cartolex.atlas.trajectories import (
-        build_trajectory_matrix,
-        build_trajectory_windows,
-        project_trajectories,
-    )
 
     vectorizer_path = paths.vectorizer_json
     aliases_path = paths.term_aliases_csv
@@ -1260,8 +1399,12 @@ def _run_trajectories(
     eff_types = tuple(doc_types) if doc_types else None
     eff_min = min_docs_per_bin if min_docs_per_bin is not None else d.traj_min_docs_per_bin
 
-    index, corpus = _per_document_index(slot_indexes(ctx, trajectory=True))
-    if index.empty:
+    from cartolex.lexicon.corpus_store import load_corpus
+    from cartolex.lexicon.utils import make_researcher_id
+    from cartolex.scale import ordered_map
+
+    corpus = load_corpus(slot_indexes(ctx, trajectory=True))
+    if not len(corpus.person):
         logger.warning("Trajectories: no per-document corpus rows found; nothing to do.")
         return
 
@@ -1272,78 +1415,111 @@ def _run_trajectories(
         for a, c in zip(aliases_df["alias"], aliases_df["canonical"], strict=False)
     }
     data = load_lexical_data(paths.lexical_data_json)
-    svd_model = load_svd(paths.svd_model_json)
     emb = load_embeddings(paths.embeddings_json)
     if emb.umap_ind is None:
         logger.warning("Trajectories skipped — the map is not drawn yet: run the layout first.")
         return
     anchors = MapAnchors(emb.Z_ind, emb.umap_ind, k=neighbours, link_radius=link_radius)
     ref_terms = list(data.terms)
-    # The terms of every chunk's matrix are the reference terms (lower-cased).
-    traj_terms = [str(t).lower() for t in ref_terms]
-    term_to_concept, concept_to_subfield = _lexicon_maps(paths.subfields_json, traj_terms)
-    tree = _applied_tree(paths, traj_terms)
+    wanted = ctx.threads.workers(ctx.settings.extraction_n_jobs)
+
+    # Each text's counts of the vocabulary, once (a text several people wrote included).
+    ctx.report(0.05, "counting the texts")
+    counting = ctx.threads.workers_within(wanted, worker_mb=COUNT_WORKER_MB)
+    counts, blank, row_of = _trajectory_counts(corpus, vectorizer, counting)
+    workers = ctx.threads.workers_within(wanted, worker_mb=TRAJECTORY_WORKER_MB)
 
     # The people are taken a chunk at a time, in sorted id order: each person's
     # bins and windows depend only on their own texts, and the outputs are
-    # written in the order a single pass would give.
-    chunks = _researcher_chunks(index, TRAJECTORY_CHUNK)
+    # written in the order a single pass would give (the chunks are computed in
+    # worker processes, given back in order).
+    people = corpus.people
+    rids = [make_researcher_id(p.last_name, p.first_name, p.raw_unit) for p in people]
+    by_rid = sorted(range(len(people)), key=rids.__getitem__)
+    chunk_of = np.empty(len(people), dtype=np.int64)
+    chunk_of[by_rid] = np.arange(len(by_rid)) // max(1, TRAJECTORY_CHUNK)
+    pair_chunk = chunk_of[corpus.person]
+    n_chunks = int(chunk_of.max()) + 1 if len(people) else 0
+    types = corpus.pair_types()
+    work = Path(tempfile.mkdtemp(prefix="trajectories-", dir=ctx.scratch or paths.automatic_dir))
+
+    def tasks() -> Iterator[tuple[pd.DataFrame, Any]]:
+        order = np.argsort(pair_chunk, kind="stable")
+        bounds = np.searchsorted(pair_chunk[order], np.arange(n_chunks + 1))
+        for c in range(n_chunks):
+            pairs = order[bounds[c] : bounds[c + 1]]
+            who = corpus.person[pairs].tolist()
+            texts = corpus.text[pairs]
+            rows = row_of[texts]
+            docs = pd.DataFrame(
+                {
+                    "last_name": [people[i].last_name for i in who],
+                    "first_name": [people[i].first_name for i in who],
+                    # A person without a group has an empty unit: researcher_id is
+                    # "<last>||<first>||", matching make_researcher_id(last, first, "").
+                    "unit": [people[i].raw_unit for i in who],
+                    "doc_year": [None if y < 0 else int(y) for y in corpus.year[pairs].tolist()],
+                    "doc_type": [types[k] for k in pairs.tolist()],
+                    "row": np.arange(len(pairs)),
+                    "blank": blank[rows],
+                }
+            )
+            yield docs, counts[rows]
+
     paths.atlas_dir.mkdir(parents=True, exist_ok=True)
     out_csv = paths.trajectories_csv
     windows_path = paths.trajectory_windows_json
-    levels = _LevelsWriter(paths.trajectory_themes_parquet, single=len(chunks) == 1)
+    levels = _LevelsWriter(paths.trajectory_themes_parquet, single=n_chunks == 1)
     kept_points: list[pd.DataFrame] = []
     n_points = n_windowed = 0
     ctx.report(0.2, "time windows")
-    with windows_path.open("w", encoding="utf-8") as windows_out:
-        windows_out.write("{")
-        for c, rows in enumerate(chunks):
-            docs = _with_texts(index.iloc[rows], corpus)
-            traj = build_trajectory_matrix(
-                docs,
-                vectorizer=vectorizer,
-                alias_to_canon=alias_to_canon,
-                ref_terms=ref_terms,
-                now_year=eff_now,
-                bin_years=eff_bins,
-                doc_types=eff_types,
-                length_alpha=length_alpha,
-                top_k_terms=d.traj_top_k_terms,
-                min_docs_per_bin=eff_min,
+    try:
+        np.save(work / "anchors.npy", anchors.unit)
+        setup = {
+            "vectorizer": str(vectorizer_path),
+            "svd": str(paths.svd_model_json),
+            "subfields": str(paths.subfields_json),
+            "tree": str(paths.themes_tree_json),
+            "anchors": str(work / "anchors.npy"),
+            "xy": np.asarray(emb.umap_ind, dtype=np.float64),
+            "k": neighbours,
+            "link_radius": link_radius,
+            "alias": alias_to_canon,
+            "terms": ref_terms,
+            "now": eff_now,
+            "bins": eff_bins,
+            "types": eff_types,
+            "alpha": length_alpha,
+            "top_k": d.traj_top_k_terms,
+            "min_docs": eff_min,
+        }
+        with windows_path.open("w", encoding="utf-8") as windows_out:
+            windows_out.write("{")
+            results = ordered_map(
+                _trajectory_task,
+                tasks(),
+                workers=workers,
+                initializer=_set_trajectories,
+                initargs=(setup,),
+                ahead=1,
             )
-            del docs
-            coords = project_trajectories(traj.B, svd_model, anchors)
-            out_df = traj.meta.copy()
-            out_df["umap_x"] = coords[:, 0] if len(out_df) else []
-            out_df["umap_y"] = coords[:, 1] if len(out_df) else []
-            out_df.to_csv(out_csv, index=False, mode="w" if c == 0 else "a", header=c == 0)
-            n_points += len(out_df)
-            if cohort_by:
-                kept_points.append(out_df)
-
-            # Time machine: each window projected through the SVD and placed on the
-            # map; the per-window subfield/concept weights are aggregated from each
-            # window's own terms through the applied lexicon (evidence-based, not SVD
-            # proximity).
-            windows = build_trajectory_windows(
-                traj,
-                svd_model=svd_model,
-                anchors=anchors,
-                term_to_concept=term_to_concept,
-                concept_to_subfield=concept_to_subfield,
-                report=lambda f, m, c=c: ctx.report(0.2 + 0.75 * (c + f) / len(chunks), m),
-                describe=None if tree is None else tree.describe,
-            )
-            if tree is not None:
-                levels.add(_window_level_rows(tree, windows))
-            for rid, entries in windows.items():
-                windows_out.write(", " if n_windowed else "")
-                windows_out.write(json.dumps(rid, ensure_ascii=False) + ": ")
-                windows_out.write(json.dumps(entries, ensure_ascii=False))
-                n_windowed += 1
-        windows_out.write("}")
-    if tree is not None:
-        levels.close()
+            for c, (out_df, windows, level_rows) in enumerate(results):
+                ctx.report(0.2 + 0.75 * (c + 1) / max(n_chunks, 1), "time windows")
+                out_df.to_csv(out_csv, index=False, mode="w" if c == 0 else "a", header=c == 0)
+                n_points += len(out_df)
+                if cohort_by:
+                    kept_points.append(out_df)
+                if level_rows is not None:
+                    levels.add(level_rows)
+                for rid, entries in windows.items():
+                    windows_out.write(", " if n_windowed else "")
+                    windows_out.write(json.dumps(rid, ensure_ascii=False) + ": ")
+                    windows_out.write(json.dumps(entries, ensure_ascii=False))
+                    n_windowed += 1
+            windows_out.write("}")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    levels.close()
     logger.info("Wrote %d trajectory points to %s", n_points, out_csv)
     logger.info("Wrote trajectory windows for %d researcher(s) to %s", n_windowed, windows_path)
     out_df = pd.concat(kept_points, ignore_index=True) if kept_points else pd.DataFrame()

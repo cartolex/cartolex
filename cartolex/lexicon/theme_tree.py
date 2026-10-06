@@ -746,6 +746,7 @@ def draft_themes(
     if comb:
         texts = {
             "index_csvs": [index for _, index, _ in slot_indexes(ctx)],
+            "workers": ctx.threads.workers_within(ctx.settings.extraction_n_jobs, worker_mb=400),
             "vectorizer_json": paths.vectorizer_json,
             "aliases_csv": paths.term_aliases_csv,
         }
@@ -919,6 +920,7 @@ def _comb(
         return None
     D = tc.corpus_texts(
         texts["index_csvs"],
+        workers=int(texts.get("workers", 1)),
         vectorizer_json=Path(texts["vectorizer_json"]),
         aliases_csv=Path(texts["aliases_csv"]),
         terms=terms,

@@ -262,6 +262,8 @@ class ThreadLimits:
 
     numeric: int | None = None
     processes: int | None = None
+    #: The memory the run may use in all, its workers included, in MB (``None``: no cap).
+    memory_mb: int | None = None
 
     @contextlib.contextmanager
     def applied(self) -> Iterator[None]:
@@ -279,6 +281,14 @@ class ThreadLimits:
         if self.processes is None:
             return wanted
         return max(1, min(int(wanted), int(self.processes)))
+
+    def workers_within(self, wanted: int, worker_mb: float, parent_mb: float = 2000.0) -> int:
+        """:meth:`workers`, and no more than the memory holds, each worker taking
+        *worker_mb* beside a parent of *parent_mb*."""
+        n = self.workers(wanted)
+        if self.memory_mb is None:
+            return n
+        return max(1, min(n, int((self.memory_mb - parent_mb) // max(worker_mb, 1.0))))
 
 
 def _packaged_stopwords() -> StopwordProfile:
@@ -322,7 +332,9 @@ class RunContext:
     loops: when it returns true, the stage raises :class:`RunCancelled` (the AI
     triage raises its own cancel error). ``ai_client``, when set, builds the AI
     provider's client (called like the provider SDK's client class), so a test
-    or a reference run can answer with a model of its own.
+    or a reference run can answer with a model of its own. ``scratch`` is a folder
+    on a fast local disk for a stage's temporary files (``None``: the stage's own
+    output folder).
     """
 
     paths: EnginePaths
@@ -337,6 +349,7 @@ class RunContext:
     progress: Callable[[float, str], Any] | None = None
     cancel: Callable[[], bool] | None = None
     ai_client: Callable[..., Any] | None = None
+    scratch: Path | None = None
 
     @classmethod
     def for_workspace(
