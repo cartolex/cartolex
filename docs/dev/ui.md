@@ -300,10 +300,14 @@ path, and the app's Content-Security-Policy on every answer.
 
 Every core page is built;
 the overview (`pages/overview.js`: `overview/page.js`, `cards.js`,
-`preview.js`) and the build (`pages/build.js`, a page placed `hidden`:
+`checklist.js`, `preview.js`) and the build (`pages/build.js`, a page placed `hidden`:
 `build/page.js`, `preflight.js`, `run.js`, `words.js`) are built. The overview
 reads the project state and `GET /api/overview`: the project's name and
-state, the one next step, the stage tracker, the health panel, a small
+state, the one next step, « Your first map » (a Stepper of the steps from the
+people to sharing, the current one with its button and a link to the guide,
+{doc}`../first-map`; hidden per project in the person's preferences), the stage
+tracker (a failure a later job came after says « failed on <date> », a
+cancelled attempt « cancelled on <date> »), the health panel, a small
 preview of the map (a MapFrame) and the recent shared builds. The build page
 (`/build?scope=map`) shows the pre-flight sheet from the dry run (what runs
 and why, the time, the memory against the machine's, the AI calls, the
@@ -357,7 +361,7 @@ reviewed term by term, `review.js`, with the kit's counts and caveats; accept
 all or some) and by API (`api.js`: what is sent, the estimate of calls and tokens,
 consent, a build job). Opening it reads one page of the list.
 
-The corpus screen (`pages/people.js`, route `/people`) loads
+The People screen (`pages/people.js`, route `/people`) loads
 `pages/people/page.js`: the tabs People (`people-tab.js`), Identities
 (`identities.js`, the queue, keyboard first), Organisations (`orgs-tab.js`,
 with the people of institutions), Texts (`texts-tab.js`), Collaborators
@@ -403,7 +407,7 @@ clean-up's switch), `themes` on the theme editor (`themes.space`, its
 `space_unit` first, and `themes.group`), `map` on the atlas (the pinned map
 version's layout, `map-settings.js`: the method, its parameters by tier and
 its seed, saved as a new version, pinned; then `map.layout` and
-`map.trajectories`) and `texts` on the corpus screen's Texts tab
+`map.trajectories`) and `texts` on the People screen's Texts tab
 (`corpus.assemble`, and the build's seed and pinned year): the texts are
 collected and listed there, and the Build page has no step of its own for
 them. A panel is collapsed by default (`?tune=1` opens it); its header says
@@ -502,7 +506,7 @@ console error, an uncaught exception or a CSP violation fails a test:
 - the shell's behaviour: start order, cached status dots, routing and focus,
   guards, late answers dropped, the extension API, the API client, the
   Activity drawer;
-- the corpus screen on the real app and the demo services
+- the People screen on the real app and the demo services
   (`tests/browser/test_corpus.py`, world XS): what leaves the computer before
   a collection, the collection as a job, the identity queue with the keyboard,
   the clear matches in bulk, a person's sheet, axe;

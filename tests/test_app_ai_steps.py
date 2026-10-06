@@ -88,3 +88,49 @@ def test_the_api_route_switches_the_clean_up_on_and_asks_consent(tmp_path):
         assert bad.status_code == 422
     finally:
         app.state.cartolex.shutdown()
+
+
+def test_the_clean_up_row_says_what_the_copilot_did(tmp_path):
+    root = fake_project(tmp_path / "p")
+    app, _ = fake_app(root, tmp_path / "c.log")
+    try:
+        client = Client(app)
+
+        def triage() -> dict:
+            stages = client.get("/api/project/state").json()["stages"]
+            return next(s for s in stages if s["id"] == "keywords.triage")
+
+        assert triage()["skip"]["code"] == "stage_ai_none"
+        _route(client, keywords_triage="copilot")
+        job = client.post("/api/build", json={"dry_run": False}).json()["job"]["id"]
+        assert client.wait_job(job)["state"] == "waiting"
+        assert triage()["skip"]["code"] == "stage_copilot_waiting"
+
+        # A result imported, not accepted: the overview and the pre-flight say so.
+        folder = root / "decisions" / "history" / "ai"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "29990101T000000Z-copilot-triage.json").write_text("{}", encoding="utf-8")
+        health = client.get("/api/overview").json()["health"]
+        pending = next(h for h in health if h["code"] == "health_copilot_pending")
+        assert pending["next"]["action"].endswith("proposal=29990101T000000Z-copilot-triage")
+        notes = client.post("/api/build", json={"dry_run": True}).json()["notes"]
+        assert [n["code"] for n in notes] == ["preflight_copilot_pending"]
+
+        # Accepted: done with the copilot, shown up to date.
+        write_decision_csv(
+            root / "decisions" / "keywords.csv",
+            "keywords",
+            [
+                {"term": t, "language": "en", "decision": "keep", "target": "", "reason": "AI",
+                 "source": "ai-copilot", "decided_at": "2999-01-02T00:00:00Z"}
+                for t in ("survey", "tide")
+            ],
+        )  # fmt: skip
+        row = triage()
+        assert row["state"] == "up_to_date" and row["skip"]["code"] == "stage_copilot_done"
+        assert row["skip"]["params"] == {"n": 2, "date": "2999-01-02T00:00:00Z"}
+        assert row["ai"]["pending"] == []
+        health = client.get("/api/overview").json()["health"]
+        assert all(h["code"] != "health_copilot_pending" for h in health)
+    finally:
+        app.state.cartolex.shutdown()

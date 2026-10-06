@@ -351,7 +351,9 @@ def _status_of(view: _View, stage: Stage, earlier: dict[str, StageStatus]) -> St
     reasons = tuple(_changes(view, stage, record, earlier)) if record is not None else ()
     if running is not None:
         state = StageState.RUNNING
-    elif attempt is not None or interrupted is not None:
+    elif (attempt is not None and attempt.outcome != "cancelled") or interrupted is not None:
+        # A cancelled attempt is not a failure: the results it would have replaced are kept,
+        # and the stage's state is theirs (its record names it, as « cancelled »).
         state = StageState.FAILED
     elif record is None:
         state = StageState.NEVER_BUILT

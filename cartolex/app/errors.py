@@ -4,7 +4,7 @@
 Every error response has one shape (V2-016)::
 
     {"error": {"code": "stale", "params": {"file": "themes.json"},
-               "message": "themes.json changed since it was read; reload it …",
+               "message": "this changed elsewhere since it was read; reload it …",
                "next": {"label": "Reload", "action": "reload"}}}
 
 ``code`` is a stable key and ``params`` the values its message names: the
@@ -121,7 +121,9 @@ ERRORS: dict[str, ErrorKind] = {
     ),
     "version_ambiguous": ErrorKind(400, "If-Match names one version", "reload"),
     "stale": ErrorKind(
-        412, "{file} changed since it was read; reload it and apply the change again", "reload"
+        412,
+        "this changed elsewhere since it was read; reload it and apply the change again",
+        "reload",
     ),
     "invalid": ErrorKind(422, "the request is not valid: {problems}", "fix-input"),
     "no_route": ErrorKind(404, "no such address in this app"),
@@ -268,7 +270,7 @@ ERRORS: dict[str, ErrorKind] = {
     ),
     "mapping_unknown_columns": ErrorKind(422, "the list has no column(s) {columns}", "fix-input"),
     "mapping_no_name": ErrorKind(
-        422, "map a column to last_name, or to name (a full name)", "fix-input"
+        422, "map a column to the last name, or to the full name", "fix-input"
     ),
     "unknown_role": ErrorKind(422, "{role} is not a role", "fix-input"),
     "collection_unavailable": ErrorKind(409, "collecting texts is not available in this version"),

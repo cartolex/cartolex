@@ -101,14 +101,44 @@ MESSAGES: dict[str, MessageKind] = {
         "texts into a folder or corpus slot instead"
     ),
     # skipped stages
-    "stage_switched_off": MessageKind(
-        "switched off (set {stage}.enabled in decisions/params.json to run it)"
+    "stage_switched_off": MessageKind("switched off"),
+    # the AI clean-up's row (``keywords.triage``, skipped unless it runs by API)
+    "stage_copilot_done": MessageKind("done with your copilot ({n} decisions, {date})"),
+    "stage_copilot_waiting": MessageKind(
+        "waiting for your copilot: give it the candidates, then import and accept its result "
+        "({total} earlier decisions still apply)"
+    ),
+    "stage_ai_none": MessageKind(
+        "no AI clean-up: choose a copilot or the API on the build page to have one"
     ),
     "stage_no_overlay": MessageKind("the project has no overlay"),
     "stage_not_applicable": MessageKind("{reason}"),
     # failed or cancelled attempts
     "stage_cancelled": MessageKind("the stage was cancelled; its previous results are kept"),
     "stage_refused": MessageKind("the stage could not run: {detail}"),
+    "stage_no_texts": MessageKind("no mapped person has texts yet: collect their texts first"),
+    "stage_no_mapped": MessageKind(
+        "nobody is mapped yet: on the People page, choose the people whose texts make the map"
+    ),
+    "stage_ai_not_set": MessageKind(
+        "the AI clean-up by API needs an AI provider: choose one in the settings, or another "
+        "route for the clean-up on the build page"
+    ),
+    "stage_ai_no_key": MessageKind(
+        "no AI key is saved on this computer: add one in the settings, or choose another "
+        "route for the clean-up on the build page"
+    ),
+    "stage_themes_rebase": MessageKind(
+        "your themes could not be carried over to the new vocabulary: open the themes and "
+        "save them again"
+    ),
+    "stage_no_pinned_map": MessageKind(
+        "no map version is chosen: choose one in the map's settings"
+    ),
+    "stage_layout_missing": MessageKind(
+        "this computer cannot draw the map's method ({method}): choose another method in the "
+        "map's settings"
+    ),
     "language_model_missing": MessageKind("a language model is missing: {detail}"),
     "stage_failed": MessageKind("the stage failed ({error_type}): {detail}"),
     # why a job failed (``error`` of a failed job, :func:`job_error`)
@@ -180,6 +210,39 @@ MESSAGES: dict[str, MessageKind] = {
         "Open the settings",
         "settings",
     ),
+    "health_copilot_pending": MessageKind(
+        "a copilot's result was imported and is not accepted yet: review it",
+        "Review it",
+        "open:/keywords?copilot=1",
+    ),
+    "health_identities_pending": MessageKind(
+        "{n} mapped people without texts wait for an identity check",
+        "Check the identities",
+        "open:/people?tab=identities",
+    ),
+    "health_not_harvested": MessageKind(
+        "{n} mapped people have no texts: their texts were never collected",
+        "Collect the texts",
+        "open:/people?collect=harvest",
+    ),
+    # the build's pre-flight notes (``notes`` of the dry run)
+    "preflight_no_texts": MessageKind(
+        "{n} mapped people have no texts: collect them first, or build without them",
+        "Collect the texts",
+        "open:/people?collect=harvest",
+    ),
+    "preflight_copilot_pending": MessageKind(
+        "a copilot's result was imported and is not accepted yet: the build does not use it "
+        "until you accept it",
+        "Review it",
+        "open:/keywords?copilot=1",
+    ),
+    "preflight_api_dropped": MessageKind(
+        "the AI clean-up by API judged the candidates before; with this route its verdicts "
+        "no longer decide which candidates the vocabulary keeps",
+        "",
+        "",
+    ),
     # a preview that cannot show a value
     "preview_needs_extraction": MessageKind(
         "{param} at {value} reaches past the last build's {built}: the candidates outside its "
@@ -187,6 +250,31 @@ MESSAGES: dict[str, MessageKind] = {
     ),
     # the overview's one next step
     "next_watch_build": MessageKind("a build is running", "Follow the build", "open:/build"),
+    "next_job_running": MessageKind("a {kind} job is running", "See its progress", "wait"),
+    "next_set_roles": MessageKind(
+        "nobody is mapped yet: choose the people whose texts make the map",
+        "Open the people",
+        "open:/people",
+    ),
+    "next_check_identities": MessageKind(
+        "{n} people wait for an identity check before their texts can be collected",
+        "Check the identities",
+        "open:/people?tab=identities",
+    ),
+    "next_collect_texts": MessageKind(
+        "{n} mapped people have no texts yet: collect their texts",
+        "Collect the texts",
+        "open:/people?collect=harvest",
+    ),
+    "next_review_keywords": MessageKind(
+        "look at the keywords the build found: keep, set aside or merge them",
+        "Review the keywords",
+        "open:/keywords",
+    ),
+    "next_build_map": MessageKind("draw the map", "Build the map", "build"),
+    "next_share": MessageKind(
+        "share the map: build a site you can send or publish", "Share", "open:/share"
+    ),
     "next_copilot_waiting": MessageKind(
         "the build waits for your copilot ({step})", "Continue the build", "open:/build"
     ),
@@ -247,6 +335,18 @@ def skip_message(text: str) -> dict[str, Any]:
     return message("stage_not_applicable", reason=text)
 
 
+#: The build's refusals that have words of their own: how the engine's sentence starts.
+_REFUSALS = (
+    ("no mapped person has a text", "stage_no_texts"),
+    ("the AI clean-up needs", "stage_ai_not_set"),
+    ("no AI key was given", "stage_ai_no_key"),
+    ("decisions/themes.json is not based on the current vocabulary", "stage_themes_rebase"),
+    ("decisions/maps.json lists map versions but pins none", "stage_no_pinned_map"),
+    ("no pinned map version", "stage_no_pinned_map"),
+)
+_LAYOUT_MISSING = re.compile(r"^the (\S+) layout needs the optional|^the layout method '([^']+)'")
+
+
 def attempt_message(outcome: str, error: str | None) -> dict[str, Any]:
     """The code of a failed or cancelled attempt (the build records ``Type: message``)."""
     text = (error or "").strip()
@@ -256,6 +356,12 @@ def attempt_message(outcome: str, error: str | None) -> dict[str, Any]:
     if not sep or not kind.isidentifier():
         kind, detail = "", text
     if kind == "StageRefused" or (not kind and detail):
+        for start, code in _REFUSALS:
+            if detail.startswith(start):
+                return message(code)
+        m = _LAYOUT_MISSING.match(detail)
+        if m:
+            return message("stage_layout_missing", method=m.group(1) or m.group(2))
         return message("stage_refused", detail=detail)
     if kind == "LanguageModelMissing":
         return message("language_model_missing", detail=detail)

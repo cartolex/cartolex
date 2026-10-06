@@ -76,7 +76,7 @@ This table was approved by the owner on 1 October 2026.
 | `map.trajectories` | `spans` | advanced | every run of consecutive windows (`all`): the map draws the windows themselves |
 
 The seed and the pinned year are set once for the whole build, in the texts'
-« Tune » panel (the corpus screen's Texts tab). Every parameter also has a
+« Tune » panel (the People screen's Texts tab). Every parameter also has a
 short label in the interface's catalogues (`param.label.<stage>.<name>`, and
 `param.label.layout.<name>` for a map version's), shown with its code name.
 

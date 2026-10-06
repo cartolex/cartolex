@@ -433,20 +433,40 @@ def _pid_alive(pid: int) -> bool:
     return alive(pid)
 
 
-def read_job_logs(jobs_dir: Path, project: str, *, limit: int = 20) -> list[JobInfo]:
+#: At most this many logs are read to find the recent jobs of one kind.
+KIND_SCAN = 200
+
+
+def _log_kind(head: Mapping[str, Any] | None, events: list[dict[str, Any]]) -> str:
+    """A log's job kind: its ``job`` line's; else a ``start`` line's (a collection run from
+    the command line says ``collect.<action>``); else a build's (the command line's)."""
+    if head is not None:
+        return str(head.get("kind", "build"))
+    start = next((e for e in events if e.get("event") == "start"), None)
+    return str(start.get("kind") or "build") if start else "build"
+
+
+def read_job_logs(
+    jobs_dir: Path, project: str, *, limit: int = 20, kind: str | None = None
+) -> list[JobInfo]:
     """The most recent jobs recorded in *jobs_dir* (``logs/jobs/``), newest first.
 
-    A log without an end whose process is gone (or ran before the machine
-    restarted) is ``interrupted``; one whose process still runs elsewhere on
-    this machine is ``running``.
+    With *kind*, the most recent jobs of that kind (at most :data:`KIND_SCAN` logs
+    are read to find them). A log without an end whose process is gone (or ran
+    before the machine restarted) is ``interrupted``; one whose process still
+    runs elsewhere on this machine is ``running``.
     """
     folder = Path(jobs_dir)
     if not folder.is_dir():
         return []
-    files = sorted(folder.glob("*.jsonl"), reverse=True)[:limit]
+    files = sorted(folder.glob("*.jsonl"), reverse=True)[: limit if kind is None else KIND_SCAN]
     out: list[JobInfo] = []
     here, boot = host_digest(), boot_id()
     for path in files:
+        if len(out) >= limit:
+            break
+        if kind == "build" and path.name.startswith("collect-"):
+            continue  # a collection run from the command line
         events = []
         try:
             for line in path.read_text(encoding="utf-8").splitlines():
@@ -459,7 +479,9 @@ def read_job_logs(jobs_dir: Path, project: str, *, limit: int = 20) -> list[JobI
         if not events:
             continue
         head = next((e for e in events if e.get("event") == "job"), None)
-        kind = head.get("kind", "build") if head else "build"
+        own = _log_kind(head, events)
+        if kind is not None and own != kind:
+            continue
         start = events[0].get("at")
         ends = [e for e in events if e.get("event") in ("job-end", "end")]
         result: dict[str, Any] | None = None
@@ -494,7 +516,7 @@ def read_job_logs(jobs_dir: Path, project: str, *, limit: int = 20) -> list[JobI
         out.append(
             JobInfo(
                 id=path.stem,
-                kind=kind,
+                kind=own,
                 project=project,
                 state=state if state in JOB_STATES else "failed",
                 title_code=str(head.get("title_code") or "") if head else "",

@@ -419,7 +419,7 @@ only: `--retry` collects again for the people who failed, and them only),
 **add documents** (`--add-documents p000017 reports/`, a folder of that
 person's documents) and **exclude** (`--exclude p000017`).
 
-## In the app: the corpus screen
+## In the app: the People screen
 
 The app's **People** screen (`/people`) does all of this without the command
 line. Its tabs:

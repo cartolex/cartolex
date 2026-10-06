@@ -174,3 +174,40 @@
 .cx-build-wait .cx-build-note {
   margin-bottom: var(--cx-space-3);
 }
+
+/* The pre-flight's notes: a warning has its icon and the warning hue, a note is muted. */
+.cx-build-notes {
+  display: grid;
+  gap: var(--cx-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cx-build-notes__item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--cx-space-3);
+  padding: var(--cx-space-3) var(--cx-space-4);
+  border: var(--cx-rule-width) solid var(--cx-border);
+  border-radius: var(--cx-radius-m);
+}
+
+.cx-build-notes__item.is-warning {
+  border-color: var(--cx-warning);
+  background: var(--cx-warning-surface);
+}
+
+.cx-build-notes__item.is-warning > .cx-icon {
+  color: var(--cx-warning);
+}
+
+.cx-build-notes__item.is-info > .cx-icon {
+  color: var(--cx-text-muted);
+}
+
+.cx-build-notes__item > div {
+  display: grid;
+  gap: var(--cx-space-2);
+  justify-items: start;
+}

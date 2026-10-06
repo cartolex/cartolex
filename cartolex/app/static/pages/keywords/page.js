@@ -42,9 +42,10 @@ export function KeywordsScreen() {
   const [band, setBandState] = useState(() => bandOf(ctx.query));
   const [version, setVersion] = useState(0);
   const [data, setData] = useState(null);
-  // `?copilot=1` (a build waiting for the copilot) opens its dialog at once.
+  // `?copilot=1` (a build waiting for the copilot) opens its dialog at once; with
+  // `&proposal=<id>` (a result imported, not accepted yet), at that result's review.
   const [dialog, setDialog] = useState(() => (ctx.query && ctx.query.get('copilot') === '1'
-    ? { kind: 'copilot' } : null)); // {kind, ...}
+    ? { kind: 'copilot', proposal: ctx.query.get('proposal') } : null)); // {kind, ...}
   const [watched, setWatched] = useState(null);
   const toast = (item) => app.toaster.show(item);
   const bump = () => setVersion((v) => v + 1);
@@ -107,7 +108,7 @@ export function KeywordsScreen() {
     ${dialog && dialog.kind === 'history' ? html`<${HistoryDrawer} ctx=${ctx} version=${version}
       onClose=${closeDialog} onChanged=${bump} toast=${toast} />` : null}
     ${dialog && dialog.kind === 'copilot' ? html`<${KeywordCopilotDialog} ctx=${ctx}
-      onClose=${closeDialog} onDone=${finished} />` : null}
+      proposal=${dialog.proposal} onClose=${closeDialog} onDone=${finished} />` : null}
     ${dialog && dialog.kind === 'api' ? html`<${ApiDialog} ctx=${ctx} onClose=${closeDialog}
       onStarted=${(job) => {
         setDialog(null);

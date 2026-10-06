@@ -137,7 +137,8 @@ function JobItem({ job, jobs }) {
           sent: formatNumber(job.result.ai_usage.tokens_in), received: formatNumber(job.result.ai_usage.tokens_out) })}` : null}</p>` : null}
       <div class="cx-job__actions">
         ${job.result && job.result.link ? html`<a class="cx-link" href=${job.result.link}>
-          ${t('job.open_result')}</a>` : null}
+          ${job.result.link_code && has(`job.link.${job.result.link_code}`)
+            ? t(`job.link.${job.result.link_code}`) : t('job.open_result')}</a>` : null}
         <${Button} size="s" variant="ghost" onClick=${() => jobs.dismiss(job.id)}>
           ${t('common.dismiss')}<//>
       </div>

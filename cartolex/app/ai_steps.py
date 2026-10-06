@@ -22,7 +22,20 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-__all__ = ["STEPS", "AiStep", "copilot_done", "pause_of", "routes_of", "step_of", "with_routes"]
+__all__ = [
+    "AI_SOURCES",
+    "STEPS",
+    "AiStep",
+    "copilot_done",
+    "copilot_status",
+    "pause_of",
+    "routes_of",
+    "step_of",
+    "with_routes",
+]
+
+#: The sources of ``keywords.csv`` that are an AI's answers the person accepted.
+AI_SOURCES = ("ai-handoff", "ai-copilot")
 
 
 @dataclass(frozen=True)
@@ -83,6 +96,60 @@ def _run_time(run_id: str) -> datetime | None:
         return None
 
 
+def _stamp(at: datetime) -> str:
+    return at.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _keyword_rows(project: Any) -> list[dict[str, str]]:
+    from cartolex.project.tables import read_decision_csv
+
+    try:
+        return read_decision_csv(project.layout.keywords_csv, "keywords")
+    except (OSError, ValueError):
+        return []
+
+
+def _imported_triage(project: Any) -> list[str]:
+    """The copilot's triage results imported into ``decisions/history/ai/``, newest first."""
+    import re
+
+    folder = project.layout.history / "ai"
+    if not folder.is_dir():
+        return []
+    pattern = re.compile(r"^\d{8}T\d{6}Z-copilot-triage(-\d+)?$")
+    names = {p.name.split(".", 1)[0] for p in folder.iterdir() if p.suffix == ".json"}
+    return sorted((n for n in names if pattern.match(n)), reverse=True)
+
+
+def copilot_status(project: Any, after_run: str | None = None) -> dict[str, Any]:
+    """What the copilot did for the keyword clean-up, from ``keywords.csv`` and the results
+    imported: ``decisions``, the copilot's decisions accepted since the run *after_run* of
+    the extraction (all of them without a run), and ``last``, the latest one's time;
+    ``total``, every accepted copilot decision; ``ai``, every accepted AI answer (a copilot's
+    or an earlier handoff's); ``reviewed``, the decisions of any source since the run;
+    ``pending``, the imported results newer than the last accepted
+    decision (imported, not accepted yet), newest first."""
+    rows = _keyword_rows(project)
+    since = _run_time(after_run) if after_run else None
+    floor = _stamp(since) if since is not None else ""
+    own = [r for r in rows if r.get("source") == "ai-copilot"]
+    recent = [r.get("decided_at", "") for r in own if r.get("decided_at", "") >= floor]
+    latest = max((r.get("decided_at", "") for r in own), default="")
+    pending = [
+        i
+        for i in _imported_triage(project)
+        if (at := _run_time(i)) is not None and _stamp(at) > latest
+    ]
+    return {
+        "decisions": len(recent),
+        "last": max(recent) if recent else None,
+        "total": len(own),
+        "ai": sum(r.get("source") in AI_SOURCES for r in rows),
+        "reviewed": sum(r.get("decided_at", "") >= floor for r in rows) if floor else len(rows),
+        "pending": pending,
+    }
+
+
 def copilot_done(project: Any, step: str, after_run: str) -> bool:
     """Whether a copilot's result was accepted for *step* since the run *after_run* of the
     stage before it: a keyword decision of the copilot, or a theme tree version it made."""
@@ -90,16 +157,7 @@ def copilot_done(project: Any, step: str, after_run: str) -> bool:
     if since is None:
         return False
     if step == "keywords.triage":
-        from cartolex.project.tables import read_decision_csv
-
-        try:
-            rows = read_decision_csv(project.layout.keywords_csv, "keywords")
-        except (OSError, ValueError):
-            return False
-        stamp = since.strftime("%Y-%m-%dT%H:%M:%SZ")
-        return any(
-            r.get("source") == "ai-copilot" and r.get("decided_at", "") >= stamp for r in rows
-        )
+        return copilot_status(project, after_run)["decisions"] > 0
     from cartolex.project.themes_versions import list_versions
 
     return any(

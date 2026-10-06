@@ -376,7 +376,7 @@ export function ThemesEditor() {
       <h1 class="cx-page__title">${t('nav.themes')}</h1>
       <${TunePanel} ctx=${ctx} id="themes" />
       <${EmptyState} icon="file" level=${2} title=${t('themes.none.title')}
-        action=${next ? { label: t('themes.none.action'), href: '/' } : null}>${t('themes.none.text')}<//>
+        action=${next ? { label: t('themes.none.action'), href: '/build' } : null}>${t('themes.none.text')}<//>
     </div>`;
   }
 

@@ -21,7 +21,7 @@ export {
 export { ProgressBar } from './progress.js';
 export { ErrorBoundary, Slot } from './slot.js';
 export {
-  STATES, StageTracker, StatusDot, StatusPill, reasonText, stageName, stateKey, stateLabel,
+  STATES, StageTracker, StatusDot, StatusPill, messageOf, reasonText, stageName, stateKey, stateLabel,
   summaryState,
 } from './status.js';
 export { Stepper } from './stepper.js';

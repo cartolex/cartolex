@@ -48,6 +48,13 @@ def item(code: str, *, level: str = "info", scope: list[str] | None = None, **pa
     return out
 
 
+def review_item(code: str, proposal: str) -> dict:
+    """An item whose action opens the review of an imported copilot result."""
+    out = item(code, proposal=proposal)
+    out["next"] = {**out["next"], "action": f"open:/keywords?copilot=1&proposal={proposal}"}
+    return out
+
+
 # ── health ───────────────────────────────────────────────────────────────────
 
 
@@ -75,15 +82,32 @@ def _missing_models(config: Any, by_id: dict[str, dict]) -> list[dict]:
     return out
 
 
-def _languages_split(config: Any, by_id: dict[str, dict], ai_given: bool) -> list[dict]:
-    """Several corpus languages and no AI clean-up: themes may split by language."""
+def _languages_split(config: Any, by_id: dict[str, dict], triage: dict[str, Any]) -> list[dict]:
+    """Several corpus languages and no AI clean-up yet (no verdict by API, no AI answer
+    accepted): themes may split by language. The keywords page's test, once the candidates
+    are found."""
     langs = list(config.languages.corpus)
-    triage = by_id.get("keywords.triage")
-    if len(langs) < 2 or triage is None:
+    extract = by_id.get("keywords.extract")
+    if len(langs) < 2 or extract is None or not extract["has_results"]:
         return []
-    if triage["state"] == "up_to_date" or (ai_given and triage["state"] != "skipped"):
+    if triage["api_verdicts"] or triage["ai"]:
         return []
-    return [item("health_languages_split", languages=langs)]
+    return [item("health_languages_split", level="warning", languages=langs)]
+
+
+def _guidance_health(people: dict[str, int], by_id: dict[str, dict], triage: dict) -> list[dict]:
+    """Notes once the texts are gathered: people whose identity waits for a check or whose
+    texts were never collected; a copilot's result imported and not accepted yet."""
+    out = []
+    pending = triage.get("pending") or []
+    if pending:
+        out.append(review_item("health_copilot_pending", pending[0]))
+    if (by_id.get("corpus.assemble") or {}).get("has_results"):
+        if people["identities"]:
+            out.append(item("health_identities_pending", n=people["identities"]))
+        if people["to_harvest"]:
+            out.append(item("health_not_harvested", n=people["to_harvest"]))
+    return out
 
 
 def space_languages(ctx: Any) -> list[dict]:
@@ -149,15 +173,6 @@ def _map_stale(by_id: dict[str, dict]) -> list[dict]:
 # ── the one next step ────────────────────────────────────────────────────────
 
 
-def _people_count(ctx: Any) -> int:
-    from cartolex.project.tables import read_decision_csv
-
-    try:
-        return len(read_decision_csv(ctx.layout.people_csv, "people"))
-    except (OSError, ValueError):
-        return 0
-
-
 def _waiting_step(runtime: Any, ctx: Any) -> str | None:
     """The AI step the last build paused at, when its route is still a copilot."""
     from ..ai_steps import routes_of
@@ -174,33 +189,81 @@ def _waiting_step(runtime: Any, ctx: Any) -> str | None:
     return step if routes_of(params).get(step) == "copilot" else None
 
 
+def quiet_failures(stages: list[dict], jobs: list[Any]) -> dict[str, str]:
+    """The failed stages whose failure is no longer the last thing tried (a job started
+    after it and ended): stage id → the time of the failed attempt."""
+    from ..guidance import ended_after
+
+    out = {}
+    for s in stages:
+        attempt = s.get("attempt") or {}
+        if s["state"] == "failed" and ended_after(jobs, attempt.get("finished_at")):
+            out[s["id"]] = attempt.get("finished_at")
+    return out
+
+
 def next_step(
-    ctx: Any, stages: list[dict], health: list[dict], running: Any, waiting: str | None = None
+    stages: list[dict],
+    health: list[dict],
+    running: Any,
+    *,
+    waiting: str | None = None,
+    people: dict[str, int] | None = None,
+    facts: dict[str, Any] | None = None,
+    quiet: Any = (),
 ) -> dict:
-    """The single most useful action now, in this order: watch a running build, the copilot
-    a paused build waits for, add people, install a missing model, look at a failure, a first
-    build, restore a stale map, bring the rest up to date, curate the themes, look at the
-    map."""
+    """The single most useful action now, in this order: watch a running job, the copilot
+    a paused build waits for, add people, install a missing model, look at a failure that
+    is the last thing tried, before the texts are gathered set the roles, check the
+    identities and collect the texts, a first build, restore a stale map, bring the rest up
+    to date, review the keywords, curate the themes, draw the map, share it, look at it."""
+    people = people or {"people": 0, "mapped": 0, "identities": 0, "to_harvest": 0}
+    facts = facts or {}
+    by_id = {s["id"]: s for s in stages}
     states = [s["state"] for s in stages]
+
+    def built(stage: str) -> bool:
+        return bool((by_id.get(stage) or {}).get("has_results"))
+
     if running is not None:
-        return item("next_watch_build")
+        if running.kind == "build":
+            return item("next_watch_build")
+        return item("next_job_running", kind=running.kind)
     if waiting is not None:
         return item("next_copilot_waiting", step=waiting)
-    if not any(s == "up_to_date" for s in states) and _people_count(ctx) == 0:
+    if not any(s == "up_to_date" for s in states) and people["people"] == 0:
         return item("next_import_people")
     if any(h["code"] == "health_model_missing" for h in health):
         return item("next_install_model")
-    failed = next((s for s in stages if s["state"] == "failed"), None)
+    failed = next((s for s in stages if s["state"] == "failed" and s["id"] not in quiet), None)
     if failed is not None:
+        code = (failed.get("attempt") or {}).get("code")
+        if code == "stage_no_mapped":
+            return item("next_set_roles")
+        if code == "stage_no_texts":
+            return item("next_collect_texts", n=people["to_harvest"])
         return item("next_see_failure", stage=failed["id"], scope=[failed["id"]])
+    if not built("corpus.assemble") and people["people"]:
+        if people["mapped"] == 0:
+            return item("next_set_roles")
+        if people["identities"]:
+            return item("next_check_identities", n=people["identities"])
+        if people["to_harvest"]:
+            return item("next_collect_texts", n=people["to_harvest"])
     if not any(s in ("up_to_date", "needs_update") for s in states):
         return item("next_first_build")
     if any(h["code"] == "health_map_stale" for h in health):
         return item("next_restore_map", scope=["map"])
     if any(s in ("needs_update", "never_built") for s in states):
         return item("next_update")
-    if not ctx.layout.themes_json.is_file():
+    if built("keywords.extract") and not facts.get("reviewed"):
+        return item("next_review_keywords")
+    if not facts.get("themes_saved"):
         return item("next_curate_themes")
+    if not built("map.layout"):
+        return item("next_build_map", scope=["map"])
+    if not facts.get("shared"):
+        return item("next_share")
     return item("next_open_map")
 
 
@@ -258,24 +321,42 @@ def overview(request: Request, ctx: ProjectDep) -> dict[str, Any]:
         )
     except (BuildBusy, ParamsError):
         the_plan = None
-    ai = runtime.settings.ai_access
-    ai_given = config.identity.ai is not None and bool(
-        ai is not None and (ai.api_key or ai.client_factory)
-    )
+    from ..guidance import checklist, checklist_key, people_facts
+    from ..jobs import read_job_logs
+    from .me import preference
+    from .state import triage_status
+
+    triage = triage_status(runtime, ctx.project)
+    try:
+        people = people_facts(runtime, ctx.project)
+    except Exception:  # the counts guide; the overview shows without them
+        log.warning("the people's counts could not be read", extra={"event": "overview_people"})
+        people = {k: 0 for k in ("people", "mapped", "with_texts", "without_texts")}
+        people |= {"identities": 0, "to_harvest": 0}
     health = [
         *_map_stale(by_id),
         *_missing_models(config, by_id),
         *_too_large(the_plan),
-        *_languages_split(config, by_id, ai_given),
+        *_languages_split(config, by_id, triage),
         *space_languages(ctx),
         *_snowball_cut(ctx),
+        *_guidance_health(people, by_id, triage),
     ]
+    builds = runtime.site_builder.builds(ctx.project)
+    facts = {
+        "reviewed": triage["reviewed"] if triage["extraction"] else 0,
+        "themes_saved": ctx.layout.themes_json.is_file(),
+        "shared": bool(builds),
+    }
+    jobs = [*runtime.jobs.list(ctx.id), *read_job_logs(ctx.layout.jobs, ctx.id, limit=20)]
+    quiet = quiet_failures(stages, jobs)
+    key = checklist_key(ctx.id)
     try:
         atlas = preview(runtime, ctx)
     except Exception:  # the preview is a convenience: the overview shows without it
         log.warning("the map's preview could not be read", extra={"event": "overview_preview"})
         atlas = None
-    shares = runtime.site_builder.builds(ctx.project)[:RECENT_SHARES]
+    shares = builds[:RECENT_SHARES]
     areas = {a: [by_id[s]["state"] for s in ids if s in by_id] for a, _, ids in AREAS}
     return {
         "project": {
@@ -284,9 +365,19 @@ def overview(request: Request, ctx: ProjectDep) -> dict[str, Any]:
             "state": summary([s for own in areas.values() for s in own]),
         },
         "next": next_step(
-            ctx, stages, health, running, None if running else _waiting_step(runtime, ctx)
+            stages,
+            health,
+            running,
+            waiting=None if running else _waiting_step(runtime, ctx),
+            people=people,
+            facts=facts,
+            quiet=quiet,
         ),
         "health": health,
+        "quiet_failures": quiet,
+        "steps": checklist(by_id, people, facts),
+        "checklist": {"key": key, "hidden": preference(request, key) is True},
+        "people": people,
         "preview": atlas,
         "shares": {"items": shares, "available": runtime.site_builder.available},
     }

@@ -26,8 +26,9 @@ const PARTS = [1, 2, 3, 4, 6, 8, 12];
  * @param {object} props.ctx the page's context
  * @param {Function} props.onClose
  * @param {(message: string) => void} props.onDone after an accept
+ * @param {string} [props.proposal] an imported result to open at its review
  */
-export function KeywordCopilotDialog({ ctx, onClose, onDone }) {
+export function KeywordCopilotDialog({ ctx, onClose, onDone, proposal: initial }) {
   const [step, setStep] = useState('export');
   const [scope, setScope] = useState('all');
   const [lines, setLines] = useState(false);
@@ -70,6 +71,9 @@ export function KeywordCopilotDialog({ ctx, onClose, onDone }) {
     if (r.ok) show(r.data);
     else setError(r.error);
   };
+  useEffect(() => {
+    if (initial && /^\d{8}T\d{6}Z-copilot-triage(-\d+)?$/.test(initial)) open(initial);
+  }, []);
   const accept = async () => {
     setBusy(true);
     setError(null);

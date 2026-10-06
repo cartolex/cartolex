@@ -15,7 +15,9 @@
  * (`up_to_date`).
  */
 import { html } from '../core/preact.js';
-import { formatDuration, formatNumber, formatPercent, has, t } from '../core/i18n.js';
+import {
+  autonym, formatDate, formatDuration, formatNumber, formatPercent, has, t,
+} from '../core/i18n.js';
 import { STATES, stateKey, summaryState } from '../core/states.js';
 import { ProgressBar } from './progress.js';
 
@@ -79,21 +81,76 @@ export function stageName(stage) {
   return has(key) ? t(key) : stage.name || stage.id;
 }
 
-/** One reason a stage needs an update, in the interface language. */
-export function reasonText(reason) {
+/**
+ * A message of the API (`{code, params, message}`: a skip, an attempt, a health item) in
+ * the interface language: the catalogue's `message.<code>` filled with its params (stage
+ * names, languages and dates in words), else the server's English.
+ */
+export function messageOf(item) {
+  if (!item) return '';
+  const key = `message.${item.code}`;
+  if (!has(key)) return item.message || '';
+  const params = { ...(item.params || {}) };
+  if (params.stage) params.stage = stageName({ id: params.stage, name: params.stage });
+  if (Array.isArray(params.languages)) params.languages = params.languages.map(autonym);
+  if (params.language) params.language = autonym(params.language);
+  if (params.date) params.date = formatDate(params.date, 'date', 'medium');
+  return t(key, params);
+}
+
+/** What changed in a file a stage reads, in plain words (`reason.input.<what>`). */
+const INPUTS = [
+  [/^decisions\/(people|organisations|affiliations)\.csv$/, 'people'],
+  [/^decisions\/keywords\.csv$/, 'keywords'],
+  [/^decisions\/(stopwords\.json|excluded\.csv|kept\.csv|merged\.json)$/, 'words'],
+  [/^decisions\/prompts\//, 'prompts'],
+  [/^decisions\/themes\.json$/, 'themes'],
+  [/^decisions\/maps\.json$/, 'maps'],
+  [/^sources\/tables\//, 'tables'],
+  [/^sources\//, 'sources'],
+];
+
+/**
+ * One reason a stage needs an update, in the interface language and plain words: a file
+ * read by what it holds, a parameter by its label (`param.label.<stage>.<name>`).
+ */
+export function reasonText(reason, stageId = '') {
   if (!reason) return '';
   const key = `reason.${reason.kind}`;
   if (reason.kind === 'upstream') {
     return t(key, { stage: stageName({ id: reason.subject, name: reason.subject }) });
   }
+  if (reason.kind === 'input') {
+    const found = INPUTS.find(([re]) => re.test(reason.subject || ''));
+    if (found && has(`reason.input.${found[1]}`)) return t(`reason.input.${found[1]}`);
+  }
+  if (reason.kind === 'parameter' && stageId && has(`param.label.${stageId}.${reason.subject}`)) {
+    return t('reason.parameter.named', { label: t(`param.label.${stageId}.${reason.subject}`) });
+  }
   return has(key) ? t(key, { subject: reason.subject }) : reason.detail || '';
+}
+
+/** A stage's last attempt, quietly: « cancelled on … », « failed on … » (`quiet`), or why. */
+function attemptNote(stage, key) {
+  const a = stage.attempt;
+  if (!a) return null;
+  const date = a.finished_at ? formatDate(a.finished_at, 'datetime', 'medium') : '';
+  if (a.outcome === 'cancelled' && key !== 'running') {
+    return html`<p class="cx-tracker__reason">${t('tracker.cancelled_on', { date })}</p>`;
+  }
+  if (key !== 'failed') return null;
+  if (stage.quiet) return html`<p class="cx-tracker__reason">${t('tracker.failed_on', { date })}</p>`;
+  const words = a.code ? messageOf(a) : a.error;
+  return words ? html`<p class="cx-tracker__reason cx-tracker__reason--error">
+    ${t('tracker.last_attempt', { error: words })}</p>` : null;
 }
 
 /**
  * The build's stages with their state, reasons and progress.
  * @param {{stages: Array<object>, title?: any, compact?: boolean}} props
- *   each stage: {id, name, state, reasons?, skip_reason?, progress?}; `stateText` replaces
- *   the state's word (« Waiting » in a running build), `note` adds a line under it
+ *   each stage: {id, name, state, reasons?, skip?, skip_reason?, attempt?, progress?};
+ *   `stateText` replaces the state's word (« Waiting » in a running build), `note` adds a
+ *   line under it, `quiet` says a failed attempt in a word and its date (a later job came)
  */
 export function StageTracker({ stages, label, compact = false }) {
   const done = stages.filter((s) => ['up_to_date', 'skipped'].includes(stateKey(s.state))).length;
@@ -114,13 +171,13 @@ export function StageTracker({ stages, label, compact = false }) {
               <span class="cx-tracker__state">${stage.stateText || stateLabel(key)}</span>
             </div>
             ${!compact && stage.note ? html`<p class="cx-tracker__reason">${stage.note}</p>` : null}
-            ${!compact && key === 'skipped' && stage.skip_reason
-              ? html`<p class="cx-tracker__reason">${stage.skip_reason}</p>` : null}
+            ${!compact && !stage.note && stage.skip && (key === 'skipped' || stage.ai)
+              ? html`<p class="cx-tracker__reason">${messageOf(stage.skip)}</p>`
+              : !compact && !stage.note && key === 'skipped' && stage.skip_reason
+                ? html`<p class="cx-tracker__reason">${stage.skip_reason}</p>` : null}
             ${!compact && (stage.reasons || []).length ? html`<ul class="cx-tracker__reasons">
-              ${stage.reasons.map((r) => html`<li>${reasonText(r)}</li>`)}</ul>` : null}
-            ${!compact && key === 'failed' && stage.attempt && stage.attempt.error
-              ? html`<p class="cx-tracker__reason cx-tracker__reason--error">
-                  ${t('tracker.last_attempt', { error: stage.attempt.error })}</p>` : null}
+              ${stage.reasons.map((r) => html`<li>${reasonText(r, stage.id)}</li>`)}</ul>` : null}
+            ${!compact ? attemptNote(stage, key) : null}
             ${key === 'running' && p ? html`<div class="cx-tracker__progress">
               <${ProgressBar} value=${p.stage_fraction} resetKey=${stage.id}
                 label=${t('tracker.progress', { stage: stageName(stage) })} />

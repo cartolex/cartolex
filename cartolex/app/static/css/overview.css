@@ -110,3 +110,20 @@
 .cx-overview .cx-empty {
   padding: var(--cx-space-5) var(--cx-space-4);
 }
+
+/* « Your first map »: the steps, then the current one with its button and the guide. */
+.cx-overview-first__now {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cx-space-2) var(--cx-space-4);
+  margin-top: var(--cx-space-4);
+}
+
+.cx-overview-first__now > p {
+  max-width: var(--cx-text-width);
+}
+
+.cx-overview__first-show {
+  margin-left: auto;
+}

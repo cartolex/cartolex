@@ -37,10 +37,22 @@ def test_the_next_step_leads_to_a_build_that_ends_in_one_sentence(
     server = app_for(demo_s)
     ui = open_app(server, theme=theme)
     page = ui.page  # the launch link opens the overview
-    assert _next_step(ui) in ("next_curate_themes", "next_open_map")
+    # built, no keyword decided since: the review comes next (then the themes, the map, sharing)
+    assert _next_step(ui) in ("next_review_keywords", "next_curate_themes", "next_open_map")
+    page.locator("[data-first-map]").wait_for()
     page.locator(".cx-overview-preview .cx-map-frame__canvas").wait_for()
     assert page.locator(".cx-overview-stages .cx-tracker__stage").count() >= 5
     _shots(request, ui, "overview-built-light")
+
+    # « Your first map » hidden for this project stays hidden after a reload, and comes back.
+    page.locator("[data-first-map] .cx-card__actions button").click()
+    page.locator(".cx-overview__first-show").wait_for()
+    page.wait_for_load_state("networkidle")
+    page.reload()
+    page.locator(".cx-overview__first-show").wait_for()
+    assert page.locator("[data-first-map]").count() == 0
+    page.locator(".cx-overview__first-show").click()
+    page.locator("[data-first-map]").wait_for()
 
     # A new width of the time windows: the stage « change over time » needs an update.
     view = api(ui, "GET", "/api/params")

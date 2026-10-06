@@ -16,6 +16,7 @@ import {
 } from '../../components/index.js';
 import { ImportDialog } from '../people/import.js';
 import { Health, NextStep, Shares } from './cards.js';
+import { FirstMap, setHidden } from './checklist.js';
 import { MapPreview } from './preview.js';
 
 export function Overview({ ctx }) {
@@ -63,7 +64,17 @@ export function Overview({ ctx }) {
     setSeen(active);
   }, [active]);
 
+  // « Your first map », hidden or shown again at once; the preference follows.
+  const [hidden, setHiddenNow] = useState(null);
+  const listHidden = hidden !== null ? hidden : Boolean(view && view.checklist && view.checklist.hidden);
+  const hide = (value) => {
+    setHiddenNow(value);
+    if (view && view.checklist) ctx.keep(setHidden(ctx.api, view.checklist.key, value));
+  };
   const data = project.state.value;
+  // A failure a later job came after is said quietly (« failed on … »), not as the cause.
+  const quiet = (view && view.quiet_failures) || {};
+  const stages = ((data && data.stages) || []).map((s) => (quiet[s.id] ? { ...s, quiet: true } : s));
   if (!info.open) {
     return html`<div class="cx-page">
       <h1 class="cx-page__title">${t('nav.overview')}</h1>
@@ -79,6 +90,9 @@ export function Overview({ ctx }) {
     <div class="cx-overview__head">
       <h1 class="cx-page__title">${(view && view.project.name) || info.name || t('nav.overview')}</h1>
       ${state ? html`<${StatusPill} state=${state} />` : null}
+      ${view && view.steps && listHidden ? html`<${Button} size="s" variant="ghost"
+        class="cx-overview__first-show" onClick=${() => hide(false)}>${t('overview.first_map.show')}<//>`
+        : null}
     </div>
     <p class="cx-page__lead">
       ${data && data.updated_at ? t('overview.updated', { time: formatDate(data.updated_at, 'datetime') })
@@ -89,10 +103,12 @@ export function Overview({ ctx }) {
       onRetry=${() => project.refresh()} />` : null}
     <div class="cx-grid">
       ${view ? html`<${NextStep} item=${view.next} />` : null}
+      ${view && view.steps && !listHidden ? html`<${FirstMap} steps=${view.steps}
+        onHide=${() => hide(true)} />` : null}
       <${Card} title=${t('overview.build')} level=${2} loading=${!data} class="cx-overview-stages"
         actions=${html`<${Button} size="s" variant="secondary"
           onClick=${() => runtime.navigate('/build')}>${t('overview.build.open')}<//>`}>
-        ${data ? html`<${StageTracker} stages=${data.stages || []} />` : null}
+        ${data ? html`<${StageTracker} stages=${stages} />` : null}
       <//>
       <div class="cx-overview__side">
         ${view ? html`<${Health} items=${view.health} />` : null}

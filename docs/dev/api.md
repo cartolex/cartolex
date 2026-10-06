@@ -99,7 +99,7 @@ param its text names. Some errors add fields (`current` for a stale write,
 
 ```json
 {"error": {"code": "stale", "params": {"file": "themes.json"},
-           "message": "themes.json changed since it was read; reload it and apply the change again",
+           "message": "this changed elsewhere since it was read; reload it and apply the change again",
            "next": {"label": "Reload", "action": "reload"}, "current": "sha256:…"}}
 ```
 
@@ -230,11 +230,11 @@ build.
 
 | route | what it does |
 | --- | --- |
-| `GET /api/project/state` | every stage's state (the six states, as keys: `up_to_date`, `needs_update`, `never_built`, `running`, `failed`, `skipped`) with its reasons, last run and last failed attempt, grouped in areas (corpus, keywords, themes, map, share, and the extensions'), each area summing up its stages; derived from the run records alone; `changed_params`: how many values differ from their defaults, per stage id, `build` (the seed and the pinned year) and `layout` (the pinned map version), for the pages' « Tune » panels |
-| `POST /api/build {scope, options: {force, allow_over_budget}, dry_run, consent, continue}` | `scope`: stage ids or areas, everything by default. The dry run (the default) answers the plan: each stage's action, reasons, estimate, whether it asks consent, the consent requests, the route of each AI step (`ai`: `routes`, `choices`, `api_ready`, and `version`, the version of `params.json`) and where the build pauses for a copilot (`pause`: `step`, `after`, `resumes`, `page`, the copilot's page, and `held`, the stages it holds back; `null` when it does not). A build pauses at an AI step whose route is a copilot when the stage after it runs and either the stage before it runs in the same build or no copilot result was accepted since that stage's run: it runs what comes before and ends `waiting`, its result's `waiting` naming the pause; `continue` lists the steps (`keywords.triage`, `themes.curation`) it goes past. `dry_run: false` starts a job (202); a stage that asks consent runs only when listed in `consent`; without it, an opt-in stage (the AI clean-up; its request says `skipped_without: true`) is skipped as if switched off and the stages after it run, any other is refused with those after it |
+| `GET /api/project/state` | every stage's state (the six states, as keys: `up_to_date`, `needs_update`, `never_built`, `running`, `failed`, `skipped`) with its reasons, last run and last failed attempt, grouped in areas (corpus, keywords, themes, map, share, and the extensions'), each area summing up its stages; derived from the run records alone (a cancelled attempt is listed, `outcome: cancelled`, without making the stage failed; an attempt carries its `finished_at`); the AI clean-up's row (`keywords.triage`) adds `ai`, the route and the copilot's work (`route`, `extraction`, `api_verdicts`, `decisions` and `last`: the copilot's decisions accepted since the current extraction, `total`, `ai`: every accepted AI answer, `reviewed`: decisions of any source since the extraction, `pending`: copilot results imported and not accepted), and, when it is skipped, says `stage_copilot_done` (shown up to date), `stage_copilot_waiting` or `stage_ai_none`; `changed_params`: how many values differ from their defaults, per stage id, `build` (the seed and the pinned year) and `layout` (the pinned map version), for the pages' « Tune » panels |
+| `POST /api/build {scope, options: {force, allow_over_budget}, dry_run, consent, continue}` | `scope`: stage ids or areas, everything by default. The dry run (the default) answers the plan: each stage's action, reasons, estimate, whether it asks consent, the consent requests, the route of each AI step (`ai`: `routes`, `choices`, `api_ready`, `version`, the version of `params.json`, and `triage`, the AI clean-up's status as the project state gives it) and where the build pauses for a copilot (`pause`: `step`, `after`, `resumes`, `page`, the copilot's page, and `held`, the stages it holds back; `null` when it does not). A build pauses at an AI step whose route is a copilot when the stage after it runs and either the stage before it runs in the same build or no copilot result was accepted since that stage's run: it runs what comes before and ends `waiting`, its result's `waiting` naming the pause; `continue` lists the steps (`keywords.triage`, `themes.curation`) it goes past. `dry_run: false` starts a job (202); a stage that asks consent runs only when listed in `consent`; without it, an opt-in stage (the AI clean-up; its request says `skipped_without: true`) is skipped as if switched off and the stages after it run, any other is refused with those after it. The dry run's `notes` are messages with a next action: `preflight_no_texts` (mapped people whose texts were never collected, when the texts are gathered again), `preflight_copilot_pending`, `preflight_api_dropped` (the API's verdicts exist and another route is chosen: they no longer gate the vocabulary) |
 | `PUT /api/build/ai {keywords.triage, themes.curation}` | the route of each AI step, kept in `params.json` (`ai`): `none`, `copilot` or, for the keyword clean-up only, `api` (which switches `keywords.triage` on; the theme curation has no API route); a step left out keeps its route; `If-Match` with the version of `params.json`; answers as the dry run's `ai` |
 | `GET /api/build` | the tracker: the running or last build job (its progress: phase, stage, fractions, ETA, message) and each of its stages, done, running or waiting, with counts and times; its result says what changed. A failed stage's result carries its code, params and `next` (the settings for a missing language model or a refused stage, a diagnostic otherwise); a consent request of a paid stage gives `ai_calls_max`, the most AI calls it makes when the candidates are known, and `ai_tokens` (`in`, `out`, `calls`: the tokens sent and received at most, answers already paid for left out; `null` when the extraction runs first). A build job's result has `ai_usage` (`tokens_in`, `tokens_out`) when a stage that ran called an AI provider: the tokens it reported; the stage's run counts keep them too |
-| `GET /api/overview` | what the overview adds to the state: `project` (id, name, the state of the whole), `next` (the one most useful next step), `health[]` (a stale map, a missing language model, a stage too large for this machine, several languages without the AI clean-up, a proposal of collaborators cut at its cap), `preview` (an even sample of at most 1 500 of the map's people, `[x, y, top-level theme index]`, with the top-level themes and the bounds; `null` without a map) and `shares` (the three latest site builds). Each item is a message (`code`, `params`, `message`), a `level` (`info`, `warning`) and a `next` action; a build action may carry `scope`, the areas the build covers |
+| `GET /api/overview` | what the overview adds to the state: `project` (id, name, the state of the whole), `next` (the one most useful next step: a running job (a build to follow, any other in the Activity drawer), a build waiting for a copilot, people to add, a model to install, a failure only while it is the last thing tried, before the texts are gathered the roles, the identities and the harvest, a first build, a stale map, an update, the keyword review when no decision was made since the extraction, the themes, the map, sharing), `health[]` (a stale map, a missing language model, a stage too large for this machine, several languages without the AI clean-up (no API verdict and no AI answer accepted, once the candidates are found), a proposal of collaborators cut at its cap, a copilot result imported and not accepted, and once the texts are gathered the people whose identity waits or whose texts were never collected), `quiet_failures` (the failed stages a later job came after: stage id → the attempt's time), `steps` (« Your first map »: `project`, `people`, `identities`, `texts`, `build`, `review`, `themes`, `map`, `share`, each `done` or `todo`, with `n` where its words count people), `checklist` (`key`, the person's preference that hides it, and `hidden`), `people` (the counts the guidance reads, from the people's view: `people`, `mapped`, `with_texts`, `without_texts`, `identities`, `to_harvest`), `preview` (an even sample of at most 1 500 of the map's people, `[x, y, top-level theme index]`, with the top-level themes and the bounds; `null` without a map) and `shares` (the three latest site builds). Each item is a message (`code`, `params`, `message`), a `level` (`info`, `warning`) and a `next` action; a build action may carry `scope`, the areas the build covers |
 | `GET /api/jobs`, `GET /api/jobs/{id}`, `GET /api/jobs/{id}/events?after=n`, `POST /api/jobs/{id}/cancel` | jobs; a job's `title` comes with `title_code` and `title_params` (`job.title.<code>`), a result's `summary` with `summary_code` and `summary_params` (`job.summary.<code>`) |
 
 **Parameters and map versions**
@@ -406,7 +406,7 @@ catalogues give each code its text in every interface language.
 | `forbidden` | 403 | {reason} | `reason` | `none` |
 | `version_required` | 428 | this change needs the version you read: send it in If-Match (the ETag of the read) | — | `reload` |
 | `version_ambiguous` | 400 | If-Match names one version | — | `reload` |
-| `stale` | 412 | {file} changed since it was read; reload it and apply the change again | `file` | `reload` |
+| `stale` | 412 | this changed elsewhere since it was read; reload it and apply the change again | `file` | `reload` |
 | `invalid` | 422 | the request is not valid: {problems} | `problems` | `fix-input` |
 | `no_route` | 404 | no such address in this app | — | `none` |
 | `method_not_allowed` | 405 | this address does not take this method | — | `none` |
@@ -480,7 +480,7 @@ catalogues give each code its text in every interface language.
 | `import_not_found` | 404 | this import is not waiting any more | — | `reload` |
 | `mapping_unknown_fields` | 422 | unknown field(s) {fields}; the fields are {known} | `fields`, `known` | `fix-input` |
 | `mapping_unknown_columns` | 422 | the list has no column(s) {columns} | `columns` | `fix-input` |
-| `mapping_no_name` | 422 | map a column to last_name, or to name (a full name) | — | `fix-input` |
+| `mapping_no_name` | 422 | map a column to the last name, or to the full name | — | `fix-input` |
 | `unknown_role` | 422 | {role} is not a role | `role` | `fix-input` |
 | `collection_unavailable` | 409 | collecting texts is not available in this version | — | `none` |
 | `snapshot_unavailable` | 409 | the OpenAlex snapshot of this computer is not ready to be read ({state}): plug in its disk, finish its download, or read OpenAlex from the API | `state` | `none` |
@@ -567,11 +567,21 @@ the English `message` the same way; an empty result also names its next action.
 | `empty_no_rejects` | no term rejected by an AI on this computer yet | — | `none` |
 | `empty_no_decisions` | no decision yet: keep, exclude or merge keywords in the list | — | `none` |
 | `collection_unavailable` | collecting texts from bibliographic services is not available in this version; import texts into a folder or corpus slot instead | — | — |
-| `stage_switched_off` | switched off (set {stage}.enabled in decisions/params.json to run it) | `stage` | — |
+| `stage_switched_off` | switched off | `stage` | — |
+| `stage_copilot_done` | done with your copilot ({n} decisions, {date}) | `n`, `date` | — |
+| `stage_copilot_waiting` | waiting for your copilot: give it the candidates, then import and accept its result ({total} earlier decisions still apply) | `total` | — |
+| `stage_ai_none` | no AI clean-up: choose a copilot or the API on the build page to have one | — | — |
 | `stage_no_overlay` | the project has no overlay | — | — |
 | `stage_not_applicable` | {reason} | `reason` | — |
 | `stage_cancelled` | the stage was cancelled; its previous results are kept | — | — |
 | `stage_refused` | the stage could not run: {detail} | `detail` | — |
+| `stage_no_texts` | no mapped person has texts yet: collect their texts first | — | `open:/people?collect=harvest` |
+| `stage_no_mapped` | nobody is mapped yet: on the People page, choose the people whose texts make the map | — | `open:/people` |
+| `stage_ai_not_set` | the AI clean-up by API needs an AI provider: choose one in the settings, or another route for the clean-up on the build page | — | `settings` |
+| `stage_ai_no_key` | no AI key is saved on this computer: add one in the settings, or choose another route for the clean-up on the build page | — | `settings` |
+| `stage_themes_rebase` | your themes could not be carried over to the new vocabulary: open the themes and save them again | — | `open:/themes` |
+| `stage_no_pinned_map` | no map version is chosen: choose one in the map's settings | — | `open:/map?tune=1` |
+| `stage_layout_missing` | this computer cannot draw the map's method ({method}): choose another method in the map's settings | `method` | `open:/map?tune=1` |
 | `language_model_missing` | a language model is missing: {detail} | `detail` | — |
 | `stage_failed` | the stage failed ({error_type}): {detail} | `error_type`, `detail` | — |
 | `job_failed` | the job failed ({error_type}): {detail} | `error_type`, `detail` | — |
@@ -591,8 +601,21 @@ the English `message` the same way; an empty result also names its next action.
 | `health_languages_split` | the texts are in {languages}: without the AI clean-up, keywords of each language may form themes of their own | `languages` | `settings` |
 | `health_space_languages` | {share}% of the keywords are not in {language}: in a space of texts, themes may split by language; the people's space may suit this corpus better | `share`, `language` | `open:/method` |
 | `health_snowball_cap` | the last proposal of collaborators in {slot} stopped at the cap of {cap} people | `slot`, `cap` | `settings` |
+| `health_copilot_pending` | a copilot's result was imported and is not accepted yet: review it | `proposal` | `open:/keywords?copilot=1&proposal=<id>` |
+| `health_identities_pending` | {n} mapped people without texts wait for an identity check | `n` | `open:/people?tab=identities` |
+| `health_not_harvested` | {n} mapped people have no texts: their texts were never collected | `n` | `open:/people?collect=harvest` |
+| `preflight_no_texts` | {n} mapped people have no texts: collect them first, or build without them | `n` | `open:/people?collect=harvest` |
+| `preflight_copilot_pending` | a copilot's result was imported and is not accepted yet: the build does not use it until you accept it | `proposal` | `open:/keywords?copilot=1&proposal=<id>` |
+| `preflight_api_dropped` | the AI clean-up by API judged the candidates before; with this route its verdicts no longer decide which candidates the vocabulary keeps | — | — |
 | `preview_needs_extraction` | {param} at {value} reaches past the last build's {built}: the candidates outside its window were never kept, a new extraction shows them | `param`, `value`, `built` | — |
 | `next_watch_build` | a build is running | — | `open:/build` |
+| `next_job_running` | a {kind} job is running | `kind` | `wait` |
+| `next_set_roles` | nobody is mapped yet: choose the people whose texts make the map | — | `open:/people` |
+| `next_check_identities` | {n} people wait for an identity check before their texts can be collected | `n` | `open:/people?tab=identities` |
+| `next_collect_texts` | {n} mapped people have no texts yet: collect their texts | `n` | `open:/people?collect=harvest` |
+| `next_review_keywords` | look at the keywords the build found: keep, set aside or merge them | — | `open:/keywords` |
+| `next_build_map` | draw the map | — | `build` |
+| `next_share` | share the map: build a site you can send or publish | — | `open:/share` |
 | `next_copilot_waiting` | the build waits for your copilot ({step}) | `step` | `open:/build` |
 | `next_import_people` | start with the people whose texts make the map | — | `open:/people` |
 | `next_install_model` | install the language model the keyword extraction needs | — | `settings` |

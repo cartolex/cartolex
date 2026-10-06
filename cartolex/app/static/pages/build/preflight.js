@@ -9,17 +9,35 @@
 import { html, useState } from '../../core/preact.js';
 import { formatNumber, t } from '../../core/i18n.js';
 import {
-  Button, Card, Checkbox, EmptyState, ErrorCard, Icon, StageTracker, reasonText,
+  Button, Card, Checkbox, EmptyState, ErrorCard, Icon, StageTracker, messageOf, reasonText,
 } from '../../components/index.js';
 import { formatMb, formatSeconds, nameOf } from './words.js';
 import { AiChoice } from './ai.js';
+import { actionLabel, follow } from '../overview/cards.js';
+
+/** The sheet's notes (`plan.notes`): mapped people never harvested, a copilot result not
+ * accepted, the API's verdicts left aside; each with its button. */
+function Notes({ notes }) {
+  if (!notes || !notes.length) return null;
+  return html`<ul class="cx-build-notes" aria-label=${t('build.notes')}>
+    ${notes.map((n) => html`<li key=${n.code} class=${`cx-build-notes__item is-${n.level}`}
+      data-note=${n.code}>
+      <${Icon} name=${n.level === 'warning' ? 'warning' : 'info'} />
+      <div>
+        <p>${messageOf(n)}</p>
+        ${n.next ? html`<${Button} size="s" variant="secondary" onClick=${() => follow(n)}>
+          ${actionLabel(n)}<//>` : null}
+      </div>
+    </li>`)}
+  </ul>`;
+}
 
 /** Why a stage runs, in the interface language (the project state's reasons have codes). */
 function why(item, known) {
   const out = [];
   if (item.state === 'never_built') out.push(t('build.why.never_built'));
   if (item.state === 'failed') out.push(t('build.why.failed'));
-  for (const r of (known && known.reasons) || []) out.push(reasonText(r));
+  for (const r of (known && known.reasons) || []) out.push(reasonText(r, item.stage));
   if (!out.length) out.push(t('build.why.upstream'));
   return out;
 }
@@ -43,8 +61,11 @@ export function planRows(plan, stages, declined = new Set()) {
     }
     if (item.action === 'keep') return { ...base, state: 'up_to_date', stateText: t('build.action.keep') };
     if (item.action === 'skip') {
-      return { ...base, state: 'skipped', stateText: t('build.action.skip'),
-        note: known && known.skip ? known.skip.message : (item.reasons || [])[0] || '' };
+      // The AI clean-up done with a copilot reads as done, not as skipped.
+      const done = known && known.ai && known.state === 'up_to_date';
+      return { ...base, state: done ? 'up_to_date' : 'skipped',
+        stateText: done ? t('build.action.done_copilot') : t('build.action.skip'),
+        note: known && known.skip ? messageOf(known.skip) : (item.reasons || [])[0] || '' };
     }
     const e = item.estimate || {};
     const cost = t('build.cost', { time: formatSeconds(e.seconds), memory: formatMb(e.peak_memory_mb) });
@@ -96,6 +117,7 @@ export function Preflight({ plan, stages, starting, error, onStart, onClose, onR
         <${EmptyState} icon="check" title=${t('build.pre.nothing')}
           action=${{ label: t('build.back'), onClick: onClose }}>${t('build.pre.nothing.text')}<//>
       <//>
+      <${Notes} notes=${plan.notes} />
       ${choice}
     </div>`;
   }
@@ -131,6 +153,7 @@ export function Preflight({ plan, stages, starting, error, onStart, onClose, onR
           label=${t('build.refusal.override')} />
       </div>
     </div>` : null}
+    <${Notes} notes=${plan.notes} />
     ${refused.length ? html`<p class="cx-build-note">${t('build.refused', {
       n: refused.length, stages: refused.map((i) => nameOf(i.stage)).join(', ') })}</p>` : null}
     ${choice}

@@ -21,7 +21,7 @@ export function follow(item) {
 }
 
 /** The label of an item's action: the catalogue's (`overview.action.<code>`), else generic. */
-function actionLabel(item) {
+export function actionLabel(item) {
   const key = `overview.action.${item.code}`;
   if (has(key)) return t(key);
   const kind = item.next.action.startsWith('open:') ? 'open' : item.next.action;
