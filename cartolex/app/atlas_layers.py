@@ -27,6 +27,7 @@ writes nothing but a base's copy.
 from __future__ import annotations
 
 import csv
+import functools
 import json
 import math
 import re
@@ -115,7 +116,8 @@ def map_extras(ctx: Any, people: list[dict[str, Any]], cache: Any = None) -> dic
     orgs = organisations(project, cache) if layout.table("organisations").exists() else []
     parents = {o["org_id"]: list(o["parents"]) for o in orgs}
 
-    def ancestors(org_id: str) -> set[str]:
+    @functools.cache
+    def ancestors(org_id: str) -> frozenset[str]:  # once per organisation
         seen: set[str] = set()
         todo = [org_id]
         while todo:
@@ -124,7 +126,7 @@ def map_extras(ctx: Any, people: list[dict[str, Any]], cache: Any = None) -> dic
                 continue
             seen.add(o)
             todo.extend(parents.get(o, []))
-        return seen
+        return frozenset(seen)
 
     now: dict[str, set[str]] = defaultdict(set)
     ever: dict[str, set[str]] = defaultdict(set)

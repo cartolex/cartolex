@@ -10,7 +10,7 @@
  * again when an option changes.
  */
 import { html, useEffect, useRef, useState } from '../../core/preact.js';
-import { formatList, formatNumber, locale, t } from '../../core/i18n.js';
+import { formatBytes, formatList, formatNumber, locale, t } from '../../core/i18n.js';
 import { runtime } from '../../core/runtime.js';
 import { Button, Card, ErrorCard, FormField, Icon, Input, ProgressBar, Select } from '../../components/index.js';
 
@@ -32,9 +32,18 @@ function Choice({ name, label, value, options, onChange, help }) {
 }
 
 /** The words of a check. */
+/** A texts option, with what it adds to the site when the plan says (« about 1.3 GB »). */
+function textsLabel(value, plan) {
+  const bytes = plan && plan.summary.text_bytes ? plan.summary.text_bytes[value] : 0;
+  const label = t(`share.texts.${value}`);
+  return bytes ? `${label} (${t('share.texts.about', { size: formatBytes(bytes) })})` : label;
+}
+
 function checkText(check) {
   const p = check.params || {};
   const params = { ...p, examples: formatList((p.examples || []).map(String)), stages: formatList(p.stages || []) };
+  if (p.size !== undefined) params.size = formatBytes(p.size);
+  if (p.titles !== undefined) params.titles = formatBytes(p.titles);
   return t(`share.check.${check.code}`, params);
 }
 
@@ -146,7 +155,7 @@ export function SiteCard({ ctx, available, job, running, onStarted }) {
         { value: 'names', label: t('share.names.names') }]}
       onChange=${(v) => set({ namesProjected: v === 'names' })} />` : null}
     <${Choice} name="texts" label=${t('share.texts')} value=${options.texts}
-      options=${['none', 'titles', 'abstracts'].map((v) => ({ value: v, label: t(`share.texts.${v}`) }))}
+      options=${['none', 'titles', 'abstracts'].map((v) => ({ value: v, label: textsLabel(v, plan) }))}
       onChange=${(v) => set({ texts: v })} />
     <h3 class="cx-share__head">${t('share.summary')}</h3>
     ${planError ? html`<${ErrorCard} error=${planError} compact onRetry=${() => readPlan(options)} />`

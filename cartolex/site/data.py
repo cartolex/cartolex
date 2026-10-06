@@ -34,7 +34,15 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from cartolex.project import Project
 
-__all__ = ["NEIGHBOURS", "SiteData", "SiteDataError", "gather", "project_context"]
+__all__ = [
+    "ABSTRACT_BYTES",
+    "NEIGHBOURS",
+    "SiteData",
+    "SiteDataError",
+    "SiteTexts",
+    "gather",
+    "project_context",
+]
 
 #: Real nearest neighbours listed per person.
 NEIGHBOURS = 6
@@ -61,7 +69,7 @@ class SiteData:
 
     core: dict[str, Any]
     details: dict[str, Any]
-    texts: dict[str, Any] | None
+    texts: SiteTexts | None
     counts: dict[str, int]
 
 
@@ -154,37 +162,175 @@ def _vectors(ctx: Any, engine_to_person: dict[str, str]) -> dict[str, list[float
     return out
 
 
-def _texts(ctx: Any, people: set[str], mode: str) -> dict[str, list[dict[str, Any]]]:
-    """The texts of *people*: titles and years (and abstracts, with ``abstracts``); never a
-    private part (``shareable_parts``)."""
-    from cartolex.project.tables import read_source_table, shareable_parts
+#: A text's entry in a site, beyond its title's bytes (``{"title":"","year":2020},``).
+ENTRY_BYTES = 26
+#: An abstract's bytes in a site, on average: 1,120 measured on 1.9 million abstracts of a
+#: national sample. It estimates a site before it is built; the build counts them.
+ABSTRACT_BYTES = 1_120
 
-    layout = ctx.layout
-    if mode == "none" or not layout.table("texts").exists():
-        return {}
-    by_text: dict[str, list[str]] = defaultdict(list)
-    if layout.table("authorships").exists():
-        table = read_source_table(layout.table("authorships"), "authorships")
-        for a in table.select(["text_id", "person_id"]).to_pylist():
-            if a["person_id"] in people:
-                by_text[a["text_id"]].append(a["person_id"])
-    abstracts: dict[str, str] = {}
-    if mode == "abstracts" and layout.table("text_parts").exists():
-        parts = shareable_parts(read_source_table(layout.table("text_parts"), "text_parts"))
-        for p in parts.select(["text_id", "part", "content"]).to_pylist():
-            if p["part"] == "abstract" and p["content"] and p["text_id"] in by_text:
-                abstracts.setdefault(p["text_id"], p["content"])
-    out: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    texts = read_source_table(layout.table("texts"), "texts").select(["text_id", "title", "year"])
-    for t in texts.to_pylist():
-        for pid in by_text.get(t["text_id"], ()):
-            entry: dict[str, Any] = {"title": t["title"] or "", "year": t["year"]}
-            if t["text_id"] in abstracts:
-                entry["abstract"] = abstracts[t["text_id"]]
-            out[pid].append(entry)
-    for items in out.values():
-        items.sort(key=lambda e: (-(e["year"] or 0), e["title"]))
-    return dict(out)
+
+@dataclass
+class SiteTexts:
+    """The texts a site carries, an entry per text and mapped author, as two arrays: the
+    author's site number (``s<number>``) and the text's row in the texts' view
+    (:mod:`cartolex.app.texts_view`), never an object per text. The abstracts are read when
+    the site is written, a row group at a time (:meth:`abstracts_of`), and each part of
+    the site is made from its people's entries alone (:meth:`entries`)."""
+
+    view: Any
+    number: Any
+    row: Any
+    abstracts: bool
+
+    @classmethod
+    def of(
+        cls, project: Project, sids: Mapping[str, str], mode: str, cache: Any = None
+    ) -> SiteTexts | None:
+        """The texts of the people of *sids* (person id → site id) as *mode* carries them;
+        ``None`` for ``none``. *cache*: the app's, which keeps the texts' view."""
+        import numpy as np
+
+        from cartolex.app.texts_view import texts_view
+
+        if mode == "none":
+            return None
+        none = np.zeros(0, dtype=np.int64)
+        if not project.layout.table("texts").exists():
+            return cls(None, none, none, mode == "abstracts")
+        view = texts_view(project, cache)
+        number_of = np.full(len(view.person_ids), -1, dtype=np.int64)
+        code = {pid: i for i, pid in enumerate(view.person_ids)}
+        for pid, sid in sids.items():
+            if pid in code:
+                number_of[code[pid]] = int(sid[1:])
+        authors = view.authors
+        number = number_of[np.asarray(authors["person"], dtype=np.int64)] if len(authors) else none
+        keep = number >= 0
+        row = np.asarray(authors["text"], dtype=np.int64)[keep] if len(authors) else none
+        return cls(view, number[keep], row, mode == "abstracts")
+
+    @property
+    def count(self) -> int:
+        return len(self.row)
+
+    def estimate(self) -> dict[str, int]:
+        """The bytes the texts add to a site with their titles (counted), and with their
+        abstracts too (estimated, :data:`ABSTRACT_BYTES` each), and how many entries have
+        an abstract or a full text."""
+        import numpy as np
+        import pyarrow.compute as pc
+
+        if not len(self.row):
+            return {"titles": 0, "abstracts": 0, "with_abstract": 0}
+        lengths = pc.binary_length(self.view.table["title"]).fill_null(0).to_numpy()
+        titles = int(lengths[self.row].sum()) + ENTRY_BYTES * len(self.row)
+        with_abstract = int(np.count_nonzero(self.view.content[self.row] >= 1))
+        return {
+            "titles": titles,
+            "abstracts": titles + ABSTRACT_BYTES * with_abstract,
+            "with_abstract": with_abstract,
+        }
+
+    def abstracts_of(self, project: Project, scratch: Path) -> Any:
+        """The abstract of each text an entry names (its first abstract part, never a
+        private part), as a table ``row``, ``abstract`` in row order: written to *scratch*
+        a row group of ``text_parts`` at a time, and mapped back from there."""
+        import numpy as np
+        import pyarrow as pa
+        import pyarrow.compute as pc
+        import pyarrow.ipc as ipc
+        import pyarrow.parquet as pq
+
+        from cartolex.project.tables import check_source_file, find_ids, id_keys
+
+        schema = pa.schema([("row", pa.int64()), ("abstract", pa.string())])
+        target = scratch / "abstracts.arrow"
+        path = project.layout.table("text_parts")
+        with pa.OSFile(str(target), "wb") as sink, ipc.new_file(sink, schema) as writer:
+            if self.view is not None and len(self.row) and path.exists():
+                wanted = np.zeros(self.view.n, dtype=bool)
+                wanted[self.row] = True
+                keys = id_keys(self.view.table["text_id"])
+                check_source_file(path, "text_parts")
+                pf = pq.ParquetFile(path)
+                last = -1
+                try:
+                    for group in range(pf.num_row_groups):
+                        part = pf.read_row_group(group, columns=["text_id", "part", "content"])
+                        part = part.filter(
+                            pc.and_(
+                                pc.equal(part["part"], "abstract"),
+                                pc.greater(pc.binary_length(part["content"]), 0),
+                            )
+                        )
+                        rows = find_ids(keys, part["text_id"])
+                        at = np.flatnonzero((rows >= 0) & wanted[np.maximum(rows, 0)])
+                        rows = rows[at]
+                        if not len(rows):
+                            continue
+                        first = np.empty(len(rows), dtype=bool)  # a text's first abstract
+                        first[0] = rows[0] != last
+                        first[1:] = rows[1:] != rows[:-1]
+                        last = int(rows[-1])
+                        writer.write_table(
+                            pa.table(
+                                {
+                                    "row": rows[first],
+                                    "abstract": part["content"].take(pa.array(at[first])),
+                                },
+                                schema=schema,
+                            )
+                        )
+                finally:
+                    pf.close()
+        return ipc.open_file(pa.memory_map(str(target), "r")).read_all()
+
+    def entries(self, select: Any, abstracts: Any = None) -> dict[str, list[dict[str, Any]]]:
+        """The entries at *select* (indices) by site id, in site order, each person's texts
+        the newest first, then by title (with their abstracts from :meth:`abstracts_of`)."""
+        import numpy as np
+
+        rows, numbers = self.row[select], self.number[select]
+        if not len(rows):
+            return {}
+        texts = np.unique(rows)
+        titles = _take_sorted(self.view.table["title"], texts)
+        years = np.where(self.view.has_year[texts], self.view.year[texts], 0).tolist()
+        found: dict[int, str] = {}
+        if abstracts is not None and abstracts.num_rows:
+            have = abstracts["row"].to_numpy()
+            at = np.minimum(np.searchsorted(have, texts), len(have) - 1)
+            hit = np.flatnonzero(have[at] == texts)
+            body = _take_sorted(abstracts["abstract"], at[hit])
+            found = dict(zip(texts[hit].tolist(), body, strict=True))
+        index = {r: i for i, r in enumerate(texts.tolist())}
+        out: dict[int, list[dict[str, Any]]] = defaultdict(list)
+        for number, row in zip(numbers.tolist(), rows.tolist(), strict=True):
+            i = index[row]
+            entry: dict[str, Any] = {"title": titles[i] or "", "year": years[i] or None}
+            if row in found:
+                entry["abstract"] = found[row]
+            out[number].append(entry)
+        for items in out.values():
+            items.sort(key=lambda e: (-(e["year"] or 0), e["title"]))
+        return {f"s{n}": out[n] for n in sorted(out)}
+
+
+def _take_sorted(column: Any, rows: Any) -> list[Any]:
+    """The values of the chunked *column* at the sorted *rows*, taken chunk by chunk (one
+    take across many chunks is far slower)."""
+    import numpy as np
+    import pyarrow as pa
+
+    chunks = column.chunks if isinstance(column, pa.ChunkedArray) else [column]
+    starts = np.cumsum([0, *(len(c) for c in chunks)])
+    bounds = np.searchsorted(rows, starts)
+    out: list[Any] = []
+    for i, chunk in enumerate(chunks):
+        mine = rows[bounds[i] : bounds[i + 1]]
+        if len(mine):
+            out += chunk.take(pa.array(mine - starts[i])).to_pylist()
+    return out
 
 
 def _names_of(ctx: Any) -> dict[str, str]:
@@ -410,11 +556,10 @@ def gather(
 
     # ── texts, on request ──
     say(0.9, "texts")
-    text_items = _texts(ctx, {p["person_id"] for p in mapped}, texts)
-    texts_part = (
-        {sid[pid]: items for pid, items in text_items.items() if pid in sid}
-        if texts != "none"
-        else None
+    texts_part = SiteTexts.of(
+        project,
+        {p["person_id"]: sid[p["person_id"]] for p in mapped if p["person_id"] in sid},
+        texts,
     )
 
     config = project.config
@@ -446,7 +591,7 @@ def gather(
         "organisations": len(orgs),
         "keywords": len(keywords),
         "themes": len(nodes),
-        "texts": sum(len(v) for v in (texts_part or {}).values()),
-        "abstracts": sum(1 for v in (texts_part or {}).values() for e in v if "abstract" in e),
+        "texts": texts_part.count if texts_part is not None else 0,
+        "abstracts": 0,  # counted as the site is written
     }
     return SiteData(core=core, details=details, texts=texts_part, counts=counts)

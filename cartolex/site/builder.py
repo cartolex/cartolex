@@ -167,6 +167,44 @@ def _write_shards(folder: Path, name: str, by_sid: Mapping[str, Any], n: int) ->
     return sizes
 
 
+def _write_texts(project: Project, folder: Path, texts: Any) -> tuple[int, dict[str, int], int]:
+    """The texts (:class:`~cartolex.site.data.SiteTexts`) written as parts
+    ``data/texts/<i>.js`` of about :data:`SHARD_BYTES`, each made from its people's
+    entries alone, the abstracts read once into a scratch file beside *folder*: the
+    number of parts, their sizes by file name, and the entries with an abstract."""
+    import numpy as np
+    import pyarrow.compute as pc
+
+    scratch = folder.with_name(folder.name + ".scratch")
+    scratch.mkdir(parents=True, exist_ok=True)
+    try:
+        abstracts = texts.abstracts_of(project, scratch) if texts.abstracts else None
+        total = texts.estimate()["titles"]
+        with_abstract = 0
+        if abstracts is not None and abstracts.num_rows and texts.count:
+            have = abstracts["row"].to_numpy()
+            at = np.minimum(np.searchsorted(have, texts.row), len(have) - 1)
+            hit = have[at] == texts.row
+            lengths = pc.binary_length(abstracts["abstract"]).to_numpy()
+            total += int(lengths[at[hit]].sum()) + 14 * int(hit.sum())  # ,"abstract":""
+            with_abstract = int(hit.sum())
+        n = max(1, -(-total // SHARD_BYTES))
+        part = (texts.number - 1) % n
+        order = np.argsort(part, kind="stable")
+        bounds = np.searchsorted(part[order], np.arange(n + 1))
+        sizes = {}
+        for i in range(n):
+            body = _script(f"texts/{i}", texts.entries(order[bounds[i] : bounds[i + 1]], abstracts))
+            path = folder / "data" / "texts" / f"{i}.js"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(body)
+            sizes[f"data/texts/{i}.js"] = len(body)
+        del abstracts
+        return n, sizes, with_abstract
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
 def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -334,58 +372,59 @@ def build_site(
     world = any(loc for loc in data.core["orgs"]["location"])
 
     people_details = data.details["people"]
-    shards = {"people": _shard_count(people_details)}
-    if data.texts is not None:
-        shards["texts"] = _shard_count(data.texts)
-    core = {
-        **data.core,
-        "title": title,
-        "built_at": at.isoformat(timespec="seconds"),
-        "language": options.language,
-        "parts": ["details", *shards],
-        "shards": shards,
-    }
-    files: dict[str, bytes] = {
-        "index.html": _index_html(title, options.language, words, world).encode(),
-        "README.txt": _readme(title, words, options, data.counts).encode(),
-        "assets/tokens.css": (ASSETS / "tokens.css").read_bytes(),
-        "assets/site.css": (ASSETS / "site.css").read_bytes(),
-        "assets/site.js": b"\n".join((ASSETS / name).read_bytes() for name in SITE_SCRIPTS),
-        "assets/map.js": classic_script(
-            [PACKAGE_STATIC / m for m in (*MAP_MODULES, *SITE_MODULES)], "CartolexMap"
-        ).encode(),
-        "assets/i18n.js": _script("i18n", {code: _catalogue(code) for code in LANGUAGES}),
-        "data/core.js": _script("core", core),
-        "data/details.js": _script(
-            "details", {k: v for k, v in data.details.items() if k != "people"}
-        ),
-    }
-    if world:
-        files["assets/world.js"] = _script(
-            "world", json.loads(WORLD.read_text(encoding="utf-8"))["rings"]
-        )
-
     folder = _sites(project)
     folder.mkdir(parents=True, exist_ok=True)
     build_id = _new_id(folder, at.astimezone())
-    record = {
-        "format": FORMAT,
-        "id": build_id,
-        "built_at": at.isoformat(timespec="seconds"),
-        "cartolex": cartolex_version(),
-        "map_version": data.core["map_version"],
-        "options": {**asdict(options), "title": title},
-        "inputs": fingerprint,
-        "counts": data.counts,
-    }
     staging = folder / f".building-{build_id}"
     if staging.exists():
         shutil.rmtree(staging)
+    shards = {"people": _shard_count(people_details)}
+    sizes: dict[str, int] = {}
     try:
-        sizes = {name: len(body) for name, body in files.items()}
-        sizes.update(_write_shards(staging, "people", people_details, shards["people"]))
         if data.texts is not None:
-            sizes.update(_write_shards(staging, "texts", data.texts, shards["texts"]))
+            say(0.87, "writing the texts")
+            n, written, data.counts["abstracts"] = _write_texts(project, staging, data.texts)
+            shards["texts"] = n
+            sizes.update(written)
+        core = {
+            **data.core,
+            "title": title,
+            "built_at": at.isoformat(timespec="seconds"),
+            "language": options.language,
+            "parts": ["details", *shards],
+            "shards": shards,
+        }
+        files: dict[str, bytes] = {
+            "index.html": _index_html(title, options.language, words, world).encode(),
+            "README.txt": _readme(title, words, options, data.counts).encode(),
+            "assets/tokens.css": (ASSETS / "tokens.css").read_bytes(),
+            "assets/site.css": (ASSETS / "site.css").read_bytes(),
+            "assets/site.js": b"\n".join((ASSETS / name).read_bytes() for name in SITE_SCRIPTS),
+            "assets/map.js": classic_script(
+                [PACKAGE_STATIC / m for m in (*MAP_MODULES, *SITE_MODULES)], "CartolexMap"
+            ).encode(),
+            "assets/i18n.js": _script("i18n", {code: _catalogue(code) for code in LANGUAGES}),
+            "data/core.js": _script("core", core),
+            "data/details.js": _script(
+                "details", {k: v for k, v in data.details.items() if k != "people"}
+            ),
+        }
+        if world:
+            files["assets/world.js"] = _script(
+                "world", json.loads(WORLD.read_text(encoding="utf-8"))["rings"]
+            )
+        record = {
+            "format": FORMAT,
+            "id": build_id,
+            "built_at": at.isoformat(timespec="seconds"),
+            "cartolex": cartolex_version(),
+            "map_version": data.core["map_version"],
+            "options": {**asdict(options), "title": title},
+            "inputs": fingerprint,
+            "counts": data.counts,
+        }
+        sizes.update({name: len(body) for name, body in files.items()})
+        sizes.update(_write_shards(staging, "people", people_details, shards["people"]))
         record["files"] = dict(sorted(sizes.items()))
         record["size"] = sum(sizes.values())
         files["site.json"] = (json.dumps(record, indent=2, ensure_ascii=False) + "\n").encode()

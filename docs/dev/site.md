@@ -62,12 +62,22 @@ organisations (a share of at least a fifth) and keywords.
   when the project has some: pseudonyms (shuffled `q1`, `q2`…) unless named
   explicitly, and then listed among the checks to look at.
 - **Texts**: none by default; `titles`, or `abstracts` (titles and abstracts),
-  read through `shareable_parts()`, so a full text never goes in.
+  read through `shareable_parts()`, so a full text never goes in. A text is an
+  entry per mapped author (`cartolex.site.data.SiteTexts`: two arrays over the
+  app's texts view); the abstracts are read once into a scratch file and each
+  part `data/texts/<n>.js` is made from its people's entries alone, so the
+  memory stays small whatever the texts (on 2.5 million entries of a national
+  sample: 2.5 GB of site, 4.3 GB of memory at most, against 5.6 GB when every
+  text was held). The plan says what the texts would add (`text_bytes`: the
+  titles counted, the abstracts estimated at 1,120 bytes each, the average of
+  that sample) and warns when it passes 500 MB (`abstracts_large`,
+  `titles_large`): on the national project the titles add 1.1 GB, the
+  abstracts 8.7 GB (estimated).
 - Never a project id, an identifier, or the extra columns of the people's lists.
 
 `cartolex.site.checks.plan` gives the privacy summary and the checks before
 publishing: `no_map` (blocks), `names_unanswered` (to answer), `names_shown`,
-`projected_names_shown`, `abstracts_included`, `map_stale`, `themes_untranslated` (the same name in
+`projected_names_shown`, `abstracts_included`, `abstracts_large`, `titles_large`, `map_stale`, `themes_untranslated` (the same name in
 every display language), `themes_technical`, `themes_empty`, `title_generic`
 (to look at), `full_texts_kept` (good to know); each with the fix the screen
 offers (build the map, open the themes, change a field).

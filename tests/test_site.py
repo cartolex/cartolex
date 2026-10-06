@@ -110,6 +110,27 @@ def test_projected_names_need_their_own_choice(project):
     assert "projected_names_shown" in {c["code"] for c in shown["checks"]}
 
 
+def test_the_plan_says_what_the_texts_add_and_warns_when_it_is_large(project, monkeypatch):
+    from cartolex.site import checks
+    from cartolex.site.checks import plan
+
+    small = plan(project, SiteOptions(names=False, texts="abstracts"))
+    sizes = small["summary"]["text_bytes"]
+    assert 0 < sizes["titles"] < sizes["abstracts"]
+    assert not {"abstracts_large", "titles_large"} & {c["code"] for c in small["checks"]}
+    monkeypatch.setattr(checks, "LARGE_TEXTS_BYTES", sizes["titles"] - 1)
+    large = plan(project, SiteOptions(names=False, texts="abstracts"))
+    found = next(c for c in large["checks"] if c["code"] == "abstracts_large")
+    assert found["level"] == "warning" and found["fix"]["field"] == "texts"
+    assert found["params"] == {"size": sizes["abstracts"], "titles": sizes["titles"]}
+    titles = plan(project, SiteOptions(names=False, texts="titles"))
+    assert "titles_large" in {c["code"] for c in titles["checks"]}
+    # the titles as the build writes them: what the plan counted
+    record = build_site(project, SiteOptions(names=False, texts="titles"))
+    written = sum(n for name, n in record["files"].items() if name.startswith("data/texts/"))
+    assert abs(written - sizes["titles"]) < 0.2 * sizes["titles"]
+
+
 def test_builds_are_never_overwritten_and_go_stale(project):
     at = datetime(2026, 3, 1, 12, 0, tzinfo=timezone.utc)
     first = build_site(project, SiteOptions(names=False), now=at)["id"]

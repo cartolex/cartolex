@@ -26,6 +26,7 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
 from .builder import SiteOptions
+from .data import SiteTexts
 
 if TYPE_CHECKING:
     from cartolex.project import Project
@@ -43,6 +44,9 @@ _TECHNICAL = re.compile(
 )
 #: At most this many examples per check.
 EXAMPLES = 5
+#: Texts adding more than this to a site make it slow to open and hard to send: the plan
+#: says so, with the size (a national project's abstracts are gigabytes).
+LARGE_TEXTS_BYTES = 500_000_000
 
 
 def _fold(text: str) -> str:
@@ -87,12 +91,20 @@ def _theme_checks(nodes: list[dict[str, Any]], languages: list[str]) -> list[dic
 
 
 def plan(
-    project: Project, options: SiteOptions, *, stale_stages: Iterable[str] = ()
+    project: Project,
+    options: SiteOptions,
+    *,
+    stale_stages: Iterable[str] = (),
+    bundle: dict[str, Any] | None = None,
+    extras: dict[str, Any] | None = None,
+    cache: Any = None,
 ) -> dict[str, Any]:
     """The privacy summary and the checks of a build of *project* with *options*.
 
     *stale_stages* are the stages the site reads that are not up to date (the caller knows
-    the build's state)."""
+    the build's state). *bundle* and *extras* are the map's bundle and what the atlas adds
+    from the tables, when the caller keeps them; *cache* the app's cache of the tables'
+    views."""
     from cartolex.app.atlas_layers import map_extras
     from cartolex.app.routes.atlas import build_bundle, lineage
     from cartolex.project.tables import PRIVATE_PARTS, read_source_table
@@ -119,15 +131,20 @@ def plan(
     }
     layout = project.layout
     if layout.table("text_parts").exists():
-        parts = read_source_table(layout.table("text_parts"), "text_parts").column("part")
-        summary["full_texts"] = sum(1 for p in parts.to_pylist() if p in PRIVATE_PARTS)
+        import pyarrow as pa
+        import pyarrow.compute as pc
+
+        parts = read_source_table(layout.table("text_parts"), "text_parts", ["part"])["part"]
+        private = pc.is_in(parts, value_set=pa.array(sorted(PRIVATE_PARTS)))
+        summary["full_texts"] = int(pc.sum(private).as_py() or 0)
     if runs["map.layout"] is None:
         checks.append(_check("no_map", "blocker", {"action": "build", "scope": ["map"]}))
         return {"summary": summary, "checks": checks, "ready": False}
 
-    bundle = build_bundle(ctx, runs)
+    bundle = bundle if bundle is not None else build_bundle(ctx, runs)
     people = [p for p in bundle["people"] if p["person_id"] and p["x"] is not None]
-    orgs = map_extras(ctx, bundle["people"])["organisations"] or bundle["units"]
+    extras = extras if extras is not None else map_extras(ctx, bundle["people"], cache)
+    orgs = extras["organisations"] or bundle["units"]
     summary.update(
         people=len(people),
         projected=sum(1 for o in bundle["overlays"] if o["x"] is not None),
@@ -135,6 +152,12 @@ def plan(
         keywords=sum(1 for k in bundle["keywords"] if k["x"] is not None),
         themes=len(bundle["nodes"]),
     )
+    # What the texts would add to the site: the titles counted, the abstracts estimated.
+    texts = SiteTexts.of(
+        project, {p["person_id"]: f"s{i + 1}" for i, p in enumerate(people)}, "titles", cache
+    )
+    sizes = texts.estimate() if texts is not None else {"titles": 0, "abstracts": 0}
+    summary["text_bytes"] = {"titles": sizes["titles"], "abstracts": sizes["abstracts"]}
     if people:
         if options.names is None:
             checks.append(_check("names_unanswered", "question", {"action": "fix-input",
@@ -149,6 +172,13 @@ def plan(
     if options.texts == "abstracts":
         checks.append(_check("abstracts_included", "warning",
                              {"action": "fix-input", "field": "texts"}))  # fmt: skip
+        if sizes["abstracts"] > LARGE_TEXTS_BYTES:
+            checks.append(_check("abstracts_large", "warning",
+                                 {"action": "fix-input", "field": "texts"},
+                                 size=sizes["abstracts"], titles=sizes["titles"]))  # fmt: skip
+    elif options.texts == "titles" and sizes["titles"] > LARGE_TEXTS_BYTES:
+        checks.append(_check("titles_large", "warning", {"action": "fix-input", "field": "texts"},
+                             size=sizes["titles"]))  # fmt: skip
     if summary["full_texts"]:
         checks.append(_check("full_texts_kept", "info", None, count=summary["full_texts"]))
     stale = [s for s in stale_stages]

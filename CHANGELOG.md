@@ -71,7 +71,17 @@ nothing in the engine names a particular deployment, source or procedure.
   - *Shared site*: `cartolex-site/2`: the people's details and texts are in
     parts of about 2 MB (`data/people/<n>.js`, `data/texts/<n>.js`, written
     one at a time), loaded with the person a page shows; the people's
-    neighbours are computed in threads.
+    neighbours are computed in threads. The texts it carries are an entry per
+    text and mapped author as two arrays over the app's texts view
+    (`cartolex.site.data.SiteTexts`); the abstracts are read once into a
+    scratch file, and each part is made from its people's entries alone. On a
+    national sample (2.5 million entries, 2.5 GB of site) the build held at most
+    4.3 GB instead of 5.6 GB, and wrote the same texts. The publishing plan says
+    what the titles, and the titles and abstracts, would add to the site
+    (`text_bytes`, the abstracts estimated), shows it beside each choice, and
+    warns past 500 MB (`abstracts_large`, `titles_large`): on the national
+    project the titles add 1.1 GB, the abstracts 8.7 GB. It reads the map as
+    the atlas keeps it (0.5 s instead of 50 s on that project).
   - *App*: the texts are a view of columns built once per version of the
     tables and kept in the project's cache (`cache/views/`), memory-mapped:
     lists, filters, sorts and counts of millions of texts without an object per

@@ -115,7 +115,22 @@ def plan(
             "language": language,
         }
     )
-    return site_plan(ctx.project, options, stale_stages=_stale_stages(request, ctx.project))
+    from .atlas import _bundle, _extras, lineage
+
+    runtime = runtime_of(request)
+    runs = lineage(ctx)
+    bundle = extras = None
+    if runs["map.layout"] is not None:  # the map's, as the atlas keeps them
+        bundle = _bundle(runtime, ctx, runs)
+        extras = _extras(runtime, ctx, runs, bundle)
+    return site_plan(
+        ctx.project,
+        options,
+        stale_stages=_stale_stages(request, ctx.project),
+        bundle=bundle,
+        extras=extras,
+        cache=runtime.table_cache,
+    )
 
 
 @routes.post("/api/share/builds", action="share.build")
