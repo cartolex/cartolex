@@ -99,8 +99,9 @@ or less (the measures below).
 size, and the page says how much each choice adds: on the national project,
 the titles add about 1.1 GB and the abstracts about 8.7 GB more. Leave the
 abstracts out of a large site; the titles may be left out too. The site with
-titles took 6 minutes and weighs 1.24 GB; the people's nearest neighbours are
-most of that time.
+titles took 6 minutes and weighs 1.24 GB, most of that time spent on the
+people's nearest neighbours, which a site no longer computes: it shows
+co-authors (on a national sample, 18 s where the neighbours took 69 s).
 
 ## Measured on a national project
 
