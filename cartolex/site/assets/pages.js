@@ -174,7 +174,7 @@
       h('h1', { class: 'cx-page__title', tabindex: '-1', text: t('nav.about') }),
       section('map'),
       section('distances'),
-      section('near'),
+      section('coauthors'),
       section('themes'),
       section('contents', h('ul', { class: 'cx-list' }, [
         h('li', { text: t(core.names ? 'about.contents.names' : 'about.contents.pseudonyms') }),

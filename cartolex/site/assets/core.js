@@ -230,6 +230,63 @@
     return part ? part[id] : undefined;
   };
 
+  /**
+   * Who writes with a person (`people`: an index of `core.people`, or after them of
+   * `core.projected`) or an organisation (`orgs`: an index of `core.orgs`), from the part
+   * `links`: `[[index, works together]]`, the strongest first; null before it is loaded.
+   */
+  S.partners = function partners(kind, i) {
+    const links = DATA.links && DATA.links[kind];
+    if (!links) return null;
+    if (i < 0 || i + 1 >= links.ptr.length) return [];
+    const out = [];
+    for (let k = links.ptr[i]; k < links.ptr[i + 1]; k += 1) out.push([links.nbr[k], links.cnt[k]]);
+    return out;
+  };
+
+  /** A partner's selection (`{kind, id}`) from its index in the links of *kind*. */
+  S.partnerSel = function partnerSel(kind, j) {
+    const core = DATA.core;
+    if (kind === 'orgs') return { kind: 'org', id: core.orgs.id[j] };
+    const n = core.people.id.length;
+    return j < n ? { kind: 'person', id: core.people.id[j] } : { kind: 'projected', id: core.projected.id[j - n] };
+  };
+
+  /** A selection's links and index in them (`['people' | 'orgs', i]`), or null. */
+  S.selIndex = function selIndex(sel) {
+    const ix = S.ix;
+    if (!sel) return null;
+    if (sel.kind === 'person' && ix.byPerson.has(sel.id)) return ['people', ix.byPerson.get(sel.id)];
+    if (sel.kind === 'projected' && ix.byProjected.has(sel.id)) {
+      return ['people', ix.core.people.id.length + ix.byProjected.get(sel.id)];
+    }
+    if (sel.kind === 'org' && ix.byOrg.has(sel.id)) return ['orgs', ix.byOrg.get(sel.id)];
+    return null;
+  };
+
+  /** The title of a list of partners: « Co-authors (N) » or « Writes with (N) ». */
+  S.coTitle = function coTitle(kind, n) {
+    return S.tn(kind === 'orgs' ? 'org.coauthors' : 'person.coauthors', n);
+  };
+
+  /** A list of partners (`[[index, works]]` of the links of *kind*), each a button that
+   * selects it (*onSelect*), else a link to its page, with the works together. */
+  S.partnerList = function partnerList(kind, co, onSelect) {
+    const ix = S.ix;
+    if (!co.length) return S.h('p', { class: 'cx-muted', text: S.t('page.none') });
+    return S.h('ol', { class: 'cx-list' }, co.map(([j, n]) => {
+      const sel = S.partnerSel(kind, j);
+      const name = sel.kind === 'person' ? S.personName(ix.byPerson.get(sel.id))
+        : sel.kind === 'projected' ? S.projectedName(ix.byProjected.get(sel.id))
+          : ix.core.orgs.name[ix.byOrg.get(sel.id)];
+      const open = onSelect
+        ? S.h('button', { type: 'button', class: 'cx-link-button', onclick: () => onSelect(sel) }, name)
+        : S.link(sel.kind === 'person' ? `/person/${sel.id}` : sel.kind === 'org' ? `/org/${sel.id}`
+          : `/map?sel=${encodeURIComponent(`projected:${sel.id}`)}`, name);
+      return S.h('li', {}, [open, ' ', S.h('span', { class: 'cx-muted', text: S.tn('coauthors.works', n) })]);
+    }));
+  };
+
   /** The message a page shows when a part of the site's files is missing. */
   S.missingNote = function missingNote() {
     return S.h('div', { class: 'cx-note cx-note--warning', role: 'alert' }, [
