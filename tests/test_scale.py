@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""The shared resources: a budget, ordered worker processes, scratch folders."""
+"""The shared resources: a budget, ordered worker processes, scratch folders, arrays."""
 
 from __future__ import annotations
 
@@ -7,7 +7,9 @@ import os
 import subprocess
 import sys
 
-from cartolex.scale import Budget, ordered_map, pid_alive, scratch_folder
+import numpy as np
+
+from cartolex.scale import Budget, ordered_map, pid_alive, scratch_folder, sorted_unique
 from cartolex.scale.scratch import _host
 
 
@@ -51,3 +53,17 @@ def test_a_scratch_folder_sweeps_the_ones_killed_processes_left(tmp_path):
     assert made.name.startswith(f"rebuild-{_host()}-{os.getpid()}-")
     assert not left.exists()
     assert running.exists() and elsewhere.exists() and other_job.exists()
+
+
+def test_sorted_unique_gives_what_np_unique_gives():
+    rng = np.random.default_rng(0)
+    for values in (
+        np.zeros(0, dtype=np.int64),
+        np.array([7], dtype=np.int32),
+        rng.integers(0, 40, 1_000),
+        rng.integers(0, 2**60, 10_000).astype(np.uint64),
+        np.array([[3, 1], [1, 3]]),
+        np.array([2.0, np.nan, 1.0, np.nan]),  # floats: np.unique's own (one NaN)
+    ):
+        expected, got = np.unique(values), sorted_unique(values)
+        assert got.dtype == expected.dtype and np.array_equal(got, expected, equal_nan=True)

@@ -9,7 +9,8 @@ time and using several processors. This package gives the pieces every stage sha
 - :func:`ordered_map`: a function applied to items in worker processes, the results
   given back in the items' order, with at most a few items in flight;
 - :func:`scratch_folder`: a job's folder of temporary files, swept when a killed job
-  left it behind.
+  left it behind;
+- :func:`sorted_unique`: the distinct values of an array, by a sort (fast on millions).
 
 It imports only the standard library and the declared dependencies, so that the
 collection, the project format and the engine can all use it.
@@ -17,6 +18,7 @@ collection, the project format and the engine can all use it.
 
 from __future__ import annotations
 
+from .arrays import sorted_unique
 from .budget import Budget, resident_mb, total_memory_mb
 from .pool import ordered_map, worker_setup
 from .scratch import pid_alive, scratch_folder
@@ -27,6 +29,7 @@ __all__ = [
     "pid_alive",
     "resident_mb",
     "scratch_folder",
+    "sorted_unique",
     "total_memory_mb",
     "worker_setup",
 ]

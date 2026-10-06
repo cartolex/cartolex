@@ -44,7 +44,7 @@ import numpy as np
 import pyarrow as pa
 from scipy import sparse
 
-from cartolex.scale import ordered_map, scratch_folder
+from cartolex.scale import ordered_map, scratch_folder, sorted_unique
 
 from .corpus_store import CorpusIndex
 from .io_helpers import _split_paragraphs
@@ -555,7 +555,7 @@ def _evidence(
     """The surface forms (with the texts' weights), classes and containers of the keys
     *keys* (their indices), read again from the analyses."""
     index = {agg.keys[i]: i for i in keys}
-    wanted = np.unique(np.fromiter((_hash(agg.keys[i]) for i in keys), dtype=np.uint64))
+    wanted = sorted_unique(np.fromiter((_hash(agg.keys[i]) for i in keys), dtype=np.uint64))
     surfaces = {i: Counter() for i in keys}
     classes = {i: Counter() for i in keys}
     containers = {i: Counter() for i in keys}

@@ -29,6 +29,8 @@ from pathlib import Path
 
 import numpy as np
 
+from cartolex.scale import sorted_unique
+
 from .utils import canonicalize_names
 
 __all__ = [
@@ -170,7 +172,9 @@ class CorpusIndex:
     def texts(self, which: Iterable[int] | np.ndarray | None = None) -> Iterator[tuple[int, str]]:
         """``(text index, text)`` for the texts *which* (every text a pair names when
         ``None``), in the order they are stored, each once."""
-        wanted = np.unique(self.text if which is None else np.asarray(list(which), dtype=np.int64))
+        wanted = sorted_unique(
+            self.text if which is None else np.asarray(list(which), dtype=np.int64)
+        )
         for store in self._stores:
             mine = wanted[(wanted >= store.offset) & (wanted < store.offset + store.count)]
             if len(mine):

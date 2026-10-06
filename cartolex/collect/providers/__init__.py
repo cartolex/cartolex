@@ -38,6 +38,7 @@ from typing import Any
 from cartolex.project.layout import ProjectLayout
 from cartolex.project.models import ProjectFile
 from cartolex.project.tables import read_source_table
+from cartolex.scale import sorted_unique
 
 from ..http import Cancelled, HttpClient, ServiceError, ServiceUnavailable
 from ..tables import RawRun, RawWriter, SourceBuilder, iso, parse_time
@@ -205,9 +206,9 @@ def coverage(layout: ProjectLayout) -> dict[str, dict[str, Any]]:
                     )  # fmt: skip
                     codes.append(mapping[local.indices.to_numpy(zero_copy_only=False)])
                 ok = at >= 0
-                found.append(np.unique((at[ok] << 20) | (codes[0][ok] << 10) | codes[1][ok]))
+                found.append(sorted_unique((at[ok] << 20) | (codes[0][ok] << 10) | codes[1][ok]))
             pf.close()
-        every = np.unique(np.concatenate(found)) if found else np.zeros(0, dtype=np.int64)
+        every = sorted_unique(np.concatenate(found)) if found else np.zeros(0, dtype=np.int64)
         text, part, provider = every >> 20, (every >> 10) & 1023, every & 1023
         parts = sorted(names["part"], key=names["part"].__getitem__)
         providers = sorted(names["provider"], key=names["provider"].__getitem__)

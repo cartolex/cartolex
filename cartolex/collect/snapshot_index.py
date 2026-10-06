@@ -47,6 +47,8 @@ from typing import Any
 
 import numpy as np
 
+from cartolex.scale import sorted_unique
+
 __all__ = [
     "BLOCK_BYTES",
     "FORMAT",
@@ -728,7 +730,7 @@ class SnapshotIndex:
                 out["institution"] = [_id_number(i) for i in query.lineage]
             if query.dois:
                 out["doi"] = [doi_key(d.encode()) for d in query.dois]
-        return {k: np.unique(np.fromiter(v, dtype=np.uint64)) for k, v in out.items()}
+        return {k: sorted_unique(np.fromiter(v, dtype=np.uint64)) for k, v in out.items()}
 
     @staticmethod
     def _load(path: Path, mmap: bool) -> np.ndarray:
@@ -789,7 +791,7 @@ class SnapshotIndex:
                 hi = np.array([self._bound(keys, fence, int(v), "right") for v in values])
             for a, b in zip(lo[hi > lo], hi[hi > lo], strict=True):
                 found.append(np.asarray(refs[a:b]))
-        return np.unique(np.concatenate(found)) if found else np.empty(0, np.uint32)
+        return sorted_unique(np.concatenate(found)) if found else np.empty(0, np.uint32)
 
     def ensure_fences(self) -> int:
         """Make the fences an index built without them lacks (each bucket's keys read once);
@@ -819,7 +821,7 @@ class SnapshotIndex:
         refs = [self._refs(entity, key, values) for key, values in wanted.items() if len(values)]
         if not refs:
             return {}
-        every = np.unique(np.concatenate(refs))
+        every = sorted_unique(np.concatenate(refs))
         blocks, first = self._table(entity)
         parts = self.parts(entity)
         number = every >> np.uint32(_MEMBER_BITS)

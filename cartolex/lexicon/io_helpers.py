@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
+from cartolex.scale import sorted_unique
+
 from .lang_utils import detect_language_text
 
 if TYPE_CHECKING:
@@ -311,7 +313,7 @@ def count_documents_selected(
         progress_callback(0, "Counting the texts")
     width = len(count_params["vocabulary"])
     row_of = np.full(corpus.n_texts, -1, dtype=np.int64)
-    found = int(np.unique(corpus.text).size) if len(corpus.text) else 0
+    found = int(sorted_unique(corpus.text).size) if len(corpus.text) else 0
 
     def blocks():  # noqa: ANN202
         block: list[tuple[int, str]] = []

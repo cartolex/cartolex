@@ -76,7 +76,15 @@ nothing in the engine names a particular deployment, source or procedure.
     tables and kept in the project's cache (`cache/views/`), memory-mapped:
     lists, filters, sorts and counts of millions of texts without an object per
     text; one text, one person, one organisation read from the row groups that
-    hold it; the coverage and the organisations computed once per version.
+    hold it; the coverage and the organisations computed once per version. The
+    people list reads the texts' columns once for their counts and their
+    states, and the states alone skip the years and languages: on the national
+    project (169,000 people, 5.9 million texts) its first look went from 97 s
+    to 53 s.
+  - *Distinct values*: `cartolex.scale.sorted_unique`, by a sort, where a
+    plain `np.unique` goes through a hash table since numpy 2.3 (9 s instead of
+    0.2 s on ten million distinct integers): the coverage, the corpus store,
+    the trajectories, the providers' coverage and the snapshot index use it.
   - *Estimates*: a stage that sizes its work to the job's memory budget
     (`Stage.bounded`: the extraction, the keywords' build, the text space, the
     trajectories) is estimated at most that budget (`plan(memory_mb=…)`,

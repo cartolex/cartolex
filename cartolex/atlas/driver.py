@@ -49,6 +49,7 @@ from cartolex.atlas.reducers import (
     umap_available,
 )
 from cartolex.lexicon.io_helpers import SlotIndex, slot_indexes
+from cartolex.scale import sorted_unique
 
 if TYPE_CHECKING:
     from cartolex.context import RunContext
@@ -1255,7 +1256,7 @@ def _trajectory_counts(
     from cartolex.atlas.trajectories import count_parameters
     from cartolex.scale import ordered_map
 
-    wanted = np.unique(corpus.text)
+    wanted = sorted_unique(corpus.text)
     order: list[int] = []
 
     def chunks() -> Iterator[list[str]]:

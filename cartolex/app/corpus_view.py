@@ -89,8 +89,11 @@ def _cached(cache: Any, key: Any, compute: Any) -> Any:
     return cache.get(key, compute) if cache is not None else compute()
 
 
-def coverage_states(project: Project, cache: Any = None) -> dict[str, dict[str, Any]]:
-    """Person id → state (good, thin, failed, no_data), first blocking cause and counts."""
+def coverage_states(
+    project: Project, cache: Any = None, columns: Any = None
+) -> dict[str, dict[str, Any]]:
+    """Person id → state (good, thin, failed, no_data), first blocking cause and counts
+    (*columns*: a function giving every text's columns, when the caller shares them)."""
     from cartolex.collect.coverage import person_coverage
 
     def compute() -> dict[str, dict[str, Any]]:
@@ -105,7 +108,9 @@ def coverage_states(project: Project, cache: Any = None) -> dict[str, dict[str, 
                 "with_abstract": p.with_abstract,
                 "titles_only": p.titles_only,
             }
-            for p in person_coverage(project, detail=False)
+            for p in person_coverage(
+                project, detail=False, columns=columns() if columns is not None else None
+            )
         }
 
     return _cached(cache, ("coverage-states", stamp(project)), compute)
@@ -136,11 +141,19 @@ def people_view(project: Project, cache: Any = None) -> dict[str, Any]:
     blocking cause), ``people.csv``'s fingerprint, the counts per role, identity, class and
     state, and the facets of the extra columns; computed once per version of what it reads.
     The rows are shared: read them, never change them."""
+    from functools import cache as once
+
+    from cartolex.project.text_columns import read_text_columns
+
     from .people_io import read_people
 
     def compute() -> dict[str, Any]:
-        people, fp = read_people(project, cache)
-        states = coverage_states(project, cache) if people else {}
+        @once
+        def columns() -> Any:  # every text's, read at most once for both below
+            return read_text_columns(project.layout)
+
+        people, fp = read_people(project, cache, columns)
+        states = coverage_states(project, cache, columns) if people else {}
         counts: dict[str, dict[str, int]] = {
             "role": {}, "identity": {}, "coverage": {}, "state": {}
         }  # fmt: skip

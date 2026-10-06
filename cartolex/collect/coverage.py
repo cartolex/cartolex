@@ -48,6 +48,7 @@ import numpy as np
 from cartolex.project import Project
 from cartolex.project.tables import read_source_table
 from cartolex.project.text_columns import TextColumns, read_text_columns
+from cartolex.scale import sorted_unique
 
 from .decisions import collect_params, read_people, update_people
 from .outcomes import Outcome, latest_outcomes
@@ -144,10 +145,15 @@ def _counted(codes: np.ndarray, flags: np.ndarray) -> list[tuple[int, bool, int]
 
 
 def _load(
-    project: Project, people: Collection[str] | None = None, *, detail: bool = True
+    project: Project,
+    people: Collection[str] | None = None,
+    *,
+    detail: bool = True,
+    columns: TextColumns | None = None,
 ) -> _Tables:
     """The tables as the coverage reads them: every person's, or only *people*'s rows;
-    without *detail*, the people's names only and no organisation."""
+    without *detail*, the people's names and their texts' counts only (no years,
+    languages or organisations). *columns*: every text's, already read."""
     layout = project.layout
 
     def rows(
@@ -159,7 +165,20 @@ def _load(
         filters = [(key, "in", sorted(wanted))] if wanted is not None else None
         return read_source_table(path, name, columns, filters=filters).to_pylist()
 
-    columns = read_text_columns(layout, people=people)
+    if columns is None or people is not None:
+        columns = read_text_columns(layout, people=people)
+    people_rows = {
+        p["person_id"]: p
+        for p in rows(
+            "people",
+            None if detail else ["person_id", "first_name", "last_name"],
+            "person_id",
+            people,
+        )
+    }
+    if not detail:
+        none = np.zeros(0, dtype=np.int64)
+        return _Tables(people_rows, {}, {}, columns, {}, [], none, [], none)
     year_values, year_code = np.unique(
         np.where(columns.has_year, columns.year, -1), return_inverse=True
     )
@@ -168,21 +187,13 @@ def _load(
     pairs = language_code.astype(np.int64) * 2 + columns.has_words()
     named, language_code = np.unique(pairs, return_inverse=True) if len(pairs) else (pairs, pairs)
     affiliations: dict[str, set[str]] = defaultdict(set)
-    for a in rows("affiliations", ["person_id", "org_id"], "person_id", people) if detail else []:
+    for a in rows("affiliations", ["person_id", "org_id"], "person_id", people):
         affiliations[a["person_id"]].add(a["org_id"])
     org_ids = (
         None if people is None else sorted({o for orgs in affiliations.values() for o in orgs})
     )
     return _Tables(
-        people={
-            p["person_id"]: p
-            for p in rows(
-                "people",
-                None if detail else ["person_id", "first_name", "last_name"],
-                "person_id",
-                people,
-            )
-        },
+        people=people_rows,
         orgs={o["org_id"]: o for o in rows("organisations", None, "org_id", org_ids)},
         affiliations=affiliations,
         columns=columns,
@@ -216,7 +227,7 @@ def _per_person(
     remap = np.array([code[merged_into.get(pid, pid)] for pid in cols.person_ids], dtype=np.int64)
     keep = ~cols.superseded[cols.author_text]
     width = max(cols.n, 1)
-    pairs = np.unique(remap[cols.author_person[keep]] * width + cols.author_text[keep])
+    pairs = sorted_unique(remap[cols.author_person[keep]] * width + cols.author_text[keep])
     who, rows = pairs // width, pairs % width
     worded = cols.has_words()[rows].astype(np.int64)
     texts = np.bincount(who, minlength=len(owners))
@@ -300,6 +311,7 @@ def person_coverage(
     decisions: Mapping[str, dict[str, Any]] | None = None,
     outcomes: Mapping[str, dict[str, Outcome]] | None = None,
     detail: bool = True,
+    columns: TextColumns | None = None,
 ) -> list[PersonCoverage]:
     """The coverage of every person of the project (or of *people*), in ``person_id`` order.
 
@@ -308,6 +320,8 @@ def person_coverage(
     are what was already read (:func:`_load` for *people* and the people merged into
     them, ``people.csv``, :func:`~cartolex.collect.outcomes.latest_outcomes`). Without
     *detail*, the counts and the states only: no years, languages or organisations.
+    *columns*: every text's (:func:`~cartolex.project.text_columns.read_text_columns`),
+    when the caller has read them.
     """
     good = collect_params(project, "coverage")["good"] if good is None else good
     decisions = read_people(project.layout) if decisions is None else decisions
@@ -315,7 +329,7 @@ def person_coverage(
         pid: row["merged_into"] for pid, row in decisions.items() if row.get("merged_into")
     }
     if tables is None:
-        tables = _load(project, _with_merged(people, merged_into), detail=detail)
+        tables = _load(project, _with_merged(people, merged_into), detail=detail, columns=columns)
     if outcomes is None:
         outcomes = latest_outcomes(project.layout, project.config)
     nothing_found = _resolved_without_candidates(project)
@@ -453,7 +467,7 @@ def coverage_report(
     keep = (chosen[cols.author_person] if len(chosen) else np.zeros(0, bool)) & ~cols.superseded[
         cols.author_text
     ]
-    years, languages = tables.counts(np.unique(cols.author_text[keep]))
+    years, languages = tables.counts(sorted_unique(cols.author_text[keep]))
     return {
         "good": good,
         "people": len(counted),

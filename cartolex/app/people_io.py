@@ -66,9 +66,10 @@ def _map(value: Any) -> dict[str, str]:
     return {str(k): ("" if v is None else str(v)) for k, v in items}
 
 
-def coverage_of(project: Project) -> dict[str, dict[str, Any]]:
+def coverage_of(project: Project, columns: Any = None) -> dict[str, dict[str, Any]]:
     """Per person: texts, texts with an abstract, first and last year (from the texts as
-    columns: a few numbers per text, a code per person)."""
+    columns: a few numbers per text, a code per person; *columns*: a function giving
+    them, when the caller shares them)."""
     import numpy as np
 
     from cartolex.project.text_columns import read_text_columns
@@ -76,7 +77,7 @@ def coverage_of(project: Project) -> dict[str, dict[str, Any]]:
     layout = project.layout
     if not layout.table("authorships").exists() or not layout.table("texts").exists():
         return {}
-    cols = read_text_columns(layout)
+    cols = columns() if columns is not None else read_text_columns(layout)
     n = len(cols.person_ids)
     if not n:
         return {}
@@ -152,11 +153,14 @@ def _stamp(project: Project) -> tuple[Any, ...]:
     return tuple(out)
 
 
-def read_people(project: Project, cache: Any = None) -> tuple[list[dict[str, Any]], str | None]:
+def read_people(
+    project: Project, cache: Any = None, columns: Any = None
+) -> tuple[list[dict[str, Any]], str | None]:
     """Every person: the table's row joined with the decision, and ``people.csv``'s fingerprint.
 
     *cache* (an app's :class:`~cartolex.app.runtime.Cache`) keeps the tables'
-    part between calls while the tables do not change.
+    part between calls while the tables do not change; *columns*: as
+    :func:`coverage_of` takes them.
 
     Without ``people.csv`` everyone is ``mapped`` (as the build reads it); a
     person with no row in it once the file exists is ``undecided``.
@@ -167,11 +171,15 @@ def read_people(project: Project, cache: Any = None) -> tuple[list[dict[str, Any
     if cache is not None:  # the tables change only when people are imported or collected
         rows_, coverage, units = cache.get(
             ("people", _stamp(project)),
-            lambda: (people_rows(project), coverage_of(project), _units(project)),
+            lambda: (people_rows(project), coverage_of(project, columns), _units(project)),
         )
         rows_ = [dict(r) for r in rows_]
     else:
-        rows_, coverage, units = people_rows(project), coverage_of(project), _units(project)
+        rows_, coverage, units = (
+            people_rows(project),
+            coverage_of(project, columns),
+            _units(project),
+        )
     out = []
     rows = rows_
     known = {r["person_id"] for r in rows}
