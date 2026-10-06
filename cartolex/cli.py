@@ -501,7 +501,7 @@ def _models(args: argparse.Namespace) -> int:
                     else "not installed"
                 )
             )
-            print(f"{lang}  {model.identity:<28} {model.licence:<14} {state}")
+            print(f"{lang}  {model.identity:<28} {model.licence:<16} {state}")
         return 0
     status = 0
     for lang in args.languages:
