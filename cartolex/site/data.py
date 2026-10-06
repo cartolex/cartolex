@@ -15,7 +15,7 @@ from its server. :func:`gather` makes those files' contents:
 - ``keywords`` (``data/keywords/<n>.js``): who uses each keyword most, with the share of
   their use it holds;
 - ``links`` (``data/links.js``, loaded when the network is asked for): who writes with
-  whom, as sparse lists (people, and organisations per level);
+  whom, as sparse lists over the site's own indexes (:func:`site_links`);
 - ``texts`` (``data/texts/<n>.js``, only on request): the titles, or titles and abstracts.
 
 What a site never carries: a full text (only the parts
@@ -49,6 +49,7 @@ __all__ = [
     "SiteTexts",
     "gather",
     "project_context",
+    "site_links",
 ]
 
 #: Keywords kept per person and organisation, the most used first.
@@ -80,7 +81,7 @@ class SiteData:
     people: dict[str, Any]
     orgs: dict[str, Any]
     keywords: dict[str, Any]
-    links: dict[str, Any] | None
+    links: dict[str, Any]
     texts: SiteTexts | None
     counts: dict[str, int] = field(default_factory=dict)
 
@@ -125,13 +126,6 @@ def _vector(v: Any) -> str:
     top = float(np.abs(v).max()) if len(v) else 0.0
     q = np.zeros(len(v), np.int8) if top <= 0 else np.round(v / top * 127).astype(np.int8)
     return base64.b64encode(q.tobytes()).decode("ascii")
-
-
-def _ints(values: Any, dtype: str = "<i4") -> str:
-    """Integers as base64 bytes (little-endian; the site reads them as a typed array)."""
-    import numpy as np
-
-    return base64.b64encode(np.asarray(values).astype(dtype).tobytes()).decode("ascii")
 
 
 #: A text's entry in a site, beyond its title's bytes (``{"title":"","year":2020},``).
@@ -320,82 +314,93 @@ def _names_of(ctx: Any) -> dict[str, str]:
     return out
 
 
-#: The most partners kept per person or organisation in the site's links, the strongest
-#: first: the network's rings are found in the browser from these lists.
-MAX_LINKS = 200
-
-
-def _graph_lists(graph: Any, codes: list[int | None], index: Any) -> dict[str, Any]:
-    """The links of *graph* between the site's entities, as CSR arrays over the site's
-    order: entity *i* is ``codes[i]`` in the graph (``None``: not in it), *index* maps a
-    graph code to a site position (``-1``: not in the site). Answers ``ptr``, ``nbr``,
-    ``cnt`` (texts together), ``texts`` (each one's texts counted), ``outside`` (co-authors
-    outside the project, and those in the project but not in the site)."""
+def _csr_over(graph: Any, site: Any) -> dict[str, Any]:
+    """The links of *graph* between the entities the site carries (*site*: each graph code's
+    index in the site, ``-1`` for none) as CSR arrays over those indexes, each entity's
+    partners the strongest first: ``ptr``, ``nbr``, ``cnt``; ``hidden``: each one's
+    partners the site does not carry."""
     import numpy as np
 
-    n = len(codes)
-    ptr = np.zeros(n + 1, np.int64)
-    nbr: list[Any] = []
-    cnt: list[Any] = []
-    texts = np.zeros(n, np.int64)
-    outside = np.zeros(n, np.int64)
-    for i, code in enumerate(codes):
-        if code is None:
-            ptr[i + 1] = ptr[i]
-            continue
-        partners, together = graph.links(code)
-        at = index[partners]
-        keep = at >= 0
-        texts[i] = graph.stat("texts", code)
-        outside[i] = graph.stat("outside", code) + int((~keep).sum())
-        mine = at[keep][:MAX_LINKS]
-        nbr.append(mine)
-        cnt.append(together[keep][:MAX_LINKS])
-        ptr[i + 1] = ptr[i] + len(mine)
-    flat = np.concatenate(nbr) if nbr else np.zeros(0, np.int64)
-    weights = np.concatenate(cnt) if cnt else np.zeros(0, np.int64)
+    n = int(site.max()) + 1 if len(site) and site.max() >= 0 else 0
+    ptr = np.asarray(graph.arrays["ptr"], dtype=np.int64)
+    nbr = np.asarray(graph.arrays["nbr"], dtype=np.int64)
+    cnt = np.asarray(graph.arrays["cnt"], dtype=np.int64)
+    src = np.repeat(np.arange(len(ptr) - 1, dtype=np.int64), np.diff(ptr))
+    a = site[src] if len(src) else src
+    b = site[nbr] if len(nbr) else nbr
+    deg = np.bincount(a[a >= 0], minlength=n)
+    keep = (a >= 0) & (b >= 0)
+    a, b, c = a[keep], b[keep], cnt[keep]
+    order = np.lexsort((b, -c, a))
+    kept = np.bincount(a, minlength=n)
     return {
-        "ptr": _ints(ptr),
-        "nbr": _ints(flat),
-        "cnt": _ints(np.minimum(weights, 65535), "<u2"),
-        "texts": _ints(texts),
-        "outside": _ints(outside),
-        "max_authors": int(graph.max_authors),
+        "ptr": np.r_[0, np.cumsum(kept)].astype(int).tolist(),
+        "nbr": b[order].astype(int).tolist(),
+        "cnt": c[order].astype(int).tolist(),
+        "hidden": (deg - kept).astype(int).tolist(),
     }
 
 
-def _links(
-    project: Project, pids: list[str], orgs: list[dict[str, Any]], levels: list[str]
-) -> dict[str, Any] | None:
-    """Who writes with whom among the site's people (*pids*, in site order) and among its
-    organisations of each level (``None`` when the project cannot say)."""
+def site_links(
+    project: Project,
+    people: list[str],
+    projected: list[str],
+    orgs: list[dict[str, Any]],
+    cache: Any = None,
+) -> dict[str, Any]:
+    """Who writes with whom, as the site carries it: ``people`` over the site's people (the
+    index in *people*, the people on the map in the site's order, then *projected*, the
+    projected people the site names, after them), ``orgs`` over the site's organisations
+    (the index in *orgs*; pairs of one level). Each is CSR (``ptr``, ``nbr``, ``cnt``: the
+    works together, the strongest first) with ``hidden`` (the partners in the project the
+    site does not carry: never named, counted); the people's ``outside`` counts the authors
+    of their works outside the project. A pseudonymous site carries the same indexes as its
+    pseudonyms, so the links name nobody; projected people the site does not name are left
+    out of the links (counted in ``hidden``)."""
     import numpy as np
 
-    try:
-        from cartolex.app.coauthors import org_graph, person_graph
-    except ImportError:  # the co-authorship graph is not part of this version
-        return None
-    graph = person_graph(project)
-    index = np.full(len(graph.ids), -1, np.int64)
-    codes = [graph.code(pid) for pid in pids]
-    for i, code in enumerate(codes):
-        if code is not None:
-            index[code] = i
-    out: dict[str, Any] = {"people": _graph_lists(graph, codes, index), "orgs": {}}
-    position = {o["id"]: k for k, o in enumerate(orgs)}
-    for level in levels:
-        mine = [o["id"] for o in orgs if o["level"] == level]
-        if not mine:
-            continue
-        g = org_graph(project, level)
-        index = np.full(len(g.ids), -1, np.int64)
-        codes = [g.code(o) for o in mine]
-        for o, code in zip(mine, codes, strict=True):
-            if code is not None:
-                index[code] = position[o]
-        lists = _graph_lists(g, codes, index)
-        lists["ids"] = [position[o] for o in mine]
-        out["orgs"][level] = lists
+    from cartolex.app.coauthors import org_graph, person_graph
+
+    graph = person_graph(project, cache)
+    where = {p: k for k, p in enumerate([*people, *projected])}
+    site = np.asarray([where.get(i, -1) for i in graph.ids], dtype=np.int64)
+    links = _csr_over(graph, site)
+    n = len(people) + len(projected)
+    links["ptr"] += [links["ptr"][-1]] * (n + 1 - len(links["ptr"]))
+    links["hidden"] += [0] * (n - len(links["hidden"]))
+    outside = np.zeros(n, dtype=np.int64)
+    known = site >= 0
+    outside[site[known]] = np.asarray(graph.arrays["outside"])[known]
+    links["outside"] = outside.tolist()
+    out: dict[str, Any] = {"max_authors": graph.max_authors, "people": links}
+    # Organisations: each level's graph, over the site's indexes (a pair is of one level).
+    index = {o["id"]: k for k, o in enumerate(orgs)}
+    a_all: list[np.ndarray] = []
+    b_all: list[np.ndarray] = []
+    c_all: list[np.ndarray] = []
+    hidden = np.zeros(len(orgs), dtype=np.int64)
+    if project.layout.table("organisations").exists():
+        # the organisations without a level of the project are not shown on a map
+        for level in sorted({o.get("level") for o in orgs if o.get("level")}):
+            og = org_graph(project, level, cache)
+            at = np.asarray([index.get(i, -1) for i in og.ids], dtype=np.int64)
+            part = _csr_over(og, at)
+            ptr = np.asarray(part["ptr"], dtype=np.int64)
+            src = np.repeat(np.arange(len(ptr) - 1, dtype=np.int64), np.diff(ptr))
+            a_all.append(src)
+            b_all.append(np.asarray(part["nbr"], dtype=np.int64))
+            c_all.append(np.asarray(part["cnt"], dtype=np.int64))
+            hidden[: len(part["hidden"])] += np.asarray(part["hidden"], dtype=np.int64)
+    a = np.concatenate(a_all) if a_all else np.zeros(0, np.int64)
+    b = np.concatenate(b_all) if b_all else np.zeros(0, np.int64)
+    c = np.concatenate(c_all) if c_all else np.zeros(0, np.int64)
+    order = np.lexsort((b, -c, a))
+    out["orgs"] = {
+        "ptr": np.r_[0, np.cumsum(np.bincount(a, minlength=len(orgs)))].astype(int).tolist(),
+        "nbr": b[order].astype(int).tolist(),
+        "cnt": c[order].astype(int).tolist(),
+        "hidden": hidden.tolist(),
+    }
     return out
 
 
@@ -593,7 +598,9 @@ def gather(
 
     # ── who writes with whom ──
     say(0.75, "co-authors")
-    links = _links(project, pids, orgs, [lv["id"] for lv in levels])
+    links = site_links(
+        project, pids, [o["person_id"] for o in projected] if names_projected else [], orgs
+    )
 
     # ── texts, on request ──
     say(0.9, "texts")
@@ -619,7 +626,7 @@ def gather(
         "has": {
             "vectors": space is not None,
             "users": bool(users),
-            "links": links is not None,
+            "links": True,
         },
     }
     counts = {
@@ -630,6 +637,7 @@ def gather(
         "themes": len(nodes),
         "texts": texts_part.count if texts_part is not None else 0,
         "abstracts": 0,  # counted as the site is written
+        "coauthor_links": len(links["people"]["nbr"]) // 2,
     }
     return SiteData(
         core=core,

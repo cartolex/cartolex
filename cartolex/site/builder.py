@@ -438,8 +438,7 @@ def build_site(
             "data/orgs.js": _script("orgs", data.orgs),
             **_atlas_assets(),
         }
-        if data.links is not None:
-            files["data/links.js"] = _script("links", data.links)
+        files["data/links.js"] = _script("links", data.links)
         if world:
             files["assets/world.js"] = _script(
                 "world", json.loads(WORLD.read_text(encoding="utf-8"))["rings"]

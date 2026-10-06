@@ -81,11 +81,14 @@ The site has no map of its own: its Atlas page mounts the app's atlas
   in the space of the themes (int8, base64), for « Compare »;
 - `keywords`: each keyword's users (`[count, person, thousandths, …]`, the 100
   whose use it holds the largest share of);
-- `links`: who writes with whom among the site's people, and among its
-  organisations of each level, as CSR arrays in base64 (`ptr`, `nbr`, `cnt`
-  texts together, each one's `texts` and `outside`: co-authors outside the
-  project, or in it but not in the site), at most 200 partners each, the
-  strongest first; the rings are found in the browser.
+- `links` (`site_links`): who writes with whom over the site's own indexes,
+  as CSR lists (`ptr`, `nbr`, `cnt` texts together, the strongest first, and
+  `hidden`: partners in the project the site does not carry, only counted):
+  `people` (the people on the map in the site's order, then the projected
+  people the site names; `outside` counts co-authors outside the project) and
+  `orgs` (pairs of organisations of one level). Under pseudonyms the indexes
+  follow the pseudonyms, so the links name nobody; the rings are found in the
+  browser.
 
 The real nearest neighbours are no longer computed: the atlas shows real
 links (co-authors), and similarity only in « Compare ».
@@ -97,9 +100,9 @@ links (co-authors), and similarity only in « Compare ».
 - **Projected people** (placed on the finished map, possibly a sensitive set
   such as applicants) have their own question, `names_projected`, asked only
   when the project has some: pseudonyms (shuffled `q1`, `q2`…) unless named
-  explicitly, and then listed among the checks to look at. They are never in
-  the site's links (a pseudonym beside a named co-author would say who it is),
-  and the name of their set is not carried.
+  explicitly, and then listed among the checks to look at. Unless named they
+  are left out of the site's links (a pseudonym beside a named co-author would
+  say who it is), and the name of their set is never carried.
 - **Texts**: none by default; `titles`, or `abstracts` (titles and abstracts),
   read through `shareable_parts()`, so a full text never goes in. A text is an
   entry per mapped author (`cartolex.site.data.SiteTexts`: two arrays over the

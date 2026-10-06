@@ -103,6 +103,49 @@ def test_the_atlas_data_of_a_site(project):
     assert all(set(d) <= {"k", "v"} for d in data.people.values())
 
 
+def test_the_links_are_the_coauthors_over_the_sites_own_indexes(project):
+    from cartolex.app.coauthors import person_graph
+    from cartolex.site.data import gather
+
+    named = gather(project, names=True, names_projected=True)
+    people, projected = named.core["people"], named.core["projected"]
+    order = [*people["name"], *projected["name"]]
+    links = named.links["people"]
+    assert len(links["ptr"]) == len(order) + 1 and len(links["outside"]) == len(order)
+    got = {
+        (order[i], order[links["nbr"][k]]): links["cnt"][k]
+        for i in range(len(order))
+        for k in range(links["ptr"][i], links["ptr"][i + 1])
+    }
+    # the same pairs as the app's graph, between the people the site carries
+    graph = person_graph(project)
+    names = {
+        r["person_id"]: f"{r['first_name']} {r['last_name']}".strip()
+        for r in read_source_table(project.layout.table("people"), "people").to_pylist()
+    }
+    expected = {}
+    for code, pid in enumerate(graph.ids):
+        nb, cnt = graph.links(code)
+        for j, n in zip(nb.tolist(), cnt.tolist(), strict=True):
+            a, b = names[pid], names[graph.ids[j]]
+            if a in order and b in order:
+                expected[(a, b)] = n
+    assert got == expected and got
+    assert named.counts["coauthor_links"] == len(got) // 2
+    # organisations write together too, one level at a time
+    orgs = named.links["orgs"]
+    assert len(orgs["ptr"]) == len(named.core["orgs"]["id"]) + 1 and orgs["nbr"]
+    levels = named.core["orgs"]["level"]
+    assert all(
+        levels[i] == levels[orgs["nbr"][k]]
+        for i in range(len(levels))
+        for k in range(orgs["ptr"][i], orgs["ptr"][i + 1])
+    )
+    # projected people the site does not name are left out of the links
+    hidden = gather(project, names=False)
+    assert len(hidden.links["people"]["ptr"]) == len(hidden.core["people"]["id"]) + 1
+
+
 def test_titles_and_abstracts_never_carry_a_private_part(project):
     parts = read_source_table(project.layout.table("text_parts"), "text_parts").to_pylist()
     private = [p["content"][:60] for p in parts if p["part"] in PRIVATE_PARTS and p["content"]]

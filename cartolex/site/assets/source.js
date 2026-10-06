@@ -42,27 +42,15 @@
     return d;
   }
 
-  /** The sparse lists of a graph of `data/links.js`, decoded once. */
-  function decode(raw) {
-    if (!raw) return null;
-    if (!raw.decoded) {
-      raw.decoded = {
-        ptr: S.ints(raw.ptr, Int32Array),
-        nbr: S.ints(raw.nbr, Int32Array),
-        cnt: S.ints(raw.cnt, Uint16Array),
-        texts: S.ints(raw.texts, Int32Array),
-        outside: S.ints(raw.outside, Int32Array),
-      };
-    }
-    return raw.decoded;
-  }
-
-  /** The partners of position *i* in the decoded lists *g*: `[[position, texts]]`. */
+  /** The partners of position *i* in the sparse lists *g* of `data/links.js`
+   * (`ptr`, `nbr`, `cnt`): `[[position, texts]]`, the strongest first. */
   function partners(g, i) {
     const out = [];
+    if (!g || i === undefined || i + 1 >= g.ptr.length) return out;
     for (let k = g.ptr[i]; k < g.ptr[i + 1]; k += 1) out.push([g.nbr[k], g.cnt[k]]);
     return out;
   }
+  S.partners = partners;
 
   /** The bundle the atlas reads, made once from the core's columns. */
   function makeBundle(core) {
@@ -198,61 +186,56 @@
         overlap: Math.round(nodes.reduce((s, n) => s + Math.min(x.themes.get(n), y.themes.get(n)), 0) * 1e4) / 1e4,
         shared: nodes.map((n) => ({ node: n, a: x.themes.get(n), b: y.themes.get(n) })),
       };
-      if (has.links && x.kind === y.kind) {
-        return S.load('links').then(() => {
-          const g = graphOf(x.kind, x.kind === 'organisation' ? core.orgs.level[x.i] : null);
-          if (g) {
-            const found = partners(g.lists, g.position(x.i)).find(([j]) => g.entity(j) === y.i);
-            out.texts = { shared: found ? found[1] : 0, items: [] };
-          }
-          return out;
-        });
-      }
-      return out;
+      if (!has.links || x.kind !== y.kind) return out;
+      return S.load('links').then(() => {
+        const g = (S.data.links || {})[x.kind === 'person' ? 'people' : 'orgs'];
+        if (g) {
+          const found = partners(g, x.i).find(([j]) => j === y.i);
+          out.texts = { shared: found ? found[1] : 0, items: [] };
+        }
+        return out;
+      });
     }
 
-    /** The graph of people, or of the organisations of *level*: its decoded lists and the
-     * way between its positions and the core's indexes. */
-    function graphOf(kind, level) {
-      const links = S.data.links;
-      if (!links) return null;
-      if (kind === 'person') {
-        const lists = decode(links.people);
-        return lists && { lists, raw: links.people, position: (i) => i, entity: (j) => j };
-      }
-      const raw = (links.orgs || {})[level];
-      if (!raw) return null;
-      const where = new Map(raw.ids.map((o, k) => [o, k]));
-      return { lists: decode(raw), raw, position: (i) => where.get(i), entity: (j) => j };
-    }
+    /** A person's or a projected person's position in the people's links (projected
+     * people the site names come after the people on the map), and back. */
+    const P = core.people.id.length;
+    const personAt = (id) => (ix.byPerson.has(id) ? ix.byPerson.get(id)
+      : ix.byProjected.has(id) ? P + ix.byProjected.get(id) : undefined);
+    const personId = (j) => (j < P ? core.people.id[j] : core.projected.id[j - P]);
 
     /** The rings around a person or an organisation (`coauthors`'s answer). */
     function ringsAround(query) {
-      const person = query.kind === 'person';
-      const i = person ? ix.byPerson.get(query.id) : ix.byOrg.get(query.id);
-      if (i === undefined) return { error: { code: 'not_found', message: S.t('notfound.title') } };
-      const level = person ? null : core.orgs.level[i];
-      const g = graphOf(person ? 'person' : 'organisation', level);
-      if (!g || g.position(i) === undefined) return { id: query.id, circle: query.circle || 1, count: 0, items: [], lines: [] };
-      const ids = person ? core.people.id : core.orgs.id;
-      const index = person ? ix.byPerson : ix.byOrg;
+      const links = S.data.links;
+      const person = query.kind !== 'organisation';
+      const g = person ? links.people : links.orgs;
+      const at = person ? personAt(query.id) : ix.byOrg.get(query.id);
+      const circle = query.circle || 1;
+      if (at === undefined) return { error: { code: 'not_found', message: S.t('notfound.title') } };
+      const idOf = person ? personId : (j) => core.orgs.id[j];
+      const atOf = person ? personAt : (id) => ix.byOrg.get(id);
       const graph = {
-        neighbours: (id) => {
-          const at = g.position(index.get(id));
-          return at === undefined ? [] : partners(g.lists, at).map(([j, n]) => [ids[g.entity(j)], n]);
-        },
+        neighbours: (id) => partners(g, atOf(id)).map(([j, n]) => [idOf(j), n]),
         describe: (list) => list.map((id) => {
-          const j = index.get(id);
-          if (person) return { id, name: core.people.name[j], role: 'mapped', mapped: true, place: 'map' };
-          return { id, name: core.orgs.name[j], acronym: core.orgs.acronym[j],
-            place: core.orgs.x[j] === null ? null : 'map' };
+          const j = atOf(id);
+          if (!person) {
+            return { id, name: core.orgs.name[j], acronym: core.orgs.acronym[j],
+              place: core.orgs.x[j] === null ? null : 'map' };
+          }
+          if (j < P) return { id, name: core.people.name[j], role: 'mapped', mapped: true, place: 'map' };
+          return { id, name: core.projected.name[j - P], role: 'projected', mapped: false, place: 'projected' };
         }),
-        placed: (id) => (person || core.orgs.x[index.get(id)] !== null ? 'map' : null),
+        placed: (id) => {
+          const j = atOf(id);
+          if (!person) return core.orgs.x[j] === null ? null : 'map';
+          return j < P ? 'map' : 'projected';
+        },
       };
-      const at = g.position(i);
-      const answer = window.CartolexAtlas.ringsOf(graph, query.id, query.circle || 1, query.pages);
-      return Object.assign({ texts: g.lists.texts[at], outside: g.lists.outside[at],
-        max_authors: g.raw.max_authors }, person ? {} : { level }, answer);
+      const answer = window.CartolexAtlas.ringsOf(graph, query.id, circle, query.pages);
+      const head = { id: query.id, circle, outside: person ? (g.outside[at] || 0) : 0,
+        hidden: g.hidden[at] || 0, max_authors: links.max_authors };
+      if (!person) head.level = core.orgs.level[at];
+      return Object.assign(head, answer);
     }
 
     return source;

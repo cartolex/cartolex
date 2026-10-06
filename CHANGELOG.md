@@ -58,8 +58,9 @@ nothing in the engine names a particular deployment, source or procedure.
   in the browser). The site's map, legend, treemap and themes' pages are gone
   (an old `#/themes/<id>` address opens the theme in the atlas); the people's
   nearest neighbours are no longer computed, and a person's or an
-  organisation's page lists who they write with. Projected people are never
-  in the links, and neither their set's name nor anyone's role is carried.
+  organisation's page lists who they write with. Projected people are in the
+  links only when the site names them; neither their set's name nor anyone's
+  role is carried.
 - **Projects of millions of texts on an ordinary computer.** Memory no longer
   grows with the texts; their processing runs in worker processes, and the
   results do not depend on how many.

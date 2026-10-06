@@ -62,17 +62,6 @@
     ]);
   }
 
-  /** The partners at position *at* of a graph of `data/links.js`: `[[index, texts]]`. */
-  function partnersOf(raw, at) {
-    if (!raw || at === undefined || at < 0) return [];
-    const ptr = S.ints(raw.ptr, Int32Array);
-    const nbr = S.ints(raw.nbr, Int32Array);
-    const cnt = S.ints(raw.cnt, Uint16Array);
-    const out = [];
-    for (let k = ptr[at]; k < ptr[at + 1]; k += 1) out.push([nbr[k], cnt[k]]);
-    return out;
-  }
-
   /** The list of who writes with whom, filled once `data/links.js` is there. */
   function partnersList(list, render) {
     const body = h('div', {}, h('p', { class: 'cx-muted', 'aria-busy': 'true', text: t('common.loading') }));
@@ -126,8 +115,10 @@
       ]);
       if (core.has && core.has.links) {
         grid.append(card(t('person.coauthors'), [
-          partnersList(() => partnersOf(S.data.links.people, i), ([j, n]) => h('li', {}, [
-            S.link(`/person/${core.people.id[j]}`, S.personName(j)), ' ', together(n)])),
+          partnersList(() => S.partners(S.data.links.people, i), ([j, n]) => h('li', {}, [
+            j < core.people.id.length ? S.link(`/person/${core.people.id[j]}`, S.personName(j))
+              : S.link(S.atlasPath('projected', core.projected.id[j - core.people.id.length]),
+                S.projectedName(j - core.people.id.length)), ' ', together(n)])),
           h('p', { class: 'cx-muted cx-small', text: t('person.coauthors.note') })]));
       }
       main.append(grid);
@@ -172,10 +163,9 @@
           : h('p', { class: 'cx-muted', text: t('page.none') }), 'cx-card--wide'),
       ]);
       if (ix.core.has && ix.core.has.links) {
-        grid.append(card(t('org.partners', { level: S.orgLevelName(o.level[i]) }), partnersList(() => {
-          const lists = (S.data.links.orgs || {})[o.level[i]];
-          return lists ? partnersOf(lists, lists.ids.indexOf(i)) : [];
-        }, ([j, n]) => h('li', {}, [S.link(`/org/${o.id[j]}`, o.name[j]), ' ', together(n)]))));
+        grid.append(card(t('org.partners', { level: S.orgLevelName(o.level[i]) }),
+          partnersList(() => S.partners(S.data.links.orgs, i),
+            ([j, n]) => h('li', {}, [S.link(`/org/${o.id[j]}`, o.name[j]), ' ', together(n)]))));
       }
       main.append(grid);
     });
