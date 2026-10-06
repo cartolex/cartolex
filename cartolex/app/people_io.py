@@ -67,33 +67,38 @@ def _map(value: Any) -> dict[str, str]:
 
 
 def coverage_of(project: Project) -> dict[str, dict[str, Any]]:
-    """Per person: texts, texts with an abstract, first and last year."""
+    """Per person: texts, texts with an abstract, first and last year (from the texts as
+    columns: a few numbers per text, a code per person)."""
+    import numpy as np
+
+    from cartolex.project.text_columns import read_text_columns
+
     layout = project.layout
     if not layout.table("authorships").exists() or not layout.table("texts").exists():
         return {}
-    texts = read_source_table(layout.table("texts"), "texts", ["text_id", "year"]).to_pydict()
-    year_of = dict(zip(texts["text_id"], texts["year"], strict=True))
-    abstracts: set[str] = set()
-    if layout.table("text_parts").exists():
-        parts = read_source_table(layout.table("text_parts"), "text_parts", ["text_id", "part"])
-        abstracts = {
-            t
-            for t, p in zip(parts["text_id"].to_pylist(), parts["part"].to_pylist(), strict=True)
-            if p in ("abstract", "body", "full")
+    cols = read_text_columns(layout)
+    n = len(cols.person_ids)
+    if not n:
+        return {}
+    who, rows = cols.author_person.astype(np.int64), cols.author_text
+    texts = np.bincount(who, minlength=n)
+    abstracts = np.bincount(who, weights=cols.has_words()[rows], minlength=n).astype(np.int64)
+    dated = cols.has_year[rows]
+    years = cols.year[rows][dated].astype(np.int64)
+    none_first, none_last = np.iinfo(np.int64).max, np.iinfo(np.int64).min
+    first = np.full(n, none_first, dtype=np.int64)
+    last = np.full(n, none_last, dtype=np.int64)
+    np.minimum.at(first, who[dated], years)
+    np.maximum.at(last, who[dated], years)
+    return {
+        pid: {
+            "texts": int(texts[i]),
+            "with_abstract": int(abstracts[i]),
+            "first_year": int(first[i]) if first[i] != none_first else None,
+            "last_year": int(last[i]) if last[i] != none_last else None,
         }
-    auth = read_source_table(layout.table("authorships"), "authorships", ["text_id", "person_id"])
-    out: dict[str, dict[str, Any]] = {}
-    for tid, pid in zip(auth["text_id"].to_pylist(), auth["person_id"].to_pylist(), strict=True):
-        entry = out.setdefault(
-            pid, {"texts": 0, "with_abstract": 0, "first_year": None, "last_year": None}
-        )
-        entry["texts"] += 1
-        entry["with_abstract"] += int(tid in abstracts)
-        year = year_of.get(tid)
-        if year is not None:
-            entry["first_year"] = min(year, entry["first_year"] or year)
-            entry["last_year"] = max(year, entry["last_year"] or year)
-    return out
+        for i, pid in enumerate(cols.person_ids)
+    }
 
 
 def coverage_class(entry: Mapping[str, Any] | None) -> str:
@@ -116,10 +121,21 @@ def _units(project: Project) -> dict[str, str]:
         for o in orgs
         if level is None or o["level"] in (level, None)
     }
+    import pyarrow as pa
+    import pyarrow.compute as pc
+
+    aff = read_source_table(
+        layout.table("affiliations"), "affiliations", ["person_id", "org_id", "end_year"]
+    )
+    aff = aff.filter(
+        pc.and_(
+            pc.is_null(aff["end_year"]),
+            pc.is_in(aff["org_id"], value_set=pa.array(sorted(label), pa.string())),
+        )
+    )
     out: dict[str, str] = {}
-    for aff in read_source_table(layout.table("affiliations"), "affiliations").to_pylist():
-        if aff["org_id"] in label and aff["end_year"] is None:
-            out.setdefault(aff["person_id"], label[aff["org_id"]])
+    for pid, oid in zip(aff["person_id"].to_pylist(), aff["org_id"].to_pylist(), strict=True):
+        out.setdefault(pid, label[oid])
     return out
 
 
