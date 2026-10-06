@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 /**
  * The site's shell and routes. The header names the site and leads to the
- * home, the map, the themes, the index and the method; the language and the
+ * home, the atlas, the index and the method; the language and the
  * theme (light, dark or the system's) are chosen there and remembered. The
  * footer says what the site is and how it treats names; it heads every
  * printed page. Routes live in the fragment (`#/person/s3`), which a page
@@ -19,15 +19,15 @@
   const data = window.CX_SITE || {};
   const missing = document.getElementById('cx-missing');
   const root = document.getElementById('cx-site');
-  if (!S || !S.pages || !data.core || !data.i18n || !window.CartolexMap || !root) return;
+  if (!S || !S.pages || !data.core || !data.i18n || !root) return;
   const h = S.h;
   const t = S.t;
   S.ix = S.indexData(data.core);
   if (missing) missing.remove();
   root.hidden = false;
 
-  const NAV = [['/', 'nav.home', 'home'], ['/map', 'nav.map', 'map'], ['/themes', 'nav.themes', 'themes'],
-    ['/list', 'nav.list', 'list'], ['/about', 'nav.about', 'about']];
+  const NAV = [['/', 'nav.home', 'home'], ['/map', 'nav.map', 'map'], ['/list', 'nav.list', 'list'],
+    ['/about', 'nav.about', 'about']];
   const THEMES = ['system', 'light', 'dark'];
 
   function applyTheme(choice) {
@@ -51,7 +51,7 @@
     return { path, parts, query: new URLSearchParams(cut >= 0 ? hash.slice(cut + 1) : '') };
   }
 
-  const PAGES = { '': 'home', map: 'map', themes: 'themes', list: 'list', about: 'about', person: 'person', org: 'org' };
+  const PAGES = { '': 'home', map: 'map', list: 'list', about: 'about', person: 'person', org: 'org' };
 
   let teardown = null;
   let first = true;
@@ -68,7 +68,12 @@
       theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
       S.store('cx-site-theme', theme === 'system' ? null : theme);
       applyTheme(theme);
-      render();
+      // The atlas follows the look without being mounted again.
+      const atlas = S.lookChanged && route().parts[0] === 'map';
+      if (atlas) {
+        root.querySelector('.cx-header').replaceWith(header('map'));
+        S.lookChanged();
+      } else render();
     } }, t(`shell.theme.${theme}`));
     return h('header', { class: 'cx-header' }, [
       h('a', { href: '#/', class: 'cx-skip', text: t('shell.skip') }),
@@ -89,6 +94,11 @@
 
   function render() {
     const r = route();
+    // The themes' pages of earlier sites: the atlas opens the theme.
+    if (r.parts[0] === 'themes') {
+      window.location.replace(r.parts[1] ? `#/map?sel=${encodeURIComponent(`theme:${r.parts[1]}`)}` : '#/map');
+      return;
+    }
     const name = PAGES[r.parts[0] || ''];
     const page = name ? S.pages[name] : S.pages.missing;
     if (teardown) {

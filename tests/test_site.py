@@ -70,10 +70,11 @@ def test_a_pseudonymous_site_carries_no_name_and_no_text(project):
     names = _people_names(project)
     assert names and not [n for n in names if n in text]
     assert not (folder / "data" / "texts").exists() and record["counts"]["texts"] == 0
-    # the people's details in parts, loaded with the person
-    people = sorted((folder / "data" / "people").glob("*.js"))
-    assert people and record["format"] == "cartolex-site/2"
-    assert all(f"data/people/{p.name}" in record["files"] for p in people)
+    # the people's details and the keywords' users in parts, loaded when they are shown
+    for part in ("people", "keywords"):
+        files = sorted((folder / "data" / part).glob("*.js"))
+        assert files and all(f"data/{part}/{p.name}" in record["files"] for p in files)
+    assert record["format"] == "cartolex-site/3"
     readme = (folder / "README.txt").read_text(encoding="utf-8")
     assert readme.startswith("UNZIP THE WHOLE FOLDER FIRST")
     page = (folder / "index.html").read_text(encoding="utf-8")
@@ -81,6 +82,25 @@ def test_a_pseudonymous_site_carries_no_name_and_no_text(project):
     assert "cx-missing" in page  # shown until the scripts start
     core = (folder / "data" / "core.js").read_text(encoding="utf-8")
     assert '"names":false' in core and "person_id" not in core
+
+
+def test_the_atlas_data_of_a_site(project):
+    """What the site's data source answers from: the bundle as columns (each person's
+    themes per level, their organisations), the keywords' users, the vectors."""
+    from cartolex.site.data import KEYWORD_USERS, gather
+
+    data = gather(project, names=False)
+    people, nodes = data.core["people"], data.core["nodes"]
+    assert len(people["shares"]) == len(people["id"]) and data.core["has"]["vectors"]
+    top = [n["id"] for n in nodes if n["level"] == 1]
+    first = people["shares"][0][0]
+    assert first and nodes[first[0]]["id"] in top and 0 < first[1] <= 1000
+    assert first[1::2] == sorted(first[1::2], reverse=True)
+    assert any(people["orgs"]) and all(isinstance(o, int) for row in people["orgs"] for o in row)
+    users = next(iter(data.keywords.values()))
+    assert users[0] >= (len(users) - 1) // 2 and (len(users) - 1) // 2 <= KEYWORD_USERS
+    assert all(0 <= i < len(people["id"]) for i in users[1::2])
+    assert all(set(d) <= {"k", "v"} for d in data.people.values())
 
 
 def test_titles_and_abstracts_never_carry_a_private_part(project):

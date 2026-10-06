@@ -13,6 +13,17 @@
   const t = S.t;
   const PAGE = 50;
 
+  /** The atlas's address with *kind*:*id* in focus (`/map?sel=keyword:…`). */
+  S.atlasPath = function atlasPath(kind, id) {
+    return `/map?sel=${encodeURIComponent(`${kind}:${id}`)}`;
+  };
+
+  /** The name of a keyword's theme (by its index), or ''. */
+  S.keywordTheme = function keywordTheme(i) {
+    const node = S.ix.core.keywords.node[i];
+    return node >= 0 ? S.nodeName(S.ix.core.nodes[node].id) : '';
+  };
+
   /** Everything the search finds: `[{kind, id, label, sub, path, key}]`. */
   let items = null;
   function searchItems() {
@@ -20,13 +31,13 @@
     const core = S.ix.core;
     items = [];
     core.people.id.forEach((id, i) => items.push({ kind: 'people', id, label: S.personName(i),
-      sub: core.people.top[i] ? S.nodeName(core.people.top[i]) : '', path: `/person/${id}` }));
+      sub: S.topOfPerson(i) ? S.nodeName(S.topOfPerson(i)) : '', path: `/person/${id}` }));
     core.orgs.id.forEach((id, i) => items.push({ kind: 'orgs', id, label: core.orgs.name[i],
       sub: [core.orgs.acronym[i], S.orgLevelName(core.orgs.level[i])].filter(Boolean).join(' · '), path: `/org/${id}` }));
     core.nodes.forEach((n) => items.push({ kind: 'themes', id: n.id, label: S.nodeName(n.id),
-      sub: t('theme.level', { level: n.level }), path: `/themes/${n.id}`, also: Object.values(n.names || {}).join(' ') }));
+      sub: t('theme.level', { level: n.level }), path: S.atlasPath('theme', n.id), also: Object.values(n.names || {}).join(' ') }));
     core.keywords.term.forEach((term, i) => items.push({ kind: 'keywords', id: term, label: term,
-      sub: core.keywords.node[i] ? S.nodeName(core.keywords.node[i]) : '', path: `/map?sel=${encodeURIComponent(`keyword:${term}`)}` }));
+      sub: S.keywordTheme(i), path: S.atlasPath('keyword', term) }));
     items.forEach((it) => { it.key = S.fold(`${it.label} ${it.sub} ${it.also || ''}`); });
     return items;
   }
@@ -62,7 +73,7 @@
       const found = find(input.value, 60);
       count.textContent = input.value.trim() ? S.tn('home.search.count', found.length) : '';
       results.replaceChildren(...found.map((it) => h('li', {}, h('a', { href: `#${it.path}`, class: 'cx-result' }, [
-        S.symbol(SHAPE[it.kind], it.kind === 'themes' ? `--cx-hue-${S.colourOf(it.id) + 1}` : null),
+        S.symbol(SHAPE[it.kind], it.kind === 'themes' ? S.themeColour(it.id) : null),
         h('span', { class: 'cx-result__label', text: it.label }),
         h('span', { class: 'cx-result__kind', text: t(`kind1.${it.kind}`) }),
         it.sub ? h('span', { class: 'cx-result__sub', text: it.sub }) : null,
@@ -90,8 +101,8 @@
       else return;
       e.preventDefault();
     });
-    const themes = h('ul', { class: 'cx-chips' }, S.ix.tops.map((id) => h('li', {}, h('a', { href: `#/themes/${id}`, class: 'cx-chip' }, [
-      h('span', { class: 'cx-chip-dot', 'aria-hidden': 'true', style: { '--cx-chip': `var(--cx-hue-${S.colourOf(id) + 1})` } }),
+    const themes = h('ul', { class: 'cx-chips' }, S.ix.tops.map((id) => h('li', {}, h('a', { href: `#${S.atlasPath('theme', id)}`, class: 'cx-chip' }, [
+      h('span', { class: 'cx-chip-dot', 'aria-hidden': 'true', style: { '--cx-chip': S.themeColour(id) } }),
       S.nodeName(id)]))));
     main.append(
       h('h1', { class: 'cx-page__title', tabindex: '-1', text: core.title }),
@@ -102,7 +113,7 @@
         input, count, results]),
       h('section', { class: 'cx-card', 'aria-labelledby': 'cx-home-themes' }, [
         h('h2', { id: 'cx-home-themes', text: t('home.themes') }), themes,
-        h('p', {}, [S.link('/themes', t('home.themes.open'), 'cx-button'), ' ', S.link('/map', t('home.map.open'), 'cx-button cx-button--primary')])]),
+        h('p', {}, S.link('/map', t('home.map.open'), 'cx-button cx-button--primary'))]),
     );
     return null;
   };
@@ -116,12 +127,12 @@
         S.orgLevelName(core.orgs.level[i]), S.fmt(core.orgs.members[i])], key: S.fold(`${core.orgs.name[i]} ${core.orgs.acronym[i]}`) }));
     }
     if (tab === 'keywords') {
-      return core.keywords.term.map((term, i) => ({ path: `/map?sel=${encodeURIComponent(`keyword:${term}`)}`,
-        cells: [term, core.keywords.node[i] ? S.nodeName(core.keywords.node[i]) : ''], key: S.fold(term) }))
+      return core.keywords.term.map((term, i) => ({ path: S.atlasPath('keyword', term),
+        cells: [term, S.keywordTheme(i)], key: S.fold(term) }))
         .sort((a, b) => a.cells[0].localeCompare(b.cells[0], S.lang));
     }
     return core.people.id.map((id, i) => ({ path: `/person/${id}`,
-      cells: [S.personName(i), core.people.top[i] ? S.nodeName(core.people.top[i]) : ''], key: S.fold(S.personName(i)) }));
+      cells: [S.personName(i), S.topOfPerson(i) ? S.nodeName(S.topOfPerson(i)) : ''], key: S.fold(S.personName(i)) }));
   }
 
   const HEADS = { people: ['list.col.name', 'list.col.theme'], orgs: ['list.col.name', 'list.col.level', 'list.col.members'],
@@ -174,7 +185,7 @@
       h('h1', { class: 'cx-page__title', tabindex: '-1', text: t('nav.about') }),
       section('map'),
       section('distances'),
-      section('near'),
+      section('coauthors'),
       section('themes'),
       section('contents', h('ul', { class: 'cx-list' }, [
         h('li', { text: t(core.names ? 'about.contents.names' : 'about.contents.pseudonyms') }),
