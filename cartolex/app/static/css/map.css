@@ -14,7 +14,7 @@
 
 /* the atlas fills the window below the page's header; with « Tune » open, the page scrolls */
 .cx-atlas-host {
-  height: calc(100vh - var(--cx-header-height) - 9rem);
+  height: calc(100vh - var(--cx-header-height) - 12.5rem);
   min-height: 34rem;
 }
 

@@ -16,12 +16,15 @@ cartolex/app/static/atlas/
   schemes.js   the colour schemes (one colour per theme, one scale), dark and bright
   scene.js     the map's scene: layers, fading, organisation tiles, arcs, labels, world view
   treemap.js   the treemap of the themes, explorable down to keywords
-  card.js      the card of links of what is in focus (and Compare)
+  card.js      the card of links of what is in focus
+  parts.js     the card's pieces: links, bars, sections, lists, the rings as lists
+  compare.js   Compare: two people or two organisations side by side
   rings.js     the network around the focus (co-authors, partner organisations)
   layers.js    the small layers panel over the map
   filters.js   the folded « Filters » control (people's columns, period, categories)
   find.js      « Find »: a combobox over everything the atlas shows
   panes.js     the panes: resizable, hidable to rails, card right or below, full screen
+  mapview.js   the map: canvas, controller, hover card, its own buttons, Save's menu
   save.js      « Save view »: PNG and SVG of the map as it is on screen
 ```
 
@@ -49,8 +52,15 @@ atlas.setScene(scene);        // a host's own scene in place of the map's (null:
 atlas.slot('bar');            // an element in the bar for a host's own buttons
 atlas.slot('map');            // an element over the map (a host's banner)
 atlas.refresh();              // read the bundle again (the map was rebuilt)
+atlas.state(); atlas.set({net: 2});   // the state (see below), and a change of it
+atlas.index(); atlas.colours();       // the indexed bundle, the themes' colours now
+atlas.map();                  // the map's controller (fit, zoomBy, centreOn, view…)
 atlas.destroy();              // every listener, observer, frame and request released
 ```
+
+`tests/browser/atlas_file.py` is a complete, small host: a page opened from
+`file://`, a synthetic bundle, a translator over the catalogue's `atlas.*` keys,
+the rings computed by `ringsOf` from a list of links.
 
 `root` is an empty element; the atlas fills it and takes its whole size (the
 host gives it a height). `mountAtlas` returns at once; the atlas shows
@@ -121,11 +131,13 @@ items, placed(id) → place}`.
 | `locale` | the interface language (numbers, percentages, lists) | yes | yes |
 | `address` | `{read() → URLSearchParams, write(URLSearchParams)}`: where the state lives | the page's query | the fragment's query |
 | `prefs` | `{get(key), set(key, value)}`: the layout and the colour scheme, per person | `/api/me/preferences` | the browser's storage |
-| `look` | `{dark() → boolean, subscribe(fn) → off}`: the app's Dark / Bright | the theme store | the site's switch |
+| `look` | `{dark() → boolean, set(dark)?, subscribe(fn)?}`: Dark / Bright (without `subscribe`, the atlas watches the document's `data-theme` and the system); with `set`, the bar shows the switch | the theme store | the site's switch |
+| `title` | the field's name, at the top of the home card | the project's name | the site's title |
+| `onReady({index})`, `onScheme(id)` | told when the bundle is indexed, when the scheme changes | | |
 | `links` | `{person(id), organisation(id), text(id), keyword(term), themesKeyword(term), themesNode(id)}` → an address, or null | People, Keywords, Themes | none |
 | `navigate(href)` | follow one of those addresses | the router | — |
 | `label(kind, id)` | the name of what the bundle left unnamed | — | the pseudonym |
-| `fileStem` | the start of a saved view's file name | the map version | the site's title |
+| `fileStem()` | the start of a saved view's file name | the map version | the site's title |
 
 Without `links`, the card's « Open in People ↗ », « Open in Keywords ↗ » and
 « Edit in Themes ↗ » are not shown: editing happens only in the app's Themes
@@ -152,7 +164,13 @@ The state is in the address, so a view can be shared and survives a reload:
 The layout (pane sizes, hidden panes, the card's place) and the colour scheme
 belong to the person, not to the view: `host.prefs` keeps them under
 `atlas.tree`, `atlas.card`, `atlas.below`, `atlas.tree_on`, `atlas.card_on`,
-`atlas.card_at` and `colour_scheme`.
+`atlas.card_at`, `colour_scheme` and `colour_order` (the themes' order along a
+scale, so the app's other screens order them as the map does).
+
+The atlas's words are the `atlas.*` keys of the app's catalogues (en, fr,
+pt-BR); a host passes them to `t`. Its style sheet's classes start with
+`cx-atlas`; the map's box carries `cxMap` (the controller) and `cxScene()` (what
+is drawn) for the browser tests.
 
 ## Colour schemes
 

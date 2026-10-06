@@ -106,6 +106,10 @@
   outline-offset: 2px;
 }
 
+.cx-atlas-scheme {
+  width: 11.5rem;
+}
+
 .cx-atlas select,
 .cx-atlas-find__input {
   min-height: var(--cx-control-height-s);

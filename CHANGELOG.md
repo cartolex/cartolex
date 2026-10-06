@@ -19,6 +19,33 @@ nothing in the engine names a particular deployment, source or procedure.
   later job of its kind leaves the header. A failed job keeps its traceback
   (`error.traceback`, home folder written `~`), and its diagnostic carries the
   job, the time it failed, the build and the system.
+- **The atlas.** The map screen is rebuilt as one atlas, the same code in the app
+  and in the shared site (`cartolex/app/static/atlas/`, library-free, mounted with a
+  data source and the host's capabilities; the site loads it as one classic script,
+  `ATLAS_MODULES`; see `docs/dev/atlas.md`). The treemap of the themes is the way in:
+  a click focuses a theme, a double click opens it down to its keywords, ↑ or Escape
+  goes back. The focus (a theme, a keyword, an organisation, a person, two of them
+  compared) drives everything: the map fades the rest to a trace (fainter the more
+  points there are), the treemap takes a person's or an organisation's own theme
+  weights, and the card lists what is connected, each line a link (no « most
+  published » list, no nearest neighbours: similarity is in Compare, with the themes
+  in common, the people in both organisations and the texts written together). Links
+  are arcs: a person's co-authors and, with « Network 1 · 2 · 3 », their circles,
+  collaborators who are not mapped faint; an organisation's partners at its level.
+  Organisations are tiles in their main theme's colour, sized by their people. A
+  small layers panel shows or hides people, keywords and organisations and writes
+  their names (keywords in their topic's colour), with the project's own level names.
+  Panes are resized by dragging (or the arrows), hidden to rails, the card on the
+  right or below the map, the layout kept per person; full screen for the atlas, the
+  map alone and the treemap alone; ⌂ Home and ⤓ Save view on the map itself; the
+  filters and the period folded under « Filters ». Twenty-two colour schemes (nine of
+  one colour per theme, two of them colour-blind safe; thirteen along one scale, the
+  themes ordered by their place on the map), each in a dark and a bright (« paper »)
+  version, chosen once for the whole app (`colour_scheme`): the Themes screen and the
+  legends follow it. On 170,000 people and 20,000 keywords a change of focus redraws
+  in 0.1 to 0.4 s and the map pans at 4.5 ms a frame. The preferences keep a few
+  settings by key (`prefs.get`, `prefs.set`, sent as `other`). The ICU formatter is
+  `core/messages.js`, shared with the site (`createTranslator`).
 - **Who writes with whom.** Selected on the map, a person is joined by lines to
   their co-authors in the project (the thicker, the more works signed together),
   listed in the panel instead of the most similar people (a similarity is not a
