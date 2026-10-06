@@ -89,6 +89,14 @@ optional libraries are extras (`llm`, `tsne`, `dev`, `docs`), never core
 dependencies. `tests/test_packaging.py` builds both archives offline and runs
 it.
 
+`tools/build_docs.py` builds this documentation into the package
+(`cartolex/app/static/docs/`, not tracked by git), where the app serves it at
+`/static/docs/` and links to it from its header; a copy without it answers
+there how to build it. The build is strict and refuses what the app's
+Content-Security-Policy would refuse: an inline script or style left in a page
+(the theme's are moved to files or made SVG attributes). The package check
+accepts the built documentation, and requires it with `--docs`.
+
 `tools/install_check.py` installs the wheel into fresh environments (Python
 3.10 and 3.14 by default, made with uv), installs the language models, runs
 `cartolex --help`, builds the XS demo world as a project and fetches
@@ -104,6 +112,7 @@ release, for testing), `CARTOLEX_HOME` (the folder, `~/cartolex` by default)
 and `CARTOLEX_ROUTE=system` (skip uv, to test the fallback).
 
 ```bash
+python tools/build_docs.py                  # the documentation, into the package
 uv build --out-dir dist                     # the source archive, then the wheel from it
 python tools/installer_zip.py --out dist    # the installer kit
 python tools/package_check.py dist/*.whl dist/*.tar.gz
@@ -122,8 +131,9 @@ workflow → Run workflow); no push or pull request starts them.
   for it; the documentation; the browser checks in Chromium on Linux. uv's
   cache (the packages and the language models' wheels) and Playwright's
   Chromium are cached between runs.
-- `.github/workflows/release.yml` builds the source archive, the wheel and
-  the installer kit, checks the archives with `tools/package_check.py`, keeps
+- `.github/workflows/release.yml` builds the documentation into the package,
+  then the source archive, the wheel and the installer kit, checks the
+  archives with `tools/package_check.py --docs`, keeps
   them as the run's artifact, and on each system runs
   `tools/install_check.py` and the kit's launcher with the built wheel. It
   publishes nothing.

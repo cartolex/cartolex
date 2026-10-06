@@ -14,8 +14,11 @@ import { runtime } from './runtime.js';
 import { areaOfPage } from './states.js';
 import { THEMES } from './stores/prefs.js';
 import {
-  ActivityDrawer, ActivityIndicator, ConfirmDialog, MenuButton, Slot, StatusDot, Toaster,
+  ActivityDrawer, ActivityIndicator, ConfirmDialog, Icon, MenuButton, Slot, StatusDot, Toaster,
 } from '../components/index.js';
+
+/** The documentation, served by the app with this version (tools/build_docs.py). */
+export const DOCS_URL = '/static/docs/index.html';
 
 /** The element pages render into; Preact renders it once and leaves its content alone. */
 class Outlet extends Component {
@@ -105,6 +108,9 @@ export function Shell({ app }) {
         <${Slot} slots=${registries.slots} name="header.actions" class="cx-header__slot" />
         <${ActivityIndicator} jobs=${stores.jobs} buttonRef=${activityButton}
           onOpen=${() => setActivityOpen(true)} />
+        <a class="cx-button cx-button--ghost cx-button--m cx-header__docs" href=${DOCS_URL}
+          target="_blank" rel="noopener" data-nav="docs" aria-label=${t('shell.docs')}>
+          <${Icon} name="help" /><span class="cx-button__label">${t('shell.docs')}</span></a>
         <${MenuButton} label=${t('display.menu')} icon="settings" iconOnly variant="ghost"
           items=${displayItems} onSelect=${onDisplay} />
       </div>

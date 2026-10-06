@@ -274,3 +274,11 @@ def test_an_extension_that_fails_to_load_is_reported(ui, server):
     toast.wait_for()
     assert "An extension could not be loaded" in toast.inner_text()
     assert ui.page.locator("h1").inner_text() == "Coastal and marine demo"
+
+
+def test_the_header_links_to_the_documentation(ui):
+    ui.open("/overview")
+    link = ui.page.locator('[data-nav="docs"]')
+    assert link.get_attribute("href") == "/static/docs/index.html"
+    assert link.get_attribute("target") == "_blank" and link.get_attribute("rel") == "noopener"
+    assert link.get_attribute("aria-label") == "Documentation"

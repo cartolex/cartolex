@@ -3,6 +3,9 @@
 cartolex maps a scientific field from the texts of the people who work in it:
 keywords, themes and a two-dimensional atlas, with an offline site to share it.
 
+These pages come with the app, for the version installed: its Documentation
+link, at the top of every screen, opens them.
+
 ```{toctree}
 :caption: Guides
 :maxdepth: 1

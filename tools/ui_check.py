@@ -250,9 +250,18 @@ def dynamic_imports(scan: Scan) -> list[str]:
     return [m.group(2) for m in _DYNAMIC_IMPORT.finditer(scan.code)]
 
 
+#: Built, not written here: the documentation (tools/build_docs.py checks its own pages).
+GENERATED = ("docs",)
+
+
+def _generated(path: Path, root: Path) -> bool:
+    return path.relative_to(root).parts[0] in GENERATED
+
+
 def js_files(root: Path = STATIC, *, vendor: bool = False) -> list[Path]:
-    """The JavaScript files under *root*, the vendored ones only when asked."""
-    files = sorted(root.rglob("*.js"))
+    """The JavaScript files under *root*, the vendored ones only when asked, never the
+    built documentation's."""
+    files = sorted(p for p in root.rglob("*.js") if not _generated(p, root))
     return [p for p in files if vendor or "vendor" not in p.relative_to(root).parts]
 
 
@@ -527,7 +536,7 @@ def check_bans(root: Path = STATIC) -> list[str]:
             if _STYLE_ATTR.search(markup):
                 problems.append(f"{name}:{tpl.line}: a style attribute from a string in a template")
     for page in sorted(root.rglob("*.html")):
-        if "vendor" in page.relative_to(root).parts:
+        if "vendor" in page.relative_to(root).parts or _generated(page, root):
             continue
         text = page.read_text(encoding="utf-8")
         name = rel(page, root)

@@ -229,6 +229,10 @@ a:hover,
   flex: none;
 }
 
+.cx-header__docs {
+  text-decoration: none;
+}
+
 .cx-main {
   flex: 1;
   width: 100%;
@@ -292,7 +296,8 @@ a:hover,
     padding: 0 var(--cx-space-3);
   }
 
-  .cx-brand__name {
+  .cx-brand__name,
+  .cx-header__docs .cx-button__label {
     display: none;
   }
 

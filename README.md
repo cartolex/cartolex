@@ -47,6 +47,7 @@ from that contract.
 
 | Document | What it covers |
 |---|---|
+| [docs/](docs/index.md) | The guides (installing, collecting, very large projects, privacy, building, sizes, keywords, hosting), the project format and the development pages; built into the app, which links to them (`tools/build_docs.py`) |
 | [docs/install.md](docs/install.md) | Installing cartolex and its language models, the optional extras, the first run, troubleshooting |
 | [INTEGRATION.md](INTEGRATION.md) | Stage-by-stage guide for driving the full feature set from your own (e.g. FastAPI) application |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Module map, data flow, and the workspace artifact inventory |

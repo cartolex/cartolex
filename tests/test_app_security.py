@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import io
 import zipfile
+from pathlib import Path
 
 import pytest
 from _app_helpers import TOKEN, Client, etag, fake_app, fake_project
@@ -120,6 +121,46 @@ def test_cross_origin_changes_are_refused_and_cors_is_never_open(app):
         r = client.request(method, url, headers=headers)
         assert not any(h.lower().startswith("access-control-") for h in r.headers), url
         assert r.headers.get("access-control-allow-origin") not in ("*", "null")
+
+
+def test_the_documentation_is_served_when_built_and_says_how_to_build_it_otherwise(tmp_path):
+    static = tmp_path / "ui"
+    static.mkdir()
+    (static / "index.html").write_text("<!doctype html>\n", encoding="utf-8")
+    docs_app, _ = fake_app(fake_project(tmp_path / "q"), tmp_path / "c.log", static_dir=static)
+    try:
+        client = Client(docs_app)
+        missing = client.get("/static/docs/index.html")
+        assert missing.status_code == 404 and "tools/build_docs.py" in missing.text
+        assert "unsafe-inline" not in missing.headers["content-security-policy"]
+        (static / "docs").mkdir()
+        (static / "docs" / "index.html").write_text("<!doctype html><h1>Docs</h1>\n", "utf-8")
+        built = client.get("/static/docs/index.html")
+        assert built.status_code == 200 and "<h1>Docs</h1>" in built.text
+        assert "unsafe-inline" not in built.headers["content-security-policy"]
+        assert client.get("/static/docs/missing.html").status_code == 404
+    finally:
+        docs_app.state.cartolex.shutdown()
+
+
+def test_the_built_documentation_needs_no_inline_script_or_style():
+    import importlib.util
+
+    tool = Path(__file__).resolve().parent.parent / "tools" / "build_docs.py"
+    spec = importlib.util.spec_from_file_location("build_docs", tool)
+    build_docs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build_docs)
+    page = (
+        '<svg xmlns="http://www.w3.org/2000/svg" style="display: none;"><line style="opacity:'
+        ' 50%" x1="1"/></svg><script>\n document.body.dataset.theme = localStorage.getItem('
+        '"theme") || "auto";\n</script><script src="_static/furo.js"></script>'
+    )
+    assert build_docs.strict(page) == (
+        '<svg xmlns="http://www.w3.org/2000/svg" display="none"><line opacity="0.5" x1="1"/>'
+        '</svg><script src="_static/furo.js"></script>'
+    )
+    with pytest.raises(ValueError, match="inline"):
+        build_docs.strict('<p style="color: red">new</p>')
 
 
 def test_a_strict_csp_on_every_html_and_js_response(app, tmp_path):

@@ -12,3 +12,6 @@ htmlcov/
 .venvs/
 .cache/
 docs/_build/
+
+# The documentation built into the package (tools/build_docs.py)
+/cartolex/app/static/docs/

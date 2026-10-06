@@ -11,6 +11,7 @@
   "shell.skip": "Aller au contenu",
   "shell.home": "{name}, accueil",
   "shell.nav": "Principale",
+  "shell.docs": "Documentation",
   "boot.failed": "L’application n’a pas pu démarrer",
   "page.failed": "Cette page n’a pas pu s’afficher",
   "extension.failed": "Une extension n’a pas pu être chargée",

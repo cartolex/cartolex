@@ -8,7 +8,8 @@ platform (``.js`` is ``text/javascript`` everywhere); a path that leaves its
 folder, names a hidden file or a type not in the table is not found. Every
 other address that is not under ``/api`` or ``/static`` (``/keywords``,
 ``/themes/n7``) is answered with the shell, ``index.html``: the interface routes
-in the browser (history routes).
+in the browser (history routes). The documentation, built into the package
+(``tools/build_docs.py``), is at ``/static/docs/``.
 """
 
 from __future__ import annotations
@@ -194,6 +195,19 @@ def extension_file(request: Request, ext_id: str, path: str) -> Response:
     return _file(found)
 
 
+#: At ``/static/docs/`` when the documentation was not built into this copy.
+NO_DOCS = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>cartolex documentation</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="font-family: system-ui, sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1rem">
+<h1>The documentation is not in this copy of cartolex</h1>
+<p>An installed version carries it. In a copy of the source, build it with
+<code>python tools/build_docs.py</code> (the development extras), or read the
+<code>docs/</code> folder.</p>
+</body></html>
+"""
+
+
 def _static_root(request: Request) -> Path:
     return runtime_of(request).settings.static_dir or PACKAGE_STATIC
 
@@ -203,6 +217,8 @@ def static_file(request: Request, path: str) -> Response:
     """A file of the interface."""
     found = safe_file(_static_root(request), path)
     if found is None:
+        if path.split("/", 1)[0] == "docs" and not (_static_root(request) / "docs").is_dir():
+            return HTMLResponse(NO_DOCS, status_code=404)  # a checkout: how to build them
         raise _missing()
     return _file(found)
 

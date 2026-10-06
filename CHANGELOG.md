@@ -129,6 +129,15 @@ nothing in the engine names a particular deployment, source or procedure.
     names its computer and process (`cartolex.scale.scratch_folder`): one a
     killed job left behind is removed by the next job that makes one.
 
+- **The documentation in the app.** `tools/build_docs.py` builds these pages
+  into the package (`cartolex/app/static/docs/`, not tracked); the app serves
+  them at `/static/docs/` and links to them from its header (Documentation),
+  and a copy without them says there how to build them. The pages need no
+  inline script or style, as the app's Content-Security-Policy requires (the
+  build moves or rewrites the theme's, and refuses any left). The release
+  build makes them before the wheel, and `tools/package_check.py --docs`
+  requires them. « Very large projects » is now the national campaign step by
+  step, with what each step took.
 - **One namespace, packaged data.** The engine is `cartolex.lexicon` and
   `cartolex.atlas`; the stop-word lists and prompt templates ship in
   `cartolex/_data/` and are read with `importlib.resources`.
