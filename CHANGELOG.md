@@ -24,6 +24,9 @@ nothing in the engine names a particular deployment, source or procedure.
   - *Extraction*: each text read, parsed and counted once, in worker processes;
     the parse cache is an SQLite file; scoring works from counts
     (`scoring.score_aggregates`).
+  - *Keywords' build*: each text is counted once, a block at a time in worker
+    processes, as the corpus stores them, and each person's counts are the sum
+    of their texts' (the texts are never held together; the same results).
   - *Text space*: above 500,000 texts, the exact SVD through the keywords' Gram
     matrix.
   - *Trajectories*: each text counted once, a bin's vector the sum of its texts'

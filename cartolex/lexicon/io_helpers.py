@@ -254,8 +254,8 @@ def load_documents_selected(
     return docs, pd.DataFrame(meta_rows)
 
 
-#: People whose documents a worker counts at a time.
-_COUNT_BLOCK = 1000
+#: Texts a worker counts at a time.
+_COUNT_TEXTS = 2000
 _COUNTING: dict[str, object] = {}
 
 
@@ -265,9 +265,11 @@ def _set_counting(params: dict) -> None:
     _COUNTING["vectorizer"] = CountVectorizer(**params)
 
 
-def _count_documents(docs: list[str]):  # noqa: ANN202
-    """In a worker: the documents' counts of the fixed vocabulary (sparse rows)."""
-    return _COUNTING["vectorizer"].fit_transform(docs)  # type: ignore[attr-defined]
+def _count_texts(items: list[tuple[int, str]]):  # noqa: ANN202
+    """In a worker: each text's counts of the fixed vocabulary (sparse rows), with the
+    texts' indexes."""
+    rows = [t for t, _ in items]
+    return rows, _COUNTING["vectorizer"].fit_transform([text for _, text in items])  # type: ignore[attr-defined]
 
 
 def count_documents_selected(
@@ -279,14 +281,16 @@ def count_documents_selected(
     workers: int = 1,
     progress_callback: Callable[[int, str], None] | None = None,
 ):  # noqa: ANN201
-    """What :func:`load_documents_selected` gives, counted: each person's document (their
-    texts joined, in order) as counts of a fixed vocabulary, and the same table.
+    """Each person's document (their texts) as counts of a fixed vocabulary, and the
+    people's table.
 
     *count_params* are a ``CountVectorizer``'s parameters with a fixed ``vocabulary``
-    (a document's counts do not depend on the others). The documents are made and
-    counted a block of people at a time, in *workers* worker processes: the
-    documents are never held together. Returns ``(counts, meta_df)``; the counts
-    are a ``float64`` CSR matrix, one row per person of the table.
+    (a text's counts do not depend on the others). Each text is counted once, in the
+    order the corpus stores them, a block at a time in *workers* worker processes: the
+    texts are never held together. A person's counts are the sum of their texts' (a
+    phrase across the end of one text and the start of the next is not one). Returns
+    ``(counts, meta_df)``: a CSR matrix, one row per person of the table (the people with
+    a text that is not blank, in the order the slots first name them).
     """
     from scipy import sparse
 
@@ -304,57 +308,71 @@ def count_documents_selected(
             + ")."
         )
     if progress_callback:
-        progress_callback(0, "Reading the texts")
-    texts = dict(corpus.texts())
-    keys = corpus.text_keys()
-    pairs = corpus.pairs_of()
-    people = range(len(corpus.people))  # in the order the slots first name them
-    meta_rows: list[dict[str, str]] = []
-
-    def documents():  # noqa: ANN202
-        for i in people:
-            person = corpus.people[i]
-            own = [int(corpus.text[k]) for k in pairs[i]]
-            parts = [texts[t] for t in own if texts[t].strip()]
-            if not parts:
-                continue
-            meta_rows.append(
-                {
-                    "last_name": person.last_name,
-                    "first_name": person.first_name,
-                    "unit": person.unit,
-                    "txt_path": ";".join(keys[t] for t in own),
-                    "source": "+".join(sorted(set(person.sources))),
-                    "last_name_canon": person.key[0],
-                    "first_name_canon": person.key[1],
-                    "unit_canon": person.key[2],
-                    "doc_language": "",
-                }
-            )
-            yield "\n\n".join(parts)
+        progress_callback(0, "Counting the texts")
+    width = len(count_params["vocabulary"])
+    row_of = np.full(corpus.n_texts, -1, dtype=np.int64)
+    found = int(np.unique(corpus.text).size) if len(corpus.text) else 0
 
     def blocks():  # noqa: ANN202
-        block: list[str] = []
-        for doc in documents():
-            block.append(doc)
-            if len(block) >= _COUNT_BLOCK:
+        block: list[tuple[int, str]] = []
+        for t, text in corpus.texts():
+            if not text.strip():
+                continue
+            block.append((t, text))
+            if len(block) >= _COUNT_TEXTS:
                 yield block
                 block = []
         if block:
             yield block
 
     counted = []
-    for rows in ordered_map(
-        _count_documents, blocks(), workers=workers, initializer=_set_counting,
+    done = 0
+    for rows, matrix in ordered_map(
+        _count_texts, blocks(), workers=workers, initializer=_set_counting,
         initargs=(count_params,),
     ):  # fmt: skip
-        counted.append(rows)
+        row_of[rows] = np.arange(done, done + len(rows))
+        done += len(rows)
+        counted.append(matrix)
         if progress_callback:
-            progress_callback(min(99, 100 * len(meta_rows) // max(len(people), 1)), "Counting")
-    if counted:
-        counts = sparse.vstack(counted, format="csr")
+            progress_callback(min(95, 95 * done // max(found, 1)), "Counting")
+    texts = sparse.vstack(counted, format="csr") if counted else sparse.csr_matrix((0, width))
+    del counted
+    # Each person: the sum of their texts' counts (a text twice, counted twice).
+    meta_rows: list[dict[str, str]] = []
+    who: list[np.ndarray] = []
+    which: list[np.ndarray] = []
+    for i, positions in enumerate(corpus.pairs_of()):
+        own = row_of[corpus.text[positions]]
+        own = own[own >= 0]
+        if not len(own):
+            continue
+        person = corpus.people[i]
+        meta_rows.append(
+            {
+                "last_name": person.last_name,
+                "first_name": person.first_name,
+                "unit": person.unit,
+                "source": "+".join(sorted(set(person.sources))),
+                "last_name_canon": person.key[0],
+                "first_name_canon": person.key[1],
+                "unit_canon": person.key[2],
+                "doc_language": "",
+            }
+        )
+        who.append(np.full(len(own), len(meta_rows) - 1, dtype=np.int64))
+        which.append(own)
+    if who:
+        rows_ = np.concatenate(who)
+        cols = np.concatenate(which)
+        pairs = sparse.csr_matrix(
+            (np.ones(len(rows_), dtype=texts.dtype), (rows_, cols)),
+            shape=(len(meta_rows), texts.shape[0]),
+        )
+        counts = (pairs @ texts).tocsr()
+        counts.sort_indices()  # in column order within each row, as a vectorizer gives them
     else:
-        counts = sparse.csr_matrix((0, len(count_params["vocabulary"])), dtype=np.float64)
+        counts = sparse.csr_matrix((0, width), dtype=np.float64)
     if progress_callback:
         progress_callback(100, "Documents counted.")
     return counts, pd.DataFrame(meta_rows)

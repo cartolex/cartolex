@@ -38,7 +38,7 @@ def _results(root: Path) -> dict[str, bytes]:
 def test_the_results_do_not_depend_on_the_workers(tmp_path, monkeypatch) -> None:
     # Small blocks: every parallel step gives its workers several blocks.
     monkeypatch.setattr(extract_stream, "TASK_TEXTS", 16)
-    monkeypatch.setattr(io_helpers, "_COUNT_BLOCK", 7)
+    monkeypatch.setattr(io_helpers, "_COUNT_TEXTS", 7)
     monkeypatch.setattr(theme_comb, "TEXT_CHUNK", 16)
     monkeypatch.setattr(driver, "TRAJECTORY_CHUNK", 5)
     monkeypatch.setattr(driver, "TRAJECTORY_TEXTS", 16)
