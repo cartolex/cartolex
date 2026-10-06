@@ -39,10 +39,11 @@ def walk(page) -> None:
     assert page.locator("#cx-missing").count() == 0
     search = page.get_by_role("searchbox", name="Find a person")
     search.fill("Person 1")
-    page.locator(".cx-result").first.wait_for()
-    search.press("Enter")
-    page.get_by_role("heading", name="Themes").wait_for()
-    assert page.locator(".cx-share").count() > 0
+    person = page.locator(".cx-result[href^='#/person/']").first
+    person.wait_for()
+    search.press("ArrowDown")  # the results take the keyboard
+    person.click()
+    page.locator(".cx-share").first.wait_for()
     # the texts, when the site carries them, come from the person's own part
     if page.get_by_role("heading", name="Texts").count():
         page.wait_for_function(
@@ -57,6 +58,19 @@ def walk(page) -> None:
     )
     assert page.locator(".cx-main--atlas .cx-note--warning").count() == 0
     assert "sel=person" in page.evaluate("location.hash")
+    # the network's rings, found in the browser from the site's links
+    rings = page.evaluate(
+        """async () => {
+          const S = window.CxSite;
+          const src = S.atlasSource();
+          await S.load('links');
+          const ptr = S.data.links.people.ptr;
+          const busy = S.ix.core.people.id.find((id, i) => ptr[i + 1] > ptr[i]);
+          const a = await src.coauthors({ kind: 'person', id: busy, circle: 2 });
+          return { count: a.count, lines: a.lines.length, second: Boolean(a.second) };
+        }"""
+    )
+    assert rings["count"] > 0 and rings["lines"] > 0 and rings["second"], rings
     page.evaluate("location.hash = '#/themes'")
     page.wait_for_function("() => location.hash.startsWith('#/map')")
     page.evaluate("location.hash = '#/nowhere/at/all'")
