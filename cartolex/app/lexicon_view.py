@@ -273,7 +273,7 @@ def draw_cloud(data: dict[str, Any], *, by: str, theme: str, colour: str, langua
         prefer_horizontal=0.95,
         max_words=CLOUD_WORDS,
         relative_scaling=0.35,
-        min_font_size=10,
+        min_font_size=14,
         max_font_size=78,
         margin=8,
         random_state=7,
