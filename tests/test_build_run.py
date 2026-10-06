@@ -526,3 +526,29 @@ def test_a_killed_run_starts_over_when_its_inputs_changed(tmp_path, reference):
     chunks = [c for c in log.read_text().splitlines() if c.startswith("keywords.extract:chunk")]
     assert chunks == [f"keywords.extract:chunk:{i}" for i in range(4)]
     project.close()
+
+
+def _hold(mb: int, seconds: float) -> None:
+    block = bytearray(mb * 1024 * 1024)
+    block[::4096] = b"x" * len(block[::4096])  # touched: resident
+    time.sleep(seconds)
+
+
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"), reason="the process tree is read in /proc"
+)
+def test_a_stage_peak_counts_its_worker_processes_together():
+    import multiprocessing
+
+    from cartolex.build.machine import PeakMemory
+
+    context = multiprocessing.get_context("spawn")
+    with PeakMemory() as peak:
+        parent = resident_memory_mb()
+        workers = [context.Process(target=_hold, args=(300, 2.0)) for _ in range(2)]
+        for w in workers:
+            w.start()
+        for w in workers:
+            w.join()
+    # Two workers of 300 MB at once: counted together (the largest one alone adds 310).
+    assert peak.peak_mb is not None and peak.peak_mb - parent >= 450, (peak.peak_mb, parent)

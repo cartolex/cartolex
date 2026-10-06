@@ -302,10 +302,13 @@ A run id is the UTC start time and six random hex digits
   result made by the earlier version then needs an update.
 - `measures`: wall seconds, peak memory and counts. The counts include the
   stage's cost driver (the size its cost grows with), so a later dry run can
-  scale the measures to the project's new size. The peak memory is the process's
-  peak resident memory during the stage: exact on Linux, where the kernel's
-  high-water mark is reset when the stage starts; elsewhere the process's peak so
-  far, an upper bound. The largest worker process that ran is added.
+  scale the measures to the project's new size. The peak memory, on Linux, is
+  the most the process and its worker processes held together during the stage:
+  sampled every half second, each process by its proportional share (`Pss`, so
+  that pages a forked worker or a mapped file shares count once), and at least
+  the process's own high-water mark, which the kernel resets when the stage
+  starts. Elsewhere it is the process's peak so far, an upper bound, plus the
+  largest worker process that ran.
 
 ## The six states
 

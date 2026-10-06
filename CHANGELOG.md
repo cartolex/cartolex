@@ -85,6 +85,12 @@ nothing in the engine names a particular deployment, source or procedure.
     plain `np.unique` goes through a hash table since numpy 2.3 (9 s instead of
     0.2 s on ten million distinct integers): the coverage, the corpus store,
     the trajectories, the providers' coverage and the snapshot index use it.
+  - *Peak memory*: on Linux a stage's measured peak is the most its process
+    and its worker processes held together, sampled every half second, each by
+    its proportional share; it was the process's peak plus the largest worker's,
+    which counted a pool of workers as one and a forked worker's shared pages
+    twice (on the national map: the trajectories recorded 11.1 GB, the
+    extraction 19.4 GB, where the processes held at most 15.2 and 15.0 GB).
   - *Estimates*: a stage that sizes its work to the job's memory budget
     (`Stage.bounded`: the extraction, the keywords' build, the text space, the
     trajectories) is estimated at most that budget (`plan(memory_mb=…)`,

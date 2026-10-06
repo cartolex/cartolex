@@ -6,10 +6,13 @@ Both use only the standard library. Available memory is read from
 on Windows; elsewhere it is unknown (``None``) and no budget is enforced unless
 one is given.
 
-The peak memory of a stage is its process's peak resident memory while it ran:
-exact on Linux (the kernel's high-water mark is reset when the stage starts),
-and on other systems the process's peak since it started, an upper bound. When
-worker processes ran during the stage, the largest of them is added.
+The peak memory of a stage, on Linux, is the largest memory its process and their
+descendants (its worker processes) held together while it ran: sampled every
+:data:`SAMPLE_S`, each process counted by its proportional share (``Pss``: pages
+two processes share, a forked worker's or a mapped file's, count once), and at
+least the process's own high-water mark, which the kernel resets when the stage
+starts. Elsewhere it is the process's peak since it started, an upper bound, and
+the largest worker process that ran during the stage is added.
 """
 
 from __future__ import annotations
@@ -19,10 +22,13 @@ import os
 import re
 import subprocess
 import sys
+import threading
 
 __all__ = ["PeakMemory", "available_memory_mb", "boot_id", "resident_memory_mb"]
 
 _MB = 1024 * 1024
+#: Seconds between two samples of a stage's processes' memory (Linux).
+SAMPLE_S = 0.5
 
 
 def available_memory_mb() -> float | None:
@@ -152,6 +158,64 @@ def _windows_peak_mb() -> float | None:  # pragma: no cover - exercised on Windo
     return None
 
 
+def _tree_memory_kb(root: int) -> int:
+    """The memory process *root* and its descendants hold now, in KB: the sum of their
+    proportional shares (their resident memory where the share cannot be read)."""
+    parent_of: dict[int, int] = {}
+    for name in os.listdir("/proc"):
+        if not name.isdigit():
+            continue
+        try:
+            with open(f"/proc/{name}/stat", "rb") as fh:
+                stat = fh.read()
+            parent_of[int(name)] = int(stat[stat.rindex(b")") + 2 :].split()[1])
+        except (OSError, ValueError, IndexError):
+            continue
+    children: dict[int, list[int]] = {}
+    for pid, ppid in parent_of.items():
+        children.setdefault(ppid, []).append(pid)
+    total, todo = 0, [root]
+    while todo:
+        pid = todo.pop()
+        todo.extend(children.get(pid, ()))
+        for path, field in (
+            (f"/proc/{pid}/smaps_rollup", "Pss:"),
+            (f"/proc/{pid}/status", "VmRSS:"),
+        ):
+            try:
+                with open(path, encoding="ascii") as fh:
+                    kb = next((int(line.split()[1]) for line in fh if line.startswith(field)), None)
+            except (OSError, ValueError):
+                kb = None
+            if kb is not None:
+                total += kb
+                break
+    return total
+
+
+class _Sampler(threading.Thread):
+    """Every :data:`SAMPLE_S` until stopped, the memory of this process's tree; the
+    largest kept (KB)."""
+
+    def __init__(self) -> None:
+        super().__init__(name="cartolex-peak-memory", daemon=True)
+        self.peak_kb = 0
+        self._done = threading.Event()
+
+    def run(self) -> None:
+        root = os.getpid()
+        while True:
+            with contextlib.suppress(OSError):
+                self.peak_kb = max(self.peak_kb, _tree_memory_kb(root))
+            if self._done.wait(SAMPLE_S):
+                return
+
+    def stop(self) -> int:
+        self._done.set()
+        self.join()
+        return self.peak_kb
+
+
 class PeakMemory:
     """Measure the peak memory of a ``with`` block (see the module's notes on precision)."""
 
@@ -159,6 +223,7 @@ class PeakMemory:
         self.peak_mb: float | None = None
         self._children_before: float | None = None
         self._reset = False
+        self._sampler: _Sampler | None = None
 
     def __enter__(self) -> PeakMemory:
         if sys.platform.startswith("linux"):
@@ -166,7 +231,10 @@ class PeakMemory:
                 with open("/proc/self/clear_refs", "w", encoding="ascii") as fh:
                     fh.write("5")  # reset the peak resident size of this process
                 self._reset = True
-        if os.name == "posix":
+            if os.path.exists("/proc/self/smaps_rollup"):
+                self._sampler = _Sampler()
+                self._sampler.start()
+        if os.name == "posix" and self._sampler is None:
             import resource
 
             self._children_before = _maxrss_mb(resource.RUSAGE_CHILDREN)
@@ -177,6 +245,10 @@ class PeakMemory:
         if self._reset:
             hwm = _linux_status_kb("VmHWM")
             peak = hwm / 1024 if hwm is not None else None
+        if self._sampler is not None:
+            tree = self._sampler.stop() / 1024
+            self.peak_mb = round(max(peak or 0.0, tree), 1) if peak or tree else None
+            return
         if peak is None:
             if os.name == "posix":
                 import resource
