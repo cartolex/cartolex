@@ -1047,9 +1047,11 @@ class Engine:
         return images
 
     def _overlay_sets(self) -> dict[str, list[tuple[str, str]]]:
-        """``overlay/<set>/``: items ``(id, text)`` from an index CSV, else one per text file."""
+        """``overlay/<set>/``: items ``(id, text)`` from a packed corpus or an index CSV,
+        else one per text file."""
         import pandas as pd
 
+        store = _mod("lexicon.corpus_store")
         sets: dict[str, list[tuple[str, str]]] = {}
         root = self._overlay_root()
         if not root.is_dir():
@@ -1057,7 +1059,14 @@ class Engine:
         for folder in sorted(p for p in root.iterdir() if p.is_dir()):
             indexes = sorted(folder.glob("*index*.csv"))
             items: dict[str, list[str]] = {}
-            if indexes:
+            if store.is_packed(folder):
+                corpus = store.load_corpus([(folder.name, folder / "index.csv", None)])
+                contents = dict(corpus.texts())
+                for person, pairs in zip(corpus.people, corpus.pairs_of(), strict=True):
+                    key = person_id(person.last_name, person.first_name, person.raw_unit)
+                    for k in pairs.tolist():
+                        items.setdefault(key, []).append(contents[int(corpus.text[k])])
+            elif indexes:
                 df = pd.read_csv(indexes[0], dtype=str, keep_default_na=False)
                 for _, row in df.iterrows():
                     path = Path(row["txt_path"])

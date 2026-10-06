@@ -131,3 +131,10 @@ Each entry says when the stored baseline (`tests/baseline/`) was rewritten, why,
 - Reason: The space is fitted on the texts, as a project's themes.space does by default since the rule space_unit_texts (the workspace run follows it: run_svd(space_unit='text')); the clustering, the layout, the draft, its application, the trajectories, the projection and the bundle follow. The comb's calibration and the default sizes (keywords_per_group 40, the grids from 0.025) do not reach this run: the reference sets the level sizes and turns the comb off.
 - Engine: 1.0.0.dev0, source fingerprint `84fa888e6a9c7b6d`
 - L: against the previous baseline, 12 stages: 4 identical, 8 different (space, group, layout, draft, apply, trajectories, projection, bundle)
+
+## 2026-10-06 — S, merge
+
+- Reason: The extraction counts each text's candidates once and reads the evidence of the window's candidates afterwards (worker processes, a fixed order of blocks): the candidates' columns are numbered in another order, so the TF-IDF scores' floating-point sums change in the last digits (at most 3.6e-15); the refined tables follow, and one trajectory point's top terms change order between two terms of equal weight. No term, band or group changes.
+- Engine: 1.0.0.dev0, source fingerprint `12fec8ad7c659d6c`
+- S: against the previous baseline, 12 stages: 9 identical, 1 within tolerance, 2 different (build, trajectories)
+- merge: against the previous baseline, 1 stage: 1 identical

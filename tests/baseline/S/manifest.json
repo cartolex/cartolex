@@ -149,7 +149,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 132,
-    "sha256": "ac2c60a3838c5c47cfe5d01af1915c8519bc4c76085fabde4b4f0d0d3fe0409f"
+    "sha256": "62f87c8736b1edc43a71cf17d0a63027e19fbbfc6e33cd8b9cc664456745fdb0"
    },
    "person_terms": {
     "columns": [
@@ -201,17 +201,17 @@
     "kind": "table",
     "ordered": false,
     "rows": 132,
-    "sha256": "0f643faa95831619869c827dd1d77058498ead84a5d982b557f7faf14bdb9fcc"
+    "sha256": "ce60886cf2d3b2ddff52a64a2230df73f823f097d1fd31802244d66e66e7845c"
    },
    "refined_en": {
     "kind": "hash",
     "of": "table",
-    "sha256": "db7d475ba27affdedcecbbabaaffb677b403996183368893e78ed14e70edefee"
+    "sha256": "e8330ad882ddf80382d80614c05005aa49d43bad56998ce6f0945094e4e48d1b"
    },
    "refined_fr": {
     "kind": "hash",
     "of": "table",
-    "sha256": "ae94a0f0ff3c2a6382d8268f66932c1d497db408c6f0411656c85dfb83579a92"
+    "sha256": "7f0fe844b3021372e9ec37aac14862c5c93ac68080ace0e0611dd5fe964c1ab7"
    },
    "settings": {
     "file": "build/settings.json",
@@ -360,7 +360,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 956,
-    "sha256": "50931febfa3a7f3e6fdf7c0ee0f71ee6a5f0c8bdde23602ce4646b1231df830f"
+    "sha256": "2430255be7ae5a2ba62a48da4bd4bfe2bcd8ae61549f66b2eb7833fdca4fc0e7"
    },
    "terms_fr": {
     "columns": [
@@ -392,7 +392,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 466,
-    "sha256": "a7199d8989f96a29c34a96a18873d499b79a6429b89aa70820b4cecd8eec4a5e"
+    "sha256": "0e2048244d3e59adafa53d058c5a15454ea047db82b73313620c98a3832e2585"
    },
    "terms_merged": {
     "columns": [
@@ -420,7 +420,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 1391,
-    "sha256": "7288bafc89ce8a9017280f35b1aa9c5b69fb4b2832d399c579a17f2df0ab9827"
+    "sha256": "cf7cba8179d302b00ec0e5fa7808b9adf82507e3d55fd380df70117d71c1601a"
    }
   },
   "group": {
@@ -719,7 +719,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 140,
-    "sha256": "6c067cae9db2aacc8557cfa30bec0b70283c1cd319f9344dcf44ec3144a986a2"
+    "sha256": "9ec53171bf25c275e3bcb8f4979dd7a1cf1072ebc247a3051a3858b0fb1a764a"
    },
    "windows": {
     "file": "trajectories/windows.json.gz",
@@ -756,11 +756,11 @@
   }
  },
  "baseline": {
-  "date": "2026-10-01",
-  "reason": "The space is fitted on the texts, as a project's themes.space does by default since the rule space_unit_texts (the workspace run follows it: run_svd(space_unit='text')); the clustering, the layout, the draft, its application, the trajectories, the projection, the bundle and the merge follow. The comb's calibration and the default sizes (keywords_per_group 40, the grids from 0.025) do not reach these runs: the reference sets the level sizes and turns the comb off."
+  "date": "2026-10-06",
+  "reason": "The extraction counts each text's candidates once and reads the evidence of the window's candidates afterwards (worker processes, a fixed order of blocks): the candidates' columns are numbered in another order, so the TF-IDF scores' floating-point sums change in the last digits (at most 3.6e-15); the refined tables follow, and one trajectory point's top terms change order between two terms of equal weight. No term, band or group changes."
  },
  "environment": {
-  "engine_fingerprint": "84fa888e6a9c7b6d813d61ca4453c30c695629a646ad2da5355c8a65be529c77",
+  "engine_fingerprint": "12fec8ad7c659d6c3cd0279b5e11ce9afb602ed390c0fefc0c3d1d39fe84184d",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {
