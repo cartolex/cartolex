@@ -202,38 +202,17 @@ def ai_routes(request: Request, ctx: ProjectDep) -> dict[str, Any]:
     far) and by API (whether a key and a provider are set, what it sends, and an estimate of
     the calls and tokens of a run), with what the last run by API decided."""
 
-    from cartolex.lexicon.llm_filter import TermDecisionCache
-    from cartolex.lexicon.scoring import AI_BANDS
-    from cartolex.lexicon.triage_typed import _TYPED_CACHE_PHASE, load_typed_template
-    from cartolex.project.handoff import tokens
-
-    from .build import AI_BATCH
+    from ..ai_usage import recorded_usage, triage_estimate
     from .keywords import api_verdicts
 
     runtime = runtime_of(request)
-    rows, run_id = extracted(runtime, ctx)
+    _, run_id = extracted(runtime, ctx)
     # The API route judges every candidate but those rejected automatically, one per
     # distinct term; the answers already paid for (cache/ai/) cost nothing.
-    terms = sorted({r["term"] for r in rows if r["band"] in AI_BANDS})
-    config = ctx.project.config
-    known = 0
-    if config.identity.ai is not None:
-        cache = TermDecisionCache(ctx.layout.cache_ai / "triage_term_cache.json")
-        title, model = config.identity.domain_title, config.identity.ai.model
-        known = sum(1 for t in terms if cache.get(_TYPED_CACHE_PHASE, t, title, model))
-    new_terms = len(terms) - known
-    calls = -(-new_terms // AI_BATCH)
-    rejected = sum(1 for r in rows if r["band"] == "rejected")
-    try:
-        template = load_typed_template(
-            ctx.layout.root / "decisions/prompts/triage_typed_system.txt"
-        )
-        system = tokens(template.text)
-    except Exception:  # an unreadable override: the build says why; the estimate goes on
-        system = 1500
-    share = new_terms / max(len(terms), 1)
-    tokens_in = calls * system + int(share * sum(tokens(t) + 4 for t in terms))
-    tokens_out = new_terms * 10
+    estimate = triage_estimate(runtime, ctx) or {
+        "terms": 0, "new": 0, "answered": 0, "rejected": 0, "calls": 0,
+        "tokens_in": 0, "tokens_out": 0, "upper_bound": True,
+    }  # fmt: skip
     identity = ctx.project.config.identity.ai
     ai = runtime.ai_access()
     key = bool(ai is not None and (ai.api_key or ai.client_factory))
@@ -249,19 +228,12 @@ def ai_routes(request: Request, ctx: ProjectDep) -> dict[str, Any]:
             "stage": "keywords.triage",
             "sends": list(API_SENDS),
             "never": list(API_NEVER),
-            "estimate": {
-                "terms": len(terms),
-                "new": new_terms,
-                "answered": known,
-                "rejected": rejected,
-                "calls": calls,
-                "tokens_in": tokens_in,
-                "tokens_out": tokens_out,
-                "upper_bound": True,
-            },
+            "estimate": estimate,
             "last": None
             if triage is None
             else {"run": triage.run_id, "at": triage.finished_at, **triage.measures.counts},
+            # the tokens the provider reported: the last run and every run of the project
+            "usage": recorded_usage(ctx.layout),
         },
     }
 

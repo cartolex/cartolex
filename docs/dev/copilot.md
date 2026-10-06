@@ -214,7 +214,7 @@ with a result; the kit writes only results it passes, the app reads only those
 
 | route | what it does |
 | --- | --- |
-| `POST /api/themes/copilot/summary {tree, language}` | what a themes bundle holds and never holds, and its counts (nodes, keywords, set aside, people) |
+| `POST /api/themes/copilot/summary {tree, language}` | what a themes bundle holds and never holds, its counts (nodes, keywords, set aside, people) and `tokens` (`in`, `out`: about what an assistant reads and writes on it) |
 | `POST /api/themes/copilot/export {tree, language}` | the themes bundle (a zip) of the tree being edited, unsaved edits included (default: the saved tree, else the grouping's proposal); `language` is the curator's |
 | `POST /api/themes/copilot/import {result}` | keeps the result in `decisions/history/ai/<time>-copilot-themes.json` and its new rules in `decisions/curation-notes.md`, and gives each change as a proposal item (`verb`, `kind`, `ops`, `reason`, `refused` when it cannot apply after the changes before it; a restructuring, or a change of more than 500 operations, also `tree`, the tree it gives), `applicable`, `matches`, `measures`, `rules`, `notes`; the first answers freeze the identity |
 | `GET /api/themes/copilot/proposals/{id}` | one of them, read again |

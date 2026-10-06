@@ -629,3 +629,44 @@
     grid-template-rows: minmax(14rem, 1fr) auto;
   }
 }
+
+/* The collection notice's levels: the consent and « Don't show this again », the brief
+   notice of a kind already acknowledged, OpenAlex's cost beyond its free daily budget. */
+.cx-corpus-consent {
+  display: grid;
+  gap: var(--cx-space-2);
+}
+
+.cx-corpus-consent p,
+.cx-corpus-brief p,
+.cx-corpus-budget p {
+  margin: 0;
+}
+
+.cx-corpus-brief {
+  display: grid;
+  gap: var(--cx-space-2);
+}
+
+.cx-corpus-budget {
+  display: flex;
+  gap: var(--cx-space-2);
+  align-items: flex-start;
+  margin: var(--cx-space-2) 0;
+  padding: var(--cx-space-2) var(--cx-space-3);
+  border: 1px solid var(--cx-warning);
+  border-left-width: 3px;
+  border-radius: var(--cx-radius-s);
+  background: var(--cx-warning-surface);
+}
+
+.cx-corpus-budget > .cx-icon {
+  flex: none;
+  color: var(--cx-warning);
+}
+
+.cx-corpus-budget > div {
+  display: grid;
+  gap: var(--cx-space-2);
+  justify-items: start;
+}

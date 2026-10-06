@@ -32,10 +32,13 @@ from .tables import new_run_id
 
 __all__ = [
     "NEVER_SENT",
+    "OPENALEX_BUDGETS",
     "OPENALEX_PRICES",
+    "SNAPSHOT_ADVICE_USD",
     "STORED",
     "CollectionPlan",
     "PlannedHost",
+    "openalex_budget",
     "plan_collection",
     "record_job",
 ]
@@ -45,6 +48,40 @@ __all__ = [
 OPENALEX_PRICES = {"singleton": 0.0, "list": 0.0001, "search": 0.001}
 #: The daily budgets OpenAlex gives, in US dollars (checked 2026-09-28).
 OPENALEX_BUDGETS = {"without a key": 0.10, "with a free key": 1.0}
+#: When the prices and budgets above were checked, and where OpenAlex gives a free key.
+OPENALEX_CHECKED = "2026-09-28"
+OPENALEX_KEY_URL = "https://openalex.org/settings/api"
+#: The cost at OpenAlex's prices above which the snapshot is recommended instead of the API:
+#: about 10 euros, in US dollars. Below it, a key and a few days cost less than downloading
+#: and reading the snapshot.
+SNAPSHOT_ADVICE_USD = 11.0
+
+
+def openalex_budget(cost_usd: float | None, keyed: bool) -> dict[str, Any]:
+    """Where a collection's OpenAlex cost stands against the free daily budgets.
+
+    ``state`` is ``fits`` (within the daily budget of the current tier: nothing to
+    pay, no sum worth showing), ``needs_key`` (over the budget without a key: a
+    free key, or ``days`` days) or ``days`` (over the budget with a key: about
+    ``days`` days). ``days_with_key`` is the days with a free key;
+    ``snapshot_advised`` is true above :data:`SNAPSHOT_ADVICE_USD`.
+    """
+    cost = round(float(cost_usd or 0.0), 6)
+    daily = OPENALEX_BUDGETS["with a free key" if keyed else "without a key"]
+    keyed_daily = OPENALEX_BUDGETS["with a free key"]
+    fits = cost <= daily
+    return {
+        "cost_usd": cost,
+        "keyed": keyed,
+        "daily_usd": daily,
+        "keyed_daily_usd": keyed_daily,
+        "fits": fits,
+        "state": "fits" if fits else "days" if keyed else "needs_key",
+        "days": max(1, math.ceil(round(cost / daily, 6))),
+        "days_with_key": max(1, math.ceil(round(cost / keyed_daily, 6))),
+        "snapshot_advised": cost > SNAPSHOT_ADVICE_USD,
+    }
+
 
 NEVER_SENT = (
     "texts, titles and abstracts you imported or collected",
@@ -87,6 +124,9 @@ class CollectionPlan:
     #: The notes as codes and parameters for an interface's catalogues, in the order
     #: of :attr:`notes` (``{"code", "params", "message"}``, ``message`` the English).
     coded_notes: list[dict[str, Any]] = field(default_factory=list)
+    #: OpenAlex's cost against its free daily budget (:func:`openalex_budget`), when the
+    #: collection asks OpenAlex anything that costs.
+    budget: dict[str, Any] | None = None
 
     def note(self, code: str, message: str, **params: Any) -> None:
         """Add a note, in words and as a code with its parameters."""
@@ -97,14 +137,16 @@ class CollectionPlan:
         return asdict(self)
 
     def lines(self) -> list[str]:
-        """The summary in words, as shown before a collection."""
-        out = [f"{self.action} for {self.people} person(s). What leaves this computer:"]
+        """The summary in words, as shown before a collection (a cost only beyond the free
+        daily budget)."""
+        who = f" for {self.people} person(s)" if self.people else ""
+        out = [f"{self.action}{who}. What leaves this computer:"]
         if not self.hosts:
             out.append("  nothing: no request is needed")
         for h in self.hosts:
             cost = ""
-            if h.cost_usd is not None:
-                cost = f", about ${h.cost_usd:.3f} at the service's published prices"
+            if h.cost_usd and self.budget is not None and not self.budget["fits"]:
+                cost = f", about {_usd(h.cost_usd)} at the service's published prices"
             out.append(
                 f"  {h.host} ({h.label}), to {h.purpose}: {', '.join(h.sends)}; "
                 f"about {h.requests} request(s){cost}"
@@ -116,6 +158,11 @@ class CollectionPlan:
 
 def _host(url: str) -> str:
     return urlsplit(url).netloc
+
+
+def _usd(value: float) -> str:
+    """A sum in US dollars, in words: two decimals, else « less than $0.01 »."""
+    return f"${value:,.2f}" if value >= 0.005 else "less than $0.01"
 
 
 def _targets(project: Project, action: str, people: Sequence[str] | None) -> list[dict]:
@@ -338,21 +385,31 @@ def plan_collection(
         )
     openalex = next((h for h in plan.hosts if h.service == "openalex"), None)
     if openalex is not None and openalex.cost_usd:
-        budget = OPENALEX_BUDGETS[
-            "with a free key" if settings.api_key("openalex") else "without a key"
-        ]
-        days = max(1, math.ceil(openalex.cost_usd / budget))
-        if days > 1:
-            keyed = bool(settings.api_key("openalex"))
+        budget = openalex_budget(openalex.cost_usd, bool(settings.api_key("openalex")))
+        plan.budget = budget
+        if budget["state"] == "needs_key":
             plan.note(
-                "note_openalex_budget_key" if keyed else "note_openalex_budget",
-                f"OpenAlex gives a daily budget of ${budget:.2f} "
-                + ("with your key" if keyed else "without a key")
-                + f": this collection needs about {days} days of it"
-                + ("" if keyed else ", or a free API key")
-                + "; from a national size up, read the snapshot instead (collect snapshot)",
-                usd=budget,
-                days=days,
+                "note_openalex_budget",
+                f"OpenAlex gives {_usd(budget['daily_usd'])} a day without a key: this "
+                f"collection needs a free API key, or about {budget['days']} days",
+                usd=budget["daily_usd"],
+                days=budget["days"],
+                key_days=budget["days_with_key"],
+            )
+        elif budget["state"] == "days":
+            plan.note(
+                "note_openalex_budget_key",
+                f"OpenAlex gives {_usd(budget['daily_usd'])} a day with your key: this "
+                f"collection takes about {budget['days']} days of it",
+                usd=budget["daily_usd"],
+                days=budget["days"],
+            )
+        if budget["snapshot_advised"]:
+            plan.note(
+                "note_openalex_snapshot",
+                f"at OpenAlex's prices this collection costs about {_usd(budget['cost_usd'])}: "
+                "read the OpenAlex snapshot instead (collect snapshot), which costs nothing",
+                usd=round(budget["cost_usd"], 2),
             )
     for code, words, params in notes:
         plan.note(code, words, **params)

@@ -512,15 +512,26 @@ def triage_runner(
             _settings(ctx, llm_max_concurrent=ai.max_concurrent),
             ai_client=ai.client_factory,
         )
-        result = _engine_call(
-            ctx, lambda: run_pipeline_stage_2_llm(rctx, api_key=ai.api_key or "given-client")
-        )
+        try:
+            result = _engine_call(
+                ctx, lambda: run_pipeline_stage_2_llm(rctx, api_key=ai.api_key or "given-client")
+            )
+        finally:
+            # The tokens the provider reported, paid even when the run stops: the project's
+            # total (cache/ai/usage.json); answers from the cache cost none.
+            used = rctx.usage.cumulative()
+            if used.total_tokens:
+                from ..lexicon.llm_usage import add_to_persisted
+
+                add_to_persisted(rctx.paths.ai_usage_json, used)
         if result is None:
             raise RuntimeError("the AI clean-up did not run")
         feed_rejects(ctx, rctx)
         return {
             "accepted": len(result.get("accepted", [])),
             "rejected": len(result.get("rejected", [])),
+            "tokens_in": used.prompt_tokens,
+            "tokens_out": used.completion_tokens,
         }
 
     return run_triage

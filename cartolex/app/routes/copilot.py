@@ -229,9 +229,11 @@ class ThemesExportBody(BaseModel):
 
 @routes.post("/api/themes/copilot/summary", action="themes.read")
 def themes_summary(request: Request, body: ThemesExportBody, ctx: ProjectDep) -> dict[str, Any]:
-    """What a themes bundle would hold and never holds, and its counts (nothing is made)."""
+    """What a themes bundle would hold and never holds, its counts, and about how many tokens
+    an assistant reads and writes on it (``tokens``: ``in``, ``out``); nothing is made."""
     from cartolex.project.copilot import THEMES_CONTAINS, THEMES_NEVER
 
+    from ..ai_usage import themes_copilot_tokens
     from .themes import _usage
 
     tree, source, _ = _theme_source(request, ctx, body.tree)
@@ -245,6 +247,7 @@ def themes_summary(request: Request, body: ThemesExportBody, ctx: ProjectDep) ->
             "set_aside": len(tree.set_aside),
             "people": people,
         },
+        "tokens": themes_copilot_tokens(len(tree.nodes), len(tree.keywords)),
         "contains": list(THEMES_CONTAINS),
         "never": list(THEMES_NEVER),
     }

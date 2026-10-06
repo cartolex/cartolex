@@ -92,6 +92,13 @@ def build_outcome(
         "not_run": list(result.not_run),
         "changed": result.changed,
     }
+    # The tokens the AI provider reported for the stages that ran (none from the cache).
+    spent = [r.measures.counts for r in result.ran if "tokens_in" in r.measures.counts]
+    if spent:
+        out["ai_usage"] = {
+            "tokens_in": sum(c["tokens_in"] for c in spent),
+            "tokens_out": sum(c.get("tokens_out", 0) for c in spent),
+        }
     if result.failed:
         said = attempt_message("failed", result.failed[1])
         label, action = FAILED_NEXT.get(said["code"], FAILED_NEXT["stage_failed"])

@@ -36,7 +36,6 @@ demo services of a demo world on this computer).
 
 from __future__ import annotations
 
-import math
 import os
 import threading
 from collections.abc import Callable, Mapping, Sequence
@@ -283,7 +282,7 @@ class ServiceCollection(BaseCollection):
         if self.local:  # nothing is paid to services on this computer
             for h in hosts:
                 h["cost_usd"] = None
-            notes = [n for n in notes if not n["code"].startswith("note_openalex_budget")]
+            notes = [n for n in notes if not n["code"].startswith("note_openalex_")]
             notes.insert(
                 0,
                 {
@@ -314,7 +313,10 @@ class ServiceCollection(BaseCollection):
                 {"code": f"stored_{i}", "message": text} for i, text in enumerate(STORED, start=1)
             ],
             "notes": notes,
-            # Consent is asked when something leaves the computer.
+            # OpenAlex's cost against its free daily budget (none on this computer's services).
+            "budget": None if self.local else base.budget,
+            # Consent is asked when something leaves the computer (the route may lighten it:
+            # :mod:`cartolex.app.notices`).
             "consent_needed": bool(hosts),
             "estimate": {
                 "seconds": round(seconds + (route["snapshot"]["seconds"] or 0), 1)
@@ -335,7 +337,7 @@ class ServiceCollection(BaseCollection):
         time at the speed this computer last read it. ``chosen`` is the way asked, else
         ``preselected``: the snapshot when it is ready and faster.
         """
-        from cartolex.collect.privacy import OPENALEX_BUDGETS
+        from cartolex.collect.privacy import openalex_budget
 
         store = self._snapshot
         if store is None or action not in SNAPSHOT_ACTIONS:
@@ -351,8 +353,7 @@ class ServiceCollection(BaseCollection):
         days = 0
         if openalex.cost_usd and not self.local:
             keyed = bool(self.settings.api_key("openalex"))
-            budget = OPENALEX_BUDGETS["with a free key" if keyed else "without a key"]
-            days = max(1, math.ceil(openalex.cost_usd / budget))
+            days = openalex_budget(openalex.cost_usd, keyed)["days"]
         search = action == "institutions" and not opts.get("institutions")
         snapshot: dict[str, Any] = {
             "folder": status["folder"],
@@ -808,7 +809,7 @@ class ServiceCollection(BaseCollection):
                 "summary_params": {"n": len(found)},
             }
         from cartolex.collect.institutions import CONFIRM_WORKS
-        from cartolex.collect.privacy import OPENALEX_BUDGETS, OPENALEX_PRICES
+        from cartolex.collect.privacy import OPENALEX_PRICES, openalex_budget
         from cartolex.project.checkpoints import JobPaused
 
         years = tuple(opts["years"]) if opts.get("years") else None
@@ -839,11 +840,12 @@ class ServiceCollection(BaseCollection):
             if paused.code == "collect_size_confirm":
                 requests = int(paused.params.get("requests") or 0)
                 keyed = bool(self.settings.api_key("openalex"))
-                budget = OPENALEX_BUDGETS["with a free key" if keyed else "without a key"]
                 cost = requests * OPENALEX_PRICES["list"]
+                budget = openalex_budget(cost, keyed)
                 paused.params.update(
-                    cost_usd=None if self.local else round(cost, 2),
-                    days=None if self.local else max(1, math.ceil(cost / budget)),
+                    # no sum while it fits the free daily budget
+                    cost_usd=None if self.local or budget["fits"] else round(cost, 2),
+                    days=None if self.local else budget["days"],
                     keyed=keyed,
                     **self._snapshot_instead("institutions"),
                 )

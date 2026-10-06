@@ -117,6 +117,7 @@ class ServiceError(CollectError):
         retry_after: float | None = None,
         resets_at: datetime | None = None,
         budget_spent: bool = False,
+        keyed: bool = False,
     ) -> None:
         self.host, self.status, self.what, self.advice = host, status, what, advice
         self.retry_after = retry_after
@@ -124,6 +125,8 @@ class ServiceError(CollectError):
         self.resets_at = resets_at
         #: The service said its daily budget is spent (not a passing rate limit).
         self.budget_spent = budget_spent
+        #: The request carried an API key (a spent budget then means waiting, not a key).
+        self.keyed = keyed
         shown = f"status {status}" if status is not None else "no answer"
         super().__init__(f"{host}: {what} ({shown}); {advice}")
 
@@ -1012,6 +1015,7 @@ class HttpClient:
                             retry_after=(resets_at - now).total_seconds() if resets_at else asked,
                             resets_at=resets_at,
                             budget_spent=True,
+                            keyed=bool(self.settings.api_key(svc.name)),
                         )
                     if asked is not None and asked > policy.max_retry_after:
                         raise ServiceUnavailable(

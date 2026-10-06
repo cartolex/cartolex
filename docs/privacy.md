@@ -1,10 +1,11 @@
 # Privacy and personal data
 
-A cartolex project holds personal data: the names of the people it maps, their
-identifiers, their affiliations and their texts. This page says what leaves
-your computer while cartolex collects, what never does, what is kept and where,
-and how to delete it. It describes how the software behaves; it is not legal
-advice.
+cartolex works with public data: the bibliographic records that open services
+publish about scientific works and their authors. A project still holds
+personal data: the names of the people it maps, their identifiers, their
+affiliations and their texts. This page says what leaves your computer while
+cartolex collects, what never does, what is kept and where, and how to delete
+it. It describes how the software behaves; it is not legal advice.
 
 ## What leaves your computer
 
@@ -30,13 +31,38 @@ address, and the program's name (`cartolex`). If you give a contact address
 (`--contact`), it goes to the services in the request headers and, for
 OpenAlex, as a parameter; if you give an API key, it goes to its service only.
 
-**Before every collection**, cartolex prints this summary for the planned
-work: the hosts, why, the kinds of data, the number of requests and, where a
-service charges, the estimated cost (`--dry-run` on `cartolex collect resolve`,
-`harvest`, `snapshot`, `institutions`, `collaborators` and `coverage --retry`;
-in Python, `cartolex.collect.privacy.plan_collection`). In the app, the
-Collect dialog shows it before every collection, and the collection starts
-only once you have confirmed you read it. The people of an
+**Before a collection**, cartolex works out the summary of the planned work:
+the hosts, why, the kinds of data, the number of requests and, beyond a
+service's free allowance, the estimated cost. On the command line it prints it
+(`--dry-run` on `cartolex collect resolve`, `harvest`, `snapshot`,
+`institutions`, `collaborators` and `coverage --retry`; in Python,
+`cartolex.collect.privacy.plan_collection`). In the app, the Collect dialog
+shows it at one of three levels, chosen and enforced by the app's server:
+
+- **No notice** when nothing personal is sent (an institution searched or read
+  by its name or identifier) and the work fits OpenAlex's free daily budget:
+  the collection starts at once, and its message says which services it asks
+  and about how many requests.
+- **The full notice** the first time people's names or identifiers are sent
+  for a kind of collection (finding identities, harvesting texts, collaborators,
+  a retry), whenever what is sent changes (another service, other kinds of
+  data, a new version of the notice), and whenever the work goes beyond
+  OpenAlex's free daily budget. The collection starts only once you have
+  confirmed you read it; « Don't show this again » makes the next ones brief.
+- **A brief notice** for a kind you acknowledged that way: one sentence and a
+  confirmation, the full notice one click away under « Details ».
+
+The acknowledgements are kept on this computer, in the app's own folder (per
+person on a hosted service), never in a project. Settings › Privacy lists them
+and shows every notice in full again.
+
+OpenAlex gives a free daily budget, larger with a free API key. Within it the
+notice shows no sum. Beyond it, it says what it takes: a free key, or the
+number of days without one; with a key, the number of days. Above about 10
+euros at OpenAlex's prices, it suggests reading the OpenAlex snapshot on your
+computer instead, which sends nothing to OpenAlex and costs nothing.
+
+The people of an
 institution and the collaborators found are people too: what the harvest then
 sends for them is what it sends for anyone. After a collection, the job's
 record in `logs/jobs/` names every host contacted and the kinds of data sent,
@@ -73,7 +99,10 @@ Everything stays in the project folder:
 | `decisions/` | what people decided, with every earlier version in `decisions/history/` |
 | `logs/jobs/` | what each job did: counts, times, hosts and kinds of data |
 
-Nothing is kept anywhere else: cartolex has no server and sends no usage data.
+Outside projects, the app's own folder on your computer keeps its settings of
+this computer: your keys, the snapshot folder, the notices you acknowledged;
+never a name, an identifier or a text. Nothing is kept anywhere else: cartolex
+has no server and sends no usage data.
 
 ## What a shared site holds
 

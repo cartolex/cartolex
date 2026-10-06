@@ -113,10 +113,11 @@ export function CorpusScreen() {
       });
     });
   }, [version, tick]);
-  const started = (job) => {
+  // *line*: what the collection sends, when it needed no notice (« OpenAlex: about 1 request »).
+  const started = (job, line = null) => {
     setWatched(job.id);
     app.stores.jobs.refresh();
-    toast({ kind: 'info', title: t('corpus.job.started'), message: t('corpus.job.follow'),
+    toast({ kind: 'info', title: t('corpus.job.started'), message: line || t('corpus.job.follow'),
       action: { label: t('activity.title'), onClick: () => runtime.openActivity() } });
   };
 

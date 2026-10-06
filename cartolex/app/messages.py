@@ -113,8 +113,8 @@ MESSAGES: dict[str, MessageKind] = {
     # why a job failed (``error`` of a failed job, :func:`job_error`)
     "job_failed": MessageKind("the job failed ({error_type}): {detail}"),
     "collect_budget_spent": MessageKind(
-        "{host} refused more requests (status {status}): its rate or its daily budget is spent; "
-        "wait, or set an API key"
+        "{host} refused more requests (status {status}): its daily budget is spent; set a free "
+        "API key, or wait for the next day's budget"
     ),
     "collect_service_unavailable": MessageKind(
         "{host} gave no usable answer after every attempt ({what}); try again later"
@@ -290,7 +290,7 @@ def _cause_code(exc: BaseException) -> tuple[str, dict[str, Any]]:
         if exc.retry_after is not None:
             params["wait_s"] = round(exc.retry_after)
         if isinstance(exc, ServiceUnavailable) and exc.budget_spent:
-            return "collect_budget_spent", params
+            return "collect_budget_spent", {**params, "keyed": bool(getattr(exc, "keyed", False))}
         if isinstance(exc, IncompleteResults):
             return "collect_incomplete", params
         if isinstance(exc, MalformedResponse):
@@ -313,6 +313,12 @@ def job_error(exc: BaseException, progress: Mapping[str, Any] | None = None) -> 
     far it got. (Messages of cartolex name no person; the message is cut at 300 characters.)"""
     code, params = _cause_code(exc)
     out = message(code, **params)
+    if code == "collect_budget_spent":  # without a key, a free one; with one, waiting
+        out["next"] = (
+            {"label": "Wait for the next day's budget", "action": "none"}
+            if params.get("keyed")
+            else {"label": "Set a free API key", "action": "open:/settings?section=sources"}
+        )
     out["exception"] = type(exc).__name__
     out["detail"] = str(exc).strip()[:300]
     if progress:

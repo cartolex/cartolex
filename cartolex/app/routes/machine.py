@@ -16,16 +16,28 @@ from ..routing import Routes, runtime_of
 
 routes = Routes(tags=["machine"])
 
-#: What OpenAlex allows a day, with and without a free key (its policy, checked 2026-09-28).
-OPENALEX_BUDGET = {
-    "without_key_usd": 0.10,
-    "with_key_usd": 1.00,
-    "list_per_1000_usd": 0.10,
-    "search_per_1000_usd": 1.00,
-    "lookup_usd": 0.0,
-    "checked": "2026-09-28",
-    "get_key": "https://openalex.org/settings/api",
-}
+
+def openalex_view() -> dict[str, Any]:
+    """What OpenAlex allows a day, with and without a free key, and its prices: the one table
+    of :mod:`cartolex.collect.privacy`, in the shape the settings show."""
+    from cartolex.collect.privacy import (
+        OPENALEX_BUDGETS,
+        OPENALEX_CHECKED,
+        OPENALEX_KEY_URL,
+        OPENALEX_PRICES,
+        SNAPSHOT_ADVICE_USD,
+    )
+
+    return {
+        "without_key_usd": OPENALEX_BUDGETS["without a key"],
+        "with_key_usd": OPENALEX_BUDGETS["with a free key"],
+        "list_per_1000_usd": round(OPENALEX_PRICES["list"] * 1000, 6),
+        "search_per_1000_usd": round(OPENALEX_PRICES["search"] * 1000, 6),
+        "lookup_usd": OPENALEX_PRICES["singleton"],
+        "snapshot_above_usd": SNAPSHOT_ADVICE_USD,
+        "checked": OPENALEX_CHECKED,
+        "get_key": OPENALEX_KEY_URL,
+    }
 
 
 def _view(runtime: Any) -> dict[str, Any]:
@@ -38,7 +50,7 @@ def _view(runtime: Any) -> dict[str, Any]:
         "keys": {name: runtime.keys.status(name) for name in KEY_SERVICES},
         "keys_saved_in": "this computer" if runtime.keys.path is not None else "memory",
         "ai_api": runtime.ai_access() is not None,
-        "openalex": OPENALEX_BUDGET,
+        "openalex": openalex_view(),
         "snapshot": None if runtime.settings.hosted else runtime.snapshot.status(),
         "build_budget": None if runtime.settings.hosted else runtime.budget.status(),
         "limits": {

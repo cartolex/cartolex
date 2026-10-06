@@ -94,8 +94,28 @@ def ai_calls(ctx: Any, the_plan: Any, stage: str) -> int | None:
     return -(-int(n) // AI_BATCH) if n else None
 
 
+def ai_tokens(runtime: Any, ctx: Any, the_plan: Any, stage: str) -> dict[str, int] | None:
+    """About how many tokens a paid stage sends and receives (``in``, ``out``, ``calls``; an
+    upper bound, answers already paid for left out); unknown when the extraction runs again
+    first or for another stage."""
+    from ..ai_usage import TRIAGE_STAGE, triage_estimate
+
+    if runtime is None or ctx is None or stage != TRIAGE_STAGE:
+        return None
+    if "keywords.extract" in the_plan.to_run:
+        return None
+    e = triage_estimate(runtime, ctx)
+    return (
+        None if e is None else {"in": e["tokens_in"], "out": e["tokens_out"], "calls": e["calls"]}
+    )
+
+
 def plan_json(
-    the_plan: Any, registry: Any, ctx: Any = None, pause: dict[str, Any] | None = None
+    the_plan: Any,
+    registry: Any,
+    ctx: Any = None,
+    pause: dict[str, Any] | None = None,
+    runtime: Any = None,
 ) -> dict[str, Any]:
     items = [
         {
@@ -130,6 +150,7 @@ def plan_json(
                     "note": stage.consent_note,
                     "estimate": _estimate(i.estimate),
                     "ai_calls_max": ai_calls(ctx, the_plan, i.stage) if stage.paid else None,
+                    "ai_tokens": ai_tokens(runtime, ctx, the_plan, i.stage) if stage.paid else None,
                 }
             )
     return {
@@ -280,7 +301,7 @@ def post_build(request: Request, body: BuildBody, ctx: ProjectDep) -> Any:
             memory_mb=runtime.budget.budget().memory_mb,
         )
         pause = pause_for(runtime, ctx, the_plan, list(body.go_on))
-        out = plan_json(the_plan, runtime.registry, ctx, pause)
+        out = plan_json(the_plan, runtime.registry, ctx, pause, runtime)
         out["running"] = running.as_dict() if running else None
         out["ai"] = ai_view(runtime, ctx)
         if not out["to_run"]:
