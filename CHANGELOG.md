@@ -8,6 +8,18 @@ line.
 A generic engine with an explicit API: every stage takes a run context, and
 nothing in the engine names a particular deployment, source or procedure.
 
+- **The map leads to the other screens, and measures distances.** Its panel
+  opens a person, an organisation or a text in People, a keyword in Keywords
+  or Themes, a theme in Themes, and those screens come back to the map
+  (`/map?sel=kind:id`, centred). From the space of the themes: the nearest of
+  a person or an organisation with their cosine similarity
+  (`GET /api/atlas/neighbours`), « Compare with… » (`GET /api/atlas/compare`),
+  the people who use a keyword (`GET /api/atlas/keyword-people`), and exports
+  of the nearest of each, the full similarity matrix (by blocks, `.npz` when
+  large, confirmed above ten million cells) or the vectors. The map's body and
+  the themes' centre go full screen; the map's side columns fold away. The
+  keywords list takes `term=` (a keyword with the candidates merged into it).
+
 - **Projects of millions of texts on an ordinary computer.** Memory no longer
   grows with the texts; their processing runs in worker processes, and the
   results do not depend on how many.
