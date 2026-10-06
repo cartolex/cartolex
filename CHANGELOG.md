@@ -8,6 +8,18 @@ line.
 A generic engine with an explicit API: every stage takes a run context, and
 nothing in the engine names a particular deployment, source or procedure.
 
+- **The app's frame.** The local app keeps its port from one launch to the next
+  (the browser keeps its settings and drafts) and, without a folder, opens the
+  last project again. Theme, language and dismissed jobs are kept by the app
+  (`/api/me/preferences`, now with `dismissed_jobs` and `saved_at`). The header
+  names the open project, with a menu of the recent ones; the logo leads to an
+  About page (`GET /api/app/about`, `docs/about.md`). A wheel carries a build
+  stamp (`tools/build_stamp.py`; manifest `app.build`, `app.platform`), shown
+  in the settings menu. Every Activity entry is dated; a failure made good by a
+  later job of its kind leaves the header. A failed job keeps its traceback
+  (`error.traceback`, home folder written `~`), and its diagnostic carries the
+  job, the time it failed, the build and the system.
+
 - **Projects of millions of texts on an ordinary computer.** Memory no longer
   grows with the texts; their processing runs in worker processes, and the
   results do not depend on how many.
