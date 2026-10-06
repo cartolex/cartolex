@@ -10,6 +10,7 @@ from fixtures and with the standard library only:
   ``tests/fixtures/manifest.example.json``, with the core pages and the test extension);
 * ``GET /api/project/state`` — ``tests/fixtures/ui/project-state.example.json``;
 * ``GET /api/jobs`` and ``POST /api/jobs/<id>/cancel`` — ``tests/fixtures/ui/jobs.example.json``;
+* ``GET`` and ``PUT /api/me/preferences`` — kept in memory until :meth:`FixtureServer.reset`;
 * ``GET /api/overview``, ``GET /api/build`` and the dry run ``POST /api/build`` —
   ``tests/fixtures/ui/overview.example.json``;
 * ``GET /api/themes`` and ``GET /api/themes/usage`` — ``tests/fixtures/ui/themes.example.json``
@@ -104,6 +105,8 @@ class FixtureServer(ThreadingHTTPServer):
         #: Every request: (method, path), in order.
         self.log: list[tuple[str, str]] = []
         self.lock = threading.Lock()
+        #: The preferences the app keeps (``PUT /api/me/preferences``), none at first.
+        self.prefs: dict | None = None
 
     @property
     def url(self) -> str:
@@ -116,6 +119,7 @@ class FixtureServer(ThreadingHTTPServer):
             self.data = load_fixtures()
             self.delays = {}
             self.log = []
+            self.prefs = None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -191,10 +195,7 @@ class Handler(BaseHTTPRequestHandler):
             self.rfile.read(length)
         if not path.startswith("/api/"):
             return self._error(HTTPStatus.METHOD_NOT_ALLOWED, "method_not_allowed", "Not here.")
-        security = self.server.data["manifest"]["security"]
-        if self.headers.get(security["csrf_header"]) != (
-            self._cookie(security.get("csrf_cookie") or CSRF_COOKIE) or "\0"
-        ):
+        if not self._same_app():
             return self._error(HTTPStatus.FORBIDDEN, "csrf", "The request is not from this app.")
         parts = path.strip("/").split("/")
         if len(parts) == 4 and parts[:2] == ["api", "jobs"] and parts[3] == "cancel":
@@ -209,6 +210,34 @@ class Handler(BaseHTTPRequestHandler):
             with self.server.lock:
                 return self._json(HTTPStatus.OK, self.server.data["plan"])
         return self._error(HTTPStatus.NOT_FOUND, "not_found", "No such route.")
+
+    def do_PUT(self) -> None:  # noqa: N802
+        path = self._begin()
+        length = int(self.headers.get("Content-Length") or 0)
+        body = self.rfile.read(length) if length else b"{}"
+        if not self._same_app():
+            return self._error(HTTPStatus.FORBIDDEN, "csrf", "The request is not from this app.")
+        if path == "/api/me/preferences":
+            with self.server.lock:
+                self.server.prefs = json.loads(body or b"{}")
+            return self._json(HTTPStatus.OK, self._prefs_view())
+        return self._error(HTTPStatus.NOT_FOUND, "not_found", "No such route.")
+
+    def _same_app(self) -> bool:
+        security = self.server.data["manifest"]["security"]
+        return self.headers.get(security["csrf_header"]) == (
+            self._cookie(security.get("csrf_cookie") or CSRF_COOKIE) or "\0"
+        )
+
+    def _prefs_view(self) -> dict:
+        with self.server.lock:
+            kept = copy.deepcopy(self.server.prefs)
+        empty = {"locale": None, "theme": None, "dismissed_jobs": [], "other": {}}
+        return {
+            "preferences": {**empty, **(kept or {})},
+            "stored": kept is not None,
+            "locales": self.server.data["manifest"]["locales"]["available"],
+        }
 
     def _static(self, path: str) -> None:
         rel = path.removeprefix("/static/")
@@ -249,6 +278,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(
                 HTTPStatus.OK, {"format": "cartolex-atlas/2", "available": False, "empty": empty}
             )
+        if path == "/api/me/preferences":
+            return self._json(HTTPStatus.OK, self._prefs_view())
         if path == "/api/ext/demo/slow":
             # The test extension's own route: the tests delay it to answer late.
             return self._json(HTTPStatus.OK, {"answer": 42})

@@ -9,9 +9,10 @@
  * called once (the shell refreshes the project state and shows a toast).
  *
  * A failed or paused job stays in the list until the person dismisses it (or
- * resumes it); dismissed ids are kept with the preferences.
+ * resumes it); dismissed ids are kept with the preferences, by the app.
  */
 import { computed, signal } from '../preact.js';
+import { MAX_DISMISSED } from './prefs.js';
 
 export const ACTIVE = new Set(['queued', 'running', 'cancelling']);
 export const FAST_MS = 1000;
@@ -147,7 +148,7 @@ export function createJobsStore({ api, dismissed, onFinished, timing = {}, enabl
     },
     /** Hide a finished job from the list. */
     dismiss(id) {
-      dismissed.value = [...dismissed.value.filter((d) => d !== id), id].slice(-100);
+      dismissed.value = [...dismissed.value.filter((d) => d !== id), id].slice(-MAX_DISMISSED);
     },
   };
 }

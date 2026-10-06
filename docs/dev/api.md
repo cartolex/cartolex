@@ -324,10 +324,12 @@ version, so it can be undone too).
 | `POST /api/keywords/ai/run {consent}` | filter by API: switch `keywords.triage` on in `params.json` and start it as a build job (202); `ai_api_not_ready` without a key or a provider, `ai_consent_needed` without consent |
 
 **The person**: `GET /api/me/preferences` and `PUT /api/me/preferences
-{locale, theme, other}`: the interface language, the theme and a few other
-settings of the person signed in, kept in the app's own folder (a hosted
-service: they follow a person from one browser to another). Locally the
-interface keeps them in the browser.
+{locale, theme, dismissed_jobs, other}`: the interface language, the theme, the
+finished jobs dismissed from the Activity list (200 at most) and a few other
+settings of the person signed in, kept in the app's own folder, so they outlive
+the browser's storage (a hosted service: they follow a person from one browser
+to another). The interface reads them at start and saves every change; the
+browser keeps a copy to paint the theme before the first request.
 
 **The interface**: `/static/…` (the interface's files: `.js` as
 `text/javascript; charset=utf-8`, `.css` as `text/css`, `.json` as

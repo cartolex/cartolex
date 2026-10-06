@@ -146,9 +146,12 @@ re-renders when it changes.
   Activity drawer is open, every twenty seconds otherwise, paused while the
   tab is hidden. When a job ends the project state refreshes and a toast
   says so. A failed job stays listed until dismissed.
-- **Preferences** (`core/stores/prefs.js`): theme and interface language, in
-  the browser's local storage; `core/boot-theme.js` applies the theme before
-  the first paint.
+- **Preferences** (`core/stores/prefs.js`): theme, interface language and the
+  jobs dismissed from the Activity list, kept by the app
+  (`/api/me/preferences`, read beside the manifest at start and saved at every
+  change, so they outlive the browser's storage); the browser's local storage
+  keeps a copy, which `core/boot-theme.js` reads to apply the theme before the
+  first paint.
 
 ## The API client
 

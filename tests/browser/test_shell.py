@@ -145,6 +145,22 @@ def test_theme_and_language_switch_and_persist(ui):
     assert ui.missing_keys() == []
 
 
+def test_preferences_outlive_the_browser_storage(ui, server):
+    ui.open("/gallery")
+    page = ui.page
+    page.locator(".cx-header .cx-menubutton button").click()
+    page.get_by_role("menuitemradio", name="Dark").click()
+    page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
+    deadline = time.monotonic() + 5
+    while (server.prefs or {}).get("theme") != "dark":
+        assert time.monotonic() < deadline, server.prefs
+        time.sleep(0.05)
+    page.evaluate("() => localStorage.clear()")  # a new address, or a cleared cache
+    page.reload()
+    ui.wait_ready(0)
+    assert page.evaluate("() => document.documentElement.dataset.theme") == "dark"
+
+
 @pytest.mark.parametrize("locale", ["fr", "pt-BR"])
 def test_catalogues_cover_the_gallery_in_every_language(ui, locale):
     ui.page.add_init_script(prefs_script(locale=locale))
