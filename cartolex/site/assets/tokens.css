@@ -64,6 +64,10 @@
 
   /* Layout */
   --cx-header-height: 3.5rem;
+  /* A screen that fills the window under the header (base.css « Screens that fill the
+     window »): its least height, and the least height of the part that fills it. */
+  --cx-fill-page: calc(100vh - var(--cx-header-height) - 2 * var(--cx-space-4));
+  --cx-fill-min: max(15rem, 100vh - var(--cx-header-height) - 25rem);
   --cx-content-width: 72rem;
   --cx-text-width: 40rem;
   --cx-row-height: 2.25rem;

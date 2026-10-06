@@ -14,8 +14,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--cx-space-3);
-  height: calc(100vh - var(--cx-header-height) - 2 * var(--cx-space-4));
-  min-height: 36rem;
+  min-height: max(36rem, var(--cx-fill-page));
 }
 
 .cx-corpus__head {

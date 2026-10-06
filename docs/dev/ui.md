@@ -404,7 +404,12 @@ the Table says are in view (`onRange`); a query key starting with `$` (a
 version) restarts the list without being sent. The Table takes
 `onRange({first, last})` (the rows in view), `onActiveChange(row)` (the
 active row, for a panel beside the list), rows marked `$pending` (shown as
-placeholders) and `size="fill"` (its container's height). The fixture
+placeholders) and `size="fill"` (what is left of its screen). A screen that fills the
+window under the header (the people's and keywords' lists, the theme editor) has a least
+height, never a fixed one: its list, or the editor's columns, has no height of its own
+(`contain: size`) and never shrinks below `--cx-fill-min`, so what is above it (an open
+« Tune » panel, the word cloud, banners) pushes it down and the page scrolls to its end
+(`tests/browser/test_layout.py`). The fixture
 server answers the themes screen with a small tree
 (`tests/fixtures/ui/themes.example.json`).
 
