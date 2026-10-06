@@ -32,6 +32,8 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from cartolex.scale.scratch import pid_alive as _pid_alive
+
 from .layout import ProjectLayout
 
 __all__ = [
@@ -125,33 +127,6 @@ def read_lock(path: Path) -> LockInfo | None:
         return LockInfo(int(raw["pid"]), str(raw["host"]), str(raw["app"]), str(raw["since"]))
     except (OSError, ValueError, KeyError, TypeError):
         return None
-
-
-def _pid_alive(pid: int) -> bool:
-    """Whether a process with this id runs on this host."""
-    if pid <= 0:
-        return False
-    if sys.platform == "win32":  # pragma: no cover - exercised on Windows only
-        import ctypes
-
-        kernel32 = ctypes.windll.kernel32
-        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
-        if not handle:
-            return False
-        try:
-            code = ctypes.c_ulong()
-            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
-                return True
-            return code.value == 259  # STILL_ACTIVE
-        finally:
-            kernel32.CloseHandle(handle)
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
 
 
 def _process_started(pid: int) -> float | None:

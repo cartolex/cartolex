@@ -7,7 +7,9 @@ time and using several processors. This package gives the pieces every stage sha
 - :class:`Budget`: the memory, the worker processes and the scratch folder a computer
   gives to cartolex, set once for the computer (results never depend on it);
 - :func:`ordered_map`: a function applied to items in worker processes, the results
-  given back in the items' order, with at most a few items in flight.
+  given back in the items' order, with at most a few items in flight;
+- :func:`scratch_folder`: a job's folder of temporary files, swept when a killed job
+  left it behind.
 
 It imports only the standard library and the declared dependencies, so that the
 collection, the project format and the engine can all use it.
@@ -17,5 +19,13 @@ from __future__ import annotations
 
 from .budget import Budget, total_memory_mb
 from .pool import ordered_map, worker_setup
+from .scratch import pid_alive, scratch_folder
 
-__all__ = ["Budget", "ordered_map", "total_memory_mb", "worker_setup"]
+__all__ = [
+    "Budget",
+    "ordered_map",
+    "pid_alive",
+    "scratch_folder",
+    "total_memory_mb",
+    "worker_setup",
+]

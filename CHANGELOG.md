@@ -17,7 +17,10 @@ nothing in the engine names a particular deployment, source or procedure.
     replaced). `cartolex collect rebuild FOLDER [--workers N] [--scratch DIR]`.
   - *Corpus*: packed (`pairs.parquet`, `people.csv`, `texts.parquet`), read by
     every stage through `cartolex.lexicon.corpus_store`, which also reads the
-    one-file-per-text contract.
+    one-file-per-text contract. `corpus.assemble` holds each authorship as two
+    codes and reads the parts' contents only to break a tie between copies of a
+    work, a row group at a time (`cartolex.project.corpus.work_copies` finds
+    the copies as it does).
   - *Extraction*: each text read, parsed and counted once, in worker processes;
     the parse cache is an SQLite file; scoring works from counts
     (`scoring.score_aggregates`).
@@ -26,7 +29,9 @@ nothing in the engine names a particular deployment, source or procedure.
   - *Trajectories*: each text counted once, a bin's vector the sum of its texts'
     counts; the people's chunks in worker processes.
   - *Budget*: `cartolex.scale.Budget` (memory, workers, scratch folder) reaches
-    every stage; `cartolex build --workers --memory --scratch`.
+    every stage; `cartolex build --workers --memory --scratch`. A scratch folder
+    names its computer and process (`cartolex.scale.scratch_folder`): one a
+    killed job left behind is removed by the next job that makes one.
 
 - **One namespace, packaged data.** The engine is `cartolex.lexicon` and
   `cartolex.atlas`; the stop-word lists and prompt templates ship in

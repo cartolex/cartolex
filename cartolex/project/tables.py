@@ -23,6 +23,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
@@ -41,6 +42,8 @@ __all__ = [
     "TableError",
     "check_source_file",
     "empty_table",
+    "find_ids",
+    "id_keys",
     "read_decision_csv",
     "read_source_table",
     "rows_to_table",
@@ -457,6 +460,44 @@ def read_source_table(
             fld = SOURCE_SCHEMAS[name].field(col)
             table = table.append_column(fld, pa.nulls(table.num_rows, type=fld.type))
     return table.select(columns)
+
+
+# ── ids as columns ───────────────────────────────────────────────────────────
+
+#: Ids turned into bytes at a time.
+_ID_BATCH = 65_536
+
+
+def id_keys(column: pa.Array | pa.ChunkedArray) -> np.ndarray:
+    """The ids of *column* (a table's key, in its order) as UTF-8 bytes in one NumPy
+    array, which :func:`find_ids` searches when the ids are sorted: a few bytes per id,
+    never a Python string for each."""
+    n = len(column)
+    width = (pc.max(pc.binary_length(column)).as_py() or 1) if n else 1
+    out = np.empty(n, dtype=f"S{max(width, 1)}")
+    start = 0
+    for chunk in column.chunks if isinstance(column, pa.ChunkedArray) else [column]:
+        for offset in range(0, len(chunk), _ID_BATCH):
+            ids = chunk.slice(offset, _ID_BATCH).to_pylist()
+            out[start : start + len(ids)] = [i.encode("utf-8") for i in ids]
+            start += len(ids)
+    return out
+
+
+def find_ids(keys: np.ndarray, ids: Sequence[str] | pa.Array | pa.ChunkedArray) -> np.ndarray:
+    """Where each of *ids* is in the sorted *keys* (:func:`id_keys`); ``-1``: not there."""
+    if isinstance(ids, pa.Array | pa.ChunkedArray):
+        ids = ids.to_pylist()
+    encoded = [i.encode("utf-8") for i in ids]
+    if not len(keys) or not encoded:
+        return np.full(len(encoded), -1, dtype=np.int64)
+    wanted = np.array(encoded, dtype=keys.dtype)
+    found = np.minimum(np.searchsorted(keys, wanted), len(keys) - 1)
+    hit = keys[found] == wanted
+    width = keys.dtype.itemsize
+    if any(len(e) > width for e in encoded):  # longer than every key: cut, it could match
+        hit &= np.array([len(e) <= width for e in encoded])
+    return np.where(hit, found, -1)
 
 
 # ── CSV decisions ────────────────────────────────────────────────────────────

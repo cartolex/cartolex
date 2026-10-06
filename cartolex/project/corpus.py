@@ -51,7 +51,7 @@ import numpy as np
 
 from .layout import ProjectLayout
 from .models import ProjectFile
-from .tables import read_decision_csv
+from .tables import find_ids, id_keys, read_decision_csv
 
 __all__ = [
     "INDEX_COLUMNS",
@@ -65,7 +65,10 @@ __all__ = [
     "duplicate_groups",
     "normalised_title",
     "render_text",
+    "title_hashes",
+    "title_keys",
     "version_rank",
+    "work_copies",
 ]
 
 #: The columns of an engine index, in order.
@@ -87,12 +90,15 @@ DUPLICATE_YEAR_GAP = 1
 VERSION_RANK = ("article", "review", "chapter", "communication", "proceedings")
 
 _WORD = re.compile(r"[^\W_]+")
+_ASCII_WORD = re.compile(r"[a-z0-9]+")
 
 
 def normalised_title(title: str | None) -> str:
     """A title for comparing: lower case, no accents, words only, single spaces."""
     if not title:
         return ""
+    if title.isascii():  # most titles: the same words, without decomposing each character
+        return " ".join(_ASCII_WORD.findall(title.lower()))
     plain = unicodedata.normalize("NFKD", title.lower())
     return " ".join(_WORD.findall("".join(c for c in plain if not unicodedata.combining(c))))
 
@@ -272,7 +278,7 @@ def assemble_corpus(
         src = _load(tables, config, unit_level)
         src.readable = src.mask_types(types_of)
         src.order = src.slot_order(slot_rank)
-        src.moved = _one_text_per_work(src, tables, same_work)
+        src.moved = _one_text_per_work(src, same_work)
         return src
 
     main = prepared(layout.tables)
@@ -409,11 +415,7 @@ class _Loaded:
 
     def lookup(self, ids: Sequence[str]) -> np.ndarray:
         """The index of each text id (``-1``: not in the tables)."""
-        wanted = np.array([i.encode("utf-8") for i in ids], dtype=self.keys.dtype)
-        found = np.searchsorted(self.keys, wanted)
-        found = np.minimum(found, max(self.n - 1, 0))
-        hit = self.keys[found] == wanted if self.n else np.zeros(len(ids), dtype=bool)
-        return np.where(hit, found, -1)
+        return find_ids(self.keys, ids)
 
     def mask_types(self, types_of: Callable[[str], set[str] | None]) -> np.ndarray:
         """Each text: whether its slot reads its document type."""
@@ -463,7 +465,6 @@ def _codes(column: Any) -> tuple[np.ndarray, list[str]]:
 
 
 def _load(tables: Path, config: ProjectFile, unit_level: str | None) -> _Loaded:
-    import pyarrow.compute as pc
     import pyarrow.parquet as pq
 
     missing = [
@@ -473,16 +474,30 @@ def _load(tables: Path, config: ProjectFile, unit_level: str | None) -> _Loaded:
     ]
     if missing:
         raise FileNotFoundError(f"{tables}: missing source table(s) {missing}")
+    src = _columns(tables)
+    src.people = {
+        row["person_id"]: {**row, "columns": dict(row["columns"] or [])}
+        for row in pq.read_table(
+            _table(tables, "people"), columns=["person_id", "last_name", "first_name", "columns"]
+        ).to_pylist()
+    }
+    src.units = _units(tables, config, unit_level)
+    src.person_texts = _texts_by_person(src)
+    return src
+
+
+def _columns(tables: Path) -> _Loaded:
+    """The texts of *tables* as columns (no people yet; every text readable)."""
+    import pyarrow.compute as pc
+    import pyarrow.parquet as pq
+
     texts = pq.read_table(
         _table(tables, "texts"),
         columns=["text_id", "slot", "position", "year", "doc_type", "version_of"],
     )
-    ids = texts["text_id"].to_pylist()
-    width = max((len(i.encode("utf-8")) for i in ids), default=1)
-    keys = np.array([i.encode("utf-8") for i in ids], dtype=f"S{max(width, 1)}")
+    keys = id_keys(texts["text_id"])
     if len(keys) > 1 and not bool(np.all(keys[1:] > keys[:-1])):
         raise ValueError(f"{_table(tables, 'texts')}: rows are not sorted by text_id")
-    del ids
     slot, slots = _codes(texts["slot"])
     doc_type, types = _codes(texts["doc_type"])
     year_col = texts["year"]
@@ -496,13 +511,7 @@ def _load(tables: Path, config: ProjectFile, unit_level: str | None) -> _Loaded:
     superseded = pc.is_in(texts["version_of"], value_set=texts["text_id"].combine_chunks())
     alive = ~np.asarray(superseded.fill_null(False).to_numpy(zero_copy_only=False), dtype=bool)
     del texts
-    people = {
-        row["person_id"]: {**row, "columns": dict(row["columns"] or [])}
-        for row in pq.read_table(
-            _table(tables, "people"), columns=["person_id", "last_name", "first_name", "columns"]
-        ).to_pylist()
-    }
-    src = _Loaded(
+    return _Loaded(
         tables=Path(tables),
         keys=keys,
         slot=slot,
@@ -513,101 +522,146 @@ def _load(tables: Path, config: ProjectFile, unit_level: str | None) -> _Loaded:
         doc_type=doc_type,
         types=types,
         alive=alive,
-        people=people,
-        units=_units(tables, config, unit_level),
+        people={},
+        units={},
         person_texts={},
+        readable=np.ones(len(keys), dtype=bool),
     )
-    src.person_texts = _texts_by_person(src)
-    return src
-
-
-def _authorships(src: _Loaded) -> tuple[np.ndarray, list[str]]:
-    """Every authorship of the tables: its text's index (``-1``: not a text of the tables)
-    and its person's id."""
-    import pyarrow.parquet as pq
-
-    table = pq.read_table(_table(src.tables, "authorships"), columns=["text_id", "person_id"])
-    texts = src.lookup(table["text_id"].to_pylist())
-    return texts, table["person_id"].to_pylist()
 
 
 def _texts_by_person(src: _Loaded) -> dict[str, np.ndarray]:
-    texts, people = _authorships(src)
-    keep = (texts >= 0) & src.alive[np.maximum(texts, 0)] if len(texts) else texts >= 0
-    by_person: dict[str, list[int]] = defaultdict(list)
-    for t, pid in zip(
-        texts[keep].tolist(),
-        (p for p, k in zip(people, keep.tolist(), strict=True) if k),
-        strict=True,
-    ):
-        by_person[pid].append(t)
-    return {pid: np.asarray(ts, dtype=np.int64) for pid, ts in by_person.items()}
+    """Each person's texts read (indices, in the authorships' order), from the authorships
+    a batch at a time: a person is a code until the end, never a string per authorship."""
+    import pyarrow.parquet as pq
+
+    codes: dict[str, int] = {}
+    texts, people = [], []
+    pf = pq.ParquetFile(_table(src.tables, "authorships"))
+    for batch in pf.iter_batches(batch_size=262_144, columns=["text_id", "person_id"]):
+        at = src.lookup(batch.column(0).to_pylist())
+        who = np.array(
+            [codes.setdefault(p, len(codes)) for p in batch.column(1).to_pylist()], dtype=np.int32
+        )
+        keep = (at >= 0) & src.alive[np.maximum(at, 0)] if len(at) else at >= 0
+        texts.append(at[keep])
+        people.append(who[keep])
+    pf.close()
+    every = np.concatenate(texts) if texts else np.zeros(0, dtype=np.int64)
+    who = np.concatenate(people) if people else np.zeros(0, dtype=np.int32)
+    del texts, people
+    order = np.argsort(who, kind="stable")
+    bounds = np.searchsorted(who[order], np.arange(len(codes) + 1))
+    return {
+        pid: every[order[bounds[c] : bounds[c + 1]]].astype(np.int64)
+        for pid, c in codes.items()
+        if bounds[c + 1] > bounds[c]
+    }
 
 
-def _one_text_per_work(src: _Loaded, tables: Path, same_work: Mapping[str, int]) -> dict[int, int]:
-    """Read one text per work of *src* (see the module docstring), in place.
-
-    The copies left out are no longer read; each of their authors reads the text kept
-    instead. Returns each copy left out → the text kept (indices).
-    """
+def title_hashes(titles: Iterable[str | None]) -> tuple[np.ndarray, np.ndarray]:
+    """Each title normalised (:func:`normalised_title`): a 64-bit hash of it, and its
+    length in characters."""
     import hashlib
 
+    hashes, lengths = [], []
+    for title in titles:
+        norm = normalised_title(title)
+        hashes.append(
+            int.from_bytes(hashlib.blake2b(norm.encode(), digest_size=8).digest(), "little")
+        )
+        lengths.append(len(norm))
+    return np.asarray(hashes, dtype=np.uint64), np.asarray(lengths, dtype=np.int32)
+
+
+def title_keys(tables: Path, rows: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """:func:`title_hashes` of the texts of *tables*, in the table's order: the rows of
+    the mask *rows* only (``None``: every row), the others ``0``."""
+    import pyarrow.parquet as pq
+
+    pf = pq.ParquetFile(_table(tables, "texts"))
+    n = pf.metadata.num_rows
+    hashes = np.zeros(n, dtype=np.uint64)
+    lengths = np.zeros(n, dtype=np.int32)
+    start = 0
+    for batch in pf.iter_batches(batch_size=65_536, columns=["title"]):
+        end = start + batch.num_rows
+        titles = batch.column(0).to_pylist()
+        if rows is None:
+            hashes[start:end], lengths[start:end] = title_hashes(titles)
+        else:
+            some = np.flatnonzero(rows[start:end])
+            hashes[start + some], lengths[start + some] = title_hashes(
+                titles[j] for j in some.tolist()
+            )
+        start = end
+    pf.close()
+    return hashes, lengths
+
+
+def work_copies(
+    tables: Path,
+    *,
+    min_title: int = DUPLICATE_MIN_TITLE,
+    year_gap: int = DUPLICATE_YEAR_GAP,
+    keys: tuple[np.ndarray, np.ndarray] | None = None,
+) -> dict[str, str]:
+    """The copies of a work among the texts of *tables*, each with the text read instead,
+    as ``corpus.assemble`` finds them when it reads every document type (see the module
+    docstring). *keys* are the texts' :func:`title_keys`, when already known."""
+    src = _columns(tables)
+    found = _find_copies(src, {"min_title": min_title, "year_gap": year_gap}, keys)
+    return {src.tid(copy): src.tid(kept) for copy, kept in sorted(found.items())}
+
+
+def _find_copies(
+    src: _Loaded, same_work: Mapping[str, int], keys: tuple[np.ndarray, np.ndarray] | None = None
+) -> dict[int, int]:
+    """Each copy of a work among the texts *src* reads → the text read instead (indices)."""
     import pyarrow.parquet as pq
 
     min_title = same_work.get("min_title", DUPLICATE_MIN_TITLE)
     year_gap = same_work.get("year_gap", DUPLICATE_YEAR_GAP)
     candidate = src.alive & src.readable & src.has_year
-    # Texts that may share a title: a 64-bit hash of (slot, normalised title) each.
-    hashes, owners = [], []
-    pf = pq.ParquetFile(_table(tables, "texts"))
-    start = 0
-    for batch in pf.iter_batches(batch_size=65_536, columns=["title"]):
-        for j, title in enumerate(batch.column(0).to_pylist()):
-            i = start + j
-            if not candidate[i]:
-                continue
-            norm = normalised_title(title)
-            if len(norm) >= min_title:
-                key = f"{src.slots[src.slot[i]]}\x00{norm}".encode()
-                hashes.append(
-                    int.from_bytes(hashlib.blake2b(key, digest_size=8).digest(), "little")
-                )
-                owners.append(i)
-        start += batch.num_rows
-    pf.close()
-    if not hashes:
-        return {}
-    h = np.asarray(hashes, dtype=np.uint64)
-    o = np.asarray(owners, dtype=np.int64)
-    order = np.argsort(h, kind="stable")
-    h, o = h[order], o[order]
-    repeated = np.zeros(len(h), dtype=bool)
-    same = h[1:] == h[:-1]
+    hashes, lengths = keys if keys is not None else title_keys(src.tables, candidate)
+    # Texts that may be one work: the same slot and the same title (its hash), twice or more.
+    rows = np.flatnonzero(candidate & (lengths >= min_title))
+    order = np.lexsort((rows, hashes[rows], src.slot[rows]))
+    rows = rows[order]
+    same = (src.slot[rows][1:] == src.slot[rows][:-1]) & (hashes[rows][1:] == hashes[rows][:-1])
+    repeated = np.zeros(len(rows), dtype=bool)
     repeated[1:] |= same
     repeated[:-1] |= same
-    wanted = set(o[repeated].tolist())
-    if not wanted:
+    wanted = np.zeros(src.n, dtype=bool)
+    wanted[rows[repeated]] = True
+    if not wanted.any():
         return {}
-    # The candidates' titles and authors, to apply the rule itself.
-    titles: dict[int, str] = {}
+    # Their titles and authors, to apply the rule itself.
+    titles: dict[str, str] = {}
     start = 0
-    pf = pq.ParquetFile(_table(tables, "texts"))
+    pf = pq.ParquetFile(_table(src.tables, "texts"))
     for batch in pf.iter_batches(batch_size=65_536, columns=["title"]):
-        for j, title in enumerate(batch.column(0).to_pylist()):
-            if start + j in wanted:
-                titles[start + j] = normalised_title(title)
+        some = np.flatnonzero(wanted[start : start + batch.num_rows])
+        if len(some):
+            column = batch.column(0).take(some).to_pylist()
+            for j, title in zip(some.tolist(), column, strict=True):
+                titles[src.tid(start + j)] = normalised_title(title)
         start += batch.num_rows
     pf.close()
-    texts, people = _authorships(src)
     authors: dict[str, set[str]] = defaultdict(set)
-    for t, pid in zip(texts.tolist(), people, strict=True):
-        if t in wanted:
-            authors[src.tid(t)].add(pid)
+    pf = pq.ParquetFile(_table(src.tables, "authorships"))
+    for batch in pf.iter_batches(batch_size=262_144, columns=["text_id", "person_id"]):
+        texts = src.lookup(batch.column(0).to_pylist())
+        mine = np.flatnonzero((texts >= 0) & wanted[np.maximum(texts, 0)])
+        if len(mine):
+            people = batch.column(1).take(mine).to_pylist()
+            for t, pid in zip(texts[mine].tolist(), people, strict=True):
+                authors[src.tid(t)].add(pid)
+    pf.close()
     meta = {
-        src.tid(i): {"slot": src.slots[src.slot[i]], "title": None, "year": int(src.year[i])}
-        for i in wanted
+        tid: {"slot": src.slots[src.slot[i]], "year": int(src.year[i])}
+        for tid, i in zip(titles, src.lookup(list(titles)).tolist(), strict=True)
     }
-    groups = _groups_of(meta, {src.tid(i): titles[i] for i in wanted}, authors, year_gap)
+    groups = _groups_of(meta, titles, authors, year_gap)
     if not groups:
         return {}
 
@@ -616,7 +670,7 @@ def _one_text_per_work(src: _Loaded, tables: Path, same_work: Mapping[str, int])
         return version_rank(src.types[src.doc_type[i]])
 
     tied = {t for g in groups for t in g if sum(1 for u in g if rank(u) == min(map(rank, g))) > 1}
-    words = _part_words(tables, tied) if tied else {}
+    words = _part_words(src.tables, tied) if tied else {}
     moved: dict[int, int] = {}
     for group in groups:
         keep = min(group, key=lambda t: (rank(t), -words.get(t, 0), t))
@@ -624,6 +678,16 @@ def _one_text_per_work(src: _Loaded, tables: Path, same_work: Mapping[str, int])
         for t in group:
             if t != keep:
                 moved[int(src.lookup([t])[0])] = k
+    return moved
+
+
+def _one_text_per_work(src: _Loaded, same_work: Mapping[str, int]) -> dict[int, int]:
+    """Read one text per work of *src* (see the module docstring), in place.
+
+    The copies left out are no longer read; each of their authors reads the text kept
+    instead. Returns each copy left out → the text kept (indices).
+    """
+    moved = _find_copies(src, same_work)
     for copy in moved:
         src.alive[copy] = False
     for pid, mine in list(src.person_texts.items()):
@@ -668,19 +732,25 @@ def _groups_of(
 
 
 def _part_words(tables: Path, tids: set[str]) -> dict[str, int]:
-    """The words in all the parts of each text of *tids* (every provider, every language)."""
+    """The words in all the parts of each text of *tids* (every provider, every language),
+    reading the contents of a row group only when it holds one of these texts."""
+    import pyarrow as pa
+    import pyarrow.compute as pc
     import pyarrow.parquet as pq
 
-    table = pq.read_table(
-        _table(tables, "text_parts"),
-        columns=["text_id", "content"],
-        filters=[("text_id", "in", sorted(tids))],
-    )
+    wanted = pa.array(sorted(tids), type=pa.string())
     out: dict[str, int] = defaultdict(int)
-    for tid, content in zip(
-        table["text_id"].to_pylist(), table["content"].to_pylist(), strict=True
-    ):
-        out[tid] += len((content or "").split())
+    pf = pq.ParquetFile(_table(tables, "text_parts"))
+    for group in range(pf.num_row_groups):
+        mine = pc.is_in(pf.read_row_group(group, columns=["text_id"]).column(0), value_set=wanted)
+        if not pc.any(mine).as_py():
+            continue
+        rows = pf.read_row_group(group, columns=["text_id", "content"]).filter(mine)
+        for tid, content in zip(
+            rows.column(0).to_pylist(), rows.column(1).to_pylist(), strict=True
+        ):
+            out[tid] += len((content or "").split())
+    pf.close()
     return dict(out)
 
 

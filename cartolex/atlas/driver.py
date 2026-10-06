@@ -13,7 +13,6 @@ import dataclasses
 import json
 import logging
 import shutil
-import tempfile
 from collections.abc import Collection, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -1401,7 +1400,7 @@ def _run_trajectories(
 
     from cartolex.lexicon.corpus_store import load_corpus
     from cartolex.lexicon.utils import make_researcher_id
-    from cartolex.scale import ordered_map
+    from cartolex.scale import ordered_map, scratch_folder
 
     corpus = load_corpus(slot_indexes(ctx, trajectory=True))
     if not len(corpus.person):
@@ -1441,7 +1440,7 @@ def _run_trajectories(
     pair_chunk = chunk_of[corpus.person]
     n_chunks = int(chunk_of.max()) + 1 if len(people) else 0
     types = corpus.pair_types()
-    work = Path(tempfile.mkdtemp(prefix="trajectories-", dir=ctx.scratch or paths.automatic_dir))
+    work = scratch_folder("trajectories", ctx.scratch or paths.automatic_dir)
 
     def tasks() -> Iterator[tuple[pd.DataFrame, Any]]:
         order = np.argsort(pair_chunk, kind="stable")

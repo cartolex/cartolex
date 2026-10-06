@@ -19,10 +19,11 @@ from __future__ import annotations
 import contextlib
 import shutil
 import sqlite3
-import tempfile
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import Any
+
+from cartolex.scale import scratch_folder
 
 __all__ = ["CACHE_MB", "WorkStore", "connect"]
 
@@ -91,8 +92,7 @@ class WorkStore:
         if scratch is None:
             self.db = connect(":memory:", cache_mb=cache_mb)
         else:
-            Path(scratch).mkdir(parents=True, exist_ok=True)
-            self.folder = Path(tempfile.mkdtemp(prefix="rebuild-", dir=scratch))
+            self.folder = scratch_folder("rebuild", scratch)
             self.db = connect(self.folder / "work.sqlite", cache_mb=cache_mb)
         self.db.executescript(_SCHEMA)
         self.db.execute("BEGIN")

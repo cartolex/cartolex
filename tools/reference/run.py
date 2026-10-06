@@ -766,11 +766,14 @@ class Engine:
         return self.files.corpus_index_csv(slot.id)
 
     def person_ids(self) -> dict[str, str]:
-        """The engine's person key → opaque person id, for every person of the index."""
-        df = _read_csv(self.corpus_index(), dtype=str, keep_default_na=False)
+        """The engine's person key → opaque person id, for every person of the index (an
+        index CSV, or a packed corpus's ``people.csv``)."""
+        _, rows = _mod("lexicon.corpus_store").slot_people(self.corpus_index())
         return {
-            _person_key(a, b, c): person_id(a, b, c)
-            for a, b, c in zip(df["last_name"], df["first_name"], df["unit"], strict=True)
+            _person_key(r["last_name"], r["first_name"], r["unit"]): person_id(
+                r["last_name"], r["first_name"], r["unit"]
+            )
+            for r in rows
         }
 
     def neutral_persons(self, obj: Any) -> Any:

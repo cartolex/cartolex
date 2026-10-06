@@ -33,7 +33,6 @@ import json
 import logging
 import math
 import shutil
-import tempfile
 from array import array
 from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
@@ -45,7 +44,7 @@ import numpy as np
 import pyarrow as pa
 from scipy import sparse
 
-from cartolex.scale import ordered_map
+from cartolex.scale import ordered_map, scratch_folder
 
 from .corpus_store import CorpusIndex
 from .io_helpers import _split_paragraphs
@@ -330,7 +329,7 @@ def prepare(
     """Pass 1: every text of the window read once and split by language (see the module
     docstring); returns the extraction's state and each language's words counted."""
     langs = tuple(langs)
-    folder = Path(tempfile.mkdtemp(prefix="extract-", dir=scratch))
+    folder = scratch_folder("extract", scratch)
     texts, weights = np.unique(corpus.text, return_counts=True)
     weight = dict(zip(texts.tolist(), weights.tolist(), strict=True))
     spills = {lang: _Spill(folder / f"docs-{lang}.arrow") for lang in langs}
