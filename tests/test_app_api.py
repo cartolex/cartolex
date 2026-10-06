@@ -95,7 +95,7 @@ def test_importing_a_list_proposes_a_mapping_then_adds_people(client):
         json={"mapping": {"Grade": "column"}},
         headers={"If-Match": etag(client.get("/api/people"))},
     )
-    assert bad.status_code == 422 and "last_name" in bad.json()["error"]["message"]
+    assert bad.status_code == 422 and bad.json()["error"]["code"] == "mapping_no_name"
     assert client.delete(f"/api/people/import/{proposal['import_id']}").status_code == 200
     assert client.delete(f"/api/people/import/{proposal['import_id']}").status_code == 404
 

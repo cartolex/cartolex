@@ -19,12 +19,12 @@ def test_the_overview_leads_from_a_first_build_to_the_themes(tmp_path):
             "name": "Build test",
             "state": "never_built",
         }
-        # The people were listed, their identities not checked yet: that comes first.
-        assert first["next"]["code"] == "next_check_identities"
-        assert first["next"]["next"]["action"] == "open:/people?tab=identities"
+        # Without collection in this app, nothing waits for a check or a harvest: build.
+        assert first["next"]["code"] == "next_first_build"
+        assert first["next"]["next"]["action"] == "build"
         assert first["preview"] is None and first["shares"]["items"] == []
         steps = {s["id"]: s["state"] for s in first["steps"]}
-        assert steps["people"] == "done" and steps["identities"] == steps["build"] == "todo"
+        assert steps["people"] == steps["identities"] == "done" and steps["build"] == "todo"
         job = client.post("/api/build", json={"dry_run": False}).json()["job"]["id"]
         assert client.wait_job(job)["state"] == "succeeded"
         after = client.get("/api/overview").json()
@@ -33,8 +33,6 @@ def test_the_overview_leads_from_a_first_build_to_the_themes(tmp_path):
         assert {s["id"] for s in after["steps"] if s["state"] == "done"} == {
             "project", "people", "identities", "texts", "build"
         }  # fmt: skip
-        # Once the texts are gathered, the identities still waiting are a note, not a step.
-        assert any(h["code"] == "health_identities_pending" for h in after["health"])
         write_decision_csv(
             tmp_path / "p" / "decisions" / "keywords.csv",
             "keywords",
@@ -95,6 +93,12 @@ def test_texts_that_were_never_collected_lead_to_the_harvest():
     step = next_step(stages, [], None, people=people)
     assert step["code"] == "next_collect_texts"
     assert step["next"]["action"] == "open:/people?collect=harvest"
+    # before the texts are gathered: the identities waiting come first, then the harvest
+    stages = [_stage("corpus.assemble", "never_built", False)]
+    waiting = {**people, "identities": 2}
+    step = next_step(stages, [], None, people=waiting)
+    assert step["code"] == "next_check_identities" and step["params"] == {"n": 2}
+    assert next_step(stages, [], None, people=people)["code"] == "next_collect_texts"
     nobody = {**people, "mapped": 0, "to_harvest": 0}
     stages = [_stage("corpus.assemble", "failed", False, {"code": "stage_no_mapped"})]
     assert next_step(stages, [], None, people=nobody)["code"] == "next_set_roles"

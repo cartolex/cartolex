@@ -49,7 +49,8 @@ def people_facts(runtime: Any, project: Any) -> dict[str, int]:
     and ``without_texts``, the mapped people with and without texts; ``identities``, the
     mapped people without texts whose identity waits for a check; ``to_harvest``, the mapped
     people without texts whose identity is settled and whose texts were never collected.
-    People merged into another are left out. Kept while the people's view is the same."""
+    People merged into another are left out. Kept while the people's view is the same.
+    Without collection in this app, nobody waits for a check or a harvest."""
     from .corpus_view import people_view, stamp
 
     if not project.layout.table("people").exists() and not project.layout.people_csv.exists():
@@ -80,7 +81,10 @@ def people_facts(runtime: Any, project: Any) -> dict[str, int]:
                 out["to_harvest"] += 1
         return out
 
-    return runtime.table_cache.get(("people-facts", stamp(project)), compute)
+    facts = runtime.table_cache.get(("people-facts", stamp(project)), compute)
+    if not runtime.collection.available:  # nothing to check or collect here: no such step
+        facts = {**facts, "identities": 0, "to_harvest": 0}
+    return facts
 
 
 def _when(value: Any) -> datetime | None:

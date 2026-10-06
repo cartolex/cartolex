@@ -361,10 +361,8 @@ def test_a_build_job_runs_is_tracked_and_logged(tmp_path):
         assert next(a for a in states["areas"] if a["id"] == "keywords")["state"] == "up_to_date"
         triage = next(s for s in states["stages"] if s["id"] == "keywords.triage")
         assert triage["state"] == "skipped" and triage["skip_reason"].startswith("switched off")
-        assert (triage["skip"]["code"], triage["skip"]["params"]) == (
-            "stage_switched_off",
-            {"stage": "keywords.triage"},
-        )
+        # the AI clean-up switched off reads as the route chosen, never as a file to edit
+        assert (triage["skip"]["code"], triage["ai"]["route"]) == ("stage_ai_none", "none")
         again = client.post("/api/build", json={"dry_run": True}).json()
         assert again["to_run"] == [] and again["empty"]["message"] == "everything is up to date"
     finally:
@@ -445,7 +443,8 @@ def test_a_cancelled_build_changes_nothing_or_finishes_before_the_cancel(tmp_pat
         assert job["result"]["ran"] == ["corpus.assemble"]
         stages = client.get("/api/project/state").json()["stages"]
         extract = next(s for s in stages if s["id"] == "keywords.extract")
-        assert extract["state"] == "failed" and extract["attempt"]["code"] == "stage_cancelled"
+        # cancelled, not failed: the stage is as its results left it, the attempt still listed
+        assert extract["state"] == "never_built" and extract["attempt"]["code"] == "stage_cancelled"
         assert client.post(f"/api/jobs/{job_id}/cancel").status_code == 409
         # a cancel before anything ran: nothing changed
         controls.hold.clear()

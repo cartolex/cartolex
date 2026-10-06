@@ -99,7 +99,7 @@ param its text names. Some errors add fields (`current` for a stale write,
 
 ```json
 {"error": {"code": "stale", "params": {"file": "themes.json"},
-           "message": "themes.json changed since it was read; reload it and apply the change again",
+           "message": "this changed elsewhere since it was read; reload it and apply the change again",
            "next": {"label": "Reload", "action": "reload"}, "current": "sha256:…"}}
 ```
 
@@ -390,7 +390,7 @@ catalogues give each code its text in every interface language.
 | `forbidden` | 403 | {reason} | `reason` | `none` |
 | `version_required` | 428 | this change needs the version you read: send it in If-Match (the ETag of the read) | — | `reload` |
 | `version_ambiguous` | 400 | If-Match names one version | — | `reload` |
-| `stale` | 412 | {file} changed since it was read; reload it and apply the change again | `file` | `reload` |
+| `stale` | 412 | this changed elsewhere since it was read; reload it and apply the change again | `file` | `reload` |
 | `invalid` | 422 | the request is not valid: {problems} | `problems` | `fix-input` |
 | `no_route` | 404 | no such address in this app | — | `none` |
 | `method_not_allowed` | 405 | this address does not take this method | — | `none` |
@@ -464,7 +464,7 @@ catalogues give each code its text in every interface language.
 | `import_not_found` | 404 | this import is not waiting any more | — | `reload` |
 | `mapping_unknown_fields` | 422 | unknown field(s) {fields}; the fields are {known} | `fields`, `known` | `fix-input` |
 | `mapping_unknown_columns` | 422 | the list has no column(s) {columns} | `columns` | `fix-input` |
-| `mapping_no_name` | 422 | map a column to last_name, or to name (a full name) | — | `fix-input` |
+| `mapping_no_name` | 422 | map a column to the last name, or to the full name | — | `fix-input` |
 | `unknown_role` | 422 | {role} is not a role | `role` | `fix-input` |
 | `collection_unavailable` | 409 | collecting texts is not available in this version | — | `none` |
 | `snapshot_unavailable` | 409 | the OpenAlex snapshot of this computer is not ready to be read ({state}): plug in its disk, finish its download, or read OpenAlex from the API | `state` | `none` |
