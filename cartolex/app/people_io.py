@@ -126,10 +126,19 @@ def coverage_class(entry: Mapping[str, Any] | None) -> str:
 
 
 def _units(project: Project) -> dict[str, str]:
+    """Each person's current organisation at the project's first level, as people decided
+    the organisations and affiliations."""
+    from cartolex.project.organisations import effective_organisations, org_decisions
+
+    from .corpus_view import effective_affiliation_table
+
     layout = project.layout
     if not layout.table("affiliations").exists() or not layout.table("organisations").exists():
         return {}
-    orgs = read_source_table(layout.table("organisations"), "organisations").to_pylist()
+    orgs = effective_organisations(
+        read_source_table(layout.table("organisations"), "organisations").to_pylist(),
+        org_decisions(layout),
+    )
     level = project.config.levels[0].id if project.config.levels else None
     label = {
         o["org_id"]: o["acronym"] or o["name"]
@@ -139,9 +148,7 @@ def _units(project: Project) -> dict[str, str]:
     import pyarrow as pa
     import pyarrow.compute as pc
 
-    aff = read_source_table(
-        layout.table("affiliations"), "affiliations", ["person_id", "org_id", "end_year"]
-    )
+    aff = effective_affiliation_table(project, ["end_year"])
     aff = aff.filter(
         pc.and_(
             pc.is_null(aff["end_year"]),
@@ -155,8 +162,11 @@ def _units(project: Project) -> dict[str, str]:
 
 
 def _stamp(project: Project) -> tuple[Any, ...]:
-    """What the tables' view depends on: each table's size and modification time."""
-    out: list[Any] = [str(project.layout.root)]
+    """What the tables' view depends on: each table's size and modification time, and the
+    decisions on organisations and affiliations (the people's units)."""
+    from cartolex.project.organisations import decisions_stamp
+
+    out: list[Any] = [str(project.layout.root), *decisions_stamp(project.layout)]
     for name in ("people", "texts", "text_parts", "authorships", "affiliations", "organisations"):
         path = project.layout.table(name)
         try:

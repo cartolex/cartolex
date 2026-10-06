@@ -38,7 +38,9 @@ def _file(layout: ProjectLayout, kind: str) -> tuple[Path, str]:
     raise ValueError(f"no pairs of {kind!r}: people or organisations")
 
 
-def read_pairs(layout: ProjectLayout, kind: str = "people") -> dict[tuple[str, str], dict[str, str]]:
+def read_pairs(
+    layout: ProjectLayout, kind: str = "people"
+) -> dict[tuple[str, str], dict[str, str]]:
     """The pairs decided, by key (empty when the file does not exist)."""
     path, name = _file(layout, kind)
     return {pair_key(r["a"], r["b"]): r for r in read_decision_csv(path, name)}

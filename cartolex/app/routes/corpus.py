@@ -127,13 +127,12 @@ def _states_by_organisation(
     import pyarrow as pa
 
     from cartolex.collect.coverage import STATES
-    from cartolex.project.tables import read_source_table
+
+    from ..corpus_view import effective_affiliation_table
 
     if not ctx.layout.table("affiliations").exists() or not counted:
         return []
-    table = read_source_table(
-        ctx.layout.table("affiliations"), "affiliations", ["person_id", "org_id"]
-    )
+    table = effective_affiliation_table(ctx.project, [])
     who = sorted(counted)
     persons = pa.table({"person_id": who, "state": [states[pid]["state"] for pid in who]})
     joined = table.join(persons, "person_id", join_type="inner").group_by(["org_id", "state"])

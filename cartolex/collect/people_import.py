@@ -816,7 +816,9 @@ def confirm_merge(
     rebuild_sources(project.layout, project.config)
 
 
-def undo_merge(project: Project, person_ids: Sequence[str], *, now: datetime | None = None) -> list[str]:
+def undo_merge(
+    project: Project, person_ids: Sequence[str], *, now: datetime | None = None
+) -> list[str]:
     """Undo merges: each of *person_ids* (or each row merged into one of them) stands on its
     own again, as it was before; the tables are rebuilt so the aliases follow. Returns the
     rows unmerged."""

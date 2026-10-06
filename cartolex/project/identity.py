@@ -44,7 +44,9 @@ __all__ = [
 IDENTITY_RANK = ("confirmed", "auto", "none", "pending", "")
 
 
-def merge_roots(rows: Mapping[str, Mapping[str, str]] | Iterable[Mapping[str, str]]) -> dict[str, str]:
+def merge_roots(
+    rows: Mapping[str, Mapping[str, str]] | Iterable[Mapping[str, str]],
+) -> dict[str, str]:
     """Each merged row → the person that remains (the end of its ``merged_into`` chain).
 
     *rows* are ``people.csv``'s rows, by person id or as a list. A row that is not

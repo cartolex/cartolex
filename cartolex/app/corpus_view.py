@@ -45,11 +45,14 @@ MAX_FACET_VALUES = 50
 
 
 def stamp(project: Project) -> tuple[Any, ...]:
-    """What the views depend on: the tables, the raw records, ``people.csv`` and the parameters."""
+    """What the views depend on: the tables, the raw records, ``people.csv``, the parameters
+    and the decisions on organisations and affiliations."""
+    from cartolex.project.organisations import decisions_stamp
+
     from .collect_service import raw_stamp
 
     layout = project.layout
-    out: list[Any] = [raw_stamp(project)]
+    out: list[Any] = [raw_stamp(project), *decisions_stamp(layout)]
     for path in (
         *(layout.table(n) for n in ("people", "texts", "text_parts", "authorships")),
         layout.table("affiliations"),
@@ -233,13 +236,58 @@ def _names(project: Project, person_ids: set[str]) -> dict[str, str]:
     }
 
 
+def org_stamp(project: Project) -> tuple[Any, ...]:
+    """What the organisations' views depend on: the tables, the parameters and the
+    decisions on organisations and affiliations."""
+    from cartolex.project.organisations import decisions_stamp
+
+    return (*tables_stamp(project), *decisions_stamp(project.layout))
+
+
+def effective_affiliation_table(project: Project, columns: list[str]) -> Any:
+    """The affiliations table (*columns* of it) as people decided it
+    (:func:`cartolex.project.organisations.effective_affiliations`): the table itself when
+    nobody decided anything about organisations or affiliations."""
+    import pyarrow as pa
+
+    from cartolex.project.organisations import (
+        effective_affiliations,
+        org_decisions,
+        org_roots,
+        read_affiliation_decisions,
+    )
+
+    layout = project.layout
+    path = layout.table("affiliations")
+    wanted = list(dict.fromkeys(["person_id", "org_id", *columns]))
+    table = read_source_table(path, "affiliations", wanted) if path.exists() else None
+    decided = read_affiliation_decisions(layout)
+    roots = org_roots(org_decisions(layout))
+    if not decided and not roots:
+        return table
+    rows = effective_affiliations(table.to_pylist() if table is not None else [], decided, roots)
+    schema = table.schema if table is not None else None
+    if schema is None:
+        from cartolex.project.tables import SOURCE_SCHEMAS
+
+        full = SOURCE_SCHEMAS["affiliations"]
+        schema = pa.schema([full.field(c) for c in wanted])
+    return pa.table({f.name: [r.get(f.name) for r in rows] for f in schema}, schema=schema)
+
+
 def organisations(project: Project, cache: Any = None) -> list[dict[str, Any]]:
-    """Every organisation: its level, parents (ids and names), people now and ever affiliated."""
+    """Every organisation as people decided it (names, levels, parents, merges): its level,
+    parents (ids and names), people now and ever affiliated, its identifiers, country and
+    the organisations merged into it."""
 
     def compute() -> list[dict[str, Any]]:
         import pyarrow.compute as pc
 
-        orgs = _rows(project, "organisations")
+        from cartolex.project.organisations import effective_organisations, org_decisions
+
+        orgs = effective_organisations(
+            _rows(project, "organisations"), org_decisions(project.layout)
+        )
         names = {o["org_id"]: o["acronym"] or o["name"] for o in orgs}
         children: dict[str, int] = defaultdict(int)
         for o in orgs:
@@ -249,7 +297,7 @@ def organisations(project: Project, cache: Any = None) -> list[dict[str, Any]]:
         now: dict[str, int] = {}
         path = project.layout.table("affiliations")
         if path.exists():
-            aff = read_source_table(path, "affiliations", ["person_id", "org_id", "end_year"])
+            aff = effective_affiliation_table(project, ["end_year"])
             for counts, rows in ((ever, aff), (now, aff.filter(pc.is_null(aff["end_year"])))):
                 grouped = rows.group_by("org_id").aggregate([("person_id", "count_distinct")])
                 counts.update(
@@ -273,20 +321,51 @@ def organisations(project: Project, cache: Any = None) -> list[dict[str, Any]]:
                 "country": o["country"] or "",
                 "source": o["source"],
                 "ids": dict(o["ids"] or []),
+                "merged_from": o["merged_from"],
+                "decided": o["decided"],
             }
             for o in orgs
         ]
 
-    return _cached(cache, ("organisations", tables_stamp(project)), compute)
+    return _cached(cache, ("organisations", org_stamp(project)), compute)
 
 
 def organisation_detail(project: Project, org_id: str) -> dict[str, Any] | None:
-    """One organisation with its people and the years of each affiliation, and its units."""
-    orgs = {o["org_id"]: o for o in _rows(project, "organisations")}
-    org = orgs.get(org_id)
-    if org is None:
+    """One organisation as people decided it, with its people and the years of each
+    affiliation (those of the organisations merged into it too), and its units. A merged
+    organisation's detail names the one it is merged into (``merged_into``)."""
+    from cartolex.project.organisations import (
+        effective_affiliations,
+        effective_organisations,
+        org_decisions,
+        org_roots,
+        read_affiliation_decisions,
+    )
+
+    decisions = org_decisions(project.layout)
+    roots = org_roots(decisions)
+    raw = {o["org_id"]: o for o in _rows(project, "organisations")}
+    if org_id not in raw:
         return None
-    rows = _rows(project, "affiliations", None, [("org_id", "==", org_id)])
+    if org_id in roots:
+        root = roots[org_id]
+        return {
+            "org_id": org_id,
+            "name": raw[org_id]["name"],
+            "merged_into": {"org_id": root, "name": raw[root]["name"] if root in raw else root},
+        }
+    orgs = {o["org_id"]: o for o in effective_organisations(raw.values(), decisions)}
+    org = orgs[org_id]
+    members = [org_id, *org["merged_from"]]
+    rows = effective_affiliations(
+        _rows(project, "affiliations", None, [("org_id", "in", members)]),
+        [
+            r
+            for r in read_affiliation_decisions(project.layout)
+            if roots.get(r["org_id"], r["org_id"]) == org_id
+        ],
+        roots,
+    )
     names = _names(project, {a["person_id"] for a in rows})
     affiliations = [
         {
@@ -317,6 +396,18 @@ def organisation_detail(project: Project, org_id: str) -> dict[str, Any] | None:
         "location": org["location"],
         "source": org["source"],
         "affiliations": affiliations,
+        "merged_from": [
+            {"org_id": m, "name": raw[m]["name"] if m in raw else m} for m in org["merged_from"]
+        ],
+        "decided": {
+            k: (decisions.get(org_id) or {}).get(k, "") for k in ("name", "level", "parents")
+        },
+        "source_values": {
+            "name": raw[org_id]["name"],
+            "level": raw[org_id]["level"] or "",
+            "parents": list(raw[org_id]["parents"] or []),
+        },
+        "merged_into": None,
     }
 
 
@@ -471,12 +562,27 @@ def person_detail(project: Project, person_id: str, cache: Any = None) -> dict[s
     merged = merged_groups(roots).get(person_id, []) if person_id not in roots else []
     everyone = [person_id, *merged]
     names = _names(project, {*merged, *([roots[person_id]] if person_id in roots else [])})
-    rows = _rows(project, "affiliations", None, [("person_id", "in", everyone)])
+    from cartolex.project.organisations import (
+        effective_affiliations,
+        effective_organisations,
+        org_decisions,
+        org_roots,
+        read_affiliation_decisions,
+    )
+
+    org_rows = org_decisions(project.layout)
+    rows = effective_affiliations(
+        _rows(project, "affiliations", None, [("person_id", "in", everyone)]),
+        [r for r in read_affiliation_decisions(project.layout) if r["person_id"] in everyone],
+        org_roots(org_rows),
+        {m: person_id for m in merged},
+    )
     org_ids = sorted({a["org_id"] for a in rows})
     orgs = {
         o["org_id"]: o
-        for o in (
-            _rows(project, "organisations", None, [("org_id", "in", org_ids)]) if org_ids else []
+        for o in effective_organisations(
+            _rows(project, "organisations", None, [("org_id", "in", org_ids)]) if org_ids else [],
+            org_rows,
         )
     }
     affiliations = sorted(
