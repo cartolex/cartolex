@@ -37,6 +37,7 @@ identifier), so a project of 10⁵ people never compares every pair.
 
 from __future__ import annotations
 
+import functools
 import math
 from collections import defaultdict
 from collections.abc import Callable, Collection, Iterable, Mapping
@@ -49,7 +50,26 @@ from cartolex.project import Project
 from cartolex.project.identity import merge_roots, merged_groups
 from cartolex.project.tables import read_decision_csv, read_source_table
 
-from .names import compatible_first_names, name_key, surname_parts, words
+from .names import compatible_first_names as _compatible
+from .names import name_key as _name_key
+from .names import surname_parts as _surname_parts
+from .names import words as _words
+
+# The same names are compared many times over (a person meets every other of their block):
+# their folded forms are computed once.
+_CACHE = 1 << 18
+compatible_first_names = functools.lru_cache(maxsize=_CACHE)(_compatible)
+name_key = functools.lru_cache(maxsize=_CACHE)(_name_key)
+
+
+@functools.lru_cache(maxsize=_CACHE)
+def surname_parts(last: str) -> tuple[str, ...]:
+    return tuple(_surname_parts(last))
+
+
+@functools.lru_cache(maxsize=_CACHE)
+def words(text: str) -> tuple[str, ...]:
+    return tuple(_words(text))
 
 __all__ = [
     "MAX_AUTHORS",
