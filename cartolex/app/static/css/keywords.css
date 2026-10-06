@@ -138,3 +138,47 @@
   margin: var(--cx-space-2) 0 0;
   padding-left: var(--cx-space-4);
 }
+
+/* Links to the other screens (the map, the keywords, the people). */
+.cx-atlas-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-1);
+  margin: 0 0 var(--cx-space-2);
+  padding: 0;
+  list-style: none;
+}
+
+/* A keyword's people: name, share, links. */
+.cx-kw-people {
+  display: grid;
+  gap: var(--cx-space-1);
+  margin: var(--cx-space-2) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cx-kw-people li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: baseline;
+  gap: var(--cx-space-2);
+}
+
+.cx-kw-people__share {
+  color: var(--cx-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* One keyword from the address, and the way back to every keyword. */
+.cx-kw-term-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cx-space-2);
+  margin-bottom: var(--cx-space-2);
+}
+
+.cx-kw-term-filter p {
+  margin: 0;
+}

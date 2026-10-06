@@ -1,6 +1,7 @@
 /**
  * The side panel: the selected node, keywords or person — what it holds, its
- * usage, the people who weigh most on it, its names, and its actions.
+ * usage, the people who weigh most on it, its names, and its actions; links to
+ * the map and the keywords, and who uses a keyword most (`users.js`).
  */
 
 import { html } from '../../core/preact.js';
@@ -9,6 +10,7 @@ import { Button, MenuButton } from '../../components/index.js';
 import { lang2, levelName, nodeName, pathOf } from './model.js';
 import { languageName, shortShare } from './labels.js';
 import { SuggestedPlaces } from './fit.js';
+import { KeywordUsers, ThemeLinks } from './users.js';
 
 function Path({ index, id, ui }) {
   const lang = lang2(locale.value);
@@ -75,6 +77,7 @@ function NodePanel({ editor, ui, atlas, id }) {
       <h2 class="cx-themes-panel__title" id="cx-themes-panel-title">${nodeName(node, lang)}</h2>
       <${Path} index=${index} id=${id} ui=${ui} />
     </header>
+    <${ThemeLinks} node=${id} />
     ${readOnly ? null : html`<div class="cx-themes-panel__actions">
       <${Button} size="s" onClick=${() => ui.rename(id)}>${t('themes.action.rename')}<//>
       <${Button} size="s" onClick=${() => ui.moveNode(id)} disabled=${level === 1 && !ui.canMoveNode(id)}>
@@ -130,7 +133,7 @@ function NodePanel({ editor, ui, atlas, id }) {
   </div>`;
 }
 
-function KeywordsPanel({ editor, ui, terms }) {
+function KeywordsPanel({ editor, ui, terms, api }) {
   const index = editor.index.value;
   const lang = lang2(locale.value);
   const tree = index.tree;
@@ -176,6 +179,11 @@ function KeywordsPanel({ editor, ui, terms }) {
         <${Fact} label=${t('themes.panel.aside.from')}>${entry.from && index.nodes.has(entry.from)
           ? nodeName(index.nodes.get(entry.from), lang) : t('themes.panel.aside.from.none')}<//>` : null}
     </dl>
+    ${single ? html`<${ThemeLinks} term=${single} />
+      <section class="cx-themes-panel__section" aria-labelledby="cx-themes-panel-users">
+        <h3 class="cx-themes-panel__subtitle" id="cx-themes-panel-users">${t('themes.users.title')}</h3>
+        <${KeywordUsers} api=${api} term=${single} />
+      </section>` : null}
     ${single && (aside.length || checking.length) ? html`<${SuggestedPlaces} editor=${editor} ui=${ui} term=${single} />` : null}
     ${terms.length > 1 ? html`<ul class="cx-themes-panel__keywords">
       ${terms.slice(0, 60).map((term) => html`<li key=${term}>
@@ -237,7 +245,7 @@ function Overview({ editor }) {
 }
 
 /** The right column. */
-export function SidePanel({ editor, ui, atlas }) {
+export function SidePanel({ editor, ui, atlas, api }) {
   const index = editor.index.value;
   if (!index) return null;
   const focus = ui.focus.value;
@@ -245,7 +253,7 @@ export function SidePanel({ editor, ui, atlas }) {
   if (focus && focus.kind === 'node' && index.nodes.has(focus.id)) {
     body = html`<${NodePanel} editor=${editor} ui=${ui} atlas=${atlas} id=${focus.id} />`;
   } else if (focus && focus.kind === 'keywords' && focus.terms.length) {
-    body = html`<${KeywordsPanel} editor=${editor} ui=${ui} terms=${focus.terms} />`;
+    body = html`<${KeywordsPanel} editor=${editor} ui=${ui} terms=${focus.terms} api=${api} />`;
   } else if (focus && focus.kind === 'person') {
     body = html`<${PersonPanel} editor=${editor} atlas=${atlas} id=${focus.id} />`;
   } else {

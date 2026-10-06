@@ -6,7 +6,9 @@
  * it), range selection, and the bulk actions: keep, exclude, merge, restore,
  * for the rows selected or for every row the filters keep. In the band rejected
  * automatically, keeping is « put back »: the term leaves this computer's
- * rejection cache too.
+ * rejection cache too. A keyword of the vocabulary given by the address (`?q=`, a link from
+ * the map) keeps its row and the candidates merged into it (`term`), whatever their band. A
+ * row opens the people who use it (`people.js`) and its place on the map.
  */
 import { html, useEffect, useMemo, useState } from '../../core/preact.js';
 import { formatNumber, t } from '../../core/i18n.js';
@@ -17,6 +19,8 @@ import { usePaged } from '../people/common.js';
 import {
   BandMark, CATEGORIES, CategoryMark, ROUTES, RouteMark, decide, keyOf, reasonText, refsOf, restore,
 } from './common.js';
+import { vocabularyTerm } from './people.js';
+import { linkTo } from '../map/links.js';
 
 const DECISIONS = ['none', 'keep', 'exclude', 'merge'];
 const SORTS = { term: 'term', people: 'people', texts: 'texts', score: 'score', language: 'language' };
@@ -72,8 +76,12 @@ function Filters({ filters, setFilters, data }) {
  * @param {Function} props.onChanged after a change
  * @param {(rows: Array<object>) => void} props.onMerge opens the merge dialog
  * @param {Function} props.toast
+ * @param {string} [props.term] one keyword of the vocabulary and the candidates merged into it
+ * @param {Function} [props.onClearTerm] show every keyword again
+ * @param {(term: string) => void} [props.onPeople] open the people who use a keyword
  */
-export function KeywordList({ ctx, band, version, onData, onChanged, onMerge, toast }) {
+export function KeywordList({ ctx, band, version, onData, onChanged, onMerge, toast, term = '', onClearTerm,
+  onPeople }) {
   const blank = { q: '', lang: '', route: '', decision: '', category: '' };
   const [filters, setFilters] = useState(blank);
   const [sort, setSort] = useState({ column: 'score', direction: 'descending' });
@@ -86,6 +94,7 @@ export function KeywordList({ ctx, band, version, onData, onChanged, onMerge, to
   const query = {
     band, q: q || undefined, lang: filters.lang || undefined, route: filters.route || undefined,
     decision: filters.decision || undefined, category: filters.category || undefined,
+    term: term || undefined,
     sort: `${sort.direction === 'descending' ? '-' : ''}${SORTS[sort.column] || 'score'}`,
     $v: version,
   };
@@ -169,15 +178,25 @@ export function KeywordList({ ctx, band, version, onData, onChanged, onMerge, to
     { kind: 'separator', id: 'sep' },
     { id: 'restore', label: t('keywords.action.restore'),
       disabled: !keys.some((k) => byKey.get(k) && byKey.get(k).decision) },
+    { kind: 'separator', id: 'sep-links' },
+    { id: 'people', label: t('keywords.action.people'), disabled: keys.length !== 1 || !byKey.get(keys[0]) },
+    { id: 'map', label: t('keywords.action.show_map'), disabled: keys.length !== 1 || !byKey.get(keys[0]) },
   ];
   const onRowMenu = (item, keys) => {
+    const row = byKey.get(keys[0]);
     if (item.id === 'merge') merge(keys);
+    else if (item.id === 'people') { if (row && onPeople) onPeople(vocabularyTerm(row)); }
+    else if (item.id === 'map') { if (row) ctx.navigate(linkTo.map('keyword', vocabularyTerm(row))); }
     else act(item.id, keys);
   };
 
   const empty = data && data.empty;
   const canRestore = selected.some((k) => byKey.get(k) && byKey.get(k).decision);
   return html`<div class="cx-corpus-tab">
+    ${term ? html`<div class="cx-kw-term-filter" role="status">
+      <p>${t('keywords.term_filter', { term })}</p>
+      <${Button} size="s" variant="ghost" icon="close" onClick=${onClearTerm}>${t('keywords.term_filter.clear')}<//>
+    </div>` : null}
     <${Filters} filters=${filters} setFilters=${setFilters} data=${data} />
     <div class="cx-corpus-bulk" role="region" aria-label=${t('keywords.bulk')}>
       <span class="cx-corpus-bulk__count" aria-live="polite">${selected.length
@@ -203,6 +222,7 @@ export function KeywordList({ ctx, band, version, onData, onChanged, onMerge, to
       error=${list.error} onRetry=${list.reload} sortMode="server" sort=${sort}
       onSortChange=${setSort} selection=${selection} onSelectionChange=${setSelection}
       onRange=${list.onRange} rowMenu=${rowMenu} onRowMenu=${onRowMenu}
+      onActivate=${(row) => { if (row && !row.$pending && onPeople) onPeople(vocabularyTerm(row)); }}
       empty=${empty && empty.code === 'empty_no_keywords'
         ? html`<${EmptyState} icon="file" title=${t('keywords.empty.empty_no_keywords')}
             action=${{ label: t('keywords.empty.build'), href: '/build?scope=keywords' }} />`

@@ -303,7 +303,14 @@ def _distances(request: Request, ctx: Any, body: ExportBody) -> JSONResponse:
     view = space_of(runtime, ctx)
     plan = plan_export(view, body.kind, body.of, ids=body.ids, level=body.level, k=body.k)
     if body.plan:
-        return JSONResponse({"plan": {**plan.as_dict(), "size": human_size(plan.bytes)}})
+        names = {lv.id: dict(lv.names) for lv in project.config.levels}
+        levels = [
+            {"id": lv, "names": names.get(lv, {}), "count": len(view.org_vectors(lv)[0])}
+            for lv in view.levels
+        ]
+        return JSONResponse(
+            {"plan": {**plan.as_dict(), "size": human_size(plan.bytes), "levels": levels}}
+        )
     if body.of == "person" and body.names is None:
         raise ApiError.of("export_names_question")
     if plan.confirm and not body.confirm:

@@ -4,7 +4,8 @@
  * drop is a shortcut). Nothing is ever lost: undo and redo, an autosaved
  * draft, a guard before leaving, « reload and merge » when the saved tree
  * changed, versions to compare and restore. Above them, the « Tune » panel of
- * the space and the grouping (`pages/tune/`).
+ * the space and the grouping (`pages/tune/`). An address may name what to open:
+ * `?node=<id>` or `?keyword=<term>` (a link from the map or the keywords).
  */
 
 import { batch, html, useEffect, useMemo, useState } from '../../core/preact.js';
@@ -94,6 +95,7 @@ export function ThemesEditor() {
       done(); // the tree is rendered (signals render synchronously)
       // `?copilot=1` (a build waiting for the copilot) opens its dialog once the tree is here.
       if (ctx.query && ctx.query.get('copilot') === '1' && !editor.readOnly.value) setCopilot({});
+      openFromAddress();
       // The map's data comes next: after the tree, not competing with it.
       setTimeout(loadAtlas, 0);
     });
@@ -160,6 +162,23 @@ export function ThemesEditor() {
   }, [jobs, applyJob]);
 
   const { run, focusSearch } = installActions({ editor, ui, setDialog, toast });
+  // `?node=<id>` or `?keyword=<term>`: the node or the keyword selected, its panel open.
+  function openFromAddress() {
+    const index = editor.index.value;
+    const node = ctx.query && ctx.query.get('node');
+    const keyword = ctx.query && ctx.query.get('keyword');
+    if (!index || (!node && !keyword)) return;
+    if (node && index.nodes.has(node)) {
+      ui.openNode(node, { from: 'address' });
+      return;
+    }
+    const tree = index.tree;
+    const wanted = (keyword || node || '').trim().toLowerCase();
+    const known = [...Object.keys(tree.keywords || {}), ...Object.keys(tree.set_aside || {})];
+    const term = known.find((k) => k === keyword) || known.find((k) => k.toLowerCase() === wanted);
+    if (term) ui.openKeyword(term);
+    else toast({ kind: 'warning', title: t('themes.address.missing', { name: keyword || node }) });
+  }
   ui.openCopilot = () => setCopilot({});
 
   // ── saving, applying, versions ──
@@ -562,7 +581,7 @@ export function ThemesEditor() {
     <div class=${`cx-themes__body ${playing ? 'is-playground' : ''}`}>
       ${playing ? null : html`<${OutlinePane} editor=${editor} ui=${ui} />`}
       <${CentrePane} ctx=${ctx} editor=${editor} ui=${ui} atlas=${atlas} atlasError=${atlasError} onRetryAtlas=${loadAtlas} />
-      ${playing ? null : html`<${SidePanel} editor=${editor} ui=${ui} atlas=${atlas} />`}
+      ${playing ? null : html`<${SidePanel} editor=${editor} ui=${ui} atlas=${atlas} api=${ctx.api} />`}
     </div>
     <p class="cx-visually-hidden" aria-live="polite" aria-atomic="true">${announcement}</p>
     ${modal}

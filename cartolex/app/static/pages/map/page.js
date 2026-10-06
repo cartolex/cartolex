@@ -11,6 +11,11 @@
  * keywords of people and organisations, when they are shown.
  * The map's « Tune » panel (`pages/tune/`) reads nothing until it opens; a change of the
  * layout there is previewed on this map (`preview.js`), kept as the pinned version or discarded.
+ * The body goes full screen (`fullscreen.js`) and its side columns fold away (remembered in
+ * this browser); a selection given in the address is centred once the map is drawn; the
+ * nearest of the selection or the people who use a keyword come from the space of the themes
+ * (`near.js`), « Compare with… » (`compare.js`), and the distances can be exported
+ * (`pages/share/distances.js`).
  */
 import { html, useEffect, useMemo, useRef, useState } from '../../core/preact.js';
 import { locale, t } from '../../core/i18n.js';
@@ -30,6 +35,11 @@ import { TreePanel } from './tree.js';
 import { VersionsDialog } from './versions.js';
 import { TunePanel } from '../tune/panel.js';
 import { PreviewBar, createLayoutPreview, previewScene } from './preview.js';
+import { FullscreenButton, useFullscreen } from './fullscreen.js';
+import { litBySpace, useSpaceOf } from './near.js';
+import { CompareDialog } from './compare.js';
+import { DistancesDialog } from '../share/distances.js';
+import { ColumnButtons, shownPeople, useColumns } from './columns.js';
 
 const PICKED = { people: 'person', keywords: 'keyword', organisations: 'organisation', texts: 'text',
   projected: 'projected', windows: 'person' };
@@ -125,6 +135,11 @@ export function AtlasScreen() {
   const asked = useRef(new Set());
   const preview = useMemo(() => createLayoutPreview({ api: ctx.api, jobs: app.stores.jobs }), []);
   const [keeping, setKeeping] = useState(false);
+  const fs = useFullscreen();
+  const [folded, toggleColumn] = useColumns();
+  const [comparing, setComparing] = useState(false);
+  const [distances, setDistances] = useState(false);
+  const centred = useRef(false);
   useEffect(() => () => preview.dispose(), []);
   // a layout draft outlives the panel: leaving asks first
   useEffect(() => ctx.guard({ dirty: () => preview.draft.value !== null }), []);
@@ -228,11 +243,16 @@ export function AtlasScreen() {
       .then((doc) => { if (doc && Array.isArray(doc.rings)) setLand(doc.rings); });
   }, [state.view]);
 
+  // The space of the themes: the selection's nearest, or the people who use a keyword.
+  const spaceAnswer = useSpaceOf(ctx, index, state.sel, state.view !== 'world');
+  const space = useMemo(() => (index && spaceAnswer ? litBySpace(index, state.sel, spaceAnswer) : null),
+    [index, spaceAnswer]);
+
   const built = useMemo(() => {
     if (!index) return null;
     return state.view === 'world' ? worldScene(index, state, land)
-      : mapScene(index, state, { texts, sets, locale: locale.value });
-  }, [index, state, texts, sets, locale.value, land]);
+      : mapScene(index, state, { texts, sets, locale: locale.value, space });
+  }, [index, state, texts, sets, locale.value, land, space]);
 
   // a preview of the layout replaces the map's scene (the sample of people it drew)
   const shown = preview.phase.value !== 'idle' ? preview.preview.value : null;
@@ -256,6 +276,17 @@ export function AtlasScreen() {
     if (at && at.x !== null && at.x !== undefined) frame.current.centreOn(at.x, at.y, 3);
   };
 
+  // A selection given in the address (a link from another screen): centred once it is drawn
+  // (a text's once the texts are read).
+  useEffect(() => {
+    const sel = state.sel;
+    if (centred.current || !index || !sel) return undefined;
+    if (sel.kind === 'text' && !texts) return undefined;
+    centred.current = true;
+    const timer = setTimeout(() => select(sel, { centre: true }), 0);
+    return () => clearTimeout(timer);
+  }, [index, texts]);
+
   const head = html`<header class="cx-atlas__head">
     <div>
       <h1 class="cx-page__title" tabindex="-1">${t('nav.map')}</h1>
@@ -268,6 +299,7 @@ export function AtlasScreen() {
       <${Segmented} label=${t('map.view')} value=${state.view}
         options=${[{ value: 'map', label: t('map.view.map') }, { value: 'world', label: t('map.view.world') }]}
         onChange=${(view) => setState({ view })} />
+      <${Button} icon="download" onClick=${() => setDistances(true)} aria-haspopup="dialog">${t('map.distances.button')}<//>
       <${Button} icon="settings" onClick=${() => setVersionsOpen(true)}>${t('map.versions.button')}<//>
     </div>` : null}
   </header>`;
@@ -307,9 +339,9 @@ export function AtlasScreen() {
     <${Controls} index=${index} state=${state} counts=${counts} texts=${texts} onChange=${setState} />
     ${notes.map((n) => html`<p key=${n.kind} class="cx-atlas__note" role="note">
       ${t(n.key, { kind: t(`map.kind.${n.kind}`), count: n.count, max: MAX_REGIONS, total: n.total || 0 })}</p>`)}
-    <div class="cx-atlas__body">
-      <${TreePanel} index=${index} state=${state} onSelect=${(s) => select(s)}
-        onZoom=${(theme) => setState({ theme })} />
+    <div ref=${fs.ref} class=${`cx-atlas__body ${fs.className} ${folded.tree ? 'is-tree-folded' : ''} ${folded.panel ? 'is-panel-folded' : ''}`}>
+      ${folded.tree ? null : html`<${TreePanel} index=${index} state=${state} onSelect=${(s) => select(s)}
+        onZoom=${(theme) => setState({ theme })} />`}
       <div class="cx-atlas__map">
         ${preview.phase.value !== 'idle' ? html`<${PreviewBar} store=${preview} onKeep=${keep} busy=${keeping} />` : null}
         <div class="cx-atlas__tools">
@@ -320,6 +352,8 @@ export function AtlasScreen() {
           <${Button} size="s" variant="ghost" onClick=${() => frame.current && frame.current.fit()}>
             ${t('themes.map.fit')}<//>
           <span class="cx-atlas__keys" aria-hidden="true">${t('themes.map.keys')}</span>
+          <${ColumnButtons} hidden=${folded} onToggle=${toggleColumn} />
+          <${FullscreenButton} fs=${fs} />
         </div>
         <${MapFrame} class=${`cx-atlas__frame ${previewed ? 'is-preview' : ''}`} scene=${scene} frameRef=${frame}
           label=${previewed ? t(before ? 'map.preview.before_label' : 'map.preview.label', { n: shown.sample })
@@ -332,9 +366,19 @@ export function AtlasScreen() {
           legend=${html`<${Legend} index=${index} state=${state} counts=${previewed ? { people: shown.sample } : counts}
             onSelect=${(s) => select(s)} />`} />
       </div>
-      <${Panel} index=${index} state=${state} counts=${counts} sets=${sets} texts=${texts} base=${base}
-        onSelect=${(s) => select(s, { centre: true })} onClose=${() => setState({ sel: null })} />
+      ${folded.panel ? null : html`<${Panel} index=${index} state=${state} counts=${counts} sets=${sets} texts=${texts}
+        base=${base} space=${spaceAnswer} onCompare=${() => setComparing(true)}
+        onSelect=${(s) => select(s, { centre: true })} onClose=${() => setState({ sel: null })} />`}
     </div>
+    <${CompareDialog} ctx=${ctx} index=${index} a=${sel} open=${comparing && Boolean(sel)}
+      onClose=${() => setComparing(false)} onSelect=${(s) => select(s, { centre: true })} />
+    <${DistancesDialog} ctx=${ctx} open=${distances} onClose=${() => setDistances(false)}
+      shown=${distances && state.filters.length ? shownPeople(index, state) : null}
+      onStarted=${() => {
+        app.stores.jobs.refresh();
+        app.toaster.show({ kind: 'info', title: t('map.distances.started'), message: t('map.distances.started_text'),
+          action: { label: t('nav.share'), onClick: () => ctx.navigate('/share') } });
+      }} />
     <${VersionsDialog} ctx=${ctx} open=${versionsOpen} onClose=${() => setVersionsOpen(false)}
       drawn=${atlas.map_version} base=${state.base}
       onBase=${(id) => setState({ base: id, sel: null })}
