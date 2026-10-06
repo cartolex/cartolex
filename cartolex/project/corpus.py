@@ -45,10 +45,13 @@ from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
+
+import numpy as np
 
 from .layout import ProjectLayout
 from .models import ProjectFile
-from .tables import read_decision_csv, read_source_table
+from .tables import read_decision_csv
 
 __all__ = [
     "INDEX_COLUMNS",
@@ -221,35 +224,34 @@ def assemble_corpus(
 ) -> CorpusSummary:
     """Write the engine's corpus for *config*'s fit slots and projected sets into *out_dir*.
 
-    ``out_dir/<slot>/index.csv`` and ``out_dir/<slot>/texts/<text_id>.txt`` for each
-    fit slot, in the project's slot order, with ``out_dir/<slot>/people.csv``
-    naming the ``person_id`` behind each engine identity (last name, first
-    name, unit); ``out_dir/overlays/<set>/`` likewise for each projected set:
-    its ``projected`` people from the project's own tables, or every person of
-    its own ``root``'s tables (``<root>/tables/``, laid out like
-    ``sources/tables/``; a relative root is relative to the project).
-    *parts* are the parts read of every text, or, by the kind of the text's slot
-    (``collection``, ``folder``, ``corpus``), the parts read of that slot's texts
-    (a slot the project does not declare, as in an overlay's own folder, reads as
-    a collection). *provider_priority* picks one provider per (text, part,
-    language), earlier first, unknown providers last in name order. *doc_types*
-    are the document types read of every slot, or by the kind of the slot
-    (``None``: every type); a slot's own ``doc_types`` in ``project.json``
-    replace them. A text of another type is left out, and counted. *unit_level* names the level
-    whose organisation fills the ``unit`` column (default: the project's first
-    level, else any affiliation). *duplicate_min_title* and *duplicate_year_gap* are
-    how two texts are found to be one work (:func:`duplicate_groups`).
+    A packed corpus in ``out_dir/<slot>/`` for each fit slot, in the project's slot
+    order: ``pairs.parquet`` (one row per person and text), ``people.csv`` naming the
+    ``person_id`` behind each engine identity (last name, first name, unit, then the
+    person's attributes) and ``texts.parquet`` (each text once);
+    ``out_dir/overlays/<set>/`` likewise for each projected set: its ``projected``
+    people from the project's own tables, or every person of its own ``root``'s
+    tables (``<root>/tables/``, laid out like ``sources/tables/``; a relative root is
+    relative to the project). *parts* are the parts read of every text, or, by the
+    kind of the text's slot (``collection``, ``folder``, ``corpus``), the parts read
+    of that slot's texts (a slot the project does not declare, as in an overlay's own
+    folder, reads as a collection). *provider_priority* picks one provider per (text,
+    part, language), earlier first, unknown providers last in name order. *doc_types*
+    are the document types read of every slot, or by the kind of the slot (``None``:
+    every type); a slot's own ``doc_types`` in ``project.json`` replace them. A text of
+    another type is left out, and counted. *unit_level* names the level whose
+    organisation fills the ``unit`` column (default: the project's first level, else
+    any affiliation). *duplicate_min_title* and *duplicate_year_gap* are how two texts
+    are found to be one work (:func:`duplicate_groups`).
+
+    The tables are read as columns (a text is a few numbers, its id a few bytes) and
+    the texts written while their parts are read: memory does not hold the corpus.
     """
     same_work = {"min_title": duplicate_min_title, "year_gap": duplicate_year_gap}
     out_dir = Path(out_dir)
-    main = _load(layout.tables, config, unit_level, provider_priority)
-    copies: dict[Path, dict[str, str]] = {}
-    roles = _roles(layout, main.people)
-    summary = CorpusSummary()
-    slot_rank = {s.id: i for i, s in enumerate(config.slots)}
-    fit_slots = [s.id for s in config.slots if s.fit]
     kinds = {s.id: s.kind for s in config.slots}
     own_types = {s.id: set(s.doc_types) for s in config.slots if s.doc_types}
+    slot_rank = {s.id: i for i, s in enumerate(config.slots)}
+    fit_slots = [s.id for s in config.slots if s.fit]
 
     def types_of(slot: str) -> set[str] | None:
         if slot in own_types:
@@ -266,72 +268,21 @@ def assemble_corpus(
             return parts.get(kinds.get(slot, "collection"), ("title", "abstract"))
         return parts
 
-    def readable(tid: str, src: _Loaded) -> bool:
-        allowed = types_of(src.text_meta[tid]["slot"])
-        return allowed is None or src.text_meta[tid]["doc_type"] in allowed
+    def prepared(tables: Path) -> _Loaded:
+        src = _load(tables, config, unit_level)
+        src.readable = src.mask_types(types_of)
+        src.order = src.slot_order(slot_rank)
+        src.moved = _one_text_per_work(src, tables, same_work)
+        return src
 
-    copies[layout.tables] = _one_text_per_work(main, layout.tables, readable, same_work)
-
-    def texts_of(pid: str, slots: set[str] | None, src: _Loaded) -> list[str]:
-        text_meta = src.text_meta
-        found = [
-            t for t in src.by_person.get(pid, ()) if slots is None or text_meta[t]["slot"] in slots
-        ]
-        found.sort(
-            key=lambda t: (
-                slot_rank.get(text_meta[t]["slot"], 1 << 30),
-                text_meta[t]["slot"],
-                text_meta[t]["position"],
-            )
-        )
-        return found
-
-    def emit(
-        target: Path,
-        members: list[str],
-        slots: set[str] | None,
-        src: _Loaded,
-        bodies: set[str],
-        rows_of: Mapping[str, int],
-    ) -> dict[str, int]:
-        people, units, text_meta = src.people, src.units, src.text_meta
-        attributes = sorted({k for pid in members for k in people[pid]["columns"]})
-        keys: list[tuple[str, ...]] = []
-        identities: set[tuple[str, str, str]] = set()
-        texts: set[str] = set()
-        n_pairs = 0
-        with _PairsWriter(target / PAIRS_FILE) as pairs:
-            for pid in members:
-                person = people[pid]
-                n_before = n_pairs
-                for tid in texts_of(pid, slots, src):
-                    if not readable(tid, src):
-                        summary.texts_left_out_by_type += 1
-                        continue
-                    if tid not in bodies:
-                        summary.texts_without_parts += 1
-                        continue
-                    meta = text_meta[tid]
-                    pairs.add(pid, rows_of[tid], meta["year"], meta["doc_type"])
-                    texts.add(tid)
-                    n_pairs += 1
-                if n_pairs > n_before:
-                    unit = units.get(pid, "")
-                    first = person["first_name"] or ""
-                    keys.append(
-                        (pid, person["last_name"], first, unit,
-                         *(person["columns"].get(a, "") for a in attributes))
-                    )  # fmt: skip
-                    identities.add((person["last_name"], first, unit))
-        columns = (*PEOPLE_COLUMNS, *(attribute_column(a) for a in attributes))
-        _write(target / "people.csv", _csv_bytes(keys, columns))
-        return {"rows": n_pairs, "texts": len(texts), "people": len(identities)}
+    main = prepared(layout.tables)
+    roles = _roles(layout, main.people)
+    summary = CorpusSummary()
 
     # Who is read where: each target folder, its people and the slots they are read from.
     mapped = sorted(pid for pid, (role, _) in roles.items() if role == "mapped")
-    plans: list[tuple[str, Path, list[str], set[str] | None, _Loaded, Path]] = [
-        (slot_id, out_dir / slot_id, mapped, {slot_id}, main, layout.tables)
-        for slot_id in fit_slots
+    plans: list[tuple[str, Path, list[str], set[str] | None, _Loaded]] = [
+        (slot_id, out_dir / slot_id, mapped, {slot_id}, main) for slot_id in fit_slots
     ]
     for overlay in config.overlays:
         target = out_dir / "overlays" / overlay.id
@@ -339,64 +290,182 @@ def assemble_corpus(
             members = sorted(
                 pid for pid, (role, s) in roles.items() if role == "projected" and s == overlay.id
             )
-            plans.append((f"overlay:{overlay.id}", target, members, None, main, layout.tables))
+            plans.append((f"overlay:{overlay.id}", target, members, None, main))
             continue
         root = Path(overlay.root)
         if not root.is_absolute():
             root = layout.root / root
-        own = _load(root / "tables", config, unit_level, provider_priority)
-        copies[root / "tables"] = _one_text_per_work(own, root / "tables", readable, same_work)
-        plans.append(
-            (f"overlay:{overlay.id}", target, sorted(own.people), None, own, root / "tables")
-        )
+        own = prepared(root / "tables")
+        plans.append((f"overlay:{overlay.id}", target, sorted(own.people), None, own))
 
-    # The texts are written while their parts are read, a row group at a time: the
-    # parts of the whole corpus are never held in memory together.
-    by_tables: dict[Path, list[tuple[Path, set[str]]]] = defaultdict(list)
-    for _, target, members, slots, src, tables in plans:
-        wanted = {t for pid in members for t in texts_of(pid, slots, src) if readable(t, src)}
-        by_tables[tables].append((target, wanted))
-    read = {t for targets in by_tables.values() for _, wanted in targets for t in wanted}
+    # The texts each target reads; then written while their parts are read, a row group
+    # at a time: the parts of the whole corpus are never held in memory together.
+    by_source: dict[int, list[tuple[Path, np.ndarray]]] = defaultdict(list)
+    sources: dict[int, _Loaded] = {}
+    read_any: dict[int, np.ndarray] = {}
+    for _, target, members, slots, src in plans:
+        wanted = np.zeros(src.n, dtype=bool)
+        for pid in members:
+            mine = src.texts_of(pid, slots)
+            wanted[mine[src.readable[mine]]] = True
+        by_source[id(src)].append((target, wanted))
+        sources[id(src)] = src
+        read_any[id(src)] = read_any.get(id(src), np.zeros(src.n, dtype=bool)) | wanted
     summary.duplicate_texts = sum(
-        1 for moved in copies.values() for kept in moved.values() if kept in read
+        int(read_any[key][list(src.moved.values())].sum()) if src.moved else 0
+        for key, src in sources.items()
     )
-    bodies: dict[Path, set[str]] = {}
-    rows_of: dict[Path, dict[str, int]] = {}
-    for tables, targets in by_tables.items():
-        src = main if tables == layout.tables else next(p[4] for p in plans if p[5] == tables)
-        meta = src.text_meta
-        bodies[tables], rows, chars = _write_texts(
-            tables, meta, targets, lambda tid, m=meta: parts_of(m[tid]["slot"]), provider_priority
-        )
-        rows_of.update(rows)
+    written: dict[Path, tuple[np.ndarray, np.ndarray]] = {}
+    for key, targets in by_source.items():
+        src = sources[key]
+        bodies, rows, chars = _write_texts(src, targets, parts_of, provider_priority)
+        for target, _ in targets:
+            written[target] = (bodies, rows[target])
         summary.characters.update(chars)
-    for name, target, members, slots, src, tables in plans:
-        summary.slots[name] = emit(
-            target, members, slots, src, bodies[tables], rows_of.get(target, {})
-        )
+    for name, target, members, slots, src in plans:
+        bodies, rows = written[target]
+        summary.slots[name] = _emit(target, members, slots, src, bodies, rows, summary)
     summary.skipped_people = sum(
         1 for role, _ in roles.values() if role not in ("mapped", "projected")
     )
     return summary
 
 
+def _emit(
+    target: Path,
+    members: list[str],
+    slots: set[str] | None,
+    src: _Loaded,
+    bodies: np.ndarray,
+    rows: np.ndarray,
+    summary: CorpusSummary,
+) -> dict[str, int]:
+    """A target's pairs and people (its texts are written): people in ``person_id`` order,
+    each person's texts in slot order then ``position``."""
+    people, units = src.people, src.units
+    attributes = sorted({k for pid in members for k in people[pid]["columns"]})
+    keys: list[tuple[str, ...]] = []
+    identities: set[tuple[str, str, str]] = set()
+    texts = np.zeros(src.n, dtype=bool)
+    n_pairs = 0
+    with _PairsWriter(target / PAIRS_FILE) as pairs:
+        for pid in members:
+            person = people[pid]
+            n_before = n_pairs
+            for t in src.texts_of(pid, slots).tolist():
+                if not src.readable[t]:
+                    summary.texts_left_out_by_type += 1
+                    continue
+                if not bodies[t]:
+                    summary.texts_without_parts += 1
+                    continue
+                year = int(src.year[t]) if src.has_year[t] else None
+                pairs.add(pid, int(rows[t]), year, src.types[src.doc_type[t]])
+                texts[t] = True
+                n_pairs += 1
+            if n_pairs > n_before:
+                unit = units.get(pid, "")
+                first = person["first_name"] or ""
+                keys.append(
+                    (pid, person["last_name"], first, unit,
+                     *(person["columns"].get(a, "") for a in attributes))
+                )  # fmt: skip
+                identities.add((person["last_name"], first, unit))
+    columns = (*PEOPLE_COLUMNS, *(attribute_column(a) for a in attributes))
+    _write(target / "people.csv", _csv_bytes(keys, columns))
+    return {"rows": n_pairs, "texts": int(texts.sum()), "people": len(identities)}
+
+
 @dataclass
 class _Loaded:
-    """What the adapter reads from one set of tables (the project's, or an overlay's own)."""
+    """What the adapter reads from one set of tables (the project's, or an overlay's own),
+    as columns: one entry per text of the ``texts`` table, in its order (by ``text_id``)."""
 
-    text_meta: dict[str, dict]
+    tables: Path
+    keys: np.ndarray  # text ids, UTF-8 bytes, sorted
+    slot: np.ndarray
+    slots: list[str]
+    position: np.ndarray
+    year: np.ndarray
+    has_year: np.ndarray
+    doc_type: np.ndarray
+    types: list[str]
+    #: Texts read: not a preprint whose published version is in the tables, not a copy.
+    alive: np.ndarray
     people: dict[str, dict]
     units: dict[str, str]
-    by_person: dict[str, list[str]]
+    #: Each person's texts (indices, alive only, in id order).
+    person_texts: dict[str, np.ndarray]
+    readable: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=bool))
+    order: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=np.int64))
+    moved: dict[int, int] = field(default_factory=dict)
+
+    @property
+    def n(self) -> int:
+        return len(self.keys)
+
+    def tid(self, i: int) -> str:
+        return bytes(self.keys[i]).decode("utf-8")
+
+    def lookup(self, ids: Sequence[str]) -> np.ndarray:
+        """The index of each text id (``-1``: not in the tables)."""
+        wanted = np.array([i.encode("utf-8") for i in ids], dtype=self.keys.dtype)
+        found = np.searchsorted(self.keys, wanted)
+        found = np.minimum(found, max(self.n - 1, 0))
+        hit = self.keys[found] == wanted if self.n else np.zeros(len(ids), dtype=bool)
+        return np.where(hit, found, -1)
+
+    def mask_types(self, types_of: Callable[[str], set[str] | None]) -> np.ndarray:
+        """Each text: whether its slot reads its document type."""
+        allowed = np.ones((len(self.slots), len(self.types)), dtype=bool)
+        for s, slot in enumerate(self.slots):
+            chosen = types_of(slot)
+            if chosen is not None:
+                allowed[s] = [t in chosen for t in self.types]
+        return allowed[self.slot, self.doc_type] if self.n else np.zeros(0, dtype=bool)
+
+    def slot_order(self, slot_rank: Mapping[str, int]) -> np.ndarray:
+        """Each slot code's place in the reading order (the project's order, then by id)."""
+        ranked = sorted(
+            range(len(self.slots)),
+            key=lambda s: (slot_rank.get(self.slots[s], 1 << 30), self.slots[s]),
+        )
+        order = np.empty(len(self.slots), dtype=np.int64)
+        order[ranked] = np.arange(len(ranked))
+        return order
+
+    def texts_of(self, pid: str, slots: set[str] | None) -> np.ndarray:
+        """A person's texts read from *slots* (every slot: ``None``), in slot order then
+        ``position``."""
+        mine = self.person_texts.get(pid)
+        if mine is None or not len(mine):
+            return np.zeros(0, dtype=np.int64)
+        if slots is not None:
+            codes = [i for i, s in enumerate(self.slots) if s in slots]
+            mine = mine[np.isin(self.slot[mine], codes)]
+        return mine[np.lexsort((self.position[mine], self.order[self.slot[mine]]))]
 
 
 def _table(tables: Path, name: str) -> Path:
     return Path(tables) / f"{name}.parquet"
 
 
-def _load(
-    tables: Path, config: ProjectFile, unit_level: str | None, provider_priority: Sequence[str]
-) -> _Loaded:
+def _codes(column: Any) -> tuple[np.ndarray, list[str]]:
+    import pyarrow.compute as pc
+
+    encoded = pc.dictionary_encode(
+        column.combine_chunks() if hasattr(column, "combine_chunks") else column
+    )
+    names = [str(v) if v is not None else "" for v in encoded.dictionary.to_pylist()]
+    return np.asarray(
+        encoded.indices.fill_null(0).to_numpy(zero_copy_only=False), dtype=np.int32
+    ), names
+
+
+def _load(tables: Path, config: ProjectFile, unit_level: str | None) -> _Loaded:
+    import pyarrow.compute as pc
+    import pyarrow.parquet as pq
+
     missing = [
         n
         for n in ("texts", "text_parts", "people", "authorships")
@@ -404,63 +473,198 @@ def _load(
     ]
     if missing:
         raise FileNotFoundError(f"{tables}: missing source table(s) {missing}")
-    texts = read_source_table(_table(tables, "texts"), "texts")
-    rows = texts.select(["text_id", "slot", "position", "year", "doc_type", "version_of", "title"])
-    text_meta = {row["text_id"]: row for row in rows.to_pylist()}
+    texts = pq.read_table(
+        _table(tables, "texts"),
+        columns=["text_id", "slot", "position", "year", "doc_type", "version_of"],
+    )
+    ids = texts["text_id"].to_pylist()
+    width = max((len(i.encode("utf-8")) for i in ids), default=1)
+    keys = np.array([i.encode("utf-8") for i in ids], dtype=f"S{max(width, 1)}")
+    if len(keys) > 1 and not bool(np.all(keys[1:] > keys[:-1])):
+        raise ValueError(f"{_table(tables, 'texts')}: rows are not sorted by text_id")
+    del ids
+    slot, slots = _codes(texts["slot"])
+    doc_type, types = _codes(texts["doc_type"])
+    year_col = texts["year"]
+    has_year = np.asarray(pc.is_valid(year_col).to_numpy(zero_copy_only=False), dtype=bool)
+    year = np.asarray(year_col.fill_null(0).to_numpy(zero_copy_only=False), dtype=np.int64)
+    position = np.asarray(
+        texts["position"].fill_null(0).to_numpy(zero_copy_only=False), dtype=np.int64
+    )
     # A preprint whose published version is in the tables is not read: the published text
     # (the version of record, with its year and DOI) is, so a work counts once.
-    for tid in [t for t, row in text_meta.items() if row["version_of"] in text_meta]:
-        del text_meta[tid]
+    superseded = pc.is_in(texts["version_of"], value_set=texts["text_id"].combine_chunks())
+    alive = ~np.asarray(superseded.fill_null(False).to_numpy(zero_copy_only=False), dtype=bool)
+    del texts
     people = {
         row["person_id"]: {**row, "columns": dict(row["columns"] or [])}
-        for row in read_source_table(_table(tables, "people"), "people")
-        .select(["person_id", "last_name", "first_name", "columns"])
-        .to_pylist()
+        for row in pq.read_table(
+            _table(tables, "people"), columns=["person_id", "last_name", "first_name", "columns"]
+        ).to_pylist()
     }
-    return _Loaded(
-        text_meta=text_meta,
+    src = _Loaded(
+        tables=Path(tables),
+        keys=keys,
+        slot=slot,
+        slots=slots,
+        position=position,
+        year=year,
+        has_year=has_year,
+        doc_type=doc_type,
+        types=types,
+        alive=alive,
         people=people,
         units=_units(tables, config, unit_level),
-        by_person=_texts_by_person(tables, text_meta),
+        person_texts={},
     )
+    src.person_texts = _texts_by_person(src)
+    return src
 
 
-def _one_text_per_work(
-    src: _Loaded,
-    tables: Path,
-    readable: Callable[[str, _Loaded], bool],
-    same_work: Mapping[str, int] | None = None,
-) -> dict[str, str]:
+def _authorships(src: _Loaded) -> tuple[np.ndarray, list[str]]:
+    """Every authorship of the tables: its text's index (``-1``: not a text of the tables)
+    and its person's id."""
+    import pyarrow.parquet as pq
+
+    table = pq.read_table(_table(src.tables, "authorships"), columns=["text_id", "person_id"])
+    texts = src.lookup(table["text_id"].to_pylist())
+    return texts, table["person_id"].to_pylist()
+
+
+def _texts_by_person(src: _Loaded) -> dict[str, np.ndarray]:
+    texts, people = _authorships(src)
+    keep = (texts >= 0) & src.alive[np.maximum(texts, 0)] if len(texts) else texts >= 0
+    by_person: dict[str, list[int]] = defaultdict(list)
+    for t, pid in zip(
+        texts[keep].tolist(),
+        (p for p, k in zip(people, keep.tolist(), strict=True) if k),
+        strict=True,
+    ):
+        by_person[pid].append(t)
+    return {pid: np.asarray(ts, dtype=np.int64) for pid, ts in by_person.items()}
+
+
+def _one_text_per_work(src: _Loaded, tables: Path, same_work: Mapping[str, int]) -> dict[int, int]:
     """Read one text per work of *src* (see the module docstring), in place.
 
-    The copies left out leave ``text_meta``; each of their authors reads the text
-    kept instead. Returns each copy left out → the text kept.
+    The copies left out are no longer read; each of their authors reads the text kept
+    instead. Returns each copy left out → the text kept (indices).
     """
-    meta = src.text_meta
+    import hashlib
+
+    import pyarrow.parquet as pq
+
+    min_title = same_work.get("min_title", DUPLICATE_MIN_TITLE)
+    year_gap = same_work.get("year_gap", DUPLICATE_YEAR_GAP)
+    candidate = src.alive & src.readable & src.has_year
+    # Texts that may share a title: a 64-bit hash of (slot, normalised title) each.
+    hashes, owners = [], []
+    pf = pq.ParquetFile(_table(tables, "texts"))
+    start = 0
+    for batch in pf.iter_batches(batch_size=65_536, columns=["title"]):
+        for j, title in enumerate(batch.column(0).to_pylist()):
+            i = start + j
+            if not candidate[i]:
+                continue
+            norm = normalised_title(title)
+            if len(norm) >= min_title:
+                key = f"{src.slots[src.slot[i]]}\x00{norm}".encode()
+                hashes.append(
+                    int.from_bytes(hashlib.blake2b(key, digest_size=8).digest(), "little")
+                )
+                owners.append(i)
+        start += batch.num_rows
+    pf.close()
+    if not hashes:
+        return {}
+    h = np.asarray(hashes, dtype=np.uint64)
+    o = np.asarray(owners, dtype=np.int64)
+    order = np.argsort(h, kind="stable")
+    h, o = h[order], o[order]
+    repeated = np.zeros(len(h), dtype=bool)
+    same = h[1:] == h[:-1]
+    repeated[1:] |= same
+    repeated[:-1] |= same
+    wanted = set(o[repeated].tolist())
+    if not wanted:
+        return {}
+    # The candidates' titles and authors, to apply the rule itself.
+    titles: dict[int, str] = {}
+    start = 0
+    pf = pq.ParquetFile(_table(tables, "texts"))
+    for batch in pf.iter_batches(batch_size=65_536, columns=["title"]):
+        for j, title in enumerate(batch.column(0).to_pylist()):
+            if start + j in wanted:
+                titles[start + j] = normalised_title(title)
+        start += batch.num_rows
+    pf.close()
+    texts, people = _authorships(src)
     authors: dict[str, set[str]] = defaultdict(set)
-    for pid, tids in src.by_person.items():
-        for tid in tids:
-            authors[tid].add(pid)
-    groups = duplicate_groups(
-        {t: m for t, m in meta.items() if readable(t, src)}, authors, **dict(same_work or {})
-    )
+    for t, pid in zip(texts.tolist(), people, strict=True):
+        if t in wanted:
+            authors[src.tid(t)].add(pid)
+    meta = {
+        src.tid(i): {"slot": src.slots[src.slot[i]], "title": None, "year": int(src.year[i])}
+        for i in wanted
+    }
+    groups = _groups_of(meta, {src.tid(i): titles[i] for i in wanted}, authors, year_gap)
     if not groups:
         return {}
 
     def rank(tid: str) -> tuple[int, str]:
-        return version_rank(meta[tid]["doc_type"])
+        i = int(src.lookup([tid])[0])
+        return version_rank(src.types[src.doc_type[i]])
 
     tied = {t for g in groups for t in g if sum(1 for u in g if rank(u) == min(map(rank, g))) > 1}
     words = _part_words(tables, tied) if tied else {}
-    moved: dict[str, str] = {}
+    moved: dict[int, int] = {}
     for group in groups:
         keep = min(group, key=lambda t: (rank(t), -words.get(t, 0), t))
-        moved.update({t: keep for t in group if t != keep})
-    for pid, tids in src.by_person.items():
-        src.by_person[pid] = list(dict.fromkeys(moved.get(t, t) for t in tids))
-    for tid in moved:
-        del meta[tid]
+        k = int(src.lookup([keep])[0])
+        for t in group:
+            if t != keep:
+                moved[int(src.lookup([t])[0])] = k
+    for copy in moved:
+        src.alive[copy] = False
+    for pid, mine in list(src.person_texts.items()):
+        if any(t in moved for t in mine.tolist()):
+            src.person_texts[pid] = np.asarray(
+                list(dict.fromkeys(moved.get(t, t) for t in mine.tolist())), dtype=np.int64
+            )
     return moved
+
+
+def _groups_of(
+    texts: Mapping[str, Mapping[str, Any]],
+    titles: Mapping[str, str],
+    authors: Mapping[str, Iterable[str]],
+    year_gap: int,
+) -> list[list[str]]:
+    """:func:`duplicate_groups` over titles already normalised (and long enough)."""
+    by_title: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for tid in sorted(texts):
+        by_title[(str(texts[tid]["slot"]), titles[tid])].append(tid)
+    parent: dict[str, str] = {}
+
+    def find(t: str) -> str:
+        while parent.get(t, t) != t:
+            t = parent[t]
+        return t
+
+    for tids in by_title.values():
+        for i, a in enumerate(tids):
+            for b in tids[i + 1 :]:
+                gap = abs(int(texts[a]["year"]) - int(texts[b]["year"]))
+                if gap <= year_gap and set(authors.get(a, ())) & set(authors.get(b, ())):
+                    ra, rb = find(a), find(b)
+                    if ra != rb:
+                        parent[max(ra, rb)] = min(ra, rb)
+    groups: dict[str, list[str]] = defaultdict(list)
+    for t in parent:
+        groups[find(t)].append(t)
+    for root in list(groups):
+        groups[root].append(root)
+    return sorted((sorted(set(g)) for g in groups.values()), key=lambda g: g[0])
 
 
 def _part_words(tables: Path, tids: set[str]) -> dict[str, int]:
@@ -492,38 +696,36 @@ def _roles(layout: ProjectLayout, people: dict[str, dict]) -> dict[str, tuple[st
 
 
 def _units(tables: Path, config: ProjectFile, unit_level: str | None) -> dict[str, str]:
-    """person_id → the acronym (else name) of their current organisation at *unit_level*."""
+    """person_id → the acronym (else name) of their current organisation at *unit_level*:
+    the affiliation that ends last (an open one last of all), the first in the table's
+    order on a tie."""
+    import pyarrow as pa
+    import pyarrow.compute as pc
+    import pyarrow.parquet as pq
+
     orgs_path, aff_path = _table(tables, "organisations"), _table(tables, "affiliations")
     if not orgs_path.exists() or not aff_path.exists():
         return {}
     level = unit_level or (config.levels[0].id if config.levels else None)
-    orgs = {
-        r["org_id"]: r
-        for r in read_source_table(orgs_path, "organisations")
-        .select(["org_id", "name", "acronym", "level"])
-        .to_pylist()
+    labels = {
+        r["org_id"]: r["acronym"] or r["name"]
+        for r in pq.read_table(
+            orgs_path, columns=["org_id", "name", "acronym", "level"]
+        ).to_pylist()
+        if level is None or r["level"] == level
     }
-    best: dict[str, tuple[int, str]] = {}
-    for aff in read_source_table(aff_path, "affiliations").to_pylist():
-        org = orgs.get(aff["org_id"])
-        if org is None or (level is not None and org["level"] != level):
-            continue
-        rank = aff["end_year"] if aff["end_year"] is not None else 1 << 30
-        label = org["acronym"] or org["name"]
-        if aff["person_id"] not in best or rank > best[aff["person_id"]][0]:
-            best[aff["person_id"]] = (rank, label)
-    return {pid: label for pid, (_, label) in best.items()}
-
-
-def _texts_by_person(tables: Path, text_meta: dict[str, dict]) -> dict[str, list[str]]:
-    table = read_source_table(_table(tables, "authorships"), "authorships").select(
-        ["text_id", "person_id"]
-    )
-    by_person: dict[str, list[str]] = defaultdict(list)
-    for tid, pid in zip(table["text_id"].to_pylist(), table["person_id"].to_pylist(), strict=True):
-        if tid in text_meta:
-            by_person[pid].append(tid)
-    return by_person
+    aff = pq.read_table(aff_path, columns=["person_id", "org_id", "end_year"])
+    aff = aff.filter(pc.is_in(aff["org_id"], value_set=pa.array(sorted(labels), pa.string())))
+    if aff.num_rows == 0:
+        return {}
+    rank = pc.fill_null(aff["end_year"].cast(pa.int64()), 1 << 30)
+    aff = aff.append_column("rank", rank).append_column("row", pa.array(np.arange(aff.num_rows)))
+    aff = aff.sort_by([("person_id", "ascending"), ("rank", "descending"), ("row", "ascending")])
+    best: dict[str, str] = {}
+    for pid, oid in zip(aff["person_id"].to_pylist(), aff["org_id"].to_pylist(), strict=True):
+        if pid not in best:
+            best[pid] = labels[oid]
+    return best
 
 
 def _choose(
@@ -544,12 +746,11 @@ PARTS_BATCH = 20_000
 
 
 def _write_texts(
-    tables: Path,
-    text_meta: dict[str, dict],
-    targets: list[tuple[Path, set[str]]],
-    parts: Sequence[str] | Callable[[str], Sequence[str]],
+    src: _Loaded,
+    targets: list[tuple[Path, np.ndarray]],
+    parts_of: Callable[[str], Sequence[str]],
     provider_priority: Sequence[str],
-) -> tuple[set[str], dict[Path, dict[str, int]], dict[Path, int]]:
+) -> tuple[np.ndarray, dict[Path, np.ndarray], dict[Path, int]]:
     """Write each wanted text into the ``texts.parquet`` of the target folders that want it.
 
     ``text_parts`` is read a batch of rows at a time, in its order (by
@@ -557,38 +758,41 @@ def _write_texts(
     provider priority) and the text written once they are all read, so each
     target's texts are in ``text_id`` order. Each batch is checked like the
     whole table (columns, types, values, order, keys), and the order across
-    batches too. Returns the texts with a body, each target's row of each text,
-    and each target's characters.
+    batches too. Returns which texts have a body, each target's row of each text
+    (``-1``: not written) and each target's characters.
     """
     import pyarrow as pa
     import pyarrow.parquet as pq
 
     from .tables import TableError, _check
 
-    path = _table(tables, "text_parts")
+    path = _table(src.tables, "text_parts")
     rank = {p: i for i, p in enumerate(provider_priority)}
-    wanted_by = [(target, wanted) for target, wanted in targets if wanted]
+    wanted_by = [(target, wanted) for target, wanted in targets if wanted.any()]
     writers = {target: _TextsWriter(target / TEXTS_FILE) for target, _ in wanted_by}
-    bodies: set[str] = set()
-    current: str | None = None
+    rows = {target: np.full(src.n, -1, dtype=np.int32) for target, _ in targets}
+    bodies = np.zeros(src.n, dtype=bool)
+    current: int | None = None
     pending: list[tuple[str, str, str, str]] = []
     last_key: tuple | None = None
 
-    def finish(tid: str | None) -> None:
-        if tid is None or tid not in text_meta:
+    def finish(t: int | None) -> None:
+        if t is None or t < 0 or not src.alive[t]:
             return
-        chosen = parts(tid) if callable(parts) else parts
-        body = render_text(_choose(pending, rank), chosen=chosen)
+        body = render_text(_choose(pending, rank), chosen=parts_of(src.slots[src.slot[t]]))
         if not body:
             return
+        tid = src.tid(t)
         for target, wanted in wanted_by:
-            if tid in wanted:
-                writers[target].add(tid, body)
-        bodies.add(tid)
+            if wanted[t]:
+                rows[target][t] = writers[target].add(tid, body)
+        bodies[t] = True
 
     columns = ["text_id", "part", "language", "provider", "content"]
+    previous: str | None = None
+    pf = pq.ParquetFile(path)
     try:
-        for batch in pq.ParquetFile(path).iter_batches(batch_size=PARTS_BATCH):
+        for batch in pf.iter_batches(batch_size=PARTS_BATCH):
             table = _check("text_parts", pa.Table.from_batches([batch]), str(path))
             if table.num_rows == 0:
                 continue
@@ -598,18 +802,20 @@ def _write_texts(
             last_key = tuple(
                 table.slice(table.num_rows - 1, 1).select(list(_KEY)).to_pylist()[0].values()
             )
-            for tid, part, lang, provider, content in zip(
-                *(table[c].to_pylist() for c in columns), strict=True
+            values = [table[c].to_pylist() for c in columns]
+            index = src.lookup(values[0]).tolist()
+            for t, (tid, part, lang, provider, content) in zip(
+                index, zip(*values, strict=True), strict=True
             ):
-                if tid != current:
+                if tid != previous:
                     finish(current)
-                    current, pending = tid, []
+                    current, pending, previous = t, [], tid
                 pending.append((part, lang, provider, content))
         finish(current)
     finally:
+        pf.close()
         for writer in writers.values():
             writer.close()
-    rows = {target: w.rows for target, w in writers.items()}
     chars = {target: w.characters for target, w in writers.items()}
     return bodies, rows, chars
 
@@ -625,19 +831,22 @@ class _TextsWriter:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
         self.schema = pa.schema([("text_id", pa.string()), ("text", pa.large_string())])
-        self.rows: dict[str, int] = {}
+        self.count = 0
         self.characters = 0
         self._ids: list[str] = []
         self._texts: list[str] = []
         self._writer = None
 
-    def add(self, tid: str, text: str) -> None:
-        self.rows[tid] = len(self.rows)
+    def add(self, tid: str, text: str) -> int:
+        """Append a text; returns its row."""
+        row = self.count
+        self.count += 1
         self.characters += len(text)
         self._ids.append(tid)
         self._texts.append(text)
         if len(self._ids) >= self.GROUP:
             self._flush()
+        return row
 
     def _flush(self) -> None:
         import pyarrow as pa

@@ -6,6 +6,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from cartolex.demo import generate
@@ -141,12 +142,10 @@ def test_the_parts_are_read_a_batch_at_a_time(world_and_project, tmp_path, monke
     parts = pq.read_table(project.layout.table("text_parts"))
     swapped = parts.slice(7, 7).to_batches() + parts.slice(0, 7).to_batches()
     pq.write_table(parts.from_batches(swapped), copy / "text_parts.parquet", row_group_size=7)
-    texts = pq.read_table(copy / "texts.parquet")
-    wanted = set(texts["text_id"].to_pylist())
+    src = corpus._load(copy, project.config, None)
+    wanted = np.ones(src.n, dtype=bool)
     with pytest.raises(TableError, match="not sorted"):
-        corpus._write_texts(
-            copy, {t: {} for t in wanted}, [(tmp_path / "x", wanted)], ["title"], []
-        )
+        corpus._write_texts(src, [(tmp_path / "x", wanted)], lambda slot: ["title"], [])
 
 
 def test_person_attributes_reach_the_engine_index(world_and_project, tmp_path):
