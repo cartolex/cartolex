@@ -323,7 +323,8 @@ the settings (`pages/settings.js`: one module per section under
 section reads what it shows when it opens), the start screen
 (`pages/start.js` and `pages/start/`: recent projects, the demo project, a new
 project; `/start`, and `/start?new=1` for the form) and the About page
-(`pages/about.js` and `pages/about/`: what cartolex is for, the pipeline as one
+(`pages/about.js` and `pages/about/`: the logo (`brand/mark.svg`, or the host's own),
+what cartolex is for, the pipeline as one
 SVG figure drawn with the theme's tokens, the scientific background as
 bibliographic records, the authors, citation, licence and build from
 `GET /api/app/about`; the logo leads to it, `docs/about.md` holds the same

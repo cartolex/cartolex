@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /**
- * The About page: what cartolex is for, the pipeline (a figure), the scientific
+ * The About page: the logo (the host's own, else the mark), what cartolex is for, the pipeline (a figure), the scientific
  * background (a draft for the authors), the authors and how to cite cartolex,
  * its licence, its version and build, and the documentation. It reads
  * `GET /api/app/about` only (the package's metadata: authors, licence, source,
@@ -73,8 +73,14 @@ export function About() {
   useEffect(() => {
     load();
   }, []);
+  const branding = ctx.app.manifest.branding || {};
+  const ownLogo = branding.logo && branding.logo !== '/static/brand/logo.svg';
   return html`<div class="cx-page cx-about">
-    <h1 class="cx-page__title">${t('about.title', { name })}</h1>
+    <div class="cx-about__head">
+      <img class="cx-about__logo"
+        src=${ownLogo ? branding.logo : '/static/brand/mark.svg'} alt="" width="96" height="96" />
+      <h1 class="cx-page__title">${t('about.title', { name })}</h1>
+    </div>
     <p class="cx-page__lead">${t('about.lead')}</p>
     <section class="cx-about__section" aria-labelledby="cx-about-for">
       <h2 id="cx-about-for" class="cx-about__heading">${t('about.purpose.title')}</h2>

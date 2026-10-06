@@ -1,3 +1,4 @@
 /* The few styles of the pages' own (the app refuses inline styles). */
-img.cx-docs-logo { width: 120px; height: auto; margin: 0.5rem 0 1rem; }
+/* The logo, once per page, at the top of the side panel: the size of a mark, not a banner. */
+.sidebar-logo { width: 4.5rem; height: auto; }
 figure.cx-docs-figure { margin: 1rem 0 1.5rem; }
