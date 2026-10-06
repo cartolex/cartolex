@@ -127,11 +127,12 @@ researchers, or one team.
 - **Nobody found for someone**: their sheet (Enter on their row in the People
   tab) gives the first blocking cause. Add their ORCID in a new import, paste
   a record on the Identities tab, or **Add documents** (their PDFs).
-- **A wrong record was confirmed**: the app does not reopen a confirmed
-  identity yet. On the command line, `cartolex collect confirm FOLDER
-  <person> <record>` gives the person their right records
-  ({doc}`dev/command-line`); harvest again, and the new harvest replaces what
-  the wrong record brought.
+- **A wrong record was confirmed**: on the person's sheet, **Change
+  identity…** opens the choice again: pick another candidate (1–9, Enter),
+  paste their record or ORCID, or **None of these** (N). On the command line,
+  `cartolex collect confirm FOLDER <person> <record>` does the same
+  ({doc}`dev/command-line`). Harvest again: the new harvest replaces what the
+  wrong record brought.
 - **Two different ORCIDs on a pair**: cartolex refuses to merge them unless
   you insist (**Merge anyway**): two iDs are usually two people.
 

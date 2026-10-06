@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 import time
 
 import pytest
@@ -142,6 +143,66 @@ def test_collect_identities_by_keyboard_and_a_sheet_that_says_why(corpus_app, op
     sheet.wait_for()
     assert "First blocking cause" in sheet.inner_text()
     assert "No data" in sheet.inner_text()
+
+
+def _identity(ui, pid: str) -> dict:
+    return _get(ui, f"/api/people/{pid}/sheet")["decision"]
+
+
+def test_a_decided_identity_is_changed_from_the_sheet(corpus_app, open_app, axe_source):
+    ui = open_app(corpus_app, bypass_csp=True)
+    page = ui.page
+    ui.navigate("/people")
+    page.locator(f".cx-corpus {REAL_ROW}").first.wait_for()
+    page.get_by_role("button", name="Collect").click()
+    page.get_by_role("menuitem", name="Find identities").click()
+    page.get_by_role("button", name="What leaves the computer").click()
+    page.get_by_label("I have read what leaves the computer").check()
+    page.get_by_role("button", name="Start").click()
+    assert _wait_jobs(ui)["state"] == "succeeded"
+    page.get_by_role("tab", name="Identities").click()
+    page.locator(f".cx-corpus-queue {REAL_ROW}").first.wait_for()
+    page.get_by_role("button", name="Accept the").click()
+    _until(lambda: _count(ui, "confirmed") > 0)
+    pid = _get(ui, "/api/people?identity=confirmed&limit=1")["items"][0]["person_id"]
+
+    # the sheet reopens the choice: the candidates, N says none of them is the person
+    ui.navigate(f"/people?person={pid}")
+    page.locator(".cx-corpus-sheet").wait_for()
+    page.get_by_role("button", name="Change identity…").click()
+    dialog = page.get_by_role("dialog", name=re.compile("^Identity of "))
+    dialog.locator(".cx-corpus-cand").first.wait_for()
+    assert dialog.locator(".cx-corpus-cand.is-picked").count() == 1
+    violations = blocking(run_axe(ui, axe_source))
+    assert violations == [], "\n".join(violations)
+    page.keyboard.press("n")
+    _until(lambda: _identity(ui, pid)["identity"] == "none")
+    assert _identity(ui, pid)["records"] == []
+    dialog.wait_for(state="detached")
+    assert "No record" in page.locator(".cx-corpus-sheet").inner_text()
+
+    # again: a pasted record; then the candidate picked by its number and confirmed (⏎)
+    page.get_by_role("button", name="Change identity…").click()
+    dialog.locator(".cx-corpus-cand").first.wait_for()
+    dialog.get_by_label("Or paste a record").fill("orcid:0000-0000-0000-0001")
+    dialog.get_by_role("button", name="Use this record").click()
+    _until(lambda: _identity(ui, pid)["records"] == ["orcid:0000-0000-0000-0001"])
+    assert _identity(ui, pid)["identity"] == "confirmed"
+    dialog.wait_for(state="detached")
+    page.get_by_role("button", name="Change identity…").click()
+    dialog.locator(".cx-corpus-cand").first.wait_for()
+    found = _get(ui, f"/api/collection/identities?state=all&person={pid}")["items"][0]
+    number = next(i for i, c in enumerate(found["candidates"]) if c["record"])
+    record = found["candidates"][number]["record"]
+    page.keyboard.press(str(number + 1))
+    page.keyboard.press("Enter")
+    _until(lambda: _identity(ui, pid)["records"] == [record])
+    # Escape closes it without a change
+    page.get_by_role("button", name="Change identity…").click()
+    dialog.locator(".cx-corpus-cand").first.wait_for()
+    page.keyboard.press("Escape")
+    dialog.wait_for(state="detached")
+    assert _identity(ui, pid)["records"] == [record]
 
 
 def test_two_quick_decisions_on_a_slow_machine_are_both_saved(corpus_app, open_app):

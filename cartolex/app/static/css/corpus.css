@@ -228,6 +228,17 @@
   gap: var(--cx-space-2);
 }
 
+/* « Change identity… » from a sheet: the choice, the record pasted, the actions. */
+.cx-corpus-idchange__body {
+  display: grid;
+  gap: var(--cx-space-3);
+}
+
+.cx-corpus-idchange__body .cx-corpus-facts,
+.cx-corpus-idchange__body .cx-corpus-keys {
+  margin: 0;
+}
+
 .cx-corpus-cands {
   display: grid;
   gap: var(--cx-space-2);

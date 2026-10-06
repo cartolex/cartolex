@@ -217,7 +217,9 @@ in the ORCID registry and compares them with the record's, by DOI. When they
 disagree (many of the record's works are not declared, or many declared works
 are not on the record), both are shown with their counts and you decide.
 
-Confirming records:
+Confirming records: the **Identities** tab, or for an identity already
+decided (confirmed, accepted automatically or none) **Change identity…** on
+the person's sheet, which opens the same choice again.
 
 ````{admonition} On the command line
 :class: note

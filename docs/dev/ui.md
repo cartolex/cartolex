@@ -387,7 +387,8 @@ organisation's drawer with what people decide about it, `org-drawer.js`; the
 pairs that may be one organisation, `org-review.js`; the people of institutions,
 `institutions.js`), Texts (`texts-tab.js`), Collaborators
 (`collaborators-tab.js`) and Coverage (`coverage-tab.js`); a person's sheet
-(`sheet.js`); the import and collect dialogs (`import.js`, `collect.js`; `notice.js` shows
+(`sheet.js`, with « Change identity… », `identity-change.js`: the identity choice
+opened again for a decided person); the import and collect dialogs (`import.js`, `collect.js`; `notice.js` shows
 what leaves the computer at the level the plan asks: none, brief or full, and
 OpenAlex's cost beyond its free daily budget); and `common.js`. Its lists are paged
 (`sheet.js`: merges undone, affiliations removed or put back); the import and

@@ -4,8 +4,8 @@
  * blocking cause comes first (a person without a usable profile has a sheet
  * saying why), then the sources used and discarded, each finder's latest
  * attempt, the texts and the affiliations with their years. Actions: retry a
- * failed collection, add documents, exclude, or decide the identity; show the
- * person on the map. A merged row says whom it is merged into, a person the
+ * failed collection, add documents, exclude, or change the identity (the
+ * identity choice opened again, `identity-change.js`); show the person on the map. A merged row says whom it is merged into, a person the
  * rows merged into them; each merge can be undone (« two people » remembers the
  * pair, « not sure » leaves it to review). An affiliation can be removed, and
  * one someone added or removed taken back.
@@ -16,6 +16,7 @@ import { Button, Drawer, ErrorCard, MenuButton } from '../../components/index.js
 import {
   CoverageState, Fact, IdentityState, coded, personName, roleLabel,
 } from './common.js';
+import { IdentityChangeDialog } from './identity-change.js';
 
 function finderLabel(finder) {
   return has(`corpus.finder.${finder}`) ? t(`corpus.finder.${finder}`) : finder;
@@ -32,6 +33,7 @@ export function PersonSheet({ ctx, personId, onClose, bump, toast, openCollect, 
   openSheet, showOnMap }) {
   const [person, setPerson] = useState(null);
   const [error, setError] = useState(null);
+  const [changing, setChanging] = useState(false);
   const load = () => ctx.api.get(`/api/people/${encodeURIComponent(personId)}/sheet`).then((r) => {
     if (r.ok) setPerson(r.data);
     else setError(r.error);
@@ -131,6 +133,8 @@ export function PersonSheet({ ctx, personId, onClose, bump, toast, openCollect, 
         ${actions.includes('add_documents') ? html`<${Button} size="s" icon="upload"
           onClick=${() => openImport('folder', { person_id: personId, name: personName(person) })}>
           ${t('corpus.sheet.add_documents')}<//>` : null}
+        ${!person.merged_into ? html`<${Button} size="s" onClick=${() => setChanging(true)}>
+          ${t('corpus.sheet.change_identity')}<//>` : null}
         ${actions.includes('exclude') ? html`<${Button} size="s" variant="ghost" onClick=${exclude}>
           ${t('corpus.sheet.exclude')}<//>` : null}
         ${showOnMap && !person.merged_into ? html`<${Button} size="s" variant="ghost"
@@ -186,5 +190,8 @@ export function PersonSheet({ ctx, personId, onClose, bump, toast, openCollect, 
           <span class="cx-corpus-muted"> ${t(`corpus.content.${x.content}`)}</span></li>`)}</ul>
       </section>
     </div>` : null}
-  <//>`;
+  <//>
+  ${changing && person ? html`<${IdentityChangeDialog} ctx=${ctx} person=${{ ...person, person_id: personId }}
+      toast=${toast} onClose=${() => setChanging(false)}
+      onSaved=${() => { setChanging(false); bump(); load(); }} />` : null}`;
 }

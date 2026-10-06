@@ -931,29 +931,7 @@ class ServiceCollection(BaseCollection):
                 return cached[1]
         if not project.layout.table("people").exists():
             return {}
-        found: dict[str, list[dict[str, Any]]] = {}
-        for entry in identity_queue(project, auto=True):
-            cands = []
-            for c in entry["candidates"]:
-                cands.append(
-                    {
-                        "finder": c["finder"],
-                        "record": c.get("record"),
-                        "name": c.get("name") or "",
-                        "score": c.get("score"),
-                        "evidence": c.get("evidence") or [],
-                        "evidence_codes": c.get("evidence_codes") or [],
-                        "detail": c.get("detail") or "",
-                        "detail_code": c.get("detail_code") or "",
-                        "detail_params": c.get("detail_params") or {},
-                    }
-                )
-            cands.sort(key=lambda c: (c["record"] is None, -(c["score"] or 0)))
-            for c in cands:
-                c["clear"] = False
-            if clear_match(cands, THRESHOLD):
-                next(c for c in cands if c["record"])["clear"] = True
-            found[entry["person_id"]] = cands
+        found = _candidates_of(identity_queue(project, auto=True), THRESHOLD)
         with self._lock:
             self._queue[str(project.layout.root)] = (stamp, found)
         return found
@@ -961,8 +939,47 @@ class ServiceCollection(BaseCollection):
     def candidates(
         self, project: Project, person_ids: Sequence[str]
     ) -> dict[str, list[dict[str, Any]]]:
+        """The candidates of *person_ids*: those of the queue, and for a person whose identity
+        was decided (to change it) every finder's candidates, read for them."""
+        from cartolex.collect.resolve import THRESHOLD, identity_queue
+
         found = self.queue(project)
+        decided = [pid for pid in person_ids if pid not in found]
+        if decided and project.layout.table("people").exists():
+            found = {
+                **found,
+                **_candidates_of(identity_queue(project, people=decided), THRESHOLD),
+            }
         return {pid: found.get(pid, []) for pid in person_ids}
+
+
+def _candidates_of(entries: Sequence[Mapping[str, Any]], threshold: float) -> dict[str, list]:
+    """Person id → the candidates of *entries* (:func:`~cartolex.collect.resolve.identity_queue`)
+    as the app shows them: the records first, by score; the single clear match flagged."""
+    found: dict[str, list[dict[str, Any]]] = {}
+    for entry in entries:
+        cands = []
+        for c in entry["candidates"]:
+            cands.append(
+                {
+                    "finder": c["finder"],
+                    "record": c.get("record"),
+                    "name": c.get("name") or "",
+                    "score": c.get("score"),
+                    "evidence": c.get("evidence") or [],
+                    "evidence_codes": c.get("evidence_codes") or [],
+                    "detail": c.get("detail") or "",
+                    "detail_code": c.get("detail_code") or "",
+                    "detail_params": c.get("detail_params") or {},
+                }
+            )
+        cands.sort(key=lambda c: (c["record"] is None, -(c["score"] or 0)))
+        for c in cands:
+            c["clear"] = False
+        if clear_match(cands, threshold):
+            next(c for c in cands if c["record"])["clear"] = True
+        found[entry["person_id"]] = cands
+    return found
 
 
 def _host(url: str) -> str:
