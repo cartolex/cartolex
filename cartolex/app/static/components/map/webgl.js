@@ -22,22 +22,29 @@ attribute vec2 a_pos;
 attribute float a_color;
 attribute float a_rank;
 attribute float a_hl;
+attribute float a_size;
 uniform vec2 u_res;
 uniform vec3 u_view;
 uniform float u_radius;
+uniform float u_grow;
 uniform float u_dpr;
 uniform float u_limit;
 uniform float u_pass;
+uniform float u_ringFrom;
 uniform float u_alpha;
 uniform vec4 u_palette[${PALETTE_SIZE}];
 uniform vec4 u_ring;
 varying vec4 v_color;
+varying float v_r;
 void main() {
-  bool hide = a_rank > u_limit || (u_pass > 0.5 && a_hl < 0.5);
+  float need = u_pass < 1.5 ? u_ringFrom : 0.5;
+  bool hide = a_rank > u_limit || (u_pass > 0.5 && a_hl < need - 0.01);
   vec2 p = vec2(a_pos.x * u_view.x + u_view.y, u_view.z - a_pos.y * u_view.x);
+  float r = u_radius * a_size + (u_pass > 0.5 && a_hl >= u_ringFrom - 0.01 ? u_grow : 0.0);
+  v_r = r;
   gl_Position = hide ? vec4(2.0, 2.0, 2.0, 1.0)
     : vec4(p.x / u_res.x * 2.0 - 1.0, 1.0 - p.y / u_res.y * 2.0, 0.0, 1.0);
-  gl_PointSize = hide ? 0.0 : (u_radius + 1.0) * 2.0 * u_dpr;
+  gl_PointSize = hide ? 0.0 : (r + 1.0) * 2.0 * u_dpr;
   vec4 c = u_palette[int(a_color + 0.5)];
   v_color = u_pass > 0.5 && u_pass < 1.5 ? u_ring : vec4(c.rgb, c.a * u_alpha);
 }`;
@@ -51,11 +58,11 @@ precision mediump float;
 
 const POINT_FS = `${PRECISION}
 varying vec4 v_color;
+varying float v_r;
 uniform float u_shape;
-uniform float u_radius;
 uniform float u_dpr;
 void main() {
-  vec2 q = (gl_PointCoord * 2.0 - 1.0) * (u_radius + 1.0) / u_radius;
+  vec2 q = (gl_PointCoord * 2.0 - 1.0) * (v_r + 1.0) / v_r;
   vec2 a = abs(q);
   float d;
   if (u_shape < 0.5) d = length(q);
@@ -63,9 +70,13 @@ void main() {
   else if (u_shape < 2.5) d = max(q.y * 1.15 + 0.1, 2.0 * a.x - q.y * 0.95 + 0.05);
   else if (u_shape < 3.5) d = (a.x + a.y) * 0.87;
   else if (u_shape < 4.5) d = length(q);
-  else d = max(min(a.x, a.y) / 0.35, max(a.x, a.y));
+  else if (u_shape < 5.5) d = max(min(a.x, a.y) / 0.35, max(a.x, a.y));
+  else {
+    vec2 k = a - vec2(0.55);
+    d = 1.0 + length(max(k, 0.0)) + min(max(k.x, k.y), 0.0) - 0.35;
+  }
   if (u_shape > 3.5 && u_shape < 4.5 && d < 0.55) discard;
-  float alpha = clamp((1.0 - d) * u_radius * u_dpr + 0.5, 0.0, 1.0);
+  float alpha = clamp((1.0 - d) * v_r * u_dpr + 0.5, 0.0, 1.0);
   if (alpha <= 0.0) discard;
   gl_FragColor = vec4(v_color.rgb, v_color.a * alpha);
 }`;
@@ -192,11 +203,11 @@ export function createWebGLRenderer(canvas) {
     used.add(array);
     return entry;
   };
-  const attribute = (loc, array, size, type, used) => {
+  const attribute = (loc, array, size, type, used, missing = 0) => {
     if (loc < 0) return;
     if (!array) {
       gl.disableVertexAttribArray(loc);
-      if (size === 1) gl.vertexAttrib1f(loc, 0);
+      if (size === 1) gl.vertexAttrib1f(loc, missing);
       return;
     }
     gl.bindBuffer(gl.ARRAY_BUFFER, bufferOf(array, used));
@@ -313,14 +324,18 @@ export function createWebGLRenderer(canvas) {
           const r = layer.radius || 2.5;
           const shape = SHAPES[layer.shape || 'circle'] || 0;
           gl.uniform1f(points.u_shape, pass > 0 && shape === SHAPES.ring ? SHAPES.circle : shape);
-          gl.uniform1f(points.u_radius, pass === 1 ? r + 2.5 : pass === 2 ? r + 1.5 : r);
+          gl.uniform1f(points.u_radius, r);
+          gl.uniform1f(points.u_grow, pass === 1 ? 2.5 : pass === 2 ? 1.5 : 0);
+          gl.uniform1f(points.u_ringFrom, layer.ringFrom || 1);
           gl.uniform1f(points.u_pass, pass);
-          gl.uniform1f(points.u_alpha, pass === 2 ? 1 : anyHighlight ? 0.3 : (layer.alpha || 0.9));
+          gl.uniform1f(points.u_alpha, pass === 2 ? 1
+            : anyHighlight ? (layer.dim === undefined ? 0.3 : layer.dim) : (layer.alpha || 0.9));
           gl.uniform1f(points.u_limit, pass > 0 ? 1.5 : detailLimit(layer, zoom));
           attribute(points.a_pos, positions(layer), 2, gl.FLOAT, used);
           attribute(points.a_color, layer.color || null, 1, gl.UNSIGNED_SHORT, used);
           attribute(points.a_rank, layer.rank || null, 1, gl.FLOAT, used);
           attribute(points.a_hl, pass > 0 ? layer.highlight : null, 1, gl.UNSIGNED_BYTE, used);
+          attribute(points.a_size, layer.size || null, 1, gl.FLOAT, used, 1);
           gl.drawArrays(gl.POINTS, 0, n);
         }
       }

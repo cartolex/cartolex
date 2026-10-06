@@ -26,6 +26,15 @@ export function tracePoint(ctx, shape, x, y, r) {
     ctx.lineTo(x, y + r * 1.15);
     ctx.lineTo(x - r * 1.15, y);
     ctx.closePath();
+  } else if (shape === 'tile') {
+    const a = r * 0.9;
+    const c = r * 0.35;
+    ctx.moveTo(x - a + c, y - a);
+    ctx.arcTo(x + a, y - a, x + a, y + a, c);
+    ctx.arcTo(x + a, y + a, x - a, y + a, c);
+    ctx.arcTo(x - a, y + a, x - a, y - a, c);
+    ctx.arcTo(x - a, y - a, x + a, y - a, c);
+    ctx.closePath();
   } else if (shape === 'plus') {
     const a = r * 0.35;
     ctx.rect(x - r, y - a, 2 * r, 2 * a);
@@ -43,16 +52,16 @@ export function drawLabels(ctx, scene, view, color, font) {
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
   ctx.lineWidth = 3;
-  const regular = `500 12px ${font}`;
-  const strong = `600 13px ${font}`;
-  const placed = placeLabels(scene.labels, view, (text, isStrong) => {
-    ctx.font = isStrong ? strong : regular;
+  const fontOf = (isStrong, size) => `${isStrong ? 600 : 500} ${size || (isStrong ? 13 : 12)}px ${font}`;
+  const placed = placeLabels(scene.labels, view, (text, isStrong, label) => {
+    ctx.font = fontOf(isStrong, label && label.size);
     return ctx.measureText(text).width;
   });
   ctx.strokeStyle = color('--cx-surface');
-  ctx.fillStyle = color('--cx-text');
+  const ink = color('--cx-text');
   for (const label of placed) {
-    ctx.font = label.strong ? strong : regular;
+    ctx.font = fontOf(label.strong, label.size);
+    ctx.fillStyle = label.color ? color(label.color) : ink;
     ctx.strokeText(label.text, label.px, label.py);
     ctx.fillText(label.text, label.px, label.py);
   }
@@ -129,13 +138,13 @@ export function createCanvas2DRenderer(canvas) {
             bucket = [];
             buckets.set(c, bucket);
           }
-          bucket.push(px, py);
+          bucket.push(px, py, layer.size ? r * layer.size[i] : r);
         }
-        ctx.globalAlpha = anyHighlight ? 0.3 : (layer.alpha || 0.9);
+        ctx.globalAlpha = anyHighlight ? (layer.dim === undefined ? 0.3 : layer.dim) : (layer.alpha || 0.9);
         for (const [c, pts] of buckets) {
           const fill = color(layer.palette[c] || layer.palette[0]);
           ctx.beginPath();
-          for (let k = 0; k < pts.length; k += 2) tracePoint(ctx, shape, pts[k], pts[k + 1], r);
+          for (let k = 0; k < pts.length; k += 3) tracePoint(ctx, shape, pts[k], pts[k + 1], pts[k + 2]);
           if (shape === 'ring') {
             ctx.strokeStyle = fill;
             ctx.lineWidth = Math.max(1.5, r * 0.5);
@@ -152,22 +161,27 @@ export function createCanvas2DRenderer(canvas) {
         ctx.strokeStyle = color('--cx-accent');
         for (const layer of scene.layers) {
           if (!layer.highlight || !layer.highlightCount) continue;
-          const r = (layer.radius || 2.5) + 1.5;
+          const r = layer.radius || 2.5;
           const shape = layer.shape === 'ring' ? 'circle' : (layer.shape || 'circle');
+          const from = layer.ringFrom || 1;
           const { x, y } = layer;
           const byColor = new Map();
           for (let i = 0; i < x.length; i += 1) {
             if (!layer.highlight[i] || (layer.rank && layer.rank[i] > 1.5)) continue;
             const c = layer.color ? layer.color[i] : 0;
             if (!byColor.has(c)) byColor.set(c, []);
-            byColor.get(c).push(x[i] * sx + ox, oy - y[i] * sx);
+            const ringed = layer.highlight[i] >= from;
+            byColor.get(c).push(x[i] * sx + ox, oy - y[i] * sx,
+              (layer.size ? r * layer.size[i] : r) + (ringed ? 1.5 : 0), ringed);
           }
           for (const [c, pts] of byColor) {
             ctx.fillStyle = color(layer.palette[c] || layer.palette[0]);
-            ctx.beginPath();
-            for (let k = 0; k < pts.length; k += 2) tracePoint(ctx, shape, pts[k], pts[k + 1], r);
-            ctx.fill();
-            ctx.stroke();
+            for (let k = 0; k < pts.length; k += 4) {
+              ctx.beginPath();
+              tracePoint(ctx, shape, pts[k], pts[k + 1], pts[k + 2]);
+              ctx.fill();
+              if (pts[k + 3]) ctx.stroke();
+            }
           }
         }
       }

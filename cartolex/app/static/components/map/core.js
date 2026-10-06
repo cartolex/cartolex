@@ -15,14 +15,19 @@
  *
  *   {layers: [{id, x, y (Float32Array), color (Uint16Array, into palette),
  *              palette (colours or `--cx-*` token names), radius, alpha,
- *              shape ('circle' | 'square' | 'triangle' | 'diamond' | 'ring' | 'plus'),
+ *              shape ('circle' | 'square' | 'triangle' | 'diamond' | 'ring' | 'plus' | 'tile'),
+ *              size? (Float32Array: each point's radius as a multiple of the layer's),
  *              rank? (Float32Array: 0 the most important, 1 the least, 2 hidden),
  *              detail? (the share of ranks shown at the fitted zoom),
- *              highlight? (Uint8Array), highlightCount?}],
+ *              highlight? (Uint8Array: 1 lit, 2 and more the focus), highlightCount?,
+ *              dim? (the alpha of the points not lit while some are; 0.3 by default),
+ *              ringFrom? (the highlight from which a point gets the accent ring; 1)}],
  *    regions?: [{polygon: Float32Array [x0, y0, x1, y1…] (convex), color, alpha}],
  *    lines?: [{x, y (Float32Array: pairs of points, one segment each), color, alpha, width}],
  *    labels?: [{x, y, text, minZoom? (shown from this zoom on), strong? (always, first),
- *               offset? (pixels above the point: the label of a point, not over it)}],
+ *               offset? (pixels above the point: the label of a point, not over it),
+ *               color? (a colour or a token; the text's colour by default),
+ *               size? (pixels; 12, 13 when strong)}],
  *    bounds: {xmin, xmax, ymin, ymax}}
  *
  * A **view** is `{scale, tx, ty, width, height, fitScale}`: a data point
@@ -35,7 +40,7 @@ export const MAX_ZOOM = 400;
 /** Pixels around a point within which a pointer hits it. */
 export const HIT_RADIUS = 6;
 /** The shapes a layer's points take, and their number in the shaders. */
-export const SHAPES = { circle: 0, square: 1, triangle: 2, diamond: 3, ring: 4, plus: 5 };
+export const SHAPES = { circle: 0, square: 1, triangle: 2, diamond: 3, ring: 4, plus: 5, tile: 6 };
 
 /** A new view, before its first fit. */
 export function createView() {
@@ -120,7 +125,8 @@ export function hitTest(scene, grid, view, px, py) {
   const limits = scene.layers.map((layer) => detailLimit(layer, zoom));
   const dx = (px - view.tx) / view.scale;
   const dy = (view.ty - py) / view.scale;
-  const reach = (HIT_RADIUS + 4) / view.scale;
+  const biggest = Math.max(4, ...scene.layers.map((l) => (l.radius || 2.5) * (l.sizeMax || 1)));
+  const reach = (HIT_RADIUS + biggest) / view.scale;
   const { cell, cells } = grid;
   let best = null;
   let bestD = reach * reach;
@@ -137,7 +143,7 @@ export function hitTest(scene, grid, view, px, py) {
         const ex = layer.x[i] - dx;
         const ey = layer.y[i] - dy;
         const d = ex * ex + ey * ey;
-        const r = (HIT_RADIUS + (layer.radius || 2.5)) / view.scale;
+        const r = (HIT_RADIUS + (layer.radius || 2.5) * (layer.size ? layer.size[i] : 1)) / view.scale;
         if (d <= Math.min(bestD, r * r)) {
           bestD = d;
           best = { layer: layer.id, index: i };
@@ -187,12 +193,14 @@ export function placeLabels(labels, view, measure) {
     const px = label.x * view.scale + view.tx;
     const py = view.ty - label.y * view.scale - (label.offset || 0);
     if (px < 0 || py < 0 || px > view.width || py > view.height) continue;
-    const w = measure(label.text, Boolean(label.strong)) + 8;
-    const box = [px - w / 2, py - 9, px + w / 2, py + 9];
+    const w = measure(label.text, Boolean(label.strong), label) + 8;
+    const half = Math.max(9, (label.size || 12) * 0.75);
+    const box = [px - w / 2, py - half, px + w / 2, py + half];
     if (placed.some((o) => box[0] < o.box[2] && box[2] > o.box[0] && box[1] < o.box[3] && box[3] > o.box[1])) {
       continue;
     }
-    placed.push({ text: label.text, px, py, w, strong: Boolean(label.strong), box });
+    placed.push({ text: label.text, px, py, w, strong: Boolean(label.strong), box, color: label.color,
+      size: label.size });
   }
   return placed;
 }
