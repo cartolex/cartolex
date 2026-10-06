@@ -246,7 +246,7 @@ def list_texts(
         language=language,
         content=content,
         provider=provider,
-        among=view.of_people([person]) if person is not None else None,
+        among=view.of_people(_with_merged(ctx, runtime, person)) if person is not None else None,
         q=params.q,
     )
     shown, total = view.page(mask, sort, params.offset, params.limit)
@@ -270,6 +270,16 @@ def list_texts(
         "empty": None if total else empty("empty_no_match" if view.n else "empty_no_collection"),
         "counts": {**view.counts(), "duplicates": len(copies)},
     }
+
+
+def _with_merged(ctx: Any, runtime: Any, person: str) -> list[str]:
+    """A person and the rows merged into them: whose texts are theirs."""
+    from cartolex.project.identity import merge_roots, merged_groups
+
+    from ..corpus_view import coverage_inputs
+
+    decisions, _ = coverage_inputs(ctx.project, runtime.table_cache)
+    return [person, *merged_groups(merge_roots(decisions)).get(person, [])]
 
 
 @routes.get("/api/texts/{text_id}", action="people.read")

@@ -257,6 +257,12 @@ ERRORS: dict[str, ErrorKind] = {
     "merged_target": ErrorKind(
         409, "{target} is itself merged into {into}: merge into that person", "fix-input"
     ),
+    "merge_orcid_conflict": ErrorKind(
+        409,
+        "{target} and {source} have different ORCIDs ({orcids}): two different iDs are two "
+        "people; merge them anyway only if you know they are one person",
+        "confirm",
+    ),
     "file_missing": ErrorKind(422, "send the file in a form, as 'file'", "fix-input"),
     "list_body": ErrorKind(
         422, "send the list in a form (as 'file'), or as {{\"text\": …}}", "fix-input"

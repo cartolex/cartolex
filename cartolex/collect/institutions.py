@@ -57,6 +57,7 @@ from typing import Any
 
 from cartolex.project import Project
 from cartolex.project.checkpoints import Checkpoint, JobPaused, work_key
+from cartolex.project.identity import merge_roots
 from cartolex.project.models import Level
 
 from .decisions import read_people, slot_window, update_people
@@ -308,14 +309,15 @@ def propose_levels(
 
 
 def _records_of_people(project: Project) -> dict[str, str]:
-    """``openalex:A…`` → the person whose confirmed records hold it."""
+    """``openalex:A…`` → the person whose confirmed records hold it (a merged row's records
+    are those of the person it is merged into)."""
+    rows = read_people(project.layout)
+    roots = merge_roots(rows)
     out = {}
-    for pid, row in read_people(project.layout).items():
-        if row.get("merged_into"):
-            continue
+    for pid, row in sorted(rows.items(), key=lambda kv: (kv[0] in roots, kv[0])):
         for record in (row.get("records") or "").split(";"):
             if record:
-                out.setdefault(record, pid)
+                out.setdefault(record, roots.get(pid, pid))
     return out
 
 

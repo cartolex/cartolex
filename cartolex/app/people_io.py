@@ -66,10 +66,14 @@ def _map(value: Any) -> dict[str, str]:
     return {str(k): ("" if v is None else str(v)) for k, v in items}
 
 
-def coverage_of(project: Project, columns: Any = None) -> dict[str, dict[str, Any]]:
+def coverage_of(
+    project: Project, columns: Any = None, merged: Mapping[str, str] | None = None
+) -> dict[str, dict[str, Any]]:
     """Per person: texts, texts with an abstract, first and last year (from the texts as
     columns: a few numbers per text, a code per person; *columns*: a function giving
-    them, when the caller shares them)."""
+    them, when the caller shares them). With *merged* (each merged row → the person it is
+    merged into), a person counts the texts of the rows merged into them too, each text
+    once, and a merged row counts none of its own."""
     import numpy as np
 
     from cartolex.project.text_columns import read_text_columns
@@ -82,6 +86,15 @@ def coverage_of(project: Project, columns: Any = None) -> dict[str, dict[str, An
     if not n:
         return {}
     who, rows = cols.author_person.astype(np.int64), cols.author_text
+    if merged:
+        code = {pid: i for i, pid in enumerate(cols.person_ids)}
+        remap = np.arange(n, dtype=np.int64)
+        for pid, root in merged.items():
+            if pid in code and root in code:
+                remap[code[pid]] = code[root]
+        width = max(int(len(cols.year)), 1)
+        pairs = np.unique(remap[who] * width + rows.astype(np.int64))
+        who, rows = pairs // width, pairs % width
     texts = np.bincount(who, minlength=n)
     abstracts = np.bincount(who, weights=cols.has_words()[rows], minlength=n).astype(np.int64)
     dated = cols.has_year[rows]
@@ -99,6 +112,7 @@ def coverage_of(project: Project, columns: Any = None) -> dict[str, dict[str, An
             "last_year": int(last[i]) if last[i] != none_last else None,
         }
         for i, pid in enumerate(cols.person_ids)
+        if not merged or pid not in merged
     }
 
 
@@ -165,19 +179,27 @@ def read_people(
     Without ``people.csv`` everyone is ``mapped`` (as the build reads it); a
     person with no row in it once the file exists is ``undecided``.
     """
+    from cartolex.project.identity import merge_roots, merged_groups, merges_digest
+
     layout = project.layout
     decisions = {r["person_id"]: r for r in read_decision_csv(layout.people_csv, "people")}
     file_exists = layout.people_csv.exists()
+    roots = merge_roots(decisions)
+    groups = merged_groups(roots)
     if cache is not None:  # the tables change only when people are imported or collected
         rows_, coverage, units = cache.get(
-            ("people", _stamp(project)),
-            lambda: (people_rows(project), coverage_of(project, columns), _units(project)),
+            ("people", _stamp(project), merges_digest(layout.people_csv)),
+            lambda: (
+                people_rows(project),
+                coverage_of(project, columns, roots),
+                _units(project),
+            ),
         )
         rows_ = [dict(r) for r in rows_]
     else:
         rows_, coverage, units = (
             people_rows(project),
-            coverage_of(project, columns),
+            coverage_of(project, columns, roots),
             _units(project),
         )
     out = []
@@ -208,7 +230,8 @@ def read_people(
                 "orcid": row["orcid"],
                 "ids": _ids(row["ids"]),
                 "columns": _map(row["columns"]),
-                "unit": units.get(pid, ""),
+                "unit": units.get(pid, "")
+                or next((units[m] for m in groups.get(pid, ()) if units.get(m)), ""),
                 "source": row["source"],
                 "role": (d["role"] if d else ("undecided" if file_exists else "mapped"))
                 or "undecided",
@@ -216,6 +239,7 @@ def read_people(
                 "identity": (d["identity"] if d else "") or "pending",
                 "records": [r for r in (d["records"] if d else "").split(";") if r],
                 "merged_into": d["merged_into"] if d else "",
+                "merged_from": groups.get(pid, []),
                 "note": d["note"] if d else "",
                 "decided_at": d["decided_at"] if d else "",
                 "coverage": {

@@ -604,6 +604,16 @@ DECISION_TABLES: dict[str, DecisionTable] = {
         key=("person_id", "org_id", "start_year", "action"),
         allowed={"action": frozenset({"add", "remove"})},
     ),
+    "people_pairs": DecisionTable(
+        columns=("a", "b", "decision", "note", "decided_at"),
+        key=("a", "b"),
+        allowed={"decision": frozenset({"distinct", "later"})},
+    ),
+    "organisation_pairs": DecisionTable(
+        columns=("a", "b", "decision", "note", "decided_at"),
+        key=("a", "b"),
+        allowed={"decision": frozenset({"distinct", "later"})},
+    ),
     "keywords": DecisionTable(
         columns=("term", "language", "decision", "target", "reason", "source", "decided_at"),
         key=("term", "language"),

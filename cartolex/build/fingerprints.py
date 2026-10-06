@@ -15,7 +15,8 @@ from __future__ import annotations
 import functools
 import hashlib
 import os
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -75,8 +76,13 @@ class InputFile:
     kind: str  # "source", "decision", "overlay", "base", "cache"
     path: str  # relative to the project root, with "/" separators
     location: Path
+    #: For an input that is a part of a file (the merges of ``people.csv``): its own
+    #: fingerprint of the file, ``None`` when the part is empty.
+    digest: Callable[[Path], str | None] | None = field(default=None, compare=False)
 
     def fingerprint(self) -> str | None:
+        if self.digest is not None:
+            return self.digest(self.location)
         if self.location.suffix == ".parquet":
             return table_fingerprint(self.location)
         return file_fingerprint(self.location)
@@ -99,7 +105,11 @@ def input_files(project: Project, stage: Stage) -> list[InputFile]:
     ]
     found += [InputFile("decision", path, layout.root / path) for path in stage.decisions]
     if stage.extra_inputs is not None:
-        for kind, location in stage.extra_inputs(project):
+        for extra in stage.extra_inputs(project):
+            if isinstance(extra, InputFile):
+                found.append(extra)
+                continue
+            kind, location = extra
             found.append(InputFile(kind, _recorded_path(layout.root, location), Path(location)))
     return found
 
@@ -108,10 +118,10 @@ class FingerprintMemo:
     """Fingerprints computed once per path within one status check or build step."""
 
     def __init__(self) -> None:
-        self._seen: dict[Path, str | None] = {}
+        self._seen: dict[tuple[Path, str], str | None] = {}
 
     def __call__(self, item: InputFile) -> str | None:
-        key = item.location.resolve()
+        key = (item.location.resolve(), item.path if item.digest is not None else "")
         if key not in self._seen:
             self._seen[key] = item.fingerprint()
         return self._seen[key]

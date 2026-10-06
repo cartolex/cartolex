@@ -455,6 +455,7 @@ def person_detail(project: Project, person_id: str, cache: Any = None) -> dict[s
     """One person's sheet: the coverage and its first blocking cause, the sources used and
     discarded, the attempts, the texts, the affiliations with their years."""
     from cartolex.collect.coverage import person_sheet
+    from cartolex.project.identity import merge_roots, merged_groups
 
     one = [("person_id", "==", person_id)]
     row = next(iter(_rows(project, "people", None, one)), None)
@@ -465,7 +466,12 @@ def person_detail(project: Project, person_id: str, cache: Any = None) -> dict[s
         sheet = person_sheet(project, person_id, decisions=decisions, outcomes=outcomes)
     except ValueError:
         sheet = None  # merged into another person: the sheet is theirs
-    rows = _rows(project, "affiliations", None, one)
+    # A person stands for the rows merged into them: their affiliations and texts too.
+    roots = merge_roots(decisions)
+    merged = merged_groups(roots).get(person_id, []) if person_id not in roots else []
+    everyone = [person_id, *merged]
+    names = _names(project, {*merged, *([roots[person_id]] if person_id in roots else [])})
+    rows = _rows(project, "affiliations", None, [("person_id", "in", everyone)])
     org_ids = sorted({a["org_id"] for a in rows})
     orgs = {
         o["org_id"]: o
@@ -493,7 +499,7 @@ def person_detail(project: Project, person_id: str, cache: Any = None) -> dict[s
             k: t[k]
             for k in ("text_id", "title", "year", "doc_type", "source", "content", "providers")
         }
-        for t in view.rows(np.flatnonzero(view.of_people([person_id])), {})
+        for t in view.rows(np.flatnonzero(view.of_people(everyone)), {})
     ]
     own.sort(key=lambda t: (-(t["year"] or 0), t["title"]))
     return {
@@ -503,10 +509,21 @@ def person_detail(project: Project, person_id: str, cache: Any = None) -> dict[s
         "orcid": row["orcid"],
         "ids": {k: list(v) for k, v in dict(row["ids"] or []).items()},
         "columns": dict(row["columns"] or []),
-        "aliases": [
-            " ".join(x for x in (a["first_name"], a["last_name"]) if x)
-            for a in row["aliases"] or []
-        ],
+        "aliases": list(
+            dict.fromkeys(
+                [
+                    " ".join(x for x in (a["first_name"], a["last_name"]) if x)
+                    for a in row["aliases"] or []
+                ]
+                + [names[m] for m in merged if m in names]
+            )
+        ),
+        "merged_from": [{"person_id": m, "name": names.get(m, m)} for m in merged],
+        "merged_into": (
+            {"person_id": roots[person_id], "name": names.get(roots[person_id], roots[person_id])}
+            if person_id in roots
+            else None
+        ),
         "source": row["source"],
         "sheet": _plain(sheet),
         "affiliations": affiliations,

@@ -23,7 +23,8 @@
                               [--add-documents ID DIR] [--retry [SERVICES]]
     cartolex collect window FOLDER FIRST-LAST|FIRST-|none [--slot ID]
     cartolex collect duplicates FOLDER
-    cartolex collect merge FOLDER KEEP OTHER
+    cartolex collect merge FOLDER KEEP OTHER [--override-orcid]
+    cartolex collect unmerge FOLDER PERSON…
 
 ``SERVICES`` are the options of every verb that reaches a service:
 ``--dry-run`` (print the estimate and what would leave the computer, send
@@ -149,10 +150,25 @@ def _merge(args: argparse.Namespace) -> int:
 
     project = _open(args.folder)
     try:
-        confirm_merge(project, args.keep, args.other)
+        confirm_merge(project, args.keep, args.other, override=args.override_orcid)
     finally:
         project.close()
     print(f"{args.other} is merged into {args.keep}; its name is one of {args.keep}'s aliases")
+    return 0
+
+
+def _unmerge(args: argparse.Namespace) -> int:
+    from cartolex.collect.people_import import undo_merge
+
+    project = _open(args.folder)
+    try:
+        undone = undo_merge(project, args.people)
+    finally:
+        project.close()
+    if not undone:
+        print("nobody to unmerge: none of these people is merged, or has people merged into them")
+        return 1
+    print(f"{len(undone)} person(s) stand on their own again: {', '.join(undone)}")
     return 0
 
 
@@ -937,4 +953,14 @@ def add_parser(sub: Any) -> None:
     me.add_argument("folder", type=Path)
     me.add_argument("keep")
     me.add_argument("other")
+    me.add_argument(
+        "--override-orcid",
+        action="store_true",
+        help="merge even though the two have different ORCIDs (you know they are one person)",
+    )
     me.set_defaults(run=_merge)
+
+    um = verbs.add_parser("unmerge", help="undo merges: these people stand on their own again")
+    um.add_argument("folder", type=Path)
+    um.add_argument("people", nargs="+", metavar="PERSON")
+    um.set_defaults(run=_unmerge)

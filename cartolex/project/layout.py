@@ -101,6 +101,14 @@ class ProjectLayout:
         return self.decisions / "affiliations.csv"
 
     @property
+    def people_pairs_csv(self) -> Path:
+        return self.decisions / "people_pairs.csv"
+
+    @property
+    def organisation_pairs_csv(self) -> Path:
+        return self.decisions / "organisation_pairs.csv"
+
+    @property
     def params_json(self) -> Path:
         return self.decisions / "params.json"
 

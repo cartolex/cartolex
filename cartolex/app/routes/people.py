@@ -219,31 +219,60 @@ def edit_people(
 
 
 class MergeBody(BaseModel):
-    """Rows that are one person: *sources* are merged into *target*."""
+    """Rows that are one person: *sources* are merged into *target*.
+
+    Two rows with different ORCIDs are refused (``merge_orcid_conflict``) unless
+    *override*: two different iDs are two people unless someone who knows says otherwise.
+    """
 
     target: PersonId
     sources: Annotated[list[PersonId], Field(min_length=1, max_length=100)]
+    override: bool = False
+    note: Annotated[str, Field(max_length=500)] = ""
+
+
+def _merge_refused(exc: Any) -> ApiError:
+    """The API's error for a merge refused (:class:`cartolex.project.identity.MergeRefused`)."""
+    p = exc.params
+    if exc.code == "self_merge":
+        return ApiError.of("self_merge")
+    if exc.code == "merged_target":
+        return ApiError.of("merged_target", target=p["target"], into=p["into"])
+    return ApiError.of(
+        "merge_orcid_conflict",
+        target=p["target"],
+        source=p["source"],
+        orcids=", ".join(p["orcids"]),
+    )
 
 
 @routes.post("/api/people/merge", action="people.write")
 def merge_people(
     request: Request, response: Response, body: MergeBody, ctx: ProjectDep
 ) -> dict[str, Any]:
-    """Merge rows that are one person (``merged_into``); send ``If-Match``."""
+    """Merge rows that are one person (``merged_into``); send ``If-Match``. A merged row
+    keeps its records, identity and role: ``POST /api/people/unmerge`` gives it back."""
+    from cartolex.collect.decisions import read_people as read_rows
+    from cartolex.project.identity import MergeRefused, merge_changes
+
     expected = expected_version(request)
-    if body.target in body.sources:
-        raise ApiError.of("self_merge")
     with ctx.handle.mutex:
         check_version(ctx.layout.people_csv, expected)
         by_id = _known(request, ctx, [body.target, *body.sources])
-        if by_id[body.target]["merged_into"]:
-            raise ApiError.of(
-                "merged_target", target=body.target, into=by_id[body.target]["merged_into"]
+        rows = read_rows(ctx.layout)
+        for pid in by_id:  # a person without a row yet: as the list shows them
+            rows.setdefault(pid, {"person_id": pid, "merged_into": "", "records": ""})
+        try:
+            changes = merge_changes(
+                rows,
+                body.target,
+                body.sources,
+                {pid: p["orcid"] for pid, p in by_id.items()},
+                override=body.override,
+                note=body.note,
             )
-        changes = {pid: {"merged_into": body.target} for pid in body.sources}
-        for pid, p in by_id.items():  # rows merged into a source follow it to the target
-            if p["merged_into"] in body.sources:
-                changes[pid] = {"merged_into": body.target}
+        except MergeRefused as exc:
+            raise _merge_refused(exc) from exc
         fp = write_people_csv(
             ctx.project,
             changes,
@@ -252,6 +281,56 @@ def merge_people(
         )
     response.headers["ETag"] = etag_of(fp)
     return {"merged": sorted(changes), "into": body.target, "version": version_of(fp)}
+
+
+class UnmergeBody(BaseModel):
+    """Rows merged into another person that stand on their own again (a person others are
+    merged into: every one of them). *remember* records each pair undone in
+    ``people_pairs.csv`` (``distinct``: never proposed again; ``later``: kept out of the
+    automatic merge)."""
+
+    person_ids: Annotated[list[PersonId], Field(min_length=1, max_length=MAX_BATCH)]
+    remember: Literal["distinct", "later"] | None = None
+
+
+@routes.post("/api/people/unmerge", action="people.write")
+def unmerge_people(
+    request: Request, response: Response, body: UnmergeBody, ctx: ProjectDep
+) -> dict[str, Any]:
+    """Undo merges (send ``If-Match`` of the people): each row named, or merged into a
+    person named, gets back what it had before the merge."""
+    from cartolex.collect.decisions import read_people as read_rows
+    from cartolex.project.identity import unmerge_changes
+
+    expected = expected_version(request)
+    with ctx.handle.mutex:
+        check_version(ctx.layout.people_csv, expected)
+        rows = read_rows(ctx.layout)
+        unknown = sorted(set(body.person_ids) - set(rows))
+        if unknown:
+            raise ApiError.of("unknown_people", ids=unknown[:5])
+        before = {pid: rows[pid]["merged_into"] for pid in rows if rows[pid]["merged_into"]}
+        changes = unmerge_changes(rows, body.person_ids)
+        if not changes:
+            raise ApiError.of("nothing_to_change")
+        fp = write_people_csv(
+            ctx.project, changes, expected=expected, action=f"unmerge {len(changes)} people"
+        )
+        if body.remember:
+            from cartolex.project.pairs import remember_pairs
+
+            remember_pairs(
+                ctx.layout,
+                [(pid, before[pid]) for pid in sorted(changes)],
+                body.remember,
+                note="merge undone",
+            )
+    response.headers["ETag"] = etag_of(fp)
+    return {
+        "unmerged": sorted(changes),
+        "from": {pid: before[pid] for pid in sorted(changes)},
+        "version": version_of(fp),
+    }
 
 
 class PastedList(BaseModel):

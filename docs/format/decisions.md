@@ -9,6 +9,8 @@ listed, never dropped silently.
 ```text
 decisions/
   people.csv            roles, identities, merges
+  people_pairs.csv      pairs of people judged two people, or left for later
+  organisation_pairs.csv  the same, for organisations
   organisations.csv     levels, parents, merges, names, set by people
   affiliations.csv      affiliations added or removed by people
   params.json           the parameters people set
@@ -53,9 +55,33 @@ One row per person the project knows. Columns:
 | `set` | for `projected`: the overlay set |
 | `identity` | `confirmed`, `auto` (a single match above the threshold, accepted automatically), `none` (no record exists), `pending` |
 | `records` | the service records that are this person, `;`-separated (`openalex:A…;orcid:0000-…`) |
-| `merged_into` | when two rows are one person, the `person_id` that remains |
+| `merged_into` | when two rows are one person, the `person_id` that remains (see below) |
 | `note` | free text |
 | `decided_at` | UTC time of the last change to the row |
+
+**Merges.** A merge is a decision, and it can be undone: the merged row keeps
+its own `role`, `identity` and `records`, so emptying `merged_into` gives it back
+as it was. While it is merged, the person it is merged into stands for both:
+their records are their own and those of every row merged into them (each
+counted when its row's identity is `confirmed` or `auto`), and so are their
+texts (a text both rows wrote counts once), their affiliations, their coverage
+and their sheet; the collection asks the services for all those records, and
+`corpus.assemble` reads the merged rows' texts as theirs, never a merged row on
+its own. `merged_into` names the person that remains; a chain (a row merged into
+a row that is itself merged) is followed to its end, and a loop leaves its rows
+on their own. Two rows whose ORCIDs differ are not merged unless someone says
+they are one person anyway. `corpus.assemble` records the merges as an input of
+their own (`decisions/people.csv#merges`, in its `run.json`), present only when
+there are merges.
+
+## `people_pairs.csv` and `organisation_pairs.csv`
+
+Pairs proposed as one person (one organisation) and judged otherwise, so that
+the proposal does not come back. Columns: `a`, `b` (the two ids, the smaller
+first), `decision` (`distinct`: two people, never proposed again; `later`: not
+decided, kept in the list of pairs to review and out of every automatic merge),
+`note`, `decided_at`. A merge is not a pair decision: it is `merged_into`.
+Undoing a merge may record its pair here.
 
 Keywords are decided by the `mapped` people: a keyword is kept only if enough
 mapped people use it. `context` texts count in the statistics, never in that

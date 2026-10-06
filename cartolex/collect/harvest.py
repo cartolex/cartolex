@@ -53,6 +53,7 @@ from typing import Any
 
 from cartolex.project import Project
 from cartolex.project.checkpoints import Checkpoint, JobPaused, work_key
+from cartolex.project.identity import merge_roots, merged_groups
 from cartolex.project.tables import read_source_table
 
 from .decisions import read_people, slot_window
@@ -235,21 +236,29 @@ def _openalex_ids(records: Sequence[str]) -> list[str]:
 def _targets(project: Project, people: Sequence[str] | None) -> list[tuple[dict, list[str]]]:
     rows = read_source_table(project.layout.table("people"), "people").to_pylist()
     decisions = read_people(project.layout)
+    roots = merge_roots(decisions)
+    groups = merged_groups(roots)
     wanted = set(people) if people is not None else None
     out = []
     for row in rows:
-        dec = decisions.get(row["person_id"], {})
-        if wanted is not None and row["person_id"] not in wanted:
+        pid = row["person_id"]
+        dec = decisions.get(pid, {})
+        if wanted is not None and pid not in wanted:
             continue
-        if dec.get("merged_into") or dec.get("role") == "excluded":
+        if pid in roots or dec.get("role") == "excluded":
             continue
-        if dec.get("identity") not in ("confirmed", "auto"):
-            continue
-        records = [
-            r
-            for r in (dec.get("records") or "").split(";")
-            if r.startswith(("openalex:", "orcid:"))
-        ]
+        # A person's records are theirs and those of the rows merged into them, each
+        # counted when its row's identity was accepted.
+        records: list[str] = []
+        for one in (pid, *groups.get(pid, ())):
+            row_dec = decisions.get(one, {})
+            if row_dec.get("identity") not in ("confirmed", "auto"):
+                continue
+            records.extend(
+                r
+                for r in (row_dec.get("records") or "").split(";")
+                if r.startswith(("openalex:", "orcid:")) and r not in records
+            )
         if records:
             out.append((row, records))
     return out

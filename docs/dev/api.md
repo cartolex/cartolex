@@ -258,7 +258,8 @@ version, so it can be undone too).
 | --- | --- |
 | `GET /api/people` | people with their role, set, identity state, records, unit, extra columns, coverage (texts, texts with an abstract, years, a class: good, thin, none) and coverage `state` (good, thin, failed, no_data) with its first blocking `cause`; filters `role`, `identity`, `set`, `coverage` (a class or a state), `source`, `col=<column>:<value>` (repeatable), `q`; counts per role, identity, class and state; `facets`: each extra column's values and counts (filters built from the people's own columns) |
 | `PATCH /api/people {person_ids \| where, role, set, note}` | roles, sets, notes (`If-Match`); `where` (the list's filters) changes every person it keeps, for « all N matching » |
-| `POST /api/people/merge {target, sources}` | rows that are one person |
+| `POST /api/people/merge {target, sources, override, note}` | rows that are one person (`If-Match`): each source's `merged_into`, nothing else of its row changes (its records, identity and role stay, for an unmerge); a person stands for the rows merged into them (their records for the collection, their texts in the corpus, the coverage and the sheet). Two sides with different ORCIDs: 409 `merge_orcid_conflict` unless `override` |
+| `POST /api/people/unmerge {person_ids, remember}` | undo merges (`If-Match`): each row named, or merged into a person named, stands on its own again; `remember` (`distinct` or `later`) records each pair undone in `people_pairs.csv` |
 | `GET /api/people/duplicates` | pairs of people who may be one person, with the reason (`cartolex.collect.people_import.find_duplicates`); none is merged |
 | `GET /api/people/{id}/sheet` | why a profile is what it is: the coverage and its first blocking cause, the sources used and discarded (each discarded one with `code` and `params` beside its English `what` and `why`), each finder's latest attempt, the texts, the affiliations with their years, the decision |
 | `POST /api/people/import` | a CSV file (a form's `file`) or `{"text": …}` (a pasted list, one person per line): kept outside the project until confirmed, and a mapping proposal, one field per column: `last_name`, `first_name`, `name` (a full name), `orcid`, `openalex`, `idhal`, `role`, `set`, `org:<level>` (an organisation at that level; a new level is added), `column` (kept as a filter), `ignore`; e-mail columns are refused (never stored) |
@@ -458,6 +459,7 @@ catalogues give each code its text in every interface language.
 | `set_needed` | 422 | a projected person belongs to a projected set: add one in the settings first | — | `settings` |
 | `self_merge` | 422 | a person cannot be merged into themselves | — | `fix-input` |
 | `merged_target` | 409 | {target} is itself merged into {into}: merge into that person | `target`, `into` | `fix-input` |
+| `merge_orcid_conflict` | 409 | {target} and {source} have different ORCIDs ({orcids}): two different iDs are two people; merge them anyway only if you know they are one person | `target`, `source`, `orcids` | `confirm` |
 | `file_missing` | 422 | send the file in a form, as 'file' | — | `fix-input` |
 | `list_body` | 422 | send the list in a form (as 'file'), or as {"text": …} | — | `fix-input` |
 | `empty_list` | 422 | the list holds nobody | — | `fix-input` |

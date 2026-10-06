@@ -22,6 +22,7 @@ from urllib.parse import urlsplit
 
 from cartolex.project import Project
 from cartolex.project.files import atomic_write_bytes
+from cartolex.project.identity import merge_roots, merged_groups
 from cartolex.project.tables import read_source_table
 
 from .decisions import read_people
@@ -124,19 +125,29 @@ def _targets(project: Project, action: str, people: Sequence[str] | None) -> lis
         return []
     rows = read_source_table(layout.table("people"), "people").to_pylist()
     decisions = read_people(layout)
+    roots = merge_roots(decisions)
+    groups = merged_groups(roots)
     wanted = set(people) if people is not None else None
     out = []
     for row in rows:
         dec = decisions.get(row["person_id"], {})
         if wanted is not None and row["person_id"] not in wanted:
             continue
-        if dec.get("merged_into") or dec.get("role") == "excluded":
+        if row["person_id"] in roots or dec.get("role") == "excluded":
             continue
         identity = dec.get("identity", "")
+        # a person's records: theirs and those of the rows merged into them, when accepted
+        records = [
+            r
+            for one in (row["person_id"], *groups.get(row["person_id"], ()))
+            if (decisions.get(one) or {}).get("identity") in ("confirmed", "auto")
+            for r in ((decisions.get(one) or {}).get("records") or "").split(";")
+            if r
+        ]
         if action == "resolve" and (identity in ("", "pending") or wanted is not None):
             out.append({**row, "_records": []})
-        elif action == "harvest" and identity in ("confirmed", "auto") and dec.get("records"):
-            out.append({**row, "_records": dec["records"].split(";")})
+        elif action == "harvest" and records:
+            out.append({**row, "_records": list(dict.fromkeys(records))})
     return out
 
 
