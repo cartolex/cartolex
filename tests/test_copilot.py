@@ -20,6 +20,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sysconfig
 import textwrap
@@ -72,21 +73,36 @@ def project(tmp_path_factory) -> Path:
     assert cli(["params", str(root), "--set", "pinned_year=2026"]) == 0
     assert cli(["params", str(root), "--set", "themes.group.level_sizes=[4,12]"]) == 0
     assert cli(["build", str(root), "--only", "themes.group"]) == 0
+    # as built, for the tests that need the candidates before any decision
+    shutil.copytree(root, root.parent / "as-built")
     return root
 
 
-@pytest.fixture(scope="module")
-def client(project, tmp_path_factory) -> Client:
+def _client(project: Path, data_dir: Path) -> Client:
     app = create_app(
         AppSettings(
             project=project,
             launch_token=TOKEN,
-            data_dir=tmp_path_factory.mktemp("copilot-app"),
+            data_dir=data_dir,
             build_budget_mb=1e9,
             build_year=2026,
         )
     )
     return Client(app)
+
+
+@pytest.fixture(scope="module")
+def client(project, tmp_path_factory) -> Client:
+    """The app on the module's project: the tests' decisions add up in it."""
+    return _client(project, tmp_path_factory.mktemp("copilot-app"))
+
+
+@pytest.fixture
+def fresh_client(project, tmp_path) -> Client:
+    """The app on a copy of the project as built, untouched by the other tests' decisions."""
+    copy = tmp_path / "project"
+    shutil.copytree(project.parent / "as-built", copy)
+    return _client(copy, tmp_path / "app")
 
 
 #: The themes bundle of the tree being edited (here: none sent, so the saved one or the proposal).
@@ -274,11 +290,15 @@ TRIAGE_SESSION = (
     s = open_bundle(".")
     s.summary(); s.budget(); s.table("check"); s.pairs()
     batch = s.next_batch(2)
-    g1, g2 = [l.split(" ")[0] for l in batch.splitlines() if l.startswith("g")]
-    unseen = next(g.id for g in s.groups if g.id not in (g1, g2))
+    shown = [l.split(" ")[0] for l in batch.splitlines() if l.startswith("g")]
+    # a group of several candidates (a pattern group, shown first, may hold only one):
+    # its line decides the members its member line leaves
+    g1 = max(shown, key=lambda g: len(s.group(g).members))
+    assert len(shown) == 2 and len(s.group(g1).members) >= 2, batch
+    unseen = next(g.id for g in s.groups if g.id not in shown)
     out = s.apply(f"{g1} C ; kept\\n{g1}.1 G!\\n{unseen} G\\nnonsense")
     assert "not shown yet" in out and "not understood" in out, out
-    assert s.next_batch(1).split(" ")[0] not in (g1, g2)  # a group is shown once
+    assert s.next_batch(1).split(" ")[0] not in shown  # a group is shown once
     cov = s.coverage()["all"]
     assert cov["decided_by_group"] == len(s.group(g1).members) - 1 and cov["decided_by_term"] == 1
     s.add_rule("research discourse: always excluded, sure")
@@ -364,7 +384,7 @@ def test_a_whole_session_runs_offline_and_its_result_imports_as_a_proposal(clien
     assert bad.status_code == 422 and bad.json()["error"]["code"] == "invalid_copilot_result"
 
 
-def test_twins_are_found_by_their_words_not_by_shared_users(client, tmp_path):
+def test_twins_are_found_by_their_words_not_by_shared_users(fresh_client, tmp_path):
     """A term and its translation pair up; terms that merely share their few users do not
     (co-usage alone scored nearly every rare pair 1.0)."""
     import numpy as np
@@ -374,7 +394,7 @@ def test_twins_are_found_by_their_words_not_by_shared_users(client, tmp_path):
     from cartolex.copilot.triage import TriageSession
     from cartolex.demo.vocabulary import THEMES
 
-    folder = _unpack(client, "/api/keywords/copilot/export?scope=all", tmp_path / "pairs")
+    folder = _unpack(fresh_client, "/api/keywords/copilot/export?scope=all", tmp_path / "pairs")
     s = TriageSession(folder)
     found = s.pairs(n=300, detail=True)
     assert len(found) >= 5 and all(p["score"] >= 0.75 for p in found)
@@ -384,8 +404,17 @@ def test_twins_are_found_by_their_words_not_by_shared_users(client, tmp_path):
             assert truth[p["a"].casefold()] == p["b"].casefold(), p
     fr = [i for i, it in enumerate(s.items) if it["lang"] == "fr"]
     en = [i for i, it in enumerate(s.items) if it["lang"] == "en"]
-    same_users = int(((s._V[fr] @ s._V[en].T).toarray() >= 0.99).sum())
-    assert same_users > 3 * len(found)  # identical users are common; they make no pair
+    # Terms of the two languages used by exactly the same people, not translations of each
+    # other: more of them than pairs found, and none of them paired.
+    alike = np.nonzero((s._V[fr] @ s._V[en].T).toarray() >= 0.99)
+    strangers = {
+        (s.items[fr[a]]["term"], s.items[en[b]]["term"])
+        for a, b in zip(*alike, strict=True)
+        if truth.get(s.items[fr[a]]["term"].casefold(), s.items[fr[a]]["term"].casefold())
+        != s.items[en[b]]["term"].casefold()
+    }
+    paired = {(p["a"], p["b"]) for p in found} | {(p["b"], p["a"]) for p in found}
+    assert len(strangers) > len(found) and not strangers & paired, strangers & paired
     # Four candidates: two twins used by different people, two strangers used by the same one.
     items = [
         {"term": "diversité des cryptophytes", "lang": "fr", "people": 2},
