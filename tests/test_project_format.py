@@ -421,6 +421,32 @@ def test_the_streamed_writer_refuses_keys_out_of_order_across_row_groups(tmp_pat
     assert read_source_table(path, "texts")["text_id"].to_pylist() == list("abcde")
 
 
+def test_a_file_is_checked_a_row_group_at_a_time_unless_written_here(tmp_path, monkeypatch):
+    import pyarrow.parquet as pq
+
+    from cartolex.project import tables
+
+    # Another tool's file, out of order only across its row groups: refused.
+    path = tmp_path / "texts.parquet"
+    rows = _texts([dict(ROW, text_id=t, position=i) for i, t in enumerate("abdc")])
+    pq.write_table(rows, path, row_group_size=2)
+    assert pq.ParquetFile(path).num_row_groups == 2
+    with pytest.raises(TableError, match="not sorted"):
+        read_source_table(path, "texts", ["text_id"])
+    pq.write_table(_texts([dict(ROW, text_id=t) for t in "abbc"]), path, row_group_size=2)
+    with pytest.raises(TableError, match="repeats"):
+        read_source_table(path, "texts")
+    # A file this module wrote is not read again to be checked...
+    write_source_table(path, "texts", _texts([dict(ROW, text_id=t) for t in "abc"]))
+    monkeypatch.setattr(tables, "_check", lambda *a, **k: pytest.fail("checked again"))
+    assert read_source_table(path, "texts").num_rows == 3
+    monkeypatch.undo()
+    # ...unless its rows changed since (its footer still says it was checked).
+    pq.write_table(pq.read_table(path).take([2, 0, 1, 1]), path)
+    with pytest.raises(TableError, match="not sorted"):
+        read_source_table(path, "texts")
+
+
 def test_decision_csvs_are_checked_and_canonical(tmp_path):
     path = tmp_path / "people.csv"
     rows = [

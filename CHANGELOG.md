@@ -28,6 +28,19 @@ nothing in the engine names a particular deployment, source or procedure.
     matrix.
   - *Trajectories*: each text counted once, a bin's vector the sum of its texts'
     counts; the people's chunks in worker processes.
+  - *Tables read*: a table's file is checked a row group at a time; a file
+    cartolex wrote says so in its footer, with its rows, and is not read again
+    to be checked. `cartolex.project.text_columns` reads what lists and counts
+    need of each text (year, richest part, providers, languages, people) as
+    arrays, for every text or one person's.
+  - *Coverage*: computed from those columns, each person's counts at once;
+    a harvest writes in its run's header the works each person's records hold
+    and the works received, which the cause of a missing profile reads.
+  - *App*: the texts are a view of columns built once per version of the
+    tables and kept in the project's cache (`cache/views/`), memory-mapped:
+    lists, filters, sorts and counts of millions of texts without an object per
+    text; one text, one person, one organisation read from the row groups that
+    hold it; the coverage and the organisations computed once per version.
   - *Budget*: `cartolex.scale.Budget` (memory, workers, scratch folder) reaches
     every stage; `cartolex build --workers --memory --scratch`. A scratch folder
     names its computer and process (`cartolex.scale.scratch_folder`): one a

@@ -15,8 +15,9 @@ from ..corpus_view import (
     organisation_detail,
     organisations,
     person_detail,
+    stamp,
     text_detail,
-    texts,
+    work_copies,
 )
 from ..deps import ListDep, ProjectDep, page
 from ..errors import ApiError
@@ -24,6 +25,7 @@ from ..jobs import JobConflict, JobControl
 from ..messages import empty
 from ..people_io import read_people
 from ..routing import Routes, runtime_of
+from ..texts_view import texts_view
 from ..uploads import extract_archive, save_upload
 from .build import busy_error
 
@@ -43,14 +45,27 @@ def coverage(
 ) -> dict[str, Any]:
     """How well the texts cover the people: coverage classes per role, the four states
     (good, thin, failed, no data) and their first blocking causes, the states by
-    organisation (the largest first), the texts by year and by language, the slots."""
+    organisation (the largest first), the texts by year and by language, the slots;
+    computed once per version of what they read."""
+    from ..corpus_view import people_view
+
+    runtime = runtime_of(request)
+    fp = people_view(ctx.project, runtime.table_cache)["fp"]
+    out = runtime.table_cache.get(
+        ("coverage", stamp(ctx.project), fp), lambda: _coverage(ctx, runtime)
+    )
+    return {**out, "by_organisation": out["by_organisation"][:organisations_shown]}
+
+
+def _coverage(ctx: Any, runtime: Any) -> dict[str, Any]:
+    import numpy as np
+
     from cartolex.collect.coverage import CAUSES, STATES
     from cartolex.collect.decisions import collect_params
     from cartolex.collect.providers import coverage as slot_coverage
 
     from ..corpus_view import people_view
 
-    runtime = runtime_of(request)
     people = people_view(ctx.project, runtime.table_cache)["people"]
     states = coverage_states(ctx.project, runtime.table_cache)
     classes: dict[str, int] = {"good": 0, "thin": 0, "none": 0}
@@ -73,16 +88,24 @@ def coverage(
             causes[st["cause"]] = causes.get(st["cause"], 0) + 1
     orgs = organisations(ctx.project, runtime.table_cache)
     by_org = _states_by_organisation(ctx, states, counted, {o["org_id"]: o for o in orgs})
+    # The texts of the people counted, each once (a preprint naming its published version
+    # is left out).
+    view = texts_view(ctx.project, runtime.table_cache)
+    rows = np.flatnonzero(view.of_people(counted) & ~view.versioned())
     by_year: dict[str, dict[str, int]] = {}
+    years = np.where(view.has_year[rows], view.year[rows], -1).astype(np.int64)
+    keys, counts = np.unique(years * 2 + (view.content[rows] == 0), return_counts=True)
+    for key, n in zip(keys.tolist(), counts.tolist(), strict=True):
+        year, titles_only = divmod(key, 2)
+        entry = by_year.setdefault(
+            str(year) if year >= 0 else "unknown", {"with_abstract": 0, "titles_only": 0}
+        )
+        entry["titles_only" if titles_only else "with_abstract"] += n
     by_language: dict[str, int] = {}
-    for t in texts(ctx.project, runtime.table_cache):
-        if t["version_of"] or not any(pid in counted for pid in t["people"]):
-            continue
-        year = str(t["year"]) if t["year"] is not None else "unknown"
-        entry = by_year.setdefault(year, {"with_abstract": 0, "titles_only": 0})
-        entry["titles_only" if t["content"] == "title" else "with_abstract"] += 1
-        lang = "+".join(t["languages"]) or "und"
-        by_language[lang] = by_language.get(lang, 0) + 1
+    for code, n in enumerate(np.bincount(view.language[rows], minlength=len(view.languages))):
+        if n:
+            name = view.languages[code] or "und"
+            by_language[name] = by_language.get(name, 0) + int(n)
     return {
         "people": len(people),
         "counted": len(counted),
@@ -91,7 +114,7 @@ def coverage(
         "states": by_state,
         "causes": {k: {"count": n, "message": CAUSES.get(k, k)} for k, n in sorted(causes.items())},
         "by_role": by_role,
-        "by_organisation": by_org[:organisations_shown],
+        "by_organisation": by_org,
         "organisations": len(by_org),
         "by_year": dict(sorted(by_year.items())),
         "by_language": dict(sorted(by_language.items(), key=lambda kv: (-kv[1], kv[0]))),
@@ -104,35 +127,39 @@ def coverage(
 def _states_by_organisation(
     ctx: Any, states: dict[str, dict[str, Any]], counted: set[str], orgs: dict[str, Any]
 ) -> list[dict[str, Any]]:
+    import pyarrow as pa
+
     from cartolex.collect.coverage import STATES
     from cartolex.project.tables import read_source_table
 
-    if not ctx.layout.table("affiliations").exists():
+    if not ctx.layout.table("affiliations").exists() or not counted:
         return []
     table = read_source_table(
         ctx.layout.table("affiliations"), "affiliations", ["person_id", "org_id"]
     )
-    members: dict[str, set[str]] = {}
-    for pid, oid in zip(table["person_id"].to_pylist(), table["org_id"].to_pylist(), strict=True):
-        if pid in counted:
-            members.setdefault(oid, set()).add(pid)
-    out = []
-    for oid, pids in members.items():
-        entry = dict.fromkeys(STATES, 0)
-        for pid in pids:
-            entry[states[pid]["state"]] += 1
-        org = orgs.get(oid, {})
-        out.append(
-            {
+    who = sorted(counted)
+    persons = pa.table({"person_id": who, "state": [states[pid]["state"] for pid in who]})
+    joined = table.join(persons, "person_id", join_type="inner").group_by(["org_id", "state"])
+    grouped = joined.aggregate([("person_id", "count_distinct")])
+    out: dict[str, dict[str, Any]] = {}
+    for oid, state, n in zip(
+        grouped["org_id"].to_pylist(),
+        grouped["state"].to_pylist(),
+        grouped["person_id_count_distinct"].to_pylist(),
+        strict=True,
+    ):
+        if oid not in out:
+            org = orgs.get(oid, {})
+            out[oid] = {
                 "org_id": oid,
                 "name": org.get("name", oid),
                 "level": org.get("level", ""),
-                "people": len(pids),
-                **entry,
+                "people": 0,
+                **dict.fromkeys(STATES, 0),
             }
-        )
-    out.sort(key=lambda o: (-o["people"], o["name"].casefold()))
-    return out
+        out[oid][state] += n
+        out[oid]["people"] += n
+    return sorted(out.values(), key=lambda o: (-o["people"], o["name"].casefold()))
 
 
 # ── organisations ────────────────────────────────────────────────────────────
@@ -189,6 +216,10 @@ def get_organisation(org_id: str, ctx: ProjectDep) -> dict[str, Any]:
 # ── texts ────────────────────────────────────────────────────────────────────
 
 
+#: How the texts list sorts.
+TEXT_SORTS = ("content", "people", "source", "title", "year")
+
+
 @routes.get("/api/texts", action="people.read")
 def list_texts(
     request: Request,
@@ -204,60 +235,51 @@ def list_texts(
     """Texts with their parts per provider; filters ``slot``, ``year``, ``language``,
     ``content`` (what the richest part is), ``provider``, ``person``; counts per content
     and provider, and the ``duplicates``: copies of a work the corpus reads once (each
-    copy's ``copy_of`` names the text read)."""
-    rows = texts(ctx.project, runtime_of(request).table_cache)
-    counts: dict[str, Any] = {
-        "content": {},
-        "provider": {},
-        "duplicates": sum(1 for t in rows if t["copy_of"]),
-    }
-    for t in rows:
-        counts["content"][t["content"]] = counts["content"].get(t["content"], 0) + 1
-        for p in t["providers"]:
-            counts["provider"][p] = counts["provider"].get(p, 0) + 1
-    shown = [
-        t
-        for t in rows
-        if (slot is None or t["slot"] == slot)
-        and (year is None or t["year"] == year)
-        and (language is None or language in t["languages"])
-        and (content is None or t["content"] == content)
-        and (provider is None or provider in t["providers"])
-        and (person is None or person in t["people"])
-        and (not params.q or params.q in (t["title"] or "").casefold() or params.q == t["doi"])
-    ]
-    out = page(
-        shown,
-        params,
-        sorts={
-            "year": lambda t: t["year"],
-            "title": lambda t: (t["title"] or "").casefold(),
-            "source": lambda t: t["source"],
-            "people": lambda t: len(t["people"]),
-            "content": lambda t: ("title", "abstract", "full").index(t["content"]),
-        },
-        default_sort="-year",
-        filters={
-            "slot": slot,
-            "year": year,
-            "language": language,
-            "content": content,
-            "provider": provider,
-            "person": person,
-            "q": params.q,
-        },
-        empty=empty("empty_no_match") if rows else empty("empty_no_collection"),
-        extra={"counts": counts},
+    copy's ``copy_of`` names the text read). The texts are a view of columns: a page
+    turns only its own rows into objects, whatever the number of texts."""
+    runtime = runtime_of(request)
+    view = texts_view(ctx.project, runtime.table_cache)
+    copies = work_copies(ctx.project, runtime.table_cache)
+    sort = params.sort or "-year"
+    if sort.lstrip("-") not in TEXT_SORTS:
+        raise ApiError.of("invalid_sort", sort=sort.lstrip("-"), sorts=list(TEXT_SORTS))
+    mask = view.select(
+        slot=slot,
+        year=year,
+        language=language,
+        content=content,
+        provider=provider,
+        among=view.of_people([person]) if person is not None else None,
+        q=params.q,
     )
-    out["items"] = [{**t, "people": len(t["people"])} for t in out["items"]]
-    return out
+    shown, total = view.page(mask, sort, params.offset, params.limit)
+    filters = {
+        "slot": slot,
+        "year": year,
+        "language": language,
+        "content": content,
+        "provider": provider,
+        "person": person,
+        "q": params.q,
+    }
+    return {
+        "items": view.rows(shown, copies),
+        "total": total,
+        "offset": params.offset,
+        "limit": params.limit,
+        "sort": sort,
+        "sorts": list(TEXT_SORTS),
+        "filters": {k: v for k, v in filters.items() if v not in (None, "")},
+        "empty": None if total else empty("empty_no_match" if view.n else "empty_no_collection"),
+        "counts": {**view.counts(), "duplicates": len(copies)},
+    }
 
 
 @routes.get("/api/texts/{text_id}", action="people.read")
-def get_text(text_id: str, ctx: ProjectDep) -> dict[str, Any]:
+def get_text(request: Request, text_id: str, ctx: ProjectDep) -> dict[str, Any]:
     """One text: its parts by provider (a preview each), its people, the records merged
     into it, its versions and the conflicts between finders."""
-    found = text_detail(ctx.project, text_id)
+    found = text_detail(ctx.project, text_id, runtime_of(request).table_cache)
     if found is None:
         raise ApiError.of("text_not_found", text=text_id)
     return found

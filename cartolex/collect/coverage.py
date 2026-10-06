@@ -37,14 +37,17 @@ texts **by year** and **by language**, beside the texts' summary per slot.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from cartolex.project import Project
 from cartolex.project.tables import read_source_table
+from cartolex.project.text_columns import TextColumns, read_text_columns
 
 from .decisions import collect_params, read_people, update_people
 from .outcomes import Outcome, latest_outcomes
@@ -72,7 +75,6 @@ CAUSES = {
     "no_abstracts": "works without abstracts",
     "few_abstracts": "fewer texts with an abstract than a good profile has",
 }
-WORD_PARTS = frozenset({"abstract", "body", "full"})
 
 
 @dataclass
@@ -104,78 +106,176 @@ class PersonCoverage:
 
 @dataclass
 class _Tables:
+    """What the coverage reads of the tables: the people, the organisations, each
+    person's organisations, and the texts as columns (:mod:`cartolex.project.text_columns`)
+    with each one's year and language as the coverage names them."""
+
     people: dict[str, dict[str, Any]]
-    texts: dict[str, dict[str, Any]]
-    parts: dict[str, dict[str, set[str]]]  # text id → part → languages
-    providers: dict[str, set[str]]  # text id → providers
-    by_person: dict[str, list[str]]
     orgs: dict[str, dict[str, Any]]
     affiliations: dict[str, set[str]]
+    columns: TextColumns
+    #: Each person's texts read (rows of *columns*).
+    by_person: dict[str, np.ndarray]
+    #: Each text's year (``unknown`` without one) and language, as codes.
+    years: list[str]
+    year_code: np.ndarray
+    languages: list[str]
+    language_code: np.ndarray
+
+    def counts(self, rows: np.ndarray) -> tuple[dict[str, dict[str, int]], dict[str, int]]:
+        """The texts at *rows* by year (with an abstract, titles only) and by language."""
+        worded = self.columns.has_words()[rows]
+        years: dict[str, dict[str, int]] = {}
+        for code, flag, n in _counted(self.year_code[rows], worded):
+            years.setdefault(self.years[code], {})["with_abstract" if flag else "titles_only"] = n
+        languages = {
+            self.languages[code]: n
+            for code, _, n in _counted(self.language_code[rows], np.zeros(len(rows), dtype=bool))
+        }
+        return {y: years[y] for y in sorted(years)}, dict(sorted(languages.items()))
 
 
-def _load(project: Project) -> _Tables:
+def _counted(codes: np.ndarray, flags: np.ndarray) -> list[tuple[int, bool, int]]:
+    """How many rows have each (code, flag)."""
+    if not len(codes):
+        return []
+    pairs, n = np.unique(codes.astype(np.int64) * 2 + flags, return_counts=True)
+    return [(int(p) // 2, bool(p % 2), int(k)) for p, k in zip(pairs, n, strict=True)]
+
+
+def _load(
+    project: Project, people: Collection[str] | None = None, *, detail: bool = True
+) -> _Tables:
+    """The tables as the coverage reads them: every person's, or only *people*'s rows;
+    without *detail*, the people's names only and no organisation."""
     layout = project.layout
 
-    def rows(name: str, columns: list[str] | None = None) -> list[dict[str, Any]]:
+    def rows(
+        name: str, columns: list[str] | None, key: str, wanted: Collection[str] | None
+    ) -> list[dict[str, Any]]:
         path = layout.table(name)
-        if not path.exists():
+        if not path.exists() or (wanted is not None and not wanted):
             return []
-        return read_source_table(path, name, columns).to_pylist()
+        filters = [(key, "in", sorted(wanted))] if wanted is not None else None
+        return read_source_table(path, name, columns, filters=filters).to_pylist()
 
-    texts = {t["text_id"]: t for t in rows("texts")}
-    # A preprint read through its published version counts once, as the build reads it.
-    superseded = {tid for tid, t in texts.items() if t["version_of"] in texts}
-    parts: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
-    providers: dict[str, set[str]] = defaultdict(set)
-    for p in rows("text_parts", ["text_id", "part", "language", "provider"]):
-        parts[p["text_id"]][p["part"]].add(p["language"])
-        providers[p["text_id"]].add(p["provider"])
-    by_person: dict[str, list[str]] = defaultdict(list)
-    for a in rows("authorships", ["text_id", "person_id"]):
-        if a["text_id"] in texts and a["text_id"] not in superseded:
-            by_person[a["person_id"]].append(a["text_id"])
+    columns = read_text_columns(layout, people=people)
+    year_values, year_code = np.unique(
+        np.where(columns.has_year, columns.year, -1), return_inverse=True
+    )
+    language_code, sets = columns.language_sets()
+    # A text without words is named by its title's languages (« und »: none), apart.
+    pairs = language_code.astype(np.int64) * 2 + columns.has_words()
+    named, language_code = np.unique(pairs, return_inverse=True) if len(pairs) else (pairs, pairs)
     affiliations: dict[str, set[str]] = defaultdict(set)
-    for a in rows("affiliations", ["person_id", "org_id"]):
+    for a in rows("affiliations", ["person_id", "org_id"], "person_id", people) if detail else []:
         affiliations[a["person_id"]].add(a["org_id"])
+    org_ids = (
+        None if people is None else sorted({o for orgs in affiliations.values() for o in orgs})
+    )
     return _Tables(
-        people={p["person_id"]: p for p in rows("people")},
-        texts=texts,
-        parts=parts,
-        providers=providers,
-        by_person=by_person,
-        orgs={o["org_id"]: o for o in rows("organisations")},
+        people={
+            p["person_id"]: p
+            for p in rows(
+                "people",
+                None if detail else ["person_id", "first_name", "last_name"],
+                "person_id",
+                people,
+            )
+        },
+        orgs={o["org_id"]: o for o in rows("organisations", None, "org_id", org_ids)},
         affiliations=affiliations,
+        columns=columns,
+        by_person=columns.texts_by_person(),
+        years=[str(y) if y >= 0 else "unknown" for y in year_values.tolist()],
+        year_code=np.asarray(year_code, dtype=np.int64).reshape(-1),
+        languages=[
+            "+".join(sets[p // 2]) if p % 2 else f"{'+'.join(sets[p // 2]) or 'und'} (title only)"
+            for p in named.tolist()
+        ],
+        language_code=np.asarray(language_code, dtype=np.int64).reshape(-1),
     )
 
 
-def _works_count(project: Project) -> dict[str, tuple[int, int]]:
-    """person id → (works of their author records in the index, works received in the window),
-    from their latest harvest."""
-    from .digests import DigestCache
+def _with_merged(people: Collection[str] | None, merged_into: Mapping[str, str]) -> set[str] | None:
+    """*people* and the people merged into them (``None``: everyone)."""
+    if people is None:
+        return None
+    wanted = set(people)
+    return wanted | {pid for pid, into in merged_into.items() if into in wanted}
 
-    out: dict[str, tuple[int, int]] = {}
-    digests = DigestCache(project.layout, write=False)
+
+def _per_person(
+    tables: _Tables, merged_into: Mapping[str, str], *, detail: bool = True
+) -> dict[str, tuple[int, int, dict[str, dict[str, int]], dict[str, int]]]:
+    """Each person's texts read, with those of the people merged into them (a text once):
+    how many, how many with an abstract, and with *detail* by year and by language."""
+    cols = tables.columns
+    owners = sorted({merged_into.get(pid, pid) for pid in cols.person_ids})
+    code = {pid: i for i, pid in enumerate(owners)}
+    remap = np.array([code[merged_into.get(pid, pid)] for pid in cols.person_ids], dtype=np.int64)
+    keep = ~cols.superseded[cols.author_text]
+    width = max(cols.n, 1)
+    pairs = np.unique(remap[cols.author_person[keep]] * width + cols.author_text[keep])
+    who, rows = pairs // width, pairs % width
+    worded = cols.has_words()[rows].astype(np.int64)
+    texts = np.bincount(who, minlength=len(owners))
+    abstracts = np.bincount(who, weights=worded, minlength=len(owners)).astype(np.int64)
+    years: dict[int, dict[str, dict[str, int]]] = defaultdict(dict)
+    languages: dict[int, dict[str, int]] = defaultdict(dict)
+    if not detail:
+        return {
+            pid: (int(texts[i]), int(abstracts[i]), {}, {})
+            for i, pid in enumerate(owners)
+            if texts[i]
+        }
+    span = 2 * max(len(tables.years), 1)
+    keys, counts = np.unique(who * span + tables.year_code[rows] * 2 + worded, return_counts=True)
+    for key, n in zip(keys.tolist(), counts.tolist(), strict=True):
+        person, rest = divmod(key, span)
+        year, flag = divmod(rest, 2)
+        years[person].setdefault(tables.years[year], {})[
+            "with_abstract" if flag else "titles_only"
+        ] = n
+    span = max(len(tables.languages), 1)
+    keys, counts = np.unique(who * span + tables.language_code[rows], return_counts=True)
+    for key, n in zip(keys.tolist(), counts.tolist(), strict=True):
+        person, language = divmod(key, span)
+        languages[person][tables.languages[language]] = n
+    return {
+        pid: (
+            int(texts[i]),
+            int(abstracts[i]),
+            {y: years[i][y] for y in sorted(years[i])},
+            dict(sorted(languages[i].items())),
+        )
+        for i, pid in enumerate(owners)
+        if texts[i]
+    }
+
+
+def _works_count(project: Project, people: Collection[str]) -> dict[str, tuple[int, int] | None]:
+    """For each of *people* their latest harvest named: (works their author records hold in
+    the index, works received in the window), as the harvest wrote them in its run's
+    header (``None``: a run of an earlier version, which does not say). Only the runs'
+    headers are read."""
+    wanted = set(people)
+    out: dict[str, tuple[int, int] | None] = {}
+    if not wanted:
+        return out
     for slot in (s.id for s in project.config.slots):
-        latest: dict[str, str] = {}
-        runs = read_runs(project.layout, slot, "openalex", digests=digests)
-        for run in runs:
-            for pid in run.header.get("people") or {}:
-                latest[pid] = run.run_id
-        for run in runs:
-            if run.run_id not in set(latest.values()):
-                continue
-            totals: dict[str, list[int]] = defaultdict(lambda: [0, 0])
-            for rec in run.records():
-                pid = rec.get("person_id")
-                if latest.get(pid) != run.run_id:
-                    continue
-                if rec.get("type") == "author":
-                    totals[pid][0] += int((rec.get("record") or {}).get("works_count") or 0)
-                elif rec.get("type") == "work":
-                    totals[pid][1] += 1
-            for pid in latest:
-                if latest[pid] == run.run_id:
-                    out[pid] = tuple(totals.get(pid, [0, 0]))  # type: ignore[assignment]
+        latest: dict[str, Any] = {}
+        for run in read_runs(project.layout, slot, "openalex"):
+            for pid, meta in (run.header.get("people") or {}).items():
+                if pid in wanted:
+                    latest[pid] = meta
+        for pid, meta in latest.items():
+            works = meta.get("works") if isinstance(meta, dict) else None
+            out[pid] = (
+                (int(works[0]), int(works[1]))
+                if isinstance(works, list) and len(works) == 2
+                else None
+            )
     return out
 
 
@@ -191,41 +291,38 @@ def _resolved_without_candidates(project: Project) -> set[str]:
     return {pid for pid, (_, empty) in latest.items() if empty}
 
 
-def _text_counts(tables: _Tables, tid: str) -> tuple[str, str, bool]:
-    """A text's year, its language (of its words, else of its title) and whether it has words."""
-    text = tables.texts[tid]
-    parts = tables.parts.get(tid, {})
-    year = str(text["year"]) if text["year"] is not None else "unknown"
-    worded = [p for p in parts if p in WORD_PARTS]
-    if worded:
-        langs = sorted({lang for p in worded for lang in parts[p]})
-        return year, "+".join(langs), True
-    langs = sorted(parts.get("title", {"und"}))
-    return year, f"{'+'.join(langs)} (title only)", False
-
-
 def person_coverage(
-    project: Project, *, good: int | None = None, people: Sequence[str] | None = None
+    project: Project,
+    *,
+    good: int | None = None,
+    people: Sequence[str] | None = None,
+    tables: _Tables | None = None,
+    decisions: Mapping[str, dict[str, Any]] | None = None,
+    outcomes: Mapping[str, dict[str, Outcome]] | None = None,
+    detail: bool = True,
 ) -> list[PersonCoverage]:
     """The coverage of every person of the project (or of *people*), in ``person_id`` order.
 
     People merged into another count with that person; *good* defaults to
-    ``params.json``'s ``collect.coverage.good``.
+    ``params.json``'s ``collect.coverage.good``. *tables*, *decisions* and *outcomes*
+    are what was already read (:func:`_load` for *people* and the people merged into
+    them, ``people.csv``, :func:`~cartolex.collect.outcomes.latest_outcomes`). Without
+    *detail*, the counts and the states only: no years, languages or organisations.
     """
     good = collect_params(project, "coverage")["good"] if good is None else good
-    tables = _load(project)
-    decisions = read_people(project.layout)
-    outcomes = latest_outcomes(project.layout, project.config)
-    harvested = _works_count(project)
-    nothing_found = _resolved_without_candidates(project)
+    decisions = read_people(project.layout) if decisions is None else decisions
     merged_into = {
         pid: row["merged_into"] for pid, row in decisions.items() if row.get("merged_into")
     }
-    texts_of: dict[str, set[str]] = defaultdict(set)
-    for pid, tids in tables.by_person.items():
-        texts_of[merged_into.get(pid, pid)].update(tids)
+    if tables is None:
+        tables = _load(project, _with_merged(people, merged_into), detail=detail)
+    if outcomes is None:
+        outcomes = latest_outcomes(project.layout, project.config)
+    nothing_found = _resolved_without_candidates(project)
+    found = _per_person(tables, merged_into, detail=detail)
     wanted = set(people) if people is not None else None
     out = []
+    empty: list[PersonCoverage] = []
     for pid in sorted(tables.people):
         if pid in merged_into or (wanted is not None and pid not in wanted):
             continue
@@ -240,19 +337,8 @@ def person_coverage(
             records=[r for r in (dec.get("records") or "").split(";") if r],
             state="no_data",
         )
-        years: dict[str, Counter[str]] = defaultdict(Counter)
-        languages: Counter[str] = Counter()
-        for tid in sorted(texts_of.get(pid, ())):
-            year, language, worded = _text_counts(tables, tid)
-            cov.texts += 1
-            if worded:
-                cov.with_abstract += 1
-            else:
-                cov.titles_only += 1
-            years[year]["with_abstract" if worded else "titles_only"] += 1
-            languages[language] += 1
-        cov.years = {y: dict(c) for y, c in sorted(years.items())}
-        cov.languages = dict(sorted(languages.items()))
+        cov.texts, cov.with_abstract, cov.years, cov.languages = found.get(pid, (0, 0, {}, {}))
+        cov.titles_only = cov.texts - cov.with_abstract
         cov.organisations = sorted(tables.affiliations.get(pid, ()))
         failed = sorted(
             (o for o in outcomes.get(pid, {}).values() if not o.ok), key=lambda o: o.run_id
@@ -269,10 +355,7 @@ def person_coverage(
             }
             cov.cause_text = f"{CAUSES['service_failure']} ({last.finder}): {last.cause}"
         elif cov.texts == 0:
-            cov.state = "no_data"
-            cov.cause, cov.cause_text = _why_nothing(
-                cov, harvested.get(pid), pid in nothing_found, outcomes.get(pid, {})
-            )
+            empty.append(cov)  # its cause once the harvests of everyone without texts are read
         elif cov.with_abstract >= good:
             cov.state = "good"
         else:
@@ -283,14 +366,25 @@ def person_coverage(
                 if cov.with_abstract == 0
                 else f"{cov.with_abstract} text(s) with an abstract, fewer than {good}"
             )
-        cov.actions = _actions(cov)
         out.append(cov)
+    harvested = _works_count(project, [c.person_id for c in empty])
+    for cov in empty:
+        cov.cause, cov.cause_text = _why_nothing(
+            cov,
+            harvested.get(cov.person_id),
+            cov.person_id in harvested,
+            cov.person_id in nothing_found,
+            outcomes.get(cov.person_id, {}),
+        )
+    for cov in out:
+        cov.actions = _actions(cov)
     return out
 
 
 def _why_nothing(
     cov: PersonCoverage,
     harvested: tuple[int, int] | None,
+    was_harvested: bool,
     nothing_found: bool,
     outcomes: Mapping[str, Outcome],
 ) -> tuple[str, str]:
@@ -300,8 +394,10 @@ def _why_nothing(
         return "no_record", f"{CAUSES['no_record']}: the resolution found no candidate record"
     if cov.identity == "pending":
         return "not_collected", f"{CAUSES['not_collected']}: the identity waits for confirmation"
-    if harvested is None and "harvest" not in outcomes:
+    if not was_harvested and "harvest" not in outcomes:
         return "not_collected", f"{CAUSES['not_collected']}: the records were never harvested"
+    if was_harvested and harvested is None:  # a harvest that did not count the works
+        return "no_works_in_window", CAUSES["no_works_in_window"]
     total, received = harvested or (0, 0)
     if received == 0:
         if total:
@@ -332,8 +428,10 @@ def coverage_report(
     from .providers import coverage as slot_coverage
 
     good = collect_params(project, "coverage")["good"] if good is None else good
-    persons = person_coverage(project, good=good, people=people)
-    tables = _load(project)
+    decisions = read_people(project.layout)
+    merged = {pid: row["merged_into"] for pid, row in decisions.items() if row.get("merged_into")}
+    tables = _load(project, _with_merged(people, merged))
+    persons = person_coverage(project, good=good, people=people, tables=tables, decisions=decisions)
     counted = [p for p in persons if p.role != "excluded"]
     states = Counter(p.state for p in counted)
     by_org: dict[str, Counter[str]] = defaultdict(Counter)
@@ -349,21 +447,13 @@ def coverage_report(
         for oid, c in sorted(by_org.items())
     }
     # Texts, each counted once however many of its authors are in the project.
-    years: dict[str, Counter[str]] = defaultdict(Counter)
-    languages: Counter[str] = Counter()
-    merged = {pid: row["merged_into"] for pid, row in read_people(project.layout).items()
-              if row.get("merged_into")}  # fmt: skip
+    cols = tables.columns
     wanted = {p.person_id for p in counted}
-    texts = {
-        tid
-        for pid, tids in tables.by_person.items()
-        if merged.get(pid, pid) in wanted
-        for tid in tids
-    }
-    for tid in sorted(texts):
-        year, language, worded = _text_counts(tables, tid)
-        years[year]["with_abstract" if worded else "titles_only"] += 1
-        languages[language] += 1
+    chosen = np.array([merged.get(pid, pid) in wanted for pid in cols.person_ids], dtype=bool)
+    keep = (chosen[cols.author_person] if len(chosen) else np.zeros(0, bool)) & ~cols.superseded[
+        cols.author_text
+    ]
+    years, languages = tables.counts(np.unique(cols.author_text[keep]))
     return {
         "good": good,
         "people": len(counted),
@@ -371,8 +461,8 @@ def coverage_report(
         "states": {s: states[s] for s in STATES},
         "causes": dict(sorted(Counter(p.cause for p in counted if p.cause).items())),
         "by_organisation": organisations,
-        "by_year": {y: dict(c) for y, c in sorted(years.items())},
-        "by_language": dict(sorted(languages.items())),
+        "by_year": years,
+        "by_language": languages,
         "slots": slot_coverage(project.layout),
         "persons": [asdict(p) for p in persons],
     }
@@ -381,17 +471,28 @@ def coverage_report(
 def person_sheet(project: Project, person_id: str, *, good: int | None = None) -> dict[str, Any]:
     """Why a profile is what it is: the coverage, the sources used and discarded, the
     attempts of each finder and the first blocking cause."""
-    found = person_coverage(project, good=good, people=[person_id])
+    decisions = read_people(project.layout)
+    merged = {pid: row["merged_into"] for pid, row in decisions.items() if row.get("merged_into")}
+    tables = _load(project, _with_merged([person_id], merged))
+    outcomes = latest_outcomes(project.layout, project.config)
+    found = person_coverage(
+        project,
+        good=good,
+        people=[person_id],
+        tables=tables,
+        decisions=decisions,
+        outcomes=outcomes,
+    )
     if not found:
         raise ValueError(f"{person_id} is not a person of the project (or is merged)")
     cov = found[0]
-    tables = _load(project)
+    cols = tables.columns
     used: Counter[str] = Counter()
     provided: Counter[str] = Counter()
-    for tid in tables.by_person.get(person_id, ()):
-        used[tables.texts[tid]["source"]] += 1
-        for provider in tables.providers.get(tid, ()):
-            provided[provider] += 1
+    for row in tables.by_person.get(person_id, np.zeros(0, dtype=np.int32)).tolist():
+        used[cols.sources[cols.source[row]]] += 1
+        bits = int(cols.providers[row])
+        provided.update(p for b, p in enumerate(cols.provider_names) if bits >> b & 1)
     discarded: list[dict[str, Any]] = []
     confirmed = set(cov.records)
     for slot in (s.id for s in project.config.slots):
@@ -430,23 +531,26 @@ def person_sheet(project: Project, person_id: str, *, good: int | None = None) -
                             "params": {"source": what, "name": shown, "record": record or ""},
                         }
                     )
-    for tid in sorted(_all_texts(project, person_id)):
-        text = tables.texts.get(tid)
-        if text is not None and text["version_of"] in tables.texts:
-            discarded.append(
-                {
-                    "what": f"{tid} ({text['title'][:60]})",
-                    "why": "a preprint read through its published version",
-                    "code": "discarded_preprint",
-                    "params": {"text_id": tid, "title": text["title"][:60]},
-                }
-            )
+    mine = (
+        cols.author_text[cols.author_person == cols.person_ids.index(person_id)]
+        if (person_id in cols.person_ids)
+        else np.zeros(0, dtype=np.int32)
+    )
+    preprints = sorted({cols.tid(r) for r in mine.tolist() if cols.superseded[r]})
+    titles = _titles(project, preprints)
+    for tid in preprints:
+        title = (titles.get(tid) or "")[:60]
+        discarded.append(
+            {
+                "what": f"{tid} ({title})",
+                "why": "a preprint read through its published version",
+                "code": "discarded_preprint",
+                "params": {"text_id": tid, "title": title},
+            }
+        )
     attempts = [
         {"finder": o.finder, "ok": o.ok, "run": o.run_id, "cause": o.cause}
-        for o in sorted(
-            latest_outcomes(project.layout, project.config).get(person_id, {}).values(),
-            key=lambda o: o.finder,
-        )
+        for o in sorted(outcomes.get(person_id, {}).values(), key=lambda o: o.finder)
     ]
     return {
         **asdict(cov),
@@ -457,12 +561,17 @@ def person_sheet(project: Project, person_id: str, *, good: int | None = None) -
     }
 
 
-def _all_texts(project: Project, person_id: str) -> set[str]:
-    path = project.layout.table("authorships")
-    if not path.exists():
-        return set()
-    table = read_source_table(path, "authorships", ["text_id", "person_id"]).to_pylist()
-    return {a["text_id"] for a in table if a["person_id"] == person_id}
+def _titles(project: Project, text_ids: list[str]) -> dict[str, str]:
+    """The titles of *text_ids* (read from the row groups that hold them)."""
+    if not text_ids:
+        return {}
+    table = read_source_table(
+        project.layout.table("texts"),
+        "texts",
+        ["text_id", "title"],
+        filters=[("text_id", "in", text_ids)],
+    )
+    return dict(zip(table["text_id"].to_pylist(), table["title"].to_pylist(), strict=True))
 
 
 # ── actions ──────────────────────────────────────────────────────────────────

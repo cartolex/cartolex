@@ -735,6 +735,16 @@ def _harvest_person(
                 }
             )
         report.dois_not_indexed += len(set(dois) - found)
+    # What the coverage says of a person without texts, read from the run's header: the
+    # works their records hold in the index, and the works received.
+    meta["works"] = [
+        sum(
+            int((x["record"] or {}).get("works_count") or 0)
+            for x in oa_lines
+            if x["type"] == "author"
+        ),
+        sum(1 for x in oa_lines if x["type"] == "work"),
+    ]
     return oa_lines, orcid_lines, meta
 
 

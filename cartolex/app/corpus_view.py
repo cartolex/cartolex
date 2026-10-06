@@ -3,8 +3,10 @@
 
 Everything here reads the project's tables and raw records, never a service.
 Lists are computed once per version of what they read and kept in the app's
-cache (:class:`~cartolex.app.runtime.Cache`), so paging through 10⁵ people or
-texts sorts and slices rows already in memory.
+cache (:class:`~cartolex.app.runtime.Cache`). The texts are a view of columns
+(:mod:`cartolex.app.texts_view`), so that a project of millions of texts lists,
+filters and pages them without a dictionary per text; one text, one person or
+one organisation is read from the row groups that hold it.
 """
 
 from __future__ import annotations
@@ -14,9 +16,13 @@ from collections import defaultdict
 from collections.abc import Mapping
 from typing import Any
 
+import numpy as np
+
 from cartolex.project import Project
 from cartolex.project.layout import SOURCE_TABLES
 from cartolex.project.tables import read_source_table
+
+from .texts_view import texts_view, view_stamp
 
 __all__ = [
     "ordered",
@@ -27,7 +33,7 @@ __all__ = [
     "person_detail",
     "stamp",
     "text_detail",
-    "texts",
+    "work_copies",
 ]
 
 #: How much of a part's content a text's detail shows.
@@ -70,11 +76,13 @@ def tables_stamp(project: Project) -> tuple[Any, ...]:
     return tuple(out)
 
 
-def _rows(project: Project, name: str, columns: list[str] | None = None) -> list[dict[str, Any]]:
+def _rows(
+    project: Project, name: str, columns: list[str] | None = None, filters: list | None = None
+) -> list[dict[str, Any]]:
     path = project.layout.table(name)
     if not path.exists():
         return []
-    return read_source_table(path, name, columns).to_pylist()
+    return read_source_table(path, name, columns, filters=filters).to_pylist()
 
 
 def _cached(cache: Any, key: Any, compute: Any) -> Any:
@@ -97,7 +105,7 @@ def coverage_states(project: Project, cache: Any = None) -> dict[str, dict[str, 
                 "with_abstract": p.with_abstract,
                 "titles_only": p.titles_only,
             }
-            for p in person_coverage(project)
+            for p in person_coverage(project, detail=False)
         }
 
     return _cached(cache, ("coverage-states", stamp(project)), compute)
@@ -175,10 +183,17 @@ def ordered(view: dict[str, Any], name: str, key: Any, descending: bool) -> list
     return rows[::-1] if descending else rows
 
 
-def _names(project: Project) -> dict[str, str]:
+def _names(project: Project, person_ids: set[str]) -> dict[str, str]:
+    if not person_ids:
+        return {}
     return {
         p["person_id"]: " ".join(x for x in (p["first_name"], p["last_name"]) if x)
-        for p in _rows(project, "people", ["person_id", "last_name", "first_name"])
+        for p in _rows(
+            project,
+            "people",
+            ["person_id", "last_name", "first_name"],
+            [("person_id", "in", sorted(person_ids))],
+        )
     }
 
 
@@ -186,18 +201,28 @@ def organisations(project: Project, cache: Any = None) -> list[dict[str, Any]]:
     """Every organisation: its level, parents (ids and names), people now and ever affiliated."""
 
     def compute() -> list[dict[str, Any]]:
+        import pyarrow.compute as pc
+
         orgs = _rows(project, "organisations")
         names = {o["org_id"]: o["acronym"] or o["name"] for o in orgs}
-        now: dict[str, set[str]] = defaultdict(set)
-        ever: dict[str, set[str]] = defaultdict(set)
         children: dict[str, int] = defaultdict(int)
         for o in orgs:
             for parent in o["parents"] or []:
                 children[parent] += 1
-        for a in _rows(project, "affiliations"):
-            ever[a["org_id"]].add(a["person_id"])
-            if a["end_year"] is None:
-                now[a["org_id"]].add(a["person_id"])
+        ever: dict[str, int] = {}
+        now: dict[str, int] = {}
+        path = project.layout.table("affiliations")
+        if path.exists():
+            aff = read_source_table(path, "affiliations", ["person_id", "org_id", "end_year"])
+            for counts, rows in ((ever, aff), (now, aff.filter(pc.is_null(aff["end_year"])))):
+                grouped = rows.group_by("org_id").aggregate([("person_id", "count_distinct")])
+                counts.update(
+                    zip(
+                        grouped["org_id"].to_pylist(),
+                        grouped["person_id_count_distinct"].to_pylist(),
+                        strict=True,
+                    )
+                )
         return [
             {
                 "org_id": o["org_id"],
@@ -207,8 +232,8 @@ def organisations(project: Project, cache: Any = None) -> list[dict[str, Any]]:
                 "parents": list(o["parents"] or []),
                 "parent_names": [names.get(p, p) for p in o["parents"] or []],
                 "children": children.get(o["org_id"], 0),
-                "people": len(now.get(o["org_id"], ())),
-                "people_ever": len(ever.get(o["org_id"], ())),
+                "people": now.get(o["org_id"], 0),
+                "people_ever": ever.get(o["org_id"], 0),
                 "country": o["country"] or "",
                 "source": o["source"],
                 "ids": dict(o["ids"] or []),
@@ -225,7 +250,8 @@ def organisation_detail(project: Project, org_id: str) -> dict[str, Any] | None:
     org = orgs.get(org_id)
     if org is None:
         return None
-    names = _names(project)
+    rows = _rows(project, "affiliations", None, [("org_id", "==", org_id)])
+    names = _names(project, {a["person_id"] for a in rows})
     affiliations = [
         {
             "person_id": a["person_id"],
@@ -234,8 +260,7 @@ def organisation_detail(project: Project, org_id: str) -> dict[str, Any] | None:
             "end_year": a["end_year"],
             "source": a["source"],
         }
-        for a in _rows(project, "affiliations")
-        if a["org_id"] == org_id
+        for a in rows
     ]
     affiliations.sort(key=lambda a: (a["name"].casefold(), a["start_year"] or 0))
     return {
@@ -259,56 +284,22 @@ def organisation_detail(project: Project, org_id: str) -> dict[str, Any] | None:
     }
 
 
-def texts(project: Project, cache: Any = None) -> list[dict[str, Any]]:
-    """Every text with its parts (part, language, provider), its people and its languages."""
+def work_copies(project: Project, cache: Any = None) -> dict[str, str]:
+    """Each copy of a work among the texts → the text the corpus reads instead, as
+    ``corpus.assemble`` finds them with its parameters
+    (:func:`cartolex.project.corpus.work_copies`), once per version of the tables and of
+    those parameters."""
+    from cartolex.project.corpus import work_copies as find
 
-    def compute() -> list[dict[str, Any]]:
-        parts: dict[str, list[dict[str, str]]] = defaultdict(list)
-        for p in _rows(
-            project, "text_parts", ["text_id", "part", "language", "provider", "format"]
-        ):
-            parts[p["text_id"]].append(
-                {k: p[k] for k in ("part", "language", "provider", "format")}
-            )
-        people: dict[str, list[str]] = defaultdict(list)
-        for a in _rows(project, "authorships", ["text_id", "person_id"]):
-            people[a["text_id"]].append(a["person_id"])
-        rows = _rows(project, "texts")
-        copy_of = duplicate_copies(rows, people, **same_work)
-        out = []
-        for t in rows:
-            tp = parts.get(t["text_id"], [])
-            kinds = {p["part"] for p in tp}
-            out.append(
-                {
-                    "text_id": t["text_id"],
-                    "title": t["title"],
-                    "year": t["year"],
-                    "doc_type": t["doc_type"],
-                    "slot": t["slot"],
-                    "source": t["source"],
-                    "doi": t["doi"] or "",
-                    "version_of": t["version_of"] or "",
-                    "n_authors": t["n_authors"],
-                    "copy_of": copy_of.get(t["text_id"], ""),
-                    "people": people.get(t["text_id"], []),
-                    "parts": tp,
-                    "providers": sorted({p["provider"] for p in tp}),
-                    "languages": sorted(
-                        {p["language"] for p in tp if p["part"] != "title"}
-                        or {p["language"] for p in tp}
-                    ),  # fmt: skip
-                    "content": "full"
-                    if kinds & {"body", "full"}
-                    else "abstract"
-                    if "abstract" in kinds
-                    else "title",
-                }
-            )
-        return out
+    view = texts_view(project, cache)
+    same = _same_work(project)
 
-    same_work = _same_work(project)
-    return _cached(cache, ("texts", tables_stamp(project), *same_work.values()), compute)
+    def compute() -> dict[str, str]:
+        if not view.n:
+            return {}
+        return find(project.layout.tables, keys=view.title_keys(), **same)
+
+    return _cached(cache, ("work-copies", view_stamp(project), *same.values()), compute)
 
 
 def _same_work(project: Project) -> dict[str, int]:
@@ -329,46 +320,36 @@ def _same_work(project: Project) -> dict[str, int]:
     return out
 
 
-def duplicate_copies(
-    rows: list[dict[str, Any]],
-    people: Mapping[str, list[str]],
-    *,
-    min_title: int | None = None,
-    year_gap: int | None = None,
-) -> dict[str, str]:
-    """The texts the corpus reads once with another (copy → the text read), as
-    ``corpus.assemble`` groups them (:func:`cartolex.project.corpus.duplicate_groups`, with its
-    *min_title* and *year_gap*): a preprint whose published version is in the tables is left
-    aside first."""
-    from cartolex.project.corpus import duplicate_groups, version_rank
-
-    ids = {t["text_id"] for t in rows}
-    meta = {t["text_id"]: t for t in rows if not (t["version_of"] and t["version_of"] in ids)}
-    rules = {k: v for k, v in (("min_title", min_title), ("year_gap", year_gap)) if v is not None}
-    out: dict[str, str] = {}
-    for group in duplicate_groups(meta, people, **rules):
-        keep = min(group, key=lambda t: (version_rank(meta[t]["doc_type"]), t))
-        out.update({t: keep for t in group if t != keep})
-    return out
-
-
-def _merge_log(project: Project) -> dict[str, Any]:
+def _merge_log(project: Project, cache: Any = None) -> dict[str, dict[str, list[Any]]]:
+    """The merges by the text kept and the conflicts by text, from ``sources/merges.json``
+    (read once per version of the file)."""
     path = project.layout.sources / "merges.json"
-    if not path.exists():
-        return {}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
+        st = path.stat()
+    except FileNotFoundError:
+        return {"merges": {}, "conflicts": {}}
+
+    def compute() -> dict[str, dict[str, list[Any]]]:
+        try:
+            log = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {"merges": {}, "conflicts": {}}
+        out: dict[str, dict[str, list[Any]]] = {"merges": {}, "conflicts": {}}
+        for kind, key in (("merges", "kept"), ("conflicts", "text_id")):
+            for entry in log.get(kind, []):
+                out[kind].setdefault(str(entry.get(key)), []).append(entry)
+        return out
+
+    return _cached(cache, ("merge-log", str(path), st.st_size, st.st_mtime_ns), compute)
 
 
-def text_detail(project: Project, text_id: str) -> dict[str, Any] | None:
+def text_detail(project: Project, text_id: str, cache: Any = None) -> dict[str, Any] | None:
     """One text: its fields, each part (a preview of its content) by provider, its people,
     the records merged into it, its versions and the conflicts between finders."""
-    found = next((t for t in _rows(project, "texts") if t["text_id"] == text_id), None)
+    one = [("text_id", "==", text_id)]
+    found = next(iter(_rows(project, "texts", None, one)), None)
     if found is None:
         return None
-    names = _names(project)
     parts = [
         {
             "part": p["part"],
@@ -378,9 +359,10 @@ def text_detail(project: Project, text_id: str) -> dict[str, Any] | None:
             "chars": len(p["content"] or ""),
             "preview": (p["content"] or "")[:PREVIEW_CHARS],
         }
-        for p in _rows(project, "text_parts")
-        if p["text_id"] == text_id
+        for p in _rows(project, "text_parts", None, one)
     ]
+    rows = _rows(project, "authorships", None, one)
+    names = _names(project, {a["person_id"] for a in rows})
     authors = sorted(
         (
             {
@@ -389,15 +371,14 @@ def text_detail(project: Project, text_id: str) -> dict[str, Any] | None:
                 "position": a["position"],
                 "orgs": list(a["orgs"] or []),
             }
-            for a in _rows(project, "authorships")
-            if a["text_id"] == text_id
+            for a in rows
         ),
         key=lambda a: (a["position"] or 0, a["person_id"]),
     )
-    log = _merge_log(project)
-    all_texts = {
-        t["text_id"]: t for t in _rows(project, "texts", ["text_id", "title", "year", "version_of"])
-    }
+    log = _merge_log(project, cache)
+    versions = _rows(
+        project, "texts", ["text_id", "title", "year"], [("version_of", "==", text_id)]
+    )
     return {
         "text_id": text_id,
         "title": found["title"],
@@ -411,14 +392,12 @@ def text_detail(project: Project, text_id: str) -> dict[str, Any] | None:
         "n_authors": found["n_authors"],
         "version_of": found["version_of"] or "",
         "versions": [
-            {"text_id": t["text_id"], "title": t["title"], "year": t["year"]}
-            for t in all_texts.values()
-            if t["version_of"] == text_id
+            {"text_id": t["text_id"], "title": t["title"], "year": t["year"]} for t in versions
         ],
         "parts": parts,
         "people": authors,
-        "merges": [m for m in log.get("merges", []) if m.get("kept") == text_id],
-        "conflicts": [c for c in log.get("conflicts", []) if c.get("text_id") == text_id],
+        "merges": log["merges"].get(text_id, []),
+        "conflicts": log["conflicts"].get(text_id, []),
     }
 
 
@@ -427,15 +406,22 @@ def person_detail(project: Project, person_id: str, cache: Any = None) -> dict[s
     discarded, the attempts, the texts, the affiliations with their years."""
     from cartolex.collect.coverage import person_sheet
 
-    people = {p["person_id"]: p for p in _rows(project, "people")}
-    row = people.get(person_id)
+    one = [("person_id", "==", person_id)]
+    row = next(iter(_rows(project, "people", None, one)), None)
     if row is None:
         return None
     try:
         sheet = person_sheet(project, person_id)
     except ValueError:
         sheet = None  # merged into another person: the sheet is theirs
-    orgs = {o["org_id"]: o for o in _rows(project, "organisations")}
+    rows = _rows(project, "affiliations", None, one)
+    org_ids = sorted({a["org_id"] for a in rows})
+    orgs = {
+        o["org_id"]: o
+        for o in (
+            _rows(project, "organisations", None, [("org_id", "in", org_ids)]) if org_ids else []
+        )
+    }
     affiliations = sorted(
         (
             {
@@ -446,23 +432,17 @@ def person_detail(project: Project, person_id: str, cache: Any = None) -> dict[s
                 "end_year": a["end_year"],
                 "source": a["source"],
             }
-            for a in _rows(project, "affiliations")
-            if a["person_id"] == person_id
+            for a in rows
         ),
         key=lambda a: (-(a["start_year"] or 0), a["name"]),
     )
-    mine = {
-        a["text_id"]
-        for a in _rows(project, "authorships", ["text_id", "person_id"])
-        if a["person_id"] == person_id
-    }
+    view = texts_view(project, cache)
     own = [
         {
             k: t[k]
             for k in ("text_id", "title", "year", "doc_type", "source", "content", "providers")
         }
-        for t in texts(project, cache)
-        if t["text_id"] in mine
+        for t in view.rows(np.flatnonzero(view.of_people([person_id])), {})
     ]
     own.sort(key=lambda t: (-(t["year"] or 0), t["title"]))
     return {

@@ -17,6 +17,7 @@ from __future__ import annotations
 import contextlib
 import csv
 import io
+import json
 import os
 import tempfile
 from collections.abc import Iterable, Mapping, Sequence
@@ -248,6 +249,12 @@ def _check(name: str, table: pa.Table, where: str, *, partial: bool = False) -> 
 
 #: Rows per row group of a source table's Parquet file.
 ROW_GROUP = 64_000
+#: The footer entry by which a writer of this module says it checked the file it wrote.
+CHECKED_KEY = "cartolex.checked"
+
+
+def _checked_stamp(name: str, rows: int) -> dict[str, str]:
+    return {CHECKED_KEY: json.dumps({"table": name, "rows": rows})}
 
 
 def write_source_table(path: Path, name: str, table: pa.Table) -> None:
@@ -259,6 +266,9 @@ def write_source_table(path: Path, name: str, table: pa.Table) -> None:
         c for c in ordered.column_names if c not in SOURCE_SCHEMAS[name].names
     ]
     ordered = ordered.select(columns)
+    ordered = ordered.replace_schema_metadata(
+        {**(ordered.schema.metadata or {}), **_checked_stamp(name, ordered.num_rows)}
+    )
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
@@ -353,6 +363,7 @@ class SourceTableWriter:
         """Write the last row group and put the file in place; returns the rows written."""
         try:
             self._flush()
+            self._writer.add_key_value_metadata(_checked_stamp(self.name, self.rows))
             self._writer.close()
             with open(self._tmp, "rb") as fh:
                 os.fsync(fh.fileno())
@@ -409,8 +420,10 @@ def _null_count(pf: pq.ParquetFile, column: str) -> int | None:
 def check_source_file(path: Path, name: str) -> None:
     """Check source table *name*'s file as :func:`write_source_table` checks a table, once
     per version of the file: its columns and types, its required values (counted in the
-    file's footer), its allowed values, and its key's order and uniqueness (reading only
-    those columns)."""
+    file's footer), its allowed values, and its key's order and uniqueness, reading only
+    those columns, a row group at a time. A file this module wrote says so in its footer,
+    with its rows (:data:`CHECKED_KEY`): checked as it was written, it is not read again
+    while it holds those rows."""
     path = Path(path)
     stat = path.stat()
     stamp = (str(path.resolve()), stat.st_size, stat.st_mtime_ns)
@@ -424,6 +437,13 @@ def check_source_file(path: Path, name: str) -> None:
             if col not in schema.names:
                 raise TableError(f"{where}: column {col!r} is missing")
         _conform(name, schema.empty_table(), where, partial=True)
+        written = (pf.metadata.metadata or {}).get(CHECKED_KEY.encode())
+        if written is not None and json.loads(written) == {
+            "table": name,
+            "rows": pf.metadata.num_rows,
+        }:
+            _CHECKED.add(stamp)
+            return
         light = set(SOURCE_KEYS[name]) | {c for (t, c) in _ALLOWED if t == name}
         for col in _REQUIRED[name]:
             if col in light:
@@ -433,7 +453,24 @@ def check_source_file(path: Path, name: str) -> None:
                 light.add(col)  # not recorded: read and counted
             elif nulls:
                 raise TableError(f"{where}: column {col!r} has {nulls} empty value(s)")
-        _check(name, pf.read(columns=sorted(light & set(schema.names))), where, partial=True)
+        keys = SOURCE_KEYS[name]
+        last: tuple | None = None
+        for group in range(pf.num_row_groups):
+            part = _check(
+                name,
+                pf.read_row_group(group, columns=sorted(light & set(schema.names))),
+                where,
+                partial=True,
+            )
+            if not part.num_rows or not set(keys) <= set(part.column_names):
+                continue
+            ends = part.select(list(keys))
+            first = source_key(name, ends.slice(0, 1).to_pylist()[0])
+            if last is not None and not last < first:
+                if first == last:
+                    raise TableError(f"{where}: key {ends.slice(0, 1).to_pylist()[0]} repeats")
+                raise TableError(f"{where}: rows are not sorted by {', '.join(keys)}")
+            last = source_key(name, ends.slice(part.num_rows - 1, 1).to_pylist()[0])
     finally:
         pf.close()
     _CHECKED.add(stamp)
@@ -473,8 +510,11 @@ def id_keys(column: pa.Array | pa.ChunkedArray) -> np.ndarray:
     array, which :func:`find_ids` searches when the ids are sorted: a few bytes per id,
     never a Python string for each."""
     n = len(column)
-    width = (pc.max(pc.binary_length(column)).as_py() or 1) if n else 1
-    out = np.empty(n, dtype=f"S{max(width, 1)}")
+    width = max((pc.max(pc.binary_length(column)).as_py() or 1) if n else 1, 1)
+    fixed = _fixed(column, width)
+    if fixed is not None:
+        return fixed[0]
+    out = np.empty(n, dtype=f"S{width}")
     start = 0
     for chunk in column.chunks if isinstance(column, pa.ChunkedArray) else [column]:
         for offset in range(0, len(chunk), _ID_BATCH):
@@ -486,18 +526,38 @@ def id_keys(column: pa.Array | pa.ChunkedArray) -> np.ndarray:
 
 def find_ids(keys: np.ndarray, ids: Sequence[str] | pa.Array | pa.ChunkedArray) -> np.ndarray:
     """Where each of *ids* is in the sorted *keys* (:func:`id_keys`); ``-1``: not there."""
-    if isinstance(ids, pa.Array | pa.ChunkedArray):
-        ids = ids.to_pylist()
-    encoded = [i.encode("utf-8") for i in ids]
-    if not len(keys) or not encoded:
-        return np.full(len(encoded), -1, dtype=np.int64)
-    wanted = np.array(encoded, dtype=keys.dtype)
-    found = np.minimum(np.searchsorted(keys, wanted), len(keys) - 1)
-    hit = keys[found] == wanted
     width = keys.dtype.itemsize
-    if any(len(e) > width for e in encoded):  # longer than every key: cut, it could match
-        hit &= np.array([len(e) <= width for e in encoded])
+    fixed = _fixed(ids, width) if isinstance(ids, pa.Array | pa.ChunkedArray) else None
+    if fixed is not None:
+        wanted, fits = fixed
+    else:
+        if isinstance(ids, pa.Array | pa.ChunkedArray):
+            ids = ids.to_pylist()
+        encoded = [i.encode("utf-8") for i in ids]
+        fits = np.array([len(e) <= width for e in encoded], dtype=bool)
+        wanted = np.array(encoded, dtype=keys.dtype) if encoded else np.zeros(0, dtype=keys.dtype)
+    if not len(keys) or not len(wanted):
+        return np.full(len(wanted), -1, dtype=np.int64)
+    found = np.minimum(np.searchsorted(keys, wanted), len(keys) - 1)
+    hit = (keys[found] == wanted) & fits  # an id longer than every key: cut, it could match
     return np.where(hit, found, -1)
+
+
+def _fixed(ids: pa.Array | pa.ChunkedArray, width: int) -> tuple[np.ndarray, np.ndarray] | None:
+    """*ids* as *width* bytes each in one NumPy array, made by Arrow, and which of them
+    fit in *width* (the others are blank); ``None`` when an id is missing or not ASCII
+    (then read one by one)."""
+    if isinstance(ids, pa.ChunkedArray):
+        ids = ids.combine_chunks() if ids.num_chunks != 1 else ids.chunk(0)
+    if ids.null_count or not pc.all(pc.string_is_ascii(ids)).as_py():
+        return None
+    if not len(ids):
+        return np.zeros(0, dtype=f"S{width}"), np.zeros(0, dtype=bool)
+    fits = pc.less_equal(pc.binary_length(ids), width)
+    padded = pc.utf8_rpad(pc.if_else(fits, ids, ""), width=width, padding="\0")
+    fixed = padded.cast(pa.binary(width))
+    array = np.frombuffer(fixed.buffers()[1], dtype=f"S{width}")
+    return array[fixed.offset : fixed.offset + len(fixed)], np.asarray(fits, dtype=bool)
 
 
 # ── CSV decisions ────────────────────────────────────────────────────────────
