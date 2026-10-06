@@ -29,11 +29,11 @@ ROOT = Path(__file__).resolve().parent.parent
 SIZES = ("people", "texts", "characters", "kept_keywords", "mapped_units")
 #: Stages fitted with a second, linear size besides their driver.
 EXTRA = {
-    "keywords.extract": "texts",
-    "keywords.build": "people",
-    "corpus.assemble": "texts",
+    "keywords.extract": "characters",
+    "keywords.build": "characters",
+    "corpus.assemble": "characters",
     "map.trajectories": "texts*mapped_units",
-    "themes.apply": "people",
+    "themes.apply": "kept_keywords",
 }
 
 

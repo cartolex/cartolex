@@ -5,9 +5,10 @@ A streamed world of 10⁵ mapped people (and 10⁴ projected ones) is written as
 project, each person leading one work, and the texts are read by their titles
 only, so the keyword extraction takes minutes; the people × keywords matrix is
 as large as a full world's. Each stage runs in a fresh process
-(``cartolex build --only``), and its peak memory, measured by the build itself,
-must stay under :data:`CAP_MB`, which is below what one dense people × keywords
-matrix would take: a stage that makes that matrix dense fails. The theme
+(``cartolex build --only``), and the peak memory of its own process, measured by
+the build itself (``own_memory_mb``: its worker processes are sized to the job's
+budget, apart), must stay under :data:`CAP_MB`, which is below what one dense
+people × keywords matrix would take: a stage that makes that matrix dense fails. The theme
 stages run too (the map needs them) but are measured by their own test
 (``test_scale_themes.py``). Run it under the machine's memory-capped runner.
 """
@@ -26,7 +27,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 #: The mapped people of the world.
 PEOPLE = 100_000
-#: The peak memory a stage may reach, in MB (the build's measure of the stage).
+#: The peak memory a stage's own process may reach, in MB (the build's measure).
 CAP_MB = 3_000
 #: The stages measured here, and the theme stages that run between them unmeasured.
 MEASURED = (
@@ -71,7 +72,8 @@ def test_no_stage_makes_the_people_by_keywords_matrix_dense(tmp_path):
         out = _cli("build", str(root), "--only", stage, "--yes")
         assert out.returncode == 0, f"{stage}: {(out.stdout + out.stderr)[-2000:]}"
         record = json.loads((root / "derived" / stage / "run.json").read_text(encoding="utf-8"))
-        peaks[stage] = record["measures"]["peak_memory_mb"]
+        measures = record["measures"]
+        peaks[stage] = measures.get("own_memory_mb") or measures["peak_memory_mb"]
         # The measures, for the cost models (shown with pytest -s).
         print(json.dumps({"stage": stage, **record["measures"]}), flush=True)
         if stage == "keywords.build":

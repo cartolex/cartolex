@@ -117,7 +117,12 @@ nothing in the engine names a particular deployment, source or procedure.
     `build(memory_mb=…)`); `corpus.assemble`'s memory model follows its
     columnar assembly (measured: 3.2 GB for 5.9 million texts, where the
     earlier model said 27 GB and refused to run it). A cost model may have
-    several extra sizes. A run records what its own process held beside the
+    several extra sizes. The cost models are fitted again on builds of the
+    current code (the synthetic worlds of 39 to 97,000 people, measured on
+    6 October 2026), to the smallest worst ratio: every estimate within 2.25 of
+    its measure (the earlier models were off by up to 15 times); the
+    extraction, the keywords' build and the corpus follow the texts, the
+    application of the themes the people. A run records what its own process held beside the
     whole peak (`measures.own_memory_mb`): a bounded stage is estimated at least
     that, scaled, when it passes the budget (its workers are sized to the
     budget, its own process is not).

@@ -260,7 +260,7 @@ def test_estimates_scale_the_last_run():
     assert scaled.seconds == pytest.approx(41.0) and scaled.peak_memory_mb == pytest.approx(500.0)
     assert "scaled by texts" in str(scaled)
     assert model.estimate(ProjectSizes(), None).seconds is None
-    assert STAGES["themes.group"].cost.memory_exponent == 2.0
+    assert STAGES["themes.group"].cost.fallback == ("people", 12.0, 10_000)
     stand_in = CostModel("kept_keywords", 1.0, 0.01, 100.0, 1.0, fallback=("people", 10.0))
     assert stand_in.estimate(ProjectSizes(people=20), None).seconds == pytest.approx(3.0)
     assert stand_in.estimate(ProjectSizes(kept_keywords=100), None).seconds == pytest.approx(2.0)

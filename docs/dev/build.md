@@ -389,12 +389,12 @@ model itself: a fixed part plus a part per unit of the driver, to a power,
 plus optionally a linear part of a second size (the extraction costs per text
 as well as per character); a stand-in size while the driver is unknown (the
 vocabulary from the people, twelve per person, at most 10 000). The cost
-models of `STAGES` are fitted with `tools/cost_fit.py` on each stage run in a
-fresh process (`tools/scale_study.py`) on the demo worlds and on streamed
-worlds of 10³, 10⁴ and 10⁵ people ([Sizes and machines](../sizes.md)): from
-10³ to 10⁵ people every stage's estimate is within a factor of 2 of its
-measure, in time and in peak memory (`tests/test_build_costs.py` holds the
-measures). The AI clean-up's model is a guess, its cost being the provider's.
+models of `STAGES` are fitted on each stage run in a fresh process
+(`tools/scale_study.py`) on the demo worlds and on streamed worlds of 10³, 10⁴
+and 10⁵ people ([Sizes and machines](../sizes.md)), to the smallest worst ratio
+(`tools/cost_fit.py` compares them with the measures): from 10³ to 10⁵ people
+every stage's estimate is within a factor of 2.25 of its measure, in time and
+in peak memory (`tests/test_build_costs.py` holds the measures). The AI clean-up's model is a guess, its cost being the provider's.
 A stage whose estimated peak memory exceeds the budget cannot run, nor can
 anything downstream of it, unless `build(allow_over_budget=True)` or a list of
 stage ids allows it. The budget is `budget_mb`, or by default the memory
