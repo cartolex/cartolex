@@ -202,6 +202,14 @@ nothing in the engine names a particular deployment, source or procedure.
   build makes them before the wheel, and `tools/package_check.py --docs`
   requires them. « Very large projects » is now the national campaign step by
   step, with what each step took.
+  The pages open for people who do not program: a front page with the logo,
+  what cartolex is for and a figure of the method, an introduction to its
+  words, seven tutorials in the app (the demo project, an institution, a list
+  of names, the keywords with an AI copilot, the themes, the map, a shared
+  site), the guides opening on the app's screens with the commands as asides,
+  « How to cite », and the command line under « For developers ». Their
+  pictures are made from the demo world by `tools/docs_screenshots.py`. The
+  version is written in `CITATION.cff` and `codemeta.json` too.
 - **One namespace, packaged data.** The engine is `cartolex.lexicon` and
   `cartolex.atlas`; the stop-word lists and prompt templates ship in
   `cartolex/_data/` and are read with `importlib.resources`.

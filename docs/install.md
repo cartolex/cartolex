@@ -117,7 +117,7 @@ and names the command that installs it.
 
 | extra | installs | for |
 | --- | --- | --- |
-| `llm` | `mistralai` | the AI clean-up of the keywords by API (the other way, the copy-paste hand-off, needs nothing) |
+| `llm` | `mistralai` | the AI clean-up of the keywords by API (the other way, an AI copilot, needs nothing: {doc}`tutorial-keywords`) |
 | `tsne` | `openTSNE` | the t-SNE layout of the map, chosen by default from a thousand people |
 
 Install one with `pip install "cartolex[llm]"` (or `"cartolex[llm,tsne]"`).

@@ -1,4 +1,4 @@
-# About cartolex
+# About cartolex: the method and its references
 
 cartolex maps a research field from the texts of the people who work in it:
 the keywords of the field, its themes, and a map on which people,
@@ -112,10 +112,12 @@ open index of scholarly works.
 
 ## Authors and how to cite
 
-The authors of cartolex are listed in `CITATION.cff`, at the root of its
-source (<https://github.com/cartolex/cartolex>), which reference managers read. If you use cartolex in your work, please
-cite it with its version: the About page of the app gives the citation of the
-version you run, from the package's own metadata.
+cartolex is written by Elisa Klüger and Pierre Ronceray. If you use it in your
+work, please cite it with its version: {doc}`cite` gives the reference and a
+BibTeX entry, and the About page of the app the citation of the version you
+run. `CITATION.cff`, at the root of its source
+(<https://github.com/cartolex/cartolex>), carries the same for reference
+managers. When you describe how a map was made, cite the methods above too.
 
 ## Licence
 
