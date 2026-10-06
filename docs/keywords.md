@@ -1,16 +1,12 @@
 # How keywords emerge
 
-```{admonition} Decided
-:class: note
-
-This page describes the defaults the lexicon lab recommended
-({doc}`dev/lexicon-lab`) and the project's owner approved, quality first:
-everything that reaches the lexicon is checked.
-```
-
 cartolex builds its keywords from the texts of the people it maps: nothing
 comes from an outside list of terms. This page says, in plain words, how a
-phrase in a text becomes a keyword of the map.
+phrase in a text becomes a keyword of the map: what you see on the
+**Keywords** screen (the bands and their reasons), and what the AI clean-up
+changes ({doc}`tutorial-keywords` does it step by step). The rules were chosen
+by measuring them on test corpora ({doc}`dev/lexicon-lab`), quality first:
+everything that reaches the lexicon is checked.
 
 ## 1. Candidates: the phrases people write
 

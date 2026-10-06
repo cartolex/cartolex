@@ -97,6 +97,22 @@ Content-Security-Policy would refuse: an inline script or style left in a page
 (the theme's are moved to files or made SVG attributes). The package check
 accepts the built documentation, and requires it with `--docs`.
 
+**The pictures of the documentation** (`docs/images/`) are never made by hand:
+one command makes them all again, from the demo world, in the real app driven
+by headless Chromium (offline, light theme, English), as a person following
+the tutorials would:
+
+```bash
+python tools/docs_screenshots.py                 # every picture, about four minutes
+python tools/docs_screenshots.py --only map-     # those whose name starts so (the scenes still run)
+```
+
+Each picture keeps its name (`first-map-build.png`, `keywords-review.png`…),
+so the pages that show it need no change; it is written as a palette PNG of a
+few tens of kilobytes. Run it after a change of a screen the tutorials show,
+look at the pictures, and commit them with the change. A new picture is a new
+`s.shot(...)` in the scene of its tutorial (`SCENES` in the script).
+
 `tools/install_check.py` installs the wheel into fresh environments (Python
 3.10 and 3.14 by default, made with uv), installs the language models, runs
 `cartolex --help`, builds the XS demo world as a project and fetches

@@ -1,24 +1,73 @@
 # Collecting people and texts
 
-A project maps the people of a field from their texts. Collection brings them
-in: a list of people, then the records a bibliographic service holds for each
-of them, then their works. Documents you already have come in without any
-service. Everything collected lands in the project's source tables
-({doc}`format/sources`); what you decide along the way (who is who, who is
-the same person) lands in `decisions/people.csv`.
+A map is made from the texts of people: collection brings them into a
+project. Most projects start in one of three ways:
 
-Before anything leaves your computer, cartolex says what will be sent, to
-which host and why: see {doc}`privacy`.
+- **a list of names** you have (a team, a network, a committee), whose
+  records cartolex then finds in the open bibliographic services, before it
+  gathers their works ({doc}`tutorial-names`);
+- **an institution** (a laboratory, a department, a university), whose
+  authors cartolex reads from the works signed there
+  ({doc}`tutorial-institution`);
+- **documents you already have** (PDF or text files, or a prepared corpus),
+  which need no service at all.
+
+Two more ways add people later: the **collaborators** of your people, round by
+round, and a **retry** for the people whose collection failed.
+
+The services are OpenAlex (an open index of scholarly works) with the ORCID
+registry, and optionally HAL and SciELO ({doc}`collection-sources`). Before
+anything leaves your computer, cartolex says what will be sent, to which
+service and why, and waits for you to agree: see {doc}`privacy`. Everything
+collected stays in the project's folder ({doc}`format/sources`); what you
+decide along the way (who is who, who is the same person) is kept with your
+other decisions, and can be undone.
+
+This page explains each way in, what cartolex does and how to judge its
+proposals. The boxes « On the command line » do the same without the app
+({doc}`dev/command-line`).
+
+## The People screen
+
+Everything below is done on the **People** screen. Its tabs:
+
+- **People**: everyone, with their role (mapped, context, projected), identity
+  (to check, confirmed, no record) and coverage state; filters by role,
+  identity, coverage and by the columns of your own list (a list's extra
+  columns become filters); change the role of the people selected, or of every
+  person the filters keep.
+- **Identities**: the queue of the people whose identity waits, with the
+  candidate records of every finder (OpenAlex with the ORCID registry as
+  evidence, HAL, SciELO), their score and evidence. The keyboard does it all:
+  ↑ ↓ a person, 1–9 a candidate, N none of these, ⏎ confirm; each decision is
+  saved at once. « Accept the clear matches » confirms, in one go, the people
+  with a single candidate and a high score.
+- **Organisations**: levels, parents, units and people, each affiliation with
+  its years; below, the people of institutions (search an institution by its
+  name, choose it, read its people, then take them).
+- **Texts**: each text with its richest part (title only, abstract, full
+  text), the providers of its parts, the records merged into it and its
+  preprints.
+- **Collaborators**: the co-authors found round by round, with their joint
+  texts, fit and path, the cap and whether a round was cut; decide on one or
+  many.
+- **Coverage**: good, thin, failed and no data, the first blocking causes, the
+  states by organisation, the texts by year and by language; retry what
+  failed, exclude the people without data.
+
+**Import** takes a list (CSV or pasted; each column's reading is proposed and
+editable, e-mail columns are refused), a folder of documents or a corpus (a
+zip), and proposes the possible duplicates. **Collect** runs identities,
+harvest, institutions, collaborators or a retry: it always shows first what
+leaves the computer (each host, why, what it receives, about how many
+requests and their cost, what never leaves), and starts only once you have
+read it; the collection then runs in the background, with its progress and a
+Stop button in the Activity drawer. A person's **sheet** (⏎ on a row) says why
+their profile is what it is, and offers retry, add documents and exclude.
 
 ## Ways in
 
 ### A list of people
-
-```bash
-cartolex collect people my-project people.csv --dry-run   # show how the columns are read
-cartolex collect people my-project people.csv
-cat names.txt | cartolex collect people my-project -       # a pasted list
-```
 
 A list is a CSV file or pasted text, separated by tabs, semicolons or commas,
 with or without a header. cartolex proposes how to read each column:
@@ -57,11 +106,15 @@ co-authors in common are not enough, since two namesakes of one lab have all
 three. The corpus screen's Duplicates tab shows the pairs side by side; « Merge
 the clear pairs » merges the clear ones in one step, undone in one.
 
+````{admonition} On the command line
+:class: note
+
 ```bash
 cartolex collect duplicates my-project [--merge-clear]
 cartolex collect merge my-project p000012 p000031   # p000031 is p000012
 cartolex collect unmerge my-project p000031         # they stand apart again
 ```
+````
 
 A merge is recorded in `decisions/people.csv` (`merged_into`) and the other
 name goes to the person's aliases, which searches try too. The merged row keeps
@@ -78,11 +131,17 @@ and L, five seeds): every duplicate is proposed, the clear pairs are all right
 (67 of 67) and hold 46 % of the duplicates; the others wait for a person, among
 the most likely pairs (140 of the 145 first pairs are duplicates).
 
-### A folder of documents
+````{admonition} On the command line
+:class: note
 
 ```bash
-cartolex collect folder my-project reports/ [--create-people]
+cartolex collect people my-project people.csv --dry-run   # show how the columns are read
+cartolex collect people my-project people.csv
+cat names.txt | cartolex collect people my-project -       # a pasted list
 ```
+````
+
+### A folder of documents
 
 PDF and text files, matched to people by a sub-folder per person
 (`reports/Ada Tavelin/…`) or a name in the file name
@@ -94,11 +153,15 @@ the others come in. With
 `--create-people`, a sub-folder that names nobody creates a person. A year in
 the file name dates the text.
 
-### An existing corpus
+````{admonition} On the command line
+:class: note
 
 ```bash
-cartolex collect corpus my-project manual_index.csv
+cartolex collect folder my-project reports/ [--create-people]
 ```
+````
+
+### An existing corpus
 
 A corpus in the engine's contract (an index with `last_name`, `first_name`,
 `unit`, `txt_path` and optionally `doc_year`, `doc_type`, and text files) comes
@@ -112,12 +175,15 @@ title and abstract (the rule `parts_by_slot_kind`, recorded as such in the
 stage's `run.json`). Parts you set in `params.json` (`corpus.assemble.parts`)
 apply to every slot, and the import says so when they leave the documents out.
 
-## Who is who: resolution
+````{admonition} On the command line
+:class: note
 
 ```bash
-cartolex collect resolve my-project --dry-run    # what would be sent
-cartolex collect resolve my-project --auto
+cartolex collect corpus my-project manual_index.csv
 ```
+````
+
+## Who is who: resolution
 
 For each person whose identity is pending, cartolex looks for their author
 records in OpenAlex:
@@ -153,21 +219,29 @@ are not on the record), both are shown with their counts and you decide.
 
 Confirming records:
 
+````{admonition} On the command line
+:class: note
+
 ```bash
 cartolex collect confirm my-project p000007 openalex:A123 openalex:A456   # two records
 cartolex collect confirm my-project p000007 https://orcid.org/0000-…      # the registry
 cartolex collect confirm my-project p000009 --none                        # no record exists
 ```
+````
 
 A person can have several records: list them all. « None » is a valid answer.
 An OpenAlex id, an ORCID, or a URL holding one can be pasted.
 
-## Collecting the works: the harvest
+````{admonition} On the command line
+:class: note
 
 ```bash
-cartolex collect harvest my-project --dry-run
-cartolex collect harvest my-project [--years 2012-2026] [--refresh | --cache-only]
+cartolex collect resolve my-project --dry-run    # what would be sent
+cartolex collect resolve my-project --auto
 ```
+````
+
+## Collecting the works: the harvest
 
 For each confirmed person, the harvest collects every work of their OpenAlex
 records and every work they declared in the registry (fetched from OpenAlex by
@@ -197,9 +271,13 @@ Harvesting a person again replaces what the earlier harvest brought for them;
 texts keep their ids. `--years` keeps a window of years; without it, the
 harvest uses the slot's window, set once for all its collections:
 
+````{admonition} On the command line
+:class: note
+
 ```bash
 cartolex collect window my-project 2015-      # from 2015 on (2015-2024, 2020, none)
 ```
+````
 
 (`years` of the slot in `project.json`; by default, every year). Answers are
 cached in the project: `--refresh` fetches again, `--cache-only` works offline
@@ -225,9 +303,21 @@ command line uses the key saved in the app when it is given none (`--data-dir`
 names the app's folder when it is not the default one); a key saved while the
 app runs serves its next collection.
 
+````{admonition} On the command line
+:class: note
+
+```bash
+cartolex collect harvest my-project --dry-run
+cartolex collect harvest my-project [--years 2012-2026] [--refresh | --cache-only]
+```
+````
+
 ## From institutions
 
 A project can start from one or several institutions instead of a list:
+
+````{admonition} On the command line
+:class: note
 
 ```bash
 cartolex collect institutions my-project --search "Marine Station"     # find it
@@ -236,6 +326,7 @@ cartolex collect institutions my-project --institution https://ror.org/0… --ye
 cartolex collect institutions my-project --take all                     # or --take A1 A2+A3
 cartolex collect harvest my-project
 ```
+````
 
 An institution is given by its OpenAlex id or its ROR id, or searched by name:
 the search only lists the institutions that bear the name, with their type,
@@ -287,11 +378,15 @@ harvest.
 From confirmed seeds (every mapped person with an OpenAlex record, or
 `--seeds`), their co-authors are proposed round by round:
 
+````{admonition} On the command line
+:class: note
+
 ```bash
 cartolex collect collaborators my-project --dry-run
 cartolex collect collaborators my-project              # round 1; again: round 2
 cartolex collect collaborators my-project --decide p000123=mapped p000124=no
 ```
+````
 
 Each collaborator comes with the works written together, the people of the
 round before they wrote with (the seeds, in round 1), the **path** back to a
@@ -357,11 +452,15 @@ OpenAlex: a search by name needs the API.
 whole snapshot: hours on an external disk, however few people it is for. Index it
 once per release:
 
+````{admonition} On the command line
+:class: note
+
 ```bash
 cartolex collect snapshot-index openalex-snapshot/            # hours; Ctrl-C stops it
 cartolex collect snapshot-index openalex-snapshot/            # the same command goes on
 cartolex collect snapshot-index openalex-snapshot/ --status   # how far it is
 ```
+````
 
 Indexing reads the works and the authors once and cuts each of their files into
 small gzip blocks of the same lines (the files keep about their size and their
@@ -373,12 +472,16 @@ instead of hours. A national harvest reads most blocks anyway. The files no
 longer match OpenAlex's sizes: download a new release into a new folder rather
 than syncing over an indexed one.
 
+````{admonition} On the command line
+:class: note
+
 ```bash
 cartolex collect snapshot my-project openalex-snapshot/ --dry-run
 cartolex collect snapshot my-project openalex-snapshot/          # the harvest, from it
 cartolex collect institutions my-project --institution I… --snapshot openalex-snapshot/
 cartolex collect collaborators my-project --snapshot openalex-snapshot/
 ```
+````
 
 The snapshot is read on your computer: nothing is sent to OpenAlex (the ORCID
 registry is still asked for what people declared). It is **streamed**: each
@@ -406,23 +509,20 @@ tables are rebuilt from every raw run. For millions of records the rows wait in 
 scratch database while the runs are read (a few GB of memory whatever the size);
 give it a folder on a fast internal disk when the project lives on a hard disk:
 
+````{admonition} On the command line
+:class: note
+
 ```bash
 cartolex collect rebuild my-project --scratch /var/tmp/cartolex   # the tables again
 cartolex build my-project --scratch /var/tmp/cartolex --workers 12 # then the build
 ```
+````
 
 `--workers` sets how many worker processes read the runs (and, for `build`, run
 the stages' parallel steps); `--memory MB` caps the memory a build's workers may
 take in all. The results never depend on them.
 
 ## What was collected for whom: coverage
-
-```bash
-cartolex collect coverage my-project                    # every person's state
-cartolex collect coverage my-project --person p000017   # why this profile
-cartolex collect coverage my-project --json
-cartolex collect coverage my-project --retry --dry-run  # what a retry would send
-```
 
 Each person is **good** (three texts with an abstract or more:
 `collect.coverage.good` in `params.json`, or `--good`), **thin** (fewer;
@@ -442,74 +542,13 @@ only: `--retry` collects again for the people who failed, and them only),
 **add documents** (`--add-documents p000017 reports/`, a folder of that
 person's documents) and **exclude** (`--exclude p000017`).
 
-## In the app: the People screen
-
-The app's **People** screen (`/people`) does all of this without the command
-line. Its tabs:
-
-- **People**: everyone, with their role (mapped, context, projected), identity
-  (to check, confirmed, no record) and coverage state; filters by role,
-  identity, coverage and by the columns of your own list (a list's extra
-  columns become filters); change the role of the people selected, or of every
-  person the filters keep.
-- **Identities**: the queue of the people whose identity waits, with the
-  candidate records of every finder (OpenAlex with the ORCID registry as
-  evidence, HAL, SciELO), their score and evidence. The keyboard does it all:
-  ↑ ↓ a person, 1–9 a candidate, N none of these, ⏎ confirm; each decision is
-  saved at once. « Accept the clear matches » confirms, in one go, the people
-  with a single candidate and a high score.
-- **Organisations**: levels, parents, units and people, each affiliation with
-  its years; below, the people of institutions (search an institution by its
-  name, choose it, read its people, then take them).
-- **Texts**: each text with its richest part (title only, abstract, full
-  text), the providers of its parts, the records merged into it and its
-  preprints.
-- **Collaborators**: the co-authors found round by round, with their joint
-  texts, fit and path, the cap and whether a round was cut; decide on one or
-  many.
-- **Coverage**: good, thin, failed and no data, the first blocking causes, the
-  states by organisation, the texts by year and by language; retry what
-  failed, exclude the people without data.
-
-**Import** takes a list (CSV or pasted; each column's reading is proposed and
-editable, e-mail columns are refused), a folder of documents or a corpus (a
-zip), and proposes the possible duplicates. **Collect** runs identities,
-harvest, institutions, collaborators or a retry: it always shows first what
-leaves the computer (each host, why, what it receives, about how many
-requests and their cost, what never leaves), and starts only once you have
-read it; the collection then runs in the background, with its progress and a
-Stop button in the Activity drawer. A person's **sheet** (⏎ on a row) says why
-their profile is what it is, and offers retry, add documents and exclude.
-
-`cartolex app --services demo --world S:0` runs the app against the demo
-services of a demo world, on your computer.
-
-## Trying it offline
-
-The demo services answer like OpenAlex and the ORCID registry, on your own
-computer, for a demo world ({doc}`demo`):
+````{admonition} On the command line
+:class: note
 
 ```bash
-python -m cartolex.demo services --size S --people-list people.csv --list-only
-cartolex init demo-project --name "Demo" --field "Coastal systems" --languages en,fr
-cartolex collect people demo-project people.csv
-cartolex collect resolve demo-project --services demo --world S:0 --auto
-cartolex collect harvest demo-project --services demo --world S:0
-cartolex build demo-project
+cartolex collect coverage my-project                    # every person's state
+cartolex collect coverage my-project --person p000017   # why this profile
+cartolex collect coverage my-project --json
+cartolex collect coverage my-project --retry --dry-run  # what a retry would send
 ```
-
-Or from an institution of the demo world, and a mini snapshot of its index:
-
-```bash
-cartolex init inst-project --name "Demo" --field "Coastal systems" --languages en,fr
-cartolex collect institutions inst-project --search "Marine" --services demo --world S:0
-cartolex collect institutions inst-project --institution I999… --services demo --world S:0
-cartolex collect institutions inst-project --take all
-python -m cartolex.demo snapshot --size S --out demo-snapshot
-cartolex collect snapshot inst-project demo-snapshot --services demo --world S:0
-cartolex collect coverage inst-project
-cartolex build inst-project
-```
-
-`python -m cartolex.demo services` without `--list-only` keeps them running
-and prints their address, for `--services http://127.0.0.1:PORT/…`.
+````

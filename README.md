@@ -1,84 +1,106 @@
-<p><img src="cartolex/app/static/brand/mark.svg" width="128" height="128" alt=""></p>
+<p><img src="cartolex/app/static/brand/mark.svg" width="128" height="128" alt="The cartolex logo"></p>
 
 # cartolex
 
-A generic **lexical cartography engine**: given a corpus of raw text documents per
-entity (researchers, teams, any document-producing population), it builds a curated
-keyword lexicon, clusters it into named subfields, lays entities and concepts out on a
-2-D atlas, and can **project new documents into a fitted field**.
+**cartolex draws the map of a research field from the texts of the people who
+work in it.** Give it a list of people, a laboratory or an institution: it
+collects their publications from open bibliographic services (OpenAlex, the
+ORCID registry, HAL), finds the keywords of the field in their titles and
+abstracts, groups those keywords into themes, and places every person,
+organisation and text on a map, near what they write about. You check each
+step on screen (who is who, which keywords count, what the themes are called)
+and share the result as a website that opens offline.
 
-The engine is **domain-agnostic and PII-free by construction** — it contains no data
-acquisition code and never sees personal metadata beyond the identity columns you put
-in the corpus index. It consumes only the *corpus contract* below, whatever produced it.
+It is made for researchers who want to see their field from above, and for
+the heads of laboratories, research administrators and librarians who need a
+picture of who works on what. No programming is needed: everything happens in
+an app that runs in your web browser, on your own computer. The map shows what
+people write about, never how good their work is.
 
-## Packages
+![The map of the demo project: the themes on the left, people and keywords on the map, the selected person's themes, keywords and nearest people on the right.](docs/images/map-person.png)
 
-- `cartolex.lexicon` — extraction (noun phrases found with spaCy in English, French
-  and Portuguese, TF-IDF, length bonus), optional LLM
-  triage (Mistral, term strings only, the `llm` extra), canonical consolidation and scoring, the
-  subfield hierarchy (deterministic draft, curated by hand), positioning of new
-  documents, corpus/index helpers.
-- `cartolex.atlas` — SVD reduction, Ward clustering (cosine, SVD space), a UMAP 2-D
-  map of the entities with the terms placed on it by their nearest entities,
-  trajectories, plots, and the `driver` that orchestrates the whole atlas stage.
-- `cartolex.collect` — collection: a list of people, a folder of documents or a
-  corpus; who is who in OpenAlex and the ORCID registry; the harvest of their
-  works into the project's source tables; what leaves the computer, said before
-  it does (`docs/collection.md`, `docs/privacy.md`).
-- `cartolex.project`, `cartolex.build` — the project format and the build of its
-  stages; `cartolex.app` — the web app (`cartolex` opens it in the browser,
-  `cartolex api` serves it for hosting, see `docs/hosting.md`).
+## Install
 
-## The corpus contract
+- **The installer kit** (no programming, no administrator rights): download
+  `cartolex-installer-<version>.zip` from the releases, unzip it and
+  double-click the launcher of your system (`Install cartolex.command` on
+  macOS, `Install cartolex.bat` on Windows, `install-cartolex.sh` on Linux).
+  It installs everything in a `cartolex` folder of your home and adds a
+  shortcut that opens the app.
+- **With pip or uv**, for people at ease with a terminal (Python 3.10 to
+  3.14):
 
-Input is one or more *corpus slots*, declared in the settings
-(`KeywordsConfig.corpus_slots`; the default is one slot, `manual`). Each slot is:
+  ```bash
+  uv tool install cartolex          # or: python -m pip install cartolex
+  cartolex models add en fr         # the language models of your texts
+  cartolex                          # opens the app in your browser
+  ```
 
-- a directory of plain-text files, one per **document**;
-- an index CSV with columns `last_name`, `first_name`, `unit` (any grouping label),
-  `txt_path` (relative to the index's directory) — plus optional `doc_year`,
-  `doc_type` for recency windowing, per-slot type filters and trajectories, and
-  any person attribute column (kept by the roster under its own name).
+Details and troubleshooting: [Installing cartolex](docs/install.md).
 
-Everything downstream (lexicon, subfields, atlas coordinates, projections) derives
-from that contract.
+## Your first map
+
+The app opens on its Projects screen: press **Create the demo project** (an
+invented community of coastal and marine scientists; nothing leaves your
+computer), then **Build…** on the overview and **Build 9 stages**. A minute
+later the map is there.
+The tutorial [Your first map](docs/first-map.md) follows it step by step.
 
 ## Documentation
 
-| Document | What it covers |
-|---|---|
-| [docs/](docs/index.md) | The guides (installing, collecting, very large projects, privacy, building, sizes, keywords, hosting), the project format and the development pages; built into the app, which links to them (`tools/build_docs.py`) |
-| [docs/install.md](docs/install.md) | Installing cartolex and its language models, the optional extras, the first run, troubleshooting |
-| [INTEGRATION.md](INTEGRATION.md) | Stage-by-stage guide for driving the full feature set from your own (e.g. FastAPI) application |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Module map, data flow, and the workspace artifact inventory |
-| [`examples/synthetic_cohort.py`](examples/synthetic_cohort.py) | Runnable, fully offline end-to-end walkthrough |
-| [`examples/merge_two_cohorts.py`](examples/merge_two_cohorts.py) | Runnable, fully offline multi-cohort merge walkthrough (`map_bundle/2`) |
-| [`cartolex/_data/prompts/`](cartolex/_data/prompts/README.md) | The editable LLM prompt templates (placeholder defaults — not domain-pinned) |
-| [AGENTS.md](AGENTS.md) | Rules for (AI) contributors: layering, no-PII, conventions |
-| [CHANGELOG.md](CHANGELOG.md) | Changes of this release line |
+The documentation comes with the app: the **Documentation** button (the
+question mark at the top of every screen) opens it for the version you run.
+Its sources are in [docs/](docs/index.md):
 
-## Quickstart (development)
+- [What cartolex does, in its own words](docs/introduction.md): people, texts,
+  keywords, themes, the map, the AI steps, sharing;
+- tutorials: [your first map](docs/first-map.md),
+  [map an institution](docs/tutorial-institution.md),
+  [start from a list of names](docs/tutorial-names.md),
+  [clean the keywords with an AI copilot](docs/tutorial-keywords.md),
+  [shape the themes](docs/tutorial-themes.md),
+  [explore the map](docs/tutorial-map.md), [share a site](docs/tutorial-share.md);
+- guides: [collection](docs/collection.md), [keywords](docs/keywords.md),
+  [the build](docs/build.md), [privacy](docs/privacy.md),
+  [very large projects](docs/large-projects.md);
+- [the method and its scientific references](docs/about.md).
 
-```bash
-pip install -e ".[dev]"
-pip install --require-hashes -r tools/requirements-models.txt   # the language models
-ruff check .
-pytest tests/ -q
-python examples/synthetic_cohort.py /tmp/demo-workspace
-```
+## Privacy
 
-The test suite is fully synthetic and offline. The only network call the engine can
-make at runtime is the optional Mistral LLM triage (anonymized term batches); skip the
-triage stage and the engine is fully offline.
+Everything stays on your computer. Only two steps reach the network, both said
+before they start: the collection of publications (names and identifiers go to
+the open bibliographic services) and the optional AI clean-up of the keywords
+by API (keyword strings only, never texts or people). See
+[Privacy and personal data](docs/privacy.md).
 
-## Status
+## How to cite
 
-The 1.0 line is in development (`1.0.0.dev0`). The public API surface is
-`cartolex.lexicon` (`KeywordsConfig`, `CorpusSlot`, the stage functions and
-errors), `cartolex.context` (`RunContext`, `EnginePaths`), `cartolex.atlas.driver`
-and the documented module functions; the corpus-contract columns are part of
-that surface.
+If cartolex helped your work, please cite it with the version you used (the
+app's About page gives it):
 
-## License
+> Klüger, E., & Ronceray, P. (2026). *cartolex* (version 1.0.0.dev0)
+> [Computer software]. https://github.com/cartolex/cartolex
 
-MIT — see [LICENSE](LICENSE).
+[`CITATION.cff`](CITATION.cff) (« Cite this repository » on GitHub) and
+[`codemeta.json`](codemeta.json) carry the same reference for reference
+managers; [How to cite](docs/cite.md) gives a BibTeX entry and the references
+of the method.
+
+## Authors and licence
+
+cartolex is written by Elisa Klüger and Pierre Ronceray. It is free software
+under the MIT licence: see [LICENSE](LICENSE).
+
+## For developers
+
+cartolex is a Python package (`cartolex.lexicon` and `cartolex.atlas` for the
+engine, `cartolex.collect` for collection, `cartolex.project` and
+`cartolex.build` for the project format and its build, `cartolex.app` for the
+web app) with a command line that does everything the app does
+([docs/dev/command-line.md](docs/dev/command-line.md)). Setting up, checking a
+change, the corpus contract and the public programming interface are in
+[CONTRIBUTING.md](CONTRIBUTING.md); the rules of the repository in
+[AGENTS.md](AGENTS.md); the code's map in [ARCHITECTURE.md](ARCHITECTURE.md);
+driving the engine from your own application in
+[INTEGRATION.md](INTEGRATION.md); the changes of this release line in
+[CHANGELOG.md](CHANGELOG.md).

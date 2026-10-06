@@ -1,133 +1,184 @@
-# Your first map, step by step
+# Your first map, with the demo project
 
-This page follows the checklist « Your first map » of the app's overview,
-from an empty project to a map you can share. Each step says where it is done
-in the app and how you know it is done. The overview's **Next step** always
-names the one thing to do now; the checklist shows the whole way.
+**Goal**: build a complete map in a few minutes, on an invented field, and
+learn the way every project follows: people and texts, a build, the keywords,
+the themes, the map, sharing.
 
-The checklist can be hidden with « Hide this list », project by project, and
-shown again with « Show « Your first map » » at the top of the overview.
+**You need**: cartolex installed ({doc}`install`) and open in your browser.
+Nothing else: the demo project brings its own people and texts, and nothing
+leaves your computer.
 
-## 1. Project
+**It takes**: five minutes, one of which is the build.
 
-On the start screen (**Projects**, in the settings menu), create a project: a
-folder on this computer, a name, a short description of the field, and the
-languages of the texts. « Create the demo project » makes one from an
-invented community of coastal and marine sciences, in English and French,
-ready to build.
+The second half of this page, {ref}`the-checklist`, follows the overview's
+checklist « Your first map » for your own projects: the overview's link
+« Your first map, step by step » leads there.
 
-Done when a project is open.
+## Steps
 
-## 2. People
+### 1. Create the demo project
 
-The map is made from the texts of people. On the **People** page, the
-**Import** menu adds them:
+When cartolex opens for the first time, it shows the **Projects** screen.
+(Later, open it from the project's name at the top left, then « All
+projects… ».) In the box **The demo project**, press **Create the demo
+project**.
 
-- **a list of names** (a CSV file or a pasted list, one person per line); its
-  extra columns become filters, an organisation column gives their
-  organisations;
-- **a folder of documents**, matched to people by their names or folders;
-- **a corpus**, an index and its files.
+```{image} images/first-map-start.png
+:alt: The Projects screen, with the boxes New project, The demo project and Recent projects.
+```
 
-With collection available, the **Collect** menu also finds people from
-institutions (« People of institutions ») or from collaborators. Each person has a **role**: *mapped* (their
-texts make the map), *context* or *projected* (placed on the map without
-shaping it). Imported people are mapped by default; change a role in the list.
+The demo is an invented community of about forty people in coastal and marine
+sciences, with texts in English and French (see {doc}`demo` for how it is
+made). Its folder goes in `cartolex-projects/demo` in your home folder, as
+the box says.
 
-Done when the project has people.
+**You should see** the **Overview** of the project « Demo: coastal and marine
+systems », marked *Never built*.
 
-## 3. Identities
+### 2. Read the overview
 
-To collect someone's texts, cartolex first needs their record in the
-bibliographic services (OpenAlex, HAL, SciELO). **Collect → Find identities**
-searches them; the **Identities** tab then lists the people whose record
-waits for a check, with each candidate and why it was found. The keyboard does
-it all: ↑ ↓ a person, 1–9 a candidate, N none of these, ⏎ confirm. « Accept the
-clear matches » confirms at once the people with one strong candidate.
+The Overview is the home of every project:
 
-Before anything leaves the computer, the app shows what is sent, to whom, and
-asks you to agree (see {doc}`privacy`).
+- **Next step** names the one thing to do now, with a button;
+- **Your first map** is the checklist of the whole way, the current step in
+  black;
+- **The build** lists the ten stages that turn texts into a map, each with
+  its state;
+- **Health**, **The map** and **Shared builds** fill in as you go.
 
-Done when no mapped person without texts waits for a check (once the texts
-are gathered by a build, the people still waiting are listed as a note on the
-overview instead).
+```{image} images/first-map-overview.png
+:alt: The overview of the demo project before its first build: the next step, the checklist « Your first map » and the stages of the build.
+```
 
-## 4. Texts
+In the demo, the next step says that one mapped person has no texts yet: the
+demo has, on purpose, a person without any publication. Its texts are
+otherwise all there, so **do not collect** here (the demo people are
+invented, and a collection would look for them in the real bibliographic
+services): go straight to the build.
 
-**Collect → Harvest texts** reads the works of the people whose identity is
-confirmed. It runs as a job: the **Activity** drawer, at the top of every
-screen, follows it, and you can keep working meanwhile. When it ends, its
-result offers to go to the build. The **Texts** tab lists what was collected,
-and **Coverage** shows who has enough texts.
+### 3. Build
 
-People imported with their documents have their texts already.
+Press **Build…** in the box **The build**. The **Build** screen opens, and
+nothing runs yet. It shows:
 
-Done when mapped people have texts and none waits for a collection.
+- **Before the build**: how many stages will run, the time and the memory
+  they should take, and what this computer has;
+- each stage, with *Will run* and the reason (*never built* the first time);
+- **AI help**: how the keyword clean-up and the theme curation are done. Keep
+  **No AI** for now; {doc}`tutorial-keywords` does it with an AI assistant.
 
-## 5. Build
+```{image} images/first-map-build.png
+:alt: The Build screen before the first build: the time, the memory, the stages that will run.
+```
 
-From the overview, **Build…** opens the pre-flight sheet: what will run and
-why, the time and memory it should take, and the notes to read first (people
-whose texts were never collected, an AI result not accepted yet). The build
-finds the keyword candidates, builds the vocabulary, groups the keywords into
-themes and draws the map.
+At the bottom, a note repeats that one mapped person has no texts: build
+without them. Press **Build 9 stages**.
 
-The **AI clean-up** of the candidates is chosen on the same sheet:
+**You should see** the stages turn to *Done* one after the other, with a
+progress bar and the time left. The **Activity** button at the top right
+shows the build too: you can leave this screen and keep working, and stop the
+build there. A first build of the demo takes about a minute.
 
-- **No AI**: the candidates are kept by their statistics only;
-- **With your copilot**: the build stops after the candidates, you give them to an AI
-  assistant (a file to download), import its result and accept it, then
-  continue the build. Once accepted, the AI clean-up reads « Done with your
-  copilot » with the number of decisions;
-- **By API**: the candidates are sent to the AI provider set in the settings,
-  with a key saved on this computer; it asks your consent and is billed.
+### 4. Look at the map
 
-A build that stops on a problem says why and what to do, with a button: for
-instance, no mapped person has texts yet (collect them), or nobody is mapped
-(choose people on the People page). A build you cancel keeps every result it
-had; the stages it did not finish show « cancelled », not « failed ».
+When the build ends, open **Map** in the navigation.
 
-Done when the vocabulary is built.
+```{image} images/first-map-map.png
+:alt: The map of the demo project: a treemap of the themes on the left, the people and keywords in the middle, the panel on the right.
+```
 
-## 6. Keyword review
+- Each **dot** is a person, in the colour of the theme that weighs most in
+  their texts; each **diamond** is a keyword. Two people are close when they
+  use the same keywords.
+- On the left, the **treemap** shows the themes, each as large as its share
+  of all keyword use.
+- Click a dot, a theme or a legend entry: the **panel** on the right says what
+  it is. **Find on the map** finds a person or a theme by its name.
+- Drag to move, use the wheel or + and − to zoom, 0 to fit.
 
-The **Keywords** page shows the candidates in three bands: *kept*, *to
-check* and *set aside*. Keep, set aside or merge keywords (one or many, with
-the filters), then build again to apply your decisions. {doc}`keywords` says
-how a phrase becomes a keyword.
+The themes have plain names taken from one of their keywords, and some are
+French while others are English: without AI help, the keywords of each
+language tend to form themes of their own. That is what the next tutorials
+fix.
 
-Done when you have made at least one decision since the last extraction.
+### 5. Go on
 
-## 7. Themes
+The overview's next step now says **Review the keywords**. From here:
 
-The **Themes** page shows the keywords grouped into topics and themes. Rename
-them, move keywords and topics, merge or split; save, then apply the themes
-(a build of the themes and the map).
+- {doc}`tutorial-keywords`: clean the keywords with an AI assistant, so that
+  English and French terms meet;
+- {doc}`tutorial-themes`: name and shape the themes;
+- {doc}`tutorial-map`: read the map, compare people, export distances;
+- {doc}`tutorial-share`: make a website of the map.
 
-Done when the themes are saved.
+## If something is not right
 
-## 8. Map
+- **The Build screen says « cannot run » for a stage**: the line says why (a
+  stage that needs more memory than the computer has free, for instance).
+- **The build stops on a language model**: run the command it shows, or see
+  {doc}`install` (the installer kit installs them).
+- **A stage failed**: the Build screen says which, keeps every earlier result,
+  and offers **Copy a diagnostic** for a report. The overview names it until
+  another job runs.
+- **You stopped the build**: the stages that finished are kept; the others
+  read *cancelled*, not *failed*. Build again to finish.
+- **The demo project already exists** (a second try): open it from **Recent
+  projects** on the Projects screen, or give another folder.
 
-The **Map** page draws the people and the organisations on the map of the
-themes; the period, the filters from your list's columns and « Find on the
-map » help read it.
+(the-checklist)=
+## The checklist « Your first map »
 
-Done when the map is drawn.
+For your own projects, the Overview's checklist follows the way from an empty
+project to a map you can share. Each step says where it is done in the app
+and how you know it is done. The checklist can be hidden with « Hide this
+list », project by project, and shown again with « Show « Your first map » »
+at the top of the overview.
 
-## 9. Share
+1. **Project.** On the **Projects** screen, **Create a project**: a name, the
+   field's title, a short description of the field, the languages of the
+   texts and a folder; then say where it starts from (a list of people,
+   institutions, collaborators, a folder of texts, a corpus). *Done when a
+   project is open.*
+2. **People.** On the **People** screen, the **Import** menu adds a list of
+   names (a CSV file or a pasted list, one person per line; its extra columns
+   become filters, an organisation column gives their organisations), a
+   folder of documents, or a corpus. With collection available, the
+   **Collect** menu also takes the people of institutions or the
+   collaborators of your people. Each person has a **role**: *mapped*,
+   *context* or *projected* ({doc}`introduction`). *Done when the project has
+   people.* Tutorials: {doc}`tutorial-names`, {doc}`tutorial-institution`.
+3. **Identities.** **Collect › Find identities** looks for each person's
+   records in the bibliographic services; the **Identities** tab lists the
+   people whose record waits for a check, with each candidate and why it was
+   found. ↑ ↓ choose a person, 1–9 a candidate, N none of these, Enter
+   confirms. *Done when no mapped person without texts waits for a check.*
+4. **Texts.** **Collect › Harvest texts** gathers the works of the people
+   whose identity is confirmed. It runs in the background (the **Activity**
+   button follows it); its result offers to go to the build. The **Texts** tab
+   lists what was collected, **Coverage** who has enough. People imported with
+   their documents have their texts already. *Done when mapped people have
+   texts and none waits for a collection.*
+5. **Build.** **Build…** on the overview opens the Build screen (step 3
+   above), where the AI help is chosen. A build that cannot start says why and
+   what to do, with a button: no mapped person has texts yet (collect them),
+   or nobody is mapped (choose people on the People screen). *Done when the
+   vocabulary is built.*
+6. **Keyword review.** The **Keywords** screen shows the candidates in their
+   bands, *kept*, *to check* and *set aside*: keep, exclude or merge them,
+   one or many, then build again to apply your decisions ({doc}`keywords`,
+   {doc}`tutorial-keywords`). *Done when you have made at least one decision
+   since the last extraction.*
+7. **Themes.** The **Themes** screen shows the keywords grouped into themes:
+   rename, move, merge, split, then save and apply ({doc}`tutorial-themes`).
+   *Done when the themes are saved.*
+8. **Map.** The **Map** screen draws the people and the organisations on the
+   map of the themes ({doc}`tutorial-map`). *Done when the map is drawn.*
+9. **Share.** The **Share** screen builds an offline site of the map, to send
+   or to publish ({doc}`tutorial-share`). *Done when a site was built.*
 
-The **Share** page builds an offline site of the map, to send as a zip or to
-publish: it asks whether people are named, which texts it carries, and checks
-what it would show before building.
-
-Done when a site was built.
-
-## When something is not right
-
-- The overview's **Next step** names a failed stage only while it is the
-  last thing tried: once another job has run since, the stage reads « failed
-  on <date> » in the list of stages, and the next step moves on.
-- Any job running (a collection, an import, a site) is said on the overview
-  with a button to the Activity drawer.
-- A message never asks you to edit a file: each says what to do, with a
-  button to the page where it is done.
+**When something is not right.** The overview's **Next step** names a failed
+stage only while it is the last thing tried: once another job has run since,
+the stage reads « failed on <date> » in the list of stages, and the next step
+moves on. Any job running (a collection, an import, a site) is said on the
+overview, with a button to the Activity. A message never asks you to edit a
+file: each says what to do, with a button to the screen where it is done.
