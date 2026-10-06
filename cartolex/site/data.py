@@ -55,8 +55,10 @@ __all__ = [
 KEYWORDS = 15
 #: People kept per keyword (its users, the share of their use it holds the largest first).
 KEYWORD_USERS = 100
-#: Theme shares kept per person and level, the largest first.
-SHARES_KEPT = 12
+#: Theme shares kept per person and level, the largest first, and the smallest kept (in
+#: thousandths): what a person's treemap and the map's fading can show.
+SHARES_KEPT = 10
+SHARE_MIN = 5
 #: Decimals kept for map coordinates and shares.
 XY = 4
 SHARE = 3
@@ -101,14 +103,14 @@ def _r(value: Any, digits: int) -> float | None:
 
 def _shares(levels: list[dict[str, float]], code: Mapping[str, int]) -> list[list[int]]:
     """A person's shares per level as ``[node code, thousandths, …]``, the largest first,
-    at most :data:`SHARES_KEPT` per level (a share under a thousandth is left out)."""
+    at most :data:`SHARES_KEPT` per level and none under :data:`SHARE_MIN` thousandths."""
     out = []
     for shares in levels:
         ranked = sorted(shares.items(), key=lambda kv: (-kv[1], kv[0]))[:SHARES_KEPT]
         flat: list[int] = []
         for node, share in ranked:
             permille = round(share * 1000)
-            if permille >= 1 and node in code:
+            if permille >= SHARE_MIN and node in code:
                 flat += [code[node], permille]
         out.append(flat)
     return out
