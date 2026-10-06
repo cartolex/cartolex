@@ -69,7 +69,7 @@
     const A = window.CartolexAtlas;
     const messages = (S.data.i18n || {})[S.lang] || {};
     const fallback = (S.data.i18n || {}).en || {};
-    if (A && A.createTranslator) return A.createTranslator({ ...fallback, ...messages }, S.lang);
+    if (A && A.createTranslator) return A.createTranslator(messages, fallback, S.lang);
     return S.t;
   }
 
