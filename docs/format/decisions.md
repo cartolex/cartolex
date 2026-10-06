@@ -93,7 +93,17 @@ threshold.
 `level`, `parents` (`;`-separated), `name`, `merged_into`, `note`, `decided_at`.
 An empty cell leaves the source's value. `affiliations.csv` adds or removes
 affiliations: `person_id`, `org_id`, `start_year`, `end_year`, `action`
-(`add` or `remove`), `note`, `decided_at`.
+(`add` or `remove`), `note`, `decided_at`; a removal without `start_year`
+removes every affiliation of the person to the organisation, with one only
+those starting that year.
+
+Every reader applies them (`cartolex.project.organisations`): the corpus (the
+unit of each person), the organisations' list and detail, the people's units, a
+person's sheet, the coverage by organisation and the atlas. A merged
+organisation is read as the one it is merged into: its affiliations are that
+organisation's, it is not listed on its own, and a parent merged elsewhere is
+replaced by the one that remains. A merge can be undone: emptying `merged_into`
+gives the organisation back as it was.
 
 ## `params.json`
 

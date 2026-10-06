@@ -224,3 +224,55 @@ def test_review_a_pair_then_merge_the_clear_ones_in_one_undoable_step(doubled, t
         assert again["merged"] == 0  # pairs undone are left for a person to decide
     finally:
         app.state.cartolex.shutdown()
+
+
+def test_organisations_renamed_merged_by_identifier_and_unmerged(doubled, tmp_path):
+    import shutil
+
+    from cartolex.project.tables import read_source_table
+
+    root, _ = doubled
+    shutil.copytree(root, tmp_path / "p")
+    layout = Project.open(tmp_path / "p", write=False).layout
+    orgs = read_source_table(layout.table("organisations"), "organisations").to_pylist()
+    labs = sorted(o["org_id"] for o in orgs if o["level"] == "lab")[:2]
+    for o in orgs:  # two labs that are one, by their ROR id
+        o["ids"] = [("ror", "05abc1234")] if o["org_id"] in labs else []
+    _table(Project.open(tmp_path / "p", write=False), "organisations", orgs)
+    app = create_app(AppSettings(project=tmp_path / "p", launch_token=TOKEN,
+                                 data_dir=tmp_path / "data"))  # fmt: skip
+    client = Client(app)
+    try:
+        pairs = client.get("/api/organisations/pairs").json()
+        assert pairs["counts"]["clear"] == 1 and pairs["items"][0]["clear"]
+        version = etag(client.get("/api/organisations"))
+        merged = client.post("/api/organisations/auto", json={"apply": True},
+                             headers={"If-Match": version})  # fmt: skip
+        assert merged.status_code == 200, merged.text
+        (gone,) = merged.json()["org_ids"]
+        (kept,) = set(labs) - {gone}
+        listed = {o["org_id"] for o in client.get("/api/organisations?limit=500").json()["items"]}
+        assert gone not in listed and kept in listed
+        detail = client.get(f"/api/organisations/{kept}").json()
+        assert detail["merged_from"][0]["org_id"] == gone
+        people = {a["person_id"] for a in detail["affiliations"]}
+        assert len(people) > 1
+        renamed = client.patch(f"/api/organisations/{kept}", json={"name": "Shore lab"},
+                               headers={"If-Match": etag(client.get("/api/organisations"))})  # fmt: skip
+        assert renamed.status_code == 200, renamed.text
+        anyone = sorted(people)[0]
+        sheet = client.get(f"/api/people/{anyone}/sheet").json()
+        assert any(a["name"] == "Shore lab" for a in sheet["affiliations"])
+        removed = client.post("/api/affiliations", json={"changes": [
+            {"person_id": anyone, "org_id": kept, "action": "remove"}]},
+            headers={"If-Match": etag(client.get("/api/affiliations/version"))})  # fmt: skip
+        assert removed.status_code == 200, removed.text
+        sheet = client.get(f"/api/people/{anyone}/sheet").json()
+        assert not any(a["org_id"] == kept for a in sheet["affiliations"])
+        undone = client.post("/api/organisations/unmerge",
+                             json={"org_ids": [gone], "remember": "distinct"},
+                             headers={"If-Match": etag(client.get("/api/organisations"))})  # fmt: skip
+        assert undone.status_code == 200, undone.text
+        assert client.get("/api/organisations/pairs").json()["counts"]["open"] == 0
+    finally:
+        app.state.cartolex.shutdown()

@@ -7,7 +7,7 @@ from __future__ import annotations
 import shutil
 from typing import Annotated, Any, Literal
 
-from fastapi import Query, Request
+from fastapi import Query, Request, Response
 from fastapi.responses import JSONResponse
 
 from ..corpus_view import (
@@ -22,6 +22,7 @@ from ..corpus_view import (
 )
 from ..deps import ListDep, ProjectDep, page
 from ..errors import ApiError
+from ..etags import etag_of, version_of
 from ..jobs import JobConflict, JobControl
 from ..messages import empty
 from ..routing import Routes, runtime_of
@@ -163,13 +164,20 @@ def _states_by_organisation(
 @routes.get("/api/organisations", action="people.read")
 def list_organisations(
     request: Request,
+    response: Response,
     ctx: ProjectDep,
     params: ListDep,
     level: Annotated[str | None, Query(max_length=64)] = None,
     parent: Annotated[str | None, Query(max_length=64)] = None,
 ) -> dict[str, Any]:
-    """Organisations with their level, parents and people; filters ``level``, ``parent``."""
+    """Organisations as people decided them, with their level, parents and people; filters
+    ``level``, ``parent``, ``q`` (a name, an acronym, a ROR or OpenAlex id). The version of
+    ``organisations.csv`` is the answer's ``ETag``, for its writes."""
+    from cartolex.project.files import fingerprint
+
     rows = organisations(ctx.project, runtime_of(request).table_cache)
+    fp = fingerprint(ctx.layout.organisations_csv)
+    response.headers["ETag"] = etag_of(fp)
     levels: dict[str, int] = {}
     for o in rows:
         levels[o["level"]] = levels.get(o["level"], 0) + 1
@@ -179,7 +187,10 @@ def list_organisations(
         if (level is None or o["level"] == level)
         and (parent is None or parent in o["parents"])
         and (
-            not params.q or params.q in o["name"].casefold() or params.q in o["acronym"].casefold()
+            not params.q
+            or params.q in o["name"].casefold()
+            or params.q in o["acronym"].casefold()
+            or any(params.q in str(v).casefold() for v in (o["ids"] or {}).values())
         )
     ]
     return page(
@@ -195,17 +206,24 @@ def list_organisations(
         default_sort="name",
         filters={"level": level, "parent": parent, "q": params.q},
         empty=empty("empty_no_match") if rows else empty("empty_no_people"),
-        extra={"counts": {"level": levels}},
+        extra={"counts": {"level": levels}, "version": version_of(fp)},
     )
 
 
 @routes.get("/api/organisations/{org_id}", action="people.read")
-def get_organisation(org_id: str, ctx: ProjectDep) -> dict[str, Any]:
-    """One organisation: its parents, units, people and the years of each affiliation."""
+def get_organisation(org_id: str, response: Response, ctx: ProjectDep) -> dict[str, Any]:
+    """One organisation as people decided it: its parents, units, people and the years of
+    each affiliation, the organisations merged into it, what was decided and the sources'
+    values; a merged organisation names the one it is merged into. ``ETag``: the version of
+    ``organisations.csv``."""
+    from cartolex.project.files import fingerprint
+
     found = organisation_detail(ctx.project, org_id)
     if found is None:
         raise ApiError.of("organisation_not_found", org=org_id)
-    return found
+    fp = fingerprint(ctx.layout.organisations_csv)
+    response.headers["ETag"] = etag_of(fp)
+    return {**found, "version": version_of(fp)}
 
 
 # ── texts ────────────────────────────────────────────────────────────────────

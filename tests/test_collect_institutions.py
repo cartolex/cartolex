@@ -156,9 +156,7 @@ def test_taking_everyone_takes_a_joined_pair_as_one_even_below_the_minimum(
     assert len(works) == 2 and all(p["units"] for p in pair.people)  # details per record
     if max(works) + 1 > pair.works:
         pytest.skip("the split records do not allow a minimum between them")
-    proposal = propose_people(
-        project, _api(services, project), [root], min_works=max(works) + 1
-    )
+    proposal = propose_people(project, _api(services, project), [root], min_works=max(works) + 1)
     assert not {p.record for p in proposal.people} & set(records)  # each below the minimum
     assert any(sorted(m.records) == records for m in proposal.merges)  # the pair is kept
     report = take_people(project, "all", join=[[r.split(":")[1] for r in records]])
