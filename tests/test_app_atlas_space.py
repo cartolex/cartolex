@@ -167,7 +167,7 @@ def test_distances_are_exported_by_a_job(client, monkeypatch):
     monkeypatch.setattr(exports, "BLOCK_BYTES", 1)  # the smallest blocks
     some = [p["person_id"] for p in atlas["people"] if p["person_id"]][:12]
     data = written({"kind": "similarity", "names": "names", "ids": some})
-    with np.load(io.BytesIO(data)) as npz:
+    with np.load(io.BytesIO(data), allow_pickle=False) as npz:
         sim, ids = npz["similarity"], list(npz["ids"])
     assert sim.shape == (12, 12) and sorted(ids) == sorted(some)
     assert np.allclose(sim, sim.T, atol=1e-5) and np.allclose(np.diag(sim), 1, atol=1e-4)

@@ -129,7 +129,7 @@ export function mapScene(index, state, { texts = null, sets = new Map(), locale 
   const period = periodOf(index, state);
   const inPeriod = (start, end) => !period || (end >= period[0] && start <= period[1]);
   const lit = selection(index, state, texts, sets);
-  // What the space of the themes adds: the nearest, or the people who use a keyword.
+  // What the space of the themes adds: the people who use a keyword.
   if (space) {
     for (const i of space.people) lit.people.add(i);
     for (const i of space.organisations) lit.organisations.add(i);
@@ -373,18 +373,6 @@ export function mapScene(index, state, { texts = null, sets = new Map(), locale 
       strong: state.sel && state.sel.kind === 'theme' && state.sel.id === id });
   }
   themeLabels.sort((a, b) => b.weight - a.weight);
-  // The selection joined to its nearest.
-  if (space && space.lines.length) {
-    const x = new Float32Array(space.lines.length * 2);
-    const y = new Float32Array(space.lines.length * 2);
-    space.lines.forEach(([x0, y0, x1, y1], k) => {
-      x[2 * k] = x0;
-      y[2 * k] = y0;
-      x[2 * k + 1] = x1;
-      y[2 * k + 1] = y1;
-    });
-    lines.push({ id: 'near', x, y, color: '--cx-accent', alpha: 0.55, width: 1.5 });
-  }
   const selected = selectionLabel(index, state, texts);
   return {
     scene: {

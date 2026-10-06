@@ -161,7 +161,9 @@ class Space:
 def _load(layout: Any, run: str) -> Space:
     folder = _prepare(layout, run)
     meta = json.loads((folder / "meta.json").read_text(encoding="utf-8"))
-    arrays = {name: np.load(folder / f"{name}.npy", mmap_mode="r") for name in _ARRAYS}
+    arrays = {
+        name: np.load(folder / f"{name}.npy", mmap_mode="r", allow_pickle=False) for name in _ARRAYS
+    }
     column = {t.casefold(): j for j, t in enumerate(meta["terms"])}
     aliases = layout.stage("keywords.build") / "models" / "term_aliases.csv"
     if aliases.is_file():

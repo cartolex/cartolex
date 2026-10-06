@@ -2757,10 +2757,10 @@
   "map.links.theme": "Ouvrir dans Thèmes",
   "map.links.keyword": "Ouvrir dans Mots-clés",
   "map.links.keyword_themes": "Ouvrir dans Thèmes",
-  "map.near.title": "Les plus proches",
+  "map.near.title": "Les plus similaires (similarité)",
   "map.near.none": "Rien d’autre n’est placé dans l’espace de cette carte.",
   "map.near.value_label": "similarité {value, number}",
-  "map.near.help": "Similarité cosinus de leurs vecteurs dans l’espace dont les thèmes sont tirés : 1 pour le même usage du vocabulaire, 0 pour rien en commun. Les lignes les relient sur la carte.",
+  "map.near.help": "Similarité cosinus de leurs vecteurs dans l’espace dont les thèmes sont tirés : 1 pour le même usage du vocabulaire, 0 pour rien en commun. Une similarité, pas un lien entre eux.",
   "map.users.title": "Qui l’utilise le plus",
   "map.users.count": "{count, plural, =0 {Utilisé par personne sur la carte} one {Utilisé par # personne} other {Utilisé par # personnes}}",
   "map.users.more": "{count, plural, one {et # autre} other {et # autres}}",
@@ -2828,5 +2828,10 @@
   "themes.users.title": "Qui l’utilise le plus",
   "themes.users.none": "Son usage n’est pas encore connu : construisez les thèmes.",
   "themes.users.note": "{count, plural, =0 {Personne ne l’utilise.} one {# personne l’utilise ; la part est sa part dans son usage des mots-clés.} other {# personnes l’utilisent ; la part est sa part dans l’usage des mots-clés de chacune.}}",
-  "map.compare.placeholder": "Une personne ou une organisation…"
+  "map.compare.placeholder": "Une personne ou une organisation…",
+  "map.save": "Enregistrer la vue",
+  "map.save.png": "En image PNG",
+  "map.save.png_legend": "En image PNG, avec la légende",
+  "map.save.svg": "En image SVG",
+  "map.save.svg_legend": "En image SVG, avec la légende"
 }

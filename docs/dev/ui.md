@@ -377,10 +377,11 @@ text in People, `/people?person=`, `?tab=organisations&org=`,
 `?tab=texts&text=`; a keyword in Keywords, `/keywords?q=`, and in Themes,
 `/themes?keyword=`; a theme, `/themes?node=`), and the other screens link back
 (`/map?sel=kind:id`). From the space of the themes (`near.js`, one call per
-selection): the nearest of a person, an organisation or a projected person
-with their similarity, joined by lines on the map
-(`GET /api/atlas/neighbours`), and the people who use a keyword, lit on the
-map (`GET /api/atlas/keyword-people`); « Compare with… » (`compare.js`) puts a
+selection): the most similar to a person, an organisation or a projected
+person, a list in the panel with each similarity (`GET /api/atlas/neighbours`;
+nothing is drawn between them on the map: a similarity is not a link), and
+the people who use a keyword, lit on the map
+(`GET /api/atlas/keyword-people`); « Compare with… » (`compare.js`) puts a
 second person or organisation beside the selection
 (`GET /api/atlas/compare`). The body (treemap, map, panel) goes full screen
 (`fullscreen.js`: the Fullscreen API, else fixed over the window; Escape and a
@@ -388,7 +389,10 @@ button inside leave it), and its side columns fold away, remembered in this
 browser (`columns.js`). « Distances » (`pages/share/distances.js`, also on the
 share screen) exports the nearest of each, the full similarity matrix or the
 vectors as a job, for every person, those the filters keep, or the
-organisations of a level.
+organisations of a level. « Save the view » (`save.js`) writes the map as it is
+on screen (pan, zoom, layers, colours, selection, labels) as a PNG image (the
+Canvas 2D renderer at twice the resolution) or an SVG image, with or without
+its legend, made in the browser.
 
 The share screen (`pages/share.js`, route `/share`) loads
 `pages/share/page.js`: building the offline site (`site.js`: the name
@@ -523,8 +527,8 @@ console error, an uncaught exception or a CSP violation fails a test:
   calls of the navigation and axe; and a budget: 10⁴ points panned in the
   gallery at 50 frames a second or more, a frame drawn in under 16 ms;
   `tests/browser/test_atlas_links.py`: a selection from the address with its
-  nearest, a keyword's people and its way to the keywords and the themes
-  screens, full screen and back.
+  most similar, a keyword's people and its way to the keywords and the themes
+  screens, full screen and back, the view saved as SVG and PNG.
 
 The browser tests need `tools/requirements-browser.txt` (Playwright, which
 `tools/check.py` installs into the quick Python's environment) and a Chromium

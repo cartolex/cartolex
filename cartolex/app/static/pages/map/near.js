@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 /**
- * What the space of the themes says about the selection, in the atlas's panel: the nearest
- * people (organisations of the same level) by the cosine of their vectors, with the values,
- * joined to the selection by lines on the map (`GET /api/atlas/neighbours`); and the people
+ * What the space of the themes says about the selection, in the atlas's panel: the most
+ * similar people (organisations of the same level) by the cosine of their vectors, a list
+ * with the values (`GET /api/atlas/neighbours`); and the people
  * who use a keyword, ranked by its share of their keyword use, lit on the map
  * (`GET /api/atlas/keyword-people`). Each answer is read once per selection.
  */
@@ -72,36 +72,11 @@ export function Users({ answer, onSelect }) {
     <p class="cx-atlas-panel__muted">${t('map.users.help')}</p>` : null}`;
 }
 
-/** What the answer lights on the map: `{people: Set, organisations: Set, lines: [[x, y, x, y]]}`. */
+/** What the answer lights on the map: the people who use a keyword (`{people: Set}`). The
+ * nearest are a list in the panel only: a similarity is not a link, so nothing joins them. */
 export function litBySpace(index, sel, answer) {
-  const out = { people: new Set(), organisations: new Set(), lines: [] };
-  if (!answer || answer.error || !sel) return out;
-  if (answer.kind === 'users') {
-    for (const k of answer.data.at || []) out.people.add(k);
-    return out;
-  }
-  let from = null;
-  if (sel.kind === 'person' && index.byPerson.has(sel.id)) from = index.people[index.byPerson.get(sel.id)];
-  else if (sel.kind === 'organisation' && index.byOrg.has(sel.id)) from = index.orgs[index.byOrg.get(sel.id)];
-  else if (sel.kind === 'projected') from = index.projected.find((p) => p.person_id === sel.id) || null;
-  for (const it of answer.data.items || []) {
-    let to = null;
-    if (sel.kind === 'organisation') {
-      const k = index.byOrg.get(it.id);
-      if (k !== undefined) {
-        out.organisations.add(k);
-        to = index.orgs[k];
-      }
-    } else {
-      const k = index.byPerson.get(it.id);
-      if (k !== undefined) {
-        out.people.add(k);
-        to = index.people[k];
-      }
-    }
-    if (from && to && from.x !== null && to.x !== null && from.x !== undefined && to.x !== undefined) {
-      out.lines.push([from.x, from.y, to.x, to.y]);
-    }
-  }
+  const out = { people: new Set(), organisations: new Set() };
+  if (!answer || answer.error || !sel || answer.kind !== 'users') return out;
+  for (const k of answer.data.at || []) out.people.add(k);
   return out;
 }

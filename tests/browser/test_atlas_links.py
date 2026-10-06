@@ -5,7 +5,8 @@ screen; on the S demo world at depth 2.
 A person given in the address is shown and centred, with their nearest and the similarity of
 each (an API call budget kept); a keyword's panel names the people who use it and leads to
 the keywords screen, which keeps that keyword whatever its band; the themes screen opens a
-keyword from its address; the map's body goes full screen and comes back.
+keyword from its address; the map's body goes full screen and comes back; the view is saved
+as SVG (with its legend) and as PNG.
 """
 
 from __future__ import annotations
@@ -61,3 +62,17 @@ def test_the_map_links_to_the_other_screens_and_back(demo_s, app_for, open_app):
     page.get_by_role("button", name="Leave full screen (Esc)").click()
     page.wait_for_function("() => !document.querySelector('.cx-atlas__body.is-fullscreen')")
     assert "is-fullscreen" not in (body.get_attribute("class") or "")
+
+    # the view saved as it is on screen: SVG with the legend, PNG
+    menu = page.get_by_role("button", name="Save the view")
+    with page.expect_download() as svg:
+        menu.click()
+        page.get_by_role("menuitem", name="As an SVG image, with the legend").click()
+    text = open(svg.value.path(), encoding="utf-8").read()
+    assert text.startswith("<svg") and text.count("<path") > 3 and 'class="legend"' in text
+    top = next(n for n in atlas["nodes"] if n["parent"] is None)
+    assert (top["names"].get("en") or next(iter(top["names"].values()))) in text
+    with page.expect_download() as png:
+        menu.click()
+        page.get_by_role("menuitem", name="As a PNG image", exact=True).click()
+    assert open(png.value.path(), "rb").read(8) == b"\x89PNG\r\n\x1a\n"

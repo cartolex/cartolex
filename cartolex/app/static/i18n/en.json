@@ -2757,10 +2757,10 @@
   "map.links.theme": "Open in Themes",
   "map.links.keyword": "Open in Keywords",
   "map.links.keyword_themes": "Open in Themes",
-  "map.near.title": "Nearest",
+  "map.near.title": "Most similar (similarity)",
   "map.near.none": "Nothing else is placed in the space of this map.",
   "map.near.value_label": "similarity {value, number}",
-  "map.near.help": "Cosine similarity of their vectors in the space the themes are drawn from: 1 is the same use of the vocabulary, 0 nothing in common. The lines join them on the map.",
+  "map.near.help": "Cosine similarity of their vectors in the space the themes are drawn from: 1 is the same use of the vocabulary, 0 nothing in common. A similarity, not a link between them.",
   "map.users.title": "Who uses it most",
   "map.users.count": "{count, plural, =0 {Used by nobody on the map} one {Used by # person} other {Used by # people}}",
   "map.users.more": "{count, plural, one {and # more} other {and # more}}",
@@ -2828,5 +2828,10 @@
   "themes.users.title": "Who uses it most",
   "themes.users.none": "Nobody's use of it is known yet: build the themes.",
   "themes.users.note": "{count, plural, =0 {Nobody uses it.} one {# person uses it; the share is its part of their keyword use.} other {# people use it; the share is its part of each one's keyword use.}}",
-  "map.compare.placeholder": "A person or an organisation…"
+  "map.compare.placeholder": "A person or an organisation…",
+  "map.save": "Save the view",
+  "map.save.png": "As a PNG image",
+  "map.save.png_legend": "As a PNG image, with the legend",
+  "map.save.svg": "As an SVG image",
+  "map.save.svg_legend": "As an SVG image, with the legend"
 }

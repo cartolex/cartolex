@@ -15,14 +15,15 @@
  * this browser); a selection given in the address is centred once the map is drawn; the
  * nearest of the selection or the people who use a keyword come from the space of the themes
  * (`near.js`), « Compare with… » (`compare.js`), and the distances can be exported
- * (`pages/share/distances.js`).
+ * (`pages/share/distances.js`). « Save the view » writes the map as it is on screen as a PNG
+ * or SVG image, with or without its legend (`save.js`).
  */
 import { html, useEffect, useMemo, useRef, useState } from '../../core/preact.js';
 import { locale, t } from '../../core/i18n.js';
 import { usePage, usePageTitle } from '../../core/page.js';
 import { runtime } from '../../core/runtime.js';
 import {
-  Button, EmptyState, ErrorCard, IconButton, MapFrame, MapSymbol,
+  Button, EmptyState, ErrorCard, IconButton, MapFrame, MapSymbol, MenuButton,
 } from '../../components/index.js';
 import { useJobEnd } from '../people/common.js';
 import { CATEGORY_HUE, indexAtlas, indexWindows, matching, themeName } from './model.js';
@@ -40,6 +41,7 @@ import { litBySpace, useSpaceOf } from './near.js';
 import { CompareDialog } from './compare.js';
 import { DistancesDialog } from '../share/distances.js';
 import { ColumnButtons, shownPeople, useColumns } from './columns.js';
+import { savePng, saveSvg } from './save.js';
 
 const PICKED = { people: 'person', keywords: 'keyword', organisations: 'organisation', texts: 'text',
   projected: 'projected', windows: 'person' };
@@ -115,6 +117,16 @@ function Legend({ index, state, counts, onSelect }) {
             aria-hidden="true"></span><span class="cx-atlas-legend__name">${t(`keywords.category.${c}`)}</span></li>`)}
       </ul>` : null}
   </details>`;
+}
+
+/** The legend of a saved view: the kinds shown and the colours of the themes (or categories). */
+function legendOf(index, state, counts) {
+  const kinds = Object.keys(counts).map((k) => ({ shape: SHAPE_OF[k], text: t(`map.kind.${k}`) }));
+  const entries = state.kcol === 'category' && counts.keywords
+    ? Object.entries(CATEGORY_HUE).map(([c, hue]) => ({ color: `--cx-hue-${hue + 1}`, text: t(`keywords.category.${c}`) }))
+    : index.tops.slice(0, 12).map((id) => ({ color: `--cx-hue-${index.colourOf(id) + 1}`,
+      text: themeName(index, id, locale.value) }));
+  return { kinds, entries };
 }
 
 /** The screen. */
@@ -352,6 +364,17 @@ export function AtlasScreen() {
           <${Button} size="s" variant="ghost" onClick=${() => frame.current && frame.current.fit()}>
             ${t('themes.map.fit')}<//>
           <span class="cx-atlas__keys" aria-hidden="true">${t('themes.map.keys')}</span>
+          <${MenuButton} size="s" variant="ghost" icon="download" label=${t('map.save')}
+            items=${[{ id: 'png', label: t('map.save.png') }, { id: 'png-legend', label: t('map.save.png_legend') },
+              { id: 'svg', label: t('map.save.svg') }, { id: 'svg-legend', label: t('map.save.svg_legend') }]}
+            onSelect=${(item) => {
+              const box = fs.ref.current && fs.ref.current.querySelector('.cx-atlas__frame .cx-map-frame__box');
+              if (!frame.current || !box) return;
+              const args = { frame: frame.current, box, scene, version: atlas.map_version,
+                legend: item.id.endsWith('-legend') ? legendOf(index, state, counts) : null };
+              if (item.id.startsWith('svg')) saveSvg(args);
+              else savePng(args);
+            }} />
           <${ColumnButtons} hidden=${folded} onToggle=${toggleColumn} />
           <${FullscreenButton} fs=${fs} />
         </div>

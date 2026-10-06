@@ -768,3 +768,12 @@
 .cx-atlas-compare section {
   margin-top: var(--cx-space-4);
 }
+
+/* The canvas a saved view is drawn on: in the page (its colours resolve), never seen. */
+.cx-atlas-save {
+  position: absolute;
+  width: 0;
+  height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}

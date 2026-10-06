@@ -11,13 +11,14 @@ nothing in the engine names a particular deployment, source or procedure.
 - **The map leads to the other screens, and measures distances.** Its panel
   opens a person, an organisation or a text in People, a keyword in Keywords
   or Themes, a theme in Themes, and those screens come back to the map
-  (`/map?sel=kind:id`, centred). From the space of the themes: the nearest of
-  a person or an organisation with their cosine similarity
-  (`GET /api/atlas/neighbours`), « Compare with… » (`GET /api/atlas/compare`),
+  (`/map?sel=kind:id`, centred). From the space of the themes: the most
+  similar to a person or an organisation, a list with each cosine similarity
+  (`GET /api/atlas/neighbours`; nothing drawn between them on the map), « Compare with… » (`GET /api/atlas/compare`),
   the people who use a keyword (`GET /api/atlas/keyword-people`), and exports
   of the nearest of each, the full similarity matrix (by blocks, `.npz` when
   large, confirmed above ten million cells) or the vectors. The map's body and
-  the themes' centre go full screen; the map's side columns fold away. The
+  the themes' centre go full screen; the map's side columns fold away; the
+  view on screen is saved as a PNG or SVG image, with or without its legend. The
   keywords list takes `term=` (a keyword with the candidates merged into it).
 
 - **Projects of millions of texts on an ordinary computer.** Memory no longer
