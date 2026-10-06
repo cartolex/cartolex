@@ -353,7 +353,8 @@ def test_a_cancel_inside_a_chunk_keeps_what_finished_before(env):
         k: v for k, v in before.items() if k != "corpus.assemble"
     }
     extract = status(env.project, env.registry, year=YEAR)["keywords.extract"]
-    assert extract.state is StageState.FAILED and extract.attempt.outcome == "cancelled"
+    # a cancel is not a failure: the stage keeps its results and still needs its update
+    assert extract.state is StageState.NEEDS_UPDATE and extract.attempt.outcome == "cancelled"
     assert list(env.layout.staging_root.iterdir()) == []  # a cancel keeps no checkpoint
     env.controls.cancel_at = None
     assert env.build().ran_ids == ("keywords.extract", "keywords.build", "themes.group")
