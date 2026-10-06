@@ -103,6 +103,7 @@ export function createCanvas2DRenderer(canvas) {
         ctx.globalAlpha = line.alpha === undefined ? 0.6 : line.alpha;
         ctx.strokeStyle = color(line.color);
         ctx.lineWidth = line.width || 1;
+        ctx.setLineDash(line.dash ? [line.dash, line.dash] : []);
         ctx.beginPath();
         for (let k = 0; k + 1 < line.x.length; k += 2) {
           ctx.moveTo(line.x[k] * sx + ox, oy - line.y[k] * sx);
@@ -110,6 +111,7 @@ export function createCanvas2DRenderer(canvas) {
         }
         ctx.stroke();
       }
+      ctx.setLineDash([]);
       const anyHighlight = scene.layers.some((l) => l.highlight && l.highlightCount);
       for (const layer of scene.layers) {
         const { x, y } = layer;

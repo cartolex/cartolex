@@ -12,9 +12,10 @@
  * The map's « Tune » panel (`pages/tune/`) reads nothing until it opens; a change of the
  * layout there is previewed on this map (`preview.js`), kept as the pinned version or discarded.
  * The body goes full screen (`fullscreen.js`) and its side columns fold away (remembered in
- * this browser); a selection given in the address is centred once the map is drawn; the
- * nearest of the selection or the people who use a keyword come from the space of the themes
- * (`near.js`), « Compare with… » (`compare.js`), and the distances can be exported
+ * this browser); a selection given in the address is centred once the map is drawn; who a
+ * person or an organisation writes with is drawn and listed (`coauthors.js`), the people who
+ * use a keyword come from the space of the themes (`near.js`), « Compare with… »
+ * (`compare.js`) measures a similarity, and the distances can be exported
  * (`pages/share/distances.js`). « Save the view » writes the map as it is on screen as a PNG
  * or SVG image, with or without its legend (`save.js`).
  */
@@ -38,6 +39,7 @@ import { TunePanel } from '../tune/panel.js';
 import { PreviewBar, createLayoutPreview, previewScene } from './preview.js';
 import { FullscreenButton, useFullscreen } from './fullscreen.js';
 import { litBySpace, useSpaceOf } from './near.js';
+import { coauthorScene, useCoauthors } from './coauthors.js';
 import { CompareDialog } from './compare.js';
 import { DistancesDialog } from '../share/distances.js';
 import { ColumnButtons, shownPeople, useColumns } from './columns.js';
@@ -259,12 +261,16 @@ export function AtlasScreen() {
   const spaceAnswer = useSpaceOf(ctx, index, state.sel, state.view !== 'world');
   const space = useMemo(() => (index && spaceAnswer ? litBySpace(index, state.sel, spaceAnswer) : null),
     [index, spaceAnswer]);
+  // Who the selection writes with: listed in the panel, drawn as lines on the map.
+  const coAnswer = useCoauthors(ctx, index, state.sel, state.second, state.view !== 'world');
+  const co = useMemo(() => (index && coAnswer ? coauthorScene(index, state.sel, coAnswer) : null),
+    [index, coAnswer]);
 
   const built = useMemo(() => {
     if (!index) return null;
     return state.view === 'world' ? worldScene(index, state, land)
-      : mapScene(index, state, { texts, sets, locale: locale.value, space });
-  }, [index, state, texts, sets, locale.value, land, space]);
+      : mapScene(index, state, { texts, sets, locale: locale.value, space, co });
+  }, [index, state, texts, sets, locale.value, land, space, co]);
 
   // a preview of the layout replaces the map's scene (the sample of people it drew)
   const shown = preview.phase.value !== 'idle' ? preview.preview.value : null;
@@ -391,6 +397,7 @@ export function AtlasScreen() {
       </div>
       ${folded.panel ? null : html`<${Panel} index=${index} state=${state} counts=${counts} sets=${sets} texts=${texts}
         base=${base} space=${spaceAnswer} onCompare=${() => setComparing(true)}
+        co=${coAnswer ? { ...coAnswer, second: state.second, onSecond: (second) => setState({ second }) } : null}
         onSelect=${(s) => select(s, { centre: true })} onClose=${() => setState({ sel: null })} />`}
     </div>
     <${CompareDialog} ctx=${ctx} index=${index} a=${sel} open=${comparing && Boolean(sel)}

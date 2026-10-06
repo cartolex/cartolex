@@ -19,12 +19,28 @@ nothing in the engine names a particular deployment, source or procedure.
   later job of its kind leaves the header. A failed job keeps its traceback
   (`error.traceback`, home folder written `~`), and its diagnostic carries the
   job, the time it failed, the build and the system.
+- **Who writes with whom.** Selected on the map, a person is joined by lines to
+  their co-authors in the project (the thicker, the more works signed together),
+  listed in the panel instead of the most similar people (a similarity is not a
+  link: it stays in « Compare with… » and the exports); projected co-authors are
+  faint and never named; « Second circle » adds the co-authors of the
+  co-authors. An organisation is joined by dashed lines to the organisations of
+  its level it writes with. `GET /api/atlas/coauthors` gives up to three rings,
+  each paged, with how many of the ring before lead to each; the co-authors
+  outside the project are counted, never listed; a work with more than
+  `collect.snowball.max_authors` authors (25) is left out, a work counts once
+  (its copies are one), a merged person as the one they are merged into. The
+  graphs (`cartolex.app.coauthors`, sparse) are kept in the project's cache beside
+  the texts' view: on a sample of 825,000 texts and 2.7 million authorships, the
+  people's graph is made in 2 s (1.2 million pairs, 23 MB), an organisation
+  level's in 5 s, three rings around the most connected person read in 0.06 s.
+  The shared site shows co-authors (list and lines) instead of the closest
+  people, and no longer computes them (`SiteData.links`; on that sample 18 s
+  where the closest people took 69 s). The map's lines take a width and a dash.
 - **The map leads to the other screens, and measures distances.** Its panel
   opens a person, an organisation or a text in People, a keyword in Keywords
   or Themes, a theme in Themes, and those screens come back to the map
-  (`/map?sel=kind:id`, centred). From the space of the themes: the most
-  similar to a person or an organisation, a list with each cosine similarity
-  (`GET /api/atlas/neighbours`; nothing drawn between them on the map), « Compare with… » (`GET /api/atlas/compare`),
+  (`/map?sel=kind:id`, centred). From the space of the themes: « Compare with… » (`GET /api/atlas/compare`),
   the people who use a keyword (`GET /api/atlas/keyword-people`), and exports
   of the nearest of each, the full similarity matrix (by blocks, `.npz` when
   large, confirmed above ten million cells) or the vectors. The map's body and
@@ -108,8 +124,7 @@ nothing in the engine names a particular deployment, source or procedure.
     restored as before (`cartolex.project.files.read_version`).
   - *Shared site*: `cartolex-site/2`: the people's details and texts are in
     parts of about 2 MB (`data/people/<n>.js`, `data/texts/<n>.js`, written
-    one at a time), loaded with the person a page shows; the people's
-    neighbours are computed in threads. The texts it carries are an entry per
+    one at a time), loaded with the person a page shows. The texts it carries are an entry per
     text and mapped author as two arrays over the app's texts view
     (`cartolex.site.data.SiteTexts`); the abstracts are read once into a
     scratch file, and each part is made from its people's entries alone. On a
