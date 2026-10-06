@@ -76,9 +76,23 @@ def name_of(node: dict) -> str:
 
 
 def aside_row(ui, tray, term: str):
-    """The row of the set-aside tray whose keyword is *term* (not one containing it)."""
+    """The row of the set-aside tray whose keyword is *term* (not one containing it), drawn.
+
+    The tray is virtualised and also holds the proposal's keywords too broad for any
+    theme, the most used first: it is scrolled until the row is drawn."""
     exact = ui.page.locator(".cx-themes-row__term", has_text=re.compile(rf"^{re.escape(term)}$"))
-    return tray.locator("[role=treeitem]").filter(has=exact)
+    item = tray.locator("[role=treeitem]").filter(has=exact)
+    tray.locator("[role=treeitem]").first.wait_for()
+    for step in range(21):
+        if item.count():
+            break
+        tray.evaluate(
+            "(el, at) => { let s = el; while (s && s.scrollHeight <= s.clientHeight) "
+            "s = s.parentElement; if (s) s.scrollTop = at * s.scrollHeight; }",
+            step / 20,
+        )
+        ui.page.wait_for_timeout(50)
+    return item
 
 
 def row(ui, text: str):
@@ -280,19 +294,6 @@ def test_borderline_keywords_and_suggested_places_by_the_keyboard(editor):
     places = api(ui, "POST", "/api/themes/suggestions", {"tree": draft})["data"]["suggestions"]
     page.get_by_role("tab", name=re.compile("^Set aside")).click()
     tray = page.get_by_role("tree", name="Keywords set aside")
-    tray.locator("[role=treeitem]").first.wait_for()
-    # the tray is virtualised and also holds the proposal's keywords too broad for any
-    # theme: scroll it until the keyword is drawn
-    item = aside_row(ui, tray, aside[0])
-    for step in range(21):
-        if item.count():
-            break
-        tray.evaluate(
-            "(el, at) => { let s = el; while (s && s.scrollHeight <= s.clientHeight) "
-            "s = s.parentElement; if (s) s.scrollTop = at * s.scrollHeight; }",
-            step / 20,
-        )
-        page.wait_for_timeout(50)
     aside_row(ui, tray, aside[0]).click()
     page.locator(".cx-themes-suggest button").first.wait_for()
     page.keyboard.press("1")
