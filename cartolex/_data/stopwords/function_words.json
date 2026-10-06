@@ -19,5 +19,32 @@
     "muita", "muitas", "muito", "muitos", "nenhum", "nenhuma", "nossa", "nossas", "nosso", "nossos",
     "outra", "outras", "outro", "outros", "qualquer", "quaisquer", "seu", "seus", "sua", "suas",
     "tais", "tal", "toda", "todas", "todo", "todos", "várias", "vários"
+  ],
+  "es": [
+    "alguna", "algunas", "alguno", "algunos", "algún", "aquel", "aquella", "aquellas", "aquellos", "cada",
+    "cierta", "ciertas", "cierto", "ciertos", "cualesquiera", "cualquier", "demás", "dicha", "dichas", "dicho",
+    "dichos", "diversas", "diversos", "esa", "esas", "ese", "esos", "esta", "estas", "este",
+    "estos", "et", "etc", "misma", "mismas", "mismo", "mismos", "mucha", "muchas", "mucho",
+    "muchos", "ninguna", "ninguno", "nuestra", "nuestras", "nuestro", "nuestros", "numerosas", "numerosos", "otra",
+    "otras", "otro", "otros", "su", "sus", "tal", "tales", "toda", "todas", "todo",
+    "todos", "varias", "varios"
+  ],
+  "it": [
+    "alcun", "alcuna", "alcune", "alcuni", "alcuno", "altra", "altre", "altri", "altro", "certa",
+    "certe", "certi", "certo", "ciascun", "ciascuna", "ciascuno", "diverse", "diversi", "et", "etc",
+    "loro", "medesima", "medesime", "medesimi", "medesimo", "molta", "molte", "molti", "molto", "nessun",
+    "nessuna", "nessuno", "nostra", "nostre", "nostri", "nostro", "numerose", "numerosi", "ogni", "qualche",
+    "qualsiasi", "qualunque", "quegli", "quei", "quel", "quella", "quelle", "quelli", "quello", "questa",
+    "queste", "questi", "questo", "stessa", "stesse", "stessi", "stesso", "sua", "sue", "suo",
+    "suoi", "tale", "tali", "tutta", "tutte", "tutti", "tutto", "vari", "varie"
+  ],
+  "de": [
+    "alle", "allen", "aller", "alles", "andere", "anderen", "anderer", "anderes", "beide", "beiden",
+    "bzw", "diese", "diesem", "diesen", "dieser", "dieses", "einige", "einigen", "einiger", "et",
+    "etc", "ihre", "ihrem", "ihren", "ihrer", "ihres", "jede", "jedem", "jeden", "jeder",
+    "jedes", "jene", "jenem", "jenen", "jener", "jenes", "kein", "keine", "keinem", "keinen",
+    "keiner", "manche", "manchen", "mehrere", "mehreren", "mehrerer", "seine", "seinem", "seinen", "seiner",
+    "seines", "solche", "solchem", "solchen", "solcher", "solches", "unser", "unsere", "unserem", "unseren",
+    "unserer", "usw", "verschiedene", "verschiedenen", "verschiedener", "viele", "vielen", "vieler", "wenige", "wenigen"
   ]
 }

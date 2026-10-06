@@ -210,7 +210,7 @@ def _parse_task(
 
 
 def _set_keys(lang: str, lemmas: dict[str, str], options: ScoringOptions, kept: Any) -> None:
-    lp = language_patterns(lang, of_complement=options.of_complement)
+    lp = language_patterns(lang, of_complement=options.of_complement, genitive=options.genitive)
     _STATE.update(
         lp=lp,
         lemmas=lemmas,

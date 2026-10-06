@@ -160,6 +160,9 @@ class ScoringOptions:
     ``max_units``: the longest candidate, in word units; ``foreign_reading``: a
     paragraph whose phrases hold this many different closed words of another
     language is read as that language (:func:`cartolex.lexicon.noun_phrases.spans`).
+    ``of_complement`` and ``genitive`` are the lab's switches of the English ``of``
+    and the German genitive complements
+    (:func:`cartolex.lexicon.noun_phrases.language_patterns`).
     """
 
     counting_unit: str = "person"
@@ -167,6 +170,7 @@ class ScoringOptions:
     part_weights: Mapping[str, float] = field(default_factory=dict)
     length_bonus_alpha: float = 2.0
     of_complement: bool = False
+    genitive: bool = False
     bands: BandRules = field(default_factory=BandRules)
     max_units: int = MAX_UNITS
     foreign_reading: int = FOREIGN_READING
@@ -325,7 +329,7 @@ def aggregate_units(
     """The :class:`Aggregates` of analysed texts held in memory (one :class:`TextUnit` per
     person and text): every key counted, the corpus lemma table computed from them."""
     opts = options if options is not None else ScoringOptions()
-    lp = language_patterns(lang, of_complement=opts.of_complement)
+    lp = language_patterns(lang, of_complement=opts.of_complement, genitive=opts.genitive)
     analyses = [a for unit in units for _, part in unit.parts for a in part]
     lemmas = lemma_table(analyses)
     keyer = _Keyer(lp, lemmas)
@@ -559,7 +563,7 @@ def score_aggregates(
     result, since the window would leave it out.
     """
     opts = options if options is not None else ScoringOptions()
-    lp = language_patterns(lang, of_complement=opts.of_complement)
+    lp = language_patterns(lang, of_complement=opts.of_complement, genitive=opts.genitive)
     found = _windowed(agg, n_people, min_df, max_df, max_features)
     if found is None:
         return _empty(lang, n_people, agg.n_texts)
@@ -753,7 +757,8 @@ def _assign_bands(
     pct = _percentiles(np.asarray([c.score_len for c in rows], dtype=float))
     n_people = max(n_people, 1)
     word_people = word_people or Counter()
-    edge_first = lang == "en"  # the modifier comes first in English, last in French and Portuguese
+    # the modifier comes first in English and German, last in the Romance languages
+    edge_first = lang in ("en", "de")
     stops: frozenset[str] = frozenset()
     edges: dict[str, str] = {}
     if rules.stop_words:

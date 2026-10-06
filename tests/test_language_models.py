@@ -27,15 +27,24 @@ def _fake_versions(monkeypatch: pytest.MonkeyPatch, versions: dict[str, str | No
     monkeypatch.setattr(lm.importlib.metadata, "version", version)
 
 
-def test_registry_pins_three_languages() -> None:
-    assert lm.supported_languages() == ("en", "fr", "pt")
+def test_registry_pins_six_languages() -> None:
+    assert lm.supported_languages() == ("en", "fr", "pt", "es", "de", "it")
     for lang, model in lm.MODELS.items():
         assert model.lang == lang
         assert model.version == "3.8.0"
         assert re.fullmatch(r"[0-9a-f]{64}", model.sha256)
         assert model.url.endswith(f"/{model.name}-3.8.0/{model.name}-3.8.0-py3-none-any.whl")
         assert lm.identity(lang) == f"{model.name}@3.8.0"
-    assert {m.licence for m in lm.MODELS.values()} == {"MIT", "LGPL-LR", "CC BY-SA 4.0"}
+    # The licences as the models' own metadata states them (the Spanish model is under
+    # the GPL, the Italian one non-commercial): shown before any install.
+    assert {lang: m.licence for lang, m in lm.MODELS.items()} == {
+        "en": "MIT",
+        "fr": "LGPL-LR",
+        "pt": "CC BY-SA 4.0",
+        "es": "GNU GPL 3.0",
+        "de": "MIT",
+        "it": "CC BY-NC-SA 3.0",
+    }
 
 
 def test_requirements_file_matches_the_registry() -> None:
@@ -53,8 +62,8 @@ def test_requirements_file_matches_the_registry() -> None:
 
 
 def test_unknown_language() -> None:
-    with pytest.raises(lm.LanguageModelMissing, match="'de'.*en, fr, pt"):
-        lm.require("de")
+    with pytest.raises(lm.LanguageModelMissing, match="'nl'.*en, fr, pt, es, de, it"):
+        lm.require("nl")
 
 
 def test_missing_model_names_language_model_and_commands(monkeypatch) -> None:
@@ -101,3 +110,14 @@ def test_load_is_cached_and_leaves_out_unused_components() -> None:
     lm.release("en")
     assert lm.load("en") is not nlp
     lm.release()
+
+
+def test_every_language_pack_has_a_model() -> None:
+    """The project's languages, the command line's and the pinned models are one list."""
+    from cartolex.cli import _LANGUAGE_CODES
+    from cartolex.lexicon import lang_utils, noun_phrases
+    from cartolex.project.models import LANGUAGES
+
+    assert LANGUAGES == _LANGUAGE_CODES == lm.supported_languages()
+    assert set(noun_phrases.PATTERNS) == set(LANGUAGES)
+    assert set(lang_utils.supported_languages()) == set(LANGUAGES)

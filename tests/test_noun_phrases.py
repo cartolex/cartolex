@@ -16,6 +16,7 @@ spacy = pytest.importorskip("spacy")
 from spacy.tokens import Doc  # noqa: E402
 
 from cartolex.lexicon import noun_phrases as npx  # noqa: E402
+from cartolex.lexicon.text_utils import term_words  # noqa: E402
 
 
 def make_doc(lang: str, tokens: list[tuple]) -> Doc:
@@ -368,6 +369,120 @@ def test_portuguese_article_is_not_a_preposition() -> None:
     assert keys(candidates("pt", doc)) == {"praia", "costa"}
 
 
+# ── Spanish, Italian, German ────────────────────────────────────────────────
+
+
+def test_spanish_terms_with_their_prepositions() -> None:
+    """« nivel del mar », « lesión por presión »; an article after a preposition is left out of keys."""
+    doc = make_doc(
+        "es",
+        [
+            ("el", "DET", "el"),
+            ("nivel", "NOUN", "nivel"),
+            ("del", "ADP", "del"),
+            ("mar", "NOUN", "mar"),
+            ("y", "CCONJ", "y"),
+            ("las", "DET", "el"),
+            ("lesiones", "NOUN", "lesión"),
+            ("por", "ADP", "por"),
+            ("presión", "NOUN", "presión", "", "", "", False),
+            (",", "PUNCT", ","),
+            ("educación", "NOUN", "educación"),
+            ("para", "ADP", "para"),
+            ("la", "DET", "el"),
+            ("salud", "NOUN", "salud"),
+        ],
+    )
+    found = candidates("es", doc)
+    assert ("nivel de mar", "nivel del mar") in found
+    assert ("lesión por presión", "lesiones por presión") in found
+    assert ("educación para salud", "educación para la salud") in found
+    # « y » (one letter, a conjunction) breaks the phrase: no span crosses it.
+    assert not any("y" in k.split() for k in keys(found))
+
+
+def test_italian_joined_and_elided_prepositions() -> None:
+    """« qualità dell'acqua »: « dell' » is a preposition of its own, written without a space."""
+    split = make_doc(
+        "it",
+        [
+            ("la", "DET", "il"),
+            ("qualità", "NOUN", "qualità"),
+            ("dell'", "ADP", "di il", "", "", "", False),
+            ("acqua", "NOUN", "acqua"),
+            ("e", "CCONJ", "e"),
+            ("il", "DET", "il"),
+            ("livello", "NOUN", "livello"),
+            ("del", "ADP", "di il"),
+            ("mare", "NOUN", "mare"),
+            ("a", "ADP", "a"),
+            ("distanza", "NOUN", "distanza"),
+        ],
+    )
+    # A tokenizer that leaves « dell’acqua » whole (typographic apostrophe): split here.
+    whole = make_doc("it", [("qualità", "NOUN", "qualità"), ("dell’acqua", "NOUN", "dell’acqua")])
+    found = candidates("it", split, whole)
+    assert found[("qualità di acqua", "qualità dell'acqua")] == 1
+    assert found[("qualità di acqua", "qualità dell’acqua")] == 1
+    assert ("livello di mare", "livello del mare") in found
+    # « a » is one letter, but a preposition of the pattern: it does not break.
+    assert ("mare a distanza", "mare a distanza") in found
+    assert npx.analyse(whole, "it").runs[0] == (
+        ("qualità", "N"),
+        ("dell’", "P"),
+        ("acqua", "N"),
+    )
+    assert term_words("qualità dell'acqua") == ["qualità", "dell'", "acqua"]
+
+
+def test_german_adjectives_nouns_and_capitals() -> None:
+    """« künstliche Intelligenz »: the noun keeps its capital, the adjective is folded."""
+    doc = make_doc(
+        "de",
+        [
+            ("Künstliche", "ADJ", "künstlich"),
+            ("Intelligenz", "NOUN", "Intelligenz"),
+            ("und", "CCONJ", "und"),
+            ("künstlicher", "ADJ", "künstlicher"),  # a lemma the lemmatizer missed
+            ("Intelligenz", "NOUN", "Intelligenz"),
+            (",", "PUNCT", ","),
+            ("weil", "SCONJ", "weil"),
+            ("die", "DET", "der"),
+            ("Ergebnisse", "NOUN", "Ergebnis"),
+            ("Hinweise", "NOUN", "Hinweis"),
+            ("geben", "VERB", "geben"),
+        ],
+    )
+    found = candidates("de", doc)
+    assert found[("künstlich intelligenz", "künstliche Intelligenz")] == 1
+    assert found[("künstlich intelligenz", "künstlicher Intelligenz")] == 1
+    # German writes compounds as one word: two nouns in a row are two phrases.
+    assert "ergebnis hinweis" not in keys(found)
+    assert {"ergebnis", "hinweis"} <= keys(found)
+
+
+def test_german_genitive_is_a_switch() -> None:
+    """« Anstieg des Meeresspiegels »: only with the lab's genitive switch, only a genitive article."""
+    doc = make_doc(
+        "de",
+        [
+            ("Anstieg", "NOUN", "Anstieg"),
+            ("des", "DET", "der", "", "", "Case=Gen"),
+            ("Meeresspiegels", "NOUN", "Meeresspiegel"),
+            ("in", "ADP", "in"),
+            ("der", "DET", "der", "", "", "Case=Dat"),
+            ("Küstenzone", "NOUN", "Küstenzone"),
+            ("der", "DET", "der", "", "", "Case=Dat"),
+            ("Nordsee", "PROPN", "Nordsee"),
+        ],
+    )
+    assert "anstieg meeresspiegel" not in keys(candidates("de", doc))
+    genitive = candidates("de", doc, lp=npx.language_patterns("de", genitive=True))
+    assert ("anstieg meeresspiegel", "Anstieg des Meeresspiegels") in genitive
+    # A dative article is no genitive: it breaks the phrase.
+    assert not any("nordsee" in k and " " in k for k in keys(genitive))
+
+
 # ── English ─────────────────────────────────────────────────────────────────
 
 
@@ -511,7 +626,7 @@ def test_analysis_round_trips_through_json() -> None:
 
 
 def test_function_word_lists_are_short_and_packaged() -> None:
-    for lang in ("en", "fr", "pt"):
+    for lang in ("en", "fr", "pt", "es", "it", "de"):
         words = npx.function_words(lang)
         assert 10 < len(words) < 80
         # Content words the n-gram extraction's stop lists used to block are absent.
@@ -526,6 +641,11 @@ def test_closed_words_of_other_languages() -> None:
     assert "de" not in pt and "des" in pt
     # Content words and chemical symbols of another language are not closed words.
     assert not (en | fr | pt) & {"car", "son", "os", "an", "au", "ni", "se", "el", "sem", "tem"}
+    assert not (en | fr | pt) & {"die", "war", "hat", "mit", "als", "ha", "ed", "ai", "non"}
+    # German and Italian closed words reach the other streams, never their own.
+    assert {"und", "der", "della", "per"} <= en & fr
+    assert not npx.foreign_words("de") & {"und", "der"}
+    assert not npx.foreign_words("it") & {"della", "per", "la", "il"}
     # A capitalised word begins a name; an elision left attached is the elided word.
     assert [npx.closed_form(w) for w in ("des", "LE", "La", "qu'une")] == ["des", "le", None, "qu'"]
     # A stop word judges single words: spaCy's list and the packaged words.

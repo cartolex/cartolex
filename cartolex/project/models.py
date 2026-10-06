@@ -60,9 +60,11 @@ __all__ = [
 ]
 
 #: The languages cartolex ships a language pack for today (a spaCy model, function
-#: words, prompts, interface names). A pack is code, not format: the files accept
-#: any ISO 639-1 code, and a project takes a new pack up by adding its code.
-LANGUAGES = ("en", "fr", "pt")
+#: words, prompts): the languages of the texts, the reference language and the
+#: languages names are shown in. A pack is code, not format: the files accept any
+#: ISO 639-1 code, and a project takes a new pack up by adding its code. The
+#: interface's own languages are another list (``cartolex.app.settings``).
+LANGUAGES = ("en", "fr", "pt", "es", "de", "it")
 #: An ISO 639-1 language code.
 Language = Annotated[str, Field(pattern=r"^[a-z]{2}$")]
 

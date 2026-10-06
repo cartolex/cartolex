@@ -529,11 +529,11 @@ def test_languages_are_open_codes_and_packs_are_checked(tmp_path):
         ProjectFile.model_validate(dict(base, languages={"corpus": ["spa"]}))
     project = _new(tmp_path)
     config = project.config.model_copy(
-        update={"languages": project.config.languages.model_copy(update={"corpus": ["en", "es"]})}
+        update={"languages": project.config.languages.model_copy(update={"corpus": ["en", "nl"]})}
     )
     project.save_config(config, action="add a language without a pack")
     problems = [str(p) for p in validate_project(project.layout.root)]
-    assert any("no language pack for 'es'" in p for p in problems)
+    assert any("no language pack for 'nl'" in p for p in problems)
     project.close()
 
 

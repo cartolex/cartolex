@@ -234,7 +234,8 @@ class KeywordsConfig:
     #       as a special case.
     #   corpus_languages   : accepted ingest streams, auto-detected per
     #       paragraph; paragraphs in other languages are dropped at extraction.
-    #       Any subset of the languages with a language model (en, fr, pt).
+    #       Any subset of the languages with a language model (en, fr, pt,
+    #       es, de, it).
     #   display_languages  : translation skins rendered at display surfaces
     #       through the single relabel choke point (labels.py).
     reference_language: str = "en"

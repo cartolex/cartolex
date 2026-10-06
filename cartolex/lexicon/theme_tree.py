@@ -94,7 +94,7 @@ TEXT_KEYWORDS = "text_keywords.npz"
 #: Why the comb sets a keyword aside: its texts spread over every theme.
 TOO_BROAD = "too broad for any theme"
 #: The languages a tree names its nodes and levels in (the project's).
-LANGUAGES = ("en", "fr", "pt")
+LANGUAGES = ("en", "fr", "pt", "es", "de", "it")
 
 _THEME = {"en": "Theme", "fr": "Thème", "pt": "Tema"}
 _TOPIC = {"en": "Topic", "fr": "Sujet", "pt": "Tópico"}

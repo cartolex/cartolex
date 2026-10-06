@@ -1,5 +1,5 @@
 {
-  "_about": "Closed-class words of each language (articles, prepositions, conjunctions, pronouns, forms of 'to be' and 'to have'), for keyword extraction (cartolex.lexicon.noun_phrases.closed_words). A tagger for another language may take them for nouns when text in this language reaches its stream: a paragraph whose phrases hold two different closed words of another language is read as that language, and there these words break phrases; a phrase that starts or ends with one is set aside. Only a word written in lower case or in capitals counts: a capitalised one begins a name (La Niña). Never a content word, and no word that is a common content word or a chemical symbol in another of these languages (car, son, os, an, au, ce, ni, se, na, al, be, it, est, el, sem, tem): the lists are filters, not keywords.",
+  "_about": "Closed-class words of each language (articles, prepositions, conjunctions, pronouns, forms of 'to be' and 'to have'), for keyword extraction (cartolex.lexicon.noun_phrases.closed_words). A tagger for another language may take them for nouns when text in this language reaches its stream: a paragraph whose phrases hold two different closed words of another language is read as that language, and there these words break phrases; a phrase that starts or ends with one is set aside. Only a word written in lower case or in capitals counts: a capitalised one begins a name (La Niña). Never a content word, and no word that is a common content word or a chemical symbol in another of these languages (car, son, os, an, au, ce, ni, se, na, al, be, it, est, el, sem, tem, die, den, war, hat, am, als, mit, es, ha, ed, ai, non, come): the lists are filters, not keywords.",
   "en": [
     "and", "are", "been", "but", "by", "from", "had", "has", "have", "into",
     "is", "its", "nor", "of", "than", "that", "the", "their", "them", "there",
@@ -27,5 +27,19 @@
     "como", "con", "de", "del", "ella", "ellos", "en", "entre", "esta", "fue",
     "la", "las", "los", "para", "pero", "por", "que", "sobre", "sus", "también",
     "una", "unos"
+  ],
+  "it": [
+    "agli", "alla", "alle", "allo", "anche", "che", "con", "cui", "degli", "dei",
+    "della", "delle", "dello", "essere", "fra", "gli", "hanno", "il", "loro", "negli",
+    "nei", "nel", "nella", "nelle", "nello", "per", "più", "quale", "quali", "questa",
+    "queste", "questi", "questo", "sono", "sugli", "sui", "sul", "sulla", "sulle", "tra",
+    "una", "uno", "è"
+  ],
+  "de": [
+    "auch", "auf", "aus", "bei", "beim", "das", "dass", "dem", "der", "des",
+    "durch", "ein", "eine", "einem", "einen", "einer", "eines", "für", "haben", "ist",
+    "nach", "nicht", "oder", "sich", "sie", "sind", "sowie", "und", "unter", "vom",
+    "von", "werden", "wie", "wir", "wird", "wurde", "wurden", "zum", "zur", "zwischen",
+    "über"
   ]
 }

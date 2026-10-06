@@ -38,7 +38,7 @@ __all__ = [
     "tree_order",
 ]
 
-LANGUAGES = ("en", "fr", "pt")
+LANGUAGES = ("en", "fr", "pt", "es", "de", "it")
 #: The most levels a tree has (``cartolex.project.themes.MAX_DEPTH``).
 MAX_DEPTH = 4
 #: The operations a result may carry (the ``op`` of ``POST /api/themes/ops``).

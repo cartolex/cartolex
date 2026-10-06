@@ -12,7 +12,8 @@ gets a class:
 ``A`` an adjective, or a participle used as one
 ``G`` (English) a gerund used as a noun (``decision making``)
 ``P`` a preposition the language's pattern allows inside a term
-``D`` a definite article after such a preposition (French, Portuguese)
+``D`` a definite article after such a preposition (French, Portuguese,
+      Spanish, Italian), or a genitive article after a noun (German)
 ``X`` anything else: it breaks a phrase
 ====  ===========================================================
 
@@ -34,10 +35,26 @@ pattern is one occurrence of a candidate — nested spans included, so
   ``com``, ``a`` and their contractions with the article (``do``, ``da``,
   ``no``, ``pela``, ``ao``, ``à`` …). spaCy's Portuguese tokenizer keeps a
   contraction as one token tagged as a preposition, so ``linha da costa`` is
-  ``N P N``.
+  ``N P N``;
+- Spanish: the Portuguese shape with ``de``, ``a``, ``en``, ``por``,
+  ``para``, ``con`` and the contractions ``del``, ``al`` (``nivel del mar``,
+  ``lesión por presión``);
+- Italian: the same shape with ``di``, ``a``, ``da``, ``in``, ``su``,
+  ``per``, ``con`` and the forms joined to the article (``del``, ``della``,
+  ``dell'``, ``nel``, ``sulla`` …), which spaCy's Italian tokenizer keeps as
+  one token (``qualità dell'acqua`` is ``N P N``);
+- German: ``ADJ* (NOUN|PROPN+)``. German writes compounds as one word
+  (``Meeresspiegelanstieg``), so two nouns in a row are mostly two phrases
+  (``… die Ergebnisse Hinweise …``) and never one candidate. A genitive
+  complement (``Anstieg des Meeresspiegels``: an article in the genitive, or
+  adjectives, then a noun) is a switch of the lexicon lab, off by default,
+  like the English ``of``: most such spans are phrasing (``Ziel der Arbeit``,
+  ``Ergebnisse der Studie``). German nouns keep their capital in the term
+  shown.
 
-An elided word (``l'``, ``d'``, ``qu'`` … in French, ``d'`` in Portuguese;
-straight or typographic apostrophe) is a word unit of its own, and the word
+An elided word (``l'``, ``d'``, ``qu'`` … in French, ``d'`` in Portuguese,
+``dell'``, ``all'``, ``un'`` … in Italian; straight or typographic apostrophe)
+is a word unit of its own, and the word
 after it starts a unit, as after a space: French models split it off
 (``l'``, ``apprentissage``), and a token the tokenizer leaves whole
 (Portuguese ``d'água``) is split here, so ``coluna d'água`` is ``N P N``.
@@ -70,7 +87,7 @@ from importlib.resources import files
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
-from .text_utils import APOSTROPHES, ELIDED_WORDS, split_elision
+from .text_utils import APOSTROPHES, FRENCH_ELIDED, ITALIAN_ELIDED, split_elision
 
 if TYPE_CHECKING:
     from spacy.tokens import Doc, Token
@@ -129,7 +146,15 @@ class LanguagePatterns:
     definite articles allowed right after a preposition; ``elided`` the words
     the language writes elided with an apostrophe (``d'``, ``l'`` …, without
     it), each a word unit of its own even when the tokenizer leaves it
-    attached to the next word.
+    attached to the next word. ``article_case``, when set, is the grammatical
+    case an article must have to be one (German: ``Gen``, the genitive
+    ``des`` or ``der`` after a noun); ``noun_capitals`` keeps the capital of
+    nouns in the term shown (German writes every noun with one).
+    ``noun_endings`` and ``adjective_endings`` fold the inflected forms a
+    lemmatizer leaves as they are (German ``Befunden``, ``künstliche``): in a
+    key, a noun's or an adjective's lemma loses the first of these endings
+    whose removal gives another lemma of the corpus (``Befund``,
+    ``künstlich``); a lemma no shorter lemma explains is kept.
     """
 
     lang: str
@@ -138,6 +163,10 @@ class LanguagePatterns:
     preposition_pos: frozenset[str]
     articles: frozenset[str] = frozenset()
     elided: frozenset[str] = frozenset()
+    article_case: str = ""
+    noun_capitals: bool = False
+    noun_endings: tuple[str, ...] = ()
+    adjective_endings: tuple[str, ...] = ()
 
     @functools.cached_property
     def regex(self) -> re.Pattern[str]:
@@ -150,6 +179,18 @@ def _prep_map(groups: Mapping[str, Iterable[str]]) -> Mapping[str, str]:
 
 
 _EN_NP = "[ANR]*[NRG]"
+# A German head: a noun, or a run of proper nouns (``Max Planck``).
+_DE_HEAD = "(?:N|R+)"
+#: Italian prepositions, each with its forms joined to the article (elided ones
+#: with a straight or a typographic apostrophe).
+_IT_PREPOSITIONS = {
+    base: (
+        base,
+        *(f"{stem}{end}" for end in ("l", "llo", "lla", "i", "gli", "lle")),
+        *(f"{stem}ll{a}" for a in ("'", "’")),
+    )
+    for base, stem in (("di", "de"), ("a", "a"), ("da", "da"), ("in", "ne"), ("su", "su"))
+}
 
 #: The patterns of the supported languages.
 PATTERNS: Mapping[str, LanguagePatterns] = MappingProxyType(
@@ -168,7 +209,7 @@ PATTERNS: Mapping[str, LanguagePatterns] = MappingProxyType(
             ),
             preposition_pos=frozenset({"ADP", "DET"}),
             articles=frozenset({"le", "la", "les", "l'", "l’"}),
-            elided=ELIDED_WORDS,
+            elided=FRENCH_ELIDED,
         ),
         "pt": LanguagePatterns(
             lang="pt",
@@ -186,6 +227,48 @@ PATTERNS: Mapping[str, LanguagePatterns] = MappingProxyType(
             preposition_pos=frozenset({"ADP"}),
             articles=frozenset({"o", "a", "os", "as"}),
             elided=frozenset({"d"}),
+        ),
+        "es": LanguagePatterns(
+            lang="es",
+            pattern="NA*(?:PD?[NR]A*)?",
+            prepositions=_prep_map(
+                {
+                    "de": ("de", "del"),
+                    "a": ("a", "al"),
+                    "en": ("en",),
+                    "por": ("por",),
+                    "para": ("para",),
+                    "con": ("con",),
+                }
+            ),
+            preposition_pos=frozenset({"ADP"}),
+            articles=frozenset({"el", "la", "los", "las"}),
+        ),
+        "it": LanguagePatterns(
+            lang="it",
+            pattern="NA*(?:PD?[NR]A*)?",
+            prepositions=_prep_map(
+                {
+                    **_IT_PREPOSITIONS,
+                    "di": (*_IT_PREPOSITIONS["di"], "d'", "d’"),
+                    "per": ("per",),
+                    "con": ("con",),
+                }
+            ),
+            preposition_pos=frozenset({"ADP"}),
+            articles=frozenset({"il", "lo", "la", "i", "gli", "le", "l'", "l’"}),
+            elided=ITALIAN_ELIDED,
+        ),
+        "de": LanguagePatterns(
+            lang="de",
+            pattern=f"A*{_DE_HEAD}",
+            prepositions=MappingProxyType({}),
+            preposition_pos=frozenset(),
+            articles=frozenset({"des", "der"}),
+            article_case="Gen",
+            noun_capitals=True,
+            noun_endings=("en", "n", "es", "s", "e"),
+            adjective_endings=("en", "em", "er", "es", "e"),
         ),
     }
 )
@@ -393,7 +476,11 @@ def _token_class(
     low = (tok.text if text is None else text).lower()
     if low in lp.prepositions and tok.pos_ in lp.preposition_pos:
         return "P"
-    if low in lp.articles and tok.pos_ == "DET":
+    if (
+        low in lp.articles
+        and tok.pos_ == "DET"
+        and (not lp.article_case or lp.article_case in tok.morph.get("Case"))
+    ):
         return "D"
     if _is_breaker(tok, fwords, text):
         return "X"
@@ -416,14 +503,19 @@ def _token_class(
     return "X"
 
 
-def _shown(tok: Token, text: str) -> str:
-    keep = tok.pos_ == "PROPN" or any(c.isupper() for c in text[1:])
+def _shown(tok: Token, text: str, noun_capitals: bool = False) -> str:
+    keep = (
+        tok.pos_ == "PROPN"
+        or any(c.isupper() for c in text[1:])
+        or (noun_capitals and tok.pos_ == "NOUN")
+    )
     return text if keep else text.lower()
 
 
-def _surface(unit: Sequence[Token]) -> str:
-    """A unit as displayed: lower case, except proper nouns and words with inner capitals."""
-    return "".join(_shown(tok, tok.text) for tok in unit)
+def _surface(unit: Sequence[Token], noun_capitals: bool = False) -> str:
+    """A unit as displayed: lower case, except proper nouns and words with inner capitals
+    (and nouns, with *noun_capitals*)."""
+    return "".join(_shown(tok, tok.text, noun_capitals) for tok in unit)
 
 
 def _elided_parts(unit: Sequence[Token], lp: LanguagePatterns) -> tuple[str, str] | None:
@@ -476,13 +568,13 @@ def analyse(doc: Doc, lang: str) -> TextAnalysis:
                 lemma_parts = split_elision(lemma)
                 lemma = lemma_parts[1] if lemma_parts is not None else lemma
                 lemmas[(rest.lower(), lemma.lower())] += 1
-            current.append((_shown(tok, rest), cls))
+            current.append((_shown(tok, rest, lp.noun_capitals), cls))
             continue
         cls = unit_class(unit, lp, fwords)
         if cls == "X":
             close()
             continue
-        surface = _surface(unit)
+        surface = _surface(unit, lp.noun_capitals)
         if cls in _CONTENT:
             words = [t for t in unit if not t.is_punct and t.text not in JOINERS]
             for t in words:
@@ -528,6 +620,18 @@ class _Keyer:
     lp: LanguagePatterns
     lemmas: Mapping[str, str]
     cache: dict[Unit, str | None] = field(default_factory=dict)
+    _known: frozenset[str] | None = None
+
+    def _folded(self, lemma: str, endings: tuple[str, ...]) -> str:
+        """*lemma* without the first of *endings* whose removal gives another corpus lemma."""
+        if self._known is None:
+            self._known = frozenset(self.lemmas.values())
+        for end in endings:
+            if lemma.endswith(end) and len(lemma) - len(end) >= 3:
+                base = lemma[: -len(end)]
+                if base in self._known:
+                    return base
+        return lemma
 
     def key(self, unit: Unit) -> str | None:
         """The key part of a unit (``None`` for an article, which keys leave out)."""
@@ -541,22 +645,39 @@ class _Keyer:
             part = self.lp.prepositions.get(unit[0].lower(), unit[0].lower())
         else:
             words = unit[2] if len(unit) > 2 else (unit[0].lower(),)
-            part = "-".join(self.lemmas.get(w, w) for w in words)
+            parts = [self.lemmas.get(w, w) for w in words]
+            endings = (
+                self.lp.noun_endings
+                if cls == "N"
+                else self.lp.adjective_endings
+                if cls == "A"
+                else ()
+            )
+            if endings:
+                # the last word carries the inflection (``Max-Planck-Instituts``)
+                parts[-1] = self._folded(parts[-1], endings)
+            part = "-".join(parts)
         self.cache[unit] = part
         return part
 
 
-def language_patterns(lang: str, *, of_complement: bool = False) -> LanguagePatterns:
-    """The patterns of *lang*; with *of_complement*, English phrases may take one ``of`` complement.
+def language_patterns(
+    lang: str, *, of_complement: bool = False, genitive: bool = False
+) -> LanguagePatterns:
+    """The patterns of *lang*; with *of_complement*, English phrases may take one ``of``
+    complement; with *genitive*, German phrases one genitive complement.
 
-    The complement (``degrees of freedom``) is a switch of the lexicon lab, off
-    by default: most ``X of Y`` spans are phrasing (``role of silicic acid
-    uptake``), and they made the terms inside them look like fragments of a
-    longer phrase.
+    Both complements (``degrees of freedom``, ``Anstieg des Meeresspiegels``)
+    are switches of the lexicon lab, off by default: most such spans are
+    phrasing (``role of silicic acid uptake``, ``Ziel der Arbeit``), and they
+    made the terms inside them look like fragments of a longer phrase. The
+    genitive needs no new parse: the analysis records the genitive article.
     """
     lp = PATTERNS[lang]
     if lang == "en" and of_complement:
         return dataclasses.replace(lp, pattern=f"{_EN_NP}(?:P{_EN_NP})?")
+    if lang == "de" and genitive:
+        return dataclasses.replace(lp, pattern=f"A*{_DE_HEAD}(?:(?:DA*|A+){_DE_HEAD})?")
     return lp
 
 

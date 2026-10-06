@@ -20,7 +20,17 @@ def tokenize(term: str) -> list[str]:
 #: ``l'``, the preposition ``d'`` (Portuguese elides it too: ``d'água``), and
 #: the pronouns and conjunctions ``qu'``, ``j'``, ``n'``, ``s'``, ``c'``,
 #: ``m'``, ``t'``.
-ELIDED_WORDS = frozenset({"l", "d", "qu", "j", "n", "s", "c", "m", "t"})
+FRENCH_ELIDED = frozenset({"l", "d", "qu", "j", "n", "s", "c", "m", "t"})
+#: Words Italian writes elided before a vowel besides French's ``l'``, ``d'``,
+#: ``c'``, ``s'``, ``m'``, ``t'``, ``n'``: the prepositions joined to the
+#: article (``dell'``, ``all'``, ``dall'``, ``nell'``, ``sull'``, ``coll'``),
+#: the article ``un'`` and the demonstratives ``quest'``, ``quell'``.
+ITALIAN_ELIDED = frozenset(
+    {"l", "d", "c", "s", "m", "t", "n", "dell", "all", "dall", "nell", "sull", "coll", "un"}
+    | {"quest", "quell"}
+)
+#: Every elided word the extraction knows (:func:`split_elision`, :func:`term_words`).
+ELIDED_WORDS = FRENCH_ELIDED | ITALIAN_ELIDED
 #: The straight and the typographic apostrophe.
 APOSTROPHES = ("'", "’")
 # An elided word at the start of a word, before a letter (« d'eau », « L’Atlantique »);
@@ -49,7 +59,8 @@ def term_words(term: str) -> list[str]:
     Words are separated by spaces, and an elided word (:data:`ELIDED_WORDS`,
     straight or typographic apostrophe) is a word of its own: the word after
     it starts a word, as after a space. ``term_words("systèmes d'information
-    géographique") == ["systèmes", "d'", "information", "géographique"]``; a
+    géographique") == ["systèmes", "d'", "information", "géographique"]``,
+    ``term_words("qualità dell'acqua") == ["qualità", "dell'", "acqua"]``; a
     hyphen or slash compound (``île-barrière``) is one word. It is the inverse
     of :func:`cartolex.lexicon.noun_phrases.join_surface`, which writes no
     space after an elided word.

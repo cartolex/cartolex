@@ -42,7 +42,7 @@ _WORD_RE = re.compile(r"[a-zA-Z]+")
 # (langdetect is the primary signal for real paragraphs).  Romance languages
 # share many function words, so markers alone cannot reliably separate e.g.
 # FR from PT; that is fine because they only decide short or langdetect-less
-# fragments.  Seeded for fr/en/pt; extend here to add a language.
+# fragments.  Seeded for fr/en/pt/es/it/de; extend here to add a language.
 FR_MARKERS = {
     "de",
     "des",
@@ -97,11 +97,44 @@ ES_MARKERS = {
     "su",
 }
 
+# Distinctively-Italian function words ("il", "della", "degli", "per", "che"…).
+IT_MARKERS = {
+    "il",
+    "della",
+    "delle",
+    "degli",
+    "dei",
+    "nella",
+    "nel",
+    "gli",
+    "per",
+    "che",
+    "sono",
+}
+
+# Distinctively-German function words.
+DE_MARKERS = {
+    "der",
+    "die",
+    "das",
+    "und",
+    "den",
+    "dem",
+    "mit",
+    "von",
+    "ist",
+    "nicht",
+    "eine",
+    "werden",
+}
+
 _MARKERS: dict[str, set[str]] = {
     "fr": FR_MARKERS,
     "en": EN_MARKERS,
     "pt": PT_MARKERS,
     "es": ES_MARKERS,
+    "it": IT_MARKERS,
+    "de": DE_MARKERS,
 }
 
 

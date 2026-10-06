@@ -8,3 +8,9 @@ fr_core_news_md @ https://github.com/explosion/spacy-models/releases/download/fr
     --hash=sha256:8a70d090a54ef77525c3ffa6a6195b9d365f2cf369ae1cd84ede93f3d709079e
 pt_core_news_md @ https://github.com/explosion/spacy-models/releases/download/pt_core_news_md-3.8.0/pt_core_news_md-3.8.0-py3-none-any.whl \
     --hash=sha256:54382cda034e41f3ec605ceeb924cd6cfdbced00a65f7afa12218520ba7008c5
+es_core_news_md @ https://github.com/explosion/spacy-models/releases/download/es_core_news_md-3.8.0/es_core_news_md-3.8.0-py3-none-any.whl \
+    --hash=sha256:478b8bb3f3e8eb149192f7d80e7cd64f990b7e9bccbc5329df41a57e86326be2
+de_core_news_md @ https://github.com/explosion/spacy-models/releases/download/de_core_news_md-3.8.0/de_core_news_md-3.8.0-py3-none-any.whl \
+    --hash=sha256:b903f59220f1e76dd672acdaa7fa454d6703fe056c5ccd6457820e70874116d0
+it_core_news_md @ https://github.com/explosion/spacy-models/releases/download/it_core_news_md-3.8.0/it_core_news_md-3.8.0-py3-none-any.whl \
+    --hash=sha256:a731d2d8e7c5a7093ac42f88774ea2a2ad3d5809959eedee65632b3533f804ec

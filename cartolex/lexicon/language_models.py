@@ -4,7 +4,8 @@
 Each corpus language the extraction supports has one pinned spaCy model: its
 package name, version, licence, and the address and sha256 of its wheel. The
 models are separate installs (they carry their own licences and are never
-bundled with cartolex); nothing here downloads anything. A model that is not
+bundled with cartolex: the Spanish model is under the GNU GPL, the Italian one
+under a non-commercial licence); nothing here downloads anything. A model that is not
 installed, or installed at another version, is an error with the command that
 installs the right one: there is no silent fallback to another model or to
 another extraction method.
@@ -104,6 +105,27 @@ MODELS: Mapping[str, LanguageModel] = MappingProxyType(
             version="3.8.0",
             licence="CC BY-SA 4.0",
             sha256="54382cda034e41f3ec605ceeb924cd6cfdbced00a65f7afa12218520ba7008c5",
+        ),
+        "es": LanguageModel(
+            lang="es",
+            name="es_core_news_md",
+            version="3.8.0",
+            licence="GNU GPL 3.0",
+            sha256="478b8bb3f3e8eb149192f7d80e7cd64f990b7e9bccbc5329df41a57e86326be2",
+        ),
+        "de": LanguageModel(
+            lang="de",
+            name="de_core_news_md",
+            version="3.8.0",
+            licence="MIT",
+            sha256="b903f59220f1e76dd672acdaa7fa454d6703fe056c5ccd6457820e70874116d0",
+        ),
+        "it": LanguageModel(
+            lang="it",
+            name="it_core_news_md",
+            version="3.8.0",
+            licence="CC BY-NC-SA 3.0",
+            sha256="a731d2d8e7c5a7093ac42f88774ea2a2ad3d5809959eedee65632b3533f804ec",
         ),
     }
 )

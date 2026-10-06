@@ -122,6 +122,52 @@ def test_terms_with_short_words_are_kept_whole_through_the_pipeline(tmp_path: Pa
     assert {"trait de côte", "linha de costa", "masse d'eau"} <= counted
 
 
+ES = [
+    "El nivel del mar sube y la erosión costera avanza sobre las playas arenosas. Las "
+    "lesiones por presión no tienen nada que ver con la costa.",
+    "Medimos el nivel del mar con mareógrafos desde hace décadas. La erosión costera se "
+    "cartografía cada año con imágenes aéreas.",
+    "La erosión costera amenaza las playas. El nivel del mar se registra en cada puerto "
+    "del litoral desde el siglo pasado.",
+]
+IT = [
+    "La qualità dell'acqua peggiora lungo la costa. L'erosione costiera minaccia le spiagge "
+    "sabbiose durante le tempeste invernali.",
+    "Misuriamo la qualità dell'acqua nella laguna ogni mese. L'erosione costiera è "
+    "cartografata ogni anno con immagini aeree.",
+    "L'erosione costiera e la qualità dell'acqua sono seguite da una rete di stazioni "
+    "lungo tutto il litorale adriatico.",
+]
+DE = [
+    "Die globale Erwärmung beschleunigt den Meeresspiegelanstieg. Die Küstenerosion "
+    "bedroht die sandigen Strände der Nordsee.",
+    "Wir messen den Meeresspiegelanstieg mit Pegeln. Die globale Erwärmung verändert die "
+    "Küstenerosion an der gesamten Küste.",
+    "Die Küstenerosion wird jedes Jahr kartiert, und die globale Erwärmung gilt als "
+    "wichtigste Ursache des Meeresspiegelanstiegs.",
+]
+
+
+@pytest.mark.models("es", "it", "de")
+def test_spanish_italian_and_german_texts(tmp_path: Path) -> None:
+    """Texts in Spanish, Italian and German give their terms, whole, in their own tables."""
+    people = [
+        (f"{lang}{i}", [t])
+        for lang, texts in (("Es", ES), ("It", IT), ("De", DE))
+        for i, t in enumerate(texts)
+    ]
+    write_corpus(tmp_path, people)
+    langs = ("es", "it", "de")
+    ctx = RunContext.for_workspace(
+        tmp_path, settings(corpus_languages=langs, display_languages=("en",)), now_year=2026
+    )
+    run_pipeline_stage_1(ctx)
+    es, it, de = (set(raw(ctx, lang)["term"]) for lang in langs)
+    assert {"nivel del mar", "erosión costera"} <= es
+    assert {"qualità dell'acqua", "erosione costiera"} <= it
+    assert {"globale Erwärmung", "Küstenerosion", "Meeresspiegelanstieg"} <= de
+
+
 @pytest.mark.models("en", "fr", "pt")
 def test_a_language_below_the_window_gives_an_empty_table(tmp_path: Path, caplog) -> None:
     """One Portuguese text among English ones: no candidate reaches min_df, nothing raises."""

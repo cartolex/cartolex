@@ -45,6 +45,12 @@ if TYPE_CHECKING:
 __all__ = ["main"]
 
 
+#: The languages with a language pack (kept in step with ``cartolex.project.models.LANGUAGES``
+#: and the pinned models, ``tests/test_language_models.py``); spelled out so that building
+#: the parser imports nothing.
+_LANGUAGE_CODES = ("en", "fr", "pt", "es", "de", "it")
+
+
 def _languages(text: str) -> tuple[str, ...]:
     from cartolex.project.models import LANGUAGES
 
@@ -591,10 +597,13 @@ def _parser(extensions: Sequence[Extension] = ()) -> argparse.ArgumentParser:
         help="two or three lines on what is in scope; the AI receives this and the terms, nothing else",
     )
     init.add_argument(
-        "--languages", type=_languages, default=("en",), help="corpus languages, e.g. en,fr,pt"
+        "--languages",
+        type=_languages,
+        default=("en",),
+        help="corpus languages, e.g. en,fr,pt (also es, de, it)",
     )
     init.add_argument(
-        "--reference", default="en", choices=("en", "fr", "pt"), help="reference language"
+        "--reference", default="en", choices=_LANGUAGE_CODES, help="reference language"
     )
     init.set_defaults(run=_init)
 
@@ -679,7 +688,7 @@ def _parser(extensions: Sequence[Extension] = ()) -> argparse.ArgumentParser:
     )
     mlist.set_defaults(run=_models)
     madd = msub.add_parser("add", help="install the pinned model of one or more languages")
-    madd.add_argument("languages", nargs="+", choices=("en", "fr", "pt"))
+    madd.add_argument("languages", nargs="+", choices=_LANGUAGE_CODES)
     madd.add_argument("--yes", action="store_true", help="install without asking")
     madd.set_defaults(run=_models)
 
