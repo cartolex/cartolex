@@ -48,11 +48,17 @@ parent process assumed to hold 2 GB. A pool is now sized beside what its parent 
 build and the trajectories no longer hold every text's counts in their parent
 (see {doc}`sizes`).
 
-In the app, the first look at each screen computes what it shows once per
-version of the tables and keeps it: on that project, at most about a minute
-(the people list, the coverage, the texts' view, kept on disk), then a second or
-less. The map's bundle is 67 MB, the time windows 37 MB, the texts layer a
-sample of 100,000 texts (27 MB).
+In the app, what takes long to make is made once per version of what it reads
+and kept in the project's cache: the texts' view, the copies of a work, the
+texts' orders, the map's texts layer and its time windows. Measured on that
+project, in a new session of the app (the project on the hard disk): the
+people list about 40 s the first time (half of it checking tables written
+before cartolex stamped them: tables it writes are not read again to be
+checked), the coverage 7 s, the map 9 s, then about a second or less for every
+screen; a person's sheet takes a second. The first build of the texts' view
+takes 40 s, the texts layer 30 s and the windows 10 s, once. The app held at
+most 5.5 GB. The map's bundle is 67 MB, the time windows 37 MB, the texts
+layer a sample of 100,000 texts (27 MB).
 
 ## Download it
 
