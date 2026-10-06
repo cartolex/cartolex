@@ -276,3 +276,21 @@ def test_organisations_renamed_merged_by_identifier_and_unmerged(doubled, tmp_pa
         assert client.get("/api/organisations/pairs").json()["counts"]["open"] == 0
     finally:
         app.state.cartolex.shutdown()
+
+
+def test_the_command_line_merges_the_clear_pairs_and_unmerges_them(doubled, tmp_path, capsys):
+    import shutil
+
+    from cartolex.cli import main as cli
+    from cartolex.collect.decisions import read_people
+
+    root, truth = doubled
+    shutil.copytree(root, tmp_path / "p")
+    assert cli(["collect", "duplicates", str(tmp_path / "p"), "--merge-clear"]) == 0
+    rows = read_people(Project.open(tmp_path / "p", write=False).layout)
+    merged = sorted(pid for pid, r in rows.items() if r["merged_into"])
+    assert merged and all(truth.is_same(pid, rows[pid]["merged_into"]) for pid in merged)
+    assert cli(["collect", "unmerge", str(tmp_path / "p"), *merged]) == 0
+    rows = read_people(Project.open(tmp_path / "p", write=False).layout)
+    assert not any(r["merged_into"] for r in rows.values())
+    assert "clear" in capsys.readouterr().out

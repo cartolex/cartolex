@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -57,6 +57,7 @@ __all__ = [
     "DuplicatePair",
     "PersonFacts",
     "choose_kept",
+    "clear_groups",
     "duplicate_pairs",
     "is_clear",
     "person_facts",
@@ -592,3 +593,64 @@ def choose_kept(people: Iterable[PersonFacts]) -> str:
         ),
     )
     return ranked[0].person_id
+
+
+def clear_groups(
+    pairs: Iterable[DuplicatePair],
+    facts: Mapping[str, PersonFacts],
+    decided: Collection[tuple[str, str]] = (),
+    now: Mapping[str, tuple[str, str]] | None = None,
+) -> list[dict[str, Any]]:
+    """The clear pairs not *decided* (``(a, b)`` keys, the smaller id first), joined into
+    groups of people that are one person: each ``keep`` (:func:`choose_kept`, on the roles
+    and identities of *now*: person id → ``(role, identity)``, else the facts'), the others
+    to ``merge``, their ``names`` and the ``pairs`` it holds; sorted by the kept name. A
+    group whose people carry two different ORCIDs is left out: a person decides."""
+    from dataclasses import replace
+
+    parent: dict[str, str] = {}
+
+    def find(x: str) -> str:
+        root = x
+        while parent.get(root, root) != root:
+            root = parent[root]
+        while parent.get(x, x) != root:  # shorten the path walked
+            parent[x], x = root, parent[x]
+        return root
+
+    chosen = [p for p in pairs if p.clear and (p.a, p.b) not in decided]
+    for p in chosen:
+        ra, rb = find(p.a), find(p.b)
+        if ra != rb:
+            parent[max(ra, rb)] = min(ra, rb)
+    members: dict[str, list[str]] = defaultdict(list)
+    held: dict[str, list[DuplicatePair]] = defaultdict(list)
+    for p in chosen:
+        held[find(p.a)].append(p)
+    for pid in {x for p in chosen for x in (p.a, p.b)}:
+        members[find(pid)].append(pid)
+    out = []
+    for root, ids in members.items():
+        group = []
+        for pid in sorted(ids):
+            f = facts[pid]
+            if now is not None and pid in now:
+                f = replace(f, role=now[pid][0], identity=now[pid][1])
+            group.append(f)
+        orcids = [f.orcids for f in group if f.orcids]
+        if any(not (x & y) for i, x in enumerate(orcids) for y in orcids[i + 1 :]):
+            continue
+        keep = choose_kept(group)
+        out.append(
+            {
+                "keep": keep,
+                "merge": [f.person_id for f in group if f.person_id != keep],
+                "names": {
+                    f.person_id: " ".join(x for x in (f.first_name, f.last_name) if x)
+                    for f in group
+                },
+                "pairs": held[root],
+            }
+        )
+    out.sort(key=lambda g: (g["names"][g["keep"]].casefold(), g["keep"]))
+    return out

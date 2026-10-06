@@ -382,55 +382,16 @@ class AutoMerge(BaseModel):
 
 
 def _clear_groups(ctx: Any, runtime: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """The clear pairs not decided, joined into groups of people that are one person: each
-    with the person kept (:func:`cartolex.collect.duplicates.choose_kept`), the others, and
-    the pairs it holds. A group whose people carry two different ORCIDs is left out."""
-    from cartolex.collect.duplicates import choose_kept
-    from cartolex.project.pairs import pair_key, read_pairs
+    """The groups the automatic merge would make
+    (:func:`cartolex.collect.duplicates.clear_groups`), on the roles of now."""
+    from cartolex.collect.duplicates import clear_groups
+    from cartolex.project.pairs import read_pairs
 
     found = found_pairs(ctx, runtime)
-    decided = read_pairs(ctx.layout)
     people, _ = _people(ctx, runtime)
-    parent: dict[str, str] = {}
-
-    def find(x: str) -> str:
-        while parent.get(x, x) != x:
-            parent[x] = parent.get(parent[x], parent[x])
-            x = parent[x]
-        return x
-
-    pairs = [p for p in found["pairs"] if p.clear and pair_key(p.a, p.b) not in decided]
-    for p in pairs:
-        ra, rb = find(p.a), find(p.b)
-        if ra != rb:
-            parent[max(ra, rb)] = min(ra, rb)
-    members: dict[str, list[str]] = defaultdict(list)
-    for pid in {x for p in pairs for x in (p.a, p.b)}:
-        members[find(pid)].append(pid)
-    facts = found["facts"]
-    out = []
-    for ids in members.values():
-        group = [facts[i] for i in sorted(ids)]
-        orcids = [f.orcids for f in group if f.orcids]
-        if any(not (x & y) for i, x in enumerate(orcids) for y in orcids[i + 1 :]):
-            continue
-        for f in group:  # the roles and identities of now, not of the cached facts
-            f.role = (people.get(f.person_id) or {}).get("role", f.role)
-            f.identity = (people.get(f.person_id) or {}).get("identity", f.identity)
-        keep = choose_kept(group)
-        out.append(
-            {
-                "keep": keep,
-                "merge": [f.person_id for f in group if f.person_id != keep],
-                "names": {
-                    f.person_id: " ".join(x for x in (f.first_name, f.last_name) if x)
-                    for f in group
-                },
-                "pairs": [p for p in pairs if find(p.a) == find(keep)],
-            }
-        )
-    out.sort(key=lambda g: g["names"][g["keep"]].casefold())
-    return out, people
+    now = {pid: (p["role"], p["identity"]) for pid, p in people.items()}
+    groups = clear_groups(found["pairs"], found["facts"], set(read_pairs(ctx.layout)), now)
+    return groups, people
 
 
 @routes.post("/api/people/duplicates/auto", action="people.write")

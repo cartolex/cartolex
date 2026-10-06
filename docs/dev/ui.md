@@ -340,11 +340,20 @@ consent, a build job). Opening it reads one page of the list.
 
 The corpus screen (`pages/people.js`, route `/people`) loads
 `pages/people/page.js`: the tabs People (`people-tab.js`), Identities
-(`identities.js`, the queue, keyboard first), Organisations (`orgs-tab.js`,
-with the people of institutions), Texts (`texts-tab.js`), Collaborators
+(`identities.js`, the queue, keyboard first: waiting, or accepted automatically
+to review), Duplicates (`duplicates-tab.js`, pairs of people who may be one,
+compared side by side in `duplicates-compare.js`, decided with the keyboard, the
+clear pairs merged in one undoable step), Organisations (`orgs-tab.js`: an
+organisation's drawer with what people decide about it, `org-drawer.js`; the
+pairs that may be one organisation, `org-review.js`; the people of institutions,
+`institutions.js`), Texts (`texts-tab.js`), Collaborators
 (`collaborators-tab.js`) and Coverage (`coverage-tab.js`); a person's sheet
-(`sheet.js`); the import and collect dialogs (`import.js`, `collect.js`, whose
-`Notice` shows what leaves the computer); and `common.js`. Its lists are paged
+(`sheet.js`: merges undone, affiliations removed or put back); the import and
+collect dialogs (`import.js`, `collect.js`, whose
+`Notice` shows what leaves the computer); and `common.js`. Other pages link to
+`/people?person=<id>`, `/people?tab=organisations&org=<id>` and
+`/people?tab=texts&text=<id>`, which open the drawers; the drawers' « Show on
+the map » opens `/map?sel=person:<id>` (`organisation:`, `text:`). Its lists are paged
 on the server: `usePaged(ctx, path, query, keyOf)` gives the Table a row per
 item of the list, placeholders until their page is read, and reads the pages
 the Table says are in view (`onRange`); a query key starting with `$` (a
