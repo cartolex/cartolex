@@ -74,8 +74,21 @@ EDGE_WORDS: dict[str, frozenset[str]] = {
         "el la los las un una de del y o en al a por para con sin sobre entre que cual cuyo "
         "es son su sus".split()
     ),
+    "it": frozenset(
+        "il lo la i gli le l un una uno di d del dello della dei degli delle dell a al allo "
+        "alla ai agli alle all da dal dallo dalla dai dagli dalle dall in nel nello nella nei "
+        "negli nelle nell su sul sullo sulla sui sugli sulle sull per con tra fra e ed o che "
+        "cui è sono suo sua suoi sue loro".split()
+    ),
+    "de": frozenset(
+        "der die das des dem den ein eine eines einer einem einen und oder von vom zu zum zur "
+        "mit für in im auf an am bei beim aus nach über unter durch als wie dass ist sind "
+        "sein seine ihr ihre".split()
+    ),
 }
-_ELISION = re.compile(r"^(?:l|d|qu|j|m|n|s|t|c)['’]", re.IGNORECASE)
+_ELISION = re.compile(
+    r"^(?:dell|dall|nell|sull|coll|all|quest|quell|un|l|d|qu|j|m|n|s|t|c)['’]", re.IGNORECASE
+)
 _WORD = re.compile(r"[^\W_]+(?:[-'’][^\W_]+)*", re.UNICODE)
 _ALLOWED = re.compile(r"^[\w\s\-'’.,/()+]+$", re.UNICODE)
 
@@ -103,6 +116,21 @@ def _stem(word: str, lang: str) -> str:
         if w.endswith("s") and not w.endswith(("ss", "us", "is")):
             return w[:-1]
         return w
+    if lang == "it":
+        # studio, studi; risultato, risultati; analisi
+        if w.endswith("io"):
+            return w[:-2]
+        return w[:-1] if w[-1] in "aeio" else w
+    if lang == "de":
+        # Befund, Befunde, Befunden; Studie, Studien; Ergebnis, Ergebnisse
+        if w.endswith("nisse"):
+            return w[:-2]
+        if w.endswith(("ss", "is", "us")):
+            return w
+        for end in ("en", "e", "n", "s"):
+            if w.endswith(end):
+                return w[: -len(end)]
+        return w
     if w.endswith("aux") and lang == "fr":
         return w[:-3] + "al"
     if w.endswith(("s", "x")) and not w.endswith(("ss", "us")):
@@ -114,7 +142,7 @@ def head_word(term: str, lang: str) -> str:
     """The head word of a candidate, stemmed: the word its family is named after.
 
     The last word of an English (or German, Dutch …) phrase, the first word
-    that is not a function word of a French, Portuguese or Spanish one.
+    that is not a function word of a French, Portuguese, Spanish or Italian one.
     """
     words = _words(term)
     if not words:
@@ -163,6 +191,34 @@ DISCOURSE: dict[str, frozenset[str]] = {
         "varios".split()
     ),
 }
+# Spanish, Italian and German: the words as written, stored as their stems (:func:`_stem`),
+# since their plurals change more than a final letter (risultato, risultati).
+_DISCOURSE_WORDS = {
+    "es": "estudio trabajo resultado enfoque abordaje aspecto papel efecto impacto "
+    "importancia caso contexto marco perspectiva contribución comprensión cuestión problema "
+    "objetivo parte tipo número falta base punto factor diferencia comparación presencia "
+    "ausencia influencia aplicación ejemplo interés consecuencia avance desafío estrategia "
+    "método metodología herramienta dato análisis nuevo nueva reciente diferente importante "
+    "principal general primero primera futuro posible potencial otro mismo varios",
+    "it": "studio lavoro risultato approccio aspetto ruolo effetto impatto importanza caso "
+    "contesto quadro prospettiva contributo comprensione questione problema obiettivo parte "
+    "tipo numero mancanza base punto fattore differenza confronto presenza assenza influenza "
+    "applicazione esempio interesse conseguenza progresso sfida strategia metodo metodologia "
+    "strumento dato analisi nuovo nuova recente diverso diversa importante principale "
+    "generale primo prima futuro possibile potenziale altro stesso vari",
+    "de": "Studie Arbeit Ergebnis Ansatz Aspekt Rolle Effekt Wirkung Bedeutung Fall Kontext "
+    "Rahmen Perspektive Beitrag Verständnis Frage Problem Ziel Teil Typ Art Anzahl Zahl "
+    "Mangel Bedarf Grundlage Basis Punkt Faktor Unterschied Vergleich Einfluss Anwendung "
+    "Beispiel Interesse Folge Fortschritt Herausforderung Strategie Methode Methodik Werkzeug "
+    "Daten Analyse Untersuchung neu aktuell verschieden wichtig zentral allgemein erste "
+    "zukünftig möglich potenziell weitere",
+}
+DISCOURSE.update(
+    {
+        lang: frozenset(_stem(w, lang) for w in words.split())
+        for lang, words in _DISCOURSE_WORDS.items()
+    }
+)
 #: A chemical formula, an isotope or an acronym: kept whole, never merged into another
 #: (but an acronym's plural or translation, see :func:`same_acronym`).
 _FORMULA = re.compile(r"^[a-zδΔ]?[\d₀-₉]*(?:[A-Z][a-z]?[\d₀-₉]*){1,6}[+\-−⁺⁻]?$")

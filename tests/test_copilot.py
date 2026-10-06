@@ -441,6 +441,15 @@ def test_the_pre_sort_flags_patterns_keeps_formulas_whole_and_groups_families():
     assert is_formula("CO2") and is_formula("CO") and not is_formula("Alexandrium")
     assert head_word("binding assays", "en") == head_word("cell viability assay", "en")
     assert head_word("érosion des plages", "fr") == head_word("érosion côtière", "fr")
+    # Spanish, Italian and German: the same rules, with their own words and plurals.
+    assert flag("nuevos enfoques", "es") == ("pattern", "discourse")
+    assert flag("risultati principali", "it") == ("pattern", "discourse")
+    assert flag("wichtige Ergebnisse", "de") == ("pattern", "discourse")
+    assert flag("qualità della", "it") == ("pattern", "edge")
+    assert flag("künstliche Intelligenz", "de", people=9, texts=12) == ("", "")
+    assert head_word("qualità dell'acqua", "it") == head_word("qualità ambientale", "it")
+    assert head_word("sedimenti marini", "it") == head_word("sedimento", "it")
+    assert head_word("empirische Befunde", "de") == head_word("Befunden", "de")
 
 
 def test_an_acronym_merges_into_its_plural_or_translation_a_formula_never(tmp_path):

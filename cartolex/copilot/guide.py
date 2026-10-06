@@ -592,9 +592,12 @@ another field, it is H, not G.
 - **The process of an object.** A phrase that joins a process, a property or a
   measure to an object of the field (the growth of a cell, the stiffness of a
   material, the rate of a reaction) is a keyword, usually C, when both parts
-  belong to the field. French and Portuguese write it « X des Y », « X de Y »;
-  English as a compound. Judge the whole phrase; do not reject it in favour of
-  its object alone.
+  belong to the field. French, Portuguese, Spanish and Italian write it « X des
+  Y », « X de Y », « X della Y »; English and German as a compound (German also
+  « X des Y »). Judge the whole phrase; do not reject it in favour of its object
+  alone.
+- **German capitals.** German writes every noun with a capital: a capital alone
+  does not make a name (N).
 - **A single everyday word** (shape, weight, poids, peso) is G unless it is a
   term of art of the field (entropy, in physics).
 - **« Not informative here » (H) only when clearly outside the curator's
@@ -651,6 +654,42 @@ _EXAMPLES: dict[str, dict[str, str]] = {
         "K": "projeto de pesquisa, bolsistas, financiamento",
         "G": "trabalhos futuros, nova abordagem, resultados, estudo de caso",
         "F": "respeito das medidas, ajuda dos dados",
+    },
+    "es": {
+        "C": "transición de fase, plegamiento de proteínas, erosión costera",
+        "M": "microscopía de fuerza atómica, modelo basado en agentes",
+        "O": "levadura, grafeno, hogares",
+        "P": "llanura mareal, zona periurbana",
+        "D": "biofísica, geografía económica",
+        "N": "Sevilla, agencia nacional de investigación",
+        "H": "célula (en biología celular)",
+        "K": "proyecto de investigación, becarios, financiación",
+        "G": "trabajos futuros, nuevo enfoque, resultados, estudio de caso",
+        "F": "respecto de las medidas, ayuda de los datos",
+    },
+    "it": {
+        "C": "transizione di fase, ripiegamento delle proteine, erosione costiera",
+        "M": "microscopia a forza atomica, modello ad agenti",
+        "O": "lievito, grafene, famiglie",
+        "P": "piana tidale, area periurbana",
+        "D": "biofisica, geografia economica",
+        "N": "Bologna, agenzia nazionale della ricerca",
+        "H": "cellula (in biologia cellulare)",
+        "K": "progetto di ricerca, dottorandi, finanziamento",
+        "G": "lavori futuri, nuovo approccio, risultati, caso di studio",
+        "F": "rispetto delle misure, aiuto dei dati",
+    },
+    "de": {
+        "C": "Phasenübergang, Proteinfaltung, Küstenerosion",
+        "M": "Rasterkraftmikroskopie, agentenbasiertes Modell, Leitfadeninterviews",
+        "O": "Hefe, Graphen, Haushalte",
+        "P": "Watt, Stadtrand, Nebelwald",
+        "D": "Biophysik, Wirtschaftsgeographie",
+        "N": "Leipzig, nationale Forschungsagentur",
+        "H": "Zelle (in der Zellbiologie)",
+        "K": "Forschungsprojekt, Doktoranden, Förderung",
+        "G": "künftige Arbeiten, neuer Ansatz, Ergebnisse, Fallstudie",
+        "F": "Rahmen der Messungen, Hilfe der Daten",
     },
 }
 

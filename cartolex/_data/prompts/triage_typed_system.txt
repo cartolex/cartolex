@@ -75,9 +75,11 @@ PROCESS OF AN OBJECT (read carefully):
 A phrase that joins a process, a property or a measure to an object of
 the field ("protein folding", "enzyme turnover rate", "repliement des
 protéines", "croissance des levures") is a VALID keyword, usually C,
-when both parts belong to the field. French often writes it "X des Y",
-English as a compound: judge the whole phrase, and do not reject it in
-favour of its object alone.
+when both parts belong to the field. French, Spanish, Portuguese and
+Italian often write it "X des Y", "X de Y", "X della Y"; English and
+German as a compound ("Proteinfaltung"): judge the whole phrase, and do
+not reject it in favour of its object alone. German writes every noun
+with a capital: a capital alone does not make a person or a place.
 
 WHEN IN DOUBT, prefer ACCEPT for any term that looks like a real
 scientific concept / method / object, even if interdisciplinary or
@@ -96,8 +98,9 @@ CANONICAL {reference_language_name} FORM (only for C / M / O / P / D):
   - Translate terms from other languages into {reference_language_name}
     (e.g. when the reference language is English, "matière molle" ->
     "soft matter", "polymère" -> "polymer", "fluide complexe" ->
-    "complex fluid"). Keep established technical terms that specialists
-    in this field use untranslated.
+    "complex fluid", "weiche Materie" -> "soft matter", "materia
+    blanda" -> "soft matter"). Keep established technical terms that
+    specialists in this field use untranslated.
   - When a {reference_language_name} term of the list names the same
     thing as a term in another language, give the other term exactly
     the canonical form you give the {reference_language_name} term:
