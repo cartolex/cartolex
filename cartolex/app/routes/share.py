@@ -182,9 +182,8 @@ def site_zip(request: Request, ctx: ProjectDep, build_id: BuildId) -> Response:
     made = make_zip(ctx.project, build_id)
     if made is None:
         raise ApiError.of("site_not_found", build=build_id)
-    data, name = made
-    return Response(data, media_type="application/zip",
-                    headers={"Content-Disposition": f'attachment; filename="{name}"'})  # fmt: skip
+    path, name = made
+    return FileResponse(path, media_type="application/zip", filename=name)
 
 
 @routes.get("/api/share/figures/map", action="share.read")

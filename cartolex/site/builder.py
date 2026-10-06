@@ -32,10 +32,10 @@ from __future__ import annotations
 
 import hashlib
 import html
-import io
 import json
 import os
 import shutil
+import tempfile
 import zipfile
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
@@ -405,9 +405,11 @@ def build_site(
     return record
 
 
-def site_zip(project: Project, build_id: str) -> tuple[bytes, str] | None:
+def site_zip(project: Project, build_id: str) -> tuple[Path, str] | None:
     """A build as a zip whose README comes first (« unzip first »), and the zip's file name;
-    ``None`` when there is no such build."""
+    ``None`` when there is no such build. The zip is written once, file by file, to
+    ``outputs/sites/.zips/<build>.zip`` (a national site is gigabytes: never held in
+    memory), and served from there."""
     folder = _sites(project)
     if not build_id or build_id.startswith(".") or "/" in build_id or "\\" in build_id:
         return None
@@ -415,13 +417,22 @@ def site_zip(project: Project, build_id: str) -> tuple[bytes, str] | None:
     if not path.is_dir():
         return None
     top = f"site-{build_id}"
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        files = sorted(p for p in path.rglob("*") if p.is_file())
-        files.sort(key=lambda p: p.name != "README.txt")
-        for p in files:
-            zf.write(p, f"{top}/{p.relative_to(path).as_posix()}")
-    return buffer.getvalue(), f"{top}.zip"
+    target = folder / ".zips" / f"{build_id}.zip"
+    if not target.is_file():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(prefix=f".{build_id}.", suffix=".tmp", dir=target.parent)
+        os.close(fd)
+        try:
+            with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
+                files = sorted(p for p in path.rglob("*") if p.is_file())
+                files.sort(key=lambda p: p.name != "README.txt")
+                for p in files:
+                    zf.write(p, f"{top}/{p.relative_to(path).as_posix()}")
+            os.replace(tmp, target)
+        except BaseException:
+            Path(tmp).unlink(missing_ok=True)
+            raise
+    return target, f"{top}.zip"
 
 
 class OfflineSiteBuilder:
