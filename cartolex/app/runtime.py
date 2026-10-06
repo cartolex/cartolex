@@ -140,6 +140,7 @@ class Runtime:
         self.collection: CollectionService = settings.collection or UnavailableCollection()
         self.site_builder: SiteBuilder = settings.site_builder or default_site_builder()
         from .machine import MachineBudget, MachineKeys, MachineSnapshot
+        from .notices import NoticeMemory
 
         #: The keys saved on this computer (none on a hosted service).
         self.keys = MachineKeys(settings.data_dir if not settings.hosted else None)
@@ -169,6 +170,8 @@ class Runtime:
             ),
         )
         self.registry: Registry = extensions.registry(base)
+        #: The collection notices each person acknowledged (:mod:`cartolex.app.notices`).
+        self.notices = NoticeMemory(settings.data_dir)
         #: Preferences per principal when the app has no folder of its own (``/api/me``).
         self.preferences: dict[str, Any] = {}
         self.preferences_lock = threading.Lock()

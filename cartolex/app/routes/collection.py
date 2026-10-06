@@ -16,7 +16,7 @@ from ..etags import check_version, etag_of, expected_version, version_of
 from ..jobs import JobConflict, JobControl
 from ..messages import empty
 from ..people_io import read_people, write_people_csv
-from ..routing import Routes, runtime_of
+from ..routing import Routes, principal_of, runtime_of
 from .build import busy_error
 
 routes = Routes(tags=["collection"])
@@ -55,9 +55,24 @@ class CollectOptions(BaseModel):
     #: The checkpoint of a paused collection to resume (its options come from it).
     resume: Annotated[str | None, Field(pattern=r"^[a-z_]{1,40}-[0-9a-f]{16}$")] = None
     consent: bool = False
+    #: « Don't show this again »: with ``consent``, the notice of this kind of collection is
+    #: shown briefly from now on, until its content changes.
+    remember: bool = False
 
     def options(self) -> dict[str, Any]:
-        return self.model_dump(exclude={"action", "consent", "resume"}, exclude_none=True)
+        return self.model_dump(
+            exclude={"action", "consent", "remember", "resume"}, exclude_none=True
+        )
+
+
+def with_notice(request: Request, summary: dict[str, Any]) -> dict[str, Any]:
+    """The plan with the notice it asks for this person (:mod:`cartolex.app.notices`):
+    ``notice``, and ``consent_needed`` unless the level is ``none``."""
+    from ..notices import notice_level
+
+    runtime = runtime_of(request)
+    notice = notice_level(summary, runtime.notices.read(principal_of(request).id))
+    return {**summary, "notice": notice, "consent_needed": notice["level"] != "none"}
 
 
 @routes.get("/api/collection/plan", action="collection.read")
@@ -65,22 +80,25 @@ def plan(
     request: Request, ctx: ProjectDep, action: Annotated[Action, Query()] = "collect"
 ) -> dict[str, Any]:
     """What *action* would do with its default options, and what leaves the computer."""
-    return runtime_of(request).collection.plan(ctx.project, action, {})
+    return with_notice(request, runtime_of(request).collection.plan(ctx.project, action, {}))
 
 
 @routes.post("/api/collection/plan", action="collection.read")
 def plan_with(request: Request, body: CollectOptions, ctx: ProjectDep) -> dict[str, Any]:
     """What an action with these options would do, and what leaves the computer (and what
-    never does); nothing is sent."""
-    return runtime_of(request).collection.plan(ctx.project, body.action, body.options())
+    never does); nothing is sent. ``notice.level`` says how much of it to show."""
+    summary = runtime_of(request).collection.plan(ctx.project, body.action, body.options())
+    return with_notice(request, summary)
 
 
 @routes.post("/api/collection/start", action="collection.start")
 def start(request: Request, ctx: ProjectDep, body: CollectOptions | None = None) -> JSONResponse:
     """Start an action (a job; one job per project at a time: 409 names the running one).
 
-    When the plan asks consent (data leaves the computer), the request carries
-    ``consent: true``: the person has read the plan.
+    When the plan asks consent (its notice is ``brief`` or ``full``: people's names or
+    identifiers leave the computer, or the work is beyond the free daily budget), the
+    request carries ``consent: true``: the person has read the plan; with
+    ``remember: true`` too, this kind's notice is brief from now on.
     """
     runtime = runtime_of(request)
     service = runtime.collection
@@ -97,10 +115,13 @@ def start(request: Request, ctx: ProjectDep, body: CollectOptions | None = None)
         options = {**found, "resume": True}
         if body.openalex:  # resumed another way (a snapshot reading keeps its own checkpoint)
             options["openalex"] = body.openalex
-    summary = service.plan(project, action, options)
-    if summary.get("consent_needed") and not body.consent:
+    summary = with_notice(request, service.plan(project, action, options))
+    if summary["consent_needed"] and not body.consent:
         hosts = ", ".join(h["host"] for h in summary["leaves_the_computer"]) or "nobody"
         raise ApiError.of("consent_needed", hosts=hosts, extra={"plan": summary})
+    if body.consent and body.remember and summary["notice"]["personal"]:
+        notice = summary["notice"]
+        runtime.notices.acknowledge(principal_of(request).id, notice["kind"], notice["digest"])
     if summary.get("openalex"):  # the job reads OpenAlex the way its plan said
         options = {**options, "openalex": summary["openalex"]["chosen"]}
 

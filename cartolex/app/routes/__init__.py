@@ -20,6 +20,7 @@ from . import (
     maps,
     me,
     method,
+    notices,
     overview,
     params,
     people,
@@ -41,6 +42,7 @@ ROUTERS: list[APIRouter] = [
     for m in (
         app_routes,
         me,
+        notices,
         projects,
         state,
         overview,
