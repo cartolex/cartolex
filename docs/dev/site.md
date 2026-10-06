@@ -160,12 +160,16 @@ site's own map) and after (`cartolex-site/3`, the app's atlas):
 
 | | before | after |
 | --- | --- | --- |
-| size, without texts | 0.71 MB | 0.86 MB |
-| size, with titles | 1.24 MB | 1.39 MB |
-| build, without texts | 1.8 s | 2.0 s |
+| size, without texts | 0.71 MB | 1.13 MB |
+| size, with titles | 1.24 MB | 1.67 MB |
+| build, without texts | 1.8 s | 1.9 s |
+| build, with titles | 1.4 s | 1.5 s |
+| home ready (Chromium, `file://`) | 0.14 s | 0.14 s |
+| the map drawn | 0.3–0.4 s | 0.5 s (the atlas, treemap and card) |
 
 `data/core.js` is 0.24 MB (the theme shares of every person), the keywords'
-users 0.28 MB, the people's parts 0.14 MB, the links 0.03 MB.
+users 0.28 MB, the atlas's script 0.23 MB, the people's parts 0.14 MB, the
+links 0.03 MB.
 
 A sample of 86 543 mapped people (1 million texts, 21 790 organisations,
 9 938 keywords): gathering the data took 74 s and 4.2 GB at most (123 s and
