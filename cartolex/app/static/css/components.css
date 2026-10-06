@@ -1825,7 +1825,12 @@ a.cx-button:hover {
   font-size: var(--cx-text-s);
 }
 
-.cx-job__meta {
+.cx-job__when {
+  margin: 0;
+}
+
+.cx-job__meta,
+.cx-job__when {
   color: var(--cx-text-muted);
   font-size: var(--cx-text-s);
   font-variant-numeric: tabular-nums;

@@ -145,7 +145,11 @@ re-renders when it changes.
   the whole app**: every second while a job is queued or running or the
   Activity drawer is open, every twenty seconds otherwise, paused while the
   tab is hidden. When a job ends the project state refreshes and a toast
-  says so. A failed job stays listed until dismissed.
+  says so. A failed job stays listed until dismissed; the header stops
+  showing it once a later job of the same kind succeeded. Every entry of the
+  Activity drawer says when it reached its state (asked for, started,
+  finished, failed, waiting, paused, stopped), date and time in the interface
+  language.
 - **Preferences** (`core/stores/prefs.js`): theme, interface language and the
   jobs dismissed from the Activity list, kept by the app
   (`/api/me/preferences`, read beside the manifest at start and saved at every

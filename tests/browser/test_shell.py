@@ -238,6 +238,9 @@ def test_activity_indicator_drawer_and_cancel(ui, server):
     drawer = page.locator("dialog.cx-dialog--drawer[open]")
     drawer.wait_for()
     assert drawer.locator(".cx-job").count() == 2
+    when = drawer.locator(".cx-job__when")
+    assert when.count() == 2 and when.first.inner_text().startswith("Started ")
+    assert "2026" in when.first.inner_text()  # the date with the time
     drawer.get_by_role("button", name="Stop").click()
     page.wait_for_function(
         "() => [...document.querySelectorAll('.cx-job__state')]"
@@ -248,6 +251,21 @@ def test_activity_indicator_drawer_and_cancel(ui, server):
     page.keyboard.press("Escape")
     drawer.wait_for(state="hidden")
     assert ui.active()["classes"].startswith("cx-activity-indicator")  # focus returns
+
+
+def test_a_failure_made_good_by_a_later_job_of_its_kind_leaves_the_header(ui):
+    ui.open("/gallery")
+    found = ui.page.evaluate(
+        """async () => {
+          const { supersededBy } = await import('/static/core/stores/jobs.js');
+          const failed = { id: 'a', kind: 'build', state: 'failed', finished_at: '2026-10-01T10:00:00Z' };
+          const before = { id: 'b', kind: 'build', state: 'succeeded', finished_at: '2026-10-01T09:00:00Z' };
+          const other = { id: 'c', kind: 'collect', state: 'succeeded', finished_at: '2026-10-01T11:00:00Z' };
+          const after = { id: 'd', kind: 'build', state: 'succeeded', finished_at: '2026-10-01T11:00:00Z' };
+          return [supersededBy(failed, [failed, before, other]), supersededBy(failed, [after, failed])];
+        }"""
+    )
+    assert found[0] is None and found[1]["id"] == "d"
 
 
 @pytest.mark.slow

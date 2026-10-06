@@ -87,6 +87,19 @@ export function ActivityIndicator({ jobs, onOpen, buttonRef }) {
   </button>`;
 }
 
+/** When a job reached its state, as the language writes a date and time (« Failed 6 Oct
+ * 2026, 14:05 »), or nothing without a time. */
+function JobWhen({ job }) {
+  const at = {
+    queued: job.submitted_at, running: job.started_at, cancelling: job.started_at,
+    interrupted: job.started_at,
+  }[job.state] || job.finished_at || job.started_at || job.submitted_at;
+  const time = formatDate(at, 'datetime', 'medium');
+  return time && has(`job.when.${job.state}`)
+    ? html`<p class="cx-job__when"><time datetime=${at}>${t(`job.when.${job.state}`, { time })}</time></p>`
+    : null;
+}
+
 function JobItem({ job, jobs }) {
   const p = job.progress || {};
   const running = job.state === 'running' || job.state === 'queued' || job.state === 'cancelling';
@@ -101,6 +114,7 @@ function JobItem({ job, jobs }) {
       <h3 class="cx-job__title">${title}</h3>
       <span class="cx-job__state">${t(`job.state.${job.state}`)}</span>
     </div>
+    <${JobWhen} job=${job} />
     ${running ? html`<div class="cx-job__progress">
       <${ProgressBar} value=${job.state === 'queued' ? null : p.fraction} resetKey=${job.id}
         label=${t('job.progress_label', { title })} showValue />
@@ -117,8 +131,7 @@ function JobItem({ job, jobs }) {
         ${t(pauses ? 'job.pause' : 'job.cancel')}<//>` : null}
     </div>` : null}
     ${job.state === 'succeeded' ? html`<div class="cx-job__result">
-      <p class="cx-job__meta">${t('job.finished_at', { time: formatDate(job.finished_at, 'time', 'short') })}
-        ${jobResultSummary(job.result) ? html`${' · '}${jobResultSummary(job.result)}` : null}</p>
+      ${jobResultSummary(job.result) ? html`<p class="cx-job__meta">${jobResultSummary(job.result)}</p>` : null}
       <div class="cx-job__actions">
         ${job.result && job.result.link ? html`<a class="cx-link" href=${job.result.link}>
           ${t('job.open_result')}</a>` : null}

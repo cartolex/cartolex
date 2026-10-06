@@ -2734,5 +2734,14 @@
   "settings.snapshot.index_label": "Indexing command",
   "corpus.route.snapshot_indexed": "reads about {size} through its index, about {time}; nothing is sent to OpenAlex",
   "job.pause.harvest_stopped": "Paused at your request. The works of {n} of {total} people are kept: resume to go on.",
-  "job.pause.harvest_paused": "Collections failed several times in a row. The works of {n} of {total} people are kept: resume to go on, now or later."
+  "job.pause.harvest_paused": "Collections failed several times in a row. The works of {n} of {total} people are kept: resume to go on, now or later.",
+  "job.when.queued": "Asked for {time}",
+  "job.when.running": "Started {time}",
+  "job.when.cancelling": "Started {time}",
+  "job.when.succeeded": "Finished {time}",
+  "job.when.failed": "Failed {time}",
+  "job.when.interrupted": "Started {time}; it did not finish",
+  "job.when.waiting": "Waiting since {time}",
+  "job.when.paused": "Paused {time}",
+  "job.when.cancelled": "Stopped {time}"
 }
