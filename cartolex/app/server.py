@@ -1,16 +1,22 @@
 # SPDX-License-Identifier: MIT
-"""Running the app: a local server on a free loopback port, or a service for hosting.
+"""Running the app: a local server on a loopback port, or a service for hosting.
 
 :func:`serve` binds the socket itself (port 0 picks a free one), starts
 uvicorn on it with the app's JSON logs, and, locally, opens the browser at the
 launch link once the server listens. The link is also printed: it works once.
 With ``settings.idle_stop_s``, a watcher stops the server once no page has been
 open that long and no job runs (:mod:`cartolex.app.presence`).
+
+The local app keeps its address from one launch to the next (:func:`bind_remembered`):
+the browser keeps what a page stores per address (the theme, the drafts of the
+theme editor), and a new port would be a new address. It takes the port it had
+last time when that port is free, else :data:`PREFERRED_PORT`, else any free one.
 """
 
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 import socket
 import sys
@@ -27,7 +33,13 @@ if TYPE_CHECKING:
     from .extensions import Extension
     from .settings import AppSettings
 
-__all__ = ["default_data_dir", "serve"]
+__all__ = ["PREFERRED_PORT", "bind_remembered", "default_data_dir", "serve"]
+
+#: The port the local app tries when the one it had last time is taken (or on its first
+#: launch), below the range systems give to outgoing connections.
+PREFERRED_PORT = 28734
+#: The file of the app's folder that remembers its port.
+PORT_FILE = "port.json"
 
 
 def default_data_dir(name: str = "cartolex") -> Path:
@@ -59,16 +71,56 @@ def _bind(host: str, port: int) -> socket.socket:
     return sock
 
 
+def _remembered_port(path: Path) -> int | None:
+    try:
+        port = json.loads(path.read_text(encoding="utf-8")).get("port")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return port if isinstance(port, int) and 0 < port < 65536 else None
+
+
+def bind_remembered(
+    host: str, data_dir: Path | None, preferred: int = PREFERRED_PORT
+) -> socket.socket:
+    """A listening socket on the port the app had last time when it is free, else on
+    *preferred*, else on any free port; the port taken is remembered in *data_dir*
+    (``port.json``) for the next launch."""
+    path = Path(data_dir) / PORT_FILE if data_dir is not None else None
+    last = _remembered_port(path) if path is not None else None
+    sock = None
+    for candidate in dict.fromkeys(p for p in (last, preferred) if p):
+        try:
+            sock = _bind(host, candidate)
+            break
+        except OSError:  # taken by another program (or another cartolex)
+            continue
+    if sock is None:
+        sock = _bind(host, 0)
+    port = sock.getsockname()[1]
+    if path is not None and port != last:
+        from cartolex.project.files import atomic_write_bytes, json_bytes
+
+        with contextlib.suppress(OSError):
+            atomic_write_bytes(
+                path, json_bytes({"format": "cartolex-port/1", "port": port}), durable=False
+            )
+    return sock
+
+
 def serve(
     settings: AppSettings,
     extensions: Sequence[Extension] = (),
     *,
     host: str = "127.0.0.1",
-    port: int = 0,
+    port: int | None = 0,
     open_browser: bool = True,
     announce: bool = True,
 ) -> int:
-    """Run the app until interrupted; returns the exit status."""
+    """Run the app until interrupted; returns the exit status.
+
+    *port* ``None`` takes the port the app had last time (:func:`bind_remembered`,
+    remembered in ``settings.data_dir``); ``0`` any free port.
+    """
     import uvicorn
 
     from .app import create_app
@@ -76,7 +128,7 @@ def serve(
     configure_logging()
     app = create_app(settings, extensions)
     runtime = app.state.cartolex
-    sock = _bind(host, port)
+    sock = bind_remembered(host, settings.data_dir) if port is None else _bind(host, port)
     bound = sock.getsockname()[1]
     shown = "127.0.0.1" if host in ("0.0.0.0", "::") else host
     shown = f"[{shown}]" if ":" in shown else shown

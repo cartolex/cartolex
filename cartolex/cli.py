@@ -405,6 +405,7 @@ def _app_settings(args: argparse.Namespace, *, hosted: bool, stack: object = Non
         allowed_hosts=tuple(getattr(args, "allowed_host", None) or ()),
         secure_cookies=bool(getattr(args, "secure_cookies", False)),
         idle_stop_s=None if hosted else _idle_stop(args),
+        reopen_last=not hosted and args.verb != "api" and args.folder is None,
         ai_access=AIAccess(api_key=key) if key else None,
         collection=_collection(args, stack) if stack is not None else None,  # type: ignore[arg-type]
     )
@@ -543,7 +544,12 @@ def _parser(extensions: Sequence[Extension] = ()) -> argparse.ArgumentParser:
 
     app = sub.add_parser("app", help="open the app in the browser (the default)")
     app.add_argument("folder", type=Path, nargs="?", help="the project to open")
-    app.add_argument("--port", type=int, default=0, help="the port (default: a free one)")
+    app.add_argument(
+        "--port",
+        type=int,
+        help="the port (default: the one of the last launch when free, so the browser keeps "
+        "its settings; 0: any free one)",
+    )
     app.add_argument("--no-browser", action="store_true", help="print the link, open nothing")
     app.add_argument(
         "--idle-stop",

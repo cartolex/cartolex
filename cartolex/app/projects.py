@@ -192,6 +192,27 @@ class LocalProjects(ProjectHost):
             self._remember(project)
             return self._current
 
+    def reopen_last(self) -> ProjectHandle | None:
+        """Open the project opened last, when it is still there and no other app holds it;
+        else nothing (the interface then shows the start screen)."""
+        import logging
+
+        with self._lock:
+            last = self._recent[0] if self._recent else None
+        if last is None:
+            return None
+        root = Path(last["path"])
+        if not ProjectLayout(root).project_json.exists():
+            return None
+        try:
+            return self.open(root)
+        except Exception as exc:  # held elsewhere, moved, unreadable: the start screen
+            logging.getLogger("cartolex.app").info(
+                "the last project was not opened again",
+                extra={"event": "reopen_skipped", "error": type(exc).__name__},
+            )
+            return None
+
     def adopt(self, project: Project) -> ProjectHandle:
         """Make a project just created (open for writing) the current one."""
         with self._lock:

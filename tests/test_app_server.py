@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -29,7 +30,7 @@ def test_no_argument_opens_the_app(monkeypatch, tmp_path):
     monkeypatch.setattr("cartolex.app.server.serve", serve)
     assert main([]) == 0
     assert seen["settings"].mode == "local" and seen["settings"].project is None
-    assert seen["open_browser"] is True and seen["host"] == "127.0.0.1" and seen["port"] == 0
+    assert seen["open_browser"] is True and seen["host"] == "127.0.0.1" and seen["port"] is None
     root = fake_project(tmp_path / "p")
     assert main(["app", str(root), "--no-browser", "--data-dir", str(tmp_path / "d")]) == 0
     assert seen["settings"].project == root and seen["open_browser"] is False
@@ -41,6 +42,30 @@ def test_no_argument_opens_the_app(monkeypatch, tmp_path):
     assert hosted.mode == "hosted" and hosted.allowed_hosts == ("maps.example.org",)
     assert seen["open_browser"] is False and seen["port"] == 8000
     assert main(["api", str(root), "--projects-root", str(tmp_path)]) == 1
+
+
+def test_the_local_app_keeps_its_port_from_one_launch_to_the_next(tmp_path):
+    from cartolex.app.server import bind_remembered
+
+    taken = socket.socket()
+    taken.bind(("127.0.0.1", 0))
+    taken.listen(1)
+    busy = taken.getsockname()[1]
+    try:
+        first = bind_remembered("127.0.0.1", tmp_path, preferred=busy)  # preferred taken
+        port = first.getsockname()[1]
+        assert port != busy
+        first.close()
+        again = bind_remembered("127.0.0.1", tmp_path, preferred=busy)
+        assert again.getsockname()[1] == port  # the same address: the browser keeps its data
+        # the remembered port taken by another program: another one, remembered in turn
+        other = bind_remembered("127.0.0.1", tmp_path, preferred=busy)
+        assert other.getsockname()[1] not in (port, busy)
+        assert json.loads((tmp_path / "port.json").read_text())["port"] == other.getsockname()[1]
+        again.close()
+        other.close()
+    finally:
+        taken.close()
 
 
 def test_an_extension_adds_its_verbs(capsys):

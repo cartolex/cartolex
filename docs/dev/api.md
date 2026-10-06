@@ -12,7 +12,7 @@ app = create_app(AppSettings(project=folder))       # an ASGI app, e.g. for uvic
 ```
 
 ```bash
-cartolex                         # the app on a free loopback port, in the browser
+cartolex                         # the app on a loopback port, in the browser (the last project)
 cartolex app my-project          # the same, with this project open
 cartolex api my-project --host 0.0.0.0 --allowed-host maps.example.org   # hosting
 cartolex api --projects-root /srv/projects --allowed-host maps.example.org

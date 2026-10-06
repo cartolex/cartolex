@@ -74,8 +74,9 @@ def create_app(
 
     Without extensions it is cartolex's own app. Locally, the project of
     ``settings.project`` is opened for writing now (its lock is taken; a held
-    lock raises :class:`~cartolex.project.LockHeld`) and closed when the app
-    stops. Extensions are checked (:class:`~cartolex.app.ExtensionError`).
+    lock raises :class:`~cartolex.project.LockHeld`), else, with
+    ``settings.reopen_last``, the project opened last when it can be; it is closed
+    when the app stops. Extensions are checked (:class:`~cartolex.app.ExtensionError`).
     """
     from cartolex.project.project import cartolex_version
 
@@ -87,6 +88,8 @@ def create_app(
     runtime = Runtime(settings, combined)
     if settings.project is not None and not settings.hosted:
         runtime.projects.open(settings.project)  # type: ignore[attr-defined]
+    elif settings.reopen_last and not settings.hosted:
+        runtime.projects.reopen_last()  # type: ignore[attr-defined]
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
