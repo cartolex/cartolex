@@ -1020,8 +1020,9 @@ STAGES = Registry(
             # version 2: without the AI clean-up, the set-aside band does not
             # reach the vocabulary either (an explicit keep still wins); version 3:
             # the keywords' categories (categories.json); version 4: each person's whole row
-            # of the lexicon (models/person_terms.json), and the copilot's acceptance gate
-            version=4,
+            # of the lexicon (models/person_terms.json), and the copilot's acceptance gate;
+            # version 5: an empty name in those matrices' ids is empty, as the roster reads it
+            version=5,
             decisions=("decisions/keywords.csv",),
             project=("languages",),
             params=(

@@ -141,15 +141,10 @@ def band_allowed_concepts(raw: pd.DataFrame, keep: Collection[str]) -> set[str] 
 
 def researcher_ids(meta: pd.DataFrame) -> list[str]:
     """The researcher id of each row of *meta* (``last_name``, ``first_name``, ``unit``), as
-    the roster and the space make it from their CSV files (an empty value reads ``nan``)."""
-
-    def cell(value: object) -> str:
-        if value is None or (isinstance(value, float) and np.isnan(value)) or value == "":
-            return "nan"
-        return str(value).strip()
-
+    the space makes it from the roster (:func:`~cartolex.atlas.io.load_index`, which reads
+    these columns as text: an empty name is empty, a person without a unit is ``NA``)."""
     return [
-        make_researcher_id(cell(a), cell(b), cell(c))
+        make_researcher_id(a, b, c)
         for a, b, c in zip(meta["last_name"], meta["first_name"], meta["unit"], strict=True)
     ]
 

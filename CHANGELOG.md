@@ -208,6 +208,14 @@ nothing in the engine names a particular deployment, source or procedure.
   about the others; the proposal's people are paged and searched; the levels
   are set at the take. `/people?person=`, `?tab=organisations&org=` and
   `?tab=texts&text=` open a sheet, which links to the map.
+- **People without a unit reach the map.** The space reads the roster's names
+  and units as written: pandas' default reading turned the unit `NA` of a
+  person without one into a missing value, so their id no longer matched the
+  stored people × keywords matrices and they left the space (a project of
+  people taken from an institution failed at « place keywords in a common
+  space »). A missing unit has one id however a table writes it (empty or
+  `NA`), forms no organisation on the map, and joins the person's project id
+  in the themes' tables and the map. `keywords.build` rises to version 5.
 - **The documentation in the app.** `tools/build_docs.py` builds these pages
   into the package (`cartolex/app/static/docs/`, not tracked); the app serves
   them at `/static/docs/` and links to them from its header (Documentation),

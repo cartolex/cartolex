@@ -36,6 +36,8 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from cartolex.lexicon.utils import unit_value
+
 __all__ = [
     "BASE_FORMAT",
     "add_base",
@@ -78,12 +80,13 @@ def _mean(points: Iterable[tuple[float, float]]) -> tuple[float, float] | None:
 
 
 def _person_ids(ctx: Any) -> dict[tuple[str, str, str], str]:
-    """The engine's (last name, first name, unit) → the project's person id."""
+    """The engine's (last name, first name, unit) → the project's person id (the unit as
+    the engine names it: a person without one is ``NA`` there, empty in the corpus)."""
     corpus = ctx.layout.stage("corpus.assemble")
     out: dict[tuple[str, str, str], str] = {}
     for slot in ctx.project.config.slots:
         for r in _rows(corpus / slot.id / "people.csv"):
-            out[(r["last_name"], r["first_name"], r["unit"])] = r["person_id"]
+            out[(r["last_name"], r["first_name"], unit_value(r["unit"]))] = r["person_id"]
     return out
 
 
@@ -230,7 +233,7 @@ def terms_of_people(ctx: Any) -> dict[str, list[tuple[str, float]]]:
     out: dict[str, list[tuple[str, float]]] = defaultdict(list)
     path = ctx.layout.stage("keywords.build") / "keywords_by_researcher_restricted.csv"
     for r in _rows(path):
-        pid = ids.get((r["last_name"], r["first_name"], r["unit"]))
+        pid = ids.get((r["last_name"], r["first_name"], unit_value(r["unit"])))
         if not pid:
             continue
         try:

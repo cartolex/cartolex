@@ -10,6 +10,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from cartolex.lexicon.utils import NO_UNIT, unit_value
+
 from .types import Embeddings, LexicalData, col_sums
 
 logger = logging.getLogger(__name__)
@@ -87,7 +89,8 @@ def aggregate_labs(
 
     One row per value of the group column (``unit``) with at least
     *min_researchers_per_lab* persons, sorted by group; the group value is also
-    its label on the maps.
+    its label on the maps. People without a unit (``NA``, or a missing value) form
+    no group; when nobody has one, the table is empty.
     """
     if emb.umap_ind is None:
         raise ValueError("UMAP embeddings not computed for individuals.")
@@ -96,6 +99,7 @@ def aggregate_labs(
     df["umap_x"] = emb.umap_ind[:, 0]
     df["umap_y"] = emb.umap_ind[:, 1]
 
+    df = df[[unit_value(u) != NO_UNIT for u in df["unit"]]]
     rows = []
     for unit, grp in df.groupby("unit"):
         if len(grp) < min_researchers_per_lab:
@@ -111,7 +115,7 @@ def aggregate_labs(
             row.update(cov)
         rows.append(row)
 
-    df_labs = pd.DataFrame(rows)
+    df_labs = pd.DataFrame(rows, columns=None if rows else ["unit", "umap_x", "umap_y", "size"])
     df_labs = df_labs.sort_values("unit")
     return df_labs
 
@@ -667,7 +671,7 @@ def plot_lab_panels(
             else pd.DataFrame(columns=df_terms.columns)
         )
 
-    units_list = df_ind["unit"].astype(str).replace("nan", np.nan).dropna().unique()
+    units_list = [u for u in df_ind["unit"].astype(str).unique() if unit_value(u) != NO_UNIT]
     units_list = sorted(u for u in units_list if u in wanted)
 
     for unit in units_list:

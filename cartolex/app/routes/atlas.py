@@ -26,6 +26,8 @@ from typing import Annotated, Any, Literal
 from fastapi import Query, Request, Response
 from fastapi.responses import JSONResponse
 
+from cartolex.lexicon.utils import unit_value
+
 from ..deps import ProjectDep
 from ..errors import ApiError
 from ..messages import empty
@@ -157,7 +159,7 @@ def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
     engine_to_person: dict[str, str] = {}
     for r in _rows(mapf / "umap_individuals.csv"):
         rid = r.get("id", "")
-        pid = identity.get((r["last_name"], r["first_name"], r["unit"]), "")
+        pid = identity.get(_identity_key(r), "")
         engine_to_person[rid] = pid
         people.append(
             {
@@ -268,13 +270,19 @@ def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
     }
 
 
+def _identity_key(row: dict[str, str]) -> tuple[str, str, str]:
+    """A row's (last name, first name, unit), the unit as the engine names it: a person
+    without one is ``NA`` in the engine's tables and empty in the corpus's."""
+    return (row["last_name"], row["first_name"], unit_value(row["unit"]))
+
+
 def _identities(ctx: Any) -> dict[tuple[str, str, str], str]:
-    """The engine's identity of each person (last name, first name, unit) → their id."""
+    """The engine's identity of each person (:func:`_identity_key`) → their id."""
     corpus = ctx.layout.stage("corpus.assemble")
     identity: dict[tuple[str, str, str], str] = {}
     for slot in ctx.project.config.slots:
         for r in _rows(corpus / slot.id / "people.csv"):
-            identity[(r["last_name"], r["first_name"], r["unit"])] = r["person_id"]
+            identity[_identity_key(r)] = r["person_id"]
     return identity
 
 
@@ -341,7 +349,7 @@ def build_windows(ctx: Any) -> dict[str, Any]:
     identity = _identities(ctx)
     order: dict[str, int] = {}
     for k, r in enumerate(_rows(layout.stage("map.layout") / "umap_individuals.csv")):
-        if identity.get((r["last_name"], r["first_name"], r["unit"])):
+        if identity.get(_identity_key(r)):
             order.setdefault(r.get("id", ""), k)
     rid = pc.dictionary_encode(points["researcher_id"].combine_chunks())
     rid_names = rid.dictionary.to_pylist()
