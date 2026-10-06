@@ -249,6 +249,19 @@ nothing in the engine names a particular deployment, source or procedure.
   about the others; the proposal's people are paged and searched; the levels
   are set at the take. `/people?person=`, `?tab=organisations&org=` and
   `?tab=texts&text=` open a sheet, which links to the map.
+- **Screens that scroll to their end, a word cloud on the overview, merges above a
+  likelihood.** The people's and keywords' screens and the theme editor no longer have a
+  fixed height: what does not fit (an open « Tune » panel, the lexicon's word cloud,
+  banners) pushes their list down and the page scrolls to the end, instead of squeezing
+  the list to a few rows or cutting it (`tests/browser/test_layout.py` scrolls every
+  screen and tab). Once the keywords are built, the overview shows their word cloud
+  (`GET /api/overview` `lexicon`), leading to Keywords › Lexicon; the cloud follows the
+  person's colour scheme (`hues=`), and a scheme of one colour per theme no longer paints
+  every theme in its first colour. « Merge above a likelihood… » merges every pair of
+  people at least as likely as a threshold (50 % at first) after a preview, in one
+  undoable step (`POST /api/people/duplicates/auto` `min_score`); no automatic merge
+  joins two people of a decided pair through a third. The documentation shows the logo
+  once, at a mark's size; the app's About page shows it beside its title.
 - **People without a unit reach the map.** The space reads the roster's names
   and units as written: pandas' default reading turned the unit `NA` of a
   person without one into a missing value, so their id no longer matched the
