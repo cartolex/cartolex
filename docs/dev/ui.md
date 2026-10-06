@@ -336,7 +336,10 @@ the triage with AI (« Triage with AI », the primary button): with a copilot
 set aside by default, cut into parts; its results imported, merged and
 reviewed term by term, `review.js`, with the kit's counts and caveats; accept
 all or some) and by API (`api.js`: what is sent, the estimate of calls and tokens,
-consent, a build job). Opening it reads one page of the list.
+consent, a build job). Opening it reads one page of the list. Once a copilot's
+triage is accepted for the current extraction, a note counts the candidates nobody
+judged that the acceptance gate keeps out (`gate.js`), with « Send them to the AI »
+(the copilot's dialog on them alone) and « Keep them anyway » (after a question).
 
 The corpus screen (`pages/people.js`, route `/people`) loads
 `pages/people/page.js`: the tabs People (`people-tab.js`), Identities

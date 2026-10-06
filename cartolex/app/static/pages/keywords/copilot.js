@@ -18,18 +18,19 @@ import {
 } from '../copilot/parts.js';
 import { Review, itemKey } from './review.js';
 
-const SCOPES = ['all', 'both', 'check'];
+const SCOPES = ['all', 'both', 'check', 'unjudged'];
 const PARTS = [1, 2, 3, 4, 6, 8, 12];
 
 /**
  * @param {object} props
  * @param {object} props.ctx the page's context
+ * @param {string} [props.scope] the candidates to send first (`unjudged`: those nobody judged)
  * @param {Function} props.onClose
  * @param {(message: string) => void} props.onDone after an accept
  */
-export function KeywordCopilotDialog({ ctx, onClose, onDone }) {
+export function KeywordCopilotDialog({ ctx, scope: initialScope = 'all', onClose, onDone }) {
   const [step, setStep] = useState('export');
-  const [scope, setScope] = useState('all');
+  const [scope, setScope] = useState(initialScope);
   const [lines, setLines] = useState(false);
   const [parts, setParts] = useState(0); // 0: as the summary suggests
   const [summary, setSummary] = useState(null);

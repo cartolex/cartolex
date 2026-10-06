@@ -235,7 +235,14 @@ tables with their reason. The AI clean-up judges every band but the rejected
 one (`scoring.AI_BANDS`), so that a candidate a rule set aside can be rescued;
 with its decisions, the consolidation keeps only accepted terms (its
 acceptance gate), so a rejected candidate reaches the lexicon only if the same
-concept is accepted under another form. Without the AI clean-up, the consolidation's
+concept is accepted under another form. Once a copilot's triage is accepted
+for the current extraction (a decision of `keywords.csv` from the copilot made
+after the extraction ran), the same acceptance gate applies: only the terms
+with an accepting decision (a keep, the AI's or a person's, and a merge's
+target; `cartolex.build.engine.copilot_gate`, written as
+`keywords.build/decisions/accepted.csv`) enter, and the keywords screen counts
+the candidates nobody judged that it keeps out (« send them to the AI », « keep
+them anyway »). Without the AI clean-up, the consolidation's
 band gate (`consolidation.band_allowed_concepts`) keeps a concept only when
 one of its raw terms is in the kept or to-check band, so the set-aside band
 does not reach the lexicon either. Either way an explicit keep wins: the

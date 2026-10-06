@@ -969,3 +969,9 @@ nothing in the engine names a particular deployment, source or procedure.
   is advanced and empty by default (a number brings the old rows back); the
   stage's version rises to 4, so every project's vocabulary and what follows
   are built again ({doc}`dev/themes-engine`).
+- **A copilot's triage gates the vocabulary.** Once a copilot's triage is
+  accepted for the current extraction, only the keywords with an accepting
+  decision (a keep, the AI's or a person's, and a merge's target) enter the
+  vocabulary, as with the AI clean-up by API. The keywords screen counts the
+  candidates nobody judged that stay out, and sends them alone to the copilot
+  (scope `unjudged`) or keeps them anyway.

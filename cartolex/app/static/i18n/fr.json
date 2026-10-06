@@ -2735,5 +2735,13 @@
   "corpus.route.snapshot_indexed": "lit environ {size} grâce à son index, environ {time} ; rien n’est envoyé à OpenAlex",
   "job.pause.harvest_stopped": "En pause à votre demande. Les travaux de {n} personnes sur {total} sont gardés : reprenez pour continuer.",
   "job.pause.harvest_paused": "Des collectes ont échoué plusieurs fois de suite. Les travaux de {n} personnes sur {total} sont gardés : reprenez pour continuer, maintenant ou plus tard.",
-  "param.unset.keywords_per_person": "Tous ceux qu'elle emploie"
+  "param.unset.keywords_per_person": "Tous ceux qu'elle emploie",
+  "keywords.unjudged.title": "{n, plural, one {# candidat non jugé} other {# candidats non jugés}}.",
+  "keywords.unjudged.text": "Le tri de votre copilote a été accepté : dès la prochaine construction, seuls les mots-clés que quelqu'un a acceptés entrent dans le vocabulaire ; ces candidats restent dehors tant qu'ils ne sont pas jugés.",
+  "keywords.unjudged.send": "Les envoyer à l'IA",
+  "keywords.unjudged.keep": "Les garder quand même",
+  "keywords.unjudged.confirm_title": "{n, plural, one {Garder # candidat que personne n'a jugé ?} other {Garder # candidats que personne n'a jugés ?}}",
+  "keywords.unjudged.confirm_text": "Ils entrent dans le vocabulaire à la prochaine construction, comme si vous aviez gardé chacun. Vous pouvez l'annuler depuis l'historique des décisions.",
+  "keywords.unjudged.reason": "gardé sans jugement",
+  "keywords.ai.scope.unjudged": "Pas encore jugés (retenus et à vérifier)"
 }

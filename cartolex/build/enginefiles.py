@@ -115,6 +115,7 @@ ENGINE_FILES: dict[str, Place] = {
     "overrides_template_json": NotProvided(_SETTINGS),
     "manual_blacklist_csv": Owned("keywords.build", "decisions/excluded.csv"),
     "manual_keep_csv": Owned("keywords.build", "decisions/kept.csv"),
+    "accepted_csv": Owned("keywords.build", "decisions/accepted.csv"),
     "canonical_decisions_json": NotProvided("keyword decisions come from decisions/keywords.csv"),
     "whitelist_json": NotProvided(_OPERATOR),
     "person_whitelist_csv": NotProvided(_OPERATOR),

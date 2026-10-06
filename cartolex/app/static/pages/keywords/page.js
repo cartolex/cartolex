@@ -18,6 +18,7 @@ import { KeywordList } from './list.js';
 import { HistoryDrawer, MergeDialog } from './dialogs.js';
 import { ApiDialog } from './api.js';
 import { KeywordCopilotDialog } from './copilot.js';
+import { UnjudgedNote } from './gate.js';
 import { TunePanel } from '../tune/panel.js';
 
 function bandOf(query) {
@@ -74,6 +75,7 @@ export function KeywordsScreen() {
     setDialog(null);
     toast({ kind: 'success', title: message });
     bump();
+    app.stores.project.refresh(); // a decision makes the vocabulary out of date
   };
 
   return html`<div class="cx-page cx-corpus cx-kw">
@@ -93,6 +95,9 @@ export function KeywordsScreen() {
     </header>
     ${data && data.warning ? html`<${LanguagesWarning} warning=${data.warning}
       onFilter=${() => setDialog({ kind: 'copilot' })} />` : null}
+    ${data && data.gate && data.gate.mode === 'copilot' && data.gate.unjudged ? html`<${UnjudgedNote}
+      ctx=${ctx} gate=${data.gate} version=${data.etag} onDone=${finished}
+      onSend=${() => setDialog({ kind: 'copilot', scope: 'unjudged' })} />` : null}
     <${TunePanel} ctx=${ctx} id="keywords" />
     <${Slot} slots=${app.registries.slots} name="keywords.cards" class="cx-grid" />
     ${data && data.orphan_count ? html`<p class="cx-corpus__note" role="note">${t('keywords.orphans', {
@@ -107,7 +112,7 @@ export function KeywordsScreen() {
     ${dialog && dialog.kind === 'history' ? html`<${HistoryDrawer} ctx=${ctx} version=${version}
       onClose=${closeDialog} onChanged=${bump} toast=${toast} />` : null}
     ${dialog && dialog.kind === 'copilot' ? html`<${KeywordCopilotDialog} ctx=${ctx}
-      onClose=${closeDialog} onDone=${finished} />` : null}
+      scope=${dialog.scope} onClose=${closeDialog} onDone=${finished} />` : null}
     ${dialog && dialog.kind === 'api' ? html`<${ApiDialog} ctx=${ctx} onClose=${closeDialog}
       onStarted=${(job) => {
         setDialog(null);

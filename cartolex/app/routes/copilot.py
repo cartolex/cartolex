@@ -439,8 +439,14 @@ def themes_proposal(request: Request, proposal_id: CopilotId, ctx: ProjectDep) -
 
 # ── triage ───────────────────────────────────────────────────────────────────
 
-Scope = Literal["all", "both", "check"]
-SCOPES = {"all": ["kept", "check", "aside"], "both": ["kept", "check"], "check": ["check"]}
+Scope = Literal["all", "both", "check", "unjudged"]
+SCOPES = {
+    "all": ["kept", "check", "aside"],
+    "both": ["kept", "check"],
+    "check": ["check"],
+    # the candidates nobody judged that the copilot's acceptance gate keeps out
+    "unjudged": ["kept", "check"],
+}
 
 
 def _triage_items(request: Request, ctx: Any, scope: str) -> tuple[list[dict[str, Any]], int, int]:
@@ -452,12 +458,13 @@ def _triage_items(request: Request, ctx: Any, scope: str) -> tuple[list[dict[str
     from cartolex.lexicon.rejects import shipped_terms
     from cartolex.lexicon.scoring import AI_BANDS
 
-    from .keywords import AI_SOURCES, _decisions, _effective, extracted, machine_rejects
+    from .keywords import AI_SOURCES, _decisions, _effective, extracted, gate_of, machine_rejects
 
     rows, run_id = extracted(runtime_of(request), ctx)
     if run_id is None:
         raise ApiError.of("no_keywords")
     decisions, _ = _decisions(ctx)
+    accepted = gate_of(decisions, run_id, None)[1] if scope == "unjudged" else set()
     corpus = read_record(ctx.layout, "corpus.assemble")
     n_people = max(1, (corpus.measures.counts if corpus else {}).get("people", 0))
     bands = SCOPES[scope]
@@ -479,6 +486,10 @@ def _triage_items(request: Request, ctx: Any, scope: str) -> tuple[list[dict[str
         if row["band"] not in AI_BANDS or view["band"] not in bands:
             continue
         if decision is not None and decision["source"] in AI_SOURCES:
+            continue
+        if scope == "unjudged" and (
+            decision is not None or row["term"].strip().lower() in accepted
+        ):
             continue
         if listed(row["term"], row["language"]):
             dropped += 1

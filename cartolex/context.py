@@ -82,6 +82,9 @@ class EnginePaths:
     overrides_template_json: Path  # fallback for the domain title
     manual_blacklist_csv: Path
     manual_keep_csv: Path
+    #: The terms the copilot's acceptance gate lets in (one per line, ``term`` header);
+    #: absent, the bands decide (see cartolex.lexicon.consolidation).
+    accepted_csv: Path
     canonical_decisions_json: Path
     whitelist_json: Path
     person_whitelist_csv: Path
@@ -187,6 +190,7 @@ class EnginePaths:
             overrides_template_json=config / "overrides_template.json",
             manual_blacklist_csv=manual / "manual_blacklist.csv",
             manual_keep_csv=manual / "manual_keep.csv",
+            accepted_csv=manual / "manual_accepted.csv",
             canonical_decisions_json=manual / "canonical_decisions.json",
             whitelist_json=manual / "whitelist.json",
             person_whitelist_csv=manual / "person_whitelist.csv",

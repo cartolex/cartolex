@@ -349,10 +349,15 @@ def _run_pipeline_core(
     # This discards terms that were below the score cutoff and never sent
     # to the LLM in the first place.
     llm_accepted = set(llm_decisions.get("accepted", []))
-    if llm_accepted:
+    # The copilot's acceptance gate (``paths.accepted_csv``, lower case): once a copilot's
+    # triage was accepted for this extraction, only the terms with an accepting decision
+    # enter, as with the AI by API.
+    copilot_accepted = load_manual_blacklist(paths.accepted_csv)
+    if llm_accepted or copilot_accepted:
+        accepted = llm_accepted | copilot_accepted
         # Build the set of allowed concepts: anything the LLM accepted maps to
         allowed_concepts = set()
-        for t in llm_accepted:
+        for t in accepted:
             allowed_concepts.add(t)
             c = canon_map.get(t)
             if c:
@@ -361,12 +366,17 @@ def _run_pipeline_core(
         n_before = len(df_refined)
         df_refined = df_refined[
             df_refined["concept"].isin(allowed_concepts)
-            | df_refined["term"].isin(llm_accepted)
+            | df_refined["term"].isin(accepted)
             | df_refined["term"].isin(manual_keep)
+            | df_refined["term"].astype(str).str.lower().isin(copilot_accepted)
+            | df_refined["concept"].astype(str).str.lower().isin(copilot_accepted)
         ]
         n_dropped = n_before - len(df_refined)
         if n_dropped:
-            report(29, f"LLM acceptance gate removed {n_dropped} terms not seen by LLM")
+            if llm_accepted:
+                report(29, f"LLM acceptance gate removed {n_dropped} terms not seen by LLM")
+            else:
+                report(29, f"Copilot acceptance gate removed {n_dropped} terms nobody accepted")
     else:
         # Band gate: without LLM decisions, the set-aside band does not reach
         # the lexicon either (with them, the acceptance gate drops it: the LLM
@@ -681,7 +691,8 @@ def run_pipeline(ctx: RunContext, *, progress_callback=None) -> None:
 
     Reads the raw keyword tables, the triage decisions and the operator
     files named by ``ctx.paths``; applies the run's stop-word additions and
-    removals (``ctx.stopwords``). With triage decisions, only accepted terms
+    removals (``ctx.stopwords``). With triage decisions (by API, or a copilot's
+    accepted for this extraction: ``ctx.paths.accepted_csv``), only accepted terms
     reach the lexicon; without them, every candidate but the set-aside band
     (see :func:`band_allowed_concepts`); an explicit keep wins either way.
     Writes the refined lists, the people × keywords matrices
