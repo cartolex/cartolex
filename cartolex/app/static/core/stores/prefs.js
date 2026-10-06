@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 /**
  * The person's interface preferences: theme, interface language, the jobs
- * they dismissed from the Activity list.
+ * they dismissed from the Activity list, and a few other settings by key (`get(key)`,
+ * `set(key, value)`: the atlas's layout, the colour scheme of the themes).
  *
  * They are kept by the app (`GET` and `PUT /api/me/preferences`), so they
  * outlive the browser's own storage; the browser's local storage keeps a copy
@@ -41,10 +42,10 @@ export function createPrefs(storage = safeStorage()) {
   const theme = signal(THEMES.includes(saved.theme) ? saved.theme : 'system');
   const locale = signal(typeof saved.locale === 'string' ? saved.locale : null);
   const dismissedJobs = signal(Array.isArray(saved.dismissedJobs) ? saved.dismissedJobs.slice(-MAX_DISMISSED) : []);
+  const other = signal(saved.other && typeof saved.other === 'object' ? saved.other : {});
   // No copy at all (a new address, a cleared cache): the app's preferences are taken.
   const copied = Object.keys(saved).length > 0;
   let at = typeof saved.at === 'number' ? saved.at : null;
-  let other = {};
   let server = null;
   // The effect's first run and the values taken from the app are not changes.
   let quiet = true;
@@ -52,7 +53,7 @@ export function createPrefs(storage = safeStorage()) {
   let sending = false;
   let again = false;
   const keep = () => {
-    const data = { theme: theme.value, locale: locale.value, dismissedJobs: dismissedJobs.value, at };
+    const data = { theme: theme.value, locale: locale.value, dismissedJobs: dismissedJobs.value, other: other.value, at };
     try {
       if (storage) storage.setItem(PREFS_KEY, JSON.stringify(data));
     } catch {
@@ -70,14 +71,14 @@ export function createPrefs(storage = safeStorage()) {
       again = false;
       await server.put(PREFS_URL, {
         theme: theme.value, locale: locale.value, dismissed_jobs: dismissedJobs.value,
-        saved_at: at, other,
+        saved_at: at, other: other.value,
       });
     } while (again);
     sending = false;
   };
   const dispose = effect(() => {
     // Read every signal here, so the effect runs again on any change.
-    const values = [theme.value, locale.value, dismissedJobs.value];
+    const values = [theme.value, locale.value, dismissedJobs.value, other.value];
     if (values.length && !quiet) {
       at = Date.now();
       keep();
@@ -89,6 +90,16 @@ export function createPrefs(storage = safeStorage()) {
     theme,
     locale,
     dismissedJobs,
+    other,
+    /** A setting kept by key (the atlas's layout, the colour scheme), or undefined. */
+    get(key) {
+      return other.value[key];
+    },
+    /** Keep a setting by key (a string, a number or a boolean). */
+    set(key, value) {
+      if (other.value[key] === value) return;
+      other.value = { ...other.value, [key]: value };
+    },
     /**
      * Take what the app kept (`GET /api/me/preferences`'s answer) when it is newer than
      * the browser's copy, else send the browser's copy; then save every change through
@@ -97,7 +108,7 @@ export function createPrefs(storage = safeStorage()) {
     connect(answer, client) {
       const kept = answer && answer.stored ? answer.preferences || {} : null;
       server = client;
-      if (kept && kept.other && typeof kept.other === 'object') other = kept.other;
+      const keptOther = kept && kept.other && typeof kept.other === 'object' ? kept.other : {};
       const keptAt = kept && typeof kept.saved_at === 'number' ? kept.saved_at : 0;
       if (kept && (!copied || (at !== null && keptAt >= at))) {
         quiet = true;
@@ -105,9 +116,13 @@ export function createPrefs(storage = safeStorage()) {
         if (THEMES.includes(kept.theme)) theme.value = kept.theme;
         if (kept.locale === null || (answer.locales || []).includes(kept.locale)) locale.value = kept.locale;
         if (Array.isArray(kept.dismissed_jobs)) dismissedJobs.value = kept.dismissed_jobs.slice(-MAX_DISMISSED);
+        other.value = { ...other.value, ...keptOther };
         quiet = false;
         keep();
       } else {
+        quiet = true;
+        other.value = { ...keptOther, ...other.value };
+        quiet = false;
         if (at === null) {
           at = Date.now();
           keep();

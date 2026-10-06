@@ -6,21 +6,21 @@
  * line and label a vector shape), with or without its legend. Nothing leaves the browser:
  * the file is made here and handed to the browser to save.
  */
-import { createCanvas2DRenderer } from '../../components/index.js';
-import { detailLimit, placeLabels, resolveColor, zoomOf } from '../../components/map/core.js';
+import { createCanvas2DRenderer, tracePoint } from '../components/map/canvas2d.js';
+import { detailLimit, placeLabels, resolveColor, zoomOf } from '../components/map/core.js';
 
 /** The pixels of the legend's rows and its margins. */
-const ROW = 18;
-const PAD = 10;
-const SWATCH = 10;
+const LEGEND_ROW = 18;
+const LEGEND_PAD = 10;
+const LEGEND_SWATCH = 10;
 
 /** A copy of the frame's view (its size, scale and offsets). */
-function viewOf(frame) {
+function savedView(frame) {
   const v = frame.view();
   return { width: v.width, height: v.height, scale: v.scale, tx: v.tx, ty: v.ty, fitScale: v.fitScale };
 }
 
-function download(blob, name) {
+function downloadBlob(blob, name) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -31,18 +31,18 @@ function download(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** The file's name: the map's version and the time, without characters a file system refuses. */
-function fileName(version, ext) {
-  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
-  return `map-${String(version || 'view').replace(/[^\w.-]/g, '')}-${stamp}.${ext}`;
+/** The file's name: the host's stem and the time, without characters a file system refuses. */
+function savedName(stem, ext) {
+  const time = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  return `map-${String(stem || 'view').replace(/[^\w.-]/g, '')}-${time}.${ext}`;
 }
 
 /** The legend's size in pixels: `{w, h}` for *legend* (`{kinds: [{shape, text}], entries:
  * [{color, text}]}`), measured with *measure(text)*. */
 function legendSize(legend, measure) {
   const rows = [...legend.kinds, ...legend.entries];
-  const w = Math.max(80, ...rows.map((r) => measure(r.text))) + SWATCH + 3 * PAD;
-  return { w, h: rows.length * ROW + 2 * PAD };
+  const w = Math.max(80, ...rows.map((r) => measure(r.text))) + LEGEND_SWATCH + 3 * LEGEND_PAD;
+  return { w, h: rows.length * LEGEND_ROW + 2 * LEGEND_PAD };
 }
 
 // ── PNG ──────────────────────────────────────────────────────────────────────
@@ -50,8 +50,8 @@ function legendSize(legend, measure) {
 function pngLegend(ctx, legend, view, color, font) {
   ctx.font = `500 12px ${font}`;
   const { w, h } = legendSize(legend, (text) => ctx.measureText(text).width);
-  const x0 = PAD;
-  const y0 = view.height - h - PAD;
+  const x0 = LEGEND_PAD;
+  const y0 = view.height - h - LEGEND_PAD;
   ctx.globalAlpha = 0.92;
   ctx.fillStyle = color('--cx-surface');
   ctx.fillRect(x0, y0, w, h);
@@ -61,44 +61,22 @@ function pngLegend(ctx, legend, view, color, font) {
   ctx.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  let y = y0 + PAD + ROW / 2;
+  let y = y0 + LEGEND_PAD + LEGEND_ROW / 2;
   for (const row of [...legend.kinds, ...legend.entries]) {
     ctx.fillStyle = color(row.color || '--cx-text-muted');
     ctx.beginPath();
-    if (row.shape) traceSymbol(ctx, row.shape, x0 + PAD + SWATCH / 2, y, 4);
-    else ctx.rect(x0 + PAD, y - SWATCH / 2, SWATCH, SWATCH);
+    if (row.shape) tracePoint(ctx, row.shape === 'ring' ? 'circle' : row.shape, x0 + LEGEND_PAD + LEGEND_SWATCH / 2, y, 4);
+    else ctx.rect(x0 + LEGEND_PAD, y - LEGEND_SWATCH / 2, LEGEND_SWATCH, LEGEND_SWATCH);
     ctx.fill();
     ctx.fillStyle = color('--cx-text');
-    ctx.fillText(row.text, x0 + 2 * PAD + SWATCH, y);
-    y += ROW;
-  }
-}
-
-function traceSymbol(ctx, shape, x, y, r) {
-  if (shape === 'square') ctx.rect(x - r, y - r, 2 * r, 2 * r);
-  else if (shape === 'diamond') {
-    ctx.moveTo(x, y - r * 1.2);
-    ctx.lineTo(x + r * 1.2, y);
-    ctx.lineTo(x, y + r * 1.2);
-    ctx.lineTo(x - r * 1.2, y);
-    ctx.closePath();
-  } else if (shape === 'triangle') {
-    ctx.moveTo(x, y - r * 1.1);
-    ctx.lineTo(x + r * 1.1, y + r * 0.8);
-    ctx.lineTo(x - r * 1.1, y + r * 0.8);
-    ctx.closePath();
-  } else if (shape === 'plus') {
-    ctx.rect(x - r, y - r * 0.35, 2 * r, r * 0.7);
-    ctx.rect(x - r * 0.35, y - r, r * 0.7, 2 * r);
-  } else {
-    ctx.moveTo(x + r, y);
-    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillText(row.text, x0 + 2 * LEGEND_PAD + LEGEND_SWATCH, y);
+    y += LEGEND_ROW;
   }
 }
 
 /** The view as a PNG file, at *ratio* times its size on screen. */
-export function savePng({ frame, box, scene, legend = null, version, ratio = 2 }) {
-  const view = viewOf(frame);
+export function savePng({ frame, box, scene, legend = null, stem, ratio = 2 }) {
+  const view = savedView(frame);
   const canvas = document.createElement('canvas');
   canvas.className = 'cx-atlas-save';
   box.appendChild(canvas); // inside the page: the colour tokens resolve on it
@@ -116,7 +94,7 @@ export function savePng({ frame, box, scene, legend = null, version, ratio = 2 }
     return new Promise((resolve) => {
       canvas.toBlob((blob) => {
         canvas.remove();
-        if (blob) download(blob, fileName(version, 'png'));
+        if (blob) downloadBlob(blob, savedName(stem, 'png'));
         resolve(Boolean(blob));
       }, 'image/png');
     });
@@ -134,6 +112,11 @@ const n2 = (v) => (Math.round(v * 100) / 100).toString();
 
 /** One point of *shape* as SVG path data. */
 function pointPath(shape, x, y, r) {
+  if (shape === 'tile') {
+    const a = r * 0.9;
+    const c = r * 0.35;
+    return `M${n2(x - a + c)} ${n2(y - a)}h${n2(2 * (a - c))}a${n2(c)} ${n2(c)} 0 0 1 ${n2(c)} ${n2(c)}v${n2(2 * (a - c))}a${n2(c)} ${n2(c)} 0 0 1 ${n2(-c)} ${n2(c)}h${n2(-2 * (a - c))}a${n2(c)} ${n2(c)} 0 0 1 ${n2(-c)} ${n2(-c)}v${n2(-2 * (a - c))}a${n2(c)} ${n2(c)} 0 0 1 ${n2(c)} ${n2(-c)}z`;
+  }
   if (shape === 'square') {
     const a = r * 0.9;
     return `M${n2(x - a)} ${n2(y - a)}h${n2(2 * a)}v${n2(2 * a)}h${n2(-2 * a)}z`;
@@ -172,7 +155,7 @@ export function svgOf({ view, scene, legend, color, font, measure }) {
       d += `M${n2(line.x[k] * sx + ox)} ${n2(oy - line.y[k] * sx)}L${n2(line.x[k + 1] * sx + ox)} ${n2(oy - line.y[k + 1] * sx)}`;
     }
     if (d) {
-      out.push(`<path d="${d}" fill="none" stroke="${esc(color(line.color))}" stroke-width="${line.width || 1}" stroke-opacity="${line.alpha === undefined ? 0.6 : line.alpha}"${line.dash ? ` stroke-dasharray="${line.dash} ${line.dash}"` : ''}/>`);
+      out.push(`<path d="${d}" fill="none" stroke="${esc(color(line.color))}" stroke-width="${line.width || 1}" stroke-opacity="${line.alpha === undefined ? 0.6 : line.alpha}" stroke-linecap="round" stroke-linejoin="round"/>`);
     }
   }
   const anyHighlight = scene.layers.some((l) => l.highlight && l.highlightCount);
@@ -188,9 +171,9 @@ export function svgOf({ view, scene, legend, color, font, measure }) {
       if (px < -r || py < -r || px > width + r || py > height + r) continue;
       const c = layer.color ? layer.color[i] : 0;
       if (!buckets.has(c)) buckets.set(c, []);
-      buckets.get(c).push(pointPath(shape === 'ring' ? 'circle' : shape, px, py, r));
+      buckets.get(c).push(pointPath(shape === 'ring' ? 'circle' : shape, px, py, layer.size ? r * layer.size[i] : r));
     }
-    const alpha = anyHighlight ? 0.3 : (layer.alpha || 0.9);
+    const alpha = anyHighlight ? (layer.dim === undefined ? 0.3 : layer.dim) : (layer.alpha || 0.9);
     for (const [c, paths] of buckets) {
       const fill = esc(color(layer.palette[c] || layer.palette[0]));
       out.push(shape === 'ring'
@@ -202,17 +185,21 @@ export function svgOf({ view, scene, legend, color, font, measure }) {
     const ring = esc(color('--cx-accent'));
     for (const layer of scene.layers) {
       if (!layer.highlight || !layer.highlightCount) continue;
-      const r = (layer.radius || 2.5) + 1.5;
+      const r = layer.radius || 2.5;
       const shape = layer.shape === 'ring' ? 'circle' : (layer.shape || 'circle');
+      const from = layer.ringFrom || 1;
       const byColor = new Map();
       for (let i = 0; i < layer.x.length; i += 1) {
         if (!layer.highlight[i] || (layer.rank && layer.rank[i] > 1.5)) continue;
-        const c = layer.color ? layer.color[i] : 0;
-        if (!byColor.has(c)) byColor.set(c, []);
-        byColor.get(c).push(pointPath(shape, layer.x[i] * sx + ox, oy - layer.y[i] * sx, r));
+        const ringed = layer.highlight[i] >= from;
+        const key = `${layer.color ? layer.color[i] : 0}|${ringed ? 1 : 0}`;
+        if (!byColor.has(key)) byColor.set(key, []);
+        byColor.get(key).push(pointPath(shape, layer.x[i] * sx + ox, oy - layer.y[i] * sx,
+          (layer.size ? r * layer.size[i] : r) + (ringed ? 1.5 : 0)));
       }
-      for (const [c, paths] of byColor) {
-        out.push(`<path d="${paths.join('')}" fill="${esc(color(layer.palette[c] || layer.palette[0]))}" stroke="${ring}" stroke-width="2"/>`);
+      for (const [key, paths] of byColor) {
+        const [c, ringed] = key.split('|').map(Number);
+        out.push(`<path d="${paths.join('')}" fill="${esc(color(layer.palette[c] || layer.palette[0]))}"${ringed ? ` stroke="${ring}" stroke-width="2"` : ''}/>`);
       }
     }
   }
@@ -220,20 +207,21 @@ export function svgOf({ view, scene, legend, color, font, measure }) {
   const halo = esc(color('--cx-surface'));
   const ink = esc(color('--cx-text'));
   for (const label of labels) {
-    out.push(`<text x="${n2(label.px)}" y="${n2(label.py)}" text-anchor="middle" dominant-baseline="middle" font-size="${label.strong ? 13 : 12}" font-weight="${label.strong ? 600 : 500}" fill="${ink}" stroke="${halo}" stroke-width="3" stroke-linejoin="round" paint-order="stroke">${esc(label.text)}</text>`);
+    const fillText = label.color ? esc(color(label.color)) : ink;
+    out.push(`<text x="${n2(label.px)}" y="${n2(label.py)}" text-anchor="middle" dominant-baseline="middle" font-size="${label.size || (label.strong ? 13 : 12)}" font-weight="${label.strong ? 600 : 500}" fill="${fillText}" stroke="${halo}" stroke-width="3" stroke-linejoin="round" paint-order="stroke">${esc(label.text)}</text>`);
   }
   if (legend) {
     const { w, h } = legendSize(legend, (text) => measure(text, false));
-    const x0 = PAD;
-    const y0 = height - h - PAD;
+    const x0 = LEGEND_PAD;
+    const y0 = height - h - LEGEND_PAD;
     out.push(`<g class="legend"><rect x="${x0 + 0.5}" y="${n2(y0 + 0.5)}" width="${n2(w - 1)}" height="${n2(h - 1)}" fill="${halo}" fill-opacity="0.92" stroke="${esc(color('--cx-border'))}"/>`);
-    let y = y0 + PAD + ROW / 2;
+    let y = y0 + LEGEND_PAD + LEGEND_ROW / 2;
     for (const row of [...legend.kinds, ...legend.entries]) {
       const fill = esc(color(row.color || '--cx-text-muted'));
-      out.push(row.shape ? `<path d="${pointPath(row.shape === 'ring' ? 'circle' : row.shape, x0 + PAD + SWATCH / 2, y, 4)}" fill="${fill}"/>`
-        : `<rect x="${x0 + PAD}" y="${n2(y - SWATCH / 2)}" width="${SWATCH}" height="${SWATCH}" fill="${fill}"/>`);
-      out.push(`<text x="${n2(x0 + 2 * PAD + SWATCH)}" y="${n2(y)}" dominant-baseline="middle" font-size="12" fill="${ink}">${esc(row.text)}</text>`);
-      y += ROW;
+      out.push(row.shape ? `<path d="${pointPath(row.shape === 'ring' ? 'circle' : row.shape, x0 + LEGEND_PAD + LEGEND_SWATCH / 2, y, 4)}" fill="${fill}"/>`
+        : `<rect x="${x0 + LEGEND_PAD}" y="${n2(y - LEGEND_SWATCH / 2)}" width="${LEGEND_SWATCH}" height="${LEGEND_SWATCH}" fill="${fill}"/>`);
+      out.push(`<text x="${n2(x0 + 2 * LEGEND_PAD + LEGEND_SWATCH)}" y="${n2(y)}" dominant-baseline="middle" font-size="12" fill="${ink}">${esc(row.text)}</text>`);
+      y += LEGEND_ROW;
     }
     out.push('</g>');
   }
@@ -242,8 +230,8 @@ export function svgOf({ view, scene, legend, color, font, measure }) {
 }
 
 /** The view as an SVG file. */
-export function saveSvg({ frame, box, scene, legend = null, version }) {
-  const view = viewOf(frame);
+export function saveSvg({ frame, box, scene, legend = null, stem }) {
+  const view = savedView(frame);
   const probe = document.createElement('canvas');
   probe.className = 'cx-atlas-save';
   box.appendChild(probe);
@@ -251,12 +239,12 @@ export function saveSvg({ frame, box, scene, legend = null, version }) {
     const cache = new Map();
     const font = getComputedStyle(probe).fontFamily || 'sans-serif';
     const ctx = probe.getContext('2d');
-    const measure = (text, strong) => {
-      ctx.font = `${strong ? 600 : 500} ${strong ? 13 : 12}px ${font}`;
+    const measure = (text, strong, label) => {
+      ctx.font = `${strong ? 600 : 500} ${(label && label.size) || (strong ? 13 : 12)}px ${font}`;
       return ctx.measureText(text).width;
     };
-    const svg = svgOf({ view, scene, legend, color: (v) => resolveColor(probe, v, cache), font, measure });
-    download(new Blob([svg], { type: 'image/svg+xml' }), fileName(version, 'svg'));
+    const markup = svgOf({ view, scene, legend, color: (v) => resolveColor(probe, v, cache), font, measure });
+    downloadBlob(new Blob([markup], { type: 'image/svg+xml' }), savedName(stem, 'svg'));
   } finally {
     probe.remove();
   }

@@ -25,6 +25,7 @@ import { Shell } from './shell.js';
 import { startPresence } from './presence.js';
 import { createJobsStore } from './stores/jobs.js';
 import { applyTheme, createPrefs, fetchPrefs } from './stores/prefs.js';
+import { followScheme } from './look.js';
 import { createProjectStore } from './stores/project.js';
 import { createRegistries } from './registries.js';
 import { ErrorCard, createToaster, jobTitle } from '../components/index.js';
@@ -105,6 +106,7 @@ export async function boot(root) {
     csrfToken: () => csrf.csrf_token || readCookie(csrf.csrf_cookie || 'cartolex_csrf'),
   }));
   applyTheme(prefs.theme.value);
+  followScheme(prefs);
 
   const locales = manifest.locales;
   const code = pickLocale(locales.available, {

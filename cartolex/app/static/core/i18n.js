@@ -20,6 +20,9 @@
  * other apostrophe (French « l'arbre ») is plain text.
  */
 import { computed, signal } from './preact.js';
+import {
+  dateIn, formatParsed, listIn, numberIn, parseMessage, percentIn,
+} from './messages.js';
 
 /** The interface language in use (a BCP 47 tag from the manifest's `available`). */
 export const locale = signal('en');
@@ -148,195 +151,16 @@ export function t(key, params) {
   return formatAst(ast, params || {}, null);
 }
 
-// ── ICU subset: parser ─────────────────────────────────────────────────────
-
 /** Parse an ICU message into a list of nodes (strings and argument objects). */
-export function parseMessage(text) {
-  const state = { text, i: 0 };
-  const nodes = parseNodes(state, false);
-  if (state.i < text.length) throw new Error(`unexpected "}" at ${state.i}`);
-  return nodes;
-}
-
-function parseNodes(state, inPlural) {
-  const nodes = [];
-  let buf = '';
-  const { text } = state;
-  while (state.i < text.length) {
-    const ch = text[state.i];
-    if (ch === "'") {
-      const next = text[state.i + 1];
-      if (next === "'") {
-        buf += "'";
-        state.i += 2;
-      } else if (next === '{' || next === '}' || (inPlural && next === '#')) {
-        const end = text.indexOf("'", state.i + 1);
-        if (end < 0) throw new Error('unterminated quote');
-        buf += text.slice(state.i + 1, end);
-        state.i = end + 1;
-      } else {
-        buf += ch;
-        state.i += 1;
-      }
-    } else if (ch === '{') {
-      if (buf) nodes.push(buf);
-      buf = '';
-      nodes.push(parseArgument(state));
-    } else if (ch === '}') {
-      break;
-    } else if (ch === '#' && inPlural) {
-      if (buf) nodes.push(buf);
-      buf = '';
-      nodes.push({ type: 'pound' });
-      state.i += 1;
-    } else {
-      buf += ch;
-      state.i += 1;
-    }
-  }
-  if (buf) nodes.push(buf);
-  return nodes;
-}
-
-function skipSpace(state) {
-  while (state.i < state.text.length && /\s/.test(state.text[state.i])) state.i += 1;
-}
-
-function readWord(state) {
-  skipSpace(state);
-  const m = /^[^\s{},]+/.exec(state.text.slice(state.i));
-  if (!m) throw new Error(`expected a word at ${state.i}`);
-  state.i += m[0].length;
-  return m[0];
-}
-
-function expect(state, ch) {
-  skipSpace(state);
-  if (state.text[state.i] !== ch) throw new Error(`expected "${ch}" at ${state.i}`);
-  state.i += 1;
-}
-
-function parseArgument(state) {
-  expect(state, '{');
-  const name = readWord(state);
-  skipSpace(state);
-  if (state.text[state.i] === '}') {
-    state.i += 1;
-    return { type: 'arg', name };
-  }
-  expect(state, ',');
-  const kind = readWord(state);
-  skipSpace(state);
-  if (kind === 'plural' || kind === 'selectordinal' || kind === 'select') {
-    expect(state, ',');
-    let offset = 0;
-    const options = {};
-    skipSpace(state);
-    if (state.text.startsWith('offset:', state.i)) {
-      state.i += 7;
-      offset = Number(readWord(state));
-    }
-    for (;;) {
-      skipSpace(state);
-      if (state.text[state.i] === '}') {
-        state.i += 1;
-        break;
-      }
-      const key = readWord(state);
-      expect(state, '{');
-      options[key] = parseNodes(state, kind !== 'select');
-      expect(state, '}');
-    }
-    if (!('other' in options)) throw new Error(`{${name}, ${kind}} has no "other" case`);
-    return { type: kind, name, offset, options };
-  }
-  let style = '';
-  if (state.text[state.i] === ',') {
-    state.i += 1;
-    style = readWord(state);
-  }
-  expect(state, '}');
-  if (!['number', 'date', 'time', 'datetime', 'list'].includes(kind)) {
-    throw new Error(`unknown argument type "${kind}"`);
-  }
-  return { type: kind, name, style };
-}
-
-// ── ICU subset: formatter ─────────────────────────────────────────────────
-
-const formatters = new Map();
-
-function cached(kind, options, make) {
-  const key = `${locale.value}|${kind}|${JSON.stringify(options)}`;
-  let f = formatters.get(key);
-  if (!f) {
-    f = make(locale.value, options);
-    formatters.set(key, f);
-  }
-  return f;
-}
-
-const DATE_STYLES = { short: 'short', medium: 'medium', long: 'long', full: 'full' };
+export { parseMessage };
 
 function formatAst(nodes, params, pound) {
-  let out = '';
-  for (const node of nodes) {
-    if (typeof node === 'string') {
-      out += node;
-      continue;
-    }
-    const value = node.name === undefined ? undefined : params[node.name];
-    switch (node.type) {
-      case 'pound':
-        out += pound === null ? '#' : formatNumber(pound);
-        break;
-      case 'arg':
-        out += value === undefined || value === null ? '' : String(value);
-        break;
-      case 'number':
-        out +=
-          node.style === 'percent'
-            ? formatPercent(value)
-            : formatNumber(value, node.style === 'integer' ? { maximumFractionDigits: 0 } : {});
-        break;
-      case 'date':
-      case 'time':
-      case 'datetime':
-        out += formatDate(value, node.type, DATE_STYLES[node.style] || 'medium');
-        break;
-      case 'list':
-        out += formatList(value || [], node.style === 'or' ? 'disjunction' : 'conjunction');
-        break;
-      case 'select': {
-        const branch = node.options[String(value)] || node.options.other;
-        out += formatAst(branch, params, pound);
-        break;
-      }
-      case 'plural':
-      case 'selectordinal': {
-        const n = Number(value) || 0;
-        const exact = node.options[`=${n}`];
-        let branch = exact;
-        if (!branch) {
-          const rules = cached('plural', { type: node.type === 'plural' ? 'cardinal' : 'ordinal' },
-            (loc, o) => new Intl.PluralRules(loc, o));
-          branch = node.options[rules.select(n - node.offset)] || node.options.other;
-        }
-        out += formatAst(branch, params, n - node.offset);
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  return out;
+  return formatParsed(nodes, params, locale.value, pound);
 }
 
 /** A number in the interface language (grouping, decimal mark). */
 export function formatNumber(value, options = {}) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return '';
-  return cached('number', options, (loc, o) => new Intl.NumberFormat(loc, o)).format(n);
+  return numberIn(locale.value, value, options);
 }
 
 const BYTE_UNITS = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'];
@@ -360,34 +184,23 @@ export function formatBytes(bytes, { perSecond = false } = {}) {
 
 /** A fraction (0…1) as a percentage in the interface language (« 45 % », « 45% »). */
 export function formatPercent(fraction, options = { maximumFractionDigits: 0 }) {
-  const n = Number(fraction);
-  if (!Number.isFinite(n)) return '';
-  return cached('percent', options, (loc, o) =>
-    new Intl.NumberFormat(loc, { style: 'percent', ...o })).format(n);
+  return percentIn(locale.value, fraction, options);
 }
 
 /** A date, a time or both, from a Date, a timestamp or an ISO string. */
 export function formatDate(value, kind = 'date', style = 'medium') {
-  if (value === undefined || value === null || value === '') return '';
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  const options = kind === 'time' ? { timeStyle: style === 'full' ? 'long' : style }
-    : kind === 'datetime' ? { dateStyle: style, timeStyle: 'short' } : { dateStyle: style };
-  return cached('date', options, (loc, o) => new Intl.DateTimeFormat(loc, o)).format(d);
+  return dateIn(locale.value, value, kind, style);
 }
 
 /** A list of strings joined as the language joins them (« a, b et c »). */
 export function formatList(items, type = 'conjunction') {
-  return cached('list', { type }, (loc, o) => new Intl.ListFormat(loc, o)).format(
-    items.map(String));
+  return listIn(locale.value, items, type);
 }
 
 /** A duration in seconds, rounded to the largest sensible unit (« 2 min », « 1 h 5 min »). */
 export function formatDuration(seconds) {
   const s = Math.max(0, Math.round(Number(seconds) || 0));
-  const unit = (value, u) =>
-    cached('unit', { u }, (loc) => new Intl.NumberFormat(loc, {
-      style: 'unit', unit: u, unitDisplay: 'narrow' })).format(value);
+  const unit = (value, u) => numberIn(locale.value, value, { style: 'unit', unit: u, unitDisplay: 'narrow' });
   if (s < 60) return unit(s, 'second');
   if (s < 3600) return unit(Math.round(s / 60), 'minute');
   const h = Math.floor(s / 3600);
