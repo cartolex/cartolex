@@ -254,7 +254,7 @@ def test_to_curated_needs_a_depth_2_tree_rebased_on_the_vocabulary():
     with pytest.raises(ValueError, match="not in the vocabulary"):
         to_curated(tree, terms[:-1])
     with pytest.raises(ValueError, match="unknown language"):
-        to_curated(tree, terms, reference_language="de")
+        to_curated(tree, terms, reference_language="nl")
 
 
 def test_attributions_are_the_engines_term_statuses():

@@ -162,7 +162,7 @@ def test_rename_node_per_language():
     )
     assert node.names == {"pt": "Maré de tempestade"}
     with pytest.raises(ThemeEditError, match="unknown language"):
-        rename_node(_tree(), "n2", {"de": "Sturmflut"})
+        rename_node(_tree(), "n2", {"nl": "Stormvloed"})
     with pytest.raises(ThemeEditError, match="no node"):
         rename_node(_tree(), "n9", {"en": "x"})
 
