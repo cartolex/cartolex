@@ -43,6 +43,13 @@ FUNCTION_WORDS = {
         "o a os as um uma de do da dos das em no na nos nas por pelo pela pelos pelas "
         "para com ao aos e ou".split()
     ),
+    "es": frozenset("el la los las un una de del a al en por para con y o e u".split()),
+    "it": frozenset(
+        "il lo la i gli le l un uno una di d del dello della dei degli delle dell a al allo "
+        "alla ai agli alle all da dal dallo dalla dai dagli dalle dall in nel nello nella nei "
+        "negli nelle nell su sul sullo sulla sui sugli sulle sull per con e ed o".split()
+    ),
+    "de": frozenset("der die das des dem den ein eine eines einer einem einen und oder".split()),
 }
 
 

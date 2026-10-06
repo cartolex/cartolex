@@ -110,6 +110,7 @@ SUITES = {
         CorpusSpec("termith", corpora.termith),
         CorpusSpec("semeval", corpora.semeval),
         CorpusSpec("scielo", corpora.scielo),
+        CorpusSpec("scielo-es", corpora.scielo_es),
     ],
 }
 
@@ -683,6 +684,7 @@ def main(argv: list[str] | None = None) -> int:
         for name in corpora.SOURCES:
             print("fetching", name, corpora.fetch(name))
         corpora.prepare_scielo()
+        corpora.prepare_scielo_es()
     specs = SUITES[args.suite]
     if args.corpora:
         wanted = [c.strip() for c in args.corpora.split(",")]

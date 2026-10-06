@@ -16,6 +16,7 @@ name                  language  source
 ``termith``           fr        abstracts with indexer keyphrases (test)
 ``semeval``           en        full-text articles with author and reader keyphrases
 ``scielo``            pt        abstracts with author keywords (CC BY 4.0 records only)
+``scielo-es``         es        abstracts with author keywords (CC BY 4.0 records only)
 ====================  ========  =====================================================
 
 A benchmark has no people: its texts are grouped into pseudo-people of
@@ -312,7 +313,59 @@ def scielo() -> LabCorpus:
     return _benchmark("scielo", "pt", rows, per_person=5)
 
 
-BENCHMARKS = {"inspec": inspec, "termith": termith, "semeval": semeval, "scielo": scielo}
+def prepare_scielo_es(limit: int = 1000) -> Path:
+    """Keep ``limit`` nursing abstracts in Spanish under CC BY 4.0, with ≥ 3 author keywords.
+
+    The same file as :func:`prepare_scielo`; nursing is the field with the most
+    such Spanish records in it.
+    """
+    import pyarrow.parquet as pq
+
+    folder = DATASETS / "scielo-abstracts"
+    out = folder / "nursing-es-ccby.jsonl"
+    if out.exists():
+        return out
+    columns = ["scielo_id", "license", "first_category", "abstract_es", "keyword_list_es"]
+    df = pq.read_table(
+        folder / "train-00000-of-00008.parquet", columns=[*columns, "title_es"]
+    ).to_pandas()
+    licence = df["license"].fillna("")
+    ccby = licence.str.contains("Attribution 4.0 International") & ~licence.str.contains(
+        "NonCommercial|NoDerivatives"
+    )
+    keep = (
+        ccby
+        & df["abstract_es"].notna()
+        & (df["abstract_es"].str.len() > 400)
+        & df["title_es"].notna()
+        & df["keyword_list_es"].map(lambda k: k is not None and len(k) >= 3)
+        & (df["first_category"] == "NURSING")
+    )
+    sel = df[keep].sort_values("scielo_id").head(limit)
+    with out.open("w", encoding="utf-8") as handle:
+        for r in sel.itertuples():
+            row = {
+                "id": r.scielo_id,
+                "title": r.title_es,
+                "abstract": r.abstract_es,
+                "keyphrases": [str(k) for k in r.keyword_list_es],
+            }
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+    return out
+
+
+def scielo_es() -> LabCorpus:
+    rows = _jsonl(prepare_scielo_es())
+    return _benchmark("scielo-es", "es", rows, per_person=5)
+
+
+BENCHMARKS = {
+    "inspec": inspec,
+    "termith": termith,
+    "semeval": semeval,
+    "scielo": scielo,
+    "scielo-es": scielo_es,
+}
 
 
 def available(name: str) -> bool:
@@ -322,7 +375,9 @@ def available(name: str) -> bool:
         "termith": DATASETS / "termith-eval" / "test.jsonl",
         "semeval": DATASETS / "semeval-2010-pre" / "test.jsonl",
         "scielo": DATASETS / "scielo-abstracts" / "train-00000-of-00008.parquet",
+        "scielo-es": DATASETS / "scielo-abstracts" / "train-00000-of-00008.parquet",
     }[name]
+    prepared = {"scielo": "agronomy-ccby.jsonl", "scielo-es": "nursing-es-ccby.jsonl"}
     return need.exists() or (
-        name == "scielo" and (DATASETS / "scielo-abstracts" / "agronomy-ccby.jsonl").exists()
+        name in prepared and (DATASETS / "scielo-abstracts" / prepared[name]).exists()
     )
