@@ -108,7 +108,7 @@
       const d = S.personPart('people', id);
       const mapBox = h('div', { class: 'cx-mini' });
       const co = S.partners('people', i) || [];
-      const hidden = ((S.data.links || {}).people || { hidden: [] }).hidden[i] || 0;
+      const hidden = d.co_hidden || 0;
       const grid = h('div', { class: 'cx-grid' }, [
         card(t('page.position'), [mapBox, h('p', { class: 'cx-muted cx-small' }, [t('person.position.note'), ' ',
           S.link(`/map?sel=${encodeURIComponent(`person:${id}`)}`, t('page.open_map'))])], 'cx-card--wide'),
@@ -139,7 +139,7 @@
         });
       }
       return miniMap(mapBox, { kind: 'person', id }, [core.people.x[i], core.people.y[i]], ['people', 'keywords']);
-    }, [S.partOf('people', id), 'links']);
+    }, [S.partOf('people', id)]);
   };
 
   S.pages.org = function org(main, route) {
@@ -173,6 +173,6 @@
       ]));
       const at = o.x[i] === null ? null : [o.x[i], o.y[i]];
       return miniMap(mapBox, { kind: 'org', id }, at, ['people', 'orgs'], o.level[i]);
-    }, ['links']);
+    });
   };
 }());

@@ -17,9 +17,8 @@ The folder::
     site.json           the build's record (not read by the page)
     assets/             tokens.css, site.css, map.js, site.js, i18n.js, world.js
     data/               core.js (every page), details.js (organisations, themes,
-                        keywords' people), links.js (who writes with whom),
-                        people/<n>.js (people's details) and texts/<n>.js (their
-                        texts, on request), loaded on demand
+                        keywords' people), people/<n>.js (people's details) and
+                        texts/<n>.js (their texts, on request), loaded on demand
 
 Data files are classic scripts (``window.CX_SITE[<part>] = …``): a page opened
 from ``file://`` can load a script but cannot read a JSON file. A person's
@@ -392,7 +391,7 @@ def build_site(
             "title": title,
             "built_at": at.isoformat(timespec="seconds"),
             "language": options.language,
-            "parts": ["details", "links", *shards],
+            "parts": ["details", *shards],
             "shards": shards,
         }
         files: dict[str, bytes] = {
@@ -409,7 +408,6 @@ def build_site(
             "data/details.js": _script(
                 "details", {k: v for k, v in data.details.items() if k != "people"}
             ),
-            "data/links.js": _script("links", data.links or {}),
         }
         if world:
             files["assets/world.js"] = _script(

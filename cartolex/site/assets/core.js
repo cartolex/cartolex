@@ -232,15 +232,20 @@
 
   /**
    * Who writes with a person (`people`: an index of `core.people`, or after them of
-   * `core.projected`) or an organisation (`orgs`: an index of `core.orgs`), from the part
-   * `links`: `[[index, works together]]`, the strongest first; null before it is loaded.
+   * `core.projected`) or an organisation (`orgs`: an index of `core.orgs`), from their
+   * details (`co`: flat pairs of an index and the works together): `[[index, works]]`, the
+   * strongest first; null before the details are loaded.
    */
   S.partners = function partners(kind, i) {
-    const links = DATA.links && DATA.links[kind];
-    if (!links) return null;
-    if (i < 0 || i + 1 >= links.ptr.length) return [];
+    const core = DATA.core;
+    let d = null;
+    if (kind === 'orgs') d = DATA.details && DATA.details.orgs[core.orgs.id[i]];
+    else if (i < core.people.id.length) d = S.personPart('people', core.people.id[i]);
+    else d = DATA.details && (DATA.details.projected || {})[core.projected.id[i - core.people.id.length]];
+    if (d === undefined || (d === null && !DATA.details)) return null;
+    const flat = (d && d.co) || [];
     const out = [];
-    for (let k = links.ptr[i]; k < links.ptr[i + 1]; k += 1) out.push([links.nbr[k], links.cnt[k]]);
+    for (let k = 0; k + 1 < flat.length; k += 2) out.push([flat[k], flat[k + 1]]);
     return out;
   };
 

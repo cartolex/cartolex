@@ -18,8 +18,10 @@ order says nothing either.
 
 The answer is split per page (V2-062): ``core`` (the map, the tree, the search)
 loads with every page, ``details`` with a person, organisation or theme page,
-``texts`` with a person page when texts are included, ``links`` with a page that
-shows who writes with whom.
+``texts`` with a person page when texts are included. Who writes with whom goes with
+what each page loads: a person's co-authors in their part of the people's details
+(``co``: flat pairs of a site index and the works together), an organisation's partners
+in the details; :attr:`SiteData.links` keeps the whole as sparse arrays.
 """
 
 from __future__ import annotations
@@ -71,7 +73,8 @@ class SiteData:
     details: dict[str, Any]
     texts: SiteTexts | None
     counts: dict[str, int]
-    #: Who writes with whom (:func:`site_links`), the part ``links``.
+    #: Who writes with whom (:func:`site_links`): sparse arrays over the site's indexes,
+    #: for the builder (the pages read each one's partners from their details).
     links: dict[str, Any] | None = None
 
 
@@ -131,6 +134,15 @@ def _csr_over(graph: Any, site: Any) -> dict[str, Any]:
     }
 
 
+def _flat_pairs(csr: dict[str, Any], i: int) -> list[int]:
+    """The partners of index *i* of the CSR *csr* as flat pairs (index, works), the
+    strongest first."""
+    if i + 1 >= len(csr["ptr"]):
+        return []
+    lo, hi = csr["ptr"][i], csr["ptr"][i + 1]
+    return [v for pair in zip(csr["nbr"][lo:hi], csr["cnt"][lo:hi], strict=True) for v in pair]
+
+
 def site_links(
     project: Project,
     people: list[str],
@@ -170,7 +182,8 @@ def site_links(
     c_all: list[np.ndarray] = []
     hidden = np.zeros(len(orgs), dtype=np.int64)
     if project.layout.table("organisations").exists():
-        for level in sorted({o.get("level") or "" for o in orgs}):
+        # the organisations without a level of the project are not shown on a map
+        for level in sorted({o.get("level") for o in orgs if o.get("level")}):
             og = org_graph(project, level, cache)
             at = np.asarray([index.get(i, -1) for i in og.ids], dtype=np.int64)
             part = _csr_over(og, at)
@@ -524,26 +537,41 @@ def gather(
         [o["person_id"] for o in projected] if names_projected else [],
         orgs if extras["organisations"] else [],
     )
+    people_co = links["people"]
+
+    def co_of(i: int) -> list[int]:
+        return _flat_pairs(people_co, i)
+
     say(0.65, "keywords")
     person_terms = keyword_sets(ctx, "person", [p["person_id"] for p in mapped])
     org_terms = keyword_sets(
         ctx, "organisation", list(oid), {"organisations": orgs, "people": extras["people"]}
     )
     people_details = {}
-    for p in mapped:
+    for k, p in enumerate(mapped):
         pid = p["person_id"]
         people_details[sid[pid]] = {
             "themes": [_top(s) for s in p["shares"][:depth]],
             "keywords": person_terms.get(pid, [])[:KEYWORDS],
             "orgs": [oid[o] for o in person_orgs.get(pid, []) if o in oid],
+            "co": co_of(k),
+            "co_hidden": people_co["hidden"][k],
+            "co_outside": people_co["outside"][k],
         }
+    orgs_co = links["orgs"]
     orgs_details = {
         oid[o["id"]]: {
             "themes": [_top(s) for s in org_shares[o["id"]]],
             "keywords": org_terms.get(o["id"], [])[:KEYWORDS],
             "members": members[o["id"]],
+            "co": _flat_pairs(orgs_co, k),
         }
-        for o in orgs
+        for k, o in enumerate(orgs)
+    }
+    # A projected person's co-authors, when the site names them (else not in the links).
+    projected_details = {
+        projected_core["id"][j]: {"co": co_of(len(mapped) + j)}
+        for j in range(len(projected) if names_projected else 0)
     }
 
     # ── details: a theme's people, organisations and keywords ──
@@ -612,6 +640,7 @@ def gather(
     details = {
         "people": people_details,
         "orgs": orgs_details,
+        "projected": projected_details,
         "themes": themes_details,
         "used_by": dict(used_by),
     }

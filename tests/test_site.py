@@ -116,6 +116,11 @@ def test_the_links_are_the_coauthors_over_the_sites_own_indexes(project):
     hidden = gather(project, names=False)
     assert len(hidden.links["people"]["ptr"]) == len(hidden.core["people"]["id"]) + 1
     assert "orgs" in named.links and named.counts["coauthor_links"] == len(got) // 2
+    # each page reads its own partners from its details: flat pairs (index, works)
+    first = named.details["people"][people["id"][0]]["co"]
+    lo, hi = links["ptr"][0], links["ptr"][1]
+    pairs = zip(links["nbr"][lo:hi], links["cnt"][lo:hi], strict=True)
+    assert first == [v for pair in pairs for v in pair]
 
 
 def test_titles_and_abstracts_never_carry_a_private_part(project):

@@ -237,7 +237,6 @@
     function needed() {
       if (!state.sel) return;
       if (!S.data.details) S.need('details', () => paint(false));
-      if (!S.data.links) S.need('links', () => paint(false));
       if (state.sel.kind === 'person' && !S.data[S.partOf('people', state.sel.id)]) {
         S.need(S.partOf('people', state.sel.id), () => paint(false));
       }
