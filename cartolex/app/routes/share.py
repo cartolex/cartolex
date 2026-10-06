@@ -48,7 +48,8 @@ class ExportBody(BaseModel):
     """A file to write: the map bundle, the project as one zip, or distances in the space
     of the themes (``neighbours``, ``similarity``, ``vectors``) of the people on the map
     (``of: person``; every one, or those of ``ids``) or of the organisations of one
-    ``level``. People are named or given pseudonyms as ``names`` says (asked: 422
+    ``level``, by the project's measure (``similarity`` of ``params.json``; the plan names
+    it), with ``<file>.meta.json`` beside the file. People are named or given pseudonyms as ``names`` says (asked: 422
     ``export_names_question``); a similarity matrix above ten million cells needs
     ``confirm`` (409 ``export_size_confirm``, its size said). ``plan`` answers what would
     be written, without writing it."""
@@ -296,12 +297,15 @@ def export(request: Request, ctx: ProjectDep, body: ExportBody) -> JSONResponse:
 def _distances(request: Request, ctx: Any, body: ExportBody) -> JSONResponse:
     """Plan or write an export of distances (a job)."""
     from ..distance_exports import human_size, plan_export, write_export
+    from ..similarity import measure_of
     from .atlas import space_of
 
     runtime = runtime_of(request)
     project = ctx.project
     view = space_of(runtime, ctx)
-    plan = plan_export(view, body.kind, body.of, ids=body.ids, level=body.level, k=body.k)
+    measure = measure_of(project)
+    plan = plan_export(view, body.kind, body.of, ids=body.ids, level=body.level, k=body.k,
+                       measure=measure)  # fmt: skip
     if body.plan:
         names = {lv.id: dict(lv.names) for lv in project.config.levels}
         levels = [
@@ -324,7 +328,8 @@ def _distances(request: Request, ctx: Any, body: ExportBody) -> JSONResponse:
         say(0.0)
         path = write_export(
             project, view, body.kind, body.of, names=body.names == "names", ids=body.ids,
-            level=body.level, k=body.k, progress=say, cancelled=lambda: control.cancelled,
+            level=body.level, k=body.k, measure=measure, progress=say,
+            cancelled=lambda: control.cancelled,
         )  # fmt: skip
         if path is None:
             return {"summary": "nothing changed", "summary_code": "export_cancelled"}
@@ -352,6 +357,7 @@ EXPORT_TYPES = {
     ".csv": "text/csv; charset=utf-8",
     ".parquet": "application/vnd.apache.parquet",
     ".npz": "application/octet-stream",
+    ".json": "application/json",
 }
 
 

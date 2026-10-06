@@ -79,6 +79,16 @@ nothing in the engine names a particular deployment, source or procedure.
   the atlas, in the card's column (the card waits on its rail, `atlas.hold`),
   never above it: the map and a layout's preview stay in view; its width is
   dragged and kept per person (`map.tune_width`).
+- **A choice of similarity.** `params.json`'s `similarity` (`PUT
+  /api/params/similarity`; Tune the map › Distances, each choice explained)
+  says how two people or organisations are compared: meaning in the map's
+  space (the cosine in the space of the themes, the default), shared
+  vocabulary (cosine of keyword profiles), keywords in common (Jaccard) or
+  shared themes (Σ min of theme shares) (`cartolex.app.similarity`, by blocks,
+  no items × items matrix). It drives Compare's headline (`measure`,
+  `similarity`), `GET /api/atlas/neighbours` (`measure=` too) and the
+  distances' exports, which write `<file>.meta.json` (`cartolex-distances/1`)
+  beside each file; the Distances dialog and the Recipe name it.
 
 - **The shared site is the app's atlas.** The offline site mounts the app's own
   atlas (one code for both, `docs/dev/atlas.md`) over a data source that reads

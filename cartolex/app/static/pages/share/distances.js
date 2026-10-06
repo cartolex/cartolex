@@ -2,7 +2,9 @@
 /**
  * « Export distances »: the nearest of each, every pair (the full similarity matrix) or the
  * vectors, of the people on the map (every one, or those the map's filters keep) or of the
- * organisations of one level, measured in the space the themes are drawn from. What would be
+ * organisations of one level, by the project's measure of similarity, which the dialog names
+ * with what it means (the plan's `measure`; « Change it… » opens the map's Tune panel at its
+ * « Distances » section when the page offers it, *onTune*). What would be
  * written (how many, its format and size) is read from the server as the options change
  * (`POST /api/share/exports` with `plan`); a matrix above ten million cells says its size and
  * waits for « Write it anyway ». People are named or given pseudonyms, as asked each time.
@@ -24,8 +26,9 @@ const KINDS = ['neighbours', 'similarity', 'vectors'];
  * @param {Function} props.onClose
  * @param {(job: object) => void} props.onStarted the job started
  * @param {string[]|null} [props.shown] the people the map's filters keep (null: no filter)
+ * @param {Function} [props.onTune] open the map's « Tune » panel at its « Distances » section
  */
-export function DistancesDialog({ ctx, open, onClose, onStarted, shown = null }) {
+export function DistancesDialog({ ctx, open, onClose, onStarted, shown = null, onTune = null }) {
   const [kind, setKind] = useState('neighbours');
   const [of, setOf] = useState('person');
   const [level, setLevel] = useState('');
@@ -106,6 +109,12 @@ export function DistancesDialog({ ctx, open, onClose, onStarted, shown = null })
     </div>
     ${of === 'person' && shown ? html`<${Checkbox} checked=${only} onChange=${(e) => setOnly(e.currentTarget.checked)}
       label=${t('distances.only', { count: shown.length })} />` : null}
+    ${plan && plan.measure ? html`<div class="cx-distances-measure" data-measure=${plan.measure}>
+      <p><strong>${t('distances.measure', { name: t(`atlas.similarity.${plan.measure}`) })}</strong>${' '}
+        ${t(`atlas.similarity.${plan.measure}.help`)}</p>
+      ${onTune ? html`<${Button} size="s" variant="ghost" onClick=${onTune}>${t('distances.measure.change')}<//>` : null}
+    </div>` : null}
+    ${plan && !plan.measure ? html`<p class="cx-share__note">${t('distances.measure.vectors')}</p>` : null}
     ${plan ? html`<p class="cx-share__note" role="status">${t('distances.plan', {
       count: plan.count, of: plan.of, cells: plan.cells, kind: plan.kind,
       format: plan.format.toUpperCase(), size: plan.size })}</p>` : html`<p class="cx-share__note" aria-busy="true">

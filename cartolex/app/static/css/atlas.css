@@ -775,6 +775,19 @@
   font-size: var(--cx-text-s);
 }
 
+/* Compare's headline: the project's measure */
+.cx-atlas-card__list li.cx-atlas-compare__head {
+  padding-bottom: var(--cx-space-1);
+  border-bottom: var(--cx-rule-width) solid var(--cx-rule);
+  font-size: var(--cx-text-m);
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-atlas-compare__head .cx-atlas-val {
+  color: var(--cx-text);
+  font-size: var(--cx-text-m);
+}
+
 .cx-atlas-val {
   margin-left: auto;
   padding-left: var(--cx-space-2);

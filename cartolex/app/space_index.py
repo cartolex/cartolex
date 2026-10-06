@@ -332,18 +332,23 @@ def query_vector(view: SpaceView, ctx: Any, kind: str, id_: str) -> np.ndarray |
     return None
 
 
-def nearest(view: SpaceView, ctx: Any, kind: str, id_: str, k: int) -> list[dict[str, Any]] | None:
-    """The *k* nearest of *id_* by cosine similarity in the space: people for a person or a
-    projected person, organisations of the same level for an organisation (``None``: *id_*
-    has no place in the space). Each ``{id, name, similarity}``."""
-    q = query_vector(view, ctx, kind, id_)
+def nearest(
+    view: SpaceView, ctx: Any, kind: str, id_: str, k: int, measure: str = "space"
+) -> tuple[list[dict[str, Any]], str] | None:
+    """The *k* nearest of *id_* by *measure* (:mod:`cartolex.app.similarity`): people for a
+    person or a projected person, organisations of the same level for an organisation
+    (``None``: *id_* has no place in the space). Answers the items ``{id, name,
+    similarity}`` and the measure used (a projected person's is the space's)."""
+    from .similarity import org_rows, people_rows, query_rows
+
+    q = query_rows(view, ctx, measure, kind, id_)
     if q is None:
         return None
+    used = q.measure
     if kind == "organisation":
         level = (view.orgs.get(id_) or {}).get("level") or ""
-        ids, vectors = view.org_vectors(level)
-        sims = vectors @ q if len(ids) else np.zeros(0, np.float32)
-        sims = sims.astype(np.float64)
+        ids, rows = org_rows(view, used, level)
+        sims = rows.cross(q)[:, 0].astype(np.float64) if ids else np.zeros(0, np.float64)
         if id_ in ids:
             sims[ids.index(id_)] = -np.inf
         return [
@@ -353,15 +358,15 @@ def nearest(view: SpaceView, ctx: Any, kind: str, id_: str, k: int) -> list[dict
                 "similarity": round(float(sims[j]), DIGITS),
             }  # fmt: skip
             for j in _top(sims, k)
-        ]
-    sims = np.asarray(view.space.vectors @ q, dtype=np.float64)
+        ], used
+    sims = people_rows(view, used).cross(q)[:, 0].astype(np.float64)
     sims[~view.mapped] = -np.inf
     if kind == "person":
         sims[view.row_of[id_]] = -np.inf
     return [
         {"id": view.person[j], "name": view.name[j], "similarity": round(float(sims[j]), DIGITS)}
         for j in _top(sims, k)
-    ]
+    ], used
 
 
 # ── who uses a keyword ───────────────────────────────────────────────────────
@@ -461,8 +466,12 @@ def _cosine(a: dict[Any, float], b: dict[Any, float]) -> float:
     return dot / (na * nb) if na > 0 and nb > 0 else 0.0
 
 
-def compare(view: SpaceView, ctx: Any, a: tuple[str, str], b: tuple[str, str]) -> dict[str, Any]:
-    """Two people or organisations side by side: ``space`` (the cosine of their vectors),
+def compare(
+    view: SpaceView, ctx: Any, a: tuple[str, str], b: tuple[str, str], measure: str = "space"
+) -> dict[str, Any]:
+    """Two people or organisations side by side: ``measure`` and ``similarity``, the headline
+    (the project's measure, :mod:`cartolex.app.similarity`, and its value, one of those
+    below), ``space`` (the cosine of their vectors),
     ``keywords`` (``cosine`` and ``jaccard`` of their keyword use, the ``shared`` keywords
     that weigh most for both, ``a`` and ``b`` counts), ``themes`` (``overlap``: Σ min of their
     top-level shares, and the ``shared`` themes) and ``texts`` (``shared``: the texts with an
@@ -477,11 +486,19 @@ def compare(view: SpaceView, ctx: Any, a: tuple[str, str], b: tuple[str, str]) -
     ta, tb = _themes(view, *a), _themes(view, *b)
     nodes = sorted(set(ta) & set(tb), key=lambda n: -min(ta[n], tb[n]))
     n_texts, texts = _shared_texts(ctx, _people(view, *a), _people(view, *b))
+    jaccard = round(len(common) / len(union), DIGITS) if union else 0.0
+    overlap = round(sum(min(ta[n], tb[n]) for n in nodes), DIGITS)
+    cosine = round(_cosine(ua, ub), DIGITS)
+    value = {"space": space, "keywords": cosine, "jaccard": jaccard, "themes": overlap}
+    if value.get(measure) is None:
+        measure = "space"
     return {
+        "measure": measure,
+        "similarity": value[measure],
         "space": space,
         "keywords": {
-            "cosine": round(_cosine(ua, ub), DIGITS),
-            "jaccard": round(len(common) / len(union), DIGITS) if union else 0.0,
+            "cosine": cosine,
+            "jaccard": jaccard,
             "a": len(ua),
             "b": len(ub),
             "common": len(common),
@@ -491,7 +508,7 @@ def compare(view: SpaceView, ctx: Any, a: tuple[str, str], b: tuple[str, str]) -
             ],
         },
         "themes": {
-            "overlap": round(sum(min(ta[n], tb[n]) for n in nodes), DIGITS),
+            "overlap": overlap,
             "shared": [
                 {"node": n, "a": round(ta[n], DIGITS), "b": round(tb[n], DIGITS)} for n in nodes
             ],

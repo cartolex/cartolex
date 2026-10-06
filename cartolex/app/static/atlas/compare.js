@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
 /**
- * Compare: two people or two organisations side by side in the card. Their similarity (the
- * cosine of their vectors in the space of the themes when the source can say it, else of
- * their theme shares), the themes they have in common (Σ min of their shares), the texts they
+ * Compare: two people or two organisations side by side in the card. The headline is their
+ * similarity by the project's measure when the source names it (`measure`, `similarity`:
+ * meaning in the map's space, shared vocabulary, keywords in common or shared themes), then
+ * the other measures: the cosine of their vectors in the space of the themes when the source
+ * can say it (else of their theme shares), the themes they have in common (Σ min of their
+ * shares), the texts they
  * wrote together (two people), the people in both (two organisations), the keywords they
  * share, and their themes as mirrored bars. « Compare with… » picks the other side with Find.
  */
@@ -69,13 +72,15 @@ export function compareBody(card, a, b) {
   const sa = sharesOf(index, a, 1);
   const sb = sharesOf(index, b, 1);
   const data = compare && !compare.error ? compare.data : null;
+  // the headline: the project's measure, when the source names it
+  const head = data && data.measure && data.similarity !== null && data.similarity !== undefined ? data.measure : '';
   const measures = [];
-  if (data && data.space !== null && data.space !== undefined) measures.push(['atlas.compare.space', fmt.decimal(data.space)]);
-  else measures.push(['atlas.compare.themes_cosine', fmt.decimal(sharesCosine(sa, sb))]);
-  measures.push(['atlas.compare.overlap', fmt.percent(sharesOverlap(sa, sb))]);
+  if (data && data.space !== null && data.space !== undefined) measures.push(['atlas.compare.space', fmt.decimal(data.space), 'space']);
+  else measures.push(['atlas.compare.themes_cosine', fmt.decimal(sharesCosine(sa, sb)), '']);
+  measures.push(['atlas.compare.overlap', fmt.percent(sharesOverlap(sa, sb)), 'themes']);
   if (data && data.keywords && data.keywords.cosine !== undefined) {
-    measures.push(['atlas.compare.keywords', fmt.decimal(data.keywords.cosine)]);
-    measures.push(['atlas.compare.jaccard', fmt.decimal(data.keywords.jaccard)]);
+    measures.push(['atlas.compare.keywords', fmt.decimal(data.keywords.cosine), 'keywords']);
+    measures.push(['atlas.compare.jaccard', fmt.decimal(data.keywords.jaccard), 'jaccard']);
   }
   if (data && data.texts && a.kind === 'person') measures.push(['atlas.compare.together', fmt.number(data.texts.shared)]);
   else if (data && data.texts) measures.push(['atlas.compare.texts', fmt.number(data.texts.shared)]);
@@ -90,8 +95,13 @@ export function compareBody(card, a, b) {
       h('p', { class: 'cx-atlas-kind', text: t('atlas.compare.kind') }),
       h('h3', { class: 'cx-atlas-card__title', tabindex: '-1' }, goLink(card, a, nameOfSel(a)), ` ${t('atlas.compare.and')} `,
         goLink(card, b, nameOfSel(b)))),
-    section(null, h('ul', { class: 'cx-atlas-card__list' }, measures.map(([key, value]) => h('li', {},
-      h('span', { text: t(key) }), h('span', { class: 'cx-atlas-val', text: value })))),
+    section(null, h('ul', { class: 'cx-atlas-card__list' },
+      head ? h('li', { class: 'cx-atlas-compare__head', dataset: { measure: head } },
+        h('span', { text: t('atlas.compare.headline', { name: t(`atlas.similarity.${head}`) }),
+          title: t(`atlas.similarity.${head}.help`) }),
+        h('span', { class: 'cx-atlas-val', text: fmt.decimal(data.similarity) })) : null,
+      measures.filter((m) => !head || m[2] !== head).map(([key, value]) => h('li', {},
+        h('span', { text: t(key) }), h('span', { class: 'cx-atlas-val', text: value })))),
     compareOffered && !compare ? pending(card, null) : null),
     both ? section(t('atlas.compare.both', { count: fmt.number(both.length) }), both.length
       ? rowList(card, both.map((i) => ({ key: index.people[i].person_id,

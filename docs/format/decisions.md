@@ -166,6 +166,18 @@ provider's API, the opt-in stage `keywords.triage`, whose `enabled` switch
 another route clears it, and `enabled: true` reads as `api` whatever `ai`
 says. An unknown step or route is refused when the file is read.
 
+`similarity` (optional, added within version 1 and left out of the file at its
+default `space`) is how two people, or two organisations, are compared: the
+headline of Compare on the map, the nearest of each and the exported
+distances. It needs no rebuild.
+
+| value | meaning |
+| --- | --- |
+| `space` | the cosine of their vectors in the space of the themes (the default) |
+| `keywords` | the cosine of their keyword profiles (each keyword's share of their use) |
+| `jaccard` | the share of their keywords both use, among those either uses |
+| `themes` | Σ min of their top-level theme shares |
+
 ## `keywords.csv`
 
 | column | meaning |

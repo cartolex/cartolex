@@ -62,6 +62,15 @@ function AtlasMount({ ctx, bundle, onAtlas }) {
   return html`<div ref=${ref} class="cx-atlas-host"></div>`;
 }
 
+/** Focus the element of *id* once it is shown (the panel reads its parameters first). */
+function focusOnceShown(id, tries = 40) {
+  const at = document.getElementById(id);
+  if (at) {
+    at.scrollIntoView({ block: 'start' });
+    at.focus();
+  } else if (tries > 0) setTimeout(() => focusOnceShown(id, tries - 1), 100);
+}
+
 /** The divider between the atlas and the side « Tune » panel: dragged, or moved with the
  * arrows (Home and End for the smallest and largest); the width is kept per person. */
 function TuneDivider({ width, onWidth, onEnd }) {
@@ -217,6 +226,11 @@ export function AtlasScreen() {
     </div>
     <${DistancesDialog} ctx=${ctx} open=${distances} onClose=${() => setDistances(false)}
       shown=${distances ? shownPeople(atlas) : null}
+      onTune=${() => {
+        setDistances(false);
+        setTuneOpen(true);
+        focusOnceShown('cx-map-similarity-title');
+      }}
       onStarted=${() => {
         app.stores.jobs.refresh();
         app.toaster.show({ kind: 'info', title: t('map.distances.started'), message: t('map.distances.started_text'),

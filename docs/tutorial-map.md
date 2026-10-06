@@ -48,18 +48,30 @@ co-authors.
 
 ## Compare and measure
 
-- **Most similar** in the panel lists the people (or organisations) closest
-  to the selection, each with its **similarity**, from 0 (nothing in common)
-  to 1 (the same use of the vocabulary). It is measured in the space the
-  themes are drawn from, not on the picture: quote this number, not a
-  distance on the map.
 - **Compare with…** puts another person or organisation beside the
-  selection: their similarity, the keywords both use, the themes both weigh
-  on, the texts they wrote together.
+  selection: their **similarity**, from 0 (nothing in common) to 1 (the
+  same), the keywords both use, the themes both weigh on, the texts they
+  wrote together. It is measured from their texts, not on the picture: quote
+  this number, not a distance on the map.
 - **Distances** exports, as a file, the nearest of each person or
   organisation, every pair (the full matrix), or the vectors, with names or
-  pseudonyms. The file is listed on the **Share** screen when it is written;
-  a very large matrix asks first.
+  pseudonyms. The file is listed on the **Share** screen when it is written,
+  with a small `.meta.json` beside it that says how it was measured; a very
+  large matrix asks first.
+
+**Tune the map › Distances** chooses the similarity that Compare puts first,
+that the exports write and that the nearest follow (no rebuild needed):
+
+| similarity | what it means |
+| --- | --- |
+| **Meaning in the map's space** (the default) | the cosine of their vectors in the space the map is drawn from: what its reduction keeps of their whole vocabulary, so that keywords used together count as close |
+| **Shared vocabulary** | the cosine of their keyword profiles (each keyword's share of their use): the same keywords in the same proportions, word for word |
+| **Keywords in common** | the share of their keywords that both use, among those either uses (the Jaccard index), however much each uses them |
+| **Shared themes** | how much of their themes they share: the sum, over the top-level themes, of the smaller of their two shares |
+
+The first sees two people who write about the same things in different words
+as close; the second and third need the same words; the last only looks at
+the themes, so it ignores what distinguishes two people within a theme.
 
 ## Save a view
 

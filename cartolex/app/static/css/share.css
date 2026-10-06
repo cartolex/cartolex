@@ -152,6 +152,23 @@
 }
 
 /* « Export distances »: a matrix above its threshold says its size and waits for a yes. */
+.cx-distances-measure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cx-space-1) var(--cx-space-3);
+  margin: var(--cx-space-3) 0 0;
+  padding: var(--cx-space-2) var(--cx-space-3);
+  border-left: 3px solid var(--cx-border-strong);
+  background: var(--cx-surface-alt);
+}
+
+.cx-distances-measure p {
+  flex: 1 1 20rem;
+  margin: 0;
+  font-size: var(--cx-text-s);
+}
+
 .cx-distances-warning {
   display: flex;
   flex-wrap: wrap;

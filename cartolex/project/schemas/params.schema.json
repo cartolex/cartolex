@@ -2,7 +2,7 @@
   "$id": "https://cartolex.github.io/schemas/1/params.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
-  "description": "``decisions/params.json``: the parameters people set, and nothing else.\n\n``collect`` (optional) holds the collection's parameters people set, by step\n(:data:`COLLECT_PARAMS`); ``ai`` (optional) the route chosen for each AI step\n(:data:`AI_ROUTES`). Both are left out of the file when empty.",
+  "description": "``decisions/params.json``: the parameters people set, and nothing else.\n\n``collect`` (optional) holds the collection's parameters people set, by step\n(:data:`COLLECT_PARAMS`); ``ai`` (optional) the route chosen for each AI step\n(:data:`AI_ROUTES`). Both are left out of the file when empty. ``similarity``\n(optional, left out at its default ``space``) is how people and organisations are\ncompared (:data:`SIMILARITIES`): Compare's headline, the distances' exports, the\nnearest.",
   "properties": {
     "ai": {
       "additionalProperties": {
@@ -47,6 +47,17 @@
       "minimum": 0,
       "title": "Seed",
       "type": "integer"
+    },
+    "similarity": {
+      "default": "space",
+      "enum": [
+        "space",
+        "keywords",
+        "jaccard",
+        "themes"
+      ],
+      "title": "Similarity",
+      "type": "string"
     },
     "stages": {
       "additionalProperties": {

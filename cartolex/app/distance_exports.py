@@ -7,13 +7,20 @@ for the organisations of one level:
 
 - ``neighbours``: the *k* nearest of each (``source``, ``target``, ``rank``,
   ``similarity``), CSV up to a million rows, else Parquet;
-- ``similarity``: the cosine of every pair, written by blocks of rows, never whole in
+- ``similarity``: the similarity of every pair, written by blocks of rows, never whole in
   memory: CSV (a square table with the ids as header) up to four million cells, else
   ``.npz`` (``similarity``: float32, ``ids``, ``names`` when named). Above ten million
   cells it must be confirmed, its size said first;
 - ``vectors``: each one's vector (the people's as the space stage stored them; an
   organisation's, the mean of its members' of length one), CSV up to five million
   values, else Parquet.
+
+The nearest and the matrix follow the project's measure (``similarity`` of
+``params.json``, :mod:`cartolex.app.similarity`: the cosine in the space of the themes by
+default). Beside each file, ``<file>.meta.json`` (``cartolex-distances/1``) says what it
+holds: the measure, the kind, whose, how many, how named, the map version and the run of
+the space; a Parquet file also carries it in its schema's metadata (``cartolex``), an
+``.npz`` as its member ``meta.json``.
 
 People are named, or given pseudonyms (``s1``, ``s2``… in a shuffled order) without their
 names, as the person exporting answered; organisations are always named.
@@ -23,6 +30,7 @@ from __future__ import annotations
 
 import contextlib
 import csv
+import json
 import math
 import random
 import zipfile
@@ -33,7 +41,7 @@ from typing import Any
 
 import numpy as np
 
-__all__ = ["CONFIRM_CELLS", "ExportPlan", "plan_export", "write_export"]
+__all__ = ["CONFIRM_CELLS", "META_FORMAT", "ExportPlan", "plan_export", "write_export"]
 
 #: Above this many cells a full matrix is written only once confirmed.
 CONFIRM_CELLS = 10_000_000
@@ -48,6 +56,8 @@ BLOCK_BYTES = 64 * 1024 * 1024
 CSV_CELL_BYTES = 7
 CSV_EDGE_BYTES = 28
 STEMS = {"neighbours": "neighbours", "similarity": "similarity", "vectors": "vectors"}
+#: The format of the metadata written beside each file.
+META_FORMAT = "cartolex-distances/1"
 
 
 @dataclass
@@ -62,30 +72,36 @@ class ExportPlan:
     format: str
     bytes: int
     confirm: bool
+    #: How similarities are measured (none for the vectors).
+    measure: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {"kind": self.kind, "of": self.of, "count": self.count, "cells": self.cells,
-                "format": self.format, "bytes": self.bytes, "confirm": self.confirm}  # fmt: skip
+                "format": self.format, "bytes": self.bytes, "confirm": self.confirm,
+                "measure": self.measure}  # fmt: skip
 
 
 @dataclass
 class _Items:
     ids: list[str]
     names: list[str] | None
-    vectors: np.ndarray  # (n, d) float32, of length one
+    measured: Any  # the items under the measure (:class:`cartolex.app.similarity.Rows`)
     rows: np.ndarray | None  # the people's rows in the space (None: organisations)
 
 
-def _items(view: Any, of: str, ids: list[str] | None, level: str | None, names: bool) -> _Items:
+def _items(
+    view: Any, of: str, ids: list[str] | None, level: str | None, names: bool, measure: str
+) -> _Items:
+    from .similarity import org_rows, people_rows
     from .space_index import rows_of
 
     if of == "organisation":
         level = view.level_of(level)
-        org_ids, vectors = view.org_vectors(level)
+        org_ids, measured = org_rows(view, measure, level)
         if ids is not None:
             keep = [i for i, o in enumerate(org_ids) if o in set(ids)]
-            org_ids, vectors = [org_ids[i] for i in keep], vectors[keep]
-        return _Items(org_ids, [view.orgs[o].get("name") or o for o in org_ids], vectors, None)
+            org_ids, measured = [org_ids[i] for i in keep], measured.take(np.asarray(keep))
+        return _Items(org_ids, [view.orgs[o].get("name") or o for o in org_ids], measured, None)
     rows = rows_of(view, ids)
     if not names:
         rows = rows.copy()
@@ -95,8 +111,7 @@ def _items(view: Any, of: str, ids: list[str] | None, level: str | None, names: 
     else:
         labels = [view.person[r] for r in rows.tolist()]
         who = [view.name[r] for r in rows.tolist()]
-    vectors = np.asarray(view.space.vectors[rows], dtype=np.float32)
-    return _Items(labels, who, vectors.reshape(len(rows), -1), rows)
+    return _Items(labels, who, people_rows(view, measure).take(rows), rows)
 
 
 def _count(view: Any, of: str, ids: list[str] | None, level: str | None) -> tuple[int, int]:
@@ -118,8 +133,10 @@ def plan_export(
     ids: list[str] | None = None,
     level: str | None = None,
     k: int = 10,
+    measure: str = "space",
 ) -> ExportPlan:
-    """The plan of an export: what it holds, its format and size (estimated)."""
+    """The plan of an export: what it holds, its format and size (estimated), and the
+    measure of its similarities."""
     n, d = _count(view, of, ids, level)
     if kind == "neighbours":
         cells = n * min(k, max(0, n - 1))
@@ -134,12 +151,46 @@ def plan_export(
         fmt = "csv" if cells <= CSV_VALUES else "parquet"
         size = cells * (10 if fmt == "csv" else 4)
     return ExportPlan(kind, of, n, cells, fmt, int(size),
-                      kind == "similarity" and cells > CONFIRM_CELLS)  # fmt: skip
+                      kind == "similarity" and cells > CONFIRM_CELLS,
+                      None if kind == "vectors" else measure)  # fmt: skip
 
 
-def _blocks(n: int) -> int:
-    """Rows per block, so that a block of similarities stays near ``BLOCK_BYTES``."""
-    return max(16, min(4096, BLOCK_BYTES // max(1, 4 * n)))
+def _block(items: _Items, start: int, step: int) -> np.ndarray:
+    """The similarities of the items from *start* (*step* of them) to every item."""
+    m = items.measured
+    stop = min(len(m), start + step)
+    return np.ascontiguousarray(m.cross(m.take(np.arange(start, stop))).T)
+
+
+def _meta(project: Any, view: Any, plan: ExportPlan, names: bool, k: int, level: str | None,
+          file: str) -> dict[str, Any]:  # fmt: skip
+    """What an export holds, written beside it."""
+    from datetime import datetime, timezone
+
+    from cartolex.project.project import cartolex_version
+
+    out: dict[str, Any] = {
+        "format": META_FORMAT,
+        "file": file,
+        "kind": plan.kind,
+        "of": plan.of,
+        "level": view.level_of(level) if plan.of == "organisation" else None,
+        "count": plan.count,
+        "measure": plan.measure,
+        "k": k if plan.kind == "neighbours" else None,
+        "names": "names" if names or plan.of == "organisation" else "pseudonyms",
+        "vectors": "space" if plan.kind == "vectors" else None,
+        "space_run": view.space.run,
+        "map_version": None,
+        "made_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "cartolex": cartolex_version(),
+    }
+    with contextlib.suppress(Exception):
+        from cartolex.project.maps import pinned, read_maps
+
+        version = pinned(read_maps(project.layout)[0])
+        out["map_version"] = version.id if version is not None else None
+    return out
 
 
 def write_export(
@@ -152,29 +203,35 @@ def write_export(
     ids: list[str] | None = None,
     level: str | None = None,
     k: int = 10,
+    measure: str = "space",
     progress: Callable[[float], None] | None = None,
     cancelled: Callable[[], bool] | None = None,
 ) -> Path | None:
-    """Write the export into ``outputs/exports/``; answers its path, or ``None`` when
-    *cancelled()* stopped it (nothing is left behind then)."""
+    """Write the export into ``outputs/exports/``, its metadata beside it
+    (``<file>.meta.json``); answers its path, or ``None`` when *cancelled()* stopped it
+    (nothing is left behind then)."""
     from cartolex.site.exports import _dated
 
     say = progress or (lambda fraction: None)
     stop = cancelled or (lambda: False)
-    plan = plan_export(view, kind, of, ids=ids, level=level, k=k)
-    items = _items(view, of, ids, level, names or of == "organisation")
+    plan = plan_export(view, kind, of, ids=ids, level=level, k=k, measure=measure)
+    items = _items(view, of, ids, level, names or of == "organisation",
+                   "space" if kind == "vectors" else measure)  # fmt: skip
     who = "people" if of == "person" else "organisations"
     target = _dated(project, f"{STEMS[kind]}-{who}", f".{plan.format}")
     part = target.with_name(f".{target.name}.part")
+    meta = _meta(project, view, plan, names, k, level, target.name)
     try:
         if kind == "neighbours":
-            done = _neighbours(items, part, plan.format, k, say, stop)
+            done = _neighbours(items, part, plan.format, k, say, stop, meta)
         elif kind == "similarity":
-            done = _similarity(items, part, plan.format, say, stop)
+            done = _similarity(items, part, plan.format, say, stop, meta)
         else:
-            done = _vectors(project, items, part, plan.format, say, stop)
+            done = _vectors(project, items, part, plan.format, say, stop, meta)
         if not done:
             return None
+        side = target.with_name(f"{target.stem}.meta.json")
+        side.write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         part.replace(target)
         return target
     finally:
@@ -190,14 +247,19 @@ def _who(items: _Items, i: int) -> list[str]:
     return [items.ids[i], items.names[i]] if items.names is not None else [items.ids[i]]
 
 
-def _neighbours(items: _Items, path: Path, fmt: str, k: int, say: Any, stop: Any) -> bool:
+def _schema_meta(meta: dict[str, Any]) -> dict[bytes, bytes]:
+    return {b"cartolex": json.dumps(meta, ensure_ascii=False).encode("utf-8")}
+
+
+def _neighbours(
+    items: _Items, path: Path, fmt: str, k: int, say: Any, stop: Any, meta: dict[str, Any]
+) -> bool:
     import pyarrow as pa
     import pyarrow.parquet as pq
 
-    z = items.vectors
     n = len(items.ids)
     k = min(k, max(0, n - 1))
-    step = _blocks(n)
+    step = items.measured.block_rows(n, BLOCK_BYTES)
     named = items.names is not None
     writer: Any = None
     fh: Any = None
@@ -211,7 +273,7 @@ def _neighbours(items: _Items, path: Path, fmt: str, k: int, say: Any, stop: Any
         for start in range(0, n, step):
             if stop():
                 return False
-            sim = z[start : start + step] @ z.T
+            sim = _block(items, start, step)
             rows = np.arange(sim.shape[0])
             sim[rows, start + rows] = -np.inf
             best = (
@@ -240,14 +302,15 @@ def _neighbours(items: _Items, path: Path, fmt: str, k: int, say: Any, stop: Any
                     cols["target_name"] = pa.array([items.names[t] for t in dst.tolist()])
                 cols["rank"] = pa.array(ranks.astype(np.int16))
                 cols["similarity"] = pa.array(near.reshape(-1).astype(np.float32))
-                table = pa.table(cols)
+                table = pa.table(cols).replace_schema_metadata(_schema_meta(meta))
                 if writer is None:
                     writer = pq.ParquetWriter(path, table.schema)
                 writer.write_table(table)
             say(min(1.0, (start + len(rows)) / max(1, n)))
         if fmt != "csv" and writer is None:
             pq.write_table(pa.table({"source": pa.array([], pa.string()),
-                                     "target": pa.array([], pa.string())}), path)  # fmt: skip
+                                     "target": pa.array([], pa.string())})
+                           .replace_schema_metadata(_schema_meta(meta)), path)  # fmt: skip
         return True
     finally:
         if fh is not None:
@@ -256,10 +319,11 @@ def _neighbours(items: _Items, path: Path, fmt: str, k: int, say: Any, stop: Any
             writer.close()
 
 
-def _similarity(items: _Items, path: Path, fmt: str, say: Any, stop: Any) -> bool:
-    z = items.vectors
+def _similarity(
+    items: _Items, path: Path, fmt: str, say: Any, stop: Any, meta: dict[str, Any]
+) -> bool:
     n = len(items.ids)
-    step = _blocks(n)
+    step = items.measured.block_rows(n, BLOCK_BYTES)
     if fmt == "csv":
         with open(path, "w", encoding="utf-8", newline="") as fh:
             out = csv.writer(fh)
@@ -267,12 +331,13 @@ def _similarity(items: _Items, path: Path, fmt: str, say: Any, stop: Any) -> boo
             for start in range(0, n, step):
                 if stop():
                     return False
-                sim = np.clip(z[start : start + step] @ z.T, -1.0, 1.0)
+                sim = np.clip(_block(items, start, step), -1.0, 1.0)
                 for r, row in enumerate(np.round(sim.astype(np.float64), 4).tolist()):
                     out.writerow([*_who(items, start + r), *row])
                 say(min(1.0, (start + sim.shape[0]) / max(1, n)))
         return True
     with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED, allowZip64=True) as zf:
+        zf.writestr("meta.json", json.dumps(meta, ensure_ascii=False, indent=2))
         width = max((len(i) for i in items.ids), default=1)
         with zf.open("ids.npy", "w") as fh:
             np.lib.format.write_array(fh, np.asarray(items.ids, dtype=f"<U{width}"))
@@ -287,13 +352,15 @@ def _similarity(items: _Items, path: Path, fmt: str, say: Any, stop: Any) -> boo
             for start in range(0, n, step):
                 if stop():
                     return False
-                sim = np.clip(z[start : start + step] @ z.T, -1.0, 1.0)
+                sim = np.clip(_block(items, start, step), -1.0, 1.0)
                 fh.write(np.ascontiguousarray(sim, dtype="<f4").tobytes())
                 say(min(1.0, (start + sim.shape[0]) / max(1, n)))
     return True
 
 
-def _vectors(project: Any, items: _Items, path: Path, fmt: str, say: Any, stop: Any) -> bool:
+def _vectors(
+    project: Any, items: _Items, path: Path, fmt: str, say: Any, stop: Any, meta: dict[str, Any]
+) -> bool:
     import pyarrow as pa
     import pyarrow.parquet as pq
 
@@ -304,7 +371,7 @@ def _vectors(project: Any, items: _Items, path: Path, fmt: str, say: Any, stop: 
         raw = load_embeddings(layout.stage("themes.space") / "models" / "embeddings.json").Z_ind
         z = np.asarray(raw, dtype=np.float64)[items.rows]
     else:
-        z = items.vectors.astype(np.float64)
+        z = np.asarray(items.measured.data, dtype=np.float64)
     if stop():
         return False
     d = z.shape[1] if z.ndim == 2 else 0
@@ -322,7 +389,7 @@ def _vectors(project: Any, items: _Items, path: Path, fmt: str, say: Any, stop: 
             cols["name"] = pa.array(items.names, pa.string())
         for j, name in enumerate(names):
             cols[name] = pa.array(z[:, j].astype(np.float32))
-        pq.write_table(pa.table(cols), path)
+        pq.write_table(pa.table(cols).replace_schema_metadata(_schema_meta(meta)), path)
     say(1.0)
     return True
 

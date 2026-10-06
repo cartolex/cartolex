@@ -38,6 +38,7 @@ import { GroupingDiagnostic } from './grouping.js';
 import { LayoutDiagnostic } from './layout.js';
 import { MapSettings } from './map-settings.js';
 import { ThresholdsPreview } from './thresholds.js';
+import { SimilarityField } from './similarity.js';
 
 const DIAGNOSTICS = {
   texts: TextsDiagnostic,
@@ -78,7 +79,7 @@ function Produced({ ctx, app, step, view, from, titled }) {
 }
 
 /** The opened panel: it reads the parameters and the diagnostics when it mounts. */
-function TuneBody({ ctx, app, id, panel, preview, extra = null }) {
+function TuneBody({ ctx, app, id, panel, preview }) {
   const params = useResource(ctx.api, '/api/params');
   useParamsFollow(params);
   // one resource per step; a panel's steps never change, so the hooks keep their order
@@ -100,7 +101,7 @@ function TuneBody({ ctx, app, id, panel, preview, extra = null }) {
     ${!params.data && !params.error ? html`<p class="cx-settings__muted" aria-busy="true">${t('common.loading')}</p>` : null}
     ${params.data ? html`<p class="cx-settings__note">${t(`tune.lead.${id}`)}</p>
       ${layout && layout.data ? html`<${MapSettings} ctx=${ctx} app=${app} view=${layout.data} preview=${preview} />` : null}
-      ${extra}
+      ${id === 'map' ? html`<${SimilarityField} ctx=${ctx} params=${params} />` : null}
       ${layout && layout.data ? html`<h4 class="cx-method-subtitle">${t('method.map.placement')}</h4>` : null}
       ${id === 'keywords' ? html`<${ThresholdsPreview} ctx=${ctx} data=${params.data} edits=${editor.edits} />` : null}
       ${rows.length ? html`<${ParamTable} rows=${rows} edits=${editor.edits} setEdit=${editor.setEdit}
@@ -130,10 +131,9 @@ function OutOfDate({ ctx, stage }) {
  * The « Tune » panel as a side panel beside a page's view (the map: the atlas stays whole
  * beside it): its title with « defaults » or « N changed », its state, « Close »; the note of
  * an out-of-date page; *top* (the page's own bar, e.g. the layout's preview); then the body,
- * scrolled on its own, with *extra* (the page's own section) after the layout. *onClose()*
- * hides it.
+ * scrolled on its own. *onClose()* hides it.
  */
-export function TuneSide({ ctx, id, preview = null, top = null, extra = null, onClose }) {
+export function TuneSide({ ctx, id, preview = null, top = null, onClose }) {
   const { app } = ctx;
   const panel = PANELS[id];
   const uid = useUid('cx-tune');
@@ -153,7 +153,7 @@ export function TuneSide({ ctx, id, preview = null, top = null, extra = null, on
     ${stale ? html`<${OutOfDate} ctx=${ctx} stage=${stale} />` : null}
     ${top}
     <div class="cx-tune__body">
-      <${TuneBody} ctx=${ctx} app=${app} id=${id} panel=${panel} preview=${preview} extra=${extra} />
+      <${TuneBody} ctx=${ctx} app=${app} id=${id} panel=${panel} preview=${preview} />
     </div>
   </section>`;
 }

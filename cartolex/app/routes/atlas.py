@@ -688,6 +688,7 @@ def _terms(runtime: Any, ctx: Any) -> dict[str, list[tuple[str, float]]]:
 MAX_NEAREST = 100
 MAX_USERS = 500
 Kind = Literal["person", "organisation", "projected"]
+Measure = Literal["space", "keywords", "jaccard", "themes"]
 
 
 def space_of(runtime: Any, ctx: Any) -> Any:
@@ -720,17 +721,22 @@ def atlas_neighbours(
     kind: Kind,
     id: Annotated[str, Query(min_length=1, max_length=200)],
     k: Annotated[int, Query(ge=1, le=MAX_NEAREST)] = 10,
+    measure: Measure | None = None,
 ) -> dict[str, Any]:
     """The *k* nearest of a person (people), a projected person (people) or an organisation
-    (organisations of its level) by the cosine of their vectors in the space of the themes:
-    ``items`` of ``{id, name, similarity}``, the nearest first."""
+    (organisations of its level) by the project's measure (``similarity`` of
+    ``params.json``, :mod:`cartolex.app.similarity`), or *measure*: ``items`` of ``{id,
+    name, similarity}``, the nearest first, and the ``measure`` used (a projected person is
+    measured in the space)."""
+    from ..similarity import measure_of
     from ..space_index import nearest
 
     view = space_of(runtime_of(request), ctx)
-    items = nearest(view, ctx, kind, id, k)
-    if items is None:
+    found = nearest(view, ctx, kind, id, k, measure or measure_of(ctx.project))
+    if found is None:
         raise _found(kind, id)
-    return {"kind": kind, "id": id, "metric": "cosine", "k": k, "items": items}
+    items, used = found
+    return {"kind": kind, "id": id, "measure": used, "k": k, "items": items}
 
 
 def _item(value: str) -> tuple[str, str]:
@@ -750,9 +756,11 @@ def atlas_compare(
     b: Annotated[str, Query(min_length=3, max_length=220)],
 ) -> dict[str, Any]:
     """Two people or organisations (``person:<id>``, ``organisation:<id>``) side by side: the
-    cosine of their vectors in the space, the cosine and the Jaccard index of their keyword
-    use with the keywords they share, the overlap of their top-level themes (Σ min of the
-    shares) and the texts with an author on each side."""
+    project's ``measure`` and its value (``similarity``, the headline), the cosine of their
+    vectors in the space, the cosine and the Jaccard index of their keyword use with the
+    keywords they share, the overlap of their top-level themes (Σ min of the shares) and the
+    texts with an author on each side."""
+    from ..similarity import measure_of
     from ..space_index import compare, query_vector
 
     view = space_of(runtime_of(request), ctx)
@@ -760,9 +768,9 @@ def atlas_compare(
     for kind, id_ in (one, two):
         if query_vector(view, ctx, kind, id_) is None:
             raise _found(kind, id_)
-    out = compare(view, ctx, one, two)
+    out = compare(view, ctx, one, two, measure_of(ctx.project))
     out["texts"]["items"] = _titles(ctx, out["texts"]["items"])
-    return {"a": _named(view, *one), "b": _named(view, *two), "metric": "cosine", **out}
+    return {"a": _named(view, *one), "b": _named(view, *two), **out}
 
 
 def _named(view: Any, kind: str, id_: str) -> dict[str, str]:
