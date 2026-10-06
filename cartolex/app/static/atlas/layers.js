@@ -43,6 +43,7 @@ export function createLayers(el, { onChange }) {
         const name = nameOfKind(kind);
         return h('div', { class: 'cx-atlas-layers__row' },
           h('button', { type: 'button', class: 'cx-atlas-layers__eye', 'aria-pressed': String(on), dataset: { key: `eye-${kind}` },
+            'aria-label': name,
             title: t(on ? 'atlas.layers.hide' : 'atlas.layers.show', { name }),
             onClick: () => onChange({ show: toggleIn(state.show, kind) }) },
           symbol(SHAPE_OF[kind]), h('span', { text: name }),

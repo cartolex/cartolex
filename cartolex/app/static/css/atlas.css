@@ -1012,3 +1012,30 @@
     transition: none;
   }
 }
+
+/* every target at least 24 px (WCAG 2.2 target size) */
+.cx-atlas-mini,
+.cx-atlas-layers__eye,
+.cx-atlas-layers__more,
+.cx-atlas-layers__aa,
+.cx-atlas-chip,
+.cx-atlas-layers__level,
+.cx-atlas__crumbs .cx-atlas-link {
+  min-height: 24px;
+}
+
+.cx-atlas-layers__aa {
+  min-width: 24px;
+}
+
+.cx-atlas-card__list li,
+.cx-atlas-bar,
+.cx-atlas-fly > * {
+  min-height: 24px;
+}
+
+/* a host's own scene in place of the map's (the app's layout preview) */
+.cx-atlas-map.is-preview {
+  outline: 2px dashed var(--cx-border-strong);
+  outline-offset: -2px;
+}

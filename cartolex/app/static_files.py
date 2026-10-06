@@ -81,6 +81,7 @@ ATLAS_MODULES = (
     "atlas/parts.js",
     "atlas/compare.js",
     "atlas/card.js",
+    "atlas/mapview.js",
     "atlas/atlas.js",
 )
 

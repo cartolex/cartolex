@@ -111,6 +111,7 @@ export function createMapView(el, { t, scene, onPick, hoverCard, actions, label 
   };
   const controller = createMapController({ box, canvas, scene, onPick, onHover: showCard });
   box.cxMap = controller; // for measures in the browser tests
+  box.cxScene = scene; // what is drawn, for the browser tests
   box.dataset.renderer = controller.renderer;
   let boundsKey = '';
   return {
@@ -149,6 +150,7 @@ export function createMapView(el, { t, scene, onPick, hoverCard, actions, label 
       menu.destroy();
       controller.destroy();
       delete box.cxMap;
+      delete box.cxScene;
       el.textContent = '';
     },
   };

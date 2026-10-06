@@ -50,6 +50,12 @@ function makeLayer(id, n, palette) {
   };
 }
 
+/** The alpha of the points the focus leaves out: a trace, fainter the more points overlap
+ * (thousands of faint points still add up to a blot). */
+function traceAlpha(id, n) {
+  return Math.max(0.012, Math.min(DIM[id], DIM[id] * Math.sqrt(400 / Math.max(1, n))));
+}
+
 function trim(layer, n) {
   const out = {};
   for (const [k, v] of Object.entries(layer)) out[k] = v && v.subarray && k !== 'palette' ? v.subarray(0, n) : v;
@@ -293,6 +299,7 @@ export function mapScene(index, state, extra) {
       }
     }
     L.detail = n > 2000 ? 0.25 : 1;
+    L.dim = traceAlpha('texts', shown);
     L.shown = shown;
     counts.texts = { shown, total: n };
     if (texts.sampled) notes.push({ key: 'atlas.note.texts_sample', count: n, total: texts.total });
@@ -333,6 +340,7 @@ export function mapScene(index, state, extra) {
     const out = trim(L, k);
     out.rank = ranksOf(weights);
     out.detail = k > 400 ? 0.35 : 1;
+    out.dim = traceAlpha('keywords', k);
     out.shown = k;
     out.items = ks;
     layers.push(out);
@@ -374,6 +382,7 @@ export function mapScene(index, state, extra) {
     const out = trim(L, k);
     out.items = ps;
     out.shown = shownList.length;
+    out.dim = traceAlpha('people', shownList.length);
     counts.people = { shown: shownList.length, total: k };
     if (regionsAs && shownList.length <= MAX_REGIONS) {
       for (const i of shownList) {
@@ -460,6 +469,7 @@ export function mapScene(index, state, extra) {
     });
     L.items = index.orgs;
     L.shown = list.length;
+    L.dim = traceAlpha('organisations', list.length);
     layers.push(L);
     counts.organisations = { shown: list.length, total: index.orgs.filter((o) => o.level === level).length };
   }

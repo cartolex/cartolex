@@ -48,7 +48,7 @@ export function comparePicker(card, sel) {
         card.picker.find.destroy();
         card.picker = null;
       } else {
-        const find = createFind({ t, entries: () => card.view.findEntries(), kinds: [kind],
+        const find = createFind({ t, entries: () => card.view.findEntries().filter((e) => e.id !== sel.id || e.kind !== kind), kinds: [kind],
           label: t('atlas.compare.pick'), placeholder: t('atlas.compare.placeholder'),
           onPick: (other) => {
             if (card.picker) card.picker.find.destroy();

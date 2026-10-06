@@ -555,6 +555,7 @@ export function mountAtlas(root, { source, host }) {
 
   function load() {
     loading.hidden = false;
+    loading.setAttribute('aria-busy', 'true');
     loading.textContent = t('atlas.loading');
     settle(source.bundle()).then((r) => {
       if (!alive) return;
@@ -576,6 +577,7 @@ export function mountAtlas(root, { source, host }) {
       windowsAsked.all = false;
       windowsAsked.people.clear();
       loading.hidden = true;
+      loading.removeAttribute('aria-busy');
       stage.hidden = false;
       applyLayout();
       draw();
@@ -591,6 +593,7 @@ export function mountAtlas(root, { source, host }) {
     /** A host's own scene in place of the map's (a preview), with its label; null: the map's. */
     setScene(scene, { label = '' } = {}) {
       override = scene ? { scene, label } : null;
+      mapEl.classList.toggle('is-preview', Boolean(scene));
       mapView.hideCard();
       mapView.redraw(false);
       render();
