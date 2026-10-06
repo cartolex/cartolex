@@ -80,7 +80,15 @@ nothing in the engine names a particular deployment, source or procedure.
     people list reads the texts' columns once for their counts and their
     states, and the states alone skip the years and languages: on the national
     project (169,000 people, 5.9 million texts) its first look went from 97 s
-    to 53 s.
+    to 53 s. What takes long to make is kept in the project's cache, once per
+    version of what it reads, for the app's next sessions: beside the texts'
+    view the copies of a work and the texts' orders, in `cache/atlas/` the
+    map's texts layer and all its windows (the latest four replies of each).
+    A person's sheet reads the people and their latest attempts as the list
+    has them. On the national project, in a new session of the app: the texts
+    in 0.1 s (30 s before), sorted by title 0.1 s (10 s), the map's texts
+    0.0 s (30 s), a person's sheet 1 s (6 s); the keywords are found in the
+    texts by runs of words that start one (the same result).
   - *Distinct values*: `cartolex.scale.sorted_unique`, by a sort, where a
     plain `np.unique` goes through a hash table since numpy 2.3 (9 s instead of
     0.2 s on ten million distinct integers): the coverage, the corpus store,

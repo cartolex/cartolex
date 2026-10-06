@@ -444,6 +444,9 @@ def test_the_atlas_page_reads_organisations_texts_regions_and_bases(built, clien
     xs = [kws[k]["x"] for k in texts["terms"][i]]
     assert texts["x"][i] == pytest.approx(sum(xs) / len(xs), abs=1e-3)
     assert not texts["sampled"] and texts["total"] == len(texts["id"])
+    kept = (tmp_path / "copy" / "cache" / "atlas").glob("texts-*.json")
+    newest = max(kept, key=lambda p: p.stat().st_mtime_ns)  # kept for the next sessions
+    assert json.loads(newest.read_bytes())["id"] == texts["id"]
     # a larger corpus is drawn by a sample, the same each time, placed the same way
     from types import SimpleNamespace
 

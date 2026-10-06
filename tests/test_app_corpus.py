@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 
 import pytest
 from _app_helpers import TOKEN, Client, etag
@@ -62,7 +63,7 @@ def _run(client: Client, body: dict) -> dict:
     return done["result"]
 
 
-def test_collecting_from_the_services_end_to_end(client, services):
+def test_collecting_from_the_services_end_to_end(client, services, tmp_path):
     # ── the list: one field per column, organisations at the project's levels ──
     proposal = client.post("/api/people/import", json={"text": _list(services)}).json()
     assert proposal["mapping"]["lab"] == "org:lab"
@@ -129,6 +130,20 @@ def test_collecting_from_the_services_end_to_end(client, services):
     every = client.get("/api/texts?limit=500").json()
     copies = [t for t in every["items"] if t["copy_of"]]
     assert copies and every["counts"]["duplicates"] == len(copies)
+    # kept beside the texts' view; a damaged file is computed again
+    from cartolex.app.corpus_view import work_copies
+
+    kept = next((tmp_path / "p" / "cache" / "views").glob("texts-*/copies-*.json"))
+    found = json.loads(kept.read_text(encoding="utf-8"))
+    assert len(found) == every["counts"]["duplicates"]
+    kept.write_text("{damaged", encoding="utf-8")
+    with Project.open(tmp_path / "p") as project:
+        assert work_copies(project) == found
+    assert json.loads(kept.read_text(encoding="utf-8")) == found
+    by_title = client.get("/api/texts?limit=5&sort=title").json()["items"]
+    order = kept.parent / "order-title.npy"
+    assert by_title and order.is_file()
+    assert client.get("/api/texts?limit=5&sort=title").json()["items"] == by_title
     text = client.get(f"/api/texts/{texts['items'][0]['text_id']}").json()
     assert any(p["part"] == "abstract" and p["provider"] for p in text["parts"]) and text["people"]
     good = client.get("/api/people?coverage=good&limit=1").json()["items"][0]

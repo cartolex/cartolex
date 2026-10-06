@@ -254,16 +254,19 @@ class _Matcher:
             if canonical in terms and key not in self.lookup:
                 self.lookup[key] = canonical
         self.longest = min(MAX_TERM_WORDS, max((len(k) for k in self.lookup), default=1))
+        #: Every run of words a keyword starts with: a longer run is looked up only after it.
+        self.starts = {key[:n] for key in self.lookup for n in range(1, len(key) + 1)}
 
     def find(self, text: str) -> set[str]:
         words = _WORD.findall(text.lower())
         found: set[str] = set()
-        get = self.lookup.get
+        get, starts = self.lookup.get, self.starts
         for i in range(len(words)):
-            for n in range(1, self.longest + 1):
-                if i + n > len(words):
+            for n in range(1, min(self.longest, len(words) - i) + 1):
+                run = tuple(words[i : i + n])
+                if run not in starts:
                     break
-                term = get(tuple(words[i : i + n]))
+                term = get(run)
                 if term is not None:
                     found.add(term)
         return found

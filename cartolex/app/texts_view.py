@@ -20,6 +20,7 @@ titles' keys the view keeps.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -61,6 +62,8 @@ FIELDS = (
 TABLES = ("texts", "text_parts", "authorships")
 #: Rows read at a time.
 BATCH = 65_536
+#: The orders of the texts a list sorts by.
+ORDERS = ("year", "title", "source", "people", "content")
 #: A title's first bytes (case folded) that sort it; the rest sorts by code point.
 _PREFIX = 16
 
@@ -96,6 +99,9 @@ class TextsView:
     #: Every authorship as codes (``text``: a row of the view, ``person``: in *person_ids*).
     authors: np.ndarray
     person_ids: list[str]
+    #: The view's folder in the project's cache (``None``: a view kept nowhere), where
+    #: what is computed from the same tables may be kept beside it.
+    folder: Path | None = None
     _orders: dict[str, np.ndarray] = field(default_factory=dict)
     _person_index: dict[str, int] | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock)
@@ -192,13 +198,32 @@ class TextsView:
     def order(self, name: str) -> np.ndarray:
         """The texts sorted by *name* (``year``, ``title``, ``source``, ``people``,
         ``content``), smallest first, a missing value last, ties in ``text_id`` order;
-        computed once."""
+        computed once, and kept in the view's folder (a change of how an order is made
+        changes :data:`FORMAT`)."""
+        if name not in ORDERS:
+            raise KeyError(name)
         with self._lock:
             if name not in self._orders:
-                self._orders[name] = np.argsort(self._sort_key(name), kind="stable").astype(
-                    np.int32 if self.n < 2**31 else np.int64
-                )
+                self._orders[name] = self._kept_order(name)
             return self._orders[name]
+
+    def _kept_order(self, name: str) -> np.ndarray:
+        kept = self.folder / f"order-{name}.npy" if self.folder is not None else None
+        if kept is not None:
+            with contextlib.suppress(OSError, ValueError):
+                found = np.load(kept, mmap_mode="r", allow_pickle=False)
+                if found.shape == (self.n,):
+                    return found
+        order = np.argsort(self._sort_key(name), kind="stable").astype(
+            np.int32 if self.n < 2**31 else np.int64
+        )
+        if kept is not None:
+            with contextlib.suppress(OSError):
+                part = kept.with_name(f".{kept.name}.{os.getpid()}")
+                with open(part, "wb") as fh:
+                    np.save(fh, order, allow_pickle=False)
+                os.replace(part, kept)
+        return order
 
     def _sort_key(self, name: str) -> np.ndarray:
         if name == "year":
@@ -338,6 +363,7 @@ def _open(folder: Path) -> TextsView:
         people=column("people", np.int32),
         authors=np.load(folder / AUTHORS_FILE, mmap_mode="r", allow_pickle=False),
         person_ids=json.loads((folder / PEOPLE_FILE).read_text(encoding="utf-8")),
+        folder=folder,
     )
 
 

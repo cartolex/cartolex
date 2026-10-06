@@ -482,13 +482,22 @@ def coverage_report(
     }
 
 
-def person_sheet(project: Project, person_id: str, *, good: int | None = None) -> dict[str, Any]:
+def person_sheet(
+    project: Project,
+    person_id: str,
+    *,
+    good: int | None = None,
+    decisions: Mapping[str, dict[str, Any]] | None = None,
+    outcomes: Mapping[str, dict[str, Outcome]] | None = None,
+) -> dict[str, Any]:
     """Why a profile is what it is: the coverage, the sources used and discarded, the
-    attempts of each finder and the first blocking cause."""
-    decisions = read_people(project.layout)
+    attempts of each finder and the first blocking cause. *decisions* and *outcomes*: as
+    :func:`person_coverage` takes them, when the caller has read them."""
+    decisions = read_people(project.layout) if decisions is None else decisions
     merged = {pid: row["merged_into"] for pid, row in decisions.items() if row.get("merged_into")}
     tables = _load(project, _with_merged([person_id], merged))
-    outcomes = latest_outcomes(project.layout, project.config)
+    if outcomes is None:
+        outcomes = latest_outcomes(project.layout, project.config)
     found = person_coverage(
         project,
         good=good,

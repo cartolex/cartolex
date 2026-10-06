@@ -534,14 +534,51 @@ def atlas_texts(
     etag = _etag(runs, ["texts", str(stamp(ctx.project)), _base_fp(ctx, base)])
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag})
-    bundle = _with_base(ctx, _bundle(runtime, ctx, runs), base)
-    key = ("atlas-texts", ctx.id, etag)
-    texts = runtime.atlas_cache.get(
-        key, lambda: place_texts(ctx, bundle["keywords"], bundle["people"])
+
+    def make() -> bytes:
+        bundle = _with_base(ctx, _bundle(runtime, ctx, runs), base)
+        texts = place_texts(ctx, bundle["keywords"], bundle["people"])
+        return json.dumps(
+            {"format": TEXTS_FORMAT, "available": True, **texts},
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+    reply = runtime.atlas_cache.get(
+        ("atlas-texts", ctx.id, etag),
+        lambda: _kept(ctx.layout.cache / "atlas", "texts", etag, make),
     )
-    return JSONResponse(
-        {"format": TEXTS_FORMAT, "available": True, **texts}, headers={"ETag": etag}
-    )
+    return Response(reply, media_type="application/json", headers={"ETag": etag})
+
+
+#: The replies of one kind kept in the project's cache (the latest ones).
+KEPT_REPLIES = 4
+
+
+def _kept(folder: Path, kind: str, etag: str, make: Any) -> bytes:
+    """A reply kept in *folder* for *etag* (what it is made from), else made and kept: a
+    reply that takes long to make is made once per version of what it reads, not once per
+    session of the app."""
+    import contextlib
+    import os
+
+    name = hashlib.blake2b(etag.encode("utf-8"), digest_size=8).hexdigest()
+    path = folder / f"{kind}-{name}.json"
+    with contextlib.suppress(OSError):
+        body = path.read_bytes()
+        if body.startswith(b'{"format"') and body.endswith(b"}"):
+            return body
+    body = make()
+    with contextlib.suppress(OSError):
+        folder.mkdir(parents=True, exist_ok=True)
+        part = path.with_name(f".{path.name}.{os.getpid()}")
+        part.write_bytes(body)
+        os.replace(part, path)
+        older = sorted(folder.glob(f"{kind}-*.json"), key=lambda p: p.stat().st_mtime_ns)
+        for stale in older[:-KEPT_REPLIES]:
+            stale.unlink(missing_ok=True)
+    return body
 
 
 @routes.get("/api/atlas/windows", action="atlas.read")
@@ -559,31 +596,41 @@ def atlas_windows(
     if runs["map.layout"] is None:
         return JSONResponse({"format": WINDOWS_FORMAT, "available": False,
                              "empty": empty("empty_no_map")})  # fmt: skip
-    etag = _etag(runs, ["windows", person, _base_fp(ctx, base)])
+    from ..corpus_view import stamp
+
+    # The people identified on the map come from the tables: their stamp keys the windows.
+    etag = _etag(runs, ["windows", person, str(stamp(ctx.project)), _base_fp(ctx, base)])
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag})
     if base:
         body: Any = {k: [] for k in _WINDOW_COLUMNS}
     else:
-        windows = runtime.atlas_cache.get(
-            ("atlas-windows", ctx.id, tuple(sorted(runs.items()))), lambda: build_windows(ctx)
-        )
+
+        def windows() -> dict[str, Any]:
+            return runtime.atlas_cache.get(
+                ("atlas-windows", ctx.id, tuple(sorted(runs.items()))), lambda: build_windows(ctx)
+            )
+
         if person is None:
             # Every window: the reply made once and kept (megabytes, not lists of objects).
-            reply = runtime.atlas_cache.get(
-                ("atlas-windows-reply", ctx.id, tuple(sorted(runs.items()))),
-                lambda: json.dumps(
-                    {"format": WINDOWS_FORMAT, "available": True, **_windows_json(windows)},
+            def make() -> bytes:
+                return json.dumps(
+                    {"format": WINDOWS_FORMAT, "available": True, **_windows_json(windows())},
                     separators=(",", ":"),
-                ).encode(),
+                ).encode()
+
+            reply = runtime.atlas_cache.get(
+                ("atlas-windows-reply", ctx.id, etag),
+                lambda: _kept(ctx.layout.cache / "atlas", "windows", etag, make),
             )
             return Response(reply, media_type="application/json", headers={"ETag": etag})
         bundle = _bundle(runtime, ctx, runs)
         at = next((i for i, p in enumerate(bundle["people"]) if p["person_id"] == person), None)
         import numpy as np
 
-        rows = np.flatnonzero(windows["person"] == at) if at is not None else np.zeros(0, int)
-        body = _windows_json(windows, rows)
+        every = windows()
+        rows = np.flatnonzero(every["person"] == at) if at is not None else np.zeros(0, int)
+        body = _windows_json(every, rows)
     return JSONResponse(
         {"format": WINDOWS_FORMAT, "available": True, **body}, headers={"ETag": etag}
     )

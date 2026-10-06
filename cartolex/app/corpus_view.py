@@ -11,7 +11,9 @@ one organisation is read from the row groups that hold it.
 
 from __future__ import annotations
 
+import contextlib
 import json
+import os
 from collections import defaultdict
 from collections.abc import Mapping
 from typing import Any
@@ -89,6 +91,22 @@ def _cached(cache: Any, key: Any, compute: Any) -> Any:
     return cache.get(key, compute) if cache is not None else compute()
 
 
+def coverage_inputs(project: Project, cache: Any = None) -> tuple[Any, Any]:
+    """What the coverage reads besides the tables: ``people.csv``'s rows and each person's
+    latest attempts (:func:`cartolex.collect.outcomes.latest_outcomes`), once per version
+    of the raw runs and of ``people.csv``. Shared: read them, never change them."""
+    from cartolex.collect.decisions import read_people as read_decisions
+    from cartolex.collect.outcomes import latest_outcomes
+
+    from .collect_service import raw_stamp
+
+    def compute() -> tuple[Any, Any]:
+        layout = project.layout
+        return read_decisions(layout), latest_outcomes(layout, project.config)
+
+    return _cached(cache, ("coverage-inputs", raw_stamp(project)), compute)
+
+
 def coverage_states(
     project: Project, cache: Any = None, columns: Any = None
 ) -> dict[str, dict[str, Any]]:
@@ -99,6 +117,7 @@ def coverage_states(
     def compute() -> dict[str, dict[str, Any]]:
         if not project.layout.table("people").exists():
             return {}
+        decisions, outcomes = coverage_inputs(project, cache)
         return {
             p.person_id: {
                 "state": p.state,
@@ -109,7 +128,11 @@ def coverage_states(
                 "titles_only": p.titles_only,
             }
             for p in person_coverage(
-                project, detail=False, columns=columns() if columns is not None else None
+                project,
+                decisions=decisions,
+                outcomes=outcomes,
+                detail=False,
+                columns=columns() if columns is not None else None,
             )
         }
 
@@ -301,7 +324,7 @@ def work_copies(project: Project, cache: Any = None) -> dict[str, str]:
     """Each copy of a work among the texts → the text the corpus reads instead, as
     ``corpus.assemble`` finds them with its parameters
     (:func:`cartolex.project.corpus.work_copies`), once per version of the tables and of
-    those parameters."""
+    those parameters: kept beside the texts' view, which those tables make."""
     from cartolex.project.corpus import work_copies as find
 
     view = texts_view(project, cache)
@@ -310,7 +333,21 @@ def work_copies(project: Project, cache: Any = None) -> dict[str, str]:
     def compute() -> dict[str, str]:
         if not view.n:
             return {}
-        return find(project.layout.tables, keys=view.title_keys(), **same)
+        kept = (
+            view.folder / f"copies-{same['min_title']}-{same['year_gap']}.json"
+            if view.folder is not None
+            else None
+        )
+        if kept is not None:
+            with contextlib.suppress(OSError, ValueError, TypeError):
+                return dict(json.loads(kept.read_text(encoding="utf-8")))
+        found = find(project.layout.tables, keys=view.title_keys(), **same)
+        if kept is not None:
+            with contextlib.suppress(OSError):
+                part = kept.with_name(f".{kept.name}.{os.getpid()}")
+                part.write_text(json.dumps(found, separators=(",", ":")), encoding="utf-8")
+                os.replace(part, kept)
+        return found
 
     return _cached(cache, ("work-copies", view_stamp(project), *same.values()), compute)
 
@@ -423,8 +460,9 @@ def person_detail(project: Project, person_id: str, cache: Any = None) -> dict[s
     row = next(iter(_rows(project, "people", None, one)), None)
     if row is None:
         return None
+    decisions, outcomes = coverage_inputs(project, cache)
     try:
-        sheet = person_sheet(project, person_id)
+        sheet = person_sheet(project, person_id, decisions=decisions, outcomes=outcomes)
     except ValueError:
         sheet = None  # merged into another person: the sheet is theirs
     rows = _rows(project, "affiliations", None, one)

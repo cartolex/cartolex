@@ -14,6 +14,7 @@ from ..corpus_view import (
     coverage_states,
     organisation_detail,
     organisations,
+    people_view,
     person_detail,
     stamp,
     text_detail,
@@ -47,8 +48,6 @@ def coverage(
     (good, thin, failed, no data) and their first blocking causes, the states by
     organisation (the largest first), the texts by year and by language, the slots;
     computed once per version of what they read."""
-    from ..corpus_view import people_view
-
     runtime = runtime_of(request)
     fp = people_view(ctx.project, runtime.table_cache)["fp"]
     out = runtime.table_cache.get(
@@ -63,8 +62,6 @@ def _coverage(ctx: Any, runtime: Any) -> dict[str, Any]:
     from cartolex.collect.coverage import CAUSES, STATES
     from cartolex.collect.decisions import collect_params
     from cartolex.collect.providers import coverage as slot_coverage
-
-    from ..corpus_view import people_view
 
     people = people_view(ctx.project, runtime.table_cache)["people"]
     states = coverage_states(ctx.project, runtime.table_cache)
@@ -315,10 +312,11 @@ def duplicates(request: Request, ctx: ProjectDep) -> dict[str, Any]:
 def sheet(request: Request, person_id: str, ctx: ProjectDep) -> dict[str, Any]:
     """Why a person's profile is what it is: the coverage and its first blocking cause, the
     sources used and discarded, the attempts, the texts, the affiliations with their years."""
-    found = person_detail(ctx.project, person_id, runtime_of(request).table_cache)
+    cache = runtime_of(request).table_cache
+    found = person_detail(ctx.project, person_id, cache)
     if found is None:
         raise ApiError.of("person_not_found", person=person_id)
-    people, _ = read_people(ctx.project, runtime_of(request).table_cache)
+    people = people_view(ctx.project, cache)["people"]
     decision = next((p for p in people if p["person_id"] == person_id), None)
     if decision is not None:
         found["decision"] = {
