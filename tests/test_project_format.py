@@ -382,6 +382,45 @@ def test_an_unsorted_file_is_refused_when_read(tmp_path):
         read_source_table(path, "texts")
 
 
+def test_a_file_read_by_columns_is_still_checked_whole(tmp_path):
+    import pyarrow.parquet as pq
+
+    from cartolex.project.tables import SourceTableWriter
+
+    path = tmp_path / "texts.parquet"
+    rows = [dict(ROW, text_id=f"t{i}", position=i) for i in range(5)]
+    with SourceTableWriter(path, "texts") as writer:
+        writer.extend(rows)
+    some = read_source_table(path, "texts", ["text_id", "year"], filters=[("year", "=", 2024)])
+    assert some.column_names == ["text_id", "year"] and some.num_rows == 5
+    # A required value missing is found in the file's footer, whatever columns are read.
+    pq.write_table(_texts([dict(ROW, text_id="t1", title=None)]), tmp_path / "bad.parquet")
+    with pytest.raises(TableError, match="'title' has 1 empty value"):
+        read_source_table(tmp_path / "bad.parquet", "texts", ["text_id"])
+    # Rows out of order are refused when only other columns are read.
+    pq.write_table(_texts([dict(ROW, text_id="t2"), dict(ROW, text_id="t1")]), path)
+    with pytest.raises(TableError, match="not sorted"):
+        read_source_table(path, "texts", ["year"])
+
+
+def test_the_streamed_writer_refuses_keys_out_of_order_across_row_groups(tmp_path, monkeypatch):
+    from cartolex.project import tables
+    from cartolex.project.tables import SourceTableWriter
+
+    monkeypatch.setattr(tables, "ROW_GROUP", 2)
+    path = tmp_path / "texts.parquet"
+    with pytest.raises(TableError, match="not sorted"):
+        with SourceTableWriter(path, "texts") as writer:
+            writer.extend(dict(ROW, text_id=t, position=i) for i, t in enumerate("acb"))
+    with pytest.raises(TableError, match="repeats"):
+        with SourceTableWriter(path, "texts") as writer:
+            writer.extend(dict(ROW, text_id=t, position=i) for i, t in enumerate("abb"))
+    assert not path.exists()
+    with SourceTableWriter(path, "texts") as writer:
+        writer.extend(dict(ROW, text_id=t, position=i) for i, t in enumerate("abcde"))
+    assert read_source_table(path, "texts")["text_id"].to_pylist() == list("abcde")
+
+
 def test_decision_csvs_are_checked_and_canonical(tmp_path):
     path = tmp_path / "people.csv"
     rows = [

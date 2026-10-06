@@ -15,6 +15,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from cartolex.project import Project
+from cartolex.project.layout import SOURCE_TABLES
 from cartolex.project.tables import read_source_table
 
 __all__ = [
@@ -47,6 +48,20 @@ def stamp(project: Project) -> tuple[Any, ...]:
         layout.table("organisations"),
         layout.params_json,
     ):
+        try:
+            st = path.stat()
+            out.append((path.name, st.st_size, st.st_mtime_ns))
+        except FileNotFoundError:
+            out.append((path.name, None))
+    return tuple(out)
+
+
+def tables_stamp(project: Project) -> tuple[Any, ...]:
+    """What the views of texts and organisations depend on: the tables and the parameters
+    (not ``people.csv``: editing a person leaves them as they are)."""
+    layout = project.layout
+    out: list[Any] = [str(layout.root)]
+    for path in (*(layout.table(n) for n in SOURCE_TABLES), layout.params_json):
         try:
             st = path.stat()
             out.append((path.name, st.st_size, st.st_mtime_ns))
@@ -201,7 +216,7 @@ def organisations(project: Project, cache: Any = None) -> list[dict[str, Any]]:
             for o in orgs
         ]
 
-    return _cached(cache, ("organisations", stamp(project)), compute)
+    return _cached(cache, ("organisations", tables_stamp(project)), compute)
 
 
 def organisation_detail(project: Project, org_id: str) -> dict[str, Any] | None:
@@ -293,7 +308,7 @@ def texts(project: Project, cache: Any = None) -> list[dict[str, Any]]:
         return out
 
     same_work = _same_work(project)
-    return _cached(cache, ("texts", stamp(project), *same_work.values()), compute)
+    return _cached(cache, ("texts", tables_stamp(project), *same_work.values()), compute)
 
 
 def _same_work(project: Project) -> dict[str, int]:

@@ -39,6 +39,7 @@ __all__ = [
     "DecisionTable",
     "SourceTableWriter",
     "TableError",
+    "check_source_file",
     "empty_table",
     "read_decision_csv",
     "read_source_table",
@@ -190,10 +191,13 @@ def empty_table(name: str) -> pa.Table:
     return SOURCE_SCHEMAS[name].empty_table()
 
 
-def _check(name: str, table: pa.Table, where: str) -> pa.Table:
-    schema = SOURCE_SCHEMAS[name]
-    for fld in schema:
+def _conform(name: str, table: pa.Table, where: str, *, partial: bool = False) -> pa.Table:
+    """*table*'s columns cast to the schema's types; an optional column missing reads as
+    empty. With *partial* (some of the columns read), the columns absent are left out."""
+    for fld in SOURCE_SCHEMAS[name]:
         if fld.name not in table.column_names:
+            if partial:
+                continue
             if fld.name in _REQUIRED[name]:
                 raise TableError(f"{where}: column {fld.name!r} is missing")
             # An optional column a newer minor version added: an older file reads it as empty.
@@ -208,17 +212,23 @@ def _check(name: str, table: pa.Table, where: str) -> pa.Table:
                 raise TableError(
                     f"{where}: column {fld.name!r} is {got}, expected {fld.type}"
                 ) from exc
+    return table
+
+
+def _check(name: str, table: pa.Table, where: str, *, partial: bool = False) -> pa.Table:
+    table = _conform(name, table, where, partial=partial)
+    present = set(table.column_names)
     for col in _REQUIRED[name]:
-        if table[col].null_count:
+        if col in present and table[col].null_count:
             raise TableError(f"{where}: column {col!r} has {table[col].null_count} empty value(s)")
     for (tname, col), allowed in _ALLOWED.items():
-        if tname == name:
+        if tname == name and col in present:
             bad = set(pc.unique(table[col]).to_pylist()) - allowed
             if bad:
                 raise TableError(f"{where}: column {col!r} has unknown value(s) {sorted(bad)[:5]}")
     keys = SOURCE_KEYS[name]
     n = table.num_rows
-    if n > 1:
+    if n > 1 and present.issuperset(keys):
         order = pc.sort_indices(
             table.select(list(keys)),
             sort_keys=[(k, "ascending") for k in keys],  # nulls last: the default
@@ -374,11 +384,79 @@ def write_source_rows(path: Path, name: str, rows: Iterable[Mapping[str, object]
     return writer.rows
 
 
-def read_source_table(path: Path, name: str, columns: list[str] | None = None) -> pa.Table:
-    """Read and check source table *name* (all columns unless *columns* is given)."""
-    table = pq.read_table(path)
-    table = _check(name, table, str(path))
-    return table.select(columns) if columns else table
+#: The table files already checked, as they were (path, size, modification time).
+_CHECKED: set[tuple[str, int, int]] = set()
+
+
+def _null_count(pf: pq.ParquetFile, column: str) -> int | None:
+    """The empty values of a flat *column*, from the file's footer (``None``: not recorded)."""
+    meta = pf.metadata
+    leaf = next((j for j in range(meta.num_columns) if meta.schema.column(j).path == column), None)
+    if leaf is None:
+        return None
+    total = 0
+    for i in range(meta.num_row_groups):
+        stats = meta.row_group(i).column(leaf).statistics
+        if stats is None or not stats.has_null_count:
+            return None
+        total += stats.null_count
+    return total
+
+
+def check_source_file(path: Path, name: str) -> None:
+    """Check source table *name*'s file as :func:`write_source_table` checks a table, once
+    per version of the file: its columns and types, its required values (counted in the
+    file's footer), its allowed values, and its key's order and uniqueness (reading only
+    those columns)."""
+    path = Path(path)
+    stat = path.stat()
+    stamp = (str(path.resolve()), stat.st_size, stat.st_mtime_ns)
+    if stamp in _CHECKED:
+        return
+    where = str(path)
+    pf = pq.ParquetFile(path)
+    try:
+        schema = pf.schema_arrow
+        for col in _REQUIRED[name]:
+            if col not in schema.names:
+                raise TableError(f"{where}: column {col!r} is missing")
+        _conform(name, schema.empty_table(), where, partial=True)
+        light = set(SOURCE_KEYS[name]) | {c for (t, c) in _ALLOWED if t == name}
+        for col in _REQUIRED[name]:
+            if col in light:
+                continue
+            nulls = _null_count(pf, col)
+            if nulls is None:
+                light.add(col)  # not recorded: read and counted
+            elif nulls:
+                raise TableError(f"{where}: column {col!r} has {nulls} empty value(s)")
+        _check(name, pf.read(columns=sorted(light & set(schema.names))), where, partial=True)
+    finally:
+        pf.close()
+    _CHECKED.add(stamp)
+
+
+def read_source_table(
+    path: Path,
+    name: str,
+    columns: list[str] | None = None,
+    *,
+    filters: list | None = None,
+) -> pa.Table:
+    """Read source table *name* (all columns unless *columns* is given; with *filters*,
+    pyarrow's, only the rows that match), its file checked first
+    (:func:`check_source_file`). Only the columns asked are read."""
+    check_source_file(path, name)
+    if columns is None:
+        return _conform(name, pq.read_table(path, filters=filters), str(path))
+    present = set(pq.read_schema(path).names)
+    table = pq.read_table(path, columns=[c for c in columns if c in present], filters=filters)
+    table = _conform(name, table, str(path), partial=True)
+    for col in columns:  # an optional column an older file lacks reads as empty
+        if col not in table.column_names:
+            fld = SOURCE_SCHEMAS[name].field(col)
+            table = table.append_column(fld, pa.nulls(table.num_rows, type=fld.type))
+    return table.select(columns)
 
 
 # ── CSV decisions ────────────────────────────────────────────────────────────
