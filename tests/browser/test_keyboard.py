@@ -367,6 +367,7 @@ def test_error_card_details_and_diagnostic(gallery):
     card.get_by_role("status").filter(has_text="Diagnostic copied").wait_for()
     copied = page.evaluate("() => navigator.clipboard.readText()")
     assert "code: network" in copied and "request: GET /api/project/state" in copied
+    expect(card.locator(".cx-error-card__copied-next")).to_contain_text("Paste it into your message")
 
 
 def test_progress_bar_never_goes_back(gallery):

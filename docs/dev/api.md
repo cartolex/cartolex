@@ -150,13 +150,16 @@ a failure), `failed`, `cancelled` and `interrupted`. A cancel stops at the next 
 checkpoints pauses instead.
 
 A failed job says why. Its `error` is
-`{code, params, message, exception, detail, step, progress}`: the cause's
+`{code, params, message, exception, detail, step, progress, traceback}`: the cause's
 code (`collect_budget_spent`, `collect_service_unavailable`,
 `collect_incomplete`, `collect_malformed`, `collect_refused`,
 `collect_cache_miss`, else `job_failed`) with its params and English words,
 the exception's class and a short message (300 characters at most), the stage
-it was in and its last progress. The interface's error card shows the code's
-words, and « Copy a diagnostic » carries the class, the message and the step.
+it was in, its last progress, and the traceback (of the failed stage, or of the
+build's process; at most 8,000 characters, its end, with the home folder written
+`~`; also in the job's log). The interface's error card shows the code's words,
+and « Copy a diagnostic » carries the job's id, the time it failed, the system,
+the class, the message, the step and the traceback.
 
 A paused job's `result` is `{outcome: "paused", pause}`; `pause` is
 `{code, params, message, checkpoint, progress, cause}`: why it paused
@@ -183,7 +186,7 @@ The app logs JSON lines through `logging` (`cartolex.app`): each request with
 its id, method, route **template** (`/api/jobs/{job_id}`, never the values or
 the query), status and time. The server installs the formatter
 (`cartolex.app.logs.configure_logging`); creating an app changes no logging
-setting. `GET /api/diagnostic` gives the versions (Python, cartolex, the key
+setting. `GET /api/diagnostic` gives the versions (Python, cartolex and its build, the key
 libraries, the language models), the machine's size and the recent job events
 — never a project's name, path, people or texts — so it can be pasted into a
 report as it is.
@@ -198,7 +201,8 @@ report as it is.
 | `GET /api/app/manifest`, `GET /api/app/manifest/schema` | the manifest and its schema ({doc}`app-manifest`) |
 | `GET /api/session`, `DELETE /api/session` | who the session acts for; sign out |
 | `POST /api/presence {page, bye}` | a page of the interface says it is open, or (`bye`) closing; a local app started with a browser stops once none is open and no job runs (manifest capability `idle_stop`, `cartolex app --idle-stop`) |
-| `GET /api/diagnostic` | versions, machine, recent job events |
+| `GET /api/app/about` | what the About page shows: `version`, `build` (`{commit, date}` or `null`), `authors`, `licence`, `source` (the repository's address) and `citation` (how to cite cartolex), from the package's metadata |
+| `GET /api/diagnostic` | versions and build, machine, recent job events |
 | `GET /api/openapi.json` | this API's description |
 | `GET /launch?token=…` | the launch link |
 

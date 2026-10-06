@@ -268,6 +268,24 @@ def test_a_failure_made_good_by_a_later_job_of_its_kind_leaves_the_header(ui):
     assert found[0] is None and found[1]["id"] == "d"
 
 
+def test_a_failed_job_s_diagnostic_names_the_job_its_time_and_its_traceback(ui):
+    ui.open("/gallery")
+    text = ui.page.evaluate(
+        r"""async () => {
+          const { diagnosticText, jobError } = await import('/static/core/errors.js');
+          const job = { id: '20261006T101200Z-7c1e2a', kind: 'build', state: 'failed',
+            finished_at: '2026-10-06T10:13:00Z',
+            error: { code: 'job_failed', params: {}, message: 'failed', exception: 'ValueError',
+                     detail: 'bad', traceback: 'Traceback (most recent call last):\n  File "~/x.py"' } };
+          return diagnosticText(jobError(job), { version: '1.0', platform: 'Linux 6.8 x86_64',
+            build: { commit: '0123456789ab', date: '2026-10-06' } });
+        }"""
+    )
+    assert "app: cartolex 1.0 (0123456, 2026-10-06)" in text
+    assert "time: 2026-10-06T10:13:00Z" in text and "job: 20261006T101200Z-7c1e2a" in text
+    assert "system: Linux 6.8 x86_64" in text and 'File "~/x.py"' in text
+
+
 @pytest.mark.slow
 def test_information_toasts_go_and_error_toasts_stay_until_dismissed(ui, server):
     ui.open("/gallery")

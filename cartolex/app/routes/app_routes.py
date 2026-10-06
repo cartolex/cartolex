@@ -61,6 +61,14 @@ def manifest(request: Request) -> dict[str, Any]:
     return m.model_dump(mode="json")
 
 
+@routes.get("/api/app/about", action="app.read", resource="app")
+def about_app() -> dict[str, Any]:
+    """The About page: version and build, authors, licence, source, how to cite."""
+    from ..about import about
+
+    return about()
+
+
 @routes.get("/api/app/manifest/schema", action="app.read", resource="app")
 def manifest_json_schema() -> dict[str, Any]:
     """The JSON Schema of the manifest."""
@@ -155,8 +163,11 @@ def diagnostic(request: Request) -> dict[str, Any]:
                 ],
             }
         )
+    from ..about import build_stamp
+
     return {
         "cartolex": cartolex_version(),
+        "build": build_stamp(),
         "python": sys.version.split()[0],
         "platform": {
             "system": platform.system(),

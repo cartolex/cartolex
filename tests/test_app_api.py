@@ -315,6 +315,16 @@ def test_share_sources_and_empty_results(client):
     assert client.get("/api/keywords/copilot/summary").status_code == 409
 
 
+def test_the_about_page_and_the_manifest_name_the_build(client):
+    about = client.get("/api/app/about").json()
+    assert about["version"] and about["authors"] and about["licence"] == "MIT"
+    assert about["version"] in about["citation"] and about["authors"][0] in about["citation"]
+    app = client.get("/api/app/manifest").json()["app"]
+    assert app["build"] == about["build"]  # run from a checkout: its last commit
+    assert app["build"] is None or len(app["build"]["commit"]) >= 7
+    assert app["platform"]  # locally, for a diagnostic
+
+
 def test_preferences_are_kept_per_person_outside_the_project(client, tmp_path):
     empty = client.get("/api/me/preferences").json()
     assert empty["stored"] is False and empty["preferences"]["locale"] is None

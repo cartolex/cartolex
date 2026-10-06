@@ -820,6 +820,12 @@ a.cx-button:hover {
   gap: var(--cx-space-3);
 }
 
+.cx-error-card__copied-next {
+  margin: var(--cx-space-2) 0 0;
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}
+
 .cx-error-card--compact {
   padding: var(--cx-space-3) var(--cx-space-4);
   gap: var(--cx-space-2);

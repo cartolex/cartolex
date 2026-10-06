@@ -21,7 +21,8 @@ cartolex from the package index when they run.
 A **test build** (``--wheel``) carries a cartolex wheel of the same version beside
 the launchers, which install it instead of fetching cartolex (the libraries it
 needs still come from the package index), and a ``build.txt`` naming the build
-(``--label``, in the kit's name too) for the people who try it.
+(``--label``, in the kit's name too; by default the commit of the wheel's build stamp,
+see ``tools/build_stamp.py``) for the people who try it.
 
 Stdlib only: this script runs under any Python 3.10 or later.
 """
@@ -74,6 +75,19 @@ def kit_files(version: str, source: Path = SOURCE) -> dict[str, tuple[bytes, int
     return out
 
 
+def wheel_stamp(wheel: Path) -> dict | None:
+    """The build stamp a wheel carries (``cartolex/_data/build.json``, tools/build_stamp.py),
+    or ``None``."""
+    import json
+
+    try:
+        with zipfile.ZipFile(wheel) as zf:
+            stamp = json.loads(zf.read("cartolex/_data/build.json"))
+    except (KeyError, OSError, ValueError, zipfile.BadZipFile):
+        return None
+    return stamp if isinstance(stamp, dict) and stamp.get("commit") else None
+
+
 def build_kit(
     version: str,
     out_dir: Path,
@@ -87,7 +101,9 @@ def build_kit(
 
     With *wheel* (a cartolex wheel of *version*), a test build: the wheel goes beside the
     launchers, and a ``build.txt`` says what the kit installs (*label*, also in the kit's
-    name, and *about*: where the build comes from).
+    name, and *about*: where the build comes from), with the wheel's build stamp: the
+    commit and date the app shows. Without *label*, the commit's first seven characters
+    are the label.
     """
     files = kit_files(version, source)
     if label is not None and not re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z._-]{0,40}", label):
@@ -97,8 +113,13 @@ def build_kit(
         if not (wheel.name.startswith(f"cartolex-{version}-") and wheel.suffix == ".whl"):
             raise ValueError(f"{wheel.name} is not a cartolex {version} wheel")
         files[wheel.name] = (wheel.read_bytes(), 0o644)
+        stamp = wheel_stamp(wheel)
+        if label is None and stamp is not None:
+            label = str(stamp["commit"])[:7]
+        built = f"build {str(stamp['commit'])[:7]} of {stamp.get('date', '?')}" if stamp else ""
         text = (
             f"cartolex {version}, test build{f' {label}' if label else ''}\n"
+            + (f"{built}\n" if built else "")
             + (f"{about}\n" if about else "")
             + f"\nThis kit installs the wheel beside it ({wheel.name}); the libraries it\n"
             "needs are downloaded during the installation. Follow the guide in your\n"
@@ -133,6 +154,12 @@ def main(argv: list[str] | None = None) -> int:
     except (ValueError, OSError) as exc:
         print(f"installer kit: {exc}", file=sys.stderr)
         return 2
+    if args.wheel and wheel_stamp(args.wheel) is None:
+        print(
+            "installer kit: the wheel carries no build stamp (python tools/build_stamp.py "
+            "before building it): the app will not say which build it is",
+            file=sys.stderr,
+        )
     what = f"the wheel {args.wheel.name}" if args.wheel else f"cartolex {version}"
     print(f"{path} ({path.stat().st_size / 1024:.0f} KB), installs {what}")
     return 0

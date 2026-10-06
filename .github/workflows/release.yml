@@ -27,10 +27,12 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: The documentation, built into the package (the app serves it)
         run: uv run --no-project --python 3.12 --with "sphinx>=7.2" --with "myst-parser>=3" --with "furo>=2024.1" tools/build_docs.py
+      - name: The build stamp (the commit and its date, shown by the app)
+        run: uv run --no-project --python 3.12 tools/build_stamp.py
       - name: Source archive, then the wheel built from it
         run: uv build --out-dir dist
       - name: What they hold
-        run: uv run --no-project --python 3.12 tools/package_check.py --docs dist/*.whl dist/*.tar.gz
+        run: uv run --no-project --python 3.12 tools/package_check.py --docs --stamp dist/*.whl dist/*.tar.gz
       - name: The installer kit (launchers that install this version from the package index)
         run: uv run --no-project --python 3.12 tools/installer_zip.py --out dist
       - uses: actions/upload-artifact@v4

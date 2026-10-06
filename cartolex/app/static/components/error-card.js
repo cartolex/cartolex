@@ -63,8 +63,9 @@ export function ErrorCard({ error, onAction, onRetry, onReload, onDismiss, live 
   };
   const copy = async () => {
     const ok = await copyText(diagnosticText(error, {
-      app: runtime.app.name, version: runtime.app.version, page: runtime.page(),
-      locale: locale.value, userAgent: navigator.userAgent,
+      app: runtime.app.name, version: runtime.app.version, build: runtime.app.build,
+      platform: runtime.app.platform, page: runtime.page(), locale: locale.value,
+      userAgent: navigator.userAgent,
     }));
     setCopied(ok);
   };
@@ -102,6 +103,7 @@ export function ErrorCard({ error, onAction, onRetry, onReload, onDismiss, live 
           ${copied === true ? t('error.copied') : copied === false ? t('error.copy_failed') : ''}
         </span>
       </div>
+      ${copied === true ? html`<p class="cx-error-card__copied-next">${t('error.copied_next')}</p>` : null}
     </details>
   </div>`;
 }

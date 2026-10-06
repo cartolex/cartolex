@@ -28,6 +28,7 @@ __all__ = [
     "message",
     "reason_message",
     "skip_message",
+    "traceback_text",
 ]
 
 
@@ -307,14 +308,46 @@ def _cause_code(exc: BaseException) -> tuple[str, dict[str, Any]]:
 _STEP_KEYS = ("stage", "fraction", "stage_fraction", "phase", "phases", "code", "params")
 
 
+#: The characters of a traceback a failed job keeps (its end: the innermost frames).
+MAX_TRACEBACK = 8_000
+
+
+def traceback_text(value: BaseException | str | None) -> str:
+    """A traceback for a diagnostic: an exception's (or one already written, as a child
+    process sends it), the home folder written ``~``, its last :data:`MAX_TRACEBACK`
+    characters; empty without one."""
+    import traceback
+    from pathlib import Path
+
+    if isinstance(value, BaseException):
+        text = getattr(value, "child_traceback", None) or "".join(
+            traceback.format_exception(type(value), value, value.__traceback__)
+        )
+    else:
+        text = value or ""
+    text = text.strip()
+    if not text:
+        return ""
+    try:
+        home = str(Path.home())
+    except (KeyError, RuntimeError):  # pragma: no cover - no home folder
+        home = ""
+    if len(home) > 1:
+        text = text.replace(home, "~")
+    return text[-MAX_TRACEBACK:]
+
+
 def job_error(exc: BaseException, progress: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Why a job failed, for its log, its card and the diagnostic: the code, params and words
     of the cause, the exception's class and a short message, the step the job was in and how
-    far it got. (Messages of cartolex name no person; the message is cut at 300 characters.)"""
+    far it got, and the traceback (:func:`traceback_text`). (Messages of cartolex name no
+    person; the message is cut at 300 characters.)"""
     code, params = _cause_code(exc)
     out = message(code, **params)
     out["exception"] = type(exc).__name__
     out["detail"] = str(exc).strip()[:300]
+    if exc.__traceback__ is not None or getattr(exc, "child_traceback", None):
+        out["traceback"] = traceback_text(exc)
     if progress:
         step = {k: progress[k] for k in _STEP_KEYS if progress.get(k) is not None}
         out["step"] = step.get("stage")

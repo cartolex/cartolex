@@ -44,12 +44,22 @@ class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class BuildStamp(_Model):
+    """The code running: its commit and the commit's date (``YYYY-MM-DD``)."""
+
+    commit: str
+    date: str
+
+
 class AppInfo(_Model):
-    """The application: ``id`` and ``name`` (the host's brand, or cartolex), its version."""
+    """The application: ``id`` and ``name`` (the host's brand, or cartolex), its version, the
+    build (``None`` when unknown) and, locally, the system it runs on (for a diagnostic)."""
 
     id: str
     name: str
     version: str
+    build: BuildStamp | None = None
+    platform: str | None = None
 
 
 class Accent(_Model):
@@ -190,9 +200,11 @@ def build_manifest(runtime: Runtime, principal: Principal, project: dict | None)
     """The manifest of *runtime*'s app, as *principal* sees it, with the open *project*."""
     from cartolex.project.project import cartolex_version
 
+    from .about import build_stamp, platform_text
     from .security import CSRF_HEADER
 
     settings = runtime.settings
+    stamp = build_stamp()
     combined = runtime.extensions
     brand = combined.branding
     owner = combined.branding_owner
@@ -245,7 +257,13 @@ def build_manifest(runtime: Runtime, principal: Principal, project: dict | None)
         **combined.capabilities,
     )
     return Manifest(
-        app=AppInfo(id="cartolex", name=name, version=cartolex_version()),
+        app=AppInfo(
+            id="cartolex",
+            name=name,
+            version=cartolex_version(),
+            build=BuildStamp(**stamp) if stamp else None,
+            platform=None if settings.hosted else platform_text(),
+        ),
         branding=BrandingInfo(name=name, logo=logo, accent=accent),
         locales=Locales(
             available=list(settings.locales),

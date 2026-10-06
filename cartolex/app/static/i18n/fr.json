@@ -2743,5 +2743,6 @@
   "job.when.interrupted": "Commencé le {time} ; il ne s’est pas terminé",
   "job.when.waiting": "En attente depuis le {time}",
   "job.when.paused": "Mis en pause le {time}",
-  "job.when.cancelled": "Arrêté le {time}"
+  "job.when.cancelled": "Arrêté le {time}",
+  "error.copied_next": "Collez-le dans votre message à la personne qui vous a donné cartolex, avec un mot sur ce que vous faisiez : il lui dit ce qui s’est mal passé."
 }

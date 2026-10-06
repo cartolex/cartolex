@@ -24,6 +24,7 @@ import re
 import socket
 import threading
 import time
+import traceback
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
@@ -344,6 +345,8 @@ class BuildResult:
     failed: tuple[str, str] | None = None
     not_run: tuple[str, ...] = ()
     job_id: str = ""
+    #: The failed stage's traceback (for a diagnostic; never shown as is to a person).
+    failed_traceback: str = ""
 
     @property
     def ran_ids(self) -> tuple[str, ...]:
@@ -687,6 +690,7 @@ def build(
     ran: list[RunRecord] = []
     outcome: Literal["succeeded", "failed", "cancelled"] = "succeeded"
     failed: tuple[str, str] | None = None
+    failed_traceback = ""
     reporter.start()
     if runnable and project.has_curation():
         _freeze_identity(project, "curation decisions exist", log)
@@ -720,6 +724,7 @@ def build(
             except Exception as exc:
                 outcome = "failed"
                 failed = (stage.id, f"{type(exc).__name__}: {exc}")
+                failed_traceback = traceback.format_exc()
                 log.write("failed", stage=stage.id, error=type(exc).__name__)
                 break
             except BaseException:
@@ -744,4 +749,6 @@ def build(
         log.close()
     done = {r.stage for r in ran} | ({failed[0]} if failed else set())
     not_run = tuple(i.stage for i in runnable if i.stage not in done)
-    return BuildResult(the_plan, outcome, tuple(ran), refused, failed, not_run, job_id)
+    return BuildResult(
+        the_plan, outcome, tuple(ran), refused, failed, not_run, job_id, failed_traceback
+    )
