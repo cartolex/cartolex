@@ -134,6 +134,7 @@ ENGINE_FILES: dict[str, Place] = {
     "refined_terms_csv": Owned("keywords.build", "keywords_global_refined.csv"),
     "refined_terms_lang_csv": Owned("keywords.build", "keywords_global_refined_{}.csv"),
     "refined_pairs_csv": Owned("keywords.build", "keywords_global_refined_pairs.csv"),
+    "concept_terms_csv": Owned("keywords.build", "concept_terms.csv"),
     "run_settings_json": Owned("keywords.build", "keywords_hyperparams.json"),
     "person_terms_csv": Owned("keywords.build", "keywords_by_researcher_restricted.csv"),
     "person_terms_json": Owned("keywords.build", "models/person_terms.json", model=True),

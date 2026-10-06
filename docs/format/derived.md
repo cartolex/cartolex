@@ -26,6 +26,7 @@ A build runs stages. Each has a stable id and a plain name, and writes into
 | --- | --- |
 | `keywords.build/models/person_terms.json` (and its `.npz`) | a model descriptor (`kind` `person_terms`): the people × keywords matrices the space is made of, `score` (the length-boosted TF-IDF) and `score_tf` (the plain term frequencies of the same entries), their `terms` (the vocabulary), their `individuals` (researcher ids) and `keywords_per_person` (`null`: every keyword of the lexicon a person uses; a number: only their best ones) |
 | `keywords.build/keywords_by_researcher_restricted.csv` | each person's best keywords, at most 30 (`PERSON_TERMS_LISTED`), the best first: `last_name`, `first_name`, `unit`, `term`, `score`, `len`, `score_tf`, `lang`; what the app and the site show of a person, never what the space reads |
+| `keywords.build/concept_terms.csv` | the candidates each keyword of the vocabulary gathers: `concept`, `term`, `language` (what a keyword decision names; the keywords screen's Lexicon tab reads it) |
 
 Each person's row holds every keyword of the vocabulary (the gated list, cut at
 `max_keywords`) that their texts use, with its real counts; `keywords_per_person`

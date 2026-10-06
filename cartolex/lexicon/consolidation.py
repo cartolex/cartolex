@@ -464,6 +464,9 @@ def _run_pipeline_core(
 
     # Filter global_df to only terms mapping to accepted concepts
     relevant_raw = global_df[global_df["concept"].isin(accepted_concepts)]
+    relevant_raw[["concept", "term", "lang_source"]].rename(
+        columns={"lang_source": "language"}
+    ).sort_values(["concept", "language", "term"]).to_csv(paths.concept_terms_csv, index=False)
 
     # Build the counted form -> concept map for 'folding' later: every surface
     # form of every raw term, as the vectorizer's tokenizer writes it (see
@@ -699,7 +702,7 @@ def run_pipeline(ctx: RunContext, *, progress_callback=None) -> None:
     (``ctx.paths.person_terms_json``: every keyword a person uses, or their best
     ``top_n_researcher``) and each person's best keywords for display, the
     per-group and domain tables, the restricted vectorizer and term aliases, the
-    person roster and the run's settings snapshot.
+    candidates of each keyword, the person roster and the run's settings snapshot.
     """
     with ctx.threads.applied():
         _run_pipeline_core(ctx, progress_callback=ctx.percent_reporter(progress_callback))

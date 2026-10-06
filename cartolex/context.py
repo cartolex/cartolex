@@ -111,6 +111,9 @@ class EnginePaths:
     refined_terms_csv: Path
     refined_terms_lang_csv: PathPattern  # per display language
     refined_pairs_csv: Path
+    #: The candidates each keyword of the vocabulary gathers (``concept``, ``term``,
+    #: ``language``): what the keyword decisions name, for the lexicon's screen.
+    concept_terms_csv: Path
     run_settings_json: Path
     person_terms_csv: Path
     #: Each person's keywords as the people × keywords matrices the space reads (a model
@@ -207,6 +210,7 @@ class EnginePaths:
             refined_terms_csv=auto / "keywords_global_refined.csv",
             refined_terms_lang_csv=PathPattern(auto, "keywords_global_refined_{}.csv"),
             refined_pairs_csv=auto / "keywords_global_refined_pairs.csv",
+            concept_terms_csv=auto / "concept_terms.csv",
             run_settings_json=auto / "keywords_hyperparams.json",
             person_terms_csv=auto / "keywords_by_researcher_restricted.csv",
             person_terms_json=models / "person_terms.json",

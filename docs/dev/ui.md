@@ -339,7 +339,15 @@ all or some) and by API (`api.js`: what is sent, the estimate of calls and token
 consent, a build job). Opening it reads one page of the list. Once a copilot's
 triage is accepted for the current extraction, a note counts the candidates nobody
 judged that the acceptance gate keeps out (`gate.js`), with « Send them to the AI »
-(the copilot's dialog on them alone) and « Keep them anyway » (after a question).
+(the copilot's dialog on them alone) and « Keep them anyway » (after a question). The
+**Lexicon** tab (`?band=lexicon`, `lexicon.js`) shows what the last vocabulary build
+made: a word cloud of its most important keywords (an SVG the server draws with the
+`wordcloud` package in the vendored Lato typeface, sized by score or by people,
+coloured by top-level theme or by category, for the page's light or dark theme), the
+list paged on the server (a term per display language, twins merged; rank, people,
+texts, category, theme, forms; search, category and theme filters, sorts), its CSV,
+and keep, exclude and merge on the candidates a row gathers, with a note that they
+apply at the next build.
 
 The corpus screen (`pages/people.js`, route `/people`) loads
 `pages/people/page.js`: the tabs People (`people-tab.js`), Identities

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 /**
  * The keywords screen (`/keywords`): every candidate of the extraction in
- * its band, Kept, To check, Set aside and Rejected automatically (the band in
- * the address, `?band=`), with the counting unit and the languages in the head, a warning
+ * its band, Kept, To check, Set aside and Rejected automatically, and the
+ * Lexicon the last build made of them (the tab in the address, `?band=`), with the counting unit and the languages in the head, a warning
  * when languages would split the themes, the history of the decisions, and
  * the triage with AI (a copilot, or by API), and the keywords' « Tune » panel
  * (`pages/tune/`). Opening it reads one list page.
@@ -15,15 +15,19 @@ import { Button, Icon, MenuButton, Slot, Tabs } from '../../components/index.js'
 import { useJobEnd } from '../people/common.js';
 import { BANDS } from './common.js';
 import { KeywordList } from './list.js';
+import { LexiconPanel } from './lexicon.js';
 import { HistoryDrawer, MergeDialog } from './dialogs.js';
 import { ApiDialog } from './api.js';
 import { KeywordCopilotDialog } from './copilot.js';
 import { UnjudgedNote } from './gate.js';
 import { TunePanel } from '../tune/panel.js';
 
+/** The tabs: the bands of the candidates, then the lexicon the last build made. */
+const TABS = [...BANDS, 'lexicon'];
+
 function bandOf(query) {
   const band = query && query.get('band');
-  return BANDS.includes(band) ? band : 'check';
+  return TABS.includes(band) ? band : 'check';
 }
 
 /** The warning: several corpus languages and no AI filtering yet. */
@@ -63,8 +67,9 @@ export function KeywordsScreen() {
   });
 
   const counts = (data && data.counts) || {};
-  const tabs = BANDS.map((id) => ({ id, label: t(`keywords.band.${id}`),
-    count: data ? formatNumber(counts[id] || 0) : undefined }));
+  const tabs = [...BANDS.map((id) => ({ id, label: t(`keywords.band.${id}`),
+    count: data ? formatNumber(counts[id] || 0) : undefined })),
+  { id: 'lexicon', label: t('keywords.lexicon.tab') }];
   const languages = (data && data.corpus_languages) || [];
   const aiItems = [
     { id: 'copilot', label: t('keywords.ai.by_copilot') },
@@ -104,9 +109,12 @@ export function KeywordsScreen() {
       n: data.orphan_count })}</p>` : null}
     <${Tabs} tabs=${tabs} selected=${band} onSelect=${setBand} label=${t('keywords.bands')}
       class="cx-corpus__tabs"
-      panel=${(id) => html`<${KeywordList} ctx=${ctx} band=${id} version=${version} onData=${setData}
-        onChanged=${bump} toast=${toast}
-        onMerge=${(rows, etag) => setDialog({ kind: 'merge', rows, etag })} />`} />
+      panel=${(id) => (id === 'lexicon'
+        ? html`<${LexiconPanel} ctx=${ctx} version=${version} onChanged=${bump} toast=${toast}
+            onMerge=${(rows, etag) => setDialog({ kind: 'merge', rows, etag })} />`
+        : html`<${KeywordList} ctx=${ctx} band=${id} version=${version} onData=${setData}
+            onChanged=${bump} toast=${toast}
+            onMerge=${(rows, etag) => setDialog({ kind: 'merge', rows, etag })} />`)} />
     ${dialog && dialog.kind === 'merge' ? html`<${MergeDialog} ctx=${ctx} rows=${dialog.rows}
       version=${dialog.etag} onClose=${closeDialog} onDone=${finished} />` : null}
     ${dialog && dialog.kind === 'history' ? html`<${HistoryDrawer} ctx=${ctx} version=${version}

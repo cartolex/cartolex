@@ -138,3 +138,61 @@
   margin: var(--cx-space-2) 0 0;
   padding-left: var(--cx-space-4);
 }
+
+/* The Lexicon tab: the word cloud, its choices, the themes' chips. */
+.cx-kw-lexicon__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cx-space-2) var(--cx-space-3);
+}
+
+.cx-kw-lexicon__head .cx-corpus__summary {
+  margin: 0;
+}
+
+.cx-kw-lexicon__cloud .cx-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-3);
+}
+
+.cx-kw-lexicon__choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cx-space-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cx-kw-lexicon__legend {
+  float: left;
+  margin-right: var(--cx-space-2);
+  padding: 0;
+  font-size: var(--cx-text-s);
+  color: var(--cx-text-muted);
+}
+
+.cx-kw-lexicon__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 32rem;
+  object-fit: contain;
+}
+
+.cx-kw-lexicon__theme {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cx-space-2);
+}
+
+.cx-kw-lexicon__chip {
+  flex: 0 0 auto;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: var(--cx-radius-s);
+  background: var(--cx-chip);
+}

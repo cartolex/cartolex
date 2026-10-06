@@ -982,3 +982,11 @@ nothing in the engine names a particular deployment, source or procedure.
   256 MB. A bundle's file is `cartolex-<task>_<project>_<YYYYMMDD-HHMM>_v<version>[_<n>parts].zip`,
   the project keeps the ids of the bundles it exported, and a result of
   another bundle is flagged before anything is accepted.
+- **The Lexicon tab and its word cloud.** The keywords screen shows what the
+  last vocabulary build made: a word cloud of its most important keywords
+  (the `wordcloud` package, the vendored Lato typeface, sized by score or by
+  people, coloured by theme or by category, light and dark), and the list of
+  every keyword with its term in each display language, rank, people, texts,
+  category, theme and forms; search, sorts, CSV, and keep, exclude and merge
+  applied at the next build. `keywords.build` writes the candidates each
+  keyword gathers (`concept_terms.csv`).
