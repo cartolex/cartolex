@@ -119,7 +119,8 @@ links (co-authors), and similarity only in « Compare ».
 
 `cartolex.site.checks.plan` gives the privacy summary and the checks before
 publishing: `no_map` (blocks), `names_unanswered` (to answer), `names_shown`,
-`projected_names_shown`, `abstracts_included`, `abstracts_large`, `titles_large`, `map_stale`, `themes_untranslated` (the same name in
+`projected_names_shown`, `abstracts_included`, `abstracts_large`, `titles_large`,
+`site_large`, `map_stale`, `themes_untranslated` (the same name in
 every display language), `themes_technical`, `themes_empty`, `title_generic`
 (to look at), `full_texts_kept` (good to know); each with the fix the screen
 offers (build the map, open the themes, change a field).
@@ -142,6 +143,14 @@ The site speaks English, French and Portuguese (Brazil)
 can switch. The theme follows the system unless the reader chooses light or
 dark. It reflows down to 390 px, and prints without the navigation and the
 controls, the site's notice heading every page and folded details open.
+
+The plan also estimates what the atlas's data would weigh (`site_bytes`, from
+the counts and the project's co-author pairs, `cartolex.site.data.estimate_bytes`,
+by sizes per item measured on the large sample below): `core`, `links`, the
+`parts` read one at a time, and `atlas` (`core` and `links`, what the atlas
+reads at most at once). Past 50 MB (`LARGE_ATLAS_BYTES`, a project of about
+170,000 people) it warns (`site_large`, `size` and `total` in bytes): the site
+may be slow to open on an ordinary computer.
 
 ## Figures, tables and files
 

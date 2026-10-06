@@ -1952,6 +1952,7 @@
   "share.check.names_shown": "{count, plural, one {# pessoa aparece} other {# pessoas aparecem}} com o nome: envie o site apenas a quem pode vê-las.",
   "share.check.abstracts_included": "Os resumos dos textos estarão no site.",
   "share.check.titles_large": "Os títulos dos textos acrescentam cerca de {size} ao site: um site tão grande é lento para abrir e difícil de enviar.",
+  "share.check.site_large": "O atlas lê cerca de {size} ao abrir e ao mostrar a rede: um site tão grande pode demorar a abrir num computador comum.",
   "share.check.abstracts_large": "Com os resumos, os textos acrescentam cerca de {size} ao site ({titles} só com os títulos): um site tão grande é lento para abrir e difícil de enviar. Deixe os resumos de fora, a menos que sejam necessários.",
   "share.check.full_texts_kept": "{count, plural, one {# texto completo fica} other {# textos completos ficam}} no projeto: um site nunca os contém.",
   "share.check.map_stale": "O mapa não está atualizado com as últimas mudanças ({stages}).",

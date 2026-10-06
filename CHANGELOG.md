@@ -60,7 +60,8 @@ nothing in the engine names a particular deployment, source or procedure.
   nearest neighbours are no longer computed, and a person's or an
   organisation's page lists who they write with. Projected people are in the
   links only when the site names them; neither their set's name nor anyone's
-  role is carried.
+  role is carried. The publishing plan estimates what the atlas's data would
+  weigh (`site_bytes`) and warns past 50 MB read at once (`site_large`).
 - **Projects of millions of texts on an ordinary computer.** Memory no longer
   grows with the texts; their processing runs in worker processes, and the
   results do not depend on how many.

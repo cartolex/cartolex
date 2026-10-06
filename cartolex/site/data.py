@@ -47,6 +47,7 @@ __all__ = [
     "SiteData",
     "SiteDataError",
     "SiteTexts",
+    "estimate_bytes",
     "gather",
     "project_context",
     "site_links",
@@ -63,6 +64,33 @@ SHARE_MIN = 5
 #: Decimals kept for map coordinates and shares.
 XY = 4
 SHARE = 3
+
+
+#: The bytes a site's data takes per item, measured on a sample of 86,543 mapped people
+#: (9,938 keywords, 21,790 organisations, 263 themes, 946,327 pairs of co-authors): they
+#: estimate a site before it is built (:func:`estimate_bytes`).
+ITEM_BYTES = {
+    "core_person": 135,
+    "core_keyword": 56,
+    "core_org": 77,
+    "core_theme": 400,
+    "person_part": 410,
+    "keyword_users": 662,
+    "link_pair": 20,
+}
+
+
+def estimate_bytes(people: int, keywords: int, orgs: int, themes: int, pairs: int) -> dict:
+    """What a site's data would weigh, from its counts (:data:`ITEM_BYTES`): ``core``
+    (``data/core.js``, read with every page), ``links`` (``data/links.js``, read when the
+    network is first shown), ``parts`` (the people's and keywords' parts, read one at a
+    time), and ``atlas`` (``core`` and ``links``: what the atlas reads at most at once)."""
+    b = ITEM_BYTES
+    core = (people * b["core_person"] + keywords * b["core_keyword"] + orgs * b["core_org"]
+            + themes * b["core_theme"])  # fmt: skip
+    links = pairs * b["link_pair"]
+    parts = people * b["person_part"] + keywords * b["keyword_users"]
+    return {"core": core, "links": links, "parts": parts, "atlas": core + links}
 
 
 class SiteDataError(Exception):

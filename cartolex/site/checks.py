@@ -10,7 +10,7 @@ never carries, and the checks, each ``{"code", "level", "params", "fix"}``:
   atlas asks at each build whether to show names);
 - ``warning``: publishable, but worth a look — names shown, projected people's
   names shown (pseudonyms unless chosen: they may be a sensitive set), abstracts
-  included, the map or the themes not up to date, themes whose name is the
+  included, texts or an atlas too large to open quickly, the map or the themes not up to date, themes whose name is the
   same in two languages (probably untranslated), technical names, empty
   themes, a generic title;
 - ``info``: what stays out by design (full texts).
@@ -26,12 +26,12 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
 from .builder import SiteOptions
-from .data import SiteTexts
+from .data import SiteTexts, estimate_bytes
 
 if TYPE_CHECKING:
     from cartolex.project import Project
 
-__all__ = ["GENERIC_TITLES", "plan"]
+__all__ = ["GENERIC_TITLES", "LARGE_ATLAS_BYTES", "LARGE_TEXTS_BYTES", "plan"]
 
 #: Titles that name no community (compared without case, accents or spaces at the ends).
 GENERIC_TITLES = frozenset(
@@ -47,6 +47,10 @@ EXAMPLES = 5
 #: Texts adding more than this to a site make it slow to open and hard to send: the plan
 #: says so, with the size (a national project's abstracts are gigabytes).
 LARGE_TEXTS_BYTES = 500_000_000
+#: An atlas whose data read at once (``data/core.js`` and ``data/links.js``) passes this is
+#: slow to open on an ordinary computer: the plan says so, with the size (a national
+#: project's, about 170,000 people, is estimated near 60 MB).
+LARGE_ATLAS_BYTES = 50_000_000
 
 
 def _fold(text: str) -> str:
@@ -54,6 +58,17 @@ def _fold(text: str) -> str:
 
     norm = unicodedata.normalize("NFD", text or "")
     return "".join(c for c in norm if not unicodedata.combining(c)).strip().lower()
+
+
+def _pairs(project: Project, cache: Any) -> int:
+    """The pairs of co-authors of the project (the app's graph, kept in the project's
+    cache), 0 when they cannot be read."""
+    try:
+        from cartolex.app.coauthors import person_graph
+
+        return int(person_graph(project, cache).pairs)
+    except Exception:  # noqa: BLE001 - an estimate never stops the plan
+        return 0
 
 
 def _check(code: str, level: str, fix: dict[str, Any] | None = None, **params: Any) -> dict:
@@ -158,6 +173,10 @@ def plan(
     )
     sizes = texts.estimate() if texts is not None else {"titles": 0, "abstracts": 0}
     summary["text_bytes"] = {"titles": sizes["titles"], "abstracts": sizes["abstracts"]}
+    # What the atlas's data would weigh: estimated from the counts and the co-author pairs.
+    summary["site_bytes"] = estimate_bytes(
+        len(people), summary["keywords"], len(orgs), summary["themes"], _pairs(project, cache)
+    )
     if people:
         if options.names is None:
             checks.append(_check("names_unanswered", "question", {"action": "fix-input",
@@ -179,6 +198,10 @@ def plan(
     elif options.texts == "titles" and sizes["titles"] > LARGE_TEXTS_BYTES:
         checks.append(_check("titles_large", "warning", {"action": "fix-input", "field": "texts"},
                              size=sizes["titles"]))  # fmt: skip
+    weight = summary["site_bytes"]
+    if weight["atlas"] > LARGE_ATLAS_BYTES:
+        total = weight["core"] + weight["links"] + weight["parts"]
+        checks.append(_check("site_large", "warning", None, size=weight["atlas"], total=total))
     if summary["full_texts"]:
         checks.append(_check("full_texts_kept", "info", None, count=summary["full_texts"]))
     stale = [s for s in stale_stages]

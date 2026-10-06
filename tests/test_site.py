@@ -194,6 +194,22 @@ def test_the_plan_says_what_the_texts_add_and_warns_when_it_is_large(project, mo
     assert abs(written - sizes["titles"]) < 0.2 * sizes["titles"]
 
 
+def test_the_plan_estimates_the_atlas_and_warns_when_it_is_large(project, monkeypatch):
+    from cartolex.site import checks
+    from cartolex.site.checks import plan
+
+    small = plan(project, SiteOptions(names=False))
+    weight = small["summary"]["site_bytes"]
+    assert weight["atlas"] == weight["core"] + weight["links"] > 0 and weight["links"] > 0
+    assert "site_large" not in {c["code"] for c in small["checks"]}
+    monkeypatch.setattr(checks, "LARGE_ATLAS_BYTES", weight["atlas"] - 1)
+    found = next(
+        c for c in plan(project, SiteOptions(names=False))["checks"] if c["code"] == "site_large"
+    )
+    assert found["level"] == "warning" and found["params"]["size"] == weight["atlas"]
+    assert found["params"]["total"] == weight["atlas"] + weight["parts"]
+
+
 def test_builds_are_never_overwritten_and_go_stale(project):
     at = datetime(2026, 3, 1, 12, 0, tzinfo=timezone.utc)
     first = build_site(project, SiteOptions(names=False), now=at)["id"]
