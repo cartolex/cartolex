@@ -126,7 +126,7 @@ def test_the_main_flow_of_the_atlas(demo_s, app_for, open_app, axe_source):
     dialog.get_by_role("button", name="Close", exact=True).last.click()
 
     # the world view: organisations at their address
-    page.get_by_role("button", name="World").click()
+    page.get_by_role("button", name="World", exact=True).click()
     assert query(ui)["view"] == ["world"]
     page.get_by_role("group", name="World map of the organisations").wait_for()
 
