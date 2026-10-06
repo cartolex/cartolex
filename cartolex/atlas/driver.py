@@ -1013,8 +1013,8 @@ def _per_document_index(indexes: Sequence[SlotIndex]) -> tuple[pd.DataFrame, Any
         {
             "last_name": [people[i].last_name for i in who],
             "first_name": [people[i].first_name for i in who],
-            # A person without a group has an empty unit: researcher_id is "<last>||<first>||",
-            # matching make_researcher_id(last, first, "") on the bundle side.
+            # A person without a group has an empty unit: make_researcher_id names it NA,
+            # "<last>||<first>||NA", as the roster and the bundle side do.
             "unit": [people[i].raw_unit for i in who],
             "doc_year": [None if y < 0 else int(y) for y in corpus.year.tolist()],
             "doc_type": corpus.pair_types(),
@@ -1501,8 +1501,8 @@ def _run_trajectories(
                 {
                     "last_name": [people[i].last_name for i in who],
                     "first_name": [people[i].first_name for i in who],
-                    # A person without a group has an empty unit: researcher_id is
-                    # "<last>||<first>||", matching make_researcher_id(last, first, "").
+                    # A person without a group has an empty unit: make_researcher_id
+                    # names it NA, "<last>||<first>||NA", as the roster does.
                     "unit": [people[i].raw_unit for i in who],
                     "doc_year": [None if y < 0 else int(y) for y in corpus.year[pairs].tolist()],
                     "doc_type": [types[k] for k in pairs.tolist()],
