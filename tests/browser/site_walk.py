@@ -33,28 +33,32 @@ def open_page(browser, url: str):
 
 
 def walk(page) -> None:
-    """Home → search → a person's page and neighbours → the map drawn → themes → not found."""
+    """Home → search → a person's page → the atlas, mounted over the site's files → an old
+    themes address → not found."""
     page.locator("#cx-site:not([hidden])").wait_for(timeout=5000)
     assert page.locator("#cx-missing").count() == 0
     search = page.get_by_role("searchbox", name="Find a person")
     search.fill("Person 1")
     page.locator(".cx-result").first.wait_for()
     search.press("Enter")
-    page.get_by_role("heading", name="Closest people").wait_for()
-    assert page.locator(".cx-card ol.cx-list li").count() > 0
+    page.get_by_role("heading", name="Themes").wait_for()
+    assert page.locator(".cx-share").count() > 0
     # the texts, when the site carries them, come from the person's own part
     if page.get_by_role("heading", name="Texts").count():
         page.wait_for_function(
             "() => document.querySelector('.cx-texts li') || /None\\./.test("
             "document.querySelector('.cx-card--wide:last-child').textContent)"
         )
-    # the person on the map: the panel lists their closest people (from the same part)
-    page.get_by_role("link", name="Open on the map").click()
-    page.locator(".cx-map__box").wait_for()
-    page.wait_for_function("() => document.querySelector('.cx-map__box').cxMap.frames() > 0")
-    page.locator(".cx-map-panel").get_by_role("heading", name="Closest people").wait_for()
+    # the person in the atlas: the app's atlas, its data from the site's files
+    page.get_by_role("link", name="Show on the atlas").click()
+    page.wait_for_function(
+        "() => { const r = document.querySelector('.cx-atlas-host');"
+        " return r && r.children.length > 0; }"
+    )
+    assert page.locator(".cx-main--atlas .cx-note--warning").count() == 0
+    assert "sel=person" in page.evaluate("location.hash")
     page.evaluate("location.hash = '#/themes'")
-    page.locator(".cx-treemap__cell").first.wait_for()
+    page.wait_for_function("() => location.hash.startsWith('#/map')")
     page.evaluate("location.hash = '#/nowhere/at/all'")
     page.get_by_role("heading", name="Not found").wait_for()
 
