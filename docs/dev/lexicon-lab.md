@@ -89,6 +89,7 @@ time. No paid service is called and no key is read.
 | `termith` | fr | 80 | 399 | abstracts, indexer keyphrases |
 | `semeval` | en | 122 | 244 | full-text articles, author and reader keyphrases (stemmed) |
 | `scielo` | pt | 200 | 1,000 | abstracts, author keywords |
+| `scielo-es` | es | 200 | 1,000 | abstracts, author keywords |
 
 As the lab counts them (the words of each text once; the gold of a demo world
 is its field terms in every language, reachable when at least 3 people use
@@ -105,6 +106,7 @@ it):
 | termith | fr | 80 | 399 | 53,817 | 2,438 | 439 |
 | semeval | en | 122 | 244 | 1,694,500 | 3,034 | 967 |
 | scielo | pt | 200 | 1,000 | 204,362 | 3,196 | 818 |
+| scielo-es | es | 200 | 1,000 | 224,570 | 1,744 | 500 |
 
 The trilingual worlds of the stop-word measures below read one French text
 in ten as English, its title in capitals (`demo_corpus(..., misdetected=True)`,
@@ -127,7 +129,9 @@ records carry author keywords (a gold made independently of any extraction),
 and filtering on the per-record licence keeps only openly licensed texts.
 Author keywords are fewer and more often absent from the text than indexer
 keyphrases, so recall against them is low for every method; what matters is
-the comparison between variants.
+the comparison between variants. The Spanish set (`scielo-es`) is made the
+same way from the same file: the first 1,000 nursing abstracts in Spanish
+under CC BY 4.0 (nursing is the field with the most such records in it).
 
 ## Results in brief
 
@@ -1068,6 +1072,78 @@ of the people loses 0.3 point of recall (three single-word gold terms:
 `meta-analysis` in two languages, `télédétection`), so the floor stays at a
 fifth. The theme ARI moves within its usual range between
 variants (0.17–0.23 on L); the person mixes do not move.
+
+## Spanish, German and Italian
+
+Measured in October 2026 on open abstracts: `scielo-es` (above), and samples
+of CC BY abstracts from an open bibliographic service, kept when language
+detection gives their language (Spanish: 647 of 1,000, mostly social
+sciences; Italian: 1,500 of 2,500 in social sciences; German: 861 of 2,500 in
+medicine), in pseudo-people of five abstracts. These samples are not
+committed and have no gold.
+
+**The Spanish benchmark under the lab's suite.** With the defaults: AI load
+1,379, precision 23.0 %, recall 81.8 %, F1 35.9 %, AUC 0.699, best tenth
+37.3 %, 5 gold candidates set aside. The families behave as on the other
+benchmarks: the counting units and the text-part weights change nothing,
+frequency ranks best (presence 0.618), α = 2 puts the most gold in the best
+tenth (37.3 % against 37.0 % and 34.4 %), the stop-word and even-spread rules
+cost 3 to 5 gold candidates. The low precision is that of nursing author
+keywords (subject headings, often absent from the abstract), as on `scielo`.
+
+**Prepositions.** The Romance patterns allow one complement; which
+prepositions it may start with was measured on Spanish and Italian (before
+the complement's noun could be a run of proper nouns, which adds about 20
+candidates to each):
+
+| corpus | prepositions | candidates | kept | precision | recall | F1 |
+| --- | --- | --- | --- | --- | --- | --- |
+| scielo-es | `de` | 2,910 | 1,430 | 24.3 % | 79.4 % | 37.2 % |
+| scielo-es | `de`, `a` | 2,966 | 1,485 | 23.7 % | 79.6 % | 36.5 % |
+| scielo-es | `de`, `a`, `en`, `por`, `para`, `con` (chosen) | 3,076 | 1,593 | 22.9 % | 81.4 % | 35.8 % |
+| Italian sample | `di`, `a` | 4,298 | 1,205 | – | – | – |
+| Italian sample | `di`, `a`, `da`, `in`, `su`, `per`, `con` (chosen) | 4,330 | 1,236 | – | – | – |
+
+The other prepositions add 3 to 5 % of kept phrases, about a third to a half
+of them terms (`lesión por presión`, `trabajo en equipo`, `educación para la
+salud`, `personas con discapacidad`, `ricerca sul campo`, `presa in carico`,
+`servizi per l'infanzia`) and the rest phrasing (`enfermería en el ámbito`,
+`riflessione sul tema`). No choice clearly wins on F1, recall is higher with
+them, and Spanish then reads exactly as Portuguese, the closest language
+already measured: both languages take the Portuguese shape.
+
+**The German genitive.** On the medical sample, a genitive complement
+(`ScoringOptions.genitive`) adds 33 candidates (2,634 against 2,601), five of
+them terms (`Therapie des Prostatakarzinoms`, `Förderung der körperlichen
+Aktivität`) and the rest phrasing (`Ziel der Arbeit`, used by 75 of 173
+people, `Ergebnisse der Studie`, `Stand der Forschung`); it also makes the
+nouns inside look like fragments (`Folgeerhebung der Studie` set aside as
+part of a longer phrase). Off, like the English `of`.
+
+**Precision of the noun phrases.** A random sample of each language's
+candidates (seed 1: 60 of the kept band, 40 of the to-check band), each
+judged by hand: is it a well-formed phrase of its language, whole, not cut
+across a phrase boundary — whether or not it is a term of the field.
+
+| language (corpus) | kept: well-formed | to check: a noun of the language |
+| --- | --- | --- |
+| Spanish (scielo-es) | 52 / 60 (87 %) | 37 / 40 (93 %) |
+| Italian (social sciences) | 59 / 60 (98 %) | 34 / 40 (85 %) |
+| German (medicine) | 59 / 60 (98 %) | 35 / 40 (88 %) |
+
+The Spanish misses were phrases cut inside a name (`estado de Santa`,
+`ciudad de Belo`, since fixed: the complement's noun may be a run of proper
+nouns), a participle without its complement (`investigación cualitativa
+basada`) and fixed expressions (`frente a la violencia`, `luz del
+referencial`); the to-check misses are adjectives tagged as nouns
+(`neonatal`, `prähospital`), English words in a text of the language
+(`claim`, `Health`) and a capitalised adjective at the start of a German
+title (`Klinischer`). The German lemmatizer leaves some inflected forms as
+they are (`künstliche` → `künstliche` in 8 of 12 occurrences): before the
+folding of the extraction, `künstliche Intelligenz` and `künstlicher
+Intelligenz` were two candidates; 18 such pairs remained in 1,252 candidates
+of the first German sample, most of them nouns in the dative plural
+(`Befunde`, `Befunden`), which the folding joins.
 
 ## Time and memory
 
