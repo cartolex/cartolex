@@ -157,6 +157,30 @@ nothing in the engine names a particular deployment, source or procedure.
   of texts, or of mapped people, says so with a button; no message names a
   file or a setting's key. A cancelled stage is not failed. The navigation's
   « Corpus » is « People ».
+- **Who is who: merges that keep every text, duplicates and organisations.**
+  A merge (`merged_into`) is a decision that can be undone: the merged row keeps
+  its records, and the person it is merged into stands for both in the
+  collection, the corpus (`corpus.assemble` reads the merged rows' texts as
+  theirs, a shared text once), the coverage and the sheet;
+  `POST /api/people/unmerge`, `cartolex collect unmerge`; two different ORCIDs
+  are refused unless overridden. `corpus.assemble` records the merges as an
+  input (`decisions/people.csv#merges`) only when a project has some, so
+  projects without merges stay up to date. `cartolex.collect.duplicates` scores
+  pairs of people on their evidence (identifiers, names and aliases,
+  organisations, co-authors, texts at the same or different places, years),
+  blocked by surname, once per version of the tables; the Duplicates tab
+  compares them side by side and decides each with the keyboard, and « Merge the
+  clear pairs » merges the conservative clear ones in one undoable step
+  (`cartolex collect duplicates --merge-clear`). Pairs judged are remembered in
+  `decisions/people_pairs.csv` (and `organisation_pairs.csv`).
+  `decisions/organisations.csv` and `affiliations.csv` are now read everywhere
+  organisations are: renamed, levelled, parented, merged (the same ROR or
+  OpenAlex id merged in one step) and reviewed in pairs; affiliations added or
+  removed from a sheet. Taking everyone from an institution takes the clear
+  pairs of records as one person, even below the minimum of works, and asks
+  about the others; the proposal's people are paged and searched; the levels
+  are set at the take. `/people?person=`, `?tab=organisations&org=` and
+  `?tab=texts&text=` open a sheet, which links to the map.
 - **The documentation in the app.** `tools/build_docs.py` builds these pages
   into the package (`cartolex/app/static/docs/`, not tracked); the app serves
   them at `/static/docs/` and links to them from its header (Documentation),

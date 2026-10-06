@@ -15,7 +15,7 @@
     cartolex project unlock FOLDER [--force]
     cartolex models list
     cartolex models add LANG… [--yes]
-    cartolex collect people|folder|corpus|resolve|confirm|harvest|duplicates|merge FOLDER …
+    cartolex collect people|folder|corpus|resolve|confirm|harvest|duplicates|merge|unmerge FOLDER …
     cartolex demo create --size S --seed 0 --out DIR [--corpus]
 
 Each verb prints what it did and exits with 0 on success, 1 when the project

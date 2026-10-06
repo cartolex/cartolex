@@ -57,6 +57,7 @@ from typing import Any
 
 from cartolex.project import Project
 from cartolex.project.checkpoints import Checkpoint, JobPaused, work_key
+from cartolex.project.identity import merge_roots
 from cartolex.project.models import Level
 
 from .decisions import read_people, slot_window, update_people
@@ -193,11 +194,18 @@ class ProposedPerson:
 
 @dataclass
 class MergeSuggestion:
-    """Author records that may be one person, and why; taken as one only on request."""
+    """Author records that may be one person, and why; taken as one only on request.
+
+    ``clear`` when the records share an ORCID and their names agree: taking every
+    proposed person takes them as one (:func:`take_people`'s *join*). ``people`` holds
+    what tells the records apart, each as a proposed person (also when it has fewer
+    works than the proposal's minimum)."""
 
     records: list[str]
     reason: str
     works: int
+    clear: bool = False
+    people: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -266,7 +274,9 @@ def find_institutions(source: OpenAlexSource, name: str) -> list[dict[str, Any]]
                 "name": unit.name,
                 "type": unit.type,
                 "ror": unit.ror,
+                "acronym": unit.acronym,
                 "country": unit.country,
+                "city": (record.get("geo") or {}).get("city") or None,
                 "parents": parents,
                 "works_count": int(record.get("works_count") or 0),
             }
@@ -308,14 +318,15 @@ def propose_levels(
 
 
 def _records_of_people(project: Project) -> dict[str, str]:
-    """``openalex:A…`` → the person whose confirmed records hold it."""
+    """``openalex:A…`` → the person whose confirmed records hold it (a merged row's records
+    are those of the person it is merged into)."""
+    rows = read_people(project.layout)
+    roots = merge_roots(rows)
     out = {}
-    for pid, row in read_people(project.layout).items():
-        if row.get("merged_into"):
-            continue
+    for pid, row in sorted(rows.items(), key=lambda kv: (kv[0] in roots, kv[0])):
         for record in (row.get("records") or "").split(";"):
             if record:
-                out.setdefault(record, pid)
+                out.setdefault(record, roots.get(pid, pid))
     return out
 
 
@@ -861,7 +872,7 @@ def _finish(
             _propose(proposal, entry, units, known, min_works)
     proposal.run_id = out.run_id
     proposal.people.sort(key=lambda p: (-p.works, p.name, p.record))
-    proposal.merges = _merges(_TableView(authors), min_works)
+    proposal.merges = _merges(_TableView(authors, units), min_works)
     return proposal
 
 
@@ -918,8 +929,9 @@ def _split_name(name: str) -> tuple[str, str]:
 class _TableView:
     """What :func:`_merges` asks of the authors, from the compact table."""
 
-    def __init__(self, authors: _Authors) -> None:
+    def __init__(self, authors: _Authors, units: Mapping[str, Unit] | None = None) -> None:
         self.a = authors
+        self.units_of = units or {}
 
     def ids(self) -> list[str]:
         return sorted(self.a.index)
@@ -935,6 +947,10 @@ class _TableView:
 
     def units(self, aid: str) -> set[str]:
         return self.a.unit_set(aid)
+
+    def person(self, aid: str) -> ProposedPerson:
+        """The author as a proposed person (whatever their number of works)."""
+        return _person_of(self.a.entry(aid), self.units_of)
 
 
 def _merges(view: _TableView, min_works: int) -> list[MergeSuggestion]:
@@ -981,7 +997,17 @@ def _merges(view: _TableView, min_works: int) -> list[MergeSuggestion]:
         total = len(wa | wb)
         if max(len(wa), len(wb)) < min_works and total < min_works:
             continue
-        out.append(MergeSuggestion([f"openalex:{a}", f"openalex:{b}"], reason, total))
+        clear = reason == "the same ORCID" and compatible_first_names(names[a][1], names[b][1])
+        clear = clear and set(surname_parts(names[a][0])) & set(surname_parts(names[b][0])) != set()
+        out.append(
+            MergeSuggestion(
+                [f"openalex:{a}", f"openalex:{b}"],
+                reason,
+                total,
+                clear=clear,
+                people=[asdict(view.person(x)) for x in (a, b)],
+            )
+        )
     return out
 
 
@@ -1023,8 +1049,12 @@ def read_proposal(
 ) -> InstitutionProposal:
     """The latest institution proposal (or *run_id*) read again from its raw run: the people
     with ``min_works`` works or more (and the person each already is), the suggested merges,
-    the units and the levels. Raises :class:`FileNotFoundError` when there is none."""
-    slot = _collection_slot(project, slot, "collection")
+    the units and the levels. Raises :class:`FileNotFoundError` when there is none. Reading
+    never changes the project: without a collection slot there is no proposal."""
+    if slot is None:
+        slot = next((s.id for s in project.config.slots if s.kind == "collection"), None)
+        if slot is None:
+            raise FileNotFoundError("no collection slot: no institution proposal")
     run = _latest_proposal(project, slot, run_id)
     units: dict[str, Unit] = {}
     authors = _Authors()
@@ -1053,7 +1083,7 @@ def read_proposal(
     for aid in sorted(authors.index):
         _propose(proposal, authors.entry(aid), units, known, min_works)
     proposal.people.sort(key=lambda p: (-p.works, p.name, p.record))
-    proposal.merges = _merges(_TableView(authors), min_works)
+    proposal.merges = _merges(_TableView(authors, units), min_works)
     return proposal
 
 
@@ -1064,6 +1094,7 @@ def take_people(
     role: str = "mapped",
     run_id: str | None = None,
     levels: Mapping[str, str] | None = None,
+    join: Sequence[Sequence[str]] | None = None,
     slot: str | None = None,
     now: datetime | None = None,
 ) -> TakeReport:
@@ -1071,7 +1102,10 @@ def take_people(
 
     *take* is ``"all"`` (every proposed author not yet in the project) or a list
     of records: ``A1`` (or ``openalex:A1``) takes one record, ``A1+A2`` takes two
-    records as one person. They enter with ``identity = confirmed`` and their
+    records as one person. With ``"all"``, each group of *join* (records that are one
+    person: the clear suggested merges, and those someone confirmed) is taken as one
+    person, even when each of its records has fewer works than the minimum (``None``:
+    the clear suggested merges); the other authors are taken one by one. They enter with ``identity = confirmed`` and their
     records; *levels* changes the proposal's mapping of types to levels.
     """
     if role not in ("mapped", "context", "projected", "excluded"):
@@ -1094,7 +1128,21 @@ def take_people(
     known = _records_of_people(project)
     groups: list[list[str]] = []
     if take == "all" or take == ["all"]:
-        groups = [[aid] for aid in sorted(authors) if len(authors[aid]["works"]) >= min_works]
+        if join is None:
+            found = read_proposal(project, run_id=run.run_id, slot=slot)
+            join = [[r.split(":", 1)[1] for r in m.records] for m in found.merges if m.clear]
+        joined: set[str] = set()
+        for group in join:
+            ids = [(short_id(str(x).strip()) or "").upper() for x in group]
+            ids = [a for a in dict.fromkeys(ids) if a in authors and a not in joined]
+            if len(ids) > 1:
+                groups.append(ids)
+                joined.update(ids)
+        groups += [
+            [aid]
+            for aid in sorted(authors)
+            if aid not in joined and len(authors[aid]["works"]) >= min_works
+        ]
     else:
         for item in [take] if isinstance(take, str) else take:
             group = []

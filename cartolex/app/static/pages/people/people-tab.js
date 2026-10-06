@@ -70,7 +70,7 @@ function Filters({ filters, setFilters, counts, facets }) {
 }
 
 /** The People tab. */
-export function PeopleTab({ ctx, version, bump, toast, openSheet, preset, openImport }) {
+export function PeopleTab({ ctx, version, bump, toast, openSheet, preset, openImport, duplicates, openTab }) {
   const [filters, setFilters] = useState({ q: '', columns: {} });
   const [sort, setSort] = useState({ column: 'name', direction: 'ascending' });
   const [selection, setSelection] = useState(new Set());
@@ -130,7 +130,8 @@ export function PeopleTab({ ctx, version, bump, toast, openSheet, preset, openIm
       { id: 'name', label: t('corpus.col.name'), sortable: true, width: 'minmax(12rem, 2fr)',
         render: (p) => html`<span class="cx-corpus-name">${personName(p)}</span>` },
       { id: 'role', label: t('corpus.col.role'), sortable: true, width: '8rem',
-        render: (p) => html`${roleLabel(p.role)}${p.set ? html` <span class="cx-corpus-muted">${p.set}</span>` : null}` },
+        render: (p) => (p.merged_into ? html`<span class="cx-corpus-muted">${t('corpus.people.merged')}</span>`
+          : html`${roleLabel(p.role)}${p.set ? html` <span class="cx-corpus-muted">${p.set}</span>` : null}`) },
       { id: 'identity', label: t('corpus.col.identity'), sortable: true, width: '9rem',
         render: (p) => html`<${IdentityState} state=${p.identity} />` },
       { id: 'state', label: t('corpus.col.state'), sortable: true, width: '9rem',
@@ -155,6 +156,10 @@ export function PeopleTab({ ctx, version, bump, toast, openSheet, preset, openIm
 
   const empty = data.empty;
   return html`<div class="cx-corpus-tab">
+    ${duplicates && duplicates.open ? html`<p class="cx-corpus-note cx-dup-banner" role="note">
+      ${t('corpus.dup.banner', { n: duplicates.open, clear: duplicates.clear || 0 })}
+      <${Button} size="s" variant="ghost" onClick=${() => openTab('duplicates')}>
+        ${t('corpus.dup.review')}<//></p>` : null}
     <${Filters} filters=${filters} setFilters=${setFilters} counts=${counts} facets=${facets} />
     <div class="cx-corpus-bulk" role="region" aria-label=${t('corpus.people.bulk')}>
       <span class="cx-corpus-bulk__count" aria-live="polite">

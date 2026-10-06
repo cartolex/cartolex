@@ -247,7 +247,7 @@ class Stage:
     run: Runner = _not_connected
     estimator: Callable[[Stage, ProjectSizes, RunRecord | None], Estimate] | None = None
     applies: Callable[[ProjectFile, ParamsFile], str | None] | None = None
-    extra_inputs: Callable[[Project], list[tuple[str, Path]]] | None = None
+    extra_inputs: Callable[[Project], list[Any]] | None = None
     #: Called by a build just before the stage runs (not by a dry run): it may write a
     #: decision the stage needs, such as the first map version; returns what it did.
     prepare: Callable[[Project], list[str]] | None = None
@@ -525,6 +525,25 @@ def _overlay_tables(project: Project) -> list[tuple[str, Path]]:
     return files
 
 
+def _corpus_inputs(project: Project) -> list[Any]:
+    """What ``corpus.assemble`` reads besides its declared files: the overlays' own tables,
+    and the merges of ``people.csv`` when it holds some.
+
+    The merges are an input of their own (``decisions/people.csv#merges``) so that the
+    way merged people are read concerns only the projects that merge people: a project
+    without a merge records none and stays up to date."""
+    from ..project.identity import merges_digest
+    from .fingerprints import InputFile
+
+    found: list[Any] = list(_overlay_tables(project))
+    people = project.layout.people_csv
+    if merges_digest(people) is not None:
+        found.append(
+            InputFile("decision", "decisions/people.csv#merges", people, digest=merges_digest)
+        )
+    return found
+
+
 #: The slot kinds a keyed parameter (``parts``, ``doc_types``) gives a value of its own.
 SLOT_KINDS = ("collection", "folder", "corpus")
 #: The document types the controls of ``doc_types`` offer (any other is allowed).
@@ -660,7 +679,7 @@ STAGES = Registry(
             # by slot kind; version 4: one text per work (duplicate texts read once);
             # version 5: the packed corpus (pairs.parquet, people.csv, texts.parquet)
             version=5,
-            extra_inputs=_overlay_tables,
+            extra_inputs=_corpus_inputs,
             params=(
                 ParamSpec(
                     "parts",

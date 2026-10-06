@@ -170,6 +170,7 @@ def institutions(request: Request, ctx: ProjectDep, params: ListDep) -> dict[str
     }
     if proposal is None:
         return out
+    known = {p.record: p.person_id for p in proposal.people if p.person_id}
     people = [
         {
             "record": p.record,
@@ -210,18 +211,75 @@ def institutions(request: Request, ctx: ProjectDep, params: ListDep) -> dict[str
         "units": len(proposal.units),
         "levels": proposal.levels,
         "merges": [
-            {"records": m.records, "reason": m.reason, "works": m.works} for m in proposal.merges
+            {
+                "records": m.records,
+                "reason": m.reason,
+                "works": m.works,
+                "clear": m.clear,
+                "people": m.people,
+                "taken": [known.get(r) for r in m.records],
+            }
+            for m in proposal.merges
         ],
         "already": sum(1 for p in proposal.people if p.person_id),
     }
     return out
 
 
+@routes.get("/api/collection/institutions/people", action="collection.read")
+def institution_people(request: Request, ctx: ProjectDep, params: ListDep) -> dict[str, Any]:
+    """The people of the latest proposal of institutions, paged and searched (``q``: a
+    name, an ORCID or a record) on the server, whatever their number."""
+    from cartolex.collect.institutions import read_proposal
+
+    try:
+        proposal = read_proposal(ctx.project)
+    except FileNotFoundError:
+        return page([], params, sorts={"works": lambda p: p["works"]}, default_sort="-works",
+                    empty=empty("empty_no_collection"))  # fmt: skip
+    q = params.q
+    people = [
+        {
+            "record": p.record,
+            "name": p.name,
+            "orcid": p.orcid,
+            "works": p.works,
+            "first_year": p.first_year,
+            "last_year": p.last_year,
+            "units": p.units,
+            "person_id": p.person_id,
+        }
+        for p in proposal.people
+        if not q or q in p.name.casefold() or q in (p.orcid or "") or q in p.record.casefold()
+    ]
+    return page(
+        people,
+        params,
+        sorts={
+            "works": lambda p: p["works"],
+            "name": lambda p: p["name"].casefold(),
+            "last_year": lambda p: p["last_year"],
+        },
+        default_sort="-works",
+        filters={"q": q},
+        empty=empty("empty_no_match"),
+        extra={"run": proposal.run_id},
+    )
+
+
 class TakeBody(BaseModel):
-    """``all``, or records (``A1``, ``A1+A2`` for two records of one person); their role."""
+    """``all``, or records (``A1``, ``A1+A2`` for two records of one person); their role.
+    With ``all``, *join* lists the groups of records taken as one person each (the clear
+    suggested merges, and those someone confirmed); *levels* sets the level of each type
+    of institution (``education`` → ``institution``), over the proposal's."""
 
     take: Annotated[list[str], Field(min_length=1, max_length=20_000)]
     role: Literal["mapped", "context", "projected", "excluded"] = "mapped"
+    join: Annotated[list[list[str]] | None, Field(max_length=20_000)] = None
+    levels: Annotated[
+        dict[str, Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$")]],
+        Field(max_length=50),
+    ] = {}
 
 
 @routes.post("/api/collection/institutions/take", action="people.write")
@@ -236,7 +294,11 @@ def take(request: Request, response: Response, body: TakeBody, ctx: ProjectDep) 
         check_version(ctx.layout.people_csv, expected)
         try:
             report = take_people(
-                ctx.project, "all" if body.take == ["all"] else body.take, role=body.role
+                ctx.project,
+                "all" if body.take == ["all"] else body.take,
+                role=body.role,
+                join=body.join,
+                levels=body.levels or None,
             )
         except FileNotFoundError as exc:
             raise ApiError.of("no_institution_proposal") from exc

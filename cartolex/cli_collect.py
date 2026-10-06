@@ -22,8 +22,9 @@
     cartolex collect coverage FOLDER [--person ID] [--good N] [--json] [--exclude ID…]
                               [--add-documents ID DIR] [--retry [SERVICES]]
     cartolex collect window FOLDER FIRST-LAST|FIRST-|none [--slot ID]
-    cartolex collect duplicates FOLDER
-    cartolex collect merge FOLDER KEEP OTHER
+    cartolex collect duplicates FOLDER [--limit N] [--merge-clear]
+    cartolex collect merge FOLDER KEEP OTHER [--override-orcid]
+    cartolex collect unmerge FOLDER PERSON…
 
 ``SERVICES`` are the options of every verb that reaches a service:
 ``--dry-run`` (print the estimate and what would leave the computer, send
@@ -134,13 +135,46 @@ def _corpus(args: argparse.Namespace) -> int:
 
 
 def _duplicates(args: argparse.Namespace) -> int:
-    from cartolex.collect.people_import import find_duplicates
-    from cartolex.project import Project
+    from cartolex.collect.decisions import read_people, update_people
+    from cartolex.collect.duplicates import clear_groups, duplicate_pairs
+    from cartolex.project.identity import AUTO_MERGE_NOTE, MergeRefused, merge_changes
+    from cartolex.project.pairs import read_pairs
 
-    proposals = find_duplicates(Project.open(args.folder))
-    for d in proposals:
-        print(f"{d.person_id}  {d.other_id}  {d.reason}")
-    print(f"{len(proposals)} possible duplicate(s); none is merged unless you run merge")
+    project = _open(args.folder, write=args.merge_clear)
+    try:
+        pairs, facts = duplicate_pairs(project)
+        decided = read_pairs(project.layout)
+        shown = [p for p in pairs if (p.a, p.b) not in decided]
+        for p in shown[: args.limit]:
+            why = "; ".join(e["text"] for e in p.evidence)
+            mark = "clear" if p.clear else "conflict" if p.conflict else ""
+            print(f"{p.a}  {p.b}  {p.score:.2f}  {mark:8}  {why}")
+        groups = clear_groups(pairs, facts, set(decided))
+        merged = sum(len(g["merge"]) for g in groups)
+        print(
+            f"{len(shown)} possible duplicate pair(s), {sum(p.clear for p in shown)} clear; "
+            f"merging the clear ones would merge {merged} person(s)"
+        )
+        if not args.merge_clear or not groups:
+            return 0
+        rows = read_people(project.layout)
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        note = f"{AUTO_MERGE_NOTE} {stamp}"
+        changes: dict[str, dict[str, str]] = {}
+        orcids = {pid: next(iter(sorted(f.orcids)), None) for pid, f in facts.items()}
+        for g in groups:
+            for pid in (g["keep"], *g["merge"]):
+                rows.setdefault(pid, {"person_id": pid, "merged_into": "", "records": ""})
+            try:
+                found = merge_changes(rows, g["keep"], g["merge"], orcids, note=note)
+            except MergeRefused:
+                continue
+            changes.update({pid: {**c, "note": note} for pid, c in found.items()})
+        update_people(project.layout, changes, action=f"merge {len(changes)} clear duplicates")
+        print(f"merged {len(changes)} person(s); undo with: cartolex collect unmerge "
+              f"{args.folder} {' '.join(sorted(changes))}")  # fmt: skip
+    finally:
+        project.close()
     return 0
 
 
@@ -149,10 +183,25 @@ def _merge(args: argparse.Namespace) -> int:
 
     project = _open(args.folder)
     try:
-        confirm_merge(project, args.keep, args.other)
+        confirm_merge(project, args.keep, args.other, override=args.override_orcid)
     finally:
         project.close()
     print(f"{args.other} is merged into {args.keep}; its name is one of {args.keep}'s aliases")
+    return 0
+
+
+def _unmerge(args: argparse.Namespace) -> int:
+    from cartolex.collect.people_import import undo_merge
+
+    project = _open(args.folder)
+    try:
+        undone = undo_merge(project, args.people)
+    finally:
+        project.close()
+    if not undone:
+        print("nobody to unmerge: none of these people is merged, or has people merged into them")
+        return 1
+    print(f"{len(undone)} person(s) stand on their own again: {', '.join(undone)}")
     return 0
 
 
@@ -931,10 +980,26 @@ def add_parser(sub: Any) -> None:
 
     du = verbs.add_parser("duplicates", help="people who may be one person")
     du.add_argument("folder", type=Path)
+    du.add_argument("--limit", type=int, default=50, help="pairs printed (the most likely first)")
+    du.add_argument(
+        "--merge-clear",
+        action="store_true",
+        help="merge the clear pairs in one step (undone with unmerge)",
+    )
     du.set_defaults(run=_duplicates)
 
     me = verbs.add_parser("merge", help="record that OTHER is the same person as KEEP")
     me.add_argument("folder", type=Path)
     me.add_argument("keep")
     me.add_argument("other")
+    me.add_argument(
+        "--override-orcid",
+        action="store_true",
+        help="merge even though the two have different ORCIDs (you know they are one person)",
+    )
     me.set_defaults(run=_merge)
+
+    um = verbs.add_parser("unmerge", help="undo merges: these people stand on their own again")
+    um.add_argument("folder", type=Path)
+    um.add_argument("people", nargs="+", metavar="PERSON")
+    um.set_defaults(run=_unmerge)

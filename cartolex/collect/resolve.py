@@ -584,8 +584,9 @@ def resolve(
     return report
 
 
-def identity_queue(project: Project) -> list[dict[str, Any]]:
-    """The people whose identity waits, each with every finder's candidates.
+def identity_queue(project: Project, *, auto: bool = False) -> list[dict[str, Any]]:
+    """The people whose identity waits (with *auto*, also those accepted automatically, to
+    review), each with every finder's candidates.
 
     A candidate carries the ``record`` that :func:`confirm` takes: an OpenAlex
     record from the resolution (with its score and evidence), a HAL author form
@@ -601,7 +602,8 @@ def identity_queue(project: Project) -> list[dict[str, Any]]:
     waiting = {
         r["person_id"]: r
         for r in rows
-        if decisions.get(r["person_id"], {}).get("identity", "") in ("", "pending")
+        if decisions.get(r["person_id"], {}).get("identity", "")
+        in (("", "pending", "auto") if auto else ("", "pending"))
         and not decisions.get(r["person_id"], {}).get("merged_into")
         and decisions.get(r["person_id"], {}).get("role") != "excluded"
     }

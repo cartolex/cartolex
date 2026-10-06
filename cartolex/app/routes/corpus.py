@@ -7,7 +7,7 @@ from __future__ import annotations
 import shutil
 from typing import Annotated, Any, Literal
 
-from fastapi import Query, Request
+from fastapi import Query, Request, Response
 from fastapi.responses import JSONResponse
 
 from ..corpus_view import (
@@ -22,9 +22,9 @@ from ..corpus_view import (
 )
 from ..deps import ListDep, ProjectDep, page
 from ..errors import ApiError
+from ..etags import etag_of, version_of
 from ..jobs import JobConflict, JobControl
 from ..messages import empty
-from ..people_io import read_people
 from ..routing import Routes, runtime_of
 from ..texts_view import texts_view
 from ..uploads import extract_archive, save_upload
@@ -127,13 +127,12 @@ def _states_by_organisation(
     import pyarrow as pa
 
     from cartolex.collect.coverage import STATES
-    from cartolex.project.tables import read_source_table
+
+    from ..corpus_view import effective_affiliation_table
 
     if not ctx.layout.table("affiliations").exists() or not counted:
         return []
-    table = read_source_table(
-        ctx.layout.table("affiliations"), "affiliations", ["person_id", "org_id"]
-    )
+    table = effective_affiliation_table(ctx.project, [])
     who = sorted(counted)
     persons = pa.table({"person_id": who, "state": [states[pid]["state"] for pid in who]})
     joined = table.join(persons, "person_id", join_type="inner").group_by(["org_id", "state"])
@@ -165,13 +164,20 @@ def _states_by_organisation(
 @routes.get("/api/organisations", action="people.read")
 def list_organisations(
     request: Request,
+    response: Response,
     ctx: ProjectDep,
     params: ListDep,
     level: Annotated[str | None, Query(max_length=64)] = None,
     parent: Annotated[str | None, Query(max_length=64)] = None,
 ) -> dict[str, Any]:
-    """Organisations with their level, parents and people; filters ``level``, ``parent``."""
+    """Organisations as people decided them, with their level, parents and people; filters
+    ``level``, ``parent``, ``q`` (a name, an acronym, a ROR or OpenAlex id). The version of
+    ``organisations.csv`` is the answer's ``ETag``, for its writes."""
+    from cartolex.project.files import fingerprint
+
     rows = organisations(ctx.project, runtime_of(request).table_cache)
+    fp = fingerprint(ctx.layout.organisations_csv)
+    response.headers["ETag"] = etag_of(fp)
     levels: dict[str, int] = {}
     for o in rows:
         levels[o["level"]] = levels.get(o["level"], 0) + 1
@@ -181,7 +187,10 @@ def list_organisations(
         if (level is None or o["level"] == level)
         and (parent is None or parent in o["parents"])
         and (
-            not params.q or params.q in o["name"].casefold() or params.q in o["acronym"].casefold()
+            not params.q
+            or params.q in o["name"].casefold()
+            or params.q in o["acronym"].casefold()
+            or any(params.q in str(v).casefold() for v in (o["ids"] or {}).values())
         )
     ]
     return page(
@@ -197,17 +206,24 @@ def list_organisations(
         default_sort="name",
         filters={"level": level, "parent": parent, "q": params.q},
         empty=empty("empty_no_match") if rows else empty("empty_no_people"),
-        extra={"counts": {"level": levels}},
+        extra={"counts": {"level": levels}, "version": version_of(fp)},
     )
 
 
 @routes.get("/api/organisations/{org_id}", action="people.read")
-def get_organisation(org_id: str, ctx: ProjectDep) -> dict[str, Any]:
-    """One organisation: its parents, units, people and the years of each affiliation."""
+def get_organisation(org_id: str, response: Response, ctx: ProjectDep) -> dict[str, Any]:
+    """One organisation as people decided it: its parents, units, people and the years of
+    each affiliation, the organisations merged into it, what was decided and the sources'
+    values; a merged organisation names the one it is merged into. ``ETag``: the version of
+    ``organisations.csv``."""
+    from cartolex.project.files import fingerprint
+
     found = organisation_detail(ctx.project, org_id)
     if found is None:
         raise ApiError.of("organisation_not_found", org=org_id)
-    return found
+    fp = fingerprint(ctx.layout.organisations_csv)
+    response.headers["ETag"] = etag_of(fp)
+    return {**found, "version": version_of(fp)}
 
 
 # ── texts ────────────────────────────────────────────────────────────────────
@@ -246,7 +262,7 @@ def list_texts(
         language=language,
         content=content,
         provider=provider,
-        among=view.of_people([person]) if person is not None else None,
+        among=view.of_people(_with_merged(ctx, runtime, person)) if person is not None else None,
         q=params.q,
     )
     shown, total = view.page(mask, sort, params.offset, params.limit)
@@ -272,6 +288,16 @@ def list_texts(
     }
 
 
+def _with_merged(ctx: Any, runtime: Any, person: str) -> list[str]:
+    """A person and the rows merged into them: whose texts are theirs."""
+    from cartolex.project.identity import merge_roots, merged_groups
+
+    from ..corpus_view import coverage_inputs
+
+    decisions, _ = coverage_inputs(ctx.project, runtime.table_cache)
+    return [person, *merged_groups(merge_roots(decisions)).get(person, [])]
+
+
 @routes.get("/api/texts/{text_id}", action="people.read")
 def get_text(request: Request, text_id: str, ctx: ProjectDep) -> dict[str, Any]:
     """One text: its parts by provider (a preview each), its people, the records merged
@@ -282,30 +308,7 @@ def get_text(request: Request, text_id: str, ctx: ProjectDep) -> dict[str, Any]:
     return found
 
 
-# ── one person, duplicates ───────────────────────────────────────────────────
-
-
-@routes.get("/api/people/duplicates", action="people.read")
-def duplicates(request: Request, ctx: ProjectDep) -> dict[str, Any]:
-    """Pairs of people who may be one person, with the reason; none is merged."""
-    from cartolex.collect.people_import import find_duplicates
-
-    if not ctx.layout.table("people").exists():
-        return {"items": [], "total": 0}
-    people, _ = read_people(ctx.project, runtime_of(request).table_cache)
-    names = {p["person_id"]: f"{p['first_name']} {p['last_name']}".strip() for p in people}
-    units = {p["person_id"]: p["unit"] for p in people}
-    items = [
-        {
-            "person_id": d.person_id,
-            "other_id": d.other_id,
-            "reason": d.reason,
-            "names": [names.get(d.person_id, ""), names.get(d.other_id, "")],
-            "units": [units.get(d.person_id, ""), units.get(d.other_id, "")],
-        }
-        for d in find_duplicates(ctx.project)
-    ]
-    return {"items": items, "total": len(items)}
+# ── one person ───────────────────────────────────────────────────
 
 
 @routes.get("/api/people/{person_id}/sheet", action="people.read")

@@ -49,8 +49,16 @@ from typing import Any
 
 import numpy as np
 
+from .identity import merge_roots
 from .layout import ProjectLayout
 from .models import ProjectFile
+from .organisations import (
+    effective_affiliations,
+    effective_organisations,
+    org_decisions,
+    org_roots,
+    read_affiliation_decisions,
+)
 from .tables import find_ids, id_keys, read_decision_csv
 
 __all__ = [
@@ -274,15 +282,24 @@ def assemble_corpus(
             return parts.get(kinds.get(slot, "collection"), ("title", "abstract"))
         return parts
 
-    def prepared(tables: Path) -> _Loaded:
-        src = _load(tables, config, unit_level)
+    def prepared(
+        tables: Path,
+        merged: Mapping[str, str] | None = None,
+        orgs: tuple[Mapping[str, Mapping[str, str]], list[dict[str, str]]] | None = None,
+    ) -> _Loaded:
+        src = _load(tables, config, unit_level, merged, orgs)
         src.readable = src.mask_types(types_of)
         src.order = src.slot_order(slot_rank)
         src.moved = _one_text_per_work(src, same_work)
         return src
 
-    main = prepared(layout.tables)
-    roles = _roles(layout, main.people)
+    decided = read_decision_csv(layout.people_csv, "people")
+    main = prepared(
+        layout.tables,
+        merge_roots(decided),
+        (org_decisions(layout), read_affiliation_decisions(layout)),
+    )
+    roles = _roles(layout, main.people, decided)
     summary = CorpusSummary()
 
     # Who is read where: each target folder, its people and the slots they are read from.
@@ -405,6 +422,8 @@ class _Loaded:
     readable: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=bool))
     order: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=np.int64))
     moved: dict[int, int] = field(default_factory=dict)
+    #: Each merged row → the person it is merged into (``decisions/people.csv``).
+    merged: dict[str, str] = field(default_factory=dict)
 
     @property
     def n(self) -> int:
@@ -464,7 +483,13 @@ def _codes(column: Any) -> tuple[np.ndarray, list[str]]:
     ), names
 
 
-def _load(tables: Path, config: ProjectFile, unit_level: str | None) -> _Loaded:
+def _load(
+    tables: Path,
+    config: ProjectFile,
+    unit_level: str | None,
+    merged: Mapping[str, str] | None = None,
+    orgs: tuple[Mapping[str, Mapping[str, str]], list[dict[str, str]]] | None = None,
+) -> _Loaded:
     import pyarrow.parquet as pq
 
     missing = [
@@ -481,9 +506,26 @@ def _load(tables: Path, config: ProjectFile, unit_level: str | None) -> _Loaded:
             _table(tables, "people"), columns=["person_id", "last_name", "first_name", "columns"]
         ).to_pylist()
     }
-    src.units = _units(tables, config, unit_level)
+    src.merged = {pid: root for pid, root in (merged or {}).items() if root in src.people}
+    src.units = _units(tables, config, unit_level, src.merged, orgs)
     src.person_texts = _texts_by_person(src)
+    if src.merged:
+        _fold_merged(src)
     return src
+
+
+def _fold_merged(src: _Loaded) -> None:
+    """Give each person the texts of the rows merged into them (a text once), in place:
+    a merged row is read as the person it is merged into, never on its own."""
+    gained: dict[str, list[np.ndarray]] = defaultdict(list)
+    for pid, root in src.merged.items():
+        mine = src.person_texts.pop(pid, None)
+        if mine is not None and len(mine):
+            gained[root].append(mine)
+    for root, parts in gained.items():
+        own = src.person_texts.get(root)
+        every = np.concatenate([*([own] if own is not None else []), *parts])
+        src.person_texts[root] = np.unique(every).astype(np.int64)
 
 
 def _columns(tables: Path) -> _Loaded:
@@ -655,7 +697,7 @@ def _find_copies(
         if len(mine):
             people = batch.column(1).take(mine).to_pylist()
             for t, pid in zip(texts[mine].tolist(), people, strict=True):
-                authors[src.tid(t)].add(pid)
+                authors[src.tid(t)].add(src.merged.get(pid, pid))
     pf.close()
     meta = {
         tid: {"slot": src.slots[src.slot[i]], "year": int(src.year[i])}
@@ -754,21 +796,35 @@ def _part_words(tables: Path, tids: set[str]) -> dict[str, int]:
     return dict(out)
 
 
-def _roles(layout: ProjectLayout, people: dict[str, dict]) -> dict[str, tuple[str, str]]:
-    """person_id → (role, set) from ``people.csv``; every person is mapped without it."""
+def _roles(
+    layout: ProjectLayout, people: dict[str, dict], decided: list[dict[str, str]] | None = None
+) -> dict[str, tuple[str, str]]:
+    """person_id → (role, set) from ``people.csv`` (*decided*: its rows, when read); every
+    person is mapped without it. A row merged into another person has no role of its own:
+    it is read as that person."""
     if not layout.people_csv.exists():
         return {pid: ("mapped", "") for pid in people}
-    roles = {pid: ("undecided", "") for pid in people}
-    for row in read_decision_csv(layout.people_csv, "people"):
-        if row["person_id"] in roles and not row["merged_into"]:
+    rows = read_decision_csv(layout.people_csv, "people") if decided is None else decided
+    merged = merge_roots(rows)
+    roles = {pid: ("undecided", "") for pid in people if pid not in merged}
+    for row in rows:
+        if row["person_id"] in roles:
             roles[row["person_id"]] = (row["role"] or "undecided", row["set"])
     return roles
 
 
-def _units(tables: Path, config: ProjectFile, unit_level: str | None) -> dict[str, str]:
+def _units(
+    tables: Path,
+    config: ProjectFile,
+    unit_level: str | None,
+    merged: Mapping[str, str] | None = None,
+    orgs: tuple[Mapping[str, Mapping[str, str]], list[dict[str, str]]] | None = None,
+) -> dict[str, str]:
     """person_id → the acronym (else name) of their current organisation at *unit_level*:
     the affiliation that ends last (an open one last of all), the first in the table's
-    order on a tie."""
+    order on a tie. A person's affiliations include those of the rows *merged* into them;
+    *orgs* are the decisions on organisations and affiliations (``organisations.csv``'s
+    rows by id, ``affiliations.csv``'s rows), applied over the tables."""
     import pyarrow as pa
     import pyarrow.compute as pc
     import pyarrow.parquet as pq
@@ -777,14 +833,22 @@ def _units(tables: Path, config: ProjectFile, unit_level: str | None) -> dict[st
     if not orgs_path.exists() or not aff_path.exists():
         return {}
     level = unit_level or (config.levels[0].id if config.levels else None)
+    org_rows, aff_rows = orgs if orgs is not None else ({}, [])
+    found = pq.read_table(orgs_path, columns=["org_id", "name", "acronym", "level"]).to_pylist()
+    if org_rows:
+        found = effective_organisations([{**r, "parents": []} for r in found], org_rows)
     labels = {
         r["org_id"]: r["acronym"] or r["name"]
-        for r in pq.read_table(
-            orgs_path, columns=["org_id", "name", "acronym", "level"]
-        ).to_pylist()
+        for r in found
         if level is None or r["level"] == level
     }
     aff = pq.read_table(aff_path, columns=["person_id", "org_id", "end_year"])
+    if org_rows or aff_rows:
+        rows = effective_affiliations(aff.to_pylist(), aff_rows, org_roots(org_rows))
+        aff = pa.table(
+            {c: [r.get(c) for r in rows] for c in ("person_id", "org_id", "end_year")},
+            schema=aff.schema,
+        )
     aff = aff.filter(pc.is_in(aff["org_id"], value_set=pa.array(sorted(labels), pa.string())))
     if aff.num_rows == 0:
         return {}
@@ -792,6 +856,13 @@ def _units(tables: Path, config: ProjectFile, unit_level: str | None) -> dict[st
     aff = aff.append_column("rank", rank).append_column("row", pa.array(np.arange(aff.num_rows)))
     aff = aff.sort_by([("person_id", "ascending"), ("rank", "descending"), ("row", "ascending")])
     best: dict[str, str] = {}
+    merged = merged or {}
+    if merged:  # a merged row's affiliations are its person's: ranked with theirs
+        who = [merged.get(p, p) for p in aff["person_id"].to_pylist()]
+        aff = aff.set_column(0, "person_id", pa.array(who, pa.string()))
+        aff = aff.sort_by(
+            [("person_id", "ascending"), ("rank", "descending"), ("row", "ascending")]
+        )
     for pid, oid in zip(aff["person_id"].to_pylist(), aff["org_id"].to_pylist(), strict=True):
         if pid not in best:
             best[pid] = labels[oid]

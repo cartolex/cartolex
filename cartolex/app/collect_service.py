@@ -932,7 +932,7 @@ class ServiceCollection(BaseCollection):
         if not project.layout.table("people").exists():
             return {}
         found: dict[str, list[dict[str, Any]]] = {}
-        for entry in identity_queue(project):
+        for entry in identity_queue(project, auto=True):
             cands = []
             for c in entry["candidates"]:
                 cands.append(

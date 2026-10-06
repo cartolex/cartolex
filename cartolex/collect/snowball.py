@@ -52,6 +52,7 @@ from typing import Any
 
 from cartolex.project import Project
 from cartolex.project.files import StaleWrite, fingerprint, write_decision
+from cartolex.project.identity import merge_roots, merged_groups
 from cartolex.project.tables import decision_csv_bytes, read_decision_csv
 
 from .decisions import collect_params, decided_now, read_people, slot_window, update_people
@@ -275,23 +276,26 @@ def _seed_people(project: Project, seeds: Sequence[str] | None) -> dict[str, lis
     """Seed person id → their OpenAlex records: the named people, else every confirmed,
     mapped person with one."""
     rows = read_people(project.layout)
+    roots = merge_roots(rows)
+    groups = merged_groups(roots)
     out = {}
     for pid, row in sorted(rows.items()):
         if seeds is not None and pid not in seeds:
             continue
-        if row.get("merged_into") or row.get("role") == "excluded":
+        if pid in roots or row.get("role") == "excluded":
             continue
         if seeds is None and row.get("role") != "mapped":
             continue
-        if row.get("identity") not in ("confirmed", "auto"):
-            continue
+        # their records and those of the rows merged into them, when accepted
         records = [
             r.split(":", 1)[1]
-            for r in (row.get("records") or "").split(";")
+            for one in (pid, *groups.get(pid, ()))
+            if (rows.get(one) or {}).get("identity") in ("confirmed", "auto")
+            for r in ((rows.get(one) or {}).get("records") or "").split(";")
             if r.startswith("openalex:")
         ]
         if records:
-            out[pid] = records
+            out[pid] = list(dict.fromkeys(records))
     if seeds is not None:
         missing = sorted(set(seeds) - set(out))
         if missing:

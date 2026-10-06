@@ -141,6 +141,29 @@ def test_split_records_are_suggested_never_merged(services, project) -> None:
     assert person["aliases"], "the other record's name form is an alias"
 
 
+def test_taking_everyone_takes_a_joined_pair_as_one_even_below_the_minimum(
+    services, project
+) -> None:
+    bib = services.bibliography
+    split = bib.world.person(bib.specials["split"])
+    records = sorted(f"openalex:{r}" for r in bib.record_ids(split.person_id))
+    inst = bib.works[bib.authors[split.openalex_id].works[0]].authorships
+    stated = next(a.institutions[0] for a in inst if a.person_id == split.person_id)
+    root = bib.institutions[stated].parent or stated
+    first = propose_people(project, _api(services, project), [root], min_works=1)
+    pair = next(m for m in first.merges if sorted(m.records) == records)
+    works = [p["works"] for p in pair.people]
+    assert len(works) == 2 and all(p["units"] for p in pair.people)  # details per record
+    if max(works) + 1 > pair.works:
+        pytest.skip("the split records do not allow a minimum between them")
+    proposal = propose_people(project, _api(services, project), [root], min_works=max(works) + 1)
+    assert not {p.record for p in proposal.people} & set(records)  # each below the minimum
+    assert any(sorted(m.records) == records for m in proposal.merges)  # the pair is kept
+    report = take_people(project, "all", join=[[r.split(":")[1] for r in records]])
+    taken = [sorted(recs) for recs in report.taken.values()]
+    assert records in taken
+
+
 def test_a_shared_orcid_is_a_suggested_merge(services, project) -> None:
     from cartolex.collect.institutions import _Authors, _merges, _TableView
 
@@ -152,8 +175,8 @@ def test_a_shared_orcid_is_a_suggested_merge(services, project) -> None:
     table = _Authors()
     for aid, rec in authors.items():
         table.add_entry({**rec, "record": f"openalex:{aid}"})
-    merges = {tuple(m.records): m.reason for m in _merges(_TableView(table), 1)}
-    assert merges == {("openalex:A1", "openalex:A2"): "the same ORCID"}
+    merges = {tuple(m.records): (m.reason, m.clear) for m in _merges(_TableView(table), 1)}
+    assert merges == {("openalex:A1", "openalex:A2"): ("the same ORCID", True)}
 
 
 def test_institutions_by_ror_by_name_and_refusals(services, project) -> None:

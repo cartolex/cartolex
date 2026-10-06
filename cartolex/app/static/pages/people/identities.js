@@ -8,7 +8,9 @@
  *   N     none of these (no record exists) ⏎     confirm the picked candidate
  *
  * Every decision is saved at once and the next person comes up. The single
- * clear matches (one candidate, a high score) can be accepted in bulk.
+ * clear matches (one candidate, a high score) can be accepted in bulk. The
+ * queue shows the people whose identity waits, or those accepted automatically,
+ * to review (the state filter).
  *
  * The saves go one after the other, each with the version (ETag) the previous
  * one answered; a list read asked before a save neither gives its older version
@@ -62,6 +64,7 @@ function Candidate({ candidate, number, picked, onPick }) {
 
 /** The identity queue tab. */
 export function IdentityQueue({ ctx, version, bump, toast, openSheet, openCollect, canCollect, refresh }) {
+  const [state, setState] = useState('pending');
   const [filter, setFilter] = useState('');
   const [finder, setFinder] = useState('');
   const [active, setActive] = useState(null);
@@ -72,7 +75,7 @@ export function IdentityQueue({ ctx, version, bump, toast, openSheet, openCollec
   const etag = useRef(null);
   const grid = useRef(null);
   const list = usePaged(ctx, '/api/collection/identities', {
-    state: 'pending',
+    state,
     clear: filter === 'clear' ? true : filter === 'unclear' ? false : undefined,
     finder: finder || undefined,
     $v: version,
@@ -168,7 +171,7 @@ export function IdentityQueue({ ctx, version, bump, toast, openSheet, openCollec
     const ids = [];
     for (let offset = 0; offset < (counts.clear || 0); offset += 500) {
       const page = await ctx.api.get('/api/collection/identities',
-        { query: { state: 'pending', clear: true, offset, limit: 500 } });
+        { query: { state, clear: true, offset, limit: 500 } });
       if (!page.ok) {
         setError(page.error);
         return;
@@ -217,10 +220,16 @@ export function IdentityQueue({ ctx, version, bump, toast, openSheet, openCollec
         ? html`<span class="cx-corpus-chip">${t('corpus.identities.clear')}</span>`
         : t('corpus.identities.count', { n: p.candidates.length })) },
   ];
-  const noQueue = !list.loading && !list.total && !filter && !finder;
+  const noQueue = !list.loading && !list.total && !filter && !finder && state === 'pending';
 
   return html`<div class="cx-corpus-tab cx-corpus-queue" onKeyDown=${onKeyDown}>
     <div class="cx-corpus-filters" role="group" aria-label=${t('corpus.filters')}>
+      <label class="cx-corpus-filters__select"><span class="cx-visually-hidden">${t('corpus.identities.state')}</span>
+        <${Select} aria-label=${t('corpus.identities.state')} value=${state}
+          onChange=${(e) => setState(e.currentTarget.value)} options=${[
+            { value: 'pending', label: t('corpus.identities.state_pending') },
+            { value: 'auto', label: t('corpus.identities.state_auto') },
+          ]} /></label>
       <label class="cx-corpus-filters__select"><span class="cx-visually-hidden">${t('corpus.identities.show')}</span>
         <${Select} aria-label=${t('corpus.identities.show')} value=${filter} onChange=${(e) => setFilter(e.currentTarget.value)} options=${[
           { value: '', label: t('corpus.identities.all', { n: (counts.clear || 0) + (counts.unclear || 0) + (counts.no_candidate || 0) }) },

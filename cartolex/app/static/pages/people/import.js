@@ -48,7 +48,7 @@ function Mapping({ proposal, mapping, setMapping }) {
 }
 
 /** What an import did, and its possible duplicates to merge. */
-function Result({ ctx, result, onMerged }) {
+function Result({ ctx, result, onMerged, onReview }) {
   const [merged, setMerged] = useState(new Set());
   const [error, setError] = useState(null);
   async function merge(d) {
@@ -67,6 +67,9 @@ function Result({ ctx, result, onMerged }) {
     ${result.skipped.length ? html`<details class="cx-corpus-part"><summary>${t('corpus.import.skipped', { n: result.skipped.length })}</summary>
       <ul class="cx-corpus-list">${result.skipped.slice(0, 50).map((s, i) => html`<li key=${i}>${s}</li>`)}</ul></details>` : null}
     ${error ? html`<${ErrorCard} error=${error} compact onDismiss=${() => setError(null)} />` : null}
+    ${result.duplicates.length && onReview ? html`<p class="cx-corpus-note" role="note">
+      ${t('corpus.dup.after_import', { n: result.duplicates.length })}
+      <${Button} size="s" variant="ghost" onClick=${onReview}>${t('corpus.dup.review')}<//></p>` : null}
     ${result.duplicates.length ? html`<h3 class="cx-corpus-h3">${t('corpus.import.duplicates', { n: result.duplicates.length })}</h3>
       <ul class="cx-corpus-dups">${result.duplicates.map((d) => {
         const key = `${d.person_id}|${d.other_id}`;
@@ -81,7 +84,7 @@ function Result({ ctx, result, onMerged }) {
 }
 
 /** The import dialog: a list, documents or a corpus (*mode*); *person*: documents for one person. */
-export function ImportDialog({ ctx, mode: initial, person, onClose, onStarted }) {
+export function ImportDialog({ ctx, mode: initial, person, onClose, onStarted, openTab }) {
   const [mode, setMode] = useState(initial || 'list');
   const [text, setText] = useState('');
   const [file, setFile] = useState(null);
@@ -167,7 +170,8 @@ export function ImportDialog({ ctx, mode: initial, person, onClose, onStarted })
   let body;
   let footer;
   if (mode === 'list' && result) {
-    body = html`<${Result} ctx=${ctx} result=${result} onMerged=${() => setChanged(true)} />`;
+    body = html`<${Result} ctx=${ctx} result=${result} onMerged=${() => setChanged(true)}
+      onReview=${openTab ? () => { onClose(true); openTab('duplicates'); } : null} />`;
     footer = html`<${Button} variant="primary" onClick=${close}>${t('common.close')}<//>`;
   } else if (mode === 'list' && proposal) {
     body = html`<p>${t('corpus.import.read', { rows: formatNumber(proposal.rows), columns: proposal.columns.length })}</p>

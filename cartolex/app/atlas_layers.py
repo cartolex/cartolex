@@ -99,7 +99,7 @@ def map_extras(ctx: Any, people: list[dict[str, Any]], cache: Any = None) -> dic
     and ``years`` (the first and last year of the texts).
     """
     from ..project.tables import read_source_table
-    from .corpus_view import organisations, people_view
+    from .corpus_view import effective_affiliation_table, organisations, people_view
 
     project = ctx.project
     layout = ctx.layout
@@ -132,9 +132,7 @@ def map_extras(ctx: Any, people: list[dict[str, Any]], cache: Any = None) -> dic
     ever: dict[str, set[str]] = defaultdict(set)
     person_orgs: dict[str, list[str]] = defaultdict(list)
     if layout.table("affiliations").exists():
-        rows = read_source_table(
-            layout.table("affiliations"), "affiliations", ["person_id", "org_id", "end_year"]
-        ).to_pylist()
+        rows = effective_affiliation_table(project, ["end_year"]).to_pylist()
         for a in rows:
             for o in ancestors(a["org_id"]):
                 ever[o].add(a["person_id"])

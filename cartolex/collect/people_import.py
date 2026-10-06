@@ -47,6 +47,7 @@ __all__ = [
     "ImportReport",
     "confirm_merge",
     "find_duplicates",
+    "undo_merge",
     "import_corpus",
     "import_folder",
     "import_people",
@@ -787,23 +788,47 @@ def find_duplicates(project: Project, *, among: set[str] | None = None) -> list[
 
 
 def confirm_merge(
-    project: Project, keep: str, merged: str, *, note: str = "", now: datetime | None = None
+    project: Project,
+    keep: str,
+    merged: str,
+    *,
+    note: str = "",
+    override: bool = False,
+    now: datetime | None = None,
 ) -> None:
     """Record that *merged* is the same person as *keep* (``merged_into``); rebuild the tables so
-    *keep* gains the other's name forms as aliases."""
-    if keep == merged:
-        raise ValueError("a person cannot be merged into themselves")
+    *keep* gains the other's name forms as aliases. Two rows with different ORCIDs are
+    refused (:class:`~cartolex.project.identity.MergeRefused`) unless *override*."""
+    from cartolex.project.identity import merge_changes
+
     rows = read_people(project.layout)
-    target = rows.get(keep, {})
-    if target.get("merged_into"):
-        raise ValueError(f"{keep} is itself merged into {target['merged_into']}")
-    update_people(
-        project.layout,
-        {merged: {"merged_into": keep, "note": note or f"same person as {keep}"}},
-        action=f"merge {merged} into {keep}",
-        now=now,
+    table = read_source_table(project.layout.table("people"), "people", ["person_id", "orcid"])
+    orcids = dict(zip(table["person_id"].to_pylist(), table["orcid"].to_pylist(), strict=True))
+    unknown = sorted({keep, merged} - set(orcids) - set(rows))
+    if unknown:
+        raise ValueError(f"unknown person id(s): {', '.join(unknown)}")
+    for pid in (keep, merged):
+        rows.setdefault(pid, {"person_id": pid, "merged_into": "", "records": ""})
+    changes = merge_changes(
+        rows, keep, [merged], orcids, override=override, note=note or f"same person as {keep}"
     )
+    update_people(project.layout, changes, action=f"merge {merged} into {keep}", now=now)
     rebuild_sources(project.layout, project.config)
+
+
+def undo_merge(
+    project: Project, person_ids: Sequence[str], *, now: datetime | None = None
+) -> list[str]:
+    """Undo merges: each of *person_ids* (or each row merged into one of them) stands on its
+    own again, as it was before; the tables are rebuilt so the aliases follow. Returns the
+    rows unmerged."""
+    from cartolex.project.identity import unmerge_changes
+
+    changes = unmerge_changes(read_people(project.layout), person_ids)
+    if changes:
+        update_people(project.layout, changes, action=f"unmerge {len(changes)} people", now=now)
+        rebuild_sources(project.layout, project.config)
+    return sorted(changes)
 
 
 # ── folders of documents ─────────────────────────────────────────────────────

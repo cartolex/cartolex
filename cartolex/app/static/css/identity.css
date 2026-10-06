@@ -1,0 +1,206 @@
+/* SPDX-License-Identifier: MIT */
+/*
+ * Who is who, on the corpus screen (pages/people/): the duplicates' review (two
+ * people side by side, the evidence for and against), the organisations' review
+ * and drawer, the institutions' pairs. Colours, sizes and durations come from
+ * tokens.css only.
+ */
+
+.cx-dup-split {
+  grid-template-columns: minmax(16rem, 2fr) minmax(26rem, 3fr);
+}
+
+.cx-dup-table {
+  table-layout: fixed;
+}
+
+.cx-dup-table thead td:first-child {
+  width: 8rem;
+}
+
+.cx-dup-table thead th {
+  text-align: start;
+}
+
+.cx-dup-table th[scope='row'] {
+  color: var(--cx-text-muted);
+  font-weight: var(--cx-weight-regular);
+}
+
+.cx-dup-table td {
+  overflow-wrap: anywhere;
+}
+
+.cx-dup-id {
+  display: block;
+  font-size: var(--cx-text-xs);
+}
+
+.cx-dup-table ul {
+  margin: 0;
+}
+
+.cx-dup-shared,
+.cx-dup-why {
+  display: grid;
+  gap: var(--cx-space-1);
+  margin-top: var(--cx-space-3);
+}
+
+.cx-dup-why li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--cx-space-2);
+  font-size: var(--cx-text-s);
+}
+
+/* For or against, by a sign in a shape, never by a hue alone. */
+.cx-dup-sign {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 1.2rem;
+  height: 1.2rem;
+  border: var(--cx-rule-width) solid var(--cx-border-strong);
+  border-radius: var(--cx-radius-s);
+  font-weight: var(--cx-weight-bold);
+}
+
+.cx-dup-against .cx-dup-sign {
+  border-radius: var(--cx-radius-pill);
+}
+
+.cx-dup-chip--conflict {
+  border-color: var(--cx-warning);
+  background: var(--cx-warning-surface);
+}
+
+.cx-dup-actions {
+  position: sticky;
+  bottom: 0;
+  padding-top: var(--cx-space-2);
+  background: var(--cx-surface);
+}
+
+.cx-dup-last,
+.cx-dup-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cx-space-2);
+}
+
+.cx-dup-merged-row,
+.cx-org-parent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cx-space-2);
+}
+
+.cx-dup-auto {
+  display: grid;
+  gap: var(--cx-space-2);
+}
+
+.cx-dup-auto p {
+  margin: 0;
+}
+
+.cx-dup-auto__list {
+  max-height: 22rem;
+  overflow: auto;
+}
+
+/* Organisations: the drawer's decisions, the review of pairs. */
+.cx-org-edit {
+  display: grid;
+  gap: var(--cx-space-3);
+  padding: var(--cx-space-3);
+  border: var(--cx-rule-width) solid var(--cx-rule);
+  border-radius: var(--cx-radius-m);
+}
+
+.cx-org-search {
+  display: grid;
+  gap: var(--cx-space-1);
+}
+
+.cx-org-search__found {
+  padding: var(--cx-space-1) var(--cx-space-2);
+  border: var(--cx-rule-width) solid var(--cx-rule);
+  border-radius: var(--cx-radius-s);
+}
+
+.cx-org-review {
+  display: grid;
+  gap: var(--cx-space-3);
+}
+
+.cx-org-review:focus {
+  outline: none;
+}
+
+.cx-org-pair {
+  display: grid;
+  gap: var(--cx-space-2);
+}
+
+.cx-org-pair p {
+  margin: 0;
+}
+
+.cx-org-sides {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--cx-space-3);
+}
+
+.cx-org-side {
+  padding: var(--cx-space-3);
+  border: var(--cx-rule-width) solid var(--cx-border);
+  border-radius: var(--cx-radius-m);
+}
+
+.cx-org-side p {
+  margin: 0 0 var(--cx-space-2);
+}
+
+/* Institutions: the facts of each one found, the records that may be one person. */
+.cx-inst-facts {
+  display: block;
+  padding-left: calc(var(--cx-space-4) + var(--cx-space-2));
+  font-size: var(--cx-text-s);
+}
+
+.cx-inst-pairs {
+  gap: var(--cx-space-3);
+  margin-top: var(--cx-space-2);
+}
+
+.cx-inst-pair {
+  display: grid;
+  gap: var(--cx-space-1);
+  padding: var(--cx-space-2) var(--cx-space-3);
+  border: var(--cx-rule-width) solid var(--cx-rule);
+  border-radius: var(--cx-radius-m);
+}
+
+.cx-inst-pair p,
+.cx-inst-record p {
+  margin: 0;
+}
+
+.cx-inst-record {
+  font-size: var(--cx-text-s);
+}
+
+@media (max-width: 60rem) {
+  .cx-dup-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cx-corpus-sheet .cx-corpus-simple .cx-button {
+  white-space: nowrap;
+}

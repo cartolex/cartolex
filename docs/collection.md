@@ -42,18 +42,41 @@ Each new person gets a row in `decisions/people.csv` with the role the list
 gives (`mapped` by default) and the identity `pending`. Importing the same list
 again changes nothing; a person already decided keeps their decisions.
 
-**Duplicates** are proposed, never merged: two rows that share an identifier,
-whose names are the same once case, accents, hyphens and particles are set
-aside, or whose first names agree (one may be an initial) with one surname
-containing the other.
+**Duplicates** are proposed, never merged on their own: two rows that share an
+identifier, whose names are the same once case, accents, hyphens and particles
+are set aside, or whose first names agree (one may be an initial) with one
+surname containing the other. Each pair is weighed on what the project knows
+of both (`cartolex.collect.duplicates`): a shared ORCID or record, the names
+and the other names, an organisation, co-authors, texts where both hold the
+same place (one author recorded twice) or different places (two authors of one
+text), years that follow on; two different ORCIDs count strongly against. A pair
+is **clear** when both carry the same ORCID or record and their names agree, or
+when one author is recorded twice at the same place of a text, never with two
+different ORCIDs or a text they wrote together: a name, an organisation and
+co-authors in common are not enough, since two namesakes of one lab have all
+three. The corpus screen's Duplicates tab shows the pairs side by side; « Merge
+the clear pairs » merges the clear ones in one step, undone in one.
 
 ```bash
-cartolex collect duplicates my-project
+cartolex collect duplicates my-project [--merge-clear]
 cartolex collect merge my-project p000012 p000031   # p000031 is p000012
+cartolex collect unmerge my-project p000031         # they stand apart again
 ```
 
 A merge is recorded in `decisions/people.csv` (`merged_into`) and the other
-name goes to the person's aliases, which searches try too.
+name goes to the person's aliases, which searches try too. The merged row keeps
+its own records, identity and role, so an unmerge gives it back as it was; while
+merged, the person it is merged into stands for both: the collection asks for
+all their records, and the corpus reads all their texts. Two rows with
+different ORCIDs are merged only with `--override-orcid`. Pairs judged two
+people (or left for later) are remembered in `decisions/people_pairs.csv`.
+
+Measured on the demo worlds with duplicates and namesakes added
+(`cartolex.demo.duplicates`: 15 % of the people given a second row written six
+ways, 8 % made namesakes of someone, half of them in the same group; worlds S
+and L, five seeds): every duplicate is proposed, the clear pairs are all right
+(67 of 67) and hold 46 % of the duplicates; the others wait for a person, among
+the most likely pairs (140 of the 145 first pairs are duplicates).
 
 ### A folder of documents
 
