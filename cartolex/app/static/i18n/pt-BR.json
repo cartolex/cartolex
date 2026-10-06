@@ -2743,5 +2743,8 @@
   "keywords.unjudged.confirm_title": "{n, plural, one {Manter # candidato que ninguém julgou?} other {Manter # candidatos que ninguém julgou?}}",
   "keywords.unjudged.confirm_text": "Eles entram no vocabulário na próxima construção, como se você tivesse mantido cada um. Você pode desfazer isso no histórico das decisões.",
   "keywords.unjudged.reason": "mantido sem julgamento",
-  "keywords.ai.scope.unjudged": "Ainda não julgados (mantidos e a verificar)"
+  "keywords.ai.scope.unjudged": "Ainda não julgados (mantidos e a verificar)",
+  "copilot.many_terms": "{terms, number} candidatos: várias conversas ou agentes podem ser necessários; o kit os divide em {parts, number} partes.",
+  "copilot.unknown_bundle.word": "Outro pacote.",
+  "copilot.unknown_bundle": "Este resultado responde a um pacote que este projeto não exportou (o de outro projeto, ou um feito antes de esta versão registrá-los): confira se é o arquivo certo antes de aceitar qualquer coisa."
 }

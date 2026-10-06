@@ -57,7 +57,9 @@ export function ThemeCopilotDialog({ api, editor, onClose, onPreview, onApply, r
     setError(null);
     const r = await api.post('/api/themes/copilot/export', { tree: editor.tree.value, language });
     setMaking(false);
-    if (r.ok && r.data && r.data.blob) downloadFile('copilot-themes.zip', r.data.blob, 'application/zip');
+    if (r.ok && r.data && r.data.blob) {
+      downloadFile(r.data.filename || 'cartolex-themes.zip', r.data.blob, 'application/zip');
+    }
     else setError(r.error);
   };
   const show = (data) => {

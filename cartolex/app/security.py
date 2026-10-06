@@ -226,6 +226,8 @@ class SecurityMiddleware:
         return None
 
     def _limit(self, path: str) -> int:
+        if "/copilot/import" in path:
+            return int(self.settings.max_result_mb * 1024 * 1024)
         if path.endswith(("/upload", "/files")) or "/import" in path:
             return int(self.settings.max_upload_mb * 1024 * 1024)
         return int(self.settings.max_request_kb * 1024)

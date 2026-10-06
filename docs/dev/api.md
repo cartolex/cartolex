@@ -73,7 +73,7 @@ route answers 409 `no_project` with the next action `open-project`.
   no-referrer`, and `X-Request-ID`. `.js` files are `text/javascript` on
   every platform (a fixed table, never the system's).
 - **Inputs.** Bodies are pydantic models with bounded sizes; a request larger
-  than 16 MB (uploads: 50 MB) is refused before it is read. Uploads are
+  than 16 MB (uploads: 50 MB; a copilot's result: 256 MB) is refused before it is read. Uploads are
   written only inside their folder under a clean name; an archive is checked
   member by member (no absolute path, no `..`, no link, no hidden name, at
   most so many members and bytes once unpacked) and refused whole.
@@ -575,6 +575,7 @@ the English `message` the same way; an empty result also names its next action.
 | `health_languages_split` | the texts are in {languages}: without the AI clean-up, keywords of each language may form themes of their own | `languages` | `settings` |
 | `health_space_languages` | {share}% of the keywords are not in {language}: in a space of texts, themes may split by language; the people's space may suit this corpus better | `share`, `language` | `open:/method` |
 | `health_snowball_cap` | the last proposal of collaborators in {slot} stopped at the cap of {cap} people | `slot`, `cap` | `settings` |
+| `copilot_many_terms` | {terms} candidates: several conversations or agents may be needed; the kit cuts them into {parts} parts | `terms`, `parts` | — |
 | `preview_needs_extraction` | {param} at {value} reaches past the last build's {built}: the candidates outside its window were never kept, a new extraction shows them | `param`, `value`, `built` | — |
 | `next_watch_build` | a build is running | — | `open:/build` |
 | `next_copilot_waiting` | the build waits for your copilot ({step}) | `step` | `open:/build` |

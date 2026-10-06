@@ -2743,5 +2743,8 @@
   "keywords.unjudged.confirm_title": "{n, plural, one {Keep # candidate nobody judged?} other {Keep # candidates nobody judged?}}",
   "keywords.unjudged.confirm_text": "They enter the vocabulary at the next build, as if you had kept each one. You can undo it from the history of the decisions.",
   "keywords.unjudged.reason": "kept without a judgement",
-  "keywords.ai.scope.unjudged": "Not judged yet (kept and to check)"
+  "keywords.ai.scope.unjudged": "Not judged yet (kept and to check)",
+  "copilot.many_terms": "{terms, number} candidates: several conversations or agents may be needed; the kit cuts them into {parts, number} parts.",
+  "copilot.unknown_bundle.word": "Another bundle.",
+  "copilot.unknown_bundle": "This result answers a bundle this project did not export (another project's, or one made before this version kept a record): check it is the right file before you accept anything."
 }

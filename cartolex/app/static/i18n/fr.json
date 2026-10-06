@@ -2743,5 +2743,8 @@
   "keywords.unjudged.confirm_title": "{n, plural, one {Garder # candidat que personne n'a jugé ?} other {Garder # candidats que personne n'a jugés ?}}",
   "keywords.unjudged.confirm_text": "Ils entrent dans le vocabulaire à la prochaine construction, comme si vous aviez gardé chacun. Vous pouvez l'annuler depuis l'historique des décisions.",
   "keywords.unjudged.reason": "gardé sans jugement",
-  "keywords.ai.scope.unjudged": "Pas encore jugés (retenus et à vérifier)"
+  "keywords.ai.scope.unjudged": "Pas encore jugés (retenus et à vérifier)",
+  "copilot.many_terms": "{terms, number} candidats : plusieurs conversations ou agents peuvent être nécessaires ; la boîte à outils les découpe en {parts, number} parties.",
+  "copilot.unknown_bundle.word": "Un autre lot.",
+  "copilot.unknown_bundle": "Ce résultat répond à un lot que ce projet n'a pas exporté (celui d'un autre projet, ou un lot antérieur à cette version, qui n'était pas noté) : vérifiez que c'est le bon fichier avant d'accepter quoi que ce soit."
 }

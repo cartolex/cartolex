@@ -1,14 +1,17 @@
 # SPDX-License-Identifier: MIT
-"""The copilot's acceptance gate.
+"""The copilot's bundles and the acceptance gate.
 
-Once a copilot's triage is accepted for the current extraction, only the
-keywords someone accepted enter the vocabulary; the candidates nobody judged are
-counted, can be sent to the AI alone, or kept anyway.
+- A bundle's file says what it is (task, project, time, version, parts), and the
+  project remembers the bundles it exported: a result of another bundle is flagged.
+- Once a copilot's triage is accepted for the current extraction, only the
+  keywords someone accepted enter the vocabulary; the candidates nobody judged are
+  counted, can be sent to the AI alone, or kept anyway.
 """
 
 from __future__ import annotations
 
 import csv
+import re
 from pathlib import Path
 
 import pytest
@@ -54,6 +57,27 @@ def _result(bundle: str, decisions: list[dict]) -> dict:
         "made_at": "2030-01-01T00:00:00Z",
         "decisions": decisions,
     }
+
+
+def test_a_bundle_is_named_and_remembered_and_another_one_is_flagged(client):
+    r = client.get("/api/keywords/copilot/export", params={"scope": "both", "parts": 2})
+    assert r.status_code == 200, r.text
+    disposition = r.headers["content-disposition"]
+    name = re.search(r'filename="([^"]+)"', disposition).group(1)
+    assert re.fullmatch(r"cartolex-triage_[a-z0-9-]+_\d{8}-\d{4}_v[a-z0-9-]+_2parts\.zip", name)
+    import io
+    import json
+    import zipfile
+
+    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+        bundle = json.loads(zf.read("bundle.json"))["id"]
+    term = client.get("/api/keywords", params={"band": "kept", "limit": 1}).json()["items"][0]
+    keep = {"term": term["term"], "language": term["language"], "decision": "keep"}
+    ours = client.post("/api/keywords/copilot/import", json={"result": _result(bundle, [keep])})
+    assert ours.status_code == 200, ours.text
+    assert ours.json()["bundle_known"] is True
+    other = client.post("/api/keywords/copilot/import", json={"result": _result("f00d", [keep])})
+    assert other.json()["bundle_known"] is False
 
 
 def test_an_accepted_copilot_triage_lets_in_only_the_accepted_keywords(client, project):

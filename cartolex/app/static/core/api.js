@@ -155,10 +155,28 @@ async function readBody(response) {
   if (response.status === 204) return null;
   const type = response.headers.get('Content-Type') || '';
   if (type.includes('json')) return response.json();
-  // A file to offer (a zip made on demand): its bytes, for downloadFile().
-  if (type.includes('zip') || type.includes('octet-stream')) return { blob: await response.blob() };
+  // A file to offer (a zip made on demand): its bytes, for downloadFile(), and the name the
+  // server gives it.
+  if (type.includes('zip') || type.includes('octet-stream')) {
+    return { blob: await response.blob(), filename: filenameOf(response.headers.get('Content-Disposition')) };
+  }
   const text = await response.text();
   return text ? { text } : null;
+}
+
+/** The file name of a `Content-Disposition` header (its UTF-8 `filename*` first), or null. */
+export function filenameOf(header) {
+  if (!header) return null;
+  const extended = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(header);
+  if (extended) {
+    try {
+      return decodeURIComponent(extended[1].trim());
+    } catch (cause) {
+      // a malformed name: the plain one below
+    }
+  }
+  const plain = /filename\s*=\s*"([^"]*)"/i.exec(header) || /filename\s*=\s*([^;]+)/i.exec(header);
+  return plain ? plain[1].trim() : null;
 }
 
 /** `?a=1&b=x` from an object (undefined and null values left out), or ''. */

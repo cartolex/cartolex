@@ -975,3 +975,10 @@ nothing in the engine names a particular deployment, source or procedure.
   vocabulary, as with the AI clean-up by API. The keywords screen counts the
   candidates nobody judged that stay out, and sends them alone to the copilot
   (scope `unjudged`) or keeps them anyway.
+- **Copilot bundles without a cap, named and remembered.** Every candidate of
+  the chosen scope goes into a triage bundle (it stopped at 20,000); above
+  20,000 the dialog says several conversations or agents may be needed and the
+  kit cuts it into up to 64 parts; a result may hold 2,000,000 decisions and
+  256 MB. A bundle's file is `cartolex-<task>_<project>_<YYYYMMDD-HHMM>_v<version>[_<n>parts].zip`,
+  the project keeps the ids of the bundles it exported, and a result of
+  another bundle is flagged before anything is accepted.

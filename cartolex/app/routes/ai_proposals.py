@@ -29,7 +29,7 @@ routes = Routes(tags=["ai"])
 #: What the triage by API sends, and what it never sends (shown before a run).
 API_SENDS = ("keyword strings and their language", "the field's title and description")
 API_NEVER = ("texts", "people's names or identifiers", "your decisions", "keys")
-MAX_TERMS = 20_000
+MAX_TERMS = 200_000
 #: A proposal: a copilot's triage result, or an answer to a handoff imported by an
 #: earlier version (still readable, and accepted the same way).
 ProposalId = Annotated[str, PathParam(pattern=r"^\d{8}T\d{6}Z-(handoff|copilot-triage)(-\d+)?$")]

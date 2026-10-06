@@ -1931,6 +1931,16 @@ a.cx-button:hover {
   color: var(--cx-text-muted);
 }
 
+.cx-copilot__note--warning {
+  border-left-color: var(--cx-warning);
+  background: var(--cx-warning-surface);
+  color: var(--cx-text);
+}
+
+.cx-copilot__note--warning svg {
+  color: var(--cx-warning);
+}
+
 .cx-copilot__problem {
   display: flex;
   align-items: center;
