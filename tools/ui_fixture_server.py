@@ -11,6 +11,9 @@ from fixtures and with the standard library only:
 * ``GET /api/project/state`` — ``tests/fixtures/ui/project-state.example.json``;
 * ``GET /api/jobs`` and ``POST /api/jobs/<id>/cancel`` — ``tests/fixtures/ui/jobs.example.json``;
 * ``GET`` and ``PUT /api/me/preferences`` — kept in memory until :meth:`FixtureServer.reset`;
+* ``GET /api/projects`` and ``POST /api/projects/open`` — ``tests/fixtures/ui/projects.example.json``
+  (a folder ending in ``held`` is locked elsewhere, one ending in ``busy`` meets a job);
+* ``GET /api/app/about`` — ``tests/fixtures/ui/about.example.json``;
 * ``GET /api/overview``, ``GET /api/build`` and the dry run ``POST /api/build`` —
   ``tests/fixtures/ui/overview.example.json``;
 * ``GET /api/themes`` and ``GET /api/themes/usage`` — ``tests/fixtures/ui/themes.example.json``
@@ -88,6 +91,10 @@ def load_fixtures() -> dict:
         **json.loads((FIXTURES / "ui" / "themes.example.json").read_text(encoding="utf-8")),
         **json.loads((FIXTURES / "ui" / "overview.example.json").read_text(encoding="utf-8")),
         **json.loads((FIXTURES / "ui" / "keywords.example.json").read_text(encoding="utf-8")),
+        "projects": json.loads(
+            (FIXTURES / "ui" / "projects.example.json").read_text(encoding="utf-8")
+        ),
+        "about": json.loads((FIXTURES / "ui" / "about.example.json").read_text(encoding="utf-8")),
     }
 
 
@@ -107,6 +114,8 @@ class FixtureServer(ThreadingHTTPServer):
         self.lock = threading.Lock()
         #: The preferences the app keeps (``PUT /api/me/preferences``), none at first.
         self.prefs: dict | None = None
+        #: The folders opened through ``POST /api/projects/open``.
+        self.opened: list[str] = []
 
     @property
     def url(self) -> str:
@@ -120,6 +129,7 @@ class FixtureServer(ThreadingHTTPServer):
             self.delays = {}
             self.log = []
             self.prefs = None
+            self.opened = []
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -191,8 +201,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         path = self._begin()
         length = int(self.headers.get("Content-Length") or 0)
-        if length:
-            self.rfile.read(length)
+        raw = self.rfile.read(length) if length else b""
         if not path.startswith("/api/"):
             return self._error(HTTPStatus.METHOD_NOT_ALLOWED, "method_not_allowed", "Not here.")
         if not self._same_app():
@@ -205,11 +214,52 @@ class Handler(BaseHTTPRequestHandler):
                         job["state"] = "cancelling"
                         return self._json(HTTPStatus.ACCEPTED, {"job": job})
             return self._error(HTTPStatus.NOT_FOUND, "job_not_found", "No such running job.")
+        if path == "/api/projects/open":
+            return self._open_project(json.loads(raw or b"{}"))
         if path == "/api/build":
             # The dry run only: the fixture never starts a build.
             with self.server.lock:
                 return self._json(HTTPStatus.OK, self.server.data["plan"])
         return self._error(HTTPStatus.NOT_FOUND, "not_found", "No such route.")
+
+    def _open_project(self, body: dict) -> None:
+        """Open a recent project: a folder ending in ``held`` is locked by another app (until
+        ``force``), one ending in ``busy`` meets a running job; any other opens."""
+        folder = str(body.get("path") or "")
+        if folder.endswith("held") and not body.get("force"):
+            params = {
+                "app": "cartolex",
+                "host": "another-computer",
+                "pid": 4242,
+                "since": "2026-10-06T08:00:00Z",
+            }
+            return self._json(
+                HTTPStatus.CONFLICT,
+                {
+                    "error": {
+                        "code": "locked",
+                        "params": params,
+                        "message": "the project is open elsewhere",
+                        "next": {"label": "Open anyway", "action": "confirm"},
+                    }
+                },
+            )
+        if folder.endswith("busy"):
+            return self._json(
+                HTTPStatus.CONFLICT,
+                {
+                    "error": {
+                        "code": "busy",
+                        "params": {"kind": "build", "job": "job-0002"},
+                        "message": "a build job (job-0002) is already running on this project",
+                        "next": {"label": "Wait", "action": "wait"},
+                        "job": "job-0002",
+                    }
+                },
+            )
+        with self.server.lock:
+            self.server.opened.append(folder)
+        return self._json(HTTPStatus.OK, {"open": True, "id": "opened", "name": folder})
 
     def do_PUT(self) -> None:  # noqa: N802
         path = self._begin()
@@ -280,6 +330,10 @@ class Handler(BaseHTTPRequestHandler):
             )
         if path == "/api/me/preferences":
             return self._json(HTTPStatus.OK, self._prefs_view())
+        if path == "/api/projects":
+            return self._json(HTTPStatus.OK, data["projects"])
+        if path == "/api/app/about":
+            return self._json(HTTPStatus.OK, data["about"])
         if path == "/api/ext/demo/slow":
             # The test extension's own route: the tests delay it to answer late.
             return self._json(HTTPStatus.OK, {"answer": 42})

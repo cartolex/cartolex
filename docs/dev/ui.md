@@ -315,9 +315,21 @@ pages placed in `settings` are listed in the header's settings menu. The
 themes screen (`pages/themes.js`, {doc}`themes-editor`) is built, and so are
 the settings (`pages/settings.js`: one module per section under
 `pages/settings/`, the section in the address, `/settings?section=build`; each
-section reads what it shows when it opens) and the start screen
+section reads what it shows when it opens), the start screen
 (`pages/start.js` and `pages/start/`: recent projects, the demo project, a new
-project; `/start`, and `/start?new=1` for the form). A screen
+project; `/start`, and `/start?new=1` for the form) and the About page
+(`pages/about.js` and `pages/about/`: what cartolex is for, the pipeline as one
+SVG figure drawn with the theme's tokens, the scientific background as
+bibliographic records, the authors, citation, licence and build from
+`GET /api/app/about`; the logo leads to it, `docs/about.md` holds the same
+text). The header's project menu (`core/project-menu.js`, local only) names
+the open project and lists the recent ones (`GET /api/projects`, read when it
+opens), « All projects… » (`/start`) and « New project… » (`/start?new=1`);
+opening a project, with the warning before opening a held one anyway and the
+word on a busy app, is shared with the start screen
+(`components/project-open.js`). The settings menu ends with « About » and the
+version and build; the browser tab's title names the page, the project and the
+app. A screen
 is split into modules of a few hundred lines each, under a folder named after
 it, with a small entry module: `pages/themes.js` loads `pages/themes/editor.js`,
 which puts together the outline (`outline.js`, `rows.js`, `review.js`), the

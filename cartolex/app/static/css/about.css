@@ -1,0 +1,141 @@
+/* SPDX-License-Identifier: MIT */
+/*
+ * The About page (pages/about/): prose at a reading width, the pipeline figure
+ * (an SVG whose colours are tokens, so it follows the theme), the references.
+ * Colours, sizes and durations come from tokens.css only.
+ */
+
+.cx-about {
+  max-width: var(--cx-text-width);
+}
+
+.cx-about__section {
+  margin-top: var(--cx-space-6);
+}
+
+.cx-about__heading {
+  margin: var(--cx-space-6) 0 var(--cx-space-3);
+  font-size: var(--cx-text-xl);
+}
+
+.cx-about__section > .cx-about__heading:first-child {
+  margin-top: 0;
+}
+
+.cx-about__subheading {
+  margin: var(--cx-space-5) 0 var(--cx-space-2);
+  font-size: var(--cx-text-l);
+}
+
+.cx-about p {
+  line-height: var(--cx-leading);
+}
+
+.cx-about__muted {
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}
+
+.cx-about__draft {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cx-space-2);
+  padding: var(--cx-space-3) var(--cx-space-4);
+  border: var(--cx-rule-width) dashed var(--cx-border-strong);
+  border-radius: var(--cx-radius-m);
+  color: var(--cx-text-muted);
+}
+
+.cx-about__draft .cx-icon {
+  flex: none;
+  margin-top: 0.15em;
+}
+
+.cx-about__refs {
+  margin: 0;
+  padding-left: var(--cx-space-5);
+  display: grid;
+  gap: var(--cx-space-2);
+}
+
+.cx-about__ref {
+  line-height: var(--cx-leading);
+  overflow-wrap: anywhere;
+}
+
+.cx-about__ref code,
+.cx-about__citation code,
+.cx-about__section > p > code {
+  font-size: var(--cx-text-s);
+  overflow-wrap: anywhere;
+}
+
+.cx-about__citation {
+  margin: var(--cx-space-3) 0;
+  padding: var(--cx-space-3) var(--cx-space-4);
+  background: var(--cx-surface-alt);
+  border-left: var(--cx-space-1) solid var(--cx-border-strong);
+  border-radius: var(--cx-radius-s);
+}
+
+.cx-about__citation code {
+  white-space: normal;
+}
+
+.cx-about__docs {
+  margin-top: var(--cx-space-6);
+}
+
+/* The pipeline */
+.cx-about-figure {
+  margin: 0;
+}
+
+.cx-about-figure__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.cx-about-figure__box {
+  fill: var(--cx-surface);
+  stroke: var(--cx-border-strong);
+  stroke-width: 1.5;
+}
+
+.cx-about-figure__badge {
+  fill: var(--cx-text);
+}
+
+.cx-about-figure__number {
+  fill: var(--cx-bg);
+  font-size: var(--cx-text-s);
+  font-weight: var(--cx-weight-bold);
+}
+
+.cx-about-figure__title {
+  fill: var(--cx-text);
+  font-size: var(--cx-text-l);
+  font-weight: var(--cx-weight-bold);
+}
+
+.cx-about-figure__line {
+  fill: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}
+
+.cx-about-figure__arrow {
+  fill: none;
+  stroke: var(--cx-text-muted);
+  stroke-width: 1.5;
+}
+
+.cx-about-figure__head {
+  fill: var(--cx-text-muted);
+}
+
+.cx-about-figure__caption {
+  margin-top: var(--cx-space-2);
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}

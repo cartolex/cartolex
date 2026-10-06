@@ -3,7 +3,12 @@
   "app": {
     "id": "cartolex",
     "name": "cartolex",
-    "version": "1.0.0.dev0"
+    "version": "1.0.0.dev0",
+    "build": {
+      "commit": "0123456789abcdef0123456789abcdef01234567",
+      "date": "2026-10-06"
+    },
+    "platform": "Linux 6.8.0 x86_64"
   },
   "branding": {
     "name": "cartolex",
@@ -95,6 +100,14 @@
       "module": "/static/pages/settings.js",
       "order": 90,
       "placement": "settings"
+    },
+    {
+      "id": "about",
+      "label": "nav.about",
+      "route": "/about",
+      "module": "/static/pages/about.js",
+      "order": 98,
+      "placement": "hidden"
     }
   ],
   "modules": [

@@ -157,7 +157,8 @@ CORE_NAV: tuple[tuple[str, int, str], ...] = (
     ("share", 60, "main"),
     ("method", 85, "hidden"),  # an old address: it sends to the Recipe or a step's page
     ("settings", 90, "settings"),
-    ("start", 95, "settings"),
+    ("start", 95, "hidden"),  # the header's project menu leads to it
+    ("about", 98, "hidden"),  # the logo leads to it
 )
 
 DEFAULT_LOGO = "/static/brand/logo.svg"

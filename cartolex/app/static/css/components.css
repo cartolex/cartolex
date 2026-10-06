@@ -2345,3 +2345,28 @@ a.cx-button:hover {
   stroke: var(--cx-symbol);
   stroke-width: 1.8;
 }
+
+/* Opening a project refused (components/project-open.js) */
+.cx-open-problem {
+  display: grid;
+  gap: var(--cx-space-2);
+  margin-top: var(--cx-space-3);
+}
+
+.cx-open-problem__text {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cx-space-2);
+  margin: 0;
+}
+
+.cx-open-problem__text .cx-icon {
+  flex: none;
+  color: var(--cx-warning);
+}
+
+.cx-open-problem__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-2);
+}

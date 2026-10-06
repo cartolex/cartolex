@@ -73,7 +73,7 @@ def test_gallery_in_french_and_portuguese_has_no_serious_violation(ui, axe_sourc
 @pytest.mark.parametrize("theme", ["light", "dark"])
 def test_shell_pages_have_no_serious_violation(ui, axe_source, theme):
     ui.page.add_init_script(prefs_script(theme=theme))
-    for path in ("/overview", "/keywords", "/no/such/page"):
+    for path in ("/overview", "/keywords", "/about", "/no/such/page"):
         ui.open(path)
         problems = blocking(run_axe(ui, axe_source))
         assert problems == [], f"{path}:\n" + "\n".join(problems)
@@ -94,6 +94,11 @@ def test_open_dialogs_drawers_and_menus_have_no_serious_violation(ui, axe_source
     page.get_by_role("menu", name="Settings and display").wait_for()
     problems = blocking(run_axe(ui, axe_source, ".cx-header"))
     assert problems == [], "display menu:\n" + "\n".join(problems)
+    page.keyboard.press("Escape")
+    page.locator(".cx-project-menu__button").click()
+    page.locator(".cx-project-menu [role=menu]").wait_for()
+    problems = blocking(run_axe(ui, axe_source, ".cx-header"))
+    assert problems == [], "project menu:\n" + "\n".join(problems)
     page.keyboard.press("Escape")
     grid = page.get_by_role("grid", name="Keyword candidates", exact=True)
     grid.focus()

@@ -223,7 +223,9 @@ export async function boot(root) {
     context: {
       app,
       setTitle: (text) => {
-        document.title = text ? `${text} · ${brand}` : brand;
+        // The project too, so the browser's tabs and history say which project a page is of.
+        const projectName = manifest.project && manifest.project.open ? manifest.project.name : '';
+        document.title = [text, projectName, brand].filter(Boolean).join(' · ');
       },
     },
   });

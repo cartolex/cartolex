@@ -175,6 +175,24 @@ a:hover,
   filter: var(--cx-logo-filter);
 }
 
+/* The project menu (core/project-menu.js): the open project's name, cut when long. */
+.cx-project-menu {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+}
+
+.cx-project-menu__button {
+  max-width: 16rem;
+  min-width: 0;
+}
+
+.cx-project-menu__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .cx-nav {
   flex: 1;
   min-width: 0;
@@ -299,6 +317,10 @@ a:hover,
   .cx-brand__name,
   .cx-header__docs .cx-button__label {
     display: none;
+  }
+
+  .cx-project-menu__button {
+    max-width: 9rem;
   }
 
   .cx-main {

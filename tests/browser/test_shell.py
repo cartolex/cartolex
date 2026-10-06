@@ -18,7 +18,7 @@ def test_boot_renders_the_navigation_and_the_first_page(ui):
     links = page.locator(".cx-nav__link")
     assert links.count() == 7  # six manifest entries and the extension's page
     assert page.locator('[data-nav="overview"]').get_attribute("aria-current") == "page"
-    assert page.title() == "Overview · cartolex"
+    assert page.title() == "Overview · Coastal and marine demo · cartolex"  # the project too
     assert ui.missing_keys() == []
 
 
@@ -137,7 +137,7 @@ def test_theme_and_language_switch_and_persist(ui):
     page.get_by_role("menuitemradio", name="Français").click()
     page.wait_for_function("() => document.documentElement.lang === 'fr'")
     assert page.locator("h1").inner_text() == "Galerie des composants"
-    assert page.title() == "Galerie des composants · cartolex"
+    assert page.title() == "Galerie des composants · Coastal and marine demo · cartolex"
     page.reload()
     ui.wait_ready(0)
     assert page.evaluate("() => document.documentElement.dataset.theme") == "dark"
