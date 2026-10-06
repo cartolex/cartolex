@@ -2747,7 +2747,7 @@
   "error.copied_next": "Cole-o na sua mensagem para quem lhe deu o cartolex, com uma palavra sobre o que você estava fazendo: ele diz o que deu errado.",
   "nav.about": "Sobre",
   "shell.about_link": "{name}: sobre",
-  "shell.about_item": "Sobre o {name}",
+  "shell.about_item": "Sobre",
   "projects.menu": "Projeto: {name}. Trocar de projeto",
   "projects.menu_none": "Nenhum projeto aberto. Abra ou crie um",
   "projects.none": "Nenhum projeto aberto",

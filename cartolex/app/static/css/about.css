@@ -28,6 +28,7 @@
 }
 
 .cx-about p {
+  margin: 0 0 var(--cx-space-3);
   line-height: var(--cx-leading);
 }
 

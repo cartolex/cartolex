@@ -89,7 +89,7 @@ export function Shell({ app }) {
       })),
     },
     { kind: 'separator', id: 'sep-about' },
-    { id: 'about', label: t('shell.about_item', { name: brandName }), hint: versionLine(manifest.app) },
+    { id: 'about', label: t('shell.about_item'), hint: versionLine(manifest.app) },
   ];
   const onDisplay = (item) => {
     const [kind, value] = item.id.split(/:(.*)/s);

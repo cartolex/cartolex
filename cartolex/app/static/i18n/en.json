@@ -2747,7 +2747,7 @@
   "error.copied_next": "Paste it into your message to whoever gave you cartolex, with a word on what you were doing: it tells them what went wrong.",
   "nav.about": "About",
   "shell.about_link": "{name}: about",
-  "shell.about_item": "About {name}",
+  "shell.about_item": "About",
   "projects.menu": "Project: {name}. Switch project",
   "projects.menu_none": "No project open. Open or create one",
   "projects.none": "No project open",

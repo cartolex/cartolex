@@ -51,7 +51,7 @@ def test_the_logo_leads_to_the_about_page_and_the_settings_menu_names_the_build(
     ui.open("/overview")
     page = ui.page
     page.locator(".cx-header .cx-menubutton button").click()
-    about = page.get_by_role("menuitem", name="About cartolex")
+    about = page.get_by_role("menuitem", name="About")
     expect(about).to_contain_text("1.0.0.dev0 · 0123456 · 2026-10-06")
     page.keyboard.press("Escape")
     assert page.get_by_role("menuitem", name="Projects").count() == 0  # in the project menu now

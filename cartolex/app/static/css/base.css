@@ -308,6 +308,32 @@ a:hover,
   display: contents;
 }
 
+/* The project menu takes room in the header: below a wide screen the documentation
+   link keeps its icon only, then the brand its logo only, so the navigation fits. */
+@media (max-width: 90rem) {
+  .cx-header__docs .cx-button__label {
+    display: none;
+  }
+
+  .cx-project-menu__button {
+    max-width: 12rem;
+  }
+}
+
+@media (max-width: 82rem) {
+  .cx-header {
+    gap: var(--cx-space-4);
+  }
+
+  .cx-brand__name {
+    display: none;
+  }
+
+  .cx-project-menu__button {
+    max-width: 10rem;
+  }
+}
+
 @media (max-width: 40rem) {
   .cx-header {
     gap: var(--cx-space-3);
