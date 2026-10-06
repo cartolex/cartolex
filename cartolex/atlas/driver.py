@@ -1244,12 +1244,14 @@ def _count_texts(texts: list[str]) -> tuple[Any, np.ndarray]:
 
 
 def _trajectory_counts(
-    corpus: Any, vectorizer: Any, workers: int
-) -> tuple[Any, np.ndarray, np.ndarray]:
+    corpus: Any, vectorizer: Any, workers: int, folder: Path
+) -> tuple[dict[str, Any], np.ndarray, np.ndarray]:
     """Every text's counts of *vectorizer*'s vocabulary (rows), whether it is blank, and
-    each text's row (``-1``: no pair names it), computed once in *workers* processes."""
-    from scipy import sparse
+    each text's row (``-1``: no pair names it), computed once in *workers* processes.
 
+    The counts are written to *folder* as they come (a CSR matrix's three arrays, raw),
+    never held whole: the worker processes map them and read their own rows. Returns
+    where they are (:func:`_counts_matrix` reads them), the blanks and the rows."""
     from cartolex.atlas.trajectories import count_parameters
     from cartolex.scale import ordered_map
 
@@ -1267,25 +1269,55 @@ def _trajectory_counts(
         if block:
             yield block
 
-    parts = list(
-        ordered_map(
+    n_features = len(vectorizer.vocabulary_)
+    indptr = [np.zeros(1, dtype=np.int64)]
+    blanks: list[np.ndarray] = []
+    nnz = 0
+    with (
+        open(folder / "counts_data.bin", "wb") as data,
+        open(folder / "counts_indices.bin", "wb") as indices,
+    ):
+        for part, blank in ordered_map(
             _count_texts,
             chunks(),
             workers=workers,
             initializer=_set_counter,
             initargs=(count_parameters(vectorizer),),
-        )
-    )
-    n_features = len(vectorizer.vocabulary_)
-    counts = (
-        sparse.vstack([p for p, _ in parts], format="csr")
-        if parts
-        else sparse.csr_matrix((0, n_features))
-    )
-    blank = np.concatenate([b for _, b in parts]) if parts else np.zeros(0, dtype=bool)
+        ):
+            data.write(np.ascontiguousarray(part.data, dtype=np.float64).tobytes())
+            indices.write(np.ascontiguousarray(part.indices, dtype=np.int32).tobytes())
+            indptr.append(part.indptr[1:].astype(np.int64) + nnz)
+            nnz += int(part.nnz)
+            blanks.append(blank)
+    np.save(folder / "counts_indptr.npy", np.concatenate(indptr), allow_pickle=False)
+    blank = np.concatenate(blanks) if blanks else np.zeros(0, dtype=bool)
     row_of = np.full(corpus.n_texts, -1, dtype=np.int64)
     row_of[np.asarray(order, dtype=np.int64)] = np.arange(len(order))
-    return counts, blank, row_of
+    where = {"folder": str(folder), "rows": len(order), "columns": n_features, "nnz": nnz}
+    return where, blank, row_of
+
+
+def _counts_matrix(where: dict[str, Any]) -> Any:
+    """The counts :func:`_trajectory_counts` wrote, mapped from its folder (a row read is
+    copied, the rest stays on disk)."""
+    from scipy import sparse
+
+    folder = Path(where["folder"])
+    nnz = where["nnz"]
+    data = (
+        np.memmap(folder / "counts_data.bin", dtype=np.float64, mode="r", shape=(nnz,))
+        if nnz
+        else np.zeros(0, dtype=np.float64)
+    )
+    indices = (
+        np.memmap(folder / "counts_indices.bin", dtype=np.int32, mode="r", shape=(nnz,))
+        if nnz
+        else np.zeros(0, dtype=np.int32)
+    )
+    indptr = np.load(folder / "counts_indptr.npy", mmap_mode="r", allow_pickle=False)
+    return sparse.csr_matrix(
+        (data, indices, indptr), shape=(where["rows"], where["columns"]), copy=False
+    )
 
 
 def _set_trajectories(setup: dict) -> None:
@@ -1312,6 +1344,7 @@ def _set_trajectories(setup: dict) -> None:
         ),
         maps=_lexicon_maps(Path(setup["subfields"]), terms),
         tree_obj=tree,
+        counts=_counts_matrix(setup["counts"]),
     )
 
 
@@ -1323,8 +1356,9 @@ def _trajectory_task(task: tuple[pd.DataFrame, Any]) -> tuple[pd.DataFrame, dict
         project_trajectories,
     )
 
-    docs, counts = task
+    docs, rows = task
     s = _TRAJECTORIES
+    counts = s["counts"][rows]
     traj = build_trajectory_matrix(
         docs,
         vectorizer=s["vectorizer"],
@@ -1428,10 +1462,16 @@ def _run_trajectories(
     ref_terms = list(data.terms)
     wanted = ctx.threads.workers(ctx.settings.extraction_n_jobs)
 
-    # Each text's counts of the vocabulary, once (a text several people wrote included).
+    # Each text's counts of the vocabulary, once (a text several people wrote included),
+    # written to the scratch folder for the workers to map.
+    work = scratch_folder("trajectories", ctx.scratch or paths.automatic_dir)
     ctx.report(0.05, "counting the texts")
     counting = ctx.threads.workers_within(wanted, worker_mb=COUNT_WORKER_MB)
-    counts, blank, row_of = _trajectory_counts(corpus, vectorizer, counting)
+    try:
+        counts, blank, row_of = _trajectory_counts(corpus, vectorizer, counting, work)
+    except BaseException:
+        shutil.rmtree(work, ignore_errors=True)
+        raise
     workers = ctx.threads.workers_within(wanted, worker_mb=TRAJECTORY_WORKER_MB)
 
     # The people are taken a chunk at a time, in sorted id order: each person's
@@ -1446,7 +1486,6 @@ def _run_trajectories(
     pair_chunk = chunk_of[corpus.person]
     n_chunks = int(chunk_of.max()) + 1 if len(people) else 0
     types = corpus.pair_types()
-    work = scratch_folder("trajectories", ctx.scratch or paths.automatic_dir)
 
     def tasks() -> Iterator[tuple[pd.DataFrame, Any]]:
         order = np.argsort(pair_chunk, kind="stable")
@@ -1469,7 +1508,7 @@ def _run_trajectories(
                     "blank": blank[rows],
                 }
             )
-            yield docs, counts[rows]
+            yield docs, rows
 
     paths.atlas_dir.mkdir(parents=True, exist_ok=True)
     out_csv = paths.trajectories_csv
@@ -1498,6 +1537,7 @@ def _run_trajectories(
             "top_k": d.traj_top_k_terms,
             "min_docs": eff_min,
             "all_spans": all_spans,
+            "counts": counts,
         }
         with windows_path.open("w", encoding="utf-8") as windows_out:
             windows_out.write("{")

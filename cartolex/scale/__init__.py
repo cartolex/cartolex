@@ -17,7 +17,7 @@ collection, the project format and the engine can all use it.
 
 from __future__ import annotations
 
-from .budget import Budget, total_memory_mb
+from .budget import Budget, resident_mb, total_memory_mb
 from .pool import ordered_map, worker_setup
 from .scratch import pid_alive, scratch_folder
 
@@ -25,6 +25,7 @@ __all__ = [
     "Budget",
     "ordered_map",
     "pid_alive",
+    "resident_mb",
     "scratch_folder",
     "total_memory_mb",
     "worker_setup",

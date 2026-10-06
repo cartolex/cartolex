@@ -9,7 +9,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-__all__ = ["Budget", "total_memory_mb"]
+__all__ = ["Budget", "resident_mb", "total_memory_mb"]
 
 #: The memory a budget takes by default: this share of the computer's, at most the cap.
 MEMORY_SHARE = 0.4
@@ -53,6 +53,23 @@ def total_memory_mb() -> int | None:
     except (OSError, ValueError, subprocess.SubprocessError):
         return None
     return None
+
+
+def resident_mb() -> float | None:
+    """The memory this process holds now, in MB (its peak where the system does not say
+    the present; ``None`` when it cannot be read)."""
+    try:
+        with open("/proc/self/statm", encoding="ascii") as fh:
+            return int(fh.read().split()[1]) * os.sysconf("SC_PAGE_SIZE") / 2**20
+    except (OSError, ValueError, IndexError, AttributeError):
+        pass
+    try:
+        import resource
+
+        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    except (ImportError, OSError):
+        return None
+    return peak / 2**20 if sys.platform == "darwin" else peak / 1024
 
 
 @dataclass(frozen=True)

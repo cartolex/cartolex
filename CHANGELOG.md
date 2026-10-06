@@ -30,7 +30,8 @@ nothing in the engine names a particular deployment, source or procedure.
   - *Text space*: above 500,000 texts, the exact SVD through the keywords' Gram
     matrix.
   - *Trajectories*: each text counted once, a bin's vector the sum of its texts'
-    counts; the people's chunks in worker processes. Each person's time windows
+    counts, written to the scratch folder and mapped by the worker processes,
+    which read their own rows; the people's chunks in worker processes. Each person's time windows
     are described one by one (`trajectory_windows.json`,
     `trajectory_themes.parquet`); every run of consecutive windows, whose number
     grows with the square of a person's windows, only with `spans: all`.
@@ -78,6 +79,9 @@ nothing in the engine names a particular deployment, source or procedure.
     columnar assembly (measured: 3.2 GB for 5.9 million texts, where the
     earlier model said 27 GB and refused to run it). A cost model may have
     several extra sizes.
+  - *Pools*: a pool of worker processes is sized beside what its parent holds
+    when it starts (`cartolex.scale.resident_mb`, a quarter more for growth, at
+    least 2 GB), no longer beside a fixed 2 GB.
   - *Budget*: `cartolex.scale.Budget` (memory, workers, scratch folder) reaches
     every stage; `cartolex build --workers --memory --scratch`. A scratch folder
     names its computer and process (`cartolex.scale.scratch_folder`): one a

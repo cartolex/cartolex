@@ -282,13 +282,23 @@ class ThreadLimits:
             return wanted
         return max(1, min(int(wanted), int(self.processes)))
 
-    def workers_within(self, wanted: int, worker_mb: float, parent_mb: float = 2000.0) -> int:
+    def workers_within(self, wanted: int, worker_mb: float, parent_mb: float | None = None) -> int:
         """:meth:`workers`, and no more than the memory holds, each worker taking
-        *worker_mb* beside a parent of *parent_mb*."""
+        *worker_mb* beside a parent of *parent_mb* (by default: what this process holds
+        now and a quarter more, at least :data:`PARENT_MB`)."""
         n = self.workers(wanted)
         if self.memory_mb is None:
             return n
+        if parent_mb is None:
+            from cartolex.scale import resident_mb
+
+            held = resident_mb()
+            parent_mb = max(PARENT_MB, 1.25 * held) if held is not None else PARENT_MB
         return max(1, min(n, int((self.memory_mb - parent_mb) // max(worker_mb, 1.0))))
+
+
+#: The least memory a pool leaves to its parent process, in MB.
+PARENT_MB = 2000.0
 
 
 def _packaged_stopwords() -> StopwordProfile:
