@@ -71,6 +71,8 @@ dependencies = [
   "threadpoolctl>=3,<4",
   "umap-learn>=0.5.5,<0.6",
   "uvicorn>=0.30,<1",
+  # The keywords' word cloud (MIT); its SVG embeds the font through fontTools (matplotlib's).
+  "wordcloud>=1.9.6,<2",
 ]
 
 [project.urls]
@@ -119,6 +121,7 @@ include = ["cartolex*"]
 [tool.setuptools.package-data]
 "cartolex._data" = [
   "stopwords/*.json", "prompts/*.txt", "prompts/*.md", "rejects/*.json",
+  "fonts/*.ttf", "fonts/*.txt", "fonts/*.md",
   # the build stamp, when tools/build_stamp.py wrote it (not tracked)
   "build.json",
 ]

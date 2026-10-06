@@ -58,27 +58,22 @@ class World:
             a.strip().lower(): c.strip().lower()
             for a, c in zip(al["alias"], al["canonical"], strict=True)
         }
+        from cartolex.lexicon.corpus_store import load_corpus
+
         manual = derived / "corpus.assemble" / "manual"
-        index = pd.read_csv(manual / "index.csv", dtype=str, keep_default_na=False)
-        files = sorted(set(index["txt_path"]))
-        texts = [(manual / p).read_text(encoding="utf-8") for p in files]
+        found = load_corpus([("manual", manual / "index.csv", None)], doc_types=False)
+        read = dict(found.texts())
+        files = sorted(read)
+        texts = [read[t] for t in files]
         self.D = document_keywords(texts, vectorizer=vec, alias_to_canon=alias, terms=self.terms)
         row_of = {f: i for i, f in enumerate(files)}
         person_row = {r: i for i, r in enumerate(self.data.individuals)}
-        pairs = {
-            (person_row[rid], row_of[t])
-            for rid, t in zip(
-                (
-                    make_researcher_id(a, b, c)
-                    for a, b, c in zip(
-                        index["last_name"], index["first_name"], index["unit"], strict=True
-                    )
-                ),
-                index["txt_path"],
-                strict=True,
-            )
-            if rid in person_row
-        }
+        pairs = set()
+        for i, t in zip(found.person.tolist(), found.text.tolist(), strict=True):
+            who = found.people[i]
+            rid = make_researcher_id(who.last_name, who.first_name, who.raw_unit)
+            if rid in person_row and t in row_of:
+                pairs.add((person_row[rid], row_of[t]))
         from scipy import sparse
 
         r, c = zip(*pairs, strict=True)

@@ -82,6 +82,9 @@ class EnginePaths:
     overrides_template_json: Path  # fallback for the domain title
     manual_blacklist_csv: Path
     manual_keep_csv: Path
+    #: The terms the copilot's acceptance gate lets in (one per line, ``term`` header);
+    #: absent, the bands decide (see cartolex.lexicon.consolidation).
+    accepted_csv: Path
     canonical_decisions_json: Path
     whitelist_json: Path
     person_whitelist_csv: Path
@@ -108,8 +111,14 @@ class EnginePaths:
     refined_terms_csv: Path
     refined_terms_lang_csv: PathPattern  # per display language
     refined_pairs_csv: Path
+    #: The candidates each keyword of the vocabulary gathers (``concept``, ``term``,
+    #: ``language``): what the keyword decisions name, for the lexicon's screen.
+    concept_terms_csv: Path
     run_settings_json: Path
     person_terms_csv: Path
+    #: Each person's keywords as the people × keywords matrices the space reads (a model
+    #: descriptor; see cartolex.atlas.model_files.save_person_terms).
+    person_terms_json: Path
     group_terms_csv: Path
     domain_terms_csv: Path
     canonical_map_json: Path
@@ -184,6 +193,7 @@ class EnginePaths:
             overrides_template_json=config / "overrides_template.json",
             manual_blacklist_csv=manual / "manual_blacklist.csv",
             manual_keep_csv=manual / "manual_keep.csv",
+            accepted_csv=manual / "manual_accepted.csv",
             canonical_decisions_json=manual / "canonical_decisions.json",
             whitelist_json=manual / "whitelist.json",
             person_whitelist_csv=manual / "person_whitelist.csv",
@@ -200,8 +210,10 @@ class EnginePaths:
             refined_terms_csv=auto / "keywords_global_refined.csv",
             refined_terms_lang_csv=PathPattern(auto, "keywords_global_refined_{}.csv"),
             refined_pairs_csv=auto / "keywords_global_refined_pairs.csv",
+            concept_terms_csv=auto / "concept_terms.csv",
             run_settings_json=auto / "keywords_hyperparams.json",
             person_terms_csv=auto / "keywords_by_researcher_restricted.csv",
+            person_terms_json=models / "person_terms.json",
             group_terms_csv=auto / "keywords_by_unit_restricted.csv",
             domain_terms_csv=auto / "keywords_domain_restricted.csv",
             canonical_map_json=auto / "canonical_map.json",

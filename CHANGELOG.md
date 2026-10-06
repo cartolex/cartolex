@@ -1025,3 +1025,35 @@ nothing in the engine names a particular deployment, source or procedure.
   a formula with a digit or an element (`CO` and `CO2`, `Cs`) and, in a
   translation, an acronym with a lowercase prefix (`mRNA` is not `RNA`) still
   never merge. The guides say so.
+- **The themes use the whole lexicon.** Each person's row of the space holds
+  every keyword of the vocabulary (the gated list cut at `max_keywords`) their
+  texts use, with its real counts, where it held their 30 best: on the L demo
+  world the space's keywords go from 2,877 to 4,987 and the people's space
+  finds the themes far better (ARI 0.37 → 0.60 on the same keywords).
+  `keywords.build` writes the people × keywords matrices
+  (`models/person_terms.json`); `keywords_by_researcher_restricted.csv` lists
+  each person's best 30 for display only. `keywords.build.keywords_per_person`
+  is advanced and empty by default (a number brings the old rows back); the
+  stage's version rises to 4, so every project's vocabulary and what follows
+  are built again ({doc}`dev/themes-engine`).
+- **A copilot's triage gates the vocabulary.** Once a copilot's triage is
+  accepted for the current extraction, only the keywords with an accepting
+  decision (a keep, the AI's or a person's, and a merge's target) enter the
+  vocabulary, as with the AI clean-up by API. The keywords screen counts the
+  candidates nobody judged that stay out, and sends them alone to the copilot
+  (scope `unjudged`) or keeps them anyway.
+- **Copilot bundles without a cap, named and remembered.** Every candidate of
+  the chosen scope goes into a triage bundle (it stopped at 20,000); above
+  20,000 the dialog says several conversations or agents may be needed and the
+  kit cuts it into up to 64 parts; a result may hold 2,000,000 decisions and
+  256 MB. A bundle's file is `cartolex-<task>_<project>_<YYYYMMDD-HHMM>_v<version>[_<n>parts].zip`,
+  the project keeps the ids of the bundles it exported, and a result of
+  another bundle is flagged before anything is accepted.
+- **The Lexicon tab and its word cloud.** The keywords screen shows what the
+  last vocabulary build made: a word cloud of its most important keywords
+  (the `wordcloud` package, the vendored Lato typeface, sized by score or by
+  people, coloured by theme or by category, light and dark), and the list of
+  every keyword with its term in each display language, rank, people, texts,
+  category, theme and forms; search, sorts, CSV, and keep, exclude and merge
+  applied at the next build. `keywords.build` writes the candidates each
+  keyword gathers (`concept_terms.csv`).

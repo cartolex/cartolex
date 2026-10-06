@@ -243,7 +243,10 @@ export function CopilotOutcome({ proposal }) {
   if (!proposal) return null;
   const notes = (proposal.notes || '').trim();
   const rules = proposal.rules || [];
-  return html`${proposal.partial ? html`<p class="cx-copilot__note" role="note"><${Icon} name="info" />
+  return html`${proposal.bundle_known === false ? html`<p class="cx-copilot__note cx-copilot__note--warning"
+      role="note"><${Icon} name="warning" /><span><strong>${t('copilot.unknown_bundle.word')}</strong>${' '}
+      ${t('copilot.unknown_bundle')}</span></p>` : null}
+    ${proposal.partial ? html`<p class="cx-copilot__note" role="note"><${Icon} name="info" />
       ${t('copilot.partial')}</p>` : null}
     ${proposal.task === 'triage' ? html`<${Caveats} caveats=${proposal.caveats} />` : null}
     <details class="cx-copilot__outcome" open=${proposal.task === 'triage'}>

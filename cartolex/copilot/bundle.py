@@ -91,7 +91,8 @@ CONFIDENCES = ("sure", "unsure")
 CODES = {code: meaning for code, (_, meaning) in _CODES.items()}
 MAX_CHANGES = 2_000
 MAX_OPS = 5_000
-MAX_DECISIONS = 50_000
+#: Every candidate of a large extraction (a result is about 260 bytes a decision).
+MAX_DECISIONS = 2_000_000
 #: The curator's standing rules a result may carry back.
 MAX_RULES = 50
 

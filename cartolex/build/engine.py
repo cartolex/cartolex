@@ -600,12 +600,64 @@ def _keyword_decisions(ctx: StageContext, rctx: RunContext | None = None) -> Non
         atomic_write_bytes(
             ctx.out / "decisions" / "merged.json", json_bytes(dict(sorted(merged.items())))
         )
+    accepted = copilot_gate(rows, _extraction_run(ctx))
+    if accepted:
+        text = "term\n" + "".join(
+            f'"{t}"\n' if "," in t or '"' in t else f"{t}\n" for t in sorted(accepted)
+        )
+        atomic_write_bytes(ctx.out / "decisions" / "accepted.csv", text.encode("utf-8"))
+
+
+def _extraction_run(ctx: StageContext) -> str | None:
+    """The run id of the extraction this build reads (``None`` for a context without a
+    project's layout)."""
+    from .records import read_record
+
+    if not hasattr(ctx.layout, "run_json"):
+        return None
+    record = read_record(ctx.layout, "keywords.extract")
+    return record.run_id if record is not None else None
+
+
+#: The sources of ``keywords.csv`` that are a copilot's answers the person accepted.
+COPILOT_SOURCE = "ai-copilot"
+
+
+def copilot_gate(rows: Sequence[Mapping[str, str]], extraction_run: str | None) -> set[str]:
+    """The terms the copilot's acceptance gate lets into the vocabulary (lower case), or none.
+
+    Once a copilot's triage was accepted for the extraction *extraction_run* (a decision of
+    ``keywords.csv`` from the copilot, made after that run started), only the terms with an
+    accepting decision enter, as with the AI clean-up by API: a keep (the AI's or a
+    person's) and the target of a merge. Empty, the bands decide as before: no copilot
+    result was accepted for this extraction, or it accepted no term.
+    """
+    from datetime import datetime, timezone
+
+    if not extraction_run:
+        return set()
+    try:
+        since = datetime.strptime(extraction_run[:16], "%Y%m%dT%H%M%SZ").replace(
+            tzinfo=timezone.utc
+        )
+    except ValueError:
+        return set()
+    stamp = since.strftime("%Y-%m-%dT%H:%M:%SZ")
+    if not any(
+        r.get("source") == COPILOT_SOURCE and (r.get("decided_at") or "") >= stamp for r in rows
+    ):
+        return set()
+    out: set[str] = set()
+    for r in rows:
+        if r["decision"] == "keep":
+            out.add(r["term"].strip().lower())
+        elif r["decision"] == "merge" and r["target"].strip():
+            out.add(r["target"].strip().lower())
+    return out
 
 
 def run_build(ctx: StageContext) -> dict[str, int]:
     """``keywords.build``: the vocabulary, per-person keywords and the person roster."""
-    import pandas as pd
-
     from ..lexicon import run_pipeline_stage_3
     from ..lexicon.io_helpers import build_researcher_index
 
@@ -615,13 +667,24 @@ def run_build(ctx: StageContext) -> dict[str, int]:
     roster = rctx.paths.roster_csv
     before = roster.read_bytes() if roster.exists() else b""
     people = _engine_call(ctx, lambda: build_researcher_index(rctx))
-    terms = pd.read_csv(rctx.paths.person_terms_csv, usecols=["term"])["term"]
     return {
-        "kept_keywords": int(terms.astype(str).str.lower().nunique()),
+        "kept_keywords": vocabulary_size(rctx.paths.person_terms_json),
         "concepts": _rows(rctx.paths.refined_pairs_csv),
         "roster_people": int(people),
         "roster_rewrite_identical": int(before == roster.read_bytes()),
     }
+
+
+def vocabulary_size(person_terms_json: Path) -> int:
+    """How many keywords the space is made of: those someone uses in the people × keywords
+    matrices ``keywords.build`` wrote (in lower case, as the space counts them)."""
+    import numpy as np
+
+    from ..atlas.model_files import load_person_terms
+
+    score, _, terms, _ = load_person_terms(person_terms_json)
+    used = np.asarray((score != 0).sum(axis=0)).ravel() > 0
+    return len({str(t).lower() for t, u in zip(terms, used.tolist(), strict=True) if u})
 
 
 #: A space of texts warns when at least this share of its keywords is not in the reference

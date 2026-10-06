@@ -351,21 +351,14 @@ def _preview_base(runtime: Any, ctx: Any, rows: list[dict[str, Any]], run_id: st
             with open(path, encoding="utf-8", newline="") as fh:
                 for r in csv.DictReader(fh):
                     refined.append((r["term"], float(r.get("score") or 0), r.get("lang") or ""))
-        # The kept keywords (the app's count: the terms of the people's keywords) and the
-        # people each is listed for; a person whose list is full takes their next term when
-        # one of theirs leaves the vocabulary.
-        holders: dict[str, list[int]] = {}
-        listed: Counter = Counter()
-        people_csv = ctx.layout.stage("keywords.build") / "keywords_by_researcher_restricted.csv"
-        if build_run is not None and people_csv.is_file():
-            ids: dict[tuple[str, str, str], int] = {}
-            with open(people_csv, encoding="utf-8", newline="") as fh:
-                for r in csv.DictReader(fh):
-                    who = ids.setdefault((r["last_name"], r["first_name"], r["unit"]), len(ids))
-                    holders.setdefault(r["term"].casefold(), []).append(who)
-                    listed[who] += 1
-        per_person = _value(build, "keywords_per_person") or 0
-        full = {who for who, n in listed.items() if n >= per_person}
+        # The kept keywords (the app's count: the keywords someone's row of the space holds)
+        # and the people who hold each; with a number of keywords per person, a person whose
+        # row is full takes their next term when one of theirs leaves the vocabulary.
+        holders, listed = _holders(ctx) if build_run is not None else ({}, Counter())
+        per_person = _value(build, "keywords_per_person")
+        full = (
+            set() if per_person is None else {who for who, n in listed.items() if n >= per_person}
+        )
         n_people = 0
         npz = ctx.layout.stage("keywords.extract") / "term_people.npz"
         if npz.is_file():
@@ -387,6 +380,7 @@ def _preview_base(runtime: Any, ctx: Any, rows: list[dict[str, Any]], run_id: st
             "refined": refined,
             "holders": holders,
             "full": full,
+            "whole": per_person is None,
             "build_run": build_run,
         }
 
@@ -402,6 +396,38 @@ def _named(rows: list[dict[str, Any]], index: Any, causes: Any = None) -> list[d
             item["cause"] = causes[int(i)]
         out.append(item)
     return out
+
+
+def _holders(ctx: Any) -> tuple[dict[str, list[int]], Counter]:
+    """Each keyword of the people's rows of the space (lower case) with the people who hold it,
+    and how many keywords each person's row holds: from the people × keywords matrices of
+    ``keywords.build``, else (an earlier run) its per-person table."""
+    import csv
+
+    folder = ctx.layout.stage("keywords.build")
+    holders: dict[str, list[int]] = {}
+    listed: Counter = Counter()
+    matrices = folder / "models" / "person_terms.json"
+    if matrices.is_file():
+        from cartolex.atlas.model_files import load_person_terms
+
+        score, _, terms, _ = load_person_terms(matrices)
+        csc = score.tocsc()
+        for j, term in enumerate(terms):
+            rows = csc.indices[csc.indptr[j] : csc.indptr[j + 1]]
+            if len(rows):
+                holders.setdefault(str(term).casefold(), []).extend(rows.tolist())
+        listed.update(dict(enumerate(np.diff(score.tocsr().indptr).tolist())))
+        return holders, listed
+    people_csv = folder / "keywords_by_researcher_restricted.csv"
+    if people_csv.is_file():
+        ids: dict[tuple[str, str, str], int] = {}
+        with open(people_csv, encoding="utf-8", newline="") as fh:
+            for r in csv.DictReader(fh):
+                who = ids.setdefault((r["last_name"], r["first_name"], r["unit"]), len(ids))
+                holders.setdefault(r["term"].casefold(), []).append(who)
+                listed[who] += 1
+    return holders, listed
 
 
 def keywords_preview(runtime: Any, ctx: Any, values: Mapping[str, Any]) -> dict[str, Any]:
@@ -496,7 +522,12 @@ def keywords_preview(runtime: Any, ctx: Any, values: Mapping[str, Any]) -> dict[
     could = [e for e in kept_after if e[0].casefold() not in holders]
     freed = sum(1 for t in leave for who in holders[t] if who in base["full"])
     new_terms = len(after - before)
-    if new_terms:
+    if base["whole"]:
+        # Each person's row holds every keyword they use: a term new to the scored list
+        # enters when someone uses it (a rebuild says), and nothing else moves.
+        could = [e for e in could if e[0].casefold() not in before]
+        low, high = stay, stay + len(could)
+    elif new_terms:
         low, high = None, stay + len(could)
     else:
         low, high = stay, stay + min(len(could), freed)

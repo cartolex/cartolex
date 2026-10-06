@@ -67,9 +67,15 @@ export function itemLabel(p, item) {
   return typeof item === 'number' ? formatNumber(item) : String(item);
 }
 
+/** « Not set », or what a parameter's empty value means when the catalogue says
+ * (`param.unset.<name>`). */
+function unsetLabel(p) {
+  return p && has(`param.unset.${p.name}`) ? t(`param.unset.${p.name}`) : t('param.field.unset');
+}
+
 /** A value in a few words. */
 export function shownValue(p, value) {
-  if (value === null || value === undefined) return t('param.field.unset');
+  if (value === null || value === undefined) return unsetLabel(p);
   if (typeof value === 'boolean') return value ? t('param.field.on') : t('param.field.off');
   if (typeof value === 'number') return formatNumber(value);
   if (Array.isArray(value)) return value.map((v) => itemLabel(p, v)).join(', ');
@@ -80,11 +86,11 @@ export function shownValue(p, value) {
 }
 
 /** « Not set »: a nullable value switched to null, and back to *fallback*. */
-function Unset({ value, fallback, onChange, disabled }) {
+function Unset({ p, value, fallback, onChange, disabled }) {
   return html`<label class="cx-param__unset">
     <input type="checkbox" checked=${value === null} disabled=${disabled}
       onChange=${(e) => onChange(e.currentTarget.checked ? null : fallback)} />
-    <span>${t('param.field.unset')}</span></label>`;
+    <span>${unsetLabel(p)}</span></label>`;
 }
 
 function Switch({ id, label, value, onChange, disabled }) {
@@ -317,7 +323,7 @@ export function ParamControl({ p, value, onChange, id, labelId, label = p.name, 
   const shape = shapeOf(p);
   const fallback = p.default_value ?? p.default ?? p.minimum ?? (shape === 'chips' ? [] : 0);
   const unset = p.nullable && !['levels', 'grid'].includes(shape)
-    ? html`<${Unset} value=${value} fallback=${fallback} disabled=${disabled} onChange=${(v) => onChange(v, false)} />` : null;
+    ? html`<${Unset} p=${p} value=${value} fallback=${fallback} disabled=${disabled} onChange=${(v) => onChange(v, false)} />` : null;
   const off = unset && value === null;
   const control = {
     switch: Switch, choice: Choice, slider: Slider, chips: Chips, order: Order, range: Range,

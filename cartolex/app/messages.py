@@ -245,6 +245,10 @@ MESSAGES: dict[str, MessageKind] = {
         "",
     ),
     # a preview that cannot show a value
+    "copilot_many_terms": MessageKind(
+        "{terms} candidates: several conversations or agents may be needed; the kit cuts them "
+        "into {parts} parts"
+    ),
     "preview_needs_extraction": MessageKind(
         "{param} at {value} reaches past the last build's {built}: the candidates outside its "
         "window were never kept, a new extraction shows them"

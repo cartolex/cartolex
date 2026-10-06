@@ -29,8 +29,11 @@ Band = Literal["kept", "check", "aside", "rejected"]
 Category = Literal["concept", "method", "object", "place", "field", "never", "here"]
 Term = Annotated[str, Field(min_length=1, max_length=300)]
 Lang = Annotated[str, Field(pattern=r"^([a-z]{2})?$")]
-#: The most decisions one request carries.
-MAX_DECISIONS = 20_000
+#: The most decisions one request carries (a list sent in the body).
+MAX_DECISIONS = 100_000
+#: The most keywords one change applies to by the list's filters (no practical cap: every
+#: candidate of a large extraction).
+MAX_WHERE = 2_000_000
 
 
 def extracted(runtime: Any, ctx: Any) -> tuple[list[dict[str, Any]], str | None]:
@@ -172,6 +175,9 @@ class Where(BaseModel):
     #: A keyword as the vocabulary names it: its own row, its forms, and the candidates
     #: merged into it (by a decision, an AI's English form or an alias of the extraction).
     term: Annotated[str, Field(max_length=300)] = ""
+    #: Only the candidates nobody judged that the acceptance gate keeps out (see
+    #: :func:`gate_of`).
+    unjudged: bool = False
 
 
 def _names_of(ctx: Any, term: str) -> set[str]:
@@ -188,6 +194,19 @@ def _names_of(ctx: Any, term: str) -> set[str]:
     return out
 
 
+def gate_of(decisions: dict, run_id: str | None, triage: Any) -> tuple[str, set[str]]:
+    """Which gate the next vocabulary passes through, and the terms it lets in (lower case):
+    ``api`` (the AI clean-up by API judged the candidates), ``copilot`` (a copilot's triage
+    was accepted for this extraction: only accepted terms enter,
+    :func:`cartolex.build.engine.copilot_gate`), or ``bands`` (the kept and to-check bands)."""
+    from cartolex.build.engine import copilot_gate
+
+    accepted = copilot_gate(list(decisions.values()), run_id)
+    if triage is not None:
+        return "api", accepted
+    return ("copilot" if accepted else "bands"), accepted
+
+
 def keyword_view(runtime: Any, ctx: Any, where: Where) -> dict[str, Any]:
     """Every candidate with its effective band and route, the counts, and those *where* keeps."""
     rows, run_id = extracted(runtime, ctx)
@@ -199,12 +218,23 @@ def keyword_view(runtime: Any, ctx: Any, where: Where) -> dict[str, Any]:
     routes_: dict[str, int] = dict.fromkeys(ROUTES, 0)
     categories: dict[str, int] = {}
     by_lang: dict[str, int] = {}
+    from cartolex.lexicon.scoring import LEXICON_BANDS
+
+    gate, accepted = gate_of(decisions, run_id, triage)
+    unjudged = 0
     for row in rows:
         key = (row["term"], row["language"])
         d = decisions.get(key) or decisions.get((row["term"], ""))
         if d is not None:
             matched.add((d["term"], d["language"]))
         item = _effective(row, d, verdicts.get(row["term"].casefold()))
+        item["unjudged"] = (
+            d is None
+            and item["ai"] is None
+            and row["band"] in LEXICON_BANDS
+            and row["term"].strip().lower() not in accepted
+        )
+        unjudged += item["unjudged"]
         counts[item["band"]] = counts.get(item["band"], 0) + 1
         routes_[item["route"]] += 1
         by_lang[item["language"]] = by_lang.get(item["language"], 0) + 1
@@ -253,8 +283,11 @@ def keyword_view(runtime: Any, ctx: Any, where: Where) -> dict[str, Any]:
             or (v["decision"] is not None and v["decision"]["decision"] == where.decision)
         )
         and (not q or hit(v))
+        and (not where.unjudged or v["unjudged"])
     ]
     return {
+        "gate": gate,
+        "unjudged": unjudged,
         "rows": rows,
         "run": run_id,
         "decisions": decisions,
@@ -284,12 +317,14 @@ def list_keywords(
     ] = None,
     category: Annotated[Category | Literal["none"] | None, Query()] = None,
     term: Annotated[str, Query(max_length=300)] = "",
+    unjudged: bool = False,
 ) -> dict[str, Any]:
     """The candidates in their bands (kept, to check, set aside, rejected automatically) with
     the reason and the category of each, your decisions and the AI's verdicts by API applied,
     and the route that decided each; paged, sorted and filtered here. ``term`` keeps one
     keyword of the vocabulary: its row, its forms and the candidates merged into it, in
-    every band (``matched_bands`` counts them by band)."""
+    every band (``matched_bands`` counts them by band). ``gate``: the gate the
+    next vocabulary passes through and the candidates nobody judged that it keeps out."""
     runtime = runtime_of(request)
     v = keyword_view(
         runtime,
@@ -302,6 +337,7 @@ def list_keywords(
             category=category,
             q=params.q,
             term=term,
+            unjudged=unjudged,
         ),  # fmt: skip
     )
     run_id, decisions, fp, triage = v["run"], v["decisions"], v["fp"], v["triage"]
@@ -343,6 +379,7 @@ def list_keywords(
             "category": category,
             "q": params.q,
             "term": term,
+            "unjudged": unjudged or None,
         },
         empty=nothing,
         extra={
@@ -361,6 +398,10 @@ def list_keywords(
             "orphan_count": len(orphans),
             "matched_bands": v["matched_bands"],
             "version": version_of(fp),
+            "gate": {
+                "mode": v["gate"],
+                "unjudged": v["unjudged"] if v["gate"] == "copilot" else 0,
+            },
         },
     )
 
@@ -545,7 +586,7 @@ def restore(
 
 
 class WhereBody(BaseModel):
-    """Keep or exclude every keyword the list's filters keep (at most :data:`MAX_DECISIONS`)."""
+    """Keep or exclude every keyword the list's filters keep (at most :data:`MAX_WHERE`)."""
 
     where: Where
     decision: Literal["keep", "exclude"]
@@ -564,8 +605,8 @@ def decide_where(
         items = keyword_view(runtime_of(request), ctx, body.where)["items"]
         if not items:
             raise ApiError.of("nothing_chosen")
-        if len(items) > MAX_DECISIONS:
-            raise ApiError.of("too_many_decisions", n=len(items), max=MAX_DECISIONS)
+        if len(items) > MAX_WHERE:
+            raise ApiError.of("too_many_decisions", n=len(items), max=MAX_WHERE)
         rows, _ = _decisions(ctx)
         for v in items:
             before = rows.get((v["term"], v["language"])) or {}

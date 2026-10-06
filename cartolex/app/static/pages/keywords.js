@@ -4,6 +4,8 @@
  *
  * - `page.js`: the screen, its bands, the warning, the dialogs;
  * - `list.js`: one band's list, its filters and bulk actions;
+ * - `lexicon.js`: the Lexicon tab, what the last build made (its word cloud, list, CSV);
+ * - `gate.js`: the candidates nobody judged that the copilot's acceptance gate keeps out;
  * - `dialogs.js`: merging keywords, the history of the decisions;
  * - `copilot.js`: triage with an AI copilot (the bundle, its results, the review);
  * - `review.js`: the review of a proposal, term by term;

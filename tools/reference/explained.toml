@@ -55,14 +55,14 @@ reference = "S"
 stage = "build"
 upstream = "triage"
 step = "2a1"
-reason = "Consolidation works from other accepted candidates: other refined terms, language pairs, aliases, vocabulary and IDF, and other per-person, per-group and domain terms. Every surface form of a candidate is an alias, written as the attribution vectorizer counts it. The per-person table also no longer repeats the two always-empty roster attribute columns (step 1d), and the settings record lists the ordered corpus slots instead of per-source switches (step 1c) and the counting unit (step 2a2)."
+reason = "Consolidation works from other accepted candidates: other refined terms, language pairs, aliases, vocabulary and IDF, and other per-person, per-group and domain terms. Every surface form of a candidate is an alias, written as the attribution vectorizer counts it. The per-person table also no longer repeats the two always-empty roster attribute columns (step 1d), and the settings record lists the ordered corpus slots instead of per-source switches (step 1c) and the counting unit (step 2a2). Then: each person's row of the space holds every keyword of the vocabulary they use (keywords_per_person empty by default, was 30), stored as people x keywords matrices (models/person_terms.json); the per-person table is each person's best 30 by length-boosted score, for display, and the settings record holds top_n_person null."
 
 [[difference]]
 reference = "S"
 stage = "space"
 upstream = "build"
 step = "2a1"
-reason = "The SVD input is built from another vocabulary (see build). The hash-only person table also lost the two always-empty roster attribute columns (step 1d). The space is fitted on the texts (themes.space.space_unit text, the rule space_unit_texts): the TF-IDF of the texts, each read once and folded onto the keywords, instead of the people × keywords matrix; the people are placed through that SVD as a projected person is, so every coordinate, singular value and explained variance changes."
+reason = "The SVD input is built from another vocabulary (see build). The hash-only person table also lost the two always-empty roster attribute columns (step 1d). The space is fitted on the texts (themes.space.space_unit text, the rule space_unit_texts): the TF-IDF of the texts, each read once and folded onto the keywords, instead of the people × keywords matrix; the people are placed through that SVD as a projected person is, so every coordinate, singular value and explained variance changes. Then: the vocabulary is every accepted keyword someone uses and each person's row holds all of them (see build)."
 
 [[difference]]
 reference = "S"
@@ -149,14 +149,14 @@ reference = "L"
 stage = "build"
 upstream = "triage"
 step = "2a1"
-reason = "Consolidation works from other accepted candidates: other refined terms, language pairs, aliases, vocabulary and IDF, and other per-person, per-group and domain terms. Every surface form of a candidate is an alias, written as the attribution vectorizer counts it. The per-person table also no longer repeats the two always-empty roster attribute columns (step 1d), and the settings record lists the ordered corpus slots instead of per-source switches (step 1c) and the counting unit (step 2a2)."
+reason = "Consolidation works from other accepted candidates: other refined terms, language pairs, aliases, vocabulary and IDF, and other per-person, per-group and domain terms. Every surface form of a candidate is an alias, written as the attribution vectorizer counts it. The per-person table also no longer repeats the two always-empty roster attribute columns (step 1d), and the settings record lists the ordered corpus slots instead of per-source switches (step 1c) and the counting unit (step 2a2). Then: each person's row of the space holds every keyword of the vocabulary they use (keywords_per_person empty by default, was 30), stored as people x keywords matrices (models/person_terms.json); the per-person table is each person's best 30 by length-boosted score, for display, and the settings record holds top_n_person null."
 
 [[difference]]
 reference = "L"
 stage = "space"
 upstream = "build"
 step = "2a1"
-reason = "The SVD input is built from another vocabulary (see build). The hash-only person table also lost the two always-empty roster attribute columns (step 1d). The space is fitted on the texts (themes.space.space_unit text, the rule space_unit_texts): the TF-IDF of the texts, each read once and folded onto the keywords, instead of the people × keywords matrix; the people are placed through that SVD as a projected person is, so every coordinate, singular value and explained variance changes."
+reason = "The SVD input is built from another vocabulary (see build). The hash-only person table also lost the two always-empty roster attribute columns (step 1d). The space is fitted on the texts (themes.space.space_unit text, the rule space_unit_texts): the TF-IDF of the texts, each read once and folded onto the keywords, instead of the people × keywords matrix; the people are placed through that SVD as a projected person is, so every coordinate, singular value and explained variance changes. Then: the vocabulary is every accepted keyword someone uses and each person's row holds all of them (see build)."
 
 [[difference]]
 reference = "L"

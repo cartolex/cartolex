@@ -190,8 +190,9 @@ class KeywordsConfig:
     global_top_n: int = 10_000
     nested_threshold: float = 1.3
 
-    # Per-entity top-N
-    top_n_researcher: int = 30
+    # Per-entity top-N. Each person's row of the space holds every keyword they use
+    # (None: the whole lexicon), or only their best top_n_researcher when set.
+    top_n_researcher: int | None = None
     top_n_unit: int = 50
     top_n_domain: int = 200
 

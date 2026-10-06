@@ -349,27 +349,27 @@
   "subfield_weights": [
    {
     "id": 9,
-    "weight": 0.6907
+    "weight": 0.6958
    },
    {
     "id": 5,
-    "weight": 0.2834
+    "weight": 0.2788
    },
    {
     "id": 4,
-    "weight": 0.0077
+    "weight": 0.0076
    },
    {
     "id": 10,
-    "weight": 0.0063
-   },
-   {
-    "id": 2,
     "weight": 0.0062
    },
    {
+    "id": 2,
+    "weight": 0.0061
+   },
+   {
     "id": 1,
-    "weight": 0.0039
+    "weight": 0.0038
    },
    {
     "id": 3,
@@ -730,27 +730,27 @@
   "subfield_weights": [
    {
     "id": 9,
-    "weight": 0.6444
+    "weight": 0.6509
    },
    {
     "id": 5,
-    "weight": 0.3332
+    "weight": 0.3271
    },
    {
     "id": 4,
-    "weight": 0.0068
+    "weight": 0.0067
    },
    {
     "id": 2,
-    "weight": 0.0053
+    "weight": 0.0052
    },
    {
     "id": 1,
-    "weight": 0.0041
+    "weight": 0.004
    },
    {
     "id": 10,
-    "weight": 0.0033
+    "weight": 0.0032
    },
    {
     "id": 8,
@@ -1113,27 +1113,27 @@
   "subfield_weights": [
    {
     "id": 9,
-    "weight": 0.7043
+    "weight": 0.7083
    },
    {
     "id": 5,
-    "weight": 0.2412
+    "weight": 0.238
    },
    {
     "id": 4,
-    "weight": 0.0221
+    "weight": 0.0218
    },
    {
     "id": 10,
-    "weight": 0.013
+    "weight": 0.0128
    },
    {
     "id": 2,
-    "weight": 0.0113
+    "weight": 0.0111
    },
    {
     "id": 1,
-    "weight": 0.0071
+    "weight": 0.007
    },
    {
     "id": 7,

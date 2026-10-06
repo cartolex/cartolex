@@ -601,7 +601,7 @@ PARAM_TIERS: dict[str, dict[str, str]] = {
     "keywords.triage": {"enabled": _M},
     "keywords.build": {
         "max_keywords": _E,
-        "keywords_per_person": _M,
+        "keywords_per_person": _A,
         "keywords_per_organisation": _M,
         "keywords_of_field": _M,
         "weights_basis": _M,
@@ -1019,8 +1019,9 @@ STAGES = Registry(
             upstream=("keywords.extract", "keywords.triage"),
             # version 2: without the AI clean-up, the set-aside band does not
             # reach the vocabulary either (an explicit keep still wins); version 3:
-            # the keywords' categories (categories.json)
-            version=3,
+            # the keywords' categories (categories.json); version 4: each person's whole row
+            # of the lexicon (models/person_terms.json), and the copilot's acceptance gate
+            version=4,
             decisions=("decisions/keywords.csv",),
             project=("languages",),
             params=(
@@ -1063,11 +1064,13 @@ STAGES = Registry(
                 ParamSpec(
                     "keywords_per_person",
                     "int",
-                    "each person keeps at most this many keywords, the best scored: the space and "
-                    "the map are made of them",
-                    default=30,
+                    "each person keeps at most this many keywords in the space, the best scored; "
+                    "empty: every keyword of the lexicon they use (the space and the map are "
+                    "made of them)",
+                    default=None,
+                    nullable=True,
                     minimum=1,
-                    maximum=10_000,
+                    maximum=100_000,
                     section="attribution",
                 ),
                 ParamSpec(

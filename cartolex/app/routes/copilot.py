@@ -28,16 +28,20 @@ from pydantic import BaseModel, Field
 
 from ..deps import ProjectDep
 from ..errors import ApiError
-from ..messages import empty
+from ..messages import empty, message
 from ..routing import Routes, runtime_of
 
 routes = Routes(tags=["copilot"])
 
 Language = Annotated[str, Query(pattern=r"^[a-z]{2}$")]
-MAX_TERMS = 20_000
+#: Above this many candidates a triage bundle says that several conversations or agents may
+#: be needed (every candidate of the scope goes in: there is no cap).
+MANY_TERMS = 20_000
 #: The tokens one assistant conversation holds comfortably (the kit's ``budget()`` too).
 CONVERSATION_TOKENS = 120_000
-MAX_PARTS = 12
+#: The most parts a bundle is cut into (one conversation each): enough for a few hundred
+#: thousand candidates.
+MAX_PARTS = 64
 Parts = Annotated[int, Query(ge=0, le=MAX_PARTS)]
 CopilotId = Annotated[str, PathParam(pattern=r"^\d{8}T\d{6}Z-copilot-themes(-\d+)?$")]
 #: The verb of each kind of change, as the review names it.
@@ -168,12 +172,109 @@ def _checked(result: Any, task: str) -> dict[str, Any]:
     return dict(result)
 
 
-def _zip(data: bytes, name: str) -> Response:
+#: The record of the bundles a project exported (``decisions/history/ai/bundles.json``).
+BUNDLES_FORMAT = "cartolex-copilot-bundles/1"
+#: How many exported bundles the record keeps (the latest).
+MAX_RECORDED = 500
+
+
+def _slug(text: str, *, ascii_only: bool) -> str:
+    """*text* as a file name part: lower case, letters and digits joined by « - »."""
+    import re
+    import unicodedata
+
+    if ascii_only:
+        text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    words = re.findall(r"[^\W_]+", text.casefold())
+    return "-".join(words)[:48].strip("-")
+
+
+def bundle_filename(
+    task: str, project: str, made_at: str, version: str, parts: int = 1
+) -> tuple[str, str]:
+    """A bundle's file name, ``cartolex-<task>_<project>_<YYYYMMDD-HHMM>_v<version>``, and
+    ``_<n>parts`` when it is cut: ``(ASCII name, UTF-8 name)``. *made_at* is the manifest's
+    UTC time (``2026-10-06T14:05:00Z``)."""
+    stamp = made_at[:16].replace("-", "").replace(":", "").replace("T", "-")
+    cut = f"_{parts}parts" if parts > 1 else ""
+    names = []
+    for ascii_only in (True, False):
+        slug = _slug(project, ascii_only=ascii_only) or "project"
+        names.append(f"cartolex-{task}_{slug}_{stamp}_v{_slug(version, ascii_only=True)}{cut}.zip")
+    return names[0], names[1]
+
+
+def _zip(data: bytes, names: tuple[str, str]) -> Response:
+    """The zip, named (an ASCII name, and its UTF-8 form for the browsers that read it)."""
+    from urllib.parse import quote
+
+    plain, full = names
+    disposition = f'attachment; filename="{plain}"'
+    if full != plain:
+        disposition += f"; filename*=UTF-8''{quote(full)}"
     return Response(
-        data,
-        media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+        data, media_type="application/zip", headers={"Content-Disposition": disposition}
     )
+
+
+def _bundles_file(ctx: Any) -> Any:
+    return _folder(ctx) / "bundles.json"
+
+
+def _record_bundle(ctx: Any, manifest: dict[str, Any], filename: str) -> None:
+    """Remember a bundle this project exported (its id, task, time, file name, parts)."""
+    from cartolex.project.files import atomic_write_bytes, json_bytes
+
+    path = _bundles_file(ctx)
+    with ctx.handle.mutex:
+        known = _recorded(ctx) or []
+        known.append(
+            {
+                "id": manifest["id"],
+                "task": manifest["task"],
+                "made_at": manifest.get("made_at"),
+                "file": filename,
+                "parts": manifest.get("parts", 1),
+            }
+        )
+        doc = {"format": BUNDLES_FORMAT, "bundles": known[-MAX_RECORDED:]}
+        atomic_write_bytes(path, json_bytes(doc))
+
+
+def _recorded(ctx: Any) -> list[dict[str, Any]] | None:
+    """The bundles this project exported, or ``None`` when it never recorded any (a project
+    of an earlier version: a result's bundle cannot be checked)."""
+    path = _bundles_file(ctx)
+    if not path.is_file():
+        return None
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return [b for b in doc.get("bundles") or [] if isinstance(b, dict) and b.get("id")]
+
+
+def bundle_known(ctx: Any, result: dict[str, Any]) -> bool | None:
+    """Whether *result* answers a bundle this project exported (every part's, for a merged
+    result); ``None`` when the project never recorded its bundles."""
+    known = _recorded(ctx)
+    if known is None:
+        return None
+    ids = {b["id"] for b in known}
+    asked = result.get("bundles") or [result.get("bundle")]
+    return all(str(b) in ids for b in asked if b)
+
+
+def _export_response(ctx: Any, data: bytes, manifest: dict[str, Any]) -> Response:
+    names = bundle_filename(
+        manifest["task"],
+        ctx.project.config.name,
+        str(manifest.get("made_at") or ""),
+        str(manifest.get("cartolex") or ""),
+        int(manifest.get("parts") or 1) if manifest["task"] == "triage" else 1,
+    )
+    _record_bundle(ctx, manifest, names[1])
+    return _zip(data, names)
 
 
 # ── themes ───────────────────────────────────────────────────────────────────
@@ -280,7 +381,7 @@ def themes_export(request: Request, body: ThemesExportBody, ctx: ProjectDep) -> 
     terms = [str(t) for t in data.terms]
     doc = tree.model_dump(mode="json", by_alias=True)
     D = _texts(request, ctx, terms)
-    zipped, _ = themes_bundle(
+    zipped, manifest = themes_bundle(
         tree=doc,
         draft=draft.model_dump(mode="json", by_alias=True) if draft is not None else None,
         terms=terms,
@@ -294,7 +395,7 @@ def themes_export(request: Request, body: ThemesExportBody, ctx: ProjectDep) -> 
         levels=tree_levels(doc, terms, D, options=_comb_options(ctx)) if D is not None else None,
         texts=D,
     )
-    return _zip(zipped, "copilot-themes.zip")
+    return _export_response(ctx, zipped, manifest)
 
 
 def _space_unit(ctx: Any) -> str:
@@ -411,6 +512,7 @@ def _theme_proposal(request: Request, ctx: Any, proposal_id: str) -> dict[str, A
         "notes": str(result.get("notes") or "")[:20_000],
         "rules": list(result.get("rules") or []),
         "made_at": result.get("made_at"),
+        "bundle_known": bundle_known(ctx, result),
     }
 
 
@@ -442,8 +544,14 @@ def themes_proposal(request: Request, proposal_id: CopilotId, ctx: ProjectDep) -
 
 # ── triage ───────────────────────────────────────────────────────────────────
 
-Scope = Literal["all", "both", "check"]
-SCOPES = {"all": ["kept", "check", "aside"], "both": ["kept", "check"], "check": ["check"]}
+Scope = Literal["all", "both", "check", "unjudged"]
+SCOPES = {
+    "all": ["kept", "check", "aside"],
+    "both": ["kept", "check"],
+    "check": ["check"],
+    # the candidates nobody judged that the copilot's acceptance gate keeps out
+    "unjudged": ["kept", "check"],
+}
 
 
 def _triage_items(request: Request, ctx: Any, scope: str) -> tuple[list[dict[str, Any]], int, int]:
@@ -455,12 +563,13 @@ def _triage_items(request: Request, ctx: Any, scope: str) -> tuple[list[dict[str
     from cartolex.lexicon.rejects import shipped_terms
     from cartolex.lexicon.scoring import AI_BANDS
 
-    from .keywords import AI_SOURCES, _decisions, _effective, extracted, machine_rejects
+    from .keywords import AI_SOURCES, _decisions, _effective, extracted, gate_of, machine_rejects
 
     rows, run_id = extracted(runtime_of(request), ctx)
     if run_id is None:
         raise ApiError.of("no_keywords")
     decisions, _ = _decisions(ctx)
+    accepted = gate_of(decisions, run_id, None)[1] if scope == "unjudged" else set()
     corpus = read_record(ctx.layout, "corpus.assemble")
     n_people = max(1, (corpus.measures.counts if corpus else {}).get("people", 0))
     bands = SCOPES[scope]
@@ -483,6 +592,10 @@ def _triage_items(request: Request, ctx: Any, scope: str) -> tuple[list[dict[str
             continue
         if decision is not None and decision["source"] in AI_SOURCES:
             continue
+        if scope == "unjudged" and (
+            decision is not None or row["term"].strip().lower() in accepted
+        ):
+            continue
         if listed(row["term"], row["language"]):
             dropped += 1
             continue
@@ -503,8 +616,6 @@ def _triage_items(request: Request, ctx: Any, scope: str) -> tuple[list[dict[str
                 "current": decision["decision"] if decision else None,
             }
         )
-        if len(items) >= MAX_TERMS:
-            break
     return items, n_people, dropped
 
 
@@ -546,6 +657,13 @@ def triage_summary(
         },
         "parts": suggested_parts(len(items), usage_lines),
         "tokens": estimated_tokens(len(items), usage_lines),
+        "warning": message(
+            "copilot_many_terms",
+            terms=len(items),
+            parts=suggested_parts(len(items), usage_lines),
+        )
+        if len(items) > MANY_TERMS
+        else None,
         "contains": contains,
         "never": list(TRIAGE_NEVER),
         "usage_lines": usage_lines,
@@ -582,7 +700,7 @@ def triage_export(
             mask,
         )
         usage = {(it["term"], it["lang"]): found.get(it["term"], []) for it in items}
-    zipped, _ = triage_bundle(
+    zipped, manifest = triage_bundle(
         items=items,
         users=users,
         n_people=n_people,
@@ -592,7 +710,7 @@ def triage_export(
         usage=usage,
         parts=parts or suggested_parts(len(items), usage_lines),
     )
-    return _zip(zipped, "copilot-triage.zip")
+    return _export_response(ctx, zipped, manifest)
 
 
 def triage_proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
@@ -650,6 +768,7 @@ def triage_proposal(ctx: Any, proposal_id: str) -> dict[str, Any]:
         "rules": list(result.get("rules") or []),
         "partial": bool(result.get("partial")),
         "merged": int(result.get("merged") or 1),
+        "bundle_known": bundle_known(ctx, result),
     }
 
 
@@ -687,6 +806,7 @@ def merge_results(results: list[dict[str, Any]]) -> dict[str, Any]:
     last = ordered[-1]
     return {
         **{k: last[k] for k in ("format", "task", "bundle", "made_at", "kit") if k in last},
+        "bundles": sorted({str(r.get("bundle")) for r in ordered if r.get("bundle")}),
         "decisions": list(decisions.values()),
         "measures": last.get("measures") or {},
         "coverage": coverage,

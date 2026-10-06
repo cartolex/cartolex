@@ -12,25 +12,26 @@
 import { html, useEffect, useState } from '../../core/preact.js';
 import { formatNumber, locale, t } from '../../core/i18n.js';
 import { useUid } from '../../core/dom.js';
-import { Button, Checkbox, Dialog, ErrorCard, FormField, Select, Stepper } from '../../components/index.js';
+import { Button, Checkbox, Dialog, ErrorCard, FormField, Icon, Select, Stepper } from '../../components/index.js';
 import {
   COPILOT_STEPS, CopilotExport, CopilotImport, CopilotOutcome, CurationNotes, EarlierResults, stepState,
 } from '../copilot/parts.js';
 import { Review, itemKey } from './review.js';
 
-const SCOPES = ['all', 'both', 'check'];
-const PARTS = [1, 2, 3, 4, 6, 8, 12];
+const SCOPES = ['all', 'both', 'check', 'unjudged'];
+const PARTS = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
 
 /**
  * @param {object} props
  * @param {object} props.ctx the page's context
+ * @param {string} [props.scope] the candidates to send first (`unjudged`: those nobody judged)
  * @param {Function} props.onClose
  * @param {(message: string) => void} props.onDone after an accept
  * @param {string} [props.proposal] an imported result to open at its review
  */
-export function KeywordCopilotDialog({ ctx, onClose, onDone, proposal: initial }) {
+export function KeywordCopilotDialog({ ctx, scope: initialScope = 'all', onClose, onDone, proposal: initial }) {
   const [step, setStep] = useState('export');
-  const [scope, setScope] = useState('all');
+  const [scope, setScope] = useState(initialScope);
   const [lines, setLines] = useState(false);
   const [parts, setParts] = useState(0); // 0: as the summary suggests
   const [summary, setSummary] = useState(null);
@@ -109,11 +110,15 @@ export function KeywordCopilotDialog({ ctx, onClose, onDone, proposal: initial }
       <${Checkbox} checked=${lines} onChange=${() => setLines(!lines)} label=${t('copilot.usage_lines')}
         aria-describedby=${`${uid}-lines`} />
       <p class="cx-handoff__hint" id=${`${uid}-lines`}>${t('copilot.usage_lines.help')}</p>
+      ${summary && summary.warning ? html`<p class="cx-kw-warning" role="note"><${Icon} name="warning" />
+        <span>${t('copilot.many_terms', { terms: summary.warning.params.terms,
+          parts: summary.warning.params.parts })}</span></p>` : null}
       <${FormField} label=${t('copilot.parts')} help=${summary ? t('copilot.parts.help', {
         tokens: formatNumber(summary.tokens), suggested: summary.parts }) : ''}>
         ${(field) => html`<${Select} ...${field} value=${String(nParts)}
           onChange=${(e) => setParts(Number(e.currentTarget.value))}
-          options=${PARTS.map((n) => ({ value: String(n), label: t('copilot.parts.n', { n }) }))} />`}
+          options=${[...new Set([...PARTS, nParts])].sort((a, b) => a - b)
+            .map((n) => ({ value: String(n), label: t('copilot.parts.n', { n }) }))} />`}
       <//>
       <${CurationNotes} api=${ctx.api} />
     <//>`;

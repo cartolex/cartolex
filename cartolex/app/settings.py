@@ -78,6 +78,8 @@ class AppSettings:
     locales: tuple[str, ...] = ("en", "fr", "pt-BR")
     default_locale: str = "en"
     max_upload_mb: float = 50.0
+    #: A copilot's result: about 260 bytes a decision, so 256 MB holds about a million.
+    max_result_mb: float = 256.0
     max_archive_members: int = 20_000
     max_archive_mb: float = 2_000.0
     max_request_kb: float = 16_384.0
@@ -105,7 +107,12 @@ class AppSettings:
                 raise ValueError("a hosted app needs allowed_hosts, the names it answers to")
         if self.default_locale not in self.locales:
             raise ValueError(f"the default locale {self.default_locale!r} is not in locales")
-        if self.max_upload_mb <= 0 or self.max_archive_mb <= 0 or self.max_request_kb <= 0:
+        if (
+            self.max_upload_mb <= 0
+            or self.max_archive_mb <= 0
+            or self.max_request_kb <= 0
+            or self.max_result_mb <= 0
+        ):
             raise ValueError("size limits are positive")
         if self.idle_stop_s is not None and (self.hosted or self.idle_stop_s <= 0):
             raise ValueError("idle_stop_s is a positive number of seconds, for a local app only")

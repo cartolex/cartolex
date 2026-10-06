@@ -346,8 +346,8 @@ def run_svd(
     when the same texts use them; the people are then placed through that
     space, see :func:`~cartolex.atlas.reducers.compute_text_svd_embeddings`).
 
-    Reads the consolidation outputs (``paths.person_terms_csv``,
-    ``paths.roster_csv``, ``paths.run_settings_json``); writes the PCA-like
+    Reads the consolidation outputs (``paths.person_terms_json``, else
+    ``paths.person_terms_csv``; ``paths.roster_csv``, ``paths.run_settings_json``); writes the PCA-like
     coordinate tables, the atlas vocabulary, the SVD model and the persisted
     lexical data and embeddings (without layout coordinates yet).
     """
@@ -388,6 +388,7 @@ def _run_svd(
     data = build_lexical_matrix(
         kw_researcher_csv=paths.person_terms_csv,
         researcher_index_csv=paths.roster_csv,
+        person_terms_json=paths.person_terms_json,
     )
     ctx.report(0.3, "fitting the space")
     paths.atlas_dir.mkdir(parents=True, exist_ok=True)
