@@ -6,8 +6,9 @@
  * frame only sets the view. The points' shapes are drawn by the fragment
  * shader; the ranks against the zoom's detail limit hide points in the
  * vertex shader. Regions (convex polygons) and lines are triangles and
- * segments below the points; the labels are drawn on a 2D canvas laid over
- * the map.
+ * segments below the points (a line wider than a pixel, or dashed, is a strip
+ * of two triangles per segment, widened and dashed in screen pixels by its own
+ * shaders); the labels are drawn on a 2D canvas laid over the map.
  *
  * `createWebGLRenderer(canvas)` answers null when the browser gives no WebGL
  * context: the caller then uses the Canvas 2D renderer.
@@ -86,6 +87,44 @@ const FLAT_FS = `${PRECISION}
 varying vec4 v_color;
 void main() { gl_FragColor = v_color; }`;
 
+// A wide or dashed segment: each vertex knows both ends (in map units), its end (0 or 1)
+// and side (-1 or 1), and the line's width and dash (pixels; 0: solid).
+const STROKE_VS = `
+attribute vec2 a_a;
+attribute vec2 a_b;
+attribute vec2 a_corner;
+attribute vec4 a_rgba;
+attribute vec2 a_style;
+uniform vec2 u_res;
+uniform vec3 u_view;
+varying vec4 v_color;
+varying float v_along;
+varying float v_dash;
+void main() {
+  vec2 pa = vec2(a_a.x * u_view.x + u_view.y, u_view.z - a_a.y * u_view.x);
+  vec2 pb = vec2(a_b.x * u_view.x + u_view.y, u_view.z - a_b.y * u_view.x);
+  vec2 d = pb - pa;
+  float len = length(d);
+  vec2 dir = len > 0.0 ? d / len : vec2(1.0, 0.0);
+  vec2 p = mix(pa, pb, a_corner.x) + vec2(-dir.y, dir.x) * a_corner.y * a_style.x * 0.5;
+  gl_Position = vec4(p.x / u_res.x * 2.0 - 1.0, 1.0 - p.y / u_res.y * 2.0, 0.0, 1.0);
+  v_color = a_rgba;
+  v_along = a_corner.x * len;
+  v_dash = a_style.y;
+}`;
+
+const STROKE_FS = `${PRECISION}
+varying vec4 v_color;
+varying float v_along;
+varying float v_dash;
+void main() {
+  if (v_dash > 0.0 && mod(v_along, v_dash * 2.0) > v_dash) discard;
+  gl_FragColor = v_color;
+}`;
+
+/** Whether a line is drawn as a strip (wider than a pixel, or dashed). */
+const stroked = (line) => (line.width || 1) > 1.01 || Boolean(line.dash);
+
 function compile(gl, vs, fs) {
   const program = gl.createProgram();
   for (const [type, source] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
@@ -136,6 +175,7 @@ export function webglUsable() {
       if (gl) {
         compile(gl, POINT_VS, POINT_FS);
         compile(gl, FLAT_VS, FLAT_FS);
+        compile(gl, STROKE_VS, STROKE_FS);
         usable = true;
         const lose = gl.getExtension('WEBGL_lose_context');
         if (lose) lose.loseContext();
@@ -153,6 +193,7 @@ export function createWebGLRenderer(canvas) {
   if (!gl) return null;
   let points = compile(gl, POINT_VS, POINT_FS);
   let flat = compile(gl, FLAT_VS, FLAT_FS);
+  let stroke = compile(gl, STROKE_VS, STROKE_FS);
   const overlay = document.createElement('canvas');
   overlay.className = 'cx-map-frame__overlay';
   overlay.setAttribute('aria-hidden', 'true');
@@ -173,6 +214,7 @@ export function createWebGLRenderer(canvas) {
   const onRestored = () => {
     points = compile(gl, POINT_VS, POINT_FS);
     flat = compile(gl, FLAT_VS, FLAT_FS);
+    stroke = compile(gl, STROKE_VS, STROKE_FS);
     buffers = new Map();
     shapes = { regions: null, regionBuf: null, lines: null, lineBuf: null };
     lost = false;
@@ -238,17 +280,46 @@ export function createWebGLRenderer(canvas) {
     const lines = scene.lines || [];
     if (shapes.lines !== lines) {
       const seg = [];
+      const strip = [];
+      // the two triangles of a segment: (end, side) at each of their corners
+      const corners = [[0, -1], [1, -1], [1, 1], [0, -1], [1, 1], [0, 1]];
       for (const line of lines) {
         const [r, g, b] = colorOf(line.color);
         const a = line.alpha === undefined ? 0.6 : line.alpha;
-        for (let k = 0; k < line.x.length; k += 1) seg.push(line.x[k], line.y[k], r, g, b, a);
+        if (!stroked(line)) {
+          for (let k = 0; k < line.x.length; k += 1) seg.push(line.x[k], line.y[k], r, g, b, a);
+          continue;
+        }
+        const width = line.width || 1;
+        const dash = line.dash || 0;
+        for (let k = 0; k + 1 < line.x.length; k += 2) {
+          for (const [end, side] of corners) {
+            strip.push(line.x[k], line.y[k], line.x[k + 1], line.y[k + 1], end, side, r, g, b, a, width, dash);
+          }
+        }
       }
       shapes.lines = lines;
       shapes.lineBuf = Float32Array.from(seg);
+      shapes.stripBuf = Float32Array.from(strip);
     }
     used.add(shapes.regionBuf.tri);
     used.add(shapes.regionBuf.edge);
     used.add(shapes.lineBuf);
+    used.add(shapes.stripBuf);
+  };
+  /** The wide and dashed lines: 12 floats per vertex (both ends, corner, colour, style). */
+  const drawStrips = (array, used) => {
+    if (!array.length) return;
+    gl.bindBuffer(gl.ARRAY_BUFFER, bufferOf(array, used));
+    const parts = [[stroke.a_a, 2, 0], [stroke.a_b, 2, 8], [stroke.a_corner, 2, 16], [stroke.a_rgba, 4, 24],
+      [stroke.a_style, 2, 40]];
+    for (const [loc, size, offset] of parts) {
+      if (loc < 0) continue;
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 48, offset);
+    }
+    gl.drawArrays(gl.TRIANGLES, 0, array.length / 12);
+    for (const [loc] of parts) if (loc >= 0) gl.disableVertexAttribArray(loc);
   };
   const drawFlat = (array, mode, used) => {
     if (!array.length) return;
@@ -294,6 +365,12 @@ export function createWebGLRenderer(canvas) {
       drawFlat(shapes.regionBuf.edge, gl.LINES, used);
       drawFlat(shapes.lineBuf, gl.LINES, used);
       gl.disableVertexAttribArray(flat.a_rgba);
+      if (shapes.stripBuf.length) {
+        gl.useProgram(stroke.program);
+        gl.uniform2fv(stroke.u_res, res);
+        gl.uniform3fv(stroke.u_view, v);
+        drawStrips(shapes.stripBuf, used);
+      }
 
       gl.useProgram(points.program);
       gl.uniform2fv(points.u_res, res);

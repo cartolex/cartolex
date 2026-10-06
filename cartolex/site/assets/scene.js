@@ -5,7 +5,8 @@
  * symbol per kind, coloured by their top-level theme; the selection
  * highlighted and always labelled; theme names at the centre of their
  * keywords, organisations and people named as the zoom grows; lines from a
- * selected person to their real nearest neighbours. The world view places
+ * selected person to their co-authors (the thicker, the more works together),
+ * dashed from an organisation to those it writes with. The world view places
  * organisations at their address over the outline of the land.
  */
 (function () {
@@ -62,7 +63,7 @@
 
   /** What a selection lights up (sets of indexes per kind), from the core and the details. */
   function lit(sel) {
-    const out = { people: new Set(), keywords: new Set(), orgs: new Set(), projected: new Set(), near: [] };
+    const out = { people: new Set(), keywords: new Set(), orgs: new Set(), projected: new Set(), co: [] };
     if (!sel) return out;
     const ix = S.ix;
     const details = S.data.details;
@@ -72,11 +73,11 @@
       const d = S.personPart('people', sel.id);
       if (d) {
         terms(d.keywords).forEach((k) => out.keywords.add(k));
-        out.near = d.near.map((n) => ix.byPerson.get(n[0])).filter((i) => i !== undefined);
-        out.near.forEach((i) => out.people.add(i));
       }
+      out.co = coauthors('people', ix.byPerson.get(sel.id), out);
     } else if (sel.kind === 'org' && ix.byOrg.has(sel.id)) {
       out.orgs.add(ix.byOrg.get(sel.id));
+      out.co = coauthors('orgs', ix.byOrg.get(sel.id), out);
       const d = details && details.orgs[sel.id];
       if (d) {
         d.members.forEach((m) => { if (ix.byPerson.has(m)) out.people.add(ix.byPerson.get(m)); });
@@ -102,9 +103,60 @@
       }
     } else if (sel.kind === 'projected' && ix.byProjected.has(sel.id)) {
       out.projected.add(ix.byProjected.get(sel.id));
+      out.co = coauthors('people', ix.core.people.id.length + ix.byProjected.get(sel.id), out);
     }
     return out;
   }
+
+  /** The partners of index *i* in the links of *kind*, lit in *out*: `[[sel, at, works]]`. */
+  function coauthors(kind, i, out) {
+    const core = S.ix.core;
+    return (S.partners(kind, i) || []).map(([j, n]) => {
+      const sel = S.partnerSel(kind, j);
+      let at = null;
+      if (sel.kind === 'person') {
+        const k = S.ix.byPerson.get(sel.id);
+        out.people.add(k);
+        at = [core.people.x[k], core.people.y[k]];
+      } else if (sel.kind === 'projected') {
+        const k = S.ix.byProjected.get(sel.id);
+        out.projected.add(k);
+        at = [core.projected.x[k], core.projected.y[k]];
+      } else {
+        const k = S.ix.byOrg.get(sel.id);
+        out.orgs.add(k);
+        at = core.orgs.x[k] === null ? null : [core.orgs.x[k], core.orgs.y[k]];
+      }
+      return [sel, at, n];
+    });
+  }
+
+  /** Where a selection is drawn (`[x, y]`), or null. */
+  function placeOfSel(sel) {
+    const ix = S.ix;
+    const core = ix.core;
+    if (sel.kind === 'person' && ix.byPerson.has(sel.id)) {
+      const k = ix.byPerson.get(sel.id);
+      return [core.people.x[k], core.people.y[k]];
+    }
+    if (sel.kind === 'projected' && ix.byProjected.has(sel.id)) {
+      const k = ix.byProjected.get(sel.id);
+      return [core.projected.x[k], core.projected.y[k]];
+    }
+    if (sel.kind === 'org' && ix.byOrg.has(sel.id)) {
+      const k = ix.byOrg.get(sel.id);
+      return core.orgs.x[k] === null ? null : [core.orgs.x[k], core.orgs.y[k]];
+    }
+    return null;
+  }
+
+  /** The width of a line for *n* works together. */
+  S.widthOf = function widthOf(n) {
+    if (n >= 9) return 5;
+    if (n >= 5) return 4;
+    if (n >= 3) return 3;
+    return n >= 2 ? 2 : 1.25;
+  };
 
   /** Ranks from weights: 0 for the heaviest, towards 1 for the lightest. */
   function ranks(weights) {
@@ -194,19 +246,31 @@
       counts.orgs = n;
     }
 
-    // Lines from the selected person to their real nearest neighbours.
-    if (opts.sel && opts.sel.kind === 'person' && on.near.length && ix.byPerson.has(opts.sel.id)) {
-      const i = ix.byPerson.get(opts.sel.id);
-      const x = new Float32Array(on.near.length * 2);
-      const y = new Float32Array(on.near.length * 2);
-      on.near.forEach((j, k) => {
-        x[2 * k] = core.people.x[i];
-        y[2 * k] = core.people.y[i];
-        x[2 * k + 1] = core.people.x[j];
-        y[2 * k + 1] = core.people.y[j];
-        labels.push({ x: core.people.x[j], y: core.people.y[j], text: S.personName(j), offset: 12, strong: true });
-      });
-      lines.push({ id: 'near', x, y, color: '--cx-accent', alpha: 0.85, width: 1.5 });
+    // Lines from the selection to who it writes with: thicker for more works together,
+    // dashed between organisations.
+    const from = opts.sel && on.co.length ? placeOfSel(opts.sel) : null;
+    if (from) {
+      const groups = new Map();
+      for (const [sel, at, n] of on.co) {
+        if (!at || (sel.kind === 'org' && core.orgs.level[ix.byOrg.get(sel.id)] !== opts.org)) continue;
+        const width = S.widthOf(n);
+        if (!groups.has(width)) groups.set(width, []);
+        groups.get(width).push(from[0], from[1], at[0], at[1]);
+        if (sel.kind === 'person') {
+          const j = ix.byPerson.get(sel.id);
+          labels.push({ x: core.people.x[j], y: core.people.y[j], text: S.personName(j), offset: 12, strong: true });
+        }
+      }
+      for (const [width, xy] of groups) {
+        const x = new Float32Array(xy.length / 2);
+        const y = new Float32Array(xy.length / 2);
+        for (let k = 0; k < xy.length; k += 2) {
+          x[k / 2] = xy[k];
+          y[k / 2] = xy[k + 1];
+        }
+        lines.push({ id: `co-${width}`, x, y, color: '--cx-accent', alpha: 0.75, width,
+          dash: opts.sel.kind === 'org' ? 6 : 0 });
+      }
     }
 
     // Theme names at the centre of their keywords: the top level, the next with the zoom.

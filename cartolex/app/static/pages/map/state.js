@@ -7,8 +7,8 @@
  * `kind:id`), the treemap's zoom (`theme`), the view (`view`: `map` or
  * `world`), the base map (`base`), the keywords' categories shown (`kc`,
  * comma-separated; none: every one) and the keywords' colour (`kcol`: by
- * `theme` or by `category`). Values that are the defaults are left
- * out of the address.
+ * `theme` or by `category`) and the co-authors' second circle (`c2=1`).
+ * Values that are the defaults are left out of the address.
  */
 
 /** What the map can show, in the order of the controls. */
@@ -49,6 +49,7 @@ export function readState(query) {
     base: q.get('base') || '',
     kc: (q.get('kc') || '').split(',').filter(Boolean),
     kcol: q.get('kcol') === 'category' ? 'category' : 'theme',
+    second: q.get('c2') === '1',
   };
 }
 
@@ -68,6 +69,7 @@ export function queryOf(state) {
   if (state.base) q.set('base', state.base);
   if (state.kc && state.kc.length) q.set('kc', state.kc.join(','));
   if (state.kcol === 'category') q.set('kcol', 'category');
+  if (state.second) q.set('c2', '1');
   return q;
 }
 

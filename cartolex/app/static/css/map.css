@@ -708,7 +708,7 @@
   }
 }
 
-/* Links to the other screens, the nearest with their similarity, « Compare with… ». */
+/* Links to the other screens, the co-authors with their works together, « Compare with… ». */
 .cx-atlas-links {
   display: flex;
   flex-wrap: wrap;
@@ -718,10 +718,30 @@
   list-style: none;
 }
 
-.cx-atlas-near__value {
+.cx-atlas-coauthors__list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--cx-space-2);
+}
+
+.cx-atlas-coauthors__value {
   margin-left: auto;
   color: var(--cx-text-muted);
   font-variant-numeric: tabular-nums;
+}
+
+.cx-atlas-coauthors__role {
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-xs);
+}
+
+.cx-atlas-coauthors .cx-checkbox {
+  margin: var(--cx-space-2) 0;
+}
+
+.cx-atlas-coauthors__second {
+  margin-top: var(--cx-space-2);
 }
 
 .cx-atlas-compare__pair {

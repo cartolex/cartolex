@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MIT
-"""Links between the map and the other screens, the nearest and who uses a keyword, full
+"""Links between the map and the other screens, co-authors and who uses a keyword, full
 screen; on the S demo world at depth 2.
 
-A person given in the address is shown and centred, with their nearest and the similarity of
-each (an API call budget kept); a keyword's panel names the people who use it and leads to
+A person given in the address is shown and centred, with their co-authors and the works
+together, joined to them by lines on the map (an API call budget kept); a keyword's panel names the people who use it and leads to
 the keywords screen, which keeps that keyword whatever its band; the themes screen opens a
 keyword from its address; the map's body goes full screen and comes back; the view is saved
 as SVG (with its legend) and as PNG.
@@ -22,13 +22,19 @@ def test_the_map_links_to_the_other_screens_and_back(demo_s, app_for, open_app):
     atlas = page.evaluate("() => fetch('/api/atlas').then((r) => r.json())")
     person = atlas["people"][0]
 
-    # a person from the address: shown, their nearest with a similarity each
+    # a person from the address: shown, their co-authors with the works together
+    co = page.evaluate(
+        "(id) => fetch(`/api/atlas/coauthors?kind=person&id=${id}`).then((r) => r.json())",
+        person["person_id"],
+    )
+    assert co["count"] > 0
     before = len(ui.collected.requests)
     open_map(ui, f"/map?sel=person:{person['person_id']}")
     panel = page.locator(".cx-atlas-panel")
     panel.get_by_role("heading", name=person["name"]).wait_for()
-    page.locator(".cx-atlas-near li").first.wait_for()
-    assert page.locator(".cx-atlas-near li").count() == 10
+    page.locator(".cx-atlas-coauthors__list li").first.wait_for()
+    assert page.locator(".cx-atlas-coauthors__list li").count() == min(co["count"], 30)
+    assert page.locator(".cx-atlas-near").count() == 0  # no similarity list in the panel
     assert len(api_calls(ui, before)) <= 5, api_calls(ui, before)
     assert panel.get_by_role("link", name="Open in People").get_attribute("href") == (
         f"/people?person={person['person_id']}"

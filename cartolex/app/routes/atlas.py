@@ -808,3 +808,121 @@ def atlas_keyword_people(
         nobody = {"term": term, "count": 0, "items": [], "at": [], "at_capped": False}
         return {"limit": limit, "known": False, **nobody}
     return {"limit": limit, "known": True, **found}
+
+
+# ── who writes with whom ──────────────────────────────────────────────────────
+
+
+#: The most partners a page of an answer lists.
+MAX_COAUTHORS = 500
+
+
+def _places(runtime: Any, ctx: Any) -> dict[str, dict[str, str]]:
+    """What the map draws, by id: people (``map``, or ``projected`` for a projected
+    person placed on the finished map) and organisations (``map``); nothing before the map
+    is built."""
+    from ..corpus_view import stamp
+
+    runs = lineage(ctx)
+    if runs["map.layout"] is None:
+        return {"person": {}, "organisation": {}}
+
+    def make() -> dict[str, dict[str, str]]:
+        bundle = _bundle(runtime, ctx, runs)
+        extras = _extras(runtime, ctx, runs, bundle)
+        people: dict[str, str] = {}
+        for o in bundle.get("overlays") or []:
+            if o.get("person_id") and o.get("x") is not None:
+                people[o["person_id"]] = "projected"
+        for p in bundle.get("people") or []:
+            if p.get("person_id") and p.get("x") is not None:
+                people[p["person_id"]] = "map"
+        orgs = {o["id"]: "map" for o in extras["organisations"] if o.get("x") is not None}
+        return {"person": people, "organisation": orgs}
+
+    key = ("atlas-places", ctx.id, tuple(sorted(runs.items())), stamp(ctx.project))
+    return runtime.atlas_cache.get(key, make)
+
+
+def _people_named(runtime: Any, ctx: Any) -> dict[str, tuple[str, str]]:
+    """Every person of the project → (name, role), from the people's view."""
+    from ..corpus_view import people_view, stamp
+
+    def make() -> dict[str, tuple[str, str]]:
+        view = people_view(ctx.project, runtime.table_cache)
+        return {
+            p["person_id"]: (
+                " ".join(x for x in (p.get("first_name"), p.get("last_name")) if x),
+                p.get("role") or "",
+            )
+            for p in view["people"]
+        }
+
+    return runtime.atlas_cache.get(("atlas-people-named", ctx.id, stamp(ctx.project)), make)
+
+
+@routes.get("/api/atlas/coauthors", action="atlas.read")
+def atlas_coauthors(
+    request: Request,
+    ctx: ProjectDep,
+    kind: Literal["person", "organisation"],
+    id: Annotated[str, Query(min_length=1, max_length=200)],
+    circle: Annotated[int, Query(ge=1, le=3)] = 1,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=MAX_COAUTHORS)] = 50,
+    offset2: Annotated[int, Query(ge=0)] = 0,
+    limit2: Annotated[int, Query(ge=1, le=MAX_COAUTHORS)] = 50,
+    offset3: Annotated[int, Query(ge=0)] = 0,
+    limit3: Annotated[int, Query(ge=1, le=MAX_COAUTHORS)] = 50,
+) -> dict[str, Any]:
+    """Who writes with a person (the people of the project who signed a work with them,
+    with the works together) or an organisation (the organisations of its level whose
+    people signed a work with its people); ``circle=2`` adds the partners of the partners
+    (``second``: their ``paths``, through how many partners, and ``via``), ``circle=3`` one
+    more ring (``third``), each ring paged on the server; the authors outside the project
+    are counted, never listed (see :mod:`cartolex.app.coauthors`)."""
+    from ..coauthors import answer, org_graph, person_graph
+    from ..corpus_view import organisations
+
+    runtime = runtime_of(request)
+    project = ctx.project
+    places = _places(runtime, ctx)[kind]
+
+    def drawn(ids: list[str]) -> list[bool]:
+        return [i in places for i in ids]
+
+    extra: dict[str, Any] = {}
+    if kind == "person":
+        people = _people_named(runtime, ctx)
+        if id not in people:
+            raise ApiError.of("unknown_people", ids=[id])
+        graph = person_graph(project, runtime.table_cache)
+
+        def describe(ids: list[str]) -> list[dict[str, Any]]:
+            out = []
+            for i in ids:
+                name, role = people.get(i, ("", ""))
+                # A projected person is never named on the map: by their id only.
+                shown = None if role == "projected" or places.get(i) == "projected" else name
+                out.append({"id": i, "name": shown, "role": role, "mapped": role == "mapped",
+                            "place": places.get(i)})  # fmt: skip
+            return out
+
+    else:
+        orgs = {o["org_id"]: o for o in organisations(project, runtime.table_cache)}
+        if id not in orgs:
+            raise ApiError.of("organisation_not_found", org=id)
+        level = orgs[id]["level"] or ""
+        graph = org_graph(project, level, runtime.table_cache)
+        extra["level"] = level
+
+        def describe(ids: list[str]) -> list[dict[str, Any]]:
+            return [
+                {"id": i, "name": (orgs.get(i) or {}).get("name") or i,
+                 "acronym": (orgs.get(i) or {}).get("acronym") or "", "place": places.get(i)}
+                for i in ids
+            ]  # fmt: skip
+
+    pages = [(offset, limit), (offset2, limit2), (offset3, limit3)]
+    found = answer(graph, id, describe, drawn, depth=circle, pages=pages)
+    return {"kind": kind, **extra, **found}

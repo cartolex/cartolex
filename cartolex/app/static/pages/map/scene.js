@@ -7,8 +7,10 @@
  * selection is highlighted, its keywords too, a person's time windows joined
  * by a line; regions span the keywords of organisations, people or texts;
  * labels name the themes, then organisations and people as the zoom grows,
- * and the selection always. The world view places organisations at their
- * address, on a graticule.
+ * and the selection always; the selection's co-authors (or partner
+ * organisations) are lit and joined to it by lines (`coauthors.js`), its
+ * projected co-authors drawn faintly when the projected people are hidden. The
+ * world view places organisations at their address, on a graticule.
  */
 import { convexHull } from '../../components/index.js';
 import {
@@ -124,7 +126,7 @@ function ranksByWeight(weights) {
  * (`kind:id` → terms). Answers `{scene, counts, notes}`: `counts` per kind
  * (`shown`, `total`), `notes` what the page should say (regions capped).
  */
-export function mapScene(index, state, { texts = null, sets = new Map(), locale = 'en', space = null } = {}) {
+export function mapScene(index, state, { texts = null, sets = new Map(), locale = 'en', space = null, co = null } = {}) {
   const mask = matching(index, state);
   const period = periodOf(index, state);
   const inPeriod = (start, end) => !period || (end >= period[0] && start <= period[1]);
@@ -133,6 +135,12 @@ export function mapScene(index, state, { texts = null, sets = new Map(), locale 
   if (space) {
     for (const i of space.people) lit.people.add(i);
     for (const i of space.organisations) lit.organisations.add(i);
+  }
+  // Who the selection writes with: lit, and joined to it by lines.
+  if (co) {
+    for (const i of co.people) lit.people.add(i);
+    for (const i of co.projected) lit.projected.add(i);
+    for (const i of co.organisations) lit.organisations.add(i);
   }
   const show = new Set(state.show);
   const layers = [];
@@ -316,6 +324,20 @@ export function mapScene(index, state, { texts = null, sets = new Map(), locale 
     L.shown = ps.length;
     layers.push(L);
     counts.projected = { shown: ps.length, total: ps.length };
+  } else if (co && co.faint.size) {
+    // the projected co-authors of the selection, faint, when the projected people are hidden
+    const ps = index.projected;
+    const L = layer('projected', co.faint.size);
+    [...co.faint].forEach((i, k) => {
+      L.x[k] = ps[i].x;
+      L.y[k] = ps[i].y;
+      L.color[k] = index.colourOf(largest0(ps[i].shares));
+      L.ref[k] = i;
+    });
+    L.alpha = 0.35;
+    L.items = ps;
+    L.shown = co.faint.size;
+    layers.push(L);
   }
 
   // Organisations of one level: at the mean of their current members, or as regions.
@@ -374,6 +396,7 @@ export function mapScene(index, state, { texts = null, sets = new Map(), locale 
   }
   themeLabels.sort((a, b) => b.weight - a.weight);
   const selected = selectionLabel(index, state, texts);
+  if (co) lines.unshift(...co.lines);
   return {
     scene: {
       layers,

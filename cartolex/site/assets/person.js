@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 /**
  * The page of a person (`#/person/s3`) and of an organisation (`#/org/o2`):
- * the position on a small map (a person's lines to their real nearest
- * neighbours), the themes per level, the keywords, the organisations or the
- * members, the closest people and, when the site carries them, the texts'
+ * the position on a small map (lines to who they write with), the themes per
+ * level, the keywords, the organisations or the members, the co-authors (the
+ * organisations it writes with) and, when the site carries them, the texts'
  * titles. Each page can be printed (« Print this page »).
  */
 (function () {
@@ -107,16 +107,16 @@
     return withDetails(main, () => {
       const d = S.personPart('people', id);
       const mapBox = h('div', { class: 'cx-mini' });
-      const near = d.near.filter(([q]) => ix.byPerson.has(q));
+      const co = S.partners('people', i) || [];
+      const hidden = d.co_hidden || 0;
       const grid = h('div', { class: 'cx-grid' }, [
         card(t('page.position'), [mapBox, h('p', { class: 'cx-muted cx-small' }, [t('person.position.note'), ' ',
           S.link(`/map?sel=${encodeURIComponent(`person:${id}`)}`, t('page.open_map'))])], 'cx-card--wide'),
         themesCard(d.themes),
         keywordsCard(d.keywords),
-        card(t('person.near'), [
-          near.length ? h('ol', { class: 'cx-list' }, near.map(([q]) => h('li', {}, S.link(`/person/${q}`, S.personName(ix.byPerson.get(q))))))
-            : h('p', { class: 'cx-muted', text: t('page.none') }),
-          h('p', { class: 'cx-muted cx-small' }, [t('map.near.note'), ' ', S.link('/about', t('map.caveat.more'))])]),
+        card(S.coTitle('people', co.length), [S.partnerList('people', co, null),
+          hidden ? h('p', { class: 'cx-muted cx-small', text: S.tn('coauthors.hidden', hidden) }) : null,
+          h('p', { class: 'cx-muted cx-small' }, [t('map.coauthors.note'), ' ', S.link('/about', t('map.caveat.more'))])]),
         card(t('person.orgs'), d.orgs.length ? h('ul', { class: 'cx-list' }, d.orgs.filter((o) => ix.byOrg.has(o))
           .map((o) => h('li', {}, S.link(`/org/${o}`, core.orgs.name[ix.byOrg.get(o)]))))
           : h('p', { class: 'cx-muted', text: t('page.none') })),
@@ -161,6 +161,7 @@
       const d = S.data.details.orgs[id];
       const mapBox = h('div', { class: 'cx-mini' });
       const members = d.members.filter((m) => ix.byPerson.has(m));
+      const co = S.partners('orgs', i) || [];
       main.append(h('div', { class: 'cx-grid' }, [
         card(t('page.position'), [mapBox, h('p', { class: 'cx-muted cx-small', text: t('org.position.note') })], 'cx-card--wide'),
         themesCard(d.themes),
@@ -168,6 +169,7 @@
         card(S.tn('org.members', members.length), members.length ? h('ul', { class: 'cx-list cx-list--columns' },
           members.map((m) => h('li', {}, S.link(`/person/${m}`, S.personName(ix.byPerson.get(m))))))
           : h('p', { class: 'cx-muted', text: t('page.none') }), 'cx-card--wide'),
+        card(S.coTitle('orgs', co.length), S.partnerList('orgs', co, null)),
       ]));
       const at = o.x[i] === null ? null : [o.x[i], o.y[i]];
       return miniMap(mapBox, { kind: 'org', id }, at, ['people', 'orgs'], o.level[i]);
