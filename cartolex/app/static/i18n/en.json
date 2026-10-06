@@ -1690,6 +1690,7 @@
   "map.as.points": "Points",
   "map.as.regions": "Regions",
   "map.note.regions_cap": "{kind}: {count, plural, one {# is shown} other {# are shown}}, more than the {max} drawn as regions; filter to fewer to see their regions.",
+  "map.note.texts_sample": "{kind}: a sample of {count, number} of the {total, number} is drawn, the same each time.",
   "map.org_level": "Organisations",
   "map.filters": "Filters",
   "map.filter.value": "{value} ({count, number})",

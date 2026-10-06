@@ -293,7 +293,7 @@ version, so it can be undone too).
 | `POST /api/themes/apply` | a build job of the themes and the map |
 | `GET /api/atlas` | what the map draws at any depth of the theme tree (levels, nodes, people, keywords, units, the number of time windows and their years, projected people, bounds), `cartolex-atlas/3` (described below, with the theme editor's routes), cached by its lineage (the runs it is made from), with an `ETag` |
 | `GET /api/atlas/windows?person=&base=` | the people's time windows as columns, `cartolex-atlas-windows/1`: `person` (an index in the bundle's `people`), `start`, `end`, `texts`, `x`, `y`, `top` (the window's largest top-level node, or `null`); every one, or one `person`'s; none on a `base`'s map; cached by the lineage, with an `ETag` |
-| `GET /api/atlas/texts` | every text placed on the map, columnar (`cartolex-atlas-texts/1`: `id`, `title`, `year`, `x`, `y`, `by`, `terms`, `people`, `unplaced`); `base` places them on a base map |
+| `GET /api/atlas/texts` | the texts placed on the map, columnar (`cartolex-atlas-texts/1`: `id`, `title`, `year`, `x`, `y`, `by`, `terms`, `people`, `unplaced`, `total`, `sampled`): every one, or above 100,000 a uniform sample of 100,000, the same each time while the texts are the same; `base` places them on a base map |
 | `GET /api/atlas/regions?kind=person\|organisation&ids=a,b` | the keywords a region spans, by id (at most 500 ids): a person's most used keywords (at most 40), or those of an organisation's current members |
 
 **Sharing, settings, the AI proposals**
@@ -661,7 +661,10 @@ say (`cartolex.app.atlas_layers`), so the `ETag` also follows the tables:
 - `GET /api/atlas/texts` places each text at the mean of the map's keywords
   found in its title and abstract (runs of up to six words, keyword aliases
   included; `by: 0`), else at the mean of its authors on the map (`by: 1`);
-  `terms` indexes `keywords` of the bundle.
+  `terms` indexes `keywords` of the bundle. A corpus of more than 100,000 texts
+  (`total`) is drawn by a sample of 100,000 (`sampled`; the map says so, and a
+  person's panel then leaves out their count of texts); only the sampled texts'
+  parts are read.
 
 ### The theme tree
 

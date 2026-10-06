@@ -51,7 +51,10 @@ nothing in the engine names a particular deployment, source or procedure.
     columns (`GET /api/atlas/windows`, every one when they are shown, the
     selected person's otherwise), each with its largest top-level node. On a
     sample of 86,000 mapped people the first map request went from 205 MB,
-    97 s and 22 GB to 38 MB, 27 s and 2.4 GB; all the windows are 14 MB.
+    97 s and 22 GB to 38 MB, 27 s and 2.4 GB; all the windows are 14 MB. The
+    texts layer draws at most 100,000 texts, a uniform sample of a larger
+    corpus (the map says so), and reads only their parts: on 825,000 texts,
+    22 s and 0.2 GB instead of 147 s and 7 GB.
   - *Decision history*: a CSV decision file of 256 KB or more keeps most
     earlier versions as deltas from the latest version kept whole
     (`.csv.delta`, `cartolex-history-delta/1`; one in 50 kept whole), read and

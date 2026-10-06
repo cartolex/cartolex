@@ -1690,6 +1690,7 @@
   "map.as.points": "Points",
   "map.as.regions": "Régions",
   "map.note.regions_cap": "{kind} : {count, plural, one {# affiché} other {# affichés}}, plus que les {max} dessinés en régions ; filtrez pour voir leurs régions.",
+  "map.note.texts_sample": "{kind} : un échantillon de {count, number} sur {total, number} est dessiné, le même à chaque fois.",
   "map.org_level": "Organisations",
   "map.filters": "Filtres",
   "map.filter.value": "{value} ({count, number})",

@@ -306,7 +306,7 @@ export function AtlasScreen() {
     </div>` : null}
     <${Controls} index=${index} state=${state} counts=${counts} texts=${texts} onChange=${setState} />
     ${notes.map((n) => html`<p key=${n.kind} class="cx-atlas__note" role="note">
-      ${t(n.key, { kind: t(`map.kind.${n.kind}`), count: n.count, max: MAX_REGIONS })}</p>`)}
+      ${t(n.key, { kind: t(`map.kind.${n.kind}`), count: n.count, max: MAX_REGIONS, total: n.total || 0 })}</p>`)}
     <div class="cx-atlas__body">
       <${TreePanel} index=${index} state=${state} onSelect=${(s) => select(s)}
         onZoom=${(theme) => setState({ theme })} />

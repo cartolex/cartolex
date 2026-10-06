@@ -267,25 +267,49 @@ class _Matcher:
         return found
 
 
+#: The most texts the map draws: a larger corpus is drawn by a sample, the same each time
+#: while the texts are the same (a uniform draw with a fixed seed).
+MAX_TEXTS = 100_000
+
+
 def place_texts(
-    ctx: Any, keywords: list[dict[str, Any]], people: list[dict[str, Any]]
+    ctx: Any,
+    keywords: list[dict[str, Any]],
+    people: list[dict[str, Any]],
+    *,
+    limit: int = MAX_TEXTS,
 ) -> dict[str, Any]:
-    """Every text placed on the map: at the mean of the keywords found in its title and
-    abstract (``by: keywords``), else at the mean of its authors on the map (``by: authors``).
+    """The texts placed on the map (at most *limit*: a sample of a larger corpus): at the
+    mean of the keywords found in its title and abstract (``by: keywords``), else at the
+    mean of its authors on the map (``by: authors``).
 
     Columnar, for large corpora: ``id``, ``title``, ``year``, ``x``, ``y``, ``by`` (0 keywords,
     1 authors), ``terms`` (indexes into *keywords* of the terms found) and ``people`` (the
-    authors on the map). Texts neither way are counted in ``unplaced``.
+    authors on the map); ``total`` texts in the tables, ``sampled`` when only some are
+    drawn. Texts placed neither way are counted in ``unplaced``. Only the texts drawn
+    have their parts read, a row group at a time.
     """
-    from ..project.tables import read_source_table
+    import numpy as np
+    import pyarrow as pa
+    import pyarrow.compute as pc
+    import pyarrow.parquet as pq
+
+    from ..project.tables import check_source_file, read_source_table
 
     layout = ctx.layout
     out: dict[str, Any] = {
         "id": [], "title": [], "year": [], "x": [], "y": [], "by": [], "terms": [], "people": [],
-        "unplaced": 0,
+        "unplaced": 0, "total": 0, "sampled": False,
     }  # fmt: skip
     if not layout.table("texts").exists():
         return out
+    texts = read_source_table(layout.table("texts"), "texts", ["text_id", "title", "year"])
+    out["total"] = texts.num_rows
+    if texts.num_rows > limit:
+        rows = np.sort(np.random.default_rng(0).choice(texts.num_rows, limit, replace=False))
+        texts = texts.take(pa.array(rows))
+        out["sampled"] = True
+    wanted = texts["text_id"].combine_chunks()
     at = {
         k["term"]: (i, k["x"], k["y"])
         for i, k in enumerate(keywords)
@@ -303,19 +327,38 @@ def place_texts(
     }
     authors: dict[str, list[str]] = defaultdict(list)
     if layout.table("authorships").exists():
-        for a in read_source_table(
-            layout.table("authorships"), "authorships", ["text_id", "person_id"]
-        ).to_pylist():
-            if a["person_id"] in on_map:
-                authors[a["text_id"]].append(a["person_id"])
+        mapped = pa.array(sorted(on_map), pa.string())
+        for batch in _batches(layout.table("authorships"), "authorships", ["text_id", "person_id"]):
+            keep = pc.and_(
+                pc.is_in(batch.column(0), value_set=wanted),
+                pc.is_in(batch.column(1), value_set=mapped),
+            )
+            if pc.any(keep).as_py():
+                rows_ = batch.filter(keep)
+                for tid, pid in zip(
+                    rows_.column(0).to_pylist(), rows_.column(1).to_pylist(), strict=True
+                ):
+                    authors[tid].append(pid)
     content: dict[str, list[str]] = defaultdict(list)
-    if layout.table("text_parts").exists():
-        for part in read_source_table(
-            layout.table("text_parts"), "text_parts", ["text_id", "part", "content"]
-        ).to_pylist():
-            if part["part"] in ("title", "abstract") and part["content"]:
-                content[part["text_id"]].append(part["content"])
-    texts = read_source_table(layout.table("texts"), "texts", ["text_id", "title", "year"])
+    path = layout.table("text_parts")
+    if path.exists():
+        check_source_file(path, "text_parts")
+        pf = pq.ParquetFile(path)
+        for group in range(pf.num_row_groups):
+            ids = pf.read_row_group(group, columns=["text_id"]).column(0)
+            mine = pc.is_in(ids, value_set=wanted)
+            if not pc.any(mine).as_py():
+                continue
+            part = pf.read_row_group(group, columns=["text_id", "part", "content"]).filter(mine)
+            for tid, kind, text in zip(
+                part.column(0).to_pylist(),
+                part.column(1).to_pylist(),
+                part.column(2).to_pylist(),
+                strict=True,
+            ):
+                if kind in ("title", "abstract") and text:
+                    content[tid].append(text)
+        pf.close()
     for t in texts.to_pylist():
         tid = t["text_id"]
         found = matcher.find(" \n ".join(content.get(tid) or [t["title"] or ""]))
@@ -336,6 +379,20 @@ def place_texts(
         out["terms"].append(sorted(at[term][0] for term in found))
         out["people"].append(sorted(set(authors.get(tid, []))))
     return out
+
+
+def _batches(path: Any, name: str, columns: list[str]) -> Any:
+    """A source table's rows, a batch at a time (its file checked first)."""
+    import pyarrow.parquet as pq
+
+    from ..project.tables import check_source_file
+
+    check_source_file(path, name)
+    pf = pq.ParquetFile(path)
+    try:
+        yield from pf.iter_batches(batch_size=262_144, columns=columns)
+    finally:
+        pf.close()
 
 
 def keyword_sets(

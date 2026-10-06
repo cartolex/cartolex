@@ -417,7 +417,8 @@ def test_borderline_keywords_and_suggested_places_follow_the_tree_sent(depths, c
 
 
 def test_the_atlas_page_reads_organisations_texts_regions_and_bases(built, client_for, tmp_path):
-    client = client_for(_copy(built, tmp_path))
+    root = _copy(built, tmp_path)
+    client = client_for(root)
     atlas = client.get("/api/atlas").json()
     # organisations at every level, each count saying what it counts; the people's filters
     levels = [lv["id"] for lv in atlas["organisation_levels"]]
@@ -442,6 +443,21 @@ def test_the_atlas_page_reads_organisations_texts_regions_and_bases(built, clien
     i = texts["by"].index(0)
     xs = [kws[k]["x"] for k in texts["terms"][i]]
     assert texts["x"][i] == pytest.approx(sum(xs) / len(xs), abs=1e-3)
+    assert not texts["sampled"] and texts["total"] == len(texts["id"])
+    # a larger corpus is drawn by a sample, the same each time, placed the same way
+    from types import SimpleNamespace
+
+    from cartolex.app.atlas_layers import place_texts
+    from cartolex.project import Project
+
+    with Project.open(root) as project:
+        ctx = SimpleNamespace(project=project, layout=project.layout)
+        some = place_texts(ctx, kws, atlas["people"], limit=50)
+        again = place_texts(ctx, kws, atlas["people"], limit=50)
+    assert some["sampled"] and some["total"] == texts["total"] and len(some["id"]) == 50
+    assert some["id"] == again["id"] and set(some["id"]) <= set(texts["id"])
+    k = texts["id"].index(some["id"][0])
+    assert (some["x"][0], some["terms"][0]) == (texts["x"][k], texts["terms"][k])
     # the keywords a region spans: a person's, an organisation's members'
     pid = next(p["person_id"] for p in atlas["people"] if p["person_id"])
     regions = client.get("/api/atlas/regions", params={"kind": "person", "ids": pid}).json()

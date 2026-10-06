@@ -57,7 +57,8 @@ function Person({ index, state, id, sets, texts, onSelect }) {
   const period = periodOf(index, state);
   const windows = index.windows.get(id) || [];
   const terms = sets.get(`person:${id}`);
-  const written = texts ? texts.people.reduce((n, ps, i) => n + (ps.includes(id)
+  // A sample of the texts cannot count a person's: the count is left out then.
+  const written = texts && !texts.sampled ? texts.people.reduce((n, ps, i) => n + (ps.includes(id)
     && (!period || texts.year[i] === null || (texts.year[i] >= period[0] && texts.year[i] <= period[1])) ? 1 : 0), 0) : null;
   const orgs = info.orgs.map((o) => index.orgs[index.byOrg.get(o)]).filter(Boolean);
   return html`<div>

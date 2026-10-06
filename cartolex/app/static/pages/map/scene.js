@@ -209,6 +209,7 @@ export function mapScene(index, state, { texts = null, sets = new Map(), locale 
     L.detail = dense ? 0.25 : 1;
     L.shown = shown;
     counts.texts = { shown, total: n };
+    if (texts.sampled) notes.push({ key: 'map.note.texts_sample', kind: 'texts', count: n, total: texts.total });
     if (regionsOf && visible.length <= MAX_REGIONS) {
       for (const i of visible) {
         const polygon = keywordRegion(index, texts.terms[i]);
