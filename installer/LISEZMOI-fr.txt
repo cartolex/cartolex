@@ -8,6 +8,12 @@ bibliothèques dont il a besoin et les modèles de langue pour l'anglais, le
 français et le portugais) : utilisez une bonne connexion. Comptez quelques
 minutes.
 
+Des textes en espagnol, en allemand ou en italien demandent chacun leur modèle
+de langue, environ 45 Mo chacun. À la fin, l'installateur demande lesquels
+ajouter et donne la licence de chaque modèle avant de le télécharger (celui de
+l'espagnol est sous GNU GPL, celui de l'italien réservé à un usage non
+commercial). Vous pourrez les ajouter plus tard avec la commande qu'il affiche.
+
 Tout est rangé dans un seul dossier de votre dossier personnel, nommé
 « cartolex » : le programme, son Python, les téléchargements et le journal de
 l'installation (install.log). Vos projets sont rangés ailleurs, là où vous

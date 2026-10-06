@@ -7,6 +7,12 @@ administrador. O instalador baixa cerca de 1 GB (o cartolex, as bibliotecas de
 que ele precisa e os modelos de língua para inglês, francês e português),
 então use uma boa conexão. Leva alguns minutos.
 
+Textos em espanhol, alemão ou italiano precisam cada um do seu modelo de
+língua, cerca de 45 MB cada. No final, o instalador pergunta quais adicionar e
+mostra a licença de cada modelo antes de baixá-lo (o do espanhol é GNU GPL, o
+do italiano só para uso não comercial). Você pode adicioná-los depois com o
+comando que ele mostra.
+
 Tudo fica em uma única pasta dentro da sua pasta pessoal, chamada
 "cartolex": o programa, o Python dele, os downloads e o registro da
 instalação (install.log). Seus projetos ficam em outro lugar, onde você

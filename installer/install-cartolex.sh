@@ -14,11 +14,16 @@
 # For testing: CARTOLEX_WHEEL=/path/to/cartolex-*.whl (or a wheel next to this file)
 # installs that file instead of the pinned release; CARTOLEX_ROUTE=system skips uv.
 # Running this again updates the installation.
+#
+# The language models of English, French and Portuguese are installed; those of Spanish,
+# German and Italian are offered at the end (each with its licence), or installed
+# without asking with CARTOLEX_EXTRA_LANGUAGES="es de it".
 
 set -u
 
 PIN="@CARTOLEX_VERSION@"
 MODELS="en fr pt"
+EXTRA_MODELS="es de it"
 UV_PYTHON_VERSION="3.12"
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -224,6 +229,26 @@ EOF
     say "on the desktop: cartolex"
   fi
 fi
+
+# ── the other text languages ─────────────────────────────────────────────────
+
+step "other languages of the texts"
+EXTRA="${CARTOLEX_EXTRA_LANGUAGES:-}"
+# cartolex models add installs with uv when the environment has no pip.
+MODELS_PATH="$(dirname "${UV:-$CARTOLEX}"):$PATH"
+if [ -n "$EXTRA" ]; then
+  PATH="$MODELS_PATH" "$CARTOLEX" models add $EXTRA --yes || say "some language models were not installed"
+elif [ -t 0 ]; then
+  say "cartolex also reads texts in Spanish (es), German (de) and Italian (it)."
+  read -r -p "Type the codes of those your texts are in (for example: es de), or press Enter: " EXTRA || EXTRA=""
+  for code in $EXTRA; do
+    case " $EXTRA_MODELS " in
+      *" $code "*) PATH="$MODELS_PATH" "$CARTOLEX" models add "$code" || say "$code: not installed" ;;
+      *) say "$code: not a language cartolex reads" ;;
+    esac
+  done
+fi
+say "Later, in a terminal: $CARTOLEX models add es de it"
 
 say ""
 say "Done. Open cartolex with the shortcut, or run: $CARTOLEX"

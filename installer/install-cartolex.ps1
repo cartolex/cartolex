@@ -14,10 +14,15 @@
 #
 # For testing: CARTOLEX_WHEEL=C:\path\cartolex-*.whl (or a wheel next to this file)
 # installs that file instead of the pinned release; CARTOLEX_ROUTE=system skips uv.
+#
+# The language models of English, French and Portuguese are installed; those of Spanish,
+# German and Italian are offered at the end (each with its licence), or installed
+# without asking with CARTOLEX_EXTRA_LANGUAGES="es de it".
 
 $ErrorActionPreference = 'Continue'
 $Pin = '@CARTOLEX_VERSION@'
 $Models = @('en', 'fr', 'pt')
+$ExtraModels = @('es', 'de', 'it')
 $UvPythonVersion = '3.12'
 
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -222,6 +227,30 @@ foreach ($folder in @([Environment]::GetFolderPath('Desktop'), [Environment]::Ge
     $link.Save()
     Say "shortcut: $(Join-Path $folder 'cartolex.lnk')"
 }
+
+# --- the other text languages ---
+
+Step 'other languages of the texts'
+# cartolex models add installs with uv when the environment has no pip.
+if ($uv) { $env:PATH = (Split-Path -Parent $uv) + ';' + $env:PATH }
+if ($env:CARTOLEX_EXTRA_LANGUAGES) {
+    $codes = @($env:CARTOLEX_EXTRA_LANGUAGES -split '[\s,]+' | Where-Object { $_ })
+    if ((Invoke-Logged $Cartolex (@('models', 'add') + $codes + @('--yes'))) -ne 0) {
+        Say 'some language models were not installed'
+    }
+} elseif ([Environment]::UserInteractive) {
+    Say 'cartolex also reads texts in Spanish (es), German (de) and Italian (it).'
+    $answer = Read-Host 'Type the codes of those your texts are in (for example: es de), or press Enter'
+    foreach ($code in @($answer -split '[\s,]+' | Where-Object { $_ })) {
+        if ($ExtraModels -contains $code) {
+            & $Cartolex models add $code
+            if ($LASTEXITCODE -ne 0) { Say "${code}: not installed" }
+        } else {
+            Say "${code}: not a language cartolex reads"
+        }
+    }
+}
+Say "Later, in a terminal: $Cartolex models add es de it"
 
 Say ''
 Say "Done. Open cartolex with the shortcut on the desktop or in the Start menu."

@@ -7,6 +7,12 @@ downloads about 1 GB (cartolex, the libraries it needs and the language models
 for English, French and Portuguese), so use a good connection. It takes a few
 minutes.
 
+Texts in Spanish, German or Italian need their own language model, about
+45 MB each. At the end, the installer asks which of them to add, and names
+each model's licence before downloading it (the Spanish one is under the GNU
+GPL, the Italian one is for non-commercial use only). You can add them later
+with the command the installer shows.
+
 Everything goes into one folder in your home folder, named "cartolex":
 the program, its Python, the downloads and a log of the installation
 (install.log). Your projects are kept elsewhere, where you choose to create
