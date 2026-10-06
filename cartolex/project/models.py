@@ -384,7 +384,10 @@ class FileInput(_Model):
 
 class Measures(_Model):
     seconds: Annotated[float, Field(ge=0)] | None = None
+    #: The most the stage's process and its worker processes held together.
     peak_memory_mb: Annotated[float, Field(ge=0)] | None = None
+    #: The most the stage's own process held (its worker processes apart).
+    own_memory_mb: Annotated[float, Field(ge=0)] | None = None
     counts: dict[str, int] = Field(default_factory=dict)
 
 

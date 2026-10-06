@@ -150,6 +150,7 @@ class Runtime:
         self.snapshot = MachineSnapshot(settings.data_dir if not settings.hosted else None)
         #: What the builds may use of this computer (kept in memory on a hosted service).
         self.budget = MachineBudget(settings.data_dir if not settings.hosted else None)
+        self.budget.give()
         use_snapshot = getattr(self.collection, "use_snapshot", None)
         if use_snapshot is not None and not settings.hosted:
             use_snapshot(self.snapshot)  # collections may read OpenAlex from it
@@ -230,7 +231,10 @@ class Runtime:
 
     # ── stopping ──
     def shutdown(self) -> None:
+        from cartolex.scale import give_budget
+
         self.jobs.shutdown()
+        give_budget(None)
         self.projects.close_all()
         if self._upload_tmp is not None:
             self._upload_tmp.cleanup()

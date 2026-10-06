@@ -221,6 +221,8 @@ class PeakMemory:
 
     def __init__(self) -> None:
         self.peak_mb: float | None = None
+        #: The process's own peak, its worker processes apart (Linux: exact; else ``None``).
+        self.own_mb: float | None = None
         self._children_before: float | None = None
         self._reset = False
         self._sampler: _Sampler | None = None
@@ -245,6 +247,7 @@ class PeakMemory:
         if self._reset:
             hwm = _linux_status_kb("VmHWM")
             peak = hwm / 1024 if hwm is not None else None
+            self.own_mb = round(peak, 1) if peak is not None else None
         if self._sampler is not None:
             tree = self._sampler.stop() / 1024
             self.peak_mb = round(max(peak or 0.0, tree), 1) if peak or tree else None

@@ -1195,7 +1195,8 @@ def rebuild_sources(
 
     The rows are kept in a scratch database while the readers run
     (:mod:`cartolex.collect.workstore`), in a folder of *scratch* (by default the
-    project's ``cache/``), removed at the end: memory does not grow with the
+    project's ``cache/``, or the one the app's settings give, :meth:`Budget.given
+    <cartolex.scale.Budget.given>`), removed at the end: memory does not grow with the
     project, and the tables are written a row group at a time.
 
     With *incremental* (the default), a harvest's runs are read from their
@@ -1207,6 +1208,10 @@ def rebuild_sources(
     the readers are the default ones), the rebuild runs in a process of its own, which
     gives back its report, or raises what it raised.
     """
+    given = Budget.given()  # the app's Settings › Build, for a collection's rebuild
+    if given is not None:
+        scratch = scratch if scratch is not None else given.scratch
+        jobs = jobs if jobs is not None else given.workers
     if isolate is None:
         isolate = readers is None and _raw_bytes(layout, config) > ISOLATE_BYTES
     if isolate:

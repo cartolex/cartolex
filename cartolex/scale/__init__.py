@@ -19,12 +19,13 @@ collection, the project format and the engine can all use it.
 from __future__ import annotations
 
 from .arrays import sorted_unique
-from .budget import Budget, resident_mb, total_memory_mb
+from .budget import Budget, give_budget, resident_mb, total_memory_mb
 from .pool import ordered_map, worker_setup
 from .scratch import pid_alive, scratch_folder
 
 __all__ = [
     "Budget",
+    "give_budget",
     "ordered_map",
     "pid_alive",
     "resident_mb",

@@ -5,12 +5,16 @@ this computer, checked, and given to the builds the app starts."""
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 from _app_helpers import TOKEN, Client
 
 from cartolex.app import AppSettings, create_app
 from cartolex.app.build_run import child_recipe
+from cartolex.collect import workstore
+from cartolex.collect.tables import rebuild_sources
+from cartolex.project import Project
 from cartolex.scale import Budget
 
 
@@ -46,6 +50,22 @@ def test_the_budget_is_saved_on_this_computer_checked_and_given_to_builds(app, t
     assert (tmp_path / "data" / "budget.json").is_file()
     budget = child_recipe(app.state.cartolex)["options"].budget
     assert (budget.memory_mb, budget.workers, budget.scratch) == (2048, 1, scratch)
-    # Back to the defaults: nothing saved.
+    # Given to the app's process: a collection's rebuild of the tables takes its folder.
+    assert Budget.given() == budget
+    seen = []
+
+    class Store(workstore.WorkStore):
+        def __init__(self, folder, *args, **kwargs):
+            seen.append(Path(folder))
+            super().__init__(folder, *args, **kwargs)
+
+    project = Project.init(tmp_path / "p", name="Budget", domain_title="Budget")
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(workstore, "WorkStore", Store)
+        rebuild_sources(project.layout, project.config)
+    project.close()
+    assert seen == [scratch]
+    # Back to the defaults: nothing saved, nothing given.
     cleared = client.put("/api/machine/budget", json={}).json()["build_budget"]
     assert cleared["saved"] == {} and not (tmp_path / "data" / "budget.json").exists()
+    assert Budget.given() is None

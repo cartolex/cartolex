@@ -268,6 +268,32 @@ def test_estimates_scale_the_last_run():
         CostModel("texts", 1, 1, 1, 1, fallback=("pages", 1.0))
 
 
+def test_a_bounded_stage_is_estimated_within_its_budget_or_at_its_own_process():
+    stage = STAGES["keywords.extract"]  # sizes its workers to the job's budget
+    assert stage.bounded
+    last = RunRecord.model_validate(
+        {
+            "stage": stage.id,
+            "run_id": "20260928T100000Z-aaaa",
+            "outcome": "succeeded",
+            "started_at": "2026-09-28T10:00:00Z",
+            "code": {"version": "1", "fingerprint": "sha256:" + "0" * 64},
+        }
+    )
+    sizes = {"characters": 8_000_000_000, "texts": 6_000_000}
+    now = ProjectSizes(**sizes)
+    last.measures = Measures(seconds=3500.0, peak_memory_mb=15_000.0, counts=sizes)
+    assert stage.estimate(now, last, memory_mb=20_000).peak_memory_mb == pytest.approx(15_000)
+    assert stage.estimate(now, last, memory_mb=6_000).peak_memory_mb == 6_000
+    # its own process held 7 GB: a 6 GB budget does not make it fit in 6 GB
+    last.measures = Measures(
+        seconds=3500.0, peak_memory_mb=15_000.0, own_memory_mb=7_000.0, counts=sizes
+    )
+    over = stage.estimate(now, last, memory_mb=6_000)
+    assert over.peak_memory_mb == pytest.approx(7_000) and "own process" in over.basis
+    assert stage.estimate(now, last, memory_mb=10_000).peak_memory_mb == 10_000
+
+
 # ── progress and cancel ──────────────────────────────────────────────────────
 
 

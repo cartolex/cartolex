@@ -347,6 +347,15 @@ class MachineBudget:
                 atomic_write_bytes(self.path, json_bytes(data))
             else:
                 self.path.unlink(missing_ok=True)
+        self.give()
+
+    def give(self) -> None:
+        """Give this process the saved budget (:func:`cartolex.scale.give_budget`), so that
+        what the app starts without a budget of its own (a collection's rebuild of the
+        tables) takes its scratch folder and workers; nothing saved: none given."""
+        from cartolex.scale import give_budget
+
+        give_budget(self.budget() if self.saved() else None)
 
     def budget(self) -> Any:
         """The :class:`~cartolex.scale.Budget` of the next build."""

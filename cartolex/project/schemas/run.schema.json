@@ -71,6 +71,19 @@
           "title": "Counts",
           "type": "object"
         },
+        "own_memory_mb": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Own Memory Mb"
+        },
         "peak_memory_mb": {
           "anyOf": [
             {

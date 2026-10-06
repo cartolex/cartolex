@@ -49,7 +49,9 @@ nothing in the engine names a particular deployment, source or procedure.
     raw records does too (`rebuild_sources(isolate=…)`). Their memory goes back
     to the computer when they end. Settings › Build: what the builds started
     from the app may use of this computer (memory, worker processes, a scratch
-    folder), saved on this computer (`PUT /api/machine/budget`).
+    folder), saved on this computer (`PUT /api/machine/budget`) and given to
+    the app's process (`cartolex.scale.give_budget`, `Budget.given`): the
+    rebuild of the tables that ends a collection takes its folder and workers.
   - *Map*: the bundle is `cartolex-atlas/3`: it counts the people's time
     windows and gives their years; the windows themselves come apart, as
     columns (`GET /api/atlas/windows`, every one when they are shown, the
@@ -115,7 +117,10 @@ nothing in the engine names a particular deployment, source or procedure.
     `build(memory_mb=…)`); `corpus.assemble`'s memory model follows its
     columnar assembly (measured: 3.2 GB for 5.9 million texts, where the
     earlier model said 27 GB and refused to run it). A cost model may have
-    several extra sizes.
+    several extra sizes. A run records what its own process held beside the
+    whole peak (`measures.own_memory_mb`): a bounded stage is estimated at least
+    that, scaled, when it passes the budget (its workers are sized to the
+    budget, its own process is not).
   - *Pools*: a pool of worker processes is sized beside what its parent holds
     when it starts (`cartolex.scale.resident_mb`, a quarter more for growth, at
     least 2 GB), no longer beside a fixed 2 GB.

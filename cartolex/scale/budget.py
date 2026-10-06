@@ -103,7 +103,25 @@ class Budget:
             workers = max(1, (os.cpu_count() or 2) * 3 // 4 - 1)
         return cls(int(memory_mb), max(1, int(workers)), Path(scratch) if scratch else None)
 
+    @classmethod
+    def given(cls) -> Budget | None:
+        """The budget this process was given for this computer (:func:`give_budget`: the
+        app's Settings › Build), or ``None``."""
+        return _GIVEN
+
     def workers_for(self, worker_mb: float, parent_mb: float = 0.0) -> int:
         """How many workers of *worker_mb* each fit, beside a parent holding *parent_mb*."""
         room = self.memory_mb - parent_mb
         return max(1, min(self.workers, int(room // max(worker_mb, 1.0))))
+
+
+#: The budget the person set for this computer, given to this process (see :func:`give_budget`).
+_GIVEN: Budget | None = None
+
+
+def give_budget(budget: Budget | None) -> None:
+    """Give this process the budget the person set for this computer (the app does, from
+    Settings › Build): the jobs it starts without a budget of their own (a collection's
+    rebuild of the tables) take its scratch folder and workers. ``None``: none given."""
+    global _GIVEN
+    _GIVEN = budget

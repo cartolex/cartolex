@@ -548,7 +548,9 @@ def _run_stage(
         parameters=inputs.resolved.values,
         inputs=[*inputs.stages, *inputs.files],
         identity=inputs.identity,
-        measures=Measures(seconds=seconds, peak_memory_mb=peak.peak_mb, counts=counts),
+        measures=Measures(
+            seconds=seconds, peak_memory_mb=peak.peak_mb, own_memory_mb=peak.own_mb, counts=counts
+        ),
         warnings=ctx.warnings,
     )
     swap_in(layout, stage.id, run_id, record_bytes(record), probe=probe)

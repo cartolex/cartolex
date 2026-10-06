@@ -304,7 +304,9 @@ class Stage:
         self, sizes: ProjectSizes, last: RunRecord | None, memory_mb: float | None = None
     ) -> Estimate:
         """The stage's cost for *sizes* (from its last run when there is one); a
-        :attr:`bounded` stage's peak is at most the job's budget *memory_mb*."""
+        :attr:`bounded` stage's peak is at most the job's budget *memory_mb*, or what its
+        own process held in its last run, scaled like the rest, when that is more (its
+        workers are sized to the budget, its own process is not)."""
         if self.estimator is not None:
             found = self.estimator(self, sizes, last)
         elif self.cost is not None:
@@ -315,6 +317,16 @@ class Stage:
             found = Estimate(None, None, "no cost model")
         peak = found.peak_memory_mb
         if self.bounded and memory_mb is not None and peak is not None and peak > memory_mb:
+            then = last.measures if last is not None else None
+            own = None
+            if then is not None and then.own_memory_mb and then.peak_memory_mb:
+                own = then.own_memory_mb * peak / then.peak_memory_mb
+            if own is not None and own > memory_mb:
+                return Estimate(
+                    found.seconds,
+                    min(peak, own),
+                    f"{found.basis}; its own process beyond the job's budget",
+                )
             return Estimate(found.seconds, memory_mb, f"{found.basis}; at most the job's budget")
         return found
 

@@ -76,7 +76,8 @@ Every stage folder holds the record of the run that produced it:
     {"kind": "decision", "path": "decisions/stopwords.json", "fingerprint": "sha256:…"}
   ],
   "identity": {"language_models": {"en": "en_core_web_md@3.8.0"}},
-  "measures": {"seconds": 41.2, "peak_memory_mb": 812, "counts": {"candidates_en": 5214}},
+  "measures": {"seconds": 41.2, "peak_memory_mb": 812, "own_memory_mb": 406,
+               "counts": {"candidates_en": 5214}},
   "warnings": []
 }
 ```
@@ -91,7 +92,11 @@ Every stage folder holds the record of the run that produced it:
   record, and the version of the stage: cartolex raises it when it deliberately
   changes what the stage produces, and a result made by another version needs
   an update. Other code changes leave results up to date.
-- `measures` feed the cost estimates of later dry runs.
+- `measures` feed the cost estimates of later dry runs: `peak_memory_mb` is the
+  most the stage's process and its worker processes held together,
+  `own_memory_mb` what its own process held (Linux only). A stage that sizes its
+  workers to the job's budget is estimated at most that budget, or at what its
+  own process held, scaled, when that is more.
 
 ## Is a result up to date? Six states
 
