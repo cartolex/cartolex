@@ -535,8 +535,9 @@ and the texts by year and by language.
 The person sheet says the sources used (each finder, with its texts) and
 discarded (candidate records not confirmed, proposals found by name, preprints
 read through their published version), and the **first blocking cause**: a
-service failure; no record found; not collected yet; a record found but no
-works in the window; works without abstracts; fewer texts with an abstract
+service failure; no record found (also when a settled identity names no
+record, so a harvest has nothing to collect from); not collected yet; a record
+found but no works in the window; works without abstracts; fewer texts with an abstract
 than a good profile has. It offers what can be done: **retry** (a failure
 only: `--retry` collects again for the people who failed, and them only),
 **add documents** (`--add-documents p000017 reports/`, a folder of that

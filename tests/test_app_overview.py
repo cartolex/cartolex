@@ -102,3 +102,31 @@ def test_texts_that_were_never_collected_lead_to_the_harvest():
     nobody = {**people, "mapped": 0, "to_harvest": 0}
     stages = [_stage("corpus.assemble", "failed", False, {"code": "stage_no_mapped"})]
     assert next_step(stages, [], None, people=nobody)["code"] == "next_set_roles"
+
+
+def test_the_demo_project_leads_to_its_first_build(tmp_path):
+    """The demo writes its people whole: one has no work and no record, so there is nothing
+    to collect for them, even with collection available (nothing would be asked anywhere)."""
+    from _app_helpers import TOKEN
+
+    from cartolex.app import AppSettings, create_app
+    from cartolex.app.collection import DemoCollection
+    from cartolex.demo import generate
+
+    app = create_app(
+        AppSettings(
+            launch_token=TOKEN,
+            data_dir=tmp_path / "data",
+            collection=DemoCollection(generate("S", 0)),
+        )  # fmt: skip
+    )
+    try:
+        client = Client(app)
+        made = client.post("/api/projects/demo", json={"folder": str(tmp_path / "demo")})
+        assert made.status_code == 201, made.text
+        overview = client.get("/api/overview").json()
+        assert overview["people"]["without_texts"] == 1 and overview["people"]["to_harvest"] == 0
+        assert overview["next"]["code"] == "next_first_build"
+        assert {s["id"]: s["state"] for s in overview["steps"]}["texts"] == "done"
+    finally:
+        app.state.cartolex.shutdown()
