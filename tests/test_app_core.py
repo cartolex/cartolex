@@ -526,6 +526,31 @@ def test_a_job_submitted_while_the_list_is_read_is_running_not_interrupted(tmp_p
             app.state.cartolex.shutdown()
 
 
+def test_the_last_build_is_found_behind_other_jobs_and_command_line_collections(tmp_path):
+    from cartolex.app.jobs import read_job_logs
+
+    folder = tmp_path / "jobs"
+    folder.mkdir()
+
+    def log(name: str, *events: dict) -> None:
+        lines = "".join(json.dumps(e) + "\n" for e in events)
+        (folder / f"{name}.jsonl").write_text(lines, encoding="utf-8")
+
+    at = "2026-01-01T00:00:00Z"
+    log("20260101T000000Z-aaaaaa", {"event": "job", "kind": "build", "at": at},
+        {"event": "job-end", "state": "succeeded", "at": at})  # fmt: skip
+    for i in range(6):
+        log(f"20260102T00000{i}Z-bbbbbb", {"event": "job", "kind": "collection", "at": at},
+            {"event": "job-end", "state": "succeeded", "at": at})  # fmt: skip
+    # a collection run from the command line: no ``job`` line, a ``start`` with its kind
+    log("collect-harvest-20260103T000000Z", {"event": "start", "kind": "collect.harvest", "at": at},
+        {"event": "end", "outcome": "succeeded", "at": at})  # fmt: skip
+    builds = read_job_logs(folder, "p", limit=1, kind="build")
+    assert [j.id for j in builds] == ["20260101T000000Z-aaaaaa"]
+    kinds = {j.id: j.kind for j in read_job_logs(folder, "p")}
+    assert kinds["collect-harvest-20260103T000000Z"] == "collect.harvest"
+
+
 # ── logs and the diagnostic ──────────────────────────────────────────────────
 
 
