@@ -547,44 +547,55 @@ def duplicate_pairs(
     facts, texts, cols = person_facts(project, decisions, columns, org_roots)
     if not facts:
         return [], {}
-    candidates = _candidates(facts)
+    # Only the pairs with a name or an identifier in common are weighed further: the others
+    # of a block are dropped before their texts and co-authors are compared.
+    candidates = {
+        (a, b)
+        for a, b in _candidates(facts)
+        if _name_evidence(facts[a], facts[b]) is not None
+        or facts[a].orcids & facts[b].orcids
+        or facts[a].ids & facts[b].ids
+    }
     involved = {p for pair in candidates for p in pair}
-    coauthors = _coauthors(cols, texts, involved)
     code_of = {pid: i for i, pid in enumerate(cols.person_ids)} if cols is not None else {}
-    shared: dict[tuple[str, str], np.ndarray] = {}
+    groups = merged_groups(roots)
+    own = {
+        pid: {code_of[x] for x in (pid, *groups.get(pid, ())) if x in code_of} for pid in involved
+    }
+    # Sets of a few hundred codes at most: Python's set operations beat numpy's per pair.
+    coauthors = {
+        pid: frozenset(found.tolist()) - own[pid]
+        for pid, found in _coauthors(cols, texts, involved).items()
+    }
+    text_sets = {pid: frozenset(texts[pid].tolist()) for pid in involved if pid in texts}
+    shared: dict[tuple[str, str], list[int]] = {}
     for a, b in candidates:
-        ta, tb = texts.get(a), texts.get(b)
-        if ta is not None and tb is not None and len(ta) and len(tb):
-            both = np.intersect1d(ta, tb, assume_unique=True)
-            if len(both):
-                shared[(a, b)] = both
+        ta, tb = text_sets.get(a), text_sets.get(b)
+        if ta and tb:
+            both = ta & tb
+            if both:
+                shared[(a, b)] = sorted(both)
     places = _positions(project, {p for pair in shared for p in pair}, roots)
     names = dict(org_names or {})
     if not names and layout.table("organisations").exists():
         orgs = read_source_table(layout.table("organisations"), "organisations",
                                  ["org_id", "name", "acronym"]).to_pylist()  # fmt: skip
         names = {o["org_id"]: o["acronym"] or o["name"] for o in orgs}
-    groups = merged_groups(roots)
-    own = {
-        pid: [code_of[x] for x in (pid, *groups.get(pid, ())) if x in code_of] for pid in involved
-    }
     out: list[DuplicatePair] = []
     for a, b in sorted(candidates):
         both = shared.get((a, b))
         same = 0
-        if both is not None:
-            for row in both.tolist():
-                tid = cols.tid(row)
-                pa_, pb_ = places.get((tid, a)), places.get((tid, b))
-                if pa_ is not None and pa_ == pb_:
-                    same += 1
+        for row in both or ():
+            tid = cols.tid(row)
+            pa_, pb_ = places.get((tid, a)), places.get((tid, b))
+            if pa_ is not None and pa_ == pb_:
+                same += 1
         common, share = 0, 0.0
         ca, cb = coauthors.get(a), coauthors.get(b)
-        if ca is not None and cb is not None:
-            common = len(np.setdiff1d(np.intersect1d(ca, cb), own[a] + own[b]))
-            fewest = min(
-                len(np.setdiff1d(ca, own[a] + own[b])), len(np.setdiff1d(cb, own[a] + own[b]))
-            )
+        if ca and cb:
+            mine = own[a] | own[b]
+            common = len((ca & cb) - mine)
+            fewest = min(len(ca - mine), len(cb - mine))
             share = common / fewest if fewest else 0.0
         pair = _weigh(
             facts[a],
