@@ -167,31 +167,74 @@ def text_refs(
 def coverage(layout: ProjectLayout) -> dict[str, dict[str, Any]]:
     """What the texts of each slot hold, for a coverage report: how many texts, how many
     with a title, an abstract, a full text (``body`` or ``full``), and which providers gave
-    their parts; plus the merges of ``sources/merges.json`` when present (key ``merges``)."""
+    their parts; plus the merges of ``sources/merges.json`` when present (key ``merges``).
+
+    Read as columns, the parts a batch at a time: a text is a row, a part and a provider
+    are codes (a project of millions of texts holds no object per text)."""
+    import numpy as np
+    import pyarrow.compute as pc
+    import pyarrow.parquet as pq
+
+    from cartolex.project.tables import check_source_file, find_ids, id_keys
+
     out: dict[str, dict[str, Any]] = {}
-    texts = text_refs(layout)
-    parts_of: dict[str, set[tuple[str, str]]] = {}
-    if layout.table("text_parts").exists():
-        table = read_source_table(
-            layout.table("text_parts"), "text_parts", ["text_id", "part", "provider"]
-        )
-        for tid, part, provider in zip(
-            *(table[c].to_pylist() for c in ("text_id", "part", "provider")), strict=True
-        ):
-            parts_of.setdefault(tid, set()).add((part, provider))
-    for t in texts:
-        slot = out.setdefault(
-            t.slot,
-            {"texts": 0, "title": 0, "abstract": 0, "full_text": 0, "providers": {}},
-        )
-        got = parts_of.get(t.text_id, set())
-        slot["texts"] += 1
-        slot["title"] += any(p == "title" for p, _ in got)
-        slot["abstract"] += t.has_abstract
-        slot["full_text"] += t.has_full_text
-        for part, provider in got:
-            key = f"{part}:{provider}"
-            slot["providers"][key] = slot["providers"].get(key, 0) + 1
+    if layout.table("texts").exists():
+        texts = read_source_table(layout.table("texts"), "texts", ["text_id", "slot"])
+        keys = id_keys(texts["text_id"])
+        encoded = pc.dictionary_encode(texts["slot"].combine_chunks())
+        slots = [str(v) for v in encoded.dictionary.to_pylist()]
+        slot = np.asarray(encoded.indices.to_numpy(zero_copy_only=False), dtype=np.int64)
+        del texts, encoded
+        names: dict[str, dict[str, int]] = {"part": {}, "provider": {}}
+        found: list[np.ndarray] = []
+        path = layout.table("text_parts")
+        if path.exists() and len(keys):
+            check_source_file(path, "text_parts")
+            pf = pq.ParquetFile(path)
+            for batch in pf.iter_batches(
+                batch_size=262_144, columns=["text_id", "part", "provider"]
+            ):
+                at = find_ids(keys, batch.column(0))
+                codes = []
+                for column, kind in ((batch.column(1), "part"), (batch.column(2), "provider")):
+                    local = pc.dictionary_encode(column, null_encoding="encode")
+                    mapping = np.array(
+                        [names[kind].setdefault(v or "", len(names[kind]))
+                         for v in local.dictionary.to_pylist()],
+                        dtype=np.int64,
+                    )  # fmt: skip
+                    codes.append(mapping[local.indices.to_numpy(zero_copy_only=False)])
+                ok = at >= 0
+                found.append(np.unique((at[ok] << 20) | (codes[0][ok] << 10) | codes[1][ok]))
+            pf.close()
+        every = np.unique(np.concatenate(found)) if found else np.zeros(0, dtype=np.int64)
+        text, part, provider = every >> 20, (every >> 10) & 1023, every & 1023
+        parts = sorted(names["part"], key=names["part"].__getitem__)
+        providers = sorted(names["provider"], key=names["provider"].__getitem__)
+
+        def having(wanted: set[str]) -> np.ndarray:
+            mine = np.zeros(len(keys), dtype=bool)
+            codes = [c for c, name in enumerate(parts) if name in wanted]
+            mine[text[np.isin(part, codes)]] = True
+            return mine
+
+        title, abstract, full = having({"title"}), having({"abstract"}), having(set(FULL_PARTS))
+        per_slot = np.bincount(slot, minlength=len(slots))
+        combos, counts = np.unique((slot[text] << 20) | (part << 10) | provider, return_counts=True)
+        present, first = np.unique(slot, return_index=True)
+        for s_code in present[np.argsort(first, kind="stable")].tolist():  # in the texts' order
+            inside = slot == s_code
+            mine = combos >> 20 == s_code
+            out[slots[s_code]] = {
+                "texts": int(per_slot[s_code]),
+                "title": int(np.count_nonzero(title & inside)),
+                "abstract": int(np.count_nonzero(abstract & inside)),
+                "full_text": int(np.count_nonzero(full & inside)),
+                "providers": {
+                    f"{parts[int(c >> 10) & 1023]}:{providers[int(c) & 1023]}": int(k)
+                    for c, k in zip(combos[mine].tolist(), counts[mine].tolist(), strict=True)
+                },
+            }
     log = layout.sources / "merges.json"
     if log.exists():
         import json
