@@ -1872,6 +1872,7 @@
   "share.check.names_shown": "{count, plural, one {# person is} other {# people are}} shown by name: send the site only to people allowed to see them.",
   "share.check.abstracts_included": "The abstracts of the texts will be in the site.",
   "share.check.titles_large": "The titles of the texts add about {size} to the site: a site that large is slow to open and hard to send.",
+  "share.check.site_large": "The atlas reads about {size} when it opens and shows the network: a site that large may be slow to open on an ordinary computer.",
   "share.check.abstracts_large": "With the abstracts, the texts add about {size} to the site ({titles} with the titles only): a site that large is slow to open and hard to send. Leave the abstracts out unless they are needed.",
   "share.check.full_texts_kept": "{count, plural, one {# full text stays} other {# full texts stay}} in the project: a site never carries them.",
   "share.check.map_stale": "The map is not up to date with the latest changes ({stages}).",

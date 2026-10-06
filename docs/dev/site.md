@@ -15,18 +15,20 @@ index.html     the one page: no inline script or style; it first shows
                « unzip the whole folder first », which the scripts remove
 README.txt     starts with « UNZIP THE WHOLE FOLDER FIRST », then what the site holds
 site.json      the build's record: options, counts, sizes, the inputs' fingerprint
-assets/        tokens.css (the app's, copied), site.css, site.js, map.js,
-               i18n.js (en, fr, pt-BR), world.js (when organisations have an address)
-data/          core.js (every page), details.js (organisation and theme pages,
-               the keywords' people), people/<n>.js (the people's details) and
-               texts/<n>.js (their texts, only when texts are asked for)
+assets/        tokens.css (the app's, copied), atlas.css and atlas.js (the app's atlas),
+               site.css, site.js, i18n.js (en, fr, pt-BR), world.js (when organisations
+               have an address)
+data/          core.js (every page), orgs.js, links.js (who writes with whom),
+               people/<n>.js, keywords/<n>.js and texts/<n>.js (only when texts are
+               asked for)
 ```
 
 A person's details and texts are in the part `(number − 1) mod n` of their
-site id (`s<number>`), *n* in `core.shards` (`people`, `texts`), chosen so that
-a part holds about 2 MB (`SHARD_BYTES`): a page loads the part of the person it
-shows, so a national site's gigabytes of titles never load at once. The parts
-are written one at a time. `site.json`'s format is `cartolex-site/2`.
+site id (`s<number>`), a keyword's users in the part `index mod n` of its place
+among the core's keywords, *n* in `core.shards` (`people`, `keywords`, `texts`),
+chosen so that a part holds about 2 MB (`SHARD_BYTES`): a page loads the part
+of what it shows, so a national site's gigabytes of titles never load at once.
+The parts are written one at a time. `site.json`'s format is `cartolex-site/3`.
 
 The build is written under a hidden name and renamed when complete, so it is
 never half-written and never replaces another; `outputs/sites/latest` names
@@ -37,34 +39,59 @@ share area of the project state is then « needs update ».
 
 A page opened from `file://` cannot load ES modules or read a JSON file, so
 everything is a classic script: the data files set `window.CX_SITE[<part>]`,
-and `assets/map.js` is the app's own map modules (`MAP_MODULES`) and the
-treemap's layout (`components/treemap-layout.js`) turned into one script by
-`cartolex.app.static_files.classic_script` (`window.CartolexMap`). The site's
-own scripts (`cartolex/site/assets/*.js`, joined into `assets/site.js`) put
-what they share on `window.CxSite`.
+and `assets/atlas.js` is the app's atlas (`cartolex/app/static/atlas/` and the
+map's modules, `ATLAS_MODULES`) turned into one script by
+`cartolex.app.static_files.classic_script` (`window.CartolexAtlas`), with its
+style sheet `assets/atlas.css` and the `atlas.*` messages of the app's
+catalogues in `assets/i18n.js`. The site's own scripts
+(`cartolex/site/assets/*.js`, joined into `assets/site.js`) put what they share
+on `window.CxSite`.
+
+## One atlas for the app and the site
+
+The site has no map of its own: its Atlas page mounts the app's atlas
+(`mountAtlas`, see {doc}`atlas`) with the site as its data source and its host.
+
+- **The source** (`assets/source.js`) answers from the site's files in the
+  shapes of the app's API: `bundle()` (`cartolex-atlas/3`, made in the browser
+  from `data/core.js`'s columns), `keywordUsers` (`data/keywords/<n>.js`),
+  `coauthors` (the atlas's `ringsOf` over the sparse lists of `data/links.js`,
+  read the first time the network is asked for), `compare` (the cosine of the
+  two vectors, the top-level themes in common, the texts written together),
+  `keywordsOf` and `land`. The site has no texts on the map and no time
+  windows: those methods are left out, and the atlas does not offer them.
+- **The host** (`assets/atlas.js`): the site's catalogues, its light or dark
+  look, the fragment's query as the atlas's address (`#/map?sel=person:s3`),
+  the browser's storage for the layout and the colour scheme, the pseudonyms
+  (`label`), and links to a person's or an organisation's page (no editing).
 
 ## What it holds
 
 `cartolex.site.data.gather` reads the atlas bundle (`GET /api/atlas`'s
-`build_bundle` and `map_extras`) and adds, per person, the themes of each level,
-the keywords, the organisations and the **co-authors**; per organisation its
-themes, keywords, members and the organisations of its level it writes with;
-per theme its people and organisations (a share of at least a fifth) and
-keywords.
+`build_bundle` and `map_extras`), the space of the themes
+(`cartolex.app.space_index`) and the co-authorship graph
+(`cartolex.app.coauthors`), and writes:
 
-- **Who writes with whom** comes from the app's co-author graph
-  (`cartolex.app.coauthors`, see `GET /api/atlas/coauthors` in {doc}`api`):
-  `cartolex.site.data.site_links` gives it over the site's own indexes as sparse
-  arrays (`SiteData.links`: `people` and `orgs`, each `ptr`, `nbr`, `cnt` with
-  the works together, the strongest first, and `hidden`, the partners in the
-  project the site does not carry; the people's `outside`). Each page reads its
-  own: a person's part of the people's details has `co` (flat pairs of a site
-  index and the works together; an index past the people is a projected
-  person), `co_hidden` and `co_outside`, an organisation's details `co`, a named
-  projected person's `details.projected`. Projected people are in the links only
-  when the site names them; under pseudonyms the indexes are the pseudonyms'
-  order, so the links name nobody. Organisations without a level of the project
-  are left out.
+- `core`: the bundle as columns: the theme tree; the people (place, the
+  theme shares of each level as `[node, thousandths…]`, at most 10 per level
+  and none under 0.5 %,
+  their organisations); the keywords; the organisations; the projected people;
+  the years; what the site can answer (`has`);
+- `people` and `orgs`: each one's keywords (15, the most used first) and vector
+  in the space of the themes (int8, base64), for « Compare »;
+- `keywords`: each keyword's users (`[count, person, thousandths, …]`, the 100
+  whose use it holds the largest share of);
+- `links` (`site_links`): who writes with whom over the site's own indexes,
+  as CSR lists (`ptr`, `nbr`, `cnt` texts together, the strongest first, and
+  `hidden`: partners in the project the site does not carry, only counted):
+  `people` (the people on the map in the site's order, then the projected
+  people the site names; `outside` counts co-authors outside the project) and
+  `orgs` (pairs of organisations of one level). Under pseudonyms the indexes
+  follow the pseudonyms, so the links name nobody; the rings are found in the
+  browser.
+
+The real nearest neighbours are no longer computed: the atlas shows real
+links (co-authors), and similarity only in « Compare ».
 
 - **Names** are shown only when the build says so; a site of people asks at
   each build (the API refuses a build without the answer, 422
@@ -73,7 +100,9 @@ keywords.
 - **Projected people** (placed on the finished map, possibly a sensitive set
   such as applicants) have their own question, `names_projected`, asked only
   when the project has some: pseudonyms (shuffled `q1`, `q2`…) unless named
-  explicitly, and then listed among the checks to look at.
+  explicitly, and then listed among the checks to look at. Unless named they
+  are left out of the site's links (a pseudonym beside a named co-author would
+  say who it is), and the name of their set is never carried.
 - **Texts**: none by default; `titles`, or `abstracts` (titles and abstracts),
   read through `shareable_parts()`, so a full text never goes in. A text is an
   entry per mapped author (`cartolex.site.data.SiteTexts`: two arrays over the
@@ -86,11 +115,12 @@ keywords.
   that sample) and warns when it passes 500 MB (`abstracts_large`,
   `titles_large`): on the national project the titles add 1.1 GB, the
   abstracts 8.7 GB (estimated).
-- Never a project id, an identifier, or the extra columns of the people's lists.
+- Never a project id, an identifier, a role, or the extra columns of the people's lists.
 
 `cartolex.site.checks.plan` gives the privacy summary and the checks before
 publishing: `no_map` (blocks), `names_unanswered` (to answer), `names_shown`,
-`projected_names_shown`, `abstracts_included`, `abstracts_large`, `titles_large`, `map_stale`, `themes_untranslated` (the same name in
+`projected_names_shown`, `abstracts_included`, `abstracts_large`, `titles_large`,
+`site_large`, `map_stale`, `themes_untranslated` (the same name in
 every display language), `themes_technical`, `themes_empty`, `title_generic`
 (to look at), `full_texts_kept` (good to know); each with the fix the screen
 offers (build the map, open the themes, change a field).
@@ -98,25 +128,29 @@ offers (build the map, open the themes, change a field).
 ## The pages
 
 Home (search a person, an organisation, a keyword or a theme; arrows move
-through the results), Map (the MapFrame's controller: permanent legend, one
-symbol per kind, hover card, labels of the selection and with the zoom, lines
-from a selected person to their co-authors (the thicker, the more works
-together) and dashed from an organisation to those it writes with, the plain
-caveat about distances, the world view over the Natural Earth outline), Themes (a
-treemap drill-down with the sub-themes as a list too, a small map, keywords,
-people, organisations), a page per person and per organisation (position,
-themes, keywords, co-authors or the organisations it writes with, texts when
-carried; « Print this page »),
-Index (people, organisations and keywords as searchable, paginated lists) and
-Method (what distances and co-authors mean, in plain words; what the site
-holds). Routes are
-in the fragment (`#/person/s3`); an unknown one says « Not found ».
+through the results), Atlas (the app's atlas: the treemap of the themes, the
+map, the card of links; its own Find, Back, Home, panes and full screen), a
+page per person and per organisation (themes per level, keywords,
+organisations or members, who they write with, texts when carried; « Show on
+the atlas », « Print this page »), Index (people, organisations and keywords
+as searchable, paginated lists) and Method (what distances mean, who writes
+with whom, what the site holds). Routes are in the fragment (`#/person/s3`);
+the themes' pages of earlier sites (`#/themes/<id>`) open the theme in the
+atlas; an unknown route says « Not found ».
 
 The site speaks English, French and Portuguese (Brazil)
 (`cartolex/site/i18n/`); the build chooses the one it opens in, and the reader
 can switch. The theme follows the system unless the reader chooses light or
 dark. It reflows down to 390 px, and prints without the navigation and the
 controls, the site's notice heading every page and folded details open.
+
+The plan also estimates what the atlas's data would weigh (`site_bytes`, from
+the counts and the project's co-author pairs, `cartolex.site.data.estimate_bytes`,
+by sizes per item measured on the large sample below): `core`, `links`, the
+`parts` read one at a time, and `atlas` (`core` and `links`, what the atlas
+reads at most at once). Past 50 MB (`LARGE_ATLAS_BYTES`, a project of about
+170,000 people) it warns (`site_large`, `size` and `total` in bytes): the site
+may be slow to open on an ordinary computer.
 
 ## Figures, tables and files
 
@@ -129,34 +163,41 @@ last two as jobs writing dated files into `outputs/exports/`.
 
 ## Measures
 
-Measured once on the L demo world (329 people on the map, 35 placed, 48
-organisations, 2 955 keywords, 163 themes), Chromium, from `file://`:
+The L demo world (329 people on the map, 35 placed, 48 organisations, 2 777
+keywords, 84 themes), built without names, before (`cartolex-site/2`, the
+site's own map) and after (`cartolex-site/3`, the app's atlas):
 
-| | without texts | with titles |
+| | before | after |
 | --- | --- | --- |
-| size | 0.79 MB | 1.32 MB |
-| build | 2.5 s | 0.8 s (the bundle read) |
-| home ready | 0.14 s | |
-| opened on the map, first frame drawn | 0.3–0.4 s | |
-| a person's page (details read) | 0.16 s | |
+| size, without texts | 0.71 MB | 1.13 MB |
+| size, with titles | 1.24 MB | 1.67 MB |
+| build, without texts | 1.8 s | 1.9 s |
+| build, with titles | 1.4 s | 1.5 s |
+| home ready (Chromium, `file://`) | 0.14 s | 0.14 s |
+| the map drawn | 0.3–0.4 s | 0.5 s (the atlas, treemap and card) |
 
-Since the co-authors replaced the nearest people, the L world's site builds in
-the same time (1.2 s, the co-author graph made in it; 0.26 s once kept) and
-weighs 0.73 MB. On a national sample (86,500 people on the map, 825,000 texts,
-2.7 million authorships) the site's links take 18 s, the co-author graphs
-included (the nearest people took 69 s), and add 18 MB spread over the
-people's parts and the details.
+`data/core.js` is 0.24 MB (the theme shares of every person), the keywords'
+users 0.28 MB, the atlas's script 0.23 MB, the people's parts 0.14 MB, the
+links 0.03 MB.
 
-`data/core.js` is 0.20 MB and the details 0.38 MB (since `cartolex-site/2`,
-`data/details.js` and the people's parts); the map's and the
-site's scripts together about 0.11 MB, the world outline 0.05 MB.
+A sample of 86 543 mapped people (1 million texts, 21 790 organisations,
+9 938 keywords): gathering the data took 74 s and 4.2 GB at most (123 s and
+3.4 GB before: the nearest neighbours are gone, the co-authors take 26 s);
+`data/core.js` is 14 MB (5 MB before, when every person's themes were in the
+details), the people's parts 35 MB, the keywords' users 7 MB, the links 18 MB
+(946 000 pairs). In Chromium, from `file://`: the core read in 0.4 s, the atlas
+bundle made from it in 0.3 s, the links read in 0.3 s; 180 MB of memory.
 
 ## Checks
 
 `tests/test_site.py` (the XS world): a pseudonymous site holds no name and no
-text; titles and abstracts never carry a private part; builds never overwrite
+text; the atlas's data (theme shares per level, organisations, keywords'
+users, vectors); the links are the app's co-authorship graph over the site's
+own indexes, organisations paired within a level, unnamed projected people
+left out; titles and abstracts never carry a private part; builds never overwrite
 each other and go stale after a decision changes; the share routes; the
 site's tokens equal the app's and its catalogues are complete.
 `tests/browser/test_offline_site.py` opens a built site from `file://` in Chromium with
-every request refused (and in Firefox when a build of it is installed), and
-checks the message a page shows without its files.
+every request refused (and in Firefox when a build of it is installed), walks
+from the search to a person's page and on to the atlas mounted over the
+site's files, and checks the message a page shows without its files.

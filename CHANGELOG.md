@@ -75,6 +75,20 @@ nothing in the engine names a particular deployment, source or procedure.
   view on screen is saved as a PNG or SVG image, with or without its legend. The
   keywords list takes `term=` (a keyword with the candidates merged into it).
 
+- **The shared site is the app's atlas.** The offline site mounts the app's own
+  atlas (one code for both, `docs/dev/atlas.md`) over a data source that reads
+  the site's files (`cartolex-site/3`): the map bundle as columns in
+  `data/core.js` (each person's theme shares, at most 10 per level), the
+  keywords' users (`data/keywords/<n>.js`), each person's and organisation's
+  keywords and vector for « Compare » (`data/people/<n>.js`, `data/orgs.js`),
+  and who writes with whom (`data/links.js`, sparse lists; the rings are found
+  in the browser). The site's map, legend, treemap and themes' pages are gone
+  (an old `#/themes/<id>` address opens the theme in the atlas); the people's
+  nearest neighbours are no longer computed, and a person's or an
+  organisation's page lists who they write with. Projected people are in the
+  links only when the site names them; neither their set's name nor anyone's
+  role is carried. The publishing plan estimates what the atlas's data would
+  weigh (`site_bytes`) and warns past 50 MB read at once (`site_large`).
 - **Projects of millions of texts on an ordinary computer.** Memory no longer
   grows with the texts; their processing runs in worker processes, and the
   results do not depend on how many.

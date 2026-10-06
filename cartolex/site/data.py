@@ -1,36 +1,39 @@
 # SPDX-License-Identifier: MIT
 """What an offline site shows, gathered from a built project.
 
-:func:`gather` reads the atlas bundle the app draws (the theme tree, people,
-keywords, the engine's units, projected people) and what the atlas adds from
-the tables (organisations, current affiliations), then each person's themes and
-keywords, each organisation's themes, keywords and members, each theme's people,
-organisations and keywords, and **who writes with whom** (:func:`site_links`: the
-co-authors of each person and the organisations each organisation writes with, as
-sparse arrays over the site's own indexes, from :mod:`cartolex.app.coauthors`).
+The site mounts the app's atlas (``cartolex/app/static/atlas/``, see ``docs/dev/atlas.md``)
+over a data source of its own, which answers from the site's files what the app answers
+from its server. :func:`gather` makes those files' contents:
+
+- ``core`` (``data/core.js``, read when the site opens): the atlas bundle of
+  ``GET /api/atlas`` (``cartolex-atlas/3``) as columns: the theme tree, the people (their
+  place, their themes' shares per level, their organisations), the keywords, the
+  organisations, the projected people, the years;
+- ``people`` (``data/people/<n>.js``, a part loaded with the person it holds): each
+  person's keywords and their vector in the space of the themes, for « Compare »;
+- ``orgs`` (``data/orgs.js``): the same for the organisations;
+- ``keywords`` (``data/keywords/<n>.js``): who uses each keyword most, with the share of
+  their use it holds;
+- ``links`` (``data/links.js``, loaded when the network is asked for): who writes with
+  whom, as sparse lists over the site's own indexes (:func:`site_links`);
+- ``texts`` (``data/texts/<n>.js``, only on request): the titles, or titles and abstracts.
 
 What a site never carries: a full text (only the parts
-:func:`cartolex.project.tables.shareable_parts` lets through, and only on
-request: titles, or titles and abstracts), the people's extra columns, their
-identifiers or their project ids. People get site ids (``s1``, ``s2``…) in an
-order of their own: by name when names are shown, shuffled otherwise, so the
-order says nothing either.
-
-The answer is split per page (V2-062): ``core`` (the map, the tree, the search)
-loads with every page, ``details`` with a person, organisation or theme page,
-``texts`` with a person page when texts are included. Who writes with whom goes with
-what each page loads: a person's co-authors in their part of the people's details
-(``co``: flat pairs of a site index and the works together), an organisation's partners
-in the details; :attr:`SiteData.links` keeps the whole as sparse arrays.
+:func:`cartolex.project.tables.shareable_parts` lets through, and only on request), the
+people's extra columns, their roles, their identifiers or their project ids, the name of a
+set of projected people. People get site ids (``s1``, ``s2``…) in an order of their own: by
+name when names are shown, shuffled otherwise, so the order says nothing either; projected
+people get ``q1``, ``q2``… and are left out of the links unless their names are shown.
 """
 
 from __future__ import annotations
 
+import base64
 import csv
 import random
 from collections import defaultdict
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
@@ -40,21 +43,54 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ABSTRACT_BYTES",
+    "KEYWORD_USERS",
     "SiteData",
     "SiteDataError",
     "SiteTexts",
+    "estimate_bytes",
     "gather",
     "project_context",
     "site_links",
 ]
 
-#: Keywords listed per person, organisation and theme.
+#: Keywords kept per person and organisation, the most used first.
 KEYWORDS = 15
-#: The share of a person's (an organisation's) usage above which they count toward a theme.
-THEME_SHARE = 0.2
+#: People kept per keyword (its users, the share of their use it holds the largest first).
+KEYWORD_USERS = 100
+#: Theme shares kept per person and level, the largest first, and the smallest kept (in
+#: thousandths): what a person's treemap and the map's fading can show.
+SHARES_KEPT = 10
+SHARE_MIN = 5
 #: Decimals kept for map coordinates and shares.
 XY = 4
 SHARE = 3
+
+
+#: The bytes a site's data takes per item, measured on a sample of 86,543 mapped people
+#: (9,938 keywords, 21,790 organisations, 263 themes, 946,327 pairs of co-authors): they
+#: estimate a site before it is built (:func:`estimate_bytes`).
+ITEM_BYTES = {
+    "core_person": 135,
+    "core_keyword": 56,
+    "core_org": 77,
+    "core_theme": 400,
+    "person_part": 410,
+    "keyword_users": 662,
+    "link_pair": 20,
+}
+
+
+def estimate_bytes(people: int, keywords: int, orgs: int, themes: int, pairs: int) -> dict:
+    """What a site's data would weigh, from its counts (:data:`ITEM_BYTES`): ``core``
+    (``data/core.js``, read with every page), ``links`` (``data/links.js``, read when the
+    network is first shown), ``parts`` (the people's and keywords' parts, read one at a
+    time), and ``atlas`` (``core`` and ``links``: what the atlas reads at most at once)."""
+    b = ITEM_BYTES
+    core = (people * b["core_person"] + keywords * b["core_keyword"] + orgs * b["core_org"]
+            + themes * b["core_theme"])  # fmt: skip
+    links = pairs * b["link_pair"]
+    parts = people * b["person_part"] + keywords * b["keyword_users"]
+    return {"core": core, "links": links, "parts": parts, "atlas": core + links}
 
 
 class SiteDataError(Exception):
@@ -70,12 +106,12 @@ class SiteData:
     """A site's data, per file, and its counts (for the privacy summary and ``site.json``)."""
 
     core: dict[str, Any]
-    details: dict[str, Any]
+    people: dict[str, Any]
+    orgs: dict[str, Any]
+    keywords: dict[str, Any]
+    links: dict[str, Any]
     texts: SiteTexts | None
-    counts: dict[str, int]
-    #: Who writes with whom (:func:`site_links`): sparse arrays over the site's indexes,
-    #: for the builder (the pages read each one's partners from their details).
-    links: dict[str, Any] | None = None
+    counts: dict[str, int] = field(default_factory=dict)
 
 
 def project_context(project: Project) -> Any:
@@ -94,116 +130,30 @@ def _r(value: Any, digits: int) -> float | None:
     return None if value is None else round(float(value), digits)
 
 
-def _top(shares: Mapping[str, float], n: int = 3) -> list[list[Any]]:
-    ranked = sorted(shares.items(), key=lambda kv: (-kv[1], kv[0]))[:n]
-    return [[node, round(share, SHARE)] for node, share in ranked if share > 0]
-
-
-def _largest(shares: Mapping[str, float]) -> str | None:
-    best, value = None, 0.0
-    for node, share in shares.items():
-        if share > value:
-            best, value = node, share
-    return best
-
-
-def _csr_over(graph: Any, site: Any) -> dict[str, Any]:
-    """The links of *graph* between the entities the site carries (*site*: each graph code's
-    index in the site, ``-1`` for none) as CSR arrays over those indexes, each entity's
-    partners the strongest first: ``ptr``, ``nbr``, ``cnt``; ``hidden``: each one's
-    partners the site does not carry."""
-    import numpy as np
-
-    n = int(site.max()) + 1 if len(site) and site.max() >= 0 else 0
-    ptr = np.asarray(graph.arrays["ptr"], dtype=np.int64)
-    nbr = np.asarray(graph.arrays["nbr"], dtype=np.int64)
-    cnt = np.asarray(graph.arrays["cnt"], dtype=np.int64)
-    src = np.repeat(np.arange(len(ptr) - 1, dtype=np.int64), np.diff(ptr))
-    a = site[src] if len(src) else src
-    b = site[nbr] if len(nbr) else nbr
-    deg = np.bincount(a[a >= 0], minlength=n)
-    keep = (a >= 0) & (b >= 0)
-    a, b, c = a[keep], b[keep], cnt[keep]
-    order = np.lexsort((b, -c, a))
-    kept = np.bincount(a, minlength=n)
-    return {
-        "ptr": np.r_[0, np.cumsum(kept)].astype(int).tolist(),
-        "nbr": b[order].astype(int).tolist(),
-        "cnt": c[order].astype(int).tolist(),
-        "hidden": (deg - kept).astype(int).tolist(),
-    }
-
-
-def _flat_pairs(csr: dict[str, Any], i: int) -> list[int]:
-    """The partners of index *i* of the CSR *csr* as flat pairs (index, works), the
-    strongest first."""
-    if i + 1 >= len(csr["ptr"]):
-        return []
-    lo, hi = csr["ptr"][i], csr["ptr"][i + 1]
-    return [v for pair in zip(csr["nbr"][lo:hi], csr["cnt"][lo:hi], strict=True) for v in pair]
-
-
-def site_links(
-    project: Project,
-    people: list[str],
-    projected: list[str],
-    orgs: list[dict[str, Any]],
-    cache: Any = None,
-) -> dict[str, Any]:
-    """Who writes with whom, as the site carries it: ``people`` over the site's people (the
-    index in *people*, the people on the map in the site's order, then *projected*, the
-    projected people the site names, after them), ``orgs`` over the site's organisations
-    (the index in *orgs*; pairs of one level). Each is CSR (``ptr``, ``nbr``, ``cnt``: the
-    works together, the strongest first) with ``hidden`` (the partners in the project the
-    site does not carry: never named, counted); the people's ``outside`` counts the authors
-    of their works outside the project. A pseudonymous site carries the same indexes as its
-    pseudonyms, so the links name nobody; projected people the site does not name are left
-    out of the links (counted in ``hidden``)."""
-    import numpy as np
-
-    from cartolex.app.coauthors import org_graph, person_graph
-
-    graph = person_graph(project, cache)
-    where = {p: k for k, p in enumerate([*people, *projected])}
-    site = np.asarray([where.get(i, -1) for i in graph.ids], dtype=np.int64)
-    links = _csr_over(graph, site)
-    n = len(people) + len(projected)
-    links["ptr"] += [links["ptr"][-1]] * (n + 1 - len(links["ptr"]))
-    links["hidden"] += [0] * (n - len(links["hidden"]))
-    outside = np.zeros(n, dtype=np.int64)
-    known = site >= 0
-    outside[site[known]] = np.asarray(graph.arrays["outside"])[known]
-    links["outside"] = outside.tolist()
-    out: dict[str, Any] = {"max_authors": graph.max_authors, "people": links}
-    # Organisations: each level's graph, over the site's indexes (a pair is of one level).
-    index = {o["id"]: k for k, o in enumerate(orgs)}
-    a_all: list[np.ndarray] = []
-    b_all: list[np.ndarray] = []
-    c_all: list[np.ndarray] = []
-    hidden = np.zeros(len(orgs), dtype=np.int64)
-    if project.layout.table("organisations").exists():
-        # the organisations without a level of the project are not shown on a map
-        for level in sorted({o.get("level") for o in orgs if o.get("level")}):
-            og = org_graph(project, level, cache)
-            at = np.asarray([index.get(i, -1) for i in og.ids], dtype=np.int64)
-            part = _csr_over(og, at)
-            ptr = np.asarray(part["ptr"], dtype=np.int64)
-            src = np.repeat(np.arange(len(ptr) - 1, dtype=np.int64), np.diff(ptr))
-            a_all.append(src)
-            b_all.append(np.asarray(part["nbr"], dtype=np.int64))
-            c_all.append(np.asarray(part["cnt"], dtype=np.int64))
-            hidden[: len(part["hidden"])] += np.asarray(part["hidden"], dtype=np.int64)
-    a = np.concatenate(a_all) if a_all else np.zeros(0, np.int64)
-    b = np.concatenate(b_all) if b_all else np.zeros(0, np.int64)
-    c = np.concatenate(c_all) if c_all else np.zeros(0, np.int64)
-    order = np.lexsort((b, -c, a))
-    out["orgs"] = {
-        "ptr": np.r_[0, np.cumsum(np.bincount(a, minlength=len(orgs)))].astype(int).tolist(),
-        "nbr": b[order].astype(int).tolist(),
-        "cnt": c[order].astype(int).tolist(),
-        "hidden": hidden.tolist(),
-    }
+def _shares(levels: list[dict[str, float]], code: Mapping[str, int]) -> list[list[int]]:
+    """A person's shares per level as ``[node code, thousandths, …]``, the largest first,
+    at most :data:`SHARES_KEPT` per level and none under :data:`SHARE_MIN` thousandths."""
+    out = []
+    for shares in levels:
+        ranked = sorted(shares.items(), key=lambda kv: (-kv[1], kv[0]))[:SHARES_KEPT]
+        flat: list[int] = []
+        for node, share in ranked:
+            permille = round(share * 1000)
+            if permille >= SHARE_MIN and node in code:
+                flat += [code[node], permille]
+        out.append(flat)
     return out
+
+
+def _vector(v: Any) -> str:
+    """A vector as base64 bytes (int8, its largest component ±127): a cosine does not
+    depend on the scale, and the site reads it as ``Int8Array``."""
+    import numpy as np
+
+    v = np.asarray(v, dtype=np.float64)
+    top = float(np.abs(v).max()) if len(v) else 0.0
+    q = np.zeros(len(v), np.int8) if top <= 0 else np.round(v / top * 127).astype(np.int8)
+    return base64.b64encode(q.tobytes()).decode("ascii")
 
 
 #: A text's entry in a site, beyond its title's bytes (``{"title":"","year":2020},``).
@@ -392,6 +342,109 @@ def _names_of(ctx: Any) -> dict[str, str]:
     return out
 
 
+def _csr_over(graph: Any, site: Any) -> dict[str, Any]:
+    """The links of *graph* between the entities the site carries (*site*: each graph code's
+    index in the site, ``-1`` for none) as CSR arrays over those indexes, each entity's
+    partners the strongest first: ``ptr``, ``nbr``, ``cnt``; ``hidden``: each one's
+    partners the site does not carry."""
+    import numpy as np
+
+    n = int(site.max()) + 1 if len(site) and site.max() >= 0 else 0
+    ptr = np.asarray(graph.arrays["ptr"], dtype=np.int64)
+    nbr = np.asarray(graph.arrays["nbr"], dtype=np.int64)
+    cnt = np.asarray(graph.arrays["cnt"], dtype=np.int64)
+    src = np.repeat(np.arange(len(ptr) - 1, dtype=np.int64), np.diff(ptr))
+    a = site[src] if len(src) else src
+    b = site[nbr] if len(nbr) else nbr
+    deg = np.bincount(a[a >= 0], minlength=n)
+    keep = (a >= 0) & (b >= 0)
+    a, b, c = a[keep], b[keep], cnt[keep]
+    order = np.lexsort((b, -c, a))
+    kept = np.bincount(a, minlength=n)
+    return {
+        "ptr": np.r_[0, np.cumsum(kept)].astype(int).tolist(),
+        "nbr": b[order].astype(int).tolist(),
+        "cnt": c[order].astype(int).tolist(),
+        "hidden": (deg - kept).astype(int).tolist(),
+    }
+
+
+def site_links(
+    project: Project,
+    people: list[str],
+    projected: list[str],
+    orgs: list[dict[str, Any]],
+    cache: Any = None,
+) -> dict[str, Any]:
+    """Who writes with whom, as the site carries it: ``people`` over the site's people (the
+    index in *people*, the people on the map in the site's order, then *projected*, the
+    projected people the site names, after them), ``orgs`` over the site's organisations
+    (the index in *orgs*; pairs of one level). Each is CSR (``ptr``, ``nbr``, ``cnt``: the
+    works together, the strongest first) with ``hidden`` (the partners in the project the
+    site does not carry: never named, counted); the people's ``outside`` counts the authors
+    of their works outside the project. A pseudonymous site carries the same indexes as its
+    pseudonyms, so the links name nobody; projected people the site does not name are left
+    out of the links (counted in ``hidden``)."""
+    import numpy as np
+
+    from cartolex.app.coauthors import org_graph, person_graph
+
+    graph = person_graph(project, cache)
+    where = {p: k for k, p in enumerate([*people, *projected])}
+    site = np.asarray([where.get(i, -1) for i in graph.ids], dtype=np.int64)
+    links = _csr_over(graph, site)
+    n = len(people) + len(projected)
+    links["ptr"] += [links["ptr"][-1]] * (n + 1 - len(links["ptr"]))
+    links["hidden"] += [0] * (n - len(links["hidden"]))
+    outside = np.zeros(n, dtype=np.int64)
+    known = site >= 0
+    outside[site[known]] = np.asarray(graph.arrays["outside"])[known]
+    links["outside"] = outside.tolist()
+    out: dict[str, Any] = {"max_authors": graph.max_authors, "people": links}
+    # Organisations: each level's graph, over the site's indexes (a pair is of one level).
+    index = {o["id"]: k for k, o in enumerate(orgs)}
+    a_all: list[np.ndarray] = []
+    b_all: list[np.ndarray] = []
+    c_all: list[np.ndarray] = []
+    hidden = np.zeros(len(orgs), dtype=np.int64)
+    if project.layout.table("organisations").exists():
+        # the organisations without a level of the project are not shown on a map
+        for level in sorted({o.get("level") for o in orgs if o.get("level")}):
+            og = org_graph(project, level, cache)
+            at = np.asarray([index.get(i, -1) for i in og.ids], dtype=np.int64)
+            part = _csr_over(og, at)
+            ptr = np.asarray(part["ptr"], dtype=np.int64)
+            src = np.repeat(np.arange(len(ptr) - 1, dtype=np.int64), np.diff(ptr))
+            a_all.append(src)
+            b_all.append(np.asarray(part["nbr"], dtype=np.int64))
+            c_all.append(np.asarray(part["cnt"], dtype=np.int64))
+            hidden[: len(part["hidden"])] += np.asarray(part["hidden"], dtype=np.int64)
+    a = np.concatenate(a_all) if a_all else np.zeros(0, np.int64)
+    b = np.concatenate(b_all) if b_all else np.zeros(0, np.int64)
+    c = np.concatenate(c_all) if c_all else np.zeros(0, np.int64)
+    order = np.lexsort((b, -c, a))
+    out["orgs"] = {
+        "ptr": np.r_[0, np.cumsum(np.bincount(a, minlength=len(orgs)))].astype(int).tolist(),
+        "nbr": b[order].astype(int).tolist(),
+        "cnt": c[order].astype(int).tolist(),
+        "hidden": hidden.tolist(),
+    }
+    return out
+
+
+def _space(ctx: Any, bundle: dict[str, Any], extras: dict[str, Any]) -> Any:
+    """The space of the themes with the map's people (``None`` without one)."""
+    from cartolex.app.space_index import space_run, space_view
+
+    run = space_run(ctx.layout)
+    if run is None:
+        return None
+    try:
+        return space_view(ctx, run, bundle, extras)
+    except (OSError, ValueError, KeyError):
+        return None
+
+
 def gather(
     project: Project,
     *,
@@ -404,7 +457,9 @@ def gather(
     """The data of a site of *project*: names shown when *names* (projected people's when
     *names_projected*: pseudonyms otherwise, in a shuffled order), texts as *texts*
     (``none``, ``titles`` or ``abstracts``). Raises :class:`SiteDataError` without a map."""
-    from cartolex.app.atlas_layers import keyword_sets, map_extras
+    import numpy as np
+
+    from cartolex.app.atlas_layers import keyword_sets, map_extras, terms_of_people
     from cartolex.app.routes.atlas import build_bundle, lineage
 
     say = progress or (lambda fraction, message: None)
@@ -425,33 +480,38 @@ def gather(
             "level": n["level"],
             "order": n["order"],
             "names": n["names"],
+            "color": n.get("color"),
             "weight": _r(n["weight"], SHARE),
             "share": _r(n["share"], SHARE),
             "keywords": n["keywords"],
+            "keywords_counted": n.get("keywords_counted", 0),
+            "top_keywords": list(n.get("top_keywords") or []),
+            "x": _r(n.get("x"), XY),
+            "y": _r(n.get("y"), XY),
         }
         for n in bundle["nodes"]
     ]
+    code = {n["id"]: k for k, n in enumerate(nodes)}
 
     # ── people, in an order that says nothing ──
-    say(0.2, "people")
+    say(0.15, "people")
+    at_of = {id(p): k for k, p in enumerate(bundle["people"])}  # the bundle's index
     mapped = [p for p in bundle["people"] if p["person_id"] and p["x"] is not None]
     if names:
         mapped.sort(key=lambda p: (p["name"].split(" ")[-1].lower(), p["name"].lower()))
     else:
         (rng or random.SystemRandom()).shuffle(mapped)
-    sid = {p["person_id"]: f"s{k + 1}" for k, p in enumerate(mapped)}
-    people_core = {
-        "id": [sid[p["person_id"]] for p in mapped],
-        "name": [p["name"] if names else None for p in mapped],
-        "x": [_r(p["x"], XY) for p in mapped],
-        "y": [_r(p["y"], XY) for p in mapped],
-        "top": [_largest(p["shares"][0]) if p["shares"] else None for p in mapped],
-    }
+    pids = [p["person_id"] for p in mapped]
+    sid = {pid: f"s{k + 1}" for k, pid in enumerate(pids)}
+    site_of_bundle = np.full(len(bundle["people"]), -1, np.int64)
+    for k, p in enumerate(mapped):
+        site_of_bundle[at_of[id(p)]] = k
 
     # ── organisations, always named ──
-    say(0.35, "organisations")
-    orgs = [o for o in extras["organisations"]]
+    say(0.25, "organisations")
+    orgs = list(extras["organisations"])
     levels = extras["organisation_levels"]
+    person_orgs = {pid: info.get("orgs") or [] for pid, info in extras["people"].items()}
     if not orgs:  # no organisations table: the engine's units stand in
         orgs = [
             {
@@ -462,45 +522,32 @@ def gather(
             for u in bundle["units"]
         ]  # fmt: skip
         levels = [{"id": "unit", "names": {}, "count": len(orgs)}] if orgs else []
+        person_orgs = {p["person_id"]: [p["unit"]] for p in mapped if p.get("unit")}
+    position = {o["id"]: k for k, o in enumerate(orgs)}
     oid = {o["id"]: f"o{k + 1}" for k, o in enumerate(orgs)}
-    person_orgs = {pid: info.get("orgs") or [] for pid, info in extras["people"].items()}
-    members: dict[str, list[str]] = defaultdict(list)
-    member_pids: dict[str, list[str]] = defaultdict(list)
-    parents = {o["id"]: list(o.get("parents") or []) for o in orgs}
-    for p in mapped:
-        todo, seen = list(person_orgs.get(p["person_id"], [])), set()
-        while todo:
-            o = todo.pop()
-            if o in seen or o not in oid:
-                continue
-            seen.add(o)
-            members[o].append(sid[p["person_id"]])
-            member_pids[o].append(p["person_id"])
-            todo.extend(parents.get(o, []))
-    shares_of = {p["person_id"]: p["shares"] for p in mapped}
-    org_shares: dict[str, list[dict[str, float]]] = {}
-    for o in orgs:
-        pids = member_pids[o["id"]]
-        levels_sum: list[dict[str, float]] = [defaultdict(float) for _ in range(depth)]
-        for pid in pids:
-            for lv, shares in enumerate(shares_of[pid][:depth]):
-                for node, share in shares.items():
-                    levels_sum[lv][node] += share / len(pids)
-        org_shares[o["id"]] = [dict(s) for s in levels_sum]
+
+    people_core = {
+        "id": [sid[pid] for pid in pids],
+        "name": [p["name"] if names else None for p in mapped],
+        "x": [_r(p["x"], XY) for p in mapped],
+        "y": [_r(p["y"], XY) for p in mapped],
+        "shares": [_shares(p["shares"][:depth], code) for p in mapped],
+        "orgs": [[position[o] for o in person_orgs.get(pid, []) if o in position] for pid in pids],
+    }
     orgs_core = {
         "id": [oid[o["id"]] for o in orgs],
         "name": [o["name"] for o in orgs],
         "acronym": [o.get("acronym") or "" for o in orgs],
         "level": [o["level"] or "" for o in orgs],
-        "parents": [[oid[q] for q in o.get("parents") or [] if q in oid] for o in orgs],
+        "parents": [[position[q] for q in o.get("parents") or [] if q in position] for o in orgs],
         "x": [_r(o["x"], XY) for o in orgs],
         "y": [_r(o["y"], XY) for o in orgs],
-        "members": [len(members[o["id"]]) for o in orgs],
+        "members": [int(o.get("members") or 0) for o in orgs],
+        "members_ever": [int(o.get("members_ever") or 0) for o in orgs],
         "location": [
             [o["location"]["lon"], o["location"]["lat"]] if o.get("location") else None
             for o in orgs
         ],
-        "top": [_largest(org_shares[o["id"]][0]) if org_shares[o["id"]] else None for o in orgs],
     }
 
     # ── keywords ──
@@ -509,8 +556,12 @@ def gather(
         "term": [k["term"] for k in keywords],
         "x": [_r(k["x"], XY) for k in keywords],
         "y": [_r(k["y"], XY) for k in keywords],
-        "node": [k["node"] for k in keywords],
+        "node": [code.get(k["node"], -1) if k["node"] else -1 for k in keywords],
+        "level": [k.get("level") for k in keywords],
+        "counts_to": [k.get("counts_to") or 0 for k in keywords],
         "weight": [_r(k["weight"] or 0, SHARE) for k in keywords],
+        "share": [_r(k.get("share") or 0, SHARE) for k in keywords],
+        "category": [k.get("category") for k in keywords],
     }
 
     # ── projected people: placed on the finished map, never moving it ──
@@ -526,99 +577,62 @@ def gather(
         ],
         "x": [_r(o["x"], XY) for o in projected],
         "y": [_r(o["y"], XY) for o in projected],
-        "top": [_largest(o["shares"][0]) if o["shares"] else None for o in projected],
+        "shares": [_shares(o["shares"][:depth], code) for o in projected],
     }
 
-    # ── who writes with whom: over the site's indexes, the projected only when named ──
-    say(0.5, "co-authors")
-    links = site_links(
-        project,
-        [p["person_id"] for p in mapped],
-        [o["person_id"] for o in projected] if names_projected else [],
-        orgs if extras["organisations"] else [],
-    )
-    people_co = links["people"]
-
-    def co_of(i: int) -> list[int]:
-        return _flat_pairs(people_co, i)
-
-    say(0.65, "keywords")
-    person_terms = keyword_sets(ctx, "person", [p["person_id"] for p in mapped])
+    # ── what a person, an organisation and a keyword add when they are in focus ──
+    say(0.4, "keywords")
+    by_person = terms_of_people(ctx)
+    person_terms = keyword_sets(ctx, "person", pids, by_person=by_person)
     org_terms = keyword_sets(
-        ctx, "organisation", list(oid), {"organisations": orgs, "people": extras["people"]}
+        ctx, "organisation", list(position), {"organisations": orgs, "people": extras["people"]},
+        by_person=by_person,
+    )  # fmt: skip
+    say(0.55, "the space of the themes")
+    space = _space(ctx, bundle, extras)
+    people_details: dict[str, dict[str, Any]] = {}
+    for pid in pids:
+        entry: dict[str, Any] = {"k": person_terms.get(pid, [])[:KEYWORDS]}
+        row = space.row_of.get(pid) if space is not None else None
+        if row is not None:
+            entry["v"] = _vector(space.space.vectors[row])
+        people_details[sid[pid]] = entry
+    orgs_details: dict[str, dict[str, Any]] = {}
+    for o in orgs:
+        entry = {"k": org_terms.get(o["id"], [])[:KEYWORDS]}
+        vector = space.org_vector(o["id"]) if space is not None else None
+        if vector is not None:
+            entry["v"] = _vector(vector)
+        orgs_details[oid[o["id"]]] = entry
+    users: dict[str, list[int]] = {}
+    if space is not None:
+        say(0.65, "who uses each keyword")
+        for k, term in enumerate(kw_core["term"]):
+            col = space.space.column.get(term.strip().casefold())
+            if col is None:
+                continue
+            rows, share = space.space.users_of(col)
+            at = space.at[rows]
+            keep = at >= 0
+            mine = site_of_bundle[at[keep]]
+            share = np.asarray(share)[keep]
+            keep = mine >= 0
+            mine, share = mine[keep], share[keep]
+            order = np.lexsort((mine, -share))[:KEYWORD_USERS]
+            flat = np.empty(2 * len(order), np.int64)
+            flat[0::2] = mine[order]
+            flat[1::2] = np.maximum(1, np.round(share[order] * 1000))
+            users[str(k)] = [int(len(mine)), *flat.tolist()]
+
+    # ── who writes with whom ──
+    say(0.75, "co-authors")
+    links = site_links(
+        project, pids, [o["person_id"] for o in projected] if names_projected else [], orgs
     )
-    people_details = {}
-    for k, p in enumerate(mapped):
-        pid = p["person_id"]
-        people_details[sid[pid]] = {
-            "themes": [_top(s) for s in p["shares"][:depth]],
-            "keywords": person_terms.get(pid, [])[:KEYWORDS],
-            "orgs": [oid[o] for o in person_orgs.get(pid, []) if o in oid],
-            "co": co_of(k),
-            "co_hidden": people_co["hidden"][k],
-            "co_outside": people_co["outside"][k],
-        }
-    orgs_co = links["orgs"]
-    orgs_details = {
-        oid[o["id"]]: {
-            "themes": [_top(s) for s in org_shares[o["id"]]],
-            "keywords": org_terms.get(o["id"], [])[:KEYWORDS],
-            "members": members[o["id"]],
-            "co": _flat_pairs(orgs_co, k),
-        }
-        for k, o in enumerate(orgs)
-    }
-    # A projected person's co-authors, when the site names them (else not in the links).
-    projected_details = {
-        projected_core["id"][j]: {"co": co_of(len(mapped) + j)}
-        for j in range(len(projected) if names_projected else 0)
-    }
-
-    # ── details: a theme's people, organisations and keywords ──
-    say(0.8, "themes")
-    by_level: dict[int, set[str]] = defaultdict(set)
-    for n in nodes:
-        by_level[n["level"]].add(n["id"])
-    themes_details: dict[str, dict[str, Any]] = {}
-    top_keywords = {n["id"]: n["top_keywords"] for n in bundle["nodes"]}
-    for n in nodes:
-        lv = n["level"] - 1
-        ranked_people = sorted(
-            (
-                (p["shares"][lv].get(n["id"], 0.0), sid[p["person_id"]])
-                for p in mapped
-                if lv < len(p["shares"]) and p["shares"][lv].get(n["id"], 0.0) >= THEME_SHARE
-            ),
-            key=lambda sv: (-sv[0], sv[1]),
-        )
-        ranked_orgs = sorted(
-            (
-                (org_shares[o["id"]][lv].get(n["id"], 0.0), oid[o["id"]])
-                for o in orgs
-                if lv < len(org_shares[o["id"]])
-                and org_shares[o["id"]][lv].get(n["id"], 0.0) >= THEME_SHARE
-            ),
-            key=lambda sv: (-sv[0], sv[1]),
-        )
-        themes_details[n["id"]] = {
-            "people": [[s, round(v, SHARE)] for v, s in ranked_people],
-            "orgs": [[s, round(v, SHARE)] for v, s in ranked_orgs],
-            "keywords": list(top_keywords.get(n["id"]) or [])[:KEYWORDS],
-        }
-
-    # Keywords → the people for whom they are among the main ones.
-    used_by: dict[str, list[str]] = defaultdict(list)
-    for p in mapped:
-        for term in person_terms.get(p["person_id"], [])[:KEYWORDS]:
-            used_by[term].append(sid[p["person_id"]])
 
     # ── texts, on request ──
     say(0.9, "texts")
-    texts_part = SiteTexts.of(
-        project,
-        {p["person_id"]: sid[p["person_id"]] for p in mapped if p["person_id"] in sid},
-        texts,
-    )
+    texts_part = SiteTexts.of(project, sid, texts)
 
     config = project.config
     core = {
@@ -633,16 +647,15 @@ def gather(
         "org_levels": [{"id": lv["id"], "names": lv["names"]} for lv in levels],
         "projected": projected_core,
         "bounds": bundle["bounds"],
+        "years": extras.get("years") or {},
         "names": bool(names),
         "names_projected": bool(names_projected),
         "texts": texts,
-    }
-    details = {
-        "people": people_details,
-        "orgs": orgs_details,
-        "projected": projected_details,
-        "themes": themes_details,
-        "used_by": dict(used_by),
+        "has": {
+            "vectors": space is not None,
+            "users": bool(users),
+            "links": True,
+        },
     }
     counts = {
         "people": len(mapped),
@@ -652,6 +665,14 @@ def gather(
         "themes": len(nodes),
         "texts": texts_part.count if texts_part is not None else 0,
         "abstracts": 0,  # counted as the site is written
+        "coauthor_links": len(links["people"]["nbr"]) // 2,
     }
-    counts["coauthor_links"] = len(links["people"]["nbr"]) // 2
-    return SiteData(core=core, details=details, texts=texts_part, counts=counts, links=links)
+    return SiteData(
+        core=core,
+        people=people_details,
+        orgs=orgs_details,
+        keywords=users,
+        links=links,
+        texts=texts_part,
+        counts=counts,
+    )

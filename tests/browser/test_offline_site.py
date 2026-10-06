@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
 """The offline site opened from `file://`, with every request refused: it needs no server and
-no network. A search leads to a person's page and their real neighbours; the map is drawn;
-an unknown address says « Not found »; a page without its files says to unzip them first."""
+no network. A search leads to a person's page, then to the app's atlas mounted over the
+site's files; an unknown address says « Not found »; a page without its files says to unzip
+them first."""
 
 from __future__ import annotations
 

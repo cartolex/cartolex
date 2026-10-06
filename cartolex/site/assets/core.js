@@ -5,8 +5,8 @@
  * preferences. A classic script (a page opened from `file://` cannot load ES
  * modules): it puts what the other scripts use on `window.CxSite`.
  *
- * The data comes as classic scripts too (`data/core.js`, `data/details.js`, and
- * the parts of the people's details and texts, `data/people/<n>.js` and
+ * The data comes as classic scripts too (`data/core.js`, `data/orgs.js`,
+ * `data/links.js`, and the parts `data/people/<n>.js`, `data/keywords/<n>.js`,
  * `data/texts/<n>.js`), each setting `window.CX_SITE[<part>]`: a page opened from
  * `file://` can load a script, not read a JSON file.
  */
@@ -128,7 +128,18 @@
     return Number.parseInt(String(id).slice(1), 10) || 0;
   }
 
-  /** The indexes of the core data: the tree, people, organisations, keywords. */
+  /** Integers sent as base64 bytes (`data.py`'s `_ints`): a typed array of *Type*. */
+  S.ints = function ints(b64, Type) {
+    const bin = window.atob(b64 || '');
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+    return new (Type || Int32Array)(bytes.buffer);
+  };
+
+  /**
+   * The indexes of the core data: the tree, people, organisations, keywords, and
+   * each organisation's members (directly or through an organisation below it).
+   */
   S.indexData = function indexData(core) {
     const nodes = new Map(core.nodes.map((n) => [n.id, n]));
     const children = new Map([[null, []]]);
@@ -138,10 +149,8 @@
       list.sort((a, b) => (nodes.get(a).order - nodes.get(b).order) || (a < b ? -1 : 1));
     }
     const tops = children.get(null);
-    const hue = new Map();
     const topOf = new Map();
     const visit = (id, top) => {
-      hue.set(id, tops.indexOf(top) % 12);
       topOf.set(id, top);
       (children.get(id) || []).forEach((c) => visit(c, top));
     };
@@ -150,12 +159,51 @@
     const byOrg = new Map(core.orgs.id.map((id, i) => [id, i]));
     const byTerm = new Map(core.keywords.term.map((term, i) => [term, i]));
     const byProjected = new Map(core.projected.id.map((id, i) => [id, i]));
-    return { core, nodes, children, tops, hue, topOf, byPerson, byOrg, byTerm, byProjected };
+    const members = core.orgs.id.map(() => []);
+    core.people.orgs.forEach((list, i) => {
+      const seen = new Set();
+      const todo = list.slice();
+      while (todo.length) {
+        const o = todo.pop();
+        if (seen.has(o)) continue;
+        seen.add(o);
+        members[o].push(i);
+        todo.push(...core.orgs.parents[o]);
+      }
+    });
+    return { core, nodes, children, tops, topOf, byPerson, byOrg, byTerm, byProjected, members };
   };
 
-  /** 0–11: a node's hue family; 12: none. */
-  S.colourOf = function colourOf(node) {
-    return node && S.ix.hue.has(node) ? S.ix.hue.get(node) : 12;
+  /** A person's shares at *level* (0: the top), as `[[node id, share]]`, the largest first. */
+  S.sharesOf = function sharesOf(i, level, list) {
+    const flat = ((list || S.ix.core.people.shares)[i] || [])[level || 0] || [];
+    const out = [];
+    for (let k = 0; k + 1 < flat.length; k += 2) out.push([S.ix.core.nodes[flat[k]].id, flat[k + 1] / 1000]);
+    return out;
+  };
+
+  /** An organisation's shares at *level*: the mean of its members'. */
+  S.orgSharesOf = function orgSharesOf(o, level) {
+    const people = S.ix.members[o] || [];
+    const total = new Map();
+    people.forEach((i) => S.sharesOf(i, level).forEach(([node, share]) => {
+      total.set(node, (total.get(node) || 0) + share / people.length);
+    }));
+    return [...total].sort((a, b) => b[1] - a[1]);
+  };
+
+  /** A person's main top-level theme (or null). */
+  S.topOfPerson = function topOfPerson(i) {
+    const first = S.sharesOf(i, 0)[0];
+    return first ? first[0] : null;
+  };
+
+  /** A theme's colour: the atlas's colour scheme when the site has the atlas, else its hue. */
+  S.themeColour = function themeColour(id) {
+    const top = S.ix.topOf.get(id) || id;
+    const colours = S.themeColours ? S.themeColours() : null;
+    if (colours && colours.get(top)) return colours.get(top);
+    return `var(--cx-hue-${(Math.max(0, S.ix.tops.indexOf(top)) % 12) + 1})`;
   };
 
   /** A theme's name in the site's language, else in the first language it has. */
@@ -178,7 +226,7 @@
     return p.name[i] || S.t('projected.pseudonym', { n: numberOf(p.id[i]) });
   };
 
-  /** An organisation's short name (its acronym, else its name) and its full name. */
+  /** An organisation's short name (its acronym, else its name). */
   S.orgShort = function orgShort(i) {
     const o = S.ix.core.orgs;
     return o.acronym[i] || o.name[i];
@@ -194,7 +242,7 @@
 
   const waiting = new Map();
 
-  /** Load a data part (`details`, `texts`) once; *done(ok)* when it is there or missing. */
+  /** Load a data part (`orgs`, `links`, `people/3`…) once; *done(ok)* when it is there or missing. */
   S.need = function need(part, done) {
     if (DATA[part]) {
       done(true);
@@ -217,79 +265,24 @@
     document.head.appendChild(script);
   };
 
+  /** A data part, as a promise of whether it is there. */
+  S.load = function load(part) {
+    return new Promise((resolve) => { S.need(part, resolve); });
+  };
+
   /** The part holding a person's details (`people`) or texts (`texts`): the part
-   * `(number − 1) mod n` of their id `s<number>`, *n* in `core.shards`. */
+   * `(number − 1) mod n` of their id `s<number>`; a keyword's users (`keywords`): the
+   * part `index mod n` of its index; *n* in `core.shards`. */
   S.partOf = function partOf(kind, id) {
     const n = ((DATA.core && DATA.core.shards) || {})[kind] || 1;
-    return `${kind}/${(parseInt(String(id).slice(1), 10) - 1) % n}`;
+    const k = typeof id === 'number' ? id : parseInt(String(id).slice(1), 10) - 1;
+    return `${kind}/${k % n}`;
   };
 
   /** A person's details or texts, once their part is loaded (`undefined` before). */
   S.personPart = function personPart(kind, id) {
     const part = DATA[S.partOf(kind, id)];
     return part ? part[id] : undefined;
-  };
-
-  /**
-   * Who writes with a person (`people`: an index of `core.people`, or after them of
-   * `core.projected`) or an organisation (`orgs`: an index of `core.orgs`), from their
-   * details (`co`: flat pairs of an index and the works together): `[[index, works]]`, the
-   * strongest first; null before the details are loaded.
-   */
-  S.partners = function partners(kind, i) {
-    const core = DATA.core;
-    let d = null;
-    if (kind === 'orgs') d = DATA.details && DATA.details.orgs[core.orgs.id[i]];
-    else if (i < core.people.id.length) d = S.personPart('people', core.people.id[i]);
-    else d = DATA.details && (DATA.details.projected || {})[core.projected.id[i - core.people.id.length]];
-    if (d === undefined || (d === null && !DATA.details)) return null;
-    const flat = (d && d.co) || [];
-    const out = [];
-    for (let k = 0; k + 1 < flat.length; k += 2) out.push([flat[k], flat[k + 1]]);
-    return out;
-  };
-
-  /** A partner's selection (`{kind, id}`) from its index in the links of *kind*. */
-  S.partnerSel = function partnerSel(kind, j) {
-    const core = DATA.core;
-    if (kind === 'orgs') return { kind: 'org', id: core.orgs.id[j] };
-    const n = core.people.id.length;
-    return j < n ? { kind: 'person', id: core.people.id[j] } : { kind: 'projected', id: core.projected.id[j - n] };
-  };
-
-  /** A selection's links and index in them (`['people' | 'orgs', i]`), or null. */
-  S.selIndex = function selIndex(sel) {
-    const ix = S.ix;
-    if (!sel) return null;
-    if (sel.kind === 'person' && ix.byPerson.has(sel.id)) return ['people', ix.byPerson.get(sel.id)];
-    if (sel.kind === 'projected' && ix.byProjected.has(sel.id)) {
-      return ['people', ix.core.people.id.length + ix.byProjected.get(sel.id)];
-    }
-    if (sel.kind === 'org' && ix.byOrg.has(sel.id)) return ['orgs', ix.byOrg.get(sel.id)];
-    return null;
-  };
-
-  /** The title of a list of partners: « Co-authors (N) » or « Writes with (N) ». */
-  S.coTitle = function coTitle(kind, n) {
-    return S.tn(kind === 'orgs' ? 'org.coauthors' : 'person.coauthors', n);
-  };
-
-  /** A list of partners (`[[index, works]]` of the links of *kind*), each a button that
-   * selects it (*onSelect*), else a link to its page, with the works together. */
-  S.partnerList = function partnerList(kind, co, onSelect) {
-    const ix = S.ix;
-    if (!co.length) return S.h('p', { class: 'cx-muted', text: S.t('page.none') });
-    return S.h('ol', { class: 'cx-list' }, co.map(([j, n]) => {
-      const sel = S.partnerSel(kind, j);
-      const name = sel.kind === 'person' ? S.personName(ix.byPerson.get(sel.id))
-        : sel.kind === 'projected' ? S.projectedName(ix.byProjected.get(sel.id))
-          : ix.core.orgs.name[ix.byOrg.get(sel.id)];
-      const open = onSelect
-        ? S.h('button', { type: 'button', class: 'cx-link-button', onclick: () => onSelect(sel) }, name)
-        : S.link(sel.kind === 'person' ? `/person/${sel.id}` : sel.kind === 'org' ? `/org/${sel.id}`
-          : `/map?sel=${encodeURIComponent(`projected:${sel.id}`)}`, name);
-      return S.h('li', {}, [open, ' ', S.h('span', { class: 'cx-muted', text: S.tn('coauthors.works', n) })]);
-    }));
   };
 
   /** The message a page shows when a part of the site's files is missing. */

@@ -1872,6 +1872,7 @@
   "share.check.names_shown": "{count, plural, one {# personne est montrée} other {# personnes sont montrées}} sous son nom : n'envoyez le site qu'à des personnes autorisées à les voir.",
   "share.check.abstracts_included": "Les résumés des textes seront dans le site.",
   "share.check.titles_large": "Les titres des textes ajoutent environ {size} au site : un site aussi gros est lent à ouvrir et difficile à envoyer.",
+  "share.check.site_large": "L'atlas lit environ {size} à l'ouverture et pour le réseau : un site aussi gros peut être lent à ouvrir sur un ordinateur ordinaire.",
   "share.check.abstracts_large": "Avec les résumés, les textes ajoutent environ {size} au site ({titles} avec les seuls titres) : un site aussi gros est lent à ouvrir et difficile à envoyer. Laissez les résumés de côté s’ils ne sont pas nécessaires.",
   "share.check.full_texts_kept": "{count, plural, one {# texte intégral reste} other {# textes intégraux restent}} dans le projet : un site n'en contient jamais.",
   "share.check.map_stale": "La carte n'est pas à jour des derniers changements ({stages}).",

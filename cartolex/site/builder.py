@@ -15,17 +15,18 @@ The folder::
     index.html          the one page (no inline script or style)
     README.txt          « unzip the whole folder first », then what the site holds
     site.json           the build's record (not read by the page)
-    assets/             tokens.css, site.css, map.js, site.js, i18n.js, world.js
-    data/               core.js (every page), details.js (organisations, themes,
-                        keywords' people), people/<n>.js (people's details) and
-                        texts/<n>.js (their texts, on request), loaded on demand
+    assets/             tokens.css, atlas.css, site.css, atlas.js (the app's atlas as one
+                        classic script), site.js, i18n.js, world.js
+    data/               core.js (every page: the atlas bundle as columns), orgs.js,
+                        people/<n>.js, keywords/<n>.js, links.js (the co-authors) and
+                        texts/<n>.js (on request), loaded on demand
 
-Data files are classic scripts (``window.CX_SITE[<part>] = …``): a page opened
-from ``file://`` can load a script but cannot read a JSON file. A person's
-details and texts are in the part ``(number − 1) mod n`` of their site id
-(``s<number>``), *n* in ``core.shards`` chosen so that a part holds about
-:data:`SHARD_BYTES`: a national site's texts are gigabytes, a page loads what it
-shows.
+Data files are classic scripts (``window.CX_SITE[<part>] = …``): a page opened from
+``file://`` can load a script but cannot read a JSON file. A person's details and texts
+are in the part ``(number − 1) mod n`` of their site id (``s<number>``), a keyword's users
+in the part ``index mod n`` of its place in the core's keywords, *n* in ``core.shards``
+chosen so that a part holds about :data:`SHARD_BYTES`: a national site's texts are
+gigabytes, a page loads what it shows.
 """
 
 from __future__ import annotations
@@ -34,13 +35,14 @@ import hashlib
 import html
 import json
 import os
+import re
 import shutil
 import tempfile
 import zipfile
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from .data import gather
@@ -54,13 +56,14 @@ __all__ = [
     "TEXT_MODES",
     "OfflineSiteBuilder",
     "SiteOptions",
+    "atlas_sources",
     "build_site",
     "inputs_fingerprint",
     "list_builds",
     "site_zip",
 ]
 
-FORMAT = "cartolex-site/2"
+FORMAT = "cartolex-site/3"
 #: The site's languages (its catalogues); the build chooses the one it opens in.
 LANGUAGES = ("en", "fr", "pt-BR")
 #: What a site may carry of the texts: nothing (the default), titles, titles and abstracts.
@@ -83,16 +86,19 @@ CATALOGUES = HERE / "i18n"
 APP_TOKENS = HERE.parent / "app" / "static" / "css" / "tokens.css"
 #: The outline of the land masses (Natural Earth, public domain), shared with the app.
 WORLD = HERE.parent / "app" / "static" / "data" / "world-land-110m.json"
-#: The library-free modules the site's map needs, in dependency order.
-SITE_MODULES = ("components/treemap-layout.js",)
+#: The atlas's style sheet, shared with the app.
+ATLAS_CSS = HERE.parent / "app" / "static" / "css" / "atlas.css"
+#: The app's catalogues: the site carries their ``atlas.*`` messages.
+APP_CATALOGUES = HERE.parent / "app" / "static" / "i18n"
+#: The prefixes of the app's messages the atlas speaks with.
+ATLAS_MESSAGES = ("atlas.",)
 #: The site's own classic scripts, joined into ``assets/site.js`` in this order.
 SITE_SCRIPTS = (
     "core.js",
-    "scene.js",
-    "mapview.js",
+    "source.js",
+    "atlas.js",
     "pages.js",
     "person.js",
-    "themes.js",
     "main.js",
 )
 
@@ -133,6 +139,68 @@ def _catalogue(language: str) -> dict[str, str]:
     return {k: v for k, v in doc.items() if not k.startswith("$")}
 
 
+def _messages(language: str) -> dict[str, str]:
+    """The site's catalogue of *language* and the atlas's messages of the app's
+    (:data:`ATLAS_MESSAGES`)."""
+    app = json.loads((APP_CATALOGUES / f"{language}.json").read_text(encoding="utf-8"))
+    atlas = {k: v for k, v in app.items() if k.startswith(ATLAS_MESSAGES)}
+    return {**atlas, **_catalogue(language)}
+
+
+_FROM = re.compile(
+    r"""^(?:import|export)\s[^;]*?\sfrom\s+'((?:\./|(?:\.\./)+)[\w/-]+\.js)';""", re.M
+)
+
+
+def atlas_sources(listed: Sequence[str], root: Path) -> list[str]:
+    """The modules of the atlas in the order a classic script needs them: those *listed*
+    (``ATLAS_MODULES``, paths under *root*) and every module they import, each after the
+    modules it imports (the listed order otherwise). A cycle is refused (``ValueError``)."""
+    order: list[str] = []
+    state: dict[str, str] = {}
+
+    def visit(name: str) -> None:
+        if state.get(name) == "done":
+            return
+        if state.get(name) == "open":
+            raise ValueError(f"{name}: its imports come back to it")
+        state[name] = "open"
+        text = (root / name).read_text(encoding="utf-8")
+        for spec in _FROM.findall(text):
+            visit(_normal((PurePosixPath(name).parent / spec).as_posix()))
+        state[name] = "done"
+        order.append(name)
+
+    for name in listed:
+        visit(_normal(name))
+    return order
+
+
+def _normal(name: str) -> str:
+    """``atlas/../components/map/core.js`` → ``components/map/core.js``."""
+    parts: list[str] = []
+    for part in PurePosixPath(name).parts:
+        if part == "..":
+            parts.pop()
+        elif part != ".":
+            parts.append(part)
+    return "/".join(parts)
+
+
+def _atlas_assets() -> dict[str, bytes]:
+    """The app's atlas as the site loads it: its modules as one classic script
+    (``window.CartolexAtlas``) and its style sheet."""
+    from cartolex.app.static_files import ATLAS_MODULES, PACKAGE_STATIC, classic_script
+
+    modules = atlas_sources(ATLAS_MODULES, PACKAGE_STATIC)
+    return {
+        "assets/atlas.js": classic_script(
+            [PACKAGE_STATIC / m for m in modules], "CartolexAtlas"
+        ).encode(),
+        "assets/atlas.css": ATLAS_CSS.read_bytes(),
+    }
+
+
 def _script(name: str, value: Any) -> bytes:
     body = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
     return (
@@ -144,22 +212,27 @@ def _script(name: str, value: Any) -> bytes:
 SHARD_BYTES = 2 << 20
 
 
-def _shard_count(by_sid: Mapping[str, Any]) -> int:
+def _shard_count(by_key: Mapping[str, Any]) -> int:
     total = sum(
-        len(json.dumps(v, ensure_ascii=False, separators=(",", ":"))) for v in by_sid.values()
+        len(json.dumps(v, ensure_ascii=False, separators=(",", ":"))) for v in by_key.values()
     )
     return max(1, -(-total // SHARD_BYTES))
 
 
-def _write_shards(folder: Path, name: str, by_sid: Mapping[str, Any], n: int) -> dict[str, int]:
-    """*by_sid* (keyed by site ids ``s1``, ``s2``…) written as *n* parts ``data/<name>/<i>.js``,
-    one at a time; their sizes by file name."""
+def _part_of(key: str) -> int:
+    """The number a part is chosen by: a site id's (``s12`` → 11), a keyword's index."""
+    return int(key[1:]) - 1 if key[:1].isalpha() else int(key)
+
+
+def _write_shards(folder: Path, name: str, by_key: Mapping[str, Any], n: int) -> dict[str, int]:
+    """*by_key* (keyed by site ids ``s1``, ``s2``…, or keyword indexes) written as *n* parts
+    ``data/<name>/<i>.js`` (see :func:`_part_of`), one at a time; their sizes by file name."""
     buckets: list[list[str]] = [[] for _ in range(n)]
-    for sid in by_sid:
-        buckets[(int(sid[1:]) - 1) % n].append(sid)
+    for key in by_key:
+        buckets[_part_of(key) % n].append(key)
     sizes = {}
-    for i, sids in enumerate(buckets):
-        body = _script(f"{name}/{i}", {sid: by_sid[sid] for sid in sids})
+    for i, keys in enumerate(buckets):
+        body = _script(f"{name}/{i}", {key: by_key[key] for key in keys})
         path = folder / "data" / name / f"{i}.js"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(body)
@@ -292,7 +365,7 @@ def _new_id(folder: Path, now: datetime) -> str:
 
 
 def _index_html(title: str, language: str, words: Mapping[str, str], world: bool) -> str:
-    scripts = ["assets/i18n.js", "data/core.js", "assets/map.js"]
+    scripts = ["assets/i18n.js", "data/core.js", "assets/atlas.js"]
     if world:
         scripts.append("assets/world.js")
     scripts.append("assets/site.js")
@@ -305,6 +378,7 @@ def _index_html(title: str, language: str, words: Mapping[str, str], world: bool
 <meta name="robots" content="noindex">
 <title>{html.escape(title)}</title>
 <link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/atlas.css">
 <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
@@ -348,7 +422,6 @@ def build_site(
 
     Returns ``{"cancelled": True}`` (and writes nothing) when *cancelled* says so between
     phases."""
-    from cartolex.app.static_files import MAP_MODULES, PACKAGE_STATIC, classic_script
     from cartolex.project.files import atomic_write_bytes
     from cartolex.project.project import cartolex_version
 
@@ -371,14 +444,13 @@ def build_site(
     at = now or datetime.now(timezone.utc)
     world = any(loc for loc in data.core["orgs"]["location"])
 
-    people_details = data.details["people"]
     folder = _sites(project)
     folder.mkdir(parents=True, exist_ok=True)
     build_id = _new_id(folder, at.astimezone())
     staging = folder / f".building-{build_id}"
     if staging.exists():
         shutil.rmtree(staging)
-    shards = {"people": _shard_count(people_details)}
+    shards = {"people": _shard_count(data.people), "keywords": _shard_count(data.keywords)}
     sizes: dict[str, int] = {}
     try:
         if data.texts is not None:
@@ -391,7 +463,6 @@ def build_site(
             "title": title,
             "built_at": at.isoformat(timespec="seconds"),
             "language": options.language,
-            "parts": ["details", *shards],
             "shards": shards,
         }
         files: dict[str, bytes] = {
@@ -400,15 +471,12 @@ def build_site(
             "assets/tokens.css": (ASSETS / "tokens.css").read_bytes(),
             "assets/site.css": (ASSETS / "site.css").read_bytes(),
             "assets/site.js": b"\n".join((ASSETS / name).read_bytes() for name in SITE_SCRIPTS),
-            "assets/map.js": classic_script(
-                [PACKAGE_STATIC / m for m in (*MAP_MODULES, *SITE_MODULES)], "CartolexMap"
-            ).encode(),
-            "assets/i18n.js": _script("i18n", {code: _catalogue(code) for code in LANGUAGES}),
+            "assets/i18n.js": _script("i18n", {code: _messages(code) for code in LANGUAGES}),
             "data/core.js": _script("core", core),
-            "data/details.js": _script(
-                "details", {k: v for k, v in data.details.items() if k != "people"}
-            ),
+            "data/orgs.js": _script("orgs", data.orgs),
+            **_atlas_assets(),
         }
+        files["data/links.js"] = _script("links", data.links)
         if world:
             files["assets/world.js"] = _script(
                 "world", json.loads(WORLD.read_text(encoding="utf-8"))["rings"]
@@ -424,7 +492,8 @@ def build_site(
             "counts": data.counts,
         }
         sizes.update({name: len(body) for name, body in files.items()})
-        sizes.update(_write_shards(staging, "people", people_details, shards["people"]))
+        sizes.update(_write_shards(staging, "people", data.people, shards["people"]))
+        sizes.update(_write_shards(staging, "keywords", data.keywords, shards["keywords"]))
         record["files"] = dict(sorted(sizes.items()))
         record["size"] = sum(sizes.values())
         files["site.json"] = (json.dumps(record, indent=2, ensure_ascii=False) + "\n").encode()
