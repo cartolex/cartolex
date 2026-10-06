@@ -125,8 +125,8 @@
         return null;
       },
       links: {
-        person: (id) => (ix.byPerson.has(id) ? `#/person/${id}` : null),
-        organisation: (id) => (ix.byOrg.has(id) ? `#/org/${id}` : null),
+        person: (id) => (ix.byPerson.has(id) ? { href: `#/person/${id}`, label: t('atlas.open_person') } : null),
+        organisation: (id) => (ix.byOrg.has(id) ? { href: `#/org/${id}`, label: t('atlas.open_org') } : null),
       },
       navigate(href) {
         window.location.hash = href;

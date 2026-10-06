@@ -99,5 +99,7 @@
   "person.coauthors.note": "The people of this site who signed texts with this person, the most texts together first.",
   "org.partners": "Writes with ({level})",
   "about.coauthors.title": "Who writes with whom",
-  "about.coauthors": "Two people write together when they signed the same text; the atlas draws these links around the person or the organisation in focus, up to three circles away. Similarity, measured on the words, is shown only when two are compared."
+  "about.coauthors": "Two people write together when they signed the same text; the atlas draws these links around the person or the organisation in focus, up to three circles away. Similarity, measured on the words, is shown only when two are compared.",
+  "atlas.open_person": "Open the person's page",
+  "atlas.open_org": "Open the organisation's page"
 }

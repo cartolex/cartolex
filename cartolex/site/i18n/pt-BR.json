@@ -99,5 +99,7 @@
   "person.coauthors.note": "As pessoas deste site que assinaram textos com esta pessoa, primeiro as que têm mais textos em comum.",
   "org.partners": "Escreve com ({level})",
   "about.coauthors.title": "Quem escreve com quem",
-  "about.coauthors": "Duas pessoas escrevem juntas quando assinaram o mesmo texto; o atlas desenha essas ligações em torno da pessoa ou da organização em foco, até três círculos. A semelhança, medida nas palavras, só aparece quando se comparam duas."
+  "about.coauthors": "Duas pessoas escrevem juntas quando assinaram o mesmo texto; o atlas desenha essas ligações em torno da pessoa ou da organização em foco, até três círculos. A semelhança, medida nas palavras, só aparece quando se comparam duas.",
+  "atlas.open_person": "Abrir a página da pessoa",
+  "atlas.open_org": "Abrir a página da organização"
 }
