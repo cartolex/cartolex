@@ -154,27 +154,37 @@ last two as jobs writing dated files into `outputs/exports/`.
 
 ## Measures
 
-Measured once on the L demo world (329 people on the map, 35 placed, 48
-organisations, 2 955 keywords, 163 themes), Chromium, from `file://`:
+The L demo world (329 people on the map, 35 placed, 48 organisations, 2 777
+keywords, 84 themes), built without names, before (`cartolex-site/2`, the
+site's own map) and after (`cartolex-site/3`, the app's atlas):
 
-| | without texts | with titles |
+| | before | after |
 | --- | --- | --- |
-| size | 0.79 MB | 1.32 MB |
-| build | 2.5 s | 0.8 s (the bundle read) |
-| home ready | 0.14 s | |
-| opened on the map, first frame drawn | 0.3–0.4 s | |
-| a person's page (details read) | 0.16 s | |
+| size, without texts | 0.71 MB | 0.86 MB |
+| size, with titles | 1.24 MB | 1.39 MB |
+| build, without texts | 1.8 s | 2.0 s |
 
-`data/core.js` is 0.20 MB and the details 0.38 MB (since `cartolex-site/2`,
-`data/details.js` and the people's parts); the map's and the
-site's scripts together about 0.11 MB, the world outline 0.05 MB.
+`data/core.js` is 0.24 MB (the theme shares of every person), the keywords'
+users 0.28 MB, the people's parts 0.14 MB, the links 0.03 MB.
+
+A sample of 86 543 mapped people (1 million texts, 21 790 organisations,
+9 938 keywords): gathering the data took 74 s and 4.2 GB at most (123 s and
+3.4 GB before: the nearest neighbours are gone, the co-authors take 26 s);
+`data/core.js` is 14 MB (5 MB before, when every person's themes were in the
+details), the people's parts 35 MB, the keywords' users 7 MB, the links 18 MB
+(946 000 pairs). In Chromium, from `file://`: the core read in 0.4 s, the atlas
+bundle made from it in 0.3 s, the links read in 0.3 s; 180 MB of memory.
 
 ## Checks
 
 `tests/test_site.py` (the XS world): a pseudonymous site holds no name and no
-text; titles and abstracts never carry a private part; builds never overwrite
+text; the atlas's data (theme shares per level, organisations, keywords'
+users, vectors); the links are the app's co-authorship graph over the site's
+own indexes, organisations paired within a level, unnamed projected people
+left out; titles and abstracts never carry a private part; builds never overwrite
 each other and go stale after a decision changes; the share routes; the
 site's tokens equal the app's and its catalogues are complete.
 `tests/browser/test_offline_site.py` opens a built site from `file://` in Chromium with
-every request refused (and in Firefox when a build of it is installed), and
-checks the message a page shows without its files.
+every request refused (and in Firefox when a build of it is installed), walks
+from the search to a person's page and on to the atlas mounted over the
+site's files, and checks the message a page shows without its files.
