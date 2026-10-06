@@ -105,7 +105,10 @@ def start(request: Request, ctx: ProjectDep, body: CollectOptions | None = None)
         options = {**options, "openalex": summary["openalex"]["chosen"]}
 
     def work(control: JobControl) -> dict[str, Any]:
-        return dict(service.collect(project, control, action, options))
+        out = dict(service.collect(project, control, action, options))
+        if out.get("outcome") in (None, "succeeded") and action in RESULT_LINKS:
+            out["link"], out["link_code"] = RESULT_LINKS[action]
+        return out
 
     try:
         info = runtime.jobs.submit(
@@ -119,6 +122,14 @@ def start(request: Request, ctx: ProjectDep, body: CollectOptions | None = None)
     except JobConflict as exc:
         raise busy_error(exc.running) from exc
     return JSONResponse({"job": info.as_dict()}, status_code=202)
+
+
+#: Where to go once a collection ends: an identification leads to the identities to check,
+#: a harvest to the build (an address, and the code of its button's words).
+RESULT_LINKS = {
+    "identify": ("/people?tab=identities", "identities"),
+    "harvest": ("/build", "build"),
+}
 
 
 def latest_job(request: Request, ctx: Any, action: str | None = None) -> Any:

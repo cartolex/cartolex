@@ -10,6 +10,7 @@ link, at the top of every screen, opens them.
 :caption: Guides
 :maxdepth: 1
 
+first-map
 install
 demo
 collection

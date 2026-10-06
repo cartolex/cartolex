@@ -70,7 +70,7 @@ function Filters({ filters, setFilters, counts, facets }) {
 }
 
 /** The People tab. */
-export function PeopleTab({ ctx, version, bump, toast, openSheet, preset }) {
+export function PeopleTab({ ctx, version, bump, toast, openSheet, preset, openImport }) {
   const [filters, setFilters] = useState({ q: '', columns: {} });
   const [sort, setSort] = useState({ column: 'name', direction: 'ascending' });
   const [selection, setSelection] = useState(new Set());
@@ -176,7 +176,10 @@ export function PeopleTab({ ctx, version, bump, toast, openSheet, preset }) {
       onSortChange=${setSort} selection=${selection} onSelectionChange=${setSelection}
       onActivate=${(row) => !row.$pending && openSheet(row.person_id)} onRange=${list.onRange}
       rowMenu=${rowMenu} onRowMenu=${onRowMenu}
-      empty=${empty ? html`<${EmptyState} title=${t(`corpus.empty.${empty.code}`)} icon="file" />`
-        : null} />
+      empty=${empty ? html`<${EmptyState} title=${t(`corpus.empty.${empty.code}`)} icon="file"
+        action=${empty.code === 'empty_no_match'
+          ? { label: t('corpus.filter.clear'), onClick: () => setFilters({ q: '', columns: {} }) }
+          : openImport ? { label: t('corpus.empty.import'), onClick: () => openImport('list') } : null}>
+        ${empty.code === 'empty_no_match' ? null : t('corpus.empty.people.text')}<//>` : null} />
   </div>`;
 }

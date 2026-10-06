@@ -3,7 +3,7 @@
 next step and its « Your first map » checklist read.
 
 Everything here is read from what the app already keeps: the people's counts of the
-corpus screen (:func:`cartolex.app.corpus_view.people_view`, computed once per version of
+People screen (:func:`cartolex.app.corpus_view.people_view`, computed once per version of
 the tables and of ``people.csv``), the copilot's status
 (:func:`cartolex.app.routes.state.triage_status`), the stages' states and the jobs. Nothing
 here reads every text, so the overview stays fast for a project of 170,000 people.

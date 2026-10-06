@@ -121,7 +121,8 @@ function JobItem({ job, jobs }) {
         ${jobResultSummary(job.result) ? html`${' · '}${jobResultSummary(job.result)}` : null}</p>
       <div class="cx-job__actions">
         ${job.result && job.result.link ? html`<a class="cx-link" href=${job.result.link}>
-          ${t('job.open_result')}</a>` : null}
+          ${job.result.link_code && has(`job.link.${job.result.link_code}`)
+            ? t(`job.link.${job.result.link_code}`) : t('job.open_result')}</a>` : null}
         <${Button} size="s" variant="ghost" onClick=${() => jobs.dismiss(job.id)}>
           ${t('common.dismiss')}<//>
       </div>

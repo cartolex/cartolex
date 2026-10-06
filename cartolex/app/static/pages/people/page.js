@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /**
- * The corpus screen (`/people`): who is in the map and what was collected for
+ * The People screen (`/people`): who is in the map and what was collected for
  * them. Tabs: People, Identities (the queue), Organisations, Texts,
  * Collaborators, Coverage; the tab is kept in the address (`?tab=`). Importing
  * and collecting open dialogs; collecting always shows what leaves the
@@ -49,17 +49,21 @@ function tabOf(query) {
   return TABS.includes(tab) ? tab : 'people';
 }
 
-/** The address without its `start`, so a reload does not open the dialog again. */
-function dropStart(tab) {
+/** The collections `?collect=` may open. */
+const COLLECT_ACTIONS = ['identify', 'harvest'];
+
+/** The address without its `start` (and `collect`), so a reload does not open the dialog again. */
+function dropStart(tab, also = '') {
   const url = new URL(window.location.href);
-  if (!url.searchParams.has('start')) return;
+  if (!url.searchParams.has('start') && !(also && url.searchParams.has(also))) return;
   url.searchParams.delete('start');
+  if (also) url.searchParams.delete(also);
   if (tab === 'people') url.searchParams.delete('tab');
   else url.searchParams.set('tab', tab);
   window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
 }
 
-/** The corpus screen's content. */
+/** The People screen's content. */
 export function CorpusScreen() {
   const ctx = usePage();
   const { app } = ctx;
@@ -73,12 +77,17 @@ export function CorpusScreen() {
     const start = startOf(ctx.query);
     return start && start.importing ? { mode: start.importing, person: null } : null;
   }); // {mode, person}
-  const [collecting, setCollecting] = useState(null); // {action, options}
+  // `?collect=harvest` (the overview's next step, a build refused for want of texts) opens
+  // the harvest's dialog at once; the address loses it, so a reload does not.
+  const [collecting, setCollecting] = useState(() => {
+    const action = ctx.query && ctx.query.get('collect');
+    return canCollect && COLLECT_ACTIONS.includes(action) ? { action, options: {} } : null;
+  }); // {action, options}
   const [peopleFilter, setPeopleFilter] = useState(null); // a filter set from another tab
   const [watched, setWatched] = useState(null);
   const toast = (item) => app.toaster.show(item);
   const bump = () => setVersion((v) => v + 1);
-  useEffect(() => dropStart(tab), []);
+  useEffect(() => dropStart(tab, 'collect'), []);
 
   const setTab = (id) => {
     setTabState(id);
@@ -92,9 +101,17 @@ export function CorpusScreen() {
   useJobEnd(app, watched, (job) => {
     setWatched(null);
     bump();
-    // The Activity drawer says a job ended; a search or a proposal also says where to go next.
-    if (job.state === 'succeeded' && job.result && job.result.action === 'institutions') {
+    // The Activity drawer says a job ended; a search or a proposal also says where to go next,
+    // an identification leads to the identities, a harvest to the build.
+    const action = job.state === 'succeeded' && job.result ? job.result.action : null;
+    if (action === 'institutions') {
       toast({ kind: 'info', title: t('corpus.job.done'), message: jobSummary(job.result) });
+    } else if (action === 'identify') {
+      toast({ kind: 'info', title: t('corpus.job.done'), message: jobSummary(job.result),
+        action: { label: t('job.link.identities'), onClick: () => setTab('identities') } });
+    } else if (action === 'harvest') {
+      toast({ kind: 'info', title: t('corpus.job.done'), message: jobSummary(job.result),
+        action: { label: t('job.link.build'), onClick: () => ctx.navigate('/build') } });
     }
   });
 

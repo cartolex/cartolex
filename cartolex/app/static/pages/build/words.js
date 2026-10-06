@@ -4,9 +4,9 @@
  * result: sizes, stage names, the one-sentence result and the error card of a
  * failed stage.
  */
-import { autonym, formatDuration, formatList, formatNumber, has, t } from '../../core/i18n.js';
+import { formatDuration, formatList, formatNumber, t } from '../../core/i18n.js';
 import { errorFromResponse } from '../../core/errors.js';
-import { stageName } from '../../components/index.js';
+import { messageOf, stageName } from '../../components/index.js';
 
 /** A memory size in the interface language (« 820 MB », « 3.4 GB »). */
 export function formatMb(mb) {
@@ -33,14 +33,7 @@ export function namesOf(ids) {
 
 /** The message of a code from the catalogue (`message.<code>`), else the server's English. */
 export function messageText(item) {
-  if (!item) return '';
-  const key = `message.${item.code}`;
-  if (!has(key)) return item.message || '';
-  const params = { ...(item.params || {}) };
-  if (params.stage) params.stage = nameOf(params.stage);
-  if (Array.isArray(params.languages)) params.languages = params.languages.map(autonym);
-  if (params.language) params.language = autonym(params.language);
-  return t(key, params);
+  return messageOf(item);
 }
 
 function seconds(job) {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /**
- * The corpus screen (`/people`). Its modules are in `pages/people/`:
+ * The People screen (`/people`). Its modules are in `pages/people/`:
  *
  * - `page.js`: the screen, its tabs and dialogs;
  * - `people-tab.js`: people, their roles, identities and coverage, filters, bulk roles;

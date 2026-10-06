@@ -82,7 +82,7 @@ function TextDrawer({ ctx, textId, onClose, openSheet, onOpen }) {
 }
 
 /** The Texts tab. */
-export function TextsTab({ ctx, version, openSheet }) {
+export function TextsTab({ ctx, version, openSheet, openCollect, openImport, canCollect }) {
   const [content, setContent] = useState('');
   const [provider, setProvider] = useState('');
   const [q, setQ] = useState('');
@@ -125,7 +125,15 @@ export function TextsTab({ ctx, version, openSheet }) {
       rowKey=${list.rowKey} loading=${list.loading} error=${list.error} onRetry=${list.reload}
       sortMode="server" sort=${sort} onSortChange=${setSort} onRange=${list.onRange}
       onActivate=${(row) => !row.$pending && setOpen(row.text_id)}
-      empty=${html`<${EmptyState} icon="file" title=${t('corpus.texts.empty')} />`} />
+      empty=${q || content || provider
+        ? html`<${EmptyState} icon="file" title=${t('corpus.texts.empty_match')}
+            action=${{ label: t('corpus.filter.clear'),
+              onClick: () => { setQ(''); setContent(''); setProvider(''); } }} />`
+        : html`<${EmptyState} icon="file" title=${t('corpus.texts.empty')}
+            action=${canCollect && openCollect
+              ? { label: t('corpus.texts.empty.collect'), onClick: () => openCollect('harvest') }
+              : openImport ? { label: t('corpus.texts.empty.import'), onClick: () => openImport('folder') }
+                : null}>${t(canCollect ? 'corpus.texts.empty.text' : 'corpus.texts.empty.text_import')}<//>`} />
     ${open ? html`<${TextDrawer} ctx=${ctx} textId=${open} onClose=${() => setOpen(null)}
       openSheet=${openSheet} onOpen=${setOpen} />` : null}
   </div>`;

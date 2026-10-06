@@ -134,6 +134,17 @@ nothing in the engine names a particular deployment, source or procedure.
     names its computer and process (`cartolex.scale.scratch_folder`): one a
     killed job left behind is removed by the next job that makes one.
 
+- **From an empty project to a shared map.** The overview's next step follows
+  the way: the roles, the identities and the harvest before the first build;
+  the keyword review, the themes, the map, then sharing after it; a failure
+  only while it is the last thing tried; any job running but a build opens the
+  Activity drawer. « Your first map » lists the steps (hidden per project) and
+  links to a new guide (`docs/first-map.md`). The AI clean-up done with a copilot
+  reads « done with your copilot (N decisions) »; a result imported and not
+  accepted is said on the overview and before a build. A build refused for want
+  of texts, or of mapped people, says so with a button; no message names a
+  file or a setting's key. A cancelled stage is not failed. The navigation's
+  « Corpus » is « People ».
 - **The documentation in the app.** `tools/build_docs.py` builds these pages
   into the package (`cartolex/app/static/docs/`, not tracked); the app serves
   them at `/static/docs/` and links to them from its header (Documentation),

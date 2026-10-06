@@ -142,7 +142,7 @@ function Institutions({ ctx, version, bump, toast, openCollect, canCollect }) {
 
 /** The Organisations tab. */
 export function OrganisationsTab(props) {
-  const { ctx, version, openSheet } = props;
+  const { ctx, version, openSheet, openCollect, openImport, canCollect } = props;
   const [level, setLevel] = useState('');
   const [q, setQ] = useState('');
   const [sort, setSort] = useState({ column: 'people', direction: 'descending' });
@@ -177,7 +177,14 @@ export function OrganisationsTab(props) {
       rowKey=${list.rowKey} loading=${list.loading} error=${list.error} onRetry=${list.reload}
       sortMode="server" sort=${sort} onSortChange=${setSort} onRange=${list.onRange}
       onActivate=${(o) => !o.$pending && setOpen(o.org_id)}
-      empty=${html`<${EmptyState} icon="file" title=${t('corpus.orgs.empty')} />`} />
+      empty=${q || level
+        ? html`<${EmptyState} icon="file" title=${t('corpus.orgs.empty_match')}
+            action=${{ label: t('corpus.filter.clear'), onClick: () => { setQ(''); setLevel(''); } }} />`
+        : html`<${EmptyState} icon="file" title=${t('corpus.orgs.empty')}
+            action=${canCollect && openCollect
+              ? { label: t('corpus.orgs.empty.collect'), onClick: () => openCollect('harvest') }
+              : openImport ? { label: t('corpus.orgs.empty.import'), onClick: () => openImport('list') }
+                : null}>${t(canCollect ? 'corpus.orgs.empty.text' : 'corpus.orgs.empty.text_import')}<//>`} />
     <${Institutions} ...${props} />
     ${open ? html`<${OrganisationDrawer} ctx=${ctx} orgId=${open} onClose=${() => setOpen(null)}
       openSheet=${openSheet} onOpen=${setOpen} />` : null}
