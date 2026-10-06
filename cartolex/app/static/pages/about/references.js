@@ -2,9 +2,8 @@
 /**
  * The scientific background of the About page: the works cartolex's methods come
  * from, grouped by the step they shape. Bibliographic records, not interface text:
- * they are shown as written, in every interface language, their DOI as text (the app
- * links nowhere outside this computer). A draft for the authors (docs/about.md holds the
- * same list).
+ * they are shown as written, in every interface language, each DOI a link to its
+ * resolver. A draft for the authors (docs/about.md holds the same list).
  */
 
 /** The groups, in the order of the pipeline: `id` names the group's heading and text. */
@@ -141,3 +140,8 @@ export const REFERENCE_GROUPS = [
     ],
   },
 ];
+
+/** The address of a DOI at its resolver (characters a URL cannot hold are escaped). */
+export function doiLink(doi) {
+  return `https://doi.org/${encodeURI(doi)}`;
+}

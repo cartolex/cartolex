@@ -4,7 +4,8 @@
  * background (a draft for the authors), the authors and how to cite cartolex,
  * its licence, its version and build, and the documentation. It reads
  * `GET /api/app/about` only (the package's metadata: authors, licence, source,
- * the citation); everything else is in the catalogues and `references.js`.
+ * the citation); everything else is in the catalogues and `references.js`. The
+ * DOIs and the source open outside the app, in a new tab (`noopener noreferrer`).
  */
 import { html, useEffect, useState } from '../../core/preact.js';
 import { formatList, t } from '../../core/i18n.js';
@@ -12,12 +13,18 @@ import { usePage, usePageTitle } from '../../core/page.js';
 import { DOCS_URL, versionLine } from '../../core/shell.js';
 import { ErrorCard, Icon } from '../../components/index.js';
 import { PipelineFigure } from './figure.js';
-import { REFERENCE_GROUPS } from './references.js';
+import { REFERENCE_GROUPS, doiLink } from './references.js';
+
+/** A link that leaves the app: a new tab, without telling the page where it came from. */
+function Outside({ href, children }) {
+  return html`<a class="cx-link" href=${href} target="_blank" rel="noopener noreferrer">${children}</a>`;
+}
 
 function Reference({ item }) {
   return html`<li class="cx-about__ref">
     ${item.authors} (${item.year}). ${item.title}. <cite>${item.venue}</cite>${item.details
-      ? html`, ${item.details}` : null}.${item.doi ? html` <code>doi:${item.doi}</code>` : null}
+      ? html`, ${item.details}` : null}.${item.doi ? html` <${Outside} href=${doiLink(item.doi)}>
+        <code>doi:${item.doi}</code><//>` : null}
   </li>`;
 }
 
@@ -43,7 +50,8 @@ function Credits({ about, app }) {
     <p class="cx-about__muted">${t('about.cite.file')}</p>
     <h2 class="cx-about__heading">${t('about.licence.title')}</h2>
     <p>${t('about.licence.text', { licence: (about && about.licence) || '' })}</p>
-    ${about && about.source ? html`<p>${t('about.source')} <code>${about.source}</code></p>` : null}
+    ${about && about.source ? html`<p>${t('about.source')} <${Outside} href=${about.source}>
+      <code>${about.source}</code><//></p>` : null}
     <h2 class="cx-about__heading">${t('about.version.title')}</h2>
     <p><code class="cx-about__version">${versionLine({ ...app, build: (about && about.build) || app.build })}</code></p>
     <p class="cx-about__muted">${t('about.version.text')}</p>
