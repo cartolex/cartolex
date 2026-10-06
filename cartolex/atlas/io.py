@@ -14,6 +14,18 @@ from .types import LexicalData
 
 logger = logging.getLogger(__name__)
 
+#: The columns that name a person (their identity). A table read with pandas keeps them as
+#: written: its default reading would turn a unit ``NA`` (a person without one), or a name
+#: ``NULL`` or ``None``, into a missing value, and the person's id would no longer be the
+#: one the keyword stage wrote.
+IDENTITY_COLUMNS = ("last_name", "first_name", "unit")
+
+
+def _read_people_table(path: Path) -> pd.DataFrame:
+    """*path* read with pandas, its identity columns (:data:`IDENTITY_COLUMNS`) as text
+    exactly as written (an empty cell is empty); every other column as pandas reads it."""
+    return pd.read_csv(path, converters={c: str for c in IDENTITY_COLUMNS})
+
 
 def load_run_settings(run_settings_json: Path) -> dict:
     """The settings snapshot the consolidation stage wrote (the atlas needs that stage first)."""
@@ -31,7 +43,7 @@ def load_restricted_keywords(kw_researcher_csv: Path) -> pd.DataFrame:
     """Load the per-researcher restricted keyword table as a DataFrame."""
     if not kw_researcher_csv.exists():
         raise FileNotFoundError(f"{kw_researcher_csv} not found.")
-    kw_df = pd.read_csv(kw_researcher_csv)
+    kw_df = _read_people_table(kw_researcher_csv)
     expected = {"last_name", "first_name", "unit", "term", "score"}
     missing = expected.difference(kw_df.columns)
     if missing:
@@ -42,15 +54,16 @@ def load_restricted_keywords(kw_researcher_csv: Path) -> pd.DataFrame:
 def load_index(researcher_index_csv: Path) -> pd.DataFrame:
     """Load the researcher index CSV (the roster) as a DataFrame.
 
-    Its identity columns are cleaned and an ``id`` column added; any other
-    column is a person attribute, kept as read.
+    Its identity columns are read as text and cleaned, and an ``id`` column added
+    (:func:`~cartolex.lexicon.utils.make_researcher_id`, as the keyword stage makes it);
+    any other column is a person attribute, kept as pandas reads it.
     """
     if not researcher_index_csv.exists():
         raise FileNotFoundError(
             f"{researcher_index_csv} not found (run the consolidation or roster stage first)."
         )
 
-    idx_df = pd.read_csv(researcher_index_csv, dtype={"unit": str})
+    idx_df = _read_people_table(researcher_index_csv)
 
     for col in ["last_name", "first_name", "unit"]:
         if col not in idx_df.columns:

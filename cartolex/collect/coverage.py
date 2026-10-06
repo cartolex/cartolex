@@ -46,6 +46,7 @@ from typing import Any
 import numpy as np
 
 from cartolex.project import Project
+from cartolex.project.identity import merge_roots, merged_groups
 from cartolex.project.tables import read_source_table
 from cartolex.project.text_columns import TextColumns, read_text_columns
 from cartolex.scale import sorted_unique
@@ -382,6 +383,7 @@ def person_coverage(
             )
         out.append(cov)
     harvested = _works_count(project, [c.person_id for c in empty])
+    groups = merged_groups(merge_roots(decisions)) if empty else {}
     for cov in empty:
         cov.cause, cov.cause_text = _why_nothing(
             cov,
@@ -389,10 +391,23 @@ def person_coverage(
             cov.person_id in harvested,
             cov.person_id in nothing_found,
             outcomes.get(cov.person_id, {}),
+            _names_a_record(decisions, cov.person_id, groups.get(cov.person_id, ())),
         )
     for cov in out:
         cov.actions = _actions(cov)
     return out
+
+
+def _names_a_record(
+    decisions: Mapping[str, Mapping[str, Any]], pid: str, merged: Collection[str]
+) -> bool:
+    """Whether the settled identity of *pid*, or of a row *merged* into them, names a record
+    (what a harvest collects from)."""
+    for one in (pid, *merged):
+        row = decisions.get(one, {})
+        if row.get("identity") in ("confirmed", "auto") and (row.get("records") or "").strip():
+            return True
+    return False
 
 
 def _why_nothing(
@@ -401,6 +416,7 @@ def _why_nothing(
     was_harvested: bool,
     nothing_found: bool,
     outcomes: Mapping[str, Outcome],
+    names_a_record: bool = True,
 ) -> tuple[str, str]:
     if cov.identity == "none":
         return "no_record", f"{CAUSES['no_record']}: the identity was confirmed as « none »"
@@ -408,6 +424,10 @@ def _why_nothing(
         return "no_record", f"{CAUSES['no_record']}: the resolution found no candidate record"
     if cov.identity == "pending":
         return "not_collected", f"{CAUSES['not_collected']}: the identity waits for confirmation"
+    if not was_harvested and "harvest" not in outcomes and not names_a_record:
+        # a settled identity without a record (a project written whole, such as the demo's):
+        # a harvest has nothing to collect from
+        return "no_record", f"{CAUSES['no_record']}: the identity names no record"
     if not was_harvested and "harvest" not in outcomes:
         return "not_collected", f"{CAUSES['not_collected']}: the records were never harvested"
     if was_harvested and harvested is None:  # a harvest that did not count the works

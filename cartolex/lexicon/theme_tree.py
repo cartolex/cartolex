@@ -40,6 +40,8 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 
+from .utils import NO_UNIT, unit_value
+
 if TYPE_CHECKING:
     from cartolex.context import RunContext
 
@@ -1290,7 +1292,12 @@ def apply_theme_files(
         logger.warning("weights_basis='tf' but the lexical data has no TF track: using TF-IDF.")
     tables = people_out is not None or organisations_out is not None
     meta = data.meta_ind
-    units = meta["unit"].fillna("").astype(str).tolist() if "unit" in meta.columns else None
+    # A person without a unit (``NA``, or a missing value) is in no organisation: empty.
+    units = (
+        ["" if unit_value(u) == NO_UNIT else str(u) for u in meta["unit"]]
+        if "unit" in meta.columns
+        else None
+    )
     applied = apply_tree(
         tree,
         X,

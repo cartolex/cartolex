@@ -31,7 +31,7 @@ import numpy as np
 
 from cartolex.scale import sorted_unique
 
-from .utils import canonicalize_names
+from .utils import canonicalize_names, unit_value
 
 __all__ = [
     "PAIRS_FILE",
@@ -58,12 +58,6 @@ _NOT_ATTRIBUTES = {"person_id", "last_name", "first_name", "unit", "txt_path", "
 def is_packed(folder: Path) -> bool:
     """Whether a slot's folder holds a packed corpus (else the one-file-per-text contract)."""
     return (Path(folder) / PAIRS_FILE).exists()
-
-
-def unit_value(raw: str) -> str:
-    """A unit as the engine names it: ``NA`` when there is none."""
-    unit = (raw or "").strip()
-    return "NA" if not unit or unit.lower() == "nan" else unit
 
 
 def identity(last: str, first: str, unit: str) -> tuple[str, str, str]:

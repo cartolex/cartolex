@@ -34,7 +34,7 @@ piece of evidence gave its score.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -584,9 +584,12 @@ def resolve(
     return report
 
 
-def identity_queue(project: Project, *, auto: bool = False) -> list[dict[str, Any]]:
+def identity_queue(
+    project: Project, *, auto: bool = False, people: Collection[str] | None = None
+) -> list[dict[str, Any]]:
     """The people whose identity waits (with *auto*, also those accepted automatically, to
-    review), each with every finder's candidates.
+    review), each with every finder's candidates; with *people*, those people whatever
+    was decided of their identity (to change it), merged and excluded rows left out.
 
     A candidate carries the ``record`` that :func:`confirm` takes: an OpenAlex
     record from the resolution (with its score and evidence), a HAL author form
@@ -599,11 +602,16 @@ def identity_queue(project: Project, *, auto: bool = False) -> list[dict[str, An
 
     rows = read_source_table(project.layout.table("people"), "people").to_pylist()
     decisions = read_people(project.layout)
+    asked = set(people) if people is not None else None
+    states = ("", "pending", "auto") if auto else ("", "pending")
     waiting = {
         r["person_id"]: r
         for r in rows
-        if decisions.get(r["person_id"], {}).get("identity", "")
-        in (("", "pending", "auto") if auto else ("", "pending"))
+        if (
+            r["person_id"] in asked
+            if asked is not None
+            else decisions.get(r["person_id"], {}).get("identity", "") in states
+        )
         and not decisions.get(r["person_id"], {}).get("merged_into")
         and decisions.get(r["person_id"], {}).get("role") != "excluded"
     }

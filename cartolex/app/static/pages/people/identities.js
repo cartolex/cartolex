@@ -29,7 +29,8 @@ function finderLabel(finder) {
   return has(`corpus.finder.${finder}`) ? t(`corpus.finder.${finder}`) : finder;
 }
 
-function defaultPick(person) {
+/** The candidate picked first: the clear match, else the first with a record (-1: none). */
+export function defaultPick(person) {
   if (!person || !person.candidates) return -1;
   const clear = person.candidates.findIndex((c) => c.clear);
   if (clear >= 0) return clear;
@@ -37,7 +38,7 @@ function defaultPick(person) {
 }
 
 /** One candidate record, numbered for the keyboard. */
-function Candidate({ candidate, number, picked, onPick }) {
+export function Candidate({ candidate, number, picked, onPick }) {
   const usable = Boolean(candidate.record);
   return html`<li class=${`cx-corpus-cand ${picked ? 'is-picked' : ''} ${usable ? '' : 'is-unusable'}`}>
     <button type="button" class="cx-corpus-cand__pick" aria-pressed=${String(picked)}

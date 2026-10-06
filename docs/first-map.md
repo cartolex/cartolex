@@ -151,7 +151,8 @@ at the top of the overview.
    records in the bibliographic services; the **Identities** tab lists the
    people whose record waits for a check, with each candidate and why it was
    found. ↑ ↓ choose a person, 1–9 a candidate, N none of these, Enter
-   confirms. *Done when no mapped person without texts waits for a check.*
+   confirms; a person's sheet changes an identity already decided
+   (**Change identity…**). *Done when no mapped person without texts waits for a check.*
 4. **Texts.** **Collect › Harvest texts** gathers the works of the people
    whose identity is confirmed. It runs in the background (the **Activity**
    button follows it); its result offers to go to the build. The **Texts** tab

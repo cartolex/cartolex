@@ -244,9 +244,11 @@ def identities(
     state: Annotated[Literal["pending", "confirmed", "auto", "none", "all"], Query()] = "pending",
     clear: Annotated[bool | None, Query()] = None,
     finder: Annotated[str | None, Query(max_length=32)] = None,
+    person: Annotated[str | None, Query(max_length=64)] = None,
 ) -> dict[str, Any]:
     """The identity queue: each person to check, with every finder's candidate records and
-    their evidence; ``clear`` keeps the people with (or without) a single clear match."""
+    their evidence; ``clear`` keeps the people with (or without) a single clear match;
+    ``person`` keeps that person only (with ``state=all``, to change a decided identity)."""
     from ..corpus_view import people_view
 
     runtime = runtime_of(request)
@@ -258,6 +260,7 @@ def identities(
         if p["role"] != "excluded"
         and not p["merged_into"]
         and (state == "all" or p["identity"] == state)
+        and (person is None or p["person_id"] == person)
         and (not params.q or params.q in f"{p['last_name']} {p['first_name']}".casefold())
     ]
     counts = {"clear": 0, "unclear": 0, "no_candidate": 0}
@@ -286,7 +289,7 @@ def identities(
             "candidates": lambda p: len(found.get(p["person_id"], [])),
         },
         default_sort="name",
-        filters={"state": state, "q": params.q, "clear": clear, "finder": finder},
+        filters={"state": state, "q": params.q, "clear": clear, "finder": finder, "person": person},
         empty=empty(
             "empty_no_identity_to_check" if state == "pending" else "empty_no_identity_in_state"
         ),

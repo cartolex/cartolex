@@ -217,7 +217,9 @@ in the ORCID registry and compares them with the record's, by DOI. When they
 disagree (many of the record's works are not declared, or many declared works
 are not on the record), both are shown with their counts and you decide.
 
-Confirming records:
+Confirming records: the **Identities** tab, or for an identity already
+decided (confirmed, accepted automatically or none) **Change identity…** on
+the person's sheet, which opens the same choice again.
 
 ````{admonition} On the command line
 :class: note
@@ -535,8 +537,9 @@ and the texts by year and by language.
 The person sheet says the sources used (each finder, with its texts) and
 discarded (candidate records not confirmed, proposals found by name, preprints
 read through their published version), and the **first blocking cause**: a
-service failure; no record found; not collected yet; a record found but no
-works in the window; works without abstracts; fewer texts with an abstract
+service failure; no record found (also when a settled identity names no
+record, so a harvest has nothing to collect from); not collected yet; a record
+found but no works in the window; works without abstracts; fewer texts with an abstract
 than a good profile has. It offers what can be done: **retry** (a failure
 only: `--retry` collects again for the people who failed, and them only),
 **add documents** (`--add-documents p000017 reports/`, a folder of that

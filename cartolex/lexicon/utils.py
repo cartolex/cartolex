@@ -42,17 +42,33 @@ def canonicalize_names(s: str) -> str:
     return s
 
 
-def _norm_unit(u: str) -> str:
-    return str(u).strip()
+#: The unit of a person who has none, as the engine names it.
+NO_UNIT = "NA"
+
+
+def _text(value: object) -> str:
+    """An identity cell as text: a missing value (``None``, a float NaN) is empty."""
+    if value is None or (isinstance(value, float) and value != value):
+        return ""
+    return str(value).strip()
+
+
+def unit_value(raw: object) -> str:
+    """A unit as the engine names it: :data:`NO_UNIT` when there is none (an empty or
+    missing value, or the text ``nan`` an earlier table may hold)."""
+    unit = _text(raw)
+    return NO_UNIT if not unit or unit.lower() == "nan" else unit
 
 
 def make_researcher_id(last_name: str, first_name: str, unit: str) -> str:
     """
     Canonical ID used for indexing / joins.
-    Names are canonicalized (ASCII-safe) via utils.canonicalize_names.
-    Unit is kept as a stripped string (to preserve mapping with UNITS codes).
+    Names are canonicalized (ASCII-safe) via utils.canonicalize_names; a missing
+    name is empty. The unit is kept as a stripped string (to preserve mapping with
+    UNITS codes), a missing one named :data:`NO_UNIT` (:func:`unit_value`), so a
+    person without a unit has one id whether a table wrote their unit empty or ``NA``.
     """
-    last_c = canonicalize_names(last_name)
-    first_c = canonicalize_names(first_name)
-    unit_c = _norm_unit(unit)
+    last_c = canonicalize_names(_text(last_name))
+    first_c = canonicalize_names(_text(first_name))
+    unit_c = unit_value(unit)
     return f"{last_c}||{first_c}||{unit_c}"
