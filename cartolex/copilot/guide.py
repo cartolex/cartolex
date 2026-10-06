@@ -446,7 +446,9 @@ the order to judge them: the To check band, then Set aside, then Kept; in each,
   research discourse only, a phrase that starts or ends on a function word, a
   very long one). A hint: confirm it, or correct the exceptions;
 - **formulas and acronyms**: keep each whole; two formulas are two things
-  (`CO` is not `CO2`: the kit refuses to merge them);
+  (`CO` is not `CO2`: the kit refuses to merge them), but an acronym's plural
+  merges into it (`VOCs` into `VOC`) and an acronym of another language into
+  its translation (`ADN` into `DNA`);
 - **a paper's own phrases**: three words or more, one text or one person;
   often too specific to be a keyword (H), but keep the few that name a real
   subject;
@@ -603,7 +605,9 @@ another field, it is H, not G.
   thing as a {reference} candidate merges into it, exactly as listed (`~` when
   the kit shows the twin as `≈`, else `>term`). When no {reference} candidate
   names it, keep it (C, M, O …): it stays in its language.
-- **Formulas and acronyms stay whole.** CO, CO2 and CO3 are three things.
+- **Formulas and acronyms stay whole.** CO, CO2 and CO3 are three things. An
+  acronym's plural merges into it (VOCs into VOC), and an acronym of another
+  language into its translation (ADN into DNA).
 - **Set-aside rescue.** A set-aside candidate that is a keyword (a real subject
   a rule caught by mistake) is kept: decide it. A set-aside fragment you leave
   undecided stays set aside.

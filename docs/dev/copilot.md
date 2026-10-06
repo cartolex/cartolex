@@ -83,7 +83,9 @@ deterministically (the same bundle gives the same groups, ids and parts):
   (« further work », « rôle de l'étude »), a very long phrase: hints, confirmed
   or corrected in a line;
 - **formulas and acronyms** (`is_formula`): kept whole; the kit refuses to merge
-  two of them (`CO` is not `CO2`);
+  two of them (`CO` is not `CO2`), but for an acronym's plural (`VOCs` into
+  `VOC`) and an acronym of another language into its translation (`ADN` into
+  `DNA`; `same_acronym`);
 - **a paper's own phrases**: three words or more, one text or one person;
 - **families**: the same head word (the last word of an English phrase, the
   first noun of a French, Portuguese or Spanish one; plural and accents aside),

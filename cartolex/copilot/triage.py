@@ -51,7 +51,7 @@ import numpy as np
 from ..lexicon.categories import ACCEPTED, CATEGORIES, REJECTED, category_of
 from .bundle import CODES, CONFIDENCES, DECISIONS
 from .session import ASK, Session
-from .sorting import BAND_ORDER, Group, is_formula, sort_candidates, twin_pairs
+from .sorting import BAND_ORDER, Group, is_formula, same_acronym, sort_candidates, twin_pairs
 
 __all__ = ["TriageSession"]
 
@@ -425,7 +425,9 @@ class TriageSession(Session):
         excluded one ``never`` or ``here``. *confidence* is ``sure`` or ``unsure`` (the
         default): only a ``never`` exclusion given as sure spares other projects the
         question (it enters the machine's rejection cache). Two formulas are never the
-        same term: ``CO`` does not merge into ``CO2``.
+        same term: ``CO`` does not merge into ``CO2``; but an acronym's plural merges into
+        it (``VOCs`` into ``VOC``), and an acronym of another language into its
+        translation (``ADN`` into ``DNA``).
         """
         if decision not in DECISIONS:
             raise ValueError(f"decision is one of {', '.join(DECISIONS)}")
@@ -450,10 +452,12 @@ class TriageSession(Session):
             and is_formula(it["term"])
             and is_formula(target)
             and it["term"].strip() != target.strip()
+            and not same_acronym(it["term"], target, translation=it["lang"] != self.language)
         ):
             raise ValueError(
                 f"{it['term']} and {target.strip()} are two formulas (or acronyms): "
-                "they name different things, keep each whole"
+                "they name different things, keep each whole (only an acronym's plural, "
+                "or its translation from another language, merges into it)"
             )
         record = {
             "term": it["term"],

@@ -414,6 +414,51 @@ def test_the_pre_sort_flags_patterns_keeps_formulas_whole_and_groups_families():
     assert head_word("érosion des plages", "fr") == head_word("érosion côtière", "fr")
 
 
+def test_an_acronym_merges_into_its_plural_or_translation_a_formula_never(tmp_path):
+    """Two formulas stay two terms (``CO`` is not ``CO2``), but an acronym's plural is the
+    acronym (``VOCs``, ``VOC``) and an acronym of another language is its translation
+    (``ADN``, ``DNA``): the kit refused those merges."""
+    import numpy as np
+
+    from cartolex.copilot.bundle import FORMAT
+    from cartolex.copilot.sorting import same_acronym
+    from cartolex.copilot.triage import TriageSession
+
+    assert same_acronym("VOCs", "VOC") and same_acronym("mRNAs", "mRNA")
+    assert same_acronym("ADN", "DNA", translation=True) and not same_acronym("ADN", "DNA")
+    assert not same_acronym("CO", "CO2", translation=True)  # a formula, not an acronym
+    assert not same_acronym("Cs", "C") and not same_acronym("NOx", "NO")
+    assert not same_acronym("mRNA", "RNA", translation=True)  # the prefix names another thing
+    terms = [("VOCs", "en"), ("VOC", "en"), ("CO", "en"), ("CO2", "en"), ("ADN", "fr")]
+    terms += [("DNA", "en"), ("CO", "fr")]
+    items = [
+        {"term": t, "lang": lang, "band": "check", "people": 1, "texts": 1} for t, lang in terms
+    ]
+    (tmp_path / "data").mkdir()
+    manifest = {"format": FORMAT, "task": "triage", "id": "acronyms", "parts": 1}
+    (tmp_path / "bundle.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (tmp_path / "data/context.json").write_text('{"reference_language": "en"}', encoding="utf-8")
+    (tmp_path / "data/terms.json").write_text(json.dumps({"items": items}), encoding="utf-8")
+    n = len(items)
+    np.savez(
+        tmp_path / "data/term_people.npz",
+        P_data=np.ones(n),
+        P_indices=np.arange(n),
+        P_indptr=np.arange(n + 1),
+        P_shape=np.array([n, n]),
+    )
+    s = TriageSession(tmp_path)
+    s.merge("VOCs", "en", "VOC", "its plural")
+    s.merge("ADN", "fr", "DNA", "its translation")
+    for term, lang, into in (("CO", "en", "CO2"), ("CO", "fr", "CO2"), ("VOC", "en", "DNA")):
+        with pytest.raises(ValueError, match="two formulas"):
+            s.merge(term, lang, into, "not the same thing")
+    assert {k: d["target"] for k, d in s.decisions.items()} == {
+        ("VOCs", "en"): "VOC",
+        ("ADN", "fr"): "DNA",
+    }
+
+
 def test_a_restructuring_of_more_operations_than_a_request_takes_comes_as_its_tree(client):
     """A restructuring's operations can outnumber what ``POST /api/themes/ops`` takes (500):
     the proposal carries the tree it gives, which the editor puts in place as one step."""
