@@ -112,6 +112,24 @@
   overflow: auto;
 }
 
+/* « Merge above a likelihood… »: the threshold, then its preview. */
+.cx-dup-above {
+  display: grid;
+  justify-items: start;
+  gap: var(--cx-space-2);
+  margin-bottom: var(--cx-space-3);
+}
+
+.cx-dup-above__label {
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-dup-auto__score {
+  display: inline-block;
+  min-width: 3.5em;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Organisations: the drawer's decisions, the review of pairs. */
 .cx-org-edit {
   display: grid;

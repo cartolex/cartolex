@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 """Duplicates: pairs of people who may be one person, compared side by side, decided one
-after another (merge, two people, later), and the clear ones merged in one step."""
+after another (merge, two people, later), and the clear ones, or those above a score,
+merged in one step."""
 
 from __future__ import annotations
 
@@ -389,12 +390,16 @@ def decide(
 
 
 class AutoMerge(BaseModel):
-    """The automatic merge of the clear pairs: a preview, or (``apply``) the merge itself."""
+    """The automatic merge of the clear pairs, or with *min_score* of every pair whose score
+    is at least that (0 to 1): a preview, or (``apply``) the merge itself."""
 
     apply: bool = False
+    min_score: float | None = Field(default=None, ge=0, le=1)
 
 
-def _clear_groups(ctx: Any, runtime: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _clear_groups(
+    ctx: Any, runtime: Any, min_score: float | None = None
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """The groups the automatic merge would make
     (:func:`cartolex.collect.duplicates.clear_groups`), on the roles of now."""
     from cartolex.collect.duplicates import clear_groups
@@ -404,7 +409,11 @@ def _clear_groups(ctx: Any, runtime: Any) -> tuple[list[dict[str, Any]], dict[st
     people, _ = _people(ctx, runtime)
     now = {pid: (p["role"], p["identity"]) for pid, p in people.items()}
     groups = clear_groups(
-        standing(found["pairs"], people), found["facts"], set(read_pairs(ctx.layout)), now
+        standing(found["pairs"], people),
+        found["facts"],
+        set(read_pairs(ctx.layout)),
+        now,
+        min_score=min_score,
     )
     return groups, people
 
@@ -413,25 +422,30 @@ def _clear_groups(ctx: Any, runtime: Any) -> tuple[list[dict[str, Any]], dict[st
 def auto_merge(
     request: Request, response: Response, body: AutoMerge, ctx: ProjectDep
 ) -> dict[str, Any]:
-    """Merge the clear pairs: without ``apply``, what it would do (the groups, the rows
-    merged, examples); with it (send ``If-Match`` of the people), one write of
-    ``people.csv`` whose rows carry the same note and time, undone as one step with
-    ``POST /api/people/unmerge`` on the rows it answers."""
+    """Merge the clear pairs, or with ``min_score`` every pair not decided whose score is at
+    least that (never two different ORCIDs, never a pair said to be two people): without
+    ``apply``, what it would do (the groups, the rows merged, examples, each with the lowest
+    score of its pairs; above a score, the nearest to it first); with it (send ``If-Match``
+    of the people), one write of ``people.csv`` whose rows carry the same note and time,
+    undone as one step with ``POST /api/people/unmerge`` on the rows it answers."""
     from cartolex.collect.decisions import read_people as read_rows
     from cartolex.project.identity import AUTO_MERGE_NOTE, MergeRefused, merge_changes
 
     from ..people_io import write_people_csv
 
     runtime = runtime_of(request)
-    groups, people = _clear_groups(ctx, runtime)
+    groups, people = _clear_groups(ctx, runtime, body.min_score)
     merged = sum(len(g["merge"]) for g in groups)
+    lowest = {g["keep"]: min(p.score for p in g["pairs"]) for g in groups}
+    shown = groups if body.min_score is None else sorted(groups, key=lambda g: lowest[g["keep"]])
     examples = [
         {
             "keep": {"person_id": g["keep"], "name": g["names"][g["keep"]]},
             "merge": [{"person_id": m, "name": g["names"][m]} for m in g["merge"]],
+            "score": round(lowest[g["keep"]], 4),
             "evidence": [e for p in g["pairs"][:1] for e in p.evidence],
         }
-        for g in groups[:PREVIEW]
+        for g in shown[:PREVIEW]
     ]
     if not body.apply:
         return {"groups": len(groups), "merged": merged, "examples": examples, "applied": False}
@@ -461,8 +475,12 @@ def auto_merge(
                 changes[pid] = {**change, "note": note}
         if not changes:
             raise ApiError.of("nothing_to_change")
+        what = "clear" if body.min_score is None else f"scored {body.min_score:.0%} or more"
         fp = write_people_csv(
-            ctx.project, changes, expected=expected, action=f"merge {len(changes)} clear duplicates"
+            ctx.project,
+            changes,
+            expected=expected,
+            action=f"merge {len(changes)} {what} duplicates",
         )
     response.headers["ETag"] = etag_of(fp)
     return {

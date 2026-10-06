@@ -386,7 +386,8 @@ The People screen (`pages/people.js`, route `/people`) loads
 (`identities.js`, the queue, keyboard first: waiting, or accepted automatically
 to review), Duplicates (`duplicates-tab.js`, pairs of people who may be one,
 compared side by side in `duplicates-compare.js`, decided with the keyboard, the
-clear pairs merged in one undoable step), Organisations (`orgs-tab.js`: an
+clear pairs, or every pair above a likelihood chosen with a slider, 50 % at first,
+merged in one undoable step after a preview), Organisations (`orgs-tab.js`: an
 organisation's drawer with what people decide about it, `org-drawer.js`; the
 pairs that may be one organisation, `org-review.js`; the people of institutions,
 `institutions.js`), Texts (`texts-tab.js`), Collaborators

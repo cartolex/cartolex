@@ -120,6 +120,25 @@ def test_two_orcids_block_a_merge_unless_overridden():
         "b": "a", "c": "a"}  # fmt: skip
 
 
+def test_merging_above_a_score_never_joins_two_people_said_apart_nor_two_orcids():
+    from cartolex.collect.duplicates import DuplicatePair, PersonFacts, clear_groups
+
+    facts = {x: PersonFacts(x, "Doe", "J.", [("Doe", "J.")]) for x in ("p1", "p2", "p3", "p4")}
+    facts["p4"].orcids = {"0000-0000-0000-0004"}
+    facts["p3"].orcids = {"0000-0000-0000-0003"}
+
+    def pair(a, b, score, conflict=False):
+        return DuplicatePair(a, b, 0.0, score, [], clear=False, conflict=conflict)
+
+    pairs = [pair("p1", "p2", 0.9), pair("p2", "p3", 0.6), pair("p3", "p4", 0.95, True)]
+    groups = clear_groups(pairs, facts, min_score=0.5)
+    assert [sorted([g["keep"], *g["merge"]]) for g in groups] == [["p1", "p2", "p3"]]
+    assert clear_groups(pairs, facts, min_score=0.7)[0]["merge"] in (["p2"], ["p1"])
+    assert clear_groups(pairs, facts) == []  # none is clear
+    # p1 and p3 said to be two people: the chain through p2 does not join them
+    assert clear_groups(pairs, facts, {("p1", "p3")}, min_score=0.5) == []
+
+
 def test_merge_and_unmerge_through_the_api(tmp_path):
     project = _project(tmp_path / "p", PEOPLE, TEXTS)
     _decide(project, [{"person_id": p} for p, *_ in PEOPLE])
@@ -222,6 +241,51 @@ def test_review_a_pair_then_merge_the_clear_ones_in_one_undoable_step(doubled, t
         assert undone.status_code == 200 and sorted(undone.json()["unmerged"]) == merged
         again = client.post("/api/people/duplicates/auto", json={}).json()
         assert again["merged"] == 0  # pairs undone are left for a person to decide
+    finally:
+        app.state.cartolex.shutdown()
+
+
+def test_merge_every_pair_above_a_score_in_one_undoable_step(doubled, tmp_path):
+    import shutil
+
+    root, _ = doubled
+    shutil.copytree(root, tmp_path / "p")
+    app = create_app(AppSettings(project=tmp_path / "p", launch_token=TOKEN,
+                                 data_dir=tmp_path / "data"))  # fmt: skip
+    client = Client(app)
+    try:
+        pairs = client.get("/api/people/duplicates?show=all&limit=500").json()["items"]
+        above = [p for p in pairs if p["score"] >= 0.5 and not p["conflict"]]
+        assert any(not p["clear"] for p in above)  # more than the clear pairs
+        # a pair said to be two people is never merged
+        kept_apart = above[0]
+        decided = client.post("/api/people/duplicates/decide",
+                              json={"a": kept_apart["a"], "b": kept_apart["b"],
+                                    "decision": "distinct"},
+                              headers={"If-Match": etag(client.get("/api/people"))})  # fmt: skip
+        assert decided.status_code == 200, decided.text
+        clear = client.post("/api/people/duplicates/auto", json={}).json()
+        preview = client.post("/api/people/duplicates/auto", json={"min_score": 0.5}).json()
+        assert preview["merged"] > clear["merged"] and not preview["applied"]
+        scores = [g["score"] for g in preview["examples"]]
+        assert scores == sorted(scores) and min(scores) >= 0.5  # the nearest to it first
+        applied = client.post("/api/people/duplicates/auto", json={"min_score": 0.5, "apply": True},
+                              headers={"If-Match": etag(client.get("/api/people"))})  # fmt: skip
+        assert applied.status_code == 200, applied.text
+        merged = applied.json()["person_ids"]
+        assert len(merged) == preview["merged"]
+        into = {pid: client.get(f"/api/people/{pid}/sheet").json()["merged_into"]["person_id"]
+                for pid in merged}  # fmt: skip
+        assert into.get(kept_apart["a"]) != kept_apart["b"]
+        assert into.get(kept_apart["b"]) != kept_apart["a"]
+        conflicts = {frozenset((p["a"], p["b"])) for p in pairs if p["conflict"]}
+        assert not any(frozenset(x) in conflicts for x in into.items())
+        # one step: the last automatic merge is all of them, undone at once
+        assert client.get("/api/people/duplicates").json()["last_auto"]["person_ids"] == merged
+        undone = client.post("/api/people/unmerge",
+                             json={"person_ids": merged, "remember": "later"},
+                             headers={"If-Match": etag(client.get("/api/people"))})  # fmt: skip
+        assert undone.status_code == 200 and sorted(undone.json()["unmerged"]) == merged
     finally:
         app.state.cartolex.shutdown()
 

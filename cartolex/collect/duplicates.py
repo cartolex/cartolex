@@ -632,12 +632,17 @@ def clear_groups(
     facts: Mapping[str, PersonFacts],
     decided: Collection[tuple[str, str]] = (),
     now: Mapping[str, tuple[str, str]] | None = None,
+    min_score: float | None = None,
 ) -> list[dict[str, Any]]:
     """The clear pairs not *decided* (``(a, b)`` keys, the smaller id first), joined into
     groups of people that are one person: each ``keep`` (:func:`choose_kept`, on the roles
     and identities of *now*: person id → ``(role, identity)``, else the facts'), the others
     to ``merge``, their ``names`` and the ``pairs`` it holds; sorted by the kept name. A
-    group whose people carry two different ORCIDs is left out: a person decides."""
+    group whose people carry two different ORCIDs, or that would join two people of a pair
+    already decided (two people, later) through others, is left out: a person decides.
+
+    With *min_score*, the pairs taken are those whose score is at least *min_score* (clear
+    or not), never a pair of two different ORCIDs."""
     from dataclasses import replace
 
     parent: dict[str, str] = {}
@@ -650,7 +655,12 @@ def clear_groups(
             parent[x], x = root, parent[x]
         return root
 
-    chosen = [p for p in pairs if p.clear and (p.a, p.b) not in decided]
+    def taken(p: DuplicatePair) -> bool:
+        if min_score is None:
+            return p.clear
+        return p.score >= min_score and not p.conflict
+
+    chosen = [p for p in pairs if taken(p) and (p.a, p.b) not in decided]
     for p in chosen:
         ra, rb = find(p.a), find(p.b)
         if ra != rb:
@@ -671,6 +681,9 @@ def clear_groups(
             group.append(f)
         orcids = [f.orcids for f in group if f.orcids]
         if any(not (x & y) for i, x in enumerate(orcids) for y in orcids[i + 1 :]):
+            continue
+        inside = sorted(ids)
+        if any((x, y) in decided for i, x in enumerate(inside) for y in inside[i + 1 :]):
             continue
         keep = choose_kept(group)
         out.append(

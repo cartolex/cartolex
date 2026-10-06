@@ -104,7 +104,11 @@ when one author is recorded twice at the same place of a text, never with two
 different ORCIDs or a text they wrote together: a name, an organisation and
 co-authors in common are not enough, since two namesakes of one lab have all
 three. The corpus screen's Duplicates tab shows the pairs side by side; « Merge
-the clear pairs » merges the clear ones in one step, undone in one.
+the clear pairs » merges the clear ones in one step, undone in one; « Merge above a
+likelihood… » does the same for every pair whose likelihood is at least a threshold
+(50 % at first), after showing how many people it would merge and the pairs nearest the
+threshold. Neither ever merges two different ORCIDs, a pair you said is two people, or
+two people such a pair holds apart through a third.
 
 ````{admonition} On the command line
 :class: note
