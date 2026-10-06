@@ -5,8 +5,9 @@
  * preferences. A classic script (a page opened from `file://` cannot load ES
  * modules): it puts what the other scripts use on `window.CxSite`.
  *
- * The data comes as classic scripts too (`data/core.js`, `data/details.js`,
- * `data/texts.js`), each setting `window.CX_SITE.<part>`: a page opened from
+ * The data comes as classic scripts too (`data/core.js`, `data/details.js`, and
+ * the parts of the people's details and texts, `data/people/<n>.js` and
+ * `data/texts/<n>.js`), each setting `window.CX_SITE[<part>]`: a page opened from
  * `file://` can load a script, not read a JSON file.
  */
 (function () {
@@ -214,6 +215,19 @@
     script.addEventListener('load', () => finish(true));
     script.addEventListener('error', () => finish(false));
     document.head.appendChild(script);
+  };
+
+  /** The part holding a person's details (`people`) or texts (`texts`): the part
+   * `(number − 1) mod n` of their id `s<number>`, *n* in `core.shards`. */
+  S.partOf = function partOf(kind, id) {
+    const n = ((DATA.core && DATA.core.shards) || {})[kind] || 1;
+    return `${kind}/${(parseInt(String(id).slice(1), 10) - 1) % n}`;
+  };
+
+  /** A person's details or texts, once their part is loaded (`undefined` before). */
+  S.personPart = function personPart(kind, id) {
+    const part = DATA[S.partOf(kind, id)];
+    return part ? part[id] : undefined;
   };
 
   /** The message a page shows when a part of the site's files is missing. */

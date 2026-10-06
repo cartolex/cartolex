@@ -144,8 +144,8 @@
       words.detail ? h('p', { class: 'cx-muted', text: words.detail }) : null];
     const page = S.pageOf(state.sel);
     if (page) body.push(h('p', {}, S.link(page, t('map.panel.open'), 'cx-button cx-button--primary')));
-    if (state.sel.kind === 'person' && details && details.people[state.sel.id]) {
-      const near = details.people[state.sel.id].near;
+    if (state.sel.kind === 'person' && S.personPart('people', state.sel.id)) {
+      const near = S.personPart('people', state.sel.id).near;
       body.push(h('h3', { class: 'cx-map-panel__head', text: t('person.near') }),
         h('ol', { class: 'cx-list' }, near.map(([id]) => h('li', {}, h('button', { type: 'button', class: 'cx-link-button',
           onclick: () => onSelect({ kind: 'person', id }) }, S.personName(ix.byPerson.get(id)))))),
@@ -234,12 +234,20 @@
       side.replaceChildren(legend(state, built.counts, select), panel(state, select));
       if (frame) frame.redraw(refit);
     };
+    /** Load what the selection shows: the details, and a person's own part. */
+    function needed() {
+      if (!state.sel) return;
+      if (!S.data.details) S.need('details', () => paint(false));
+      if (state.sel.kind === 'person' && !S.data[S.partOf('people', state.sel.id)]) {
+        S.need(S.partOf('people', state.sel.id), () => paint(false));
+      }
+    }
     function update(patch) {
       const viewChanged = patch.view !== undefined && patch.view !== state.view;
       state = Object.assign({}, state, patch);
       if (viewChanged && !patch.org) state.org = S.defaultOrgLevel(state.view === 'world');
       writeState(state);
-      if (state.sel && !S.data.details) S.need('details', () => paint(false));
+      needed();
       paint(viewChanged);
     }
     compute();
@@ -249,7 +257,7 @@
       onPick: (hit) => { const sel = built.pick(hit); if (sel || state.sel) select(sel); },
       hover: (hit) => S.describe(built.pick(hit)),
     });
-    if (state.sel && !S.data.details) S.need('details', () => paint(false));
+    needed();
     paint(false);
     return () => frame.destroy();
   };

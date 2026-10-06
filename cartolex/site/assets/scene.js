@@ -69,7 +69,7 @@
     const terms = (list) => (list || []).map((t) => ix.byTerm.get(t)).filter((i) => i !== undefined);
     if (sel.kind === 'person' && ix.byPerson.has(sel.id)) {
       out.people.add(ix.byPerson.get(sel.id));
-      const d = details && details.people[sel.id];
+      const d = S.personPart('people', sel.id);
       if (d) {
         terms(d.keywords).forEach((k) => out.keywords.add(k));
         out.near = d.near.map((n) => ix.byPerson.get(n[0])).filter((i) => i !== undefined);

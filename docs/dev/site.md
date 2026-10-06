@@ -17,9 +17,16 @@ README.txt     starts with « UNZIP THE WHOLE FOLDER FIRST », then what the sit
 site.json      the build's record: options, counts, sizes, the inputs' fingerprint
 assets/        tokens.css (the app's, copied), site.css, site.js, map.js,
                i18n.js (en, fr, pt-BR), world.js (when organisations have an address)
-data/          core.js (every page), details.js (person, organisation and theme
-               pages), texts.js (only when texts are asked for)
+data/          core.js (every page), details.js (organisation and theme pages,
+               the keywords' people), people/<n>.js (the people's details) and
+               texts/<n>.js (their texts, only when texts are asked for)
 ```
+
+A person's details and texts are in the part `(number − 1) mod n` of their
+site id (`s<number>`), *n* in `core.shards` (`people`, `texts`), chosen so that
+a part holds about 2 MB (`SHARD_BYTES`): a page loads the part of the person it
+shows, so a national site's gigabytes of titles never load at once. The parts
+are written one at a time. `site.json`'s format is `cartolex-site/2`.
 
 The build is written under a hidden name and renamed when complete, so it is
 never half-written and never replaces another; `outputs/sites/latest` names
@@ -29,7 +36,7 @@ build whose fingerprint differs from the project's now is **stale**, and the
 share area of the project state is then « needs update ».
 
 A page opened from `file://` cannot load ES modules or read a JSON file, so
-everything is a classic script: the data files set `window.CX_SITE.<part>`,
+everything is a classic script: the data files set `window.CX_SITE[<part>]`,
 and `assets/map.js` is the app's own map modules (`MAP_MODULES`) and the
 treemap's layout (`components/treemap-layout.js`) turned into one script by
 `cartolex.app.static_files.classic_script` (`window.CartolexMap`). The site's
@@ -107,7 +114,8 @@ organisations, 2 955 keywords, 163 themes), Chromium, from `file://`:
 | opened on the map, first frame drawn | 0.3–0.4 s | |
 | a person's page (details read) | 0.16 s | |
 
-`data/core.js` is 0.20 MB and `data/details.js` 0.38 MB; the map's and the
+`data/core.js` is 0.20 MB and the details 0.38 MB (since `cartolex-site/2`,
+`data/details.js` and the people's parts); the map's and the
 site's scripts together about 0.11 MB, the world outline 0.05 MB.
 
 ## Checks

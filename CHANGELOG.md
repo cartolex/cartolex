@@ -59,6 +59,10 @@ nothing in the engine names a particular deployment, source or procedure.
     earlier versions as deltas from the latest version kept whole
     (`.csv.delta`, `cartolex-history-delta/1`; one in 50 kept whole), read and
     restored as before (`cartolex.project.files.read_version`).
+  - *Shared site*: `cartolex-site/2`: the people's details and texts are in
+    parts of about 2 MB (`data/people/<n>.js`, `data/texts/<n>.js`, written
+    one at a time), loaded with the person a page shows; the people's
+    neighbours are computed in threads.
   - *App*: the texts are a view of columns built once per version of the
     tables and kept in the project's cache (`cache/views/`), memory-mapped:
     lists, filters, sorts and counts of millions of texts without an object per

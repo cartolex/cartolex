@@ -70,17 +70,22 @@
     };
   }
 
-  function withDetails(main, render) {
+  function withDetails(main, render, also) {
     const wait = h('p', { class: 'cx-muted', 'aria-busy': 'true', text: t('common.loading') });
     main.append(wait);
     let teardown = null;
     let gone = false;
-    S.need('details', (ok) => {
-      if (gone) return;
+    const parts = ['details'].concat(also || []);
+    let left = parts.length;
+    let missing = false;
+    parts.forEach((part) => S.need(part, (ok) => {
+      missing = missing || !ok;
+      left -= 1;
+      if (gone || left) return;
       wait.remove();
-      if (!ok) main.append(S.missingNote());
+      if (missing) main.append(S.missingNote());
       else teardown = render();
-    });
+    }));
     return () => {
       gone = true;
       if (teardown) teardown();
@@ -100,7 +105,7 @@
         core.people.top[i] ? h('p', { class: 'cx-lead', text: t('person.lead', { theme: S.nodeName(core.people.top[i]) }) }) : null]),
       printButton()]));
     return withDetails(main, () => {
-      const d = S.data.details.people[id];
+      const d = S.personPart('people', id);
       const mapBox = h('div', { class: 'cx-mini' });
       const near = d.near.filter(([q]) => ix.byPerson.has(q));
       const grid = h('div', { class: 'cx-grid' }, [
@@ -120,12 +125,12 @@
       const texts = h('div', {});
       if (core.texts !== 'none') {
         grid.append(h('section', { class: 'cx-card cx-card--wide' }, [h('h2', { text: t('person.texts') }), texts]));
-        S.need('texts', (ok) => {
+        S.need(S.partOf('texts', id), (ok) => {
           if (!ok) {
             texts.append(S.missingNote());
             return;
           }
-          const list = S.data.texts[id] || [];
+          const list = S.personPart('texts', id) || [];
           texts.append(list.length ? h('ul', { class: 'cx-texts' }, list.map((e) => h('li', {}, [
             h('span', { class: 'cx-texts__title', text: e.title }), e.year ? h('span', { class: 'cx-muted', text: ` (${e.year})` }) : null,
             e.abstract ? h('details', { class: 'cx-texts__abstract' }, [h('summary', { text: t('person.abstract') }),
@@ -134,7 +139,7 @@
         });
       }
       return miniMap(mapBox, { kind: 'person', id }, [core.people.x[i], core.people.y[i]], ['people', 'keywords']);
-    });
+    }, [S.partOf('people', id)]);
   };
 
   S.pages.org = function org(main, route) {

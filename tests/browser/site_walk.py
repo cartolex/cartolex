@@ -42,9 +42,17 @@ def walk(page) -> None:
     search.press("Enter")
     page.get_by_role("heading", name="Closest people").wait_for()
     assert page.locator(".cx-card ol.cx-list li").count() > 0
-    page.evaluate("location.hash = '#/map'")
+    # the texts, when the site carries them, come from the person's own part
+    if page.get_by_role("heading", name="Texts").count():
+        page.wait_for_function(
+            "() => document.querySelector('.cx-texts li') || /None\\./.test("
+            "document.querySelector('.cx-card--wide:last-child').textContent)"
+        )
+    # the person on the map: the panel lists their closest people (from the same part)
+    page.get_by_role("link", name="Open on the map").click()
     page.locator(".cx-map__box").wait_for()
     page.wait_for_function("() => document.querySelector('.cx-map__box').cxMap.frames() > 0")
+    page.locator(".cx-map-panel").get_by_role("heading", name="Closest people").wait_for()
     page.evaluate("location.hash = '#/themes'")
     page.locator(".cx-treemap__cell").first.wait_for()
     page.evaluate("location.hash = '#/nowhere/at/all'")

@@ -69,7 +69,11 @@ def test_a_pseudonymous_site_carries_no_name_and_no_text(project):
     text = _site_text(folder)
     names = _people_names(project)
     assert names and not [n for n in names if n in text]
-    assert not (folder / "data" / "texts.js").exists() and record["counts"]["texts"] == 0
+    assert not (folder / "data" / "texts").exists() and record["counts"]["texts"] == 0
+    # the people's details in parts, loaded with the person
+    people = sorted((folder / "data" / "people").glob("*.js"))
+    assert people and record["format"] == "cartolex-site/2"
+    assert all(f"data/people/{p.name}" in record["files"] for p in people)
     readme = (folder / "README.txt").read_text(encoding="utf-8")
     assert readme.startswith("UNZIP THE WHOLE FOLDER FIRST")
     page = (folder / "index.html").read_text(encoding="utf-8")
@@ -85,7 +89,7 @@ def test_titles_and_abstracts_never_carry_a_private_part(project):
     record = build_site(project, SiteOptions(names=True, texts="abstracts"))
     folder = project.layout.outputs / "sites" / record["id"]
     text = _site_text(folder)
-    assert record["counts"]["texts"] > 0
+    assert record["counts"]["texts"] > 0 and list((folder / "data" / "texts").glob("*.js"))
     assert not [c for c in private if c in text]
     assert any(n in text for n in _people_names(project))  # names were asked for
     script = (folder / "data" / "core.js").read_text(encoding="utf-8")

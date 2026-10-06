@@ -16,10 +16,16 @@ The folder::
     README.txt          « unzip the whole folder first », then what the site holds
     site.json           the build's record (not read by the page)
     assets/             tokens.css, site.css, map.js, site.js, i18n.js, world.js
-    data/               core.js (every page), details.js, texts.js (on request)
+    data/               core.js (every page), details.js (organisations, themes,
+                        keywords' people), people/<n>.js (people's details) and
+                        texts/<n>.js (their texts, on request), loaded on demand
 
-Data files are classic scripts (``window.CX_SITE.<part> = …``): a page opened
-from ``file://`` can load a script but cannot read a JSON file.
+Data files are classic scripts (``window.CX_SITE[<part>] = …``): a page opened
+from ``file://`` can load a script but cannot read a JSON file. A person's
+details and texts are in the part ``(number − 1) mod n`` of their site id
+(``s<number>``), *n* in ``core.shards`` chosen so that a part holds about
+:data:`SHARD_BYTES`: a national site's texts are gigabytes, a page loads what it
+shows.
 """
 
 from __future__ import annotations
@@ -54,7 +60,7 @@ __all__ = [
     "site_zip",
 ]
 
-FORMAT = "cartolex-site/1"
+FORMAT = "cartolex-site/2"
 #: The site's languages (its catalogues); the build chooses the one it opens in.
 LANGUAGES = ("en", "fr", "pt-BR")
 #: What a site may carry of the texts: nothing (the default), titles, titles and abstracts.
@@ -132,6 +138,33 @@ def _script(name: str, value: Any) -> bytes:
     return (
         f"window.CX_SITE = window.CX_SITE || {{}};\nwindow.CX_SITE[{json.dumps(name)}] = {body};\n"
     ).encode()
+
+
+#: The bytes a part of the people's details or texts holds, about.
+SHARD_BYTES = 2 << 20
+
+
+def _shard_count(by_sid: Mapping[str, Any]) -> int:
+    total = sum(
+        len(json.dumps(v, ensure_ascii=False, separators=(",", ":"))) for v in by_sid.values()
+    )
+    return max(1, -(-total // SHARD_BYTES))
+
+
+def _write_shards(folder: Path, name: str, by_sid: Mapping[str, Any], n: int) -> dict[str, int]:
+    """*by_sid* (keyed by site ids ``s1``, ``s2``…) written as *n* parts ``data/<name>/<i>.js``,
+    one at a time; their sizes by file name."""
+    buckets: list[list[str]] = [[] for _ in range(n)]
+    for sid in by_sid:
+        buckets[(int(sid[1:]) - 1) % n].append(sid)
+    sizes = {}
+    for i, sids in enumerate(buckets):
+        body = _script(f"{name}/{i}", {sid: by_sid[sid] for sid in sids})
+        path = folder / "data" / name / f"{i}.js"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(body)
+        sizes[f"data/{name}/{i}.js"] = len(body)
+    return sizes
 
 
 def _sha(data: bytes) -> str:
@@ -300,12 +333,17 @@ def build_site(
     at = now or datetime.now(timezone.utc)
     world = any(loc for loc in data.core["orgs"]["location"])
 
+    people_details = data.details["people"]
+    shards = {"people": _shard_count(people_details)}
+    if data.texts is not None:
+        shards["texts"] = _shard_count(data.texts)
     core = {
         **data.core,
         "title": title,
         "built_at": at.isoformat(timespec="seconds"),
         "language": options.language,
-        "parts": ["details"] + (["texts"] if data.texts is not None else []),
+        "parts": ["details", *shards],
+        "shards": shards,
     }
     files: dict[str, bytes] = {
         "index.html": _index_html(title, options.language, words, world).encode(),
@@ -318,14 +356,14 @@ def build_site(
         ).encode(),
         "assets/i18n.js": _script("i18n", {code: _catalogue(code) for code in LANGUAGES}),
         "data/core.js": _script("core", core),
-        "data/details.js": _script("details", data.details),
+        "data/details.js": _script(
+            "details", {k: v for k, v in data.details.items() if k != "people"}
+        ),
     }
     if world:
         files["assets/world.js"] = _script(
             "world", json.loads(WORLD.read_text(encoding="utf-8"))["rings"]
         )
-    if data.texts is not None:
-        files["data/texts.js"] = _script("texts", data.texts)
 
     folder = _sites(project)
     folder.mkdir(parents=True, exist_ok=True)
@@ -339,14 +377,18 @@ def build_site(
         "options": {**asdict(options), "title": title},
         "inputs": fingerprint,
         "counts": data.counts,
-        "files": {name: len(body) for name, body in sorted(files.items())},
-        "size": sum(len(b) for b in files.values()),
     }
-    files["site.json"] = (json.dumps(record, indent=2, ensure_ascii=False) + "\n").encode()
     staging = folder / f".building-{build_id}"
     if staging.exists():
         shutil.rmtree(staging)
     try:
+        sizes = {name: len(body) for name, body in files.items()}
+        sizes.update(_write_shards(staging, "people", people_details, shards["people"]))
+        if data.texts is not None:
+            sizes.update(_write_shards(staging, "texts", data.texts, shards["texts"]))
+        record["files"] = dict(sorted(sizes.items()))
+        record["size"] = sum(sizes.values())
+        files["site.json"] = (json.dumps(record, indent=2, ensure_ascii=False) + "\n").encode()
         for name, body in files.items():
             path = staging / name
             path.parent.mkdir(parents=True, exist_ok=True)
