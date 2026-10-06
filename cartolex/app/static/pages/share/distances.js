@@ -13,7 +13,7 @@ import { locale, t } from '../../core/i18n.js';
 import {
   Button, Checkbox, Dialog, ErrorCard, FormField, Icon, Input, Select,
 } from '../../components/index.js';
-import { levelLabel } from '../map/model.js';
+import { nameIn } from '../../atlas/data.js';
 
 const KINDS = ['neighbours', 'similarity', 'vectors'];
 
@@ -93,7 +93,7 @@ export function DistancesDialog({ ctx, open, onClose, onStarted, shown = null })
         ${(f) => html`<${Select} ...${f} value=${level || levels[0].id}
           onChange=${(e) => setLevel(e.currentTarget.value)}
           options=${levels.map((lv) => ({ value: lv.id, label: t('distances.level.option',
-            { name: levelLabel(lv, locale.value), count: lv.count }) }))} />`}<//>` : null}
+            { name: (nameIn(lv.names, locale.value) || lv.id), count: lv.count }) }))} />`}<//>` : null}
       ${kind === 'neighbours' ? html`<${FormField} label=${t('distances.k')}>
         ${(f) => html`<${Input} ...${f} type="number" min="1" max="100" value=${k}
           onInput=${(e) => setK(e.currentTarget.value)} />`}<//>` : null}
