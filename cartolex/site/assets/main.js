@@ -37,6 +37,19 @@
   let theme = THEMES.includes(S.store('cx-site-theme')) ? S.store('cx-site-theme') : 'system';
   applyTheme(theme);
 
+  /** Set the look (`system`, `light`, `dark`), from the header or the atlas's Dark / Bright:
+   * the atlas follows it without being mounted again. */
+  S.setLook = function setLook(choice) {
+    theme = choice;
+    S.store('cx-site-theme', theme === 'system' ? null : theme);
+    applyTheme(theme);
+    if (route().parts[0] === 'map' && S.lookChanged) {
+      const head = root.querySelector('.cx-header');
+      if (head) head.replaceWith(header('map'));
+      S.lookChanged();
+    } else render();
+  };
+
   function route() {
     const hash = window.location.hash.replace(/^#/, '') || '/';
     const cut = hash.indexOf('?');
@@ -64,17 +77,8 @@
       S.resetSearch();
       render();
     } }, S.LANGS.map((code) => h('option', { value: code, selected: code === S.lang }, t(`shell.language.${code}`))));
-    const themeButton = h('button', { type: 'button', class: 'cx-button cx-button--ghost', onclick: () => {
-      theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
-      S.store('cx-site-theme', theme === 'system' ? null : theme);
-      applyTheme(theme);
-      // The atlas follows the look without being mounted again.
-      const atlas = S.lookChanged && route().parts[0] === 'map';
-      if (atlas) {
-        root.querySelector('.cx-header').replaceWith(header('map'));
-        S.lookChanged();
-      } else render();
-    } }, t(`shell.theme.${theme}`));
+    const themeButton = h('button', { type: 'button', class: 'cx-button cx-button--ghost',
+      onclick: () => S.setLook(THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]) }, t(`shell.theme.${theme}`));
     return h('header', { class: 'cx-header' }, [
       h('a', { href: '#/', class: 'cx-skip', text: t('shell.skip') }),
       h('a', { href: '#/', class: 'cx-brand', text: data.core.title }),

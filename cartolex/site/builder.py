@@ -35,13 +35,14 @@ import hashlib
 import html
 import json
 import os
+import re
 import shutil
 import tempfile
 import zipfile
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from .data import gather
@@ -55,6 +56,7 @@ __all__ = [
     "TEXT_MODES",
     "OfflineSiteBuilder",
     "SiteOptions",
+    "atlas_sources",
     "build_site",
     "inputs_fingerprint",
     "list_builds",
@@ -145,22 +147,58 @@ def _messages(language: str) -> dict[str, str]:
     return {**atlas, **_catalogue(language)}
 
 
+_FROM = re.compile(
+    r"""^(?:import|export)\s[^;]*?\sfrom\s+'((?:\./|(?:\.\./)+)[\w/-]+\.js)';""", re.M
+)
+
+
+def atlas_sources(listed: Sequence[str], root: Path) -> list[str]:
+    """The modules of the atlas in the order a classic script needs them: those *listed*
+    (``ATLAS_MODULES``, paths under *root*) and every module they import, each after the
+    modules it imports (the listed order otherwise). A cycle is refused (``ValueError``)."""
+    order: list[str] = []
+    state: dict[str, str] = {}
+
+    def visit(name: str) -> None:
+        if state.get(name) == "done":
+            return
+        if state.get(name) == "open":
+            raise ValueError(f"{name}: its imports come back to it")
+        state[name] = "open"
+        text = (root / name).read_text(encoding="utf-8")
+        for spec in _FROM.findall(text):
+            visit(_normal((PurePosixPath(name).parent / spec).as_posix()))
+        state[name] = "done"
+        order.append(name)
+
+    for name in listed:
+        visit(_normal(name))
+    return order
+
+
+def _normal(name: str) -> str:
+    """``atlas/../components/map/core.js`` → ``components/map/core.js``."""
+    parts: list[str] = []
+    for part in PurePosixPath(name).parts:
+        if part == "..":
+            parts.pop()
+        elif part != ".":
+            parts.append(part)
+    return "/".join(parts)
+
+
 def _atlas_assets() -> dict[str, bytes]:
     """The app's atlas as the site loads it: its modules as one classic script
     (``window.CartolexAtlas``) and its style sheet."""
-    from cartolex.app import static_files
+    from cartolex.app.static_files import ATLAS_MODULES, PACKAGE_STATIC, classic_script
 
-    modules = getattr(static_files, "ATLAS_MODULES", None)
-    if not modules:  # the atlas is not part of this version of the app
-        return {}
-    files = {
-        "assets/atlas.js": static_files.classic_script(
-            [static_files.PACKAGE_STATIC / m for m in modules], "CartolexAtlas"
-        ).encode()
+    modules = atlas_sources(ATLAS_MODULES, PACKAGE_STATIC)
+    return {
+        "assets/atlas.js": classic_script(
+            [PACKAGE_STATIC / m for m in modules], "CartolexAtlas"
+        ).encode(),
+        "assets/atlas.css": ATLAS_CSS.read_bytes(),
     }
-    if ATLAS_CSS.is_file():
-        files["assets/atlas.css"] = ATLAS_CSS.read_bytes()
-    return files
 
 
 def _script(name: str, value: Any) -> bytes:

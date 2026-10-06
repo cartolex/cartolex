@@ -225,6 +225,10 @@
           if (j < P) return { id, name: core.people.name[j], role: 'mapped', mapped: true, place: 'map' };
           return { id, name: core.projected.name[j - P], role: 'projected', mapped: false, place: 'projected' };
         }),
+        stats: (id) => {
+          const j = atOf(id);
+          return { texts: 0, outside: person && g.outside ? g.outside[j] || 0 : 0 };
+        },
         placed: (id) => {
           const j = atOf(id);
           if (!person) return core.orgs.x[j] === null ? null : 'map';
@@ -232,10 +236,10 @@
         },
       };
       const answer = window.CartolexAtlas.ringsOf(graph, query.id, circle, query.pages);
-      const head = { id: query.id, circle, outside: person ? (g.outside[at] || 0) : 0,
-        hidden: g.hidden[at] || 0, max_authors: links.max_authors };
-      if (!person) head.level = core.orgs.level[at];
-      return Object.assign(head, answer);
+      answer.hidden = g.hidden[at] || 0;
+      answer.max_authors = links.max_authors;
+      if (!person) answer.level = core.orgs.level[at];
+      return answer;
     }
 
     return source;

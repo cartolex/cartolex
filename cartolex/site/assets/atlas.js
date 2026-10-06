@@ -9,7 +9,7 @@
  * - `address`: the query of the fragment (`#/map?…`), replaced in place, so a view
  *   can be shared inside the folder and survives a reload;
  * - `prefs`: the browser's storage (the layout, the colour scheme), when it allows it;
- * - `look`: the site's light / dark choice;
+ * - `look`: the site's light / dark choice, which the atlas's Dark / Bright sets;
  * - `label`: the pseudonyms (« Person 12 », « Placed person 3 »);
  * - `links`: a person's and an organisation's printable page in the site;
  * - `fileStem`: the site's title, for saved views.
@@ -44,22 +44,25 @@
 
   const PREFS = 'cx-site-atlas.';
 
-  /** The colours of the top-level themes in the scheme the reader chose (a Map), or null. */
+  /** The colours of the top-level themes in the colour scheme the reader chose in the
+   * atlas (its preference, and a scale's order as the atlas placed them): a Map, or null. */
   S.themeColours = function themeColours() {
     const A = window.CartolexAtlas;
     if (!A || !A.themeColours) return null;
-    let scheme = null;
+    const pref = (key) => {
+      try {
+        return JSON.parse(S.store(PREFS + key) || 'null');
+      } catch (e) {
+        return null;
+      }
+    };
     try {
-      scheme = JSON.parse(S.store(`${PREFS}colour_scheme`) || 'null');
-    } catch (e) {
-      scheme = null;
-    }
-    try {
-      const tops = S.ix.tops.map((id) => S.ix.nodes.get(id));
-      const out = A.themeColours(scheme || undefined, tops, { dark: S.isDark() });
-      if (out instanceof Map) return out;
-      if (Array.isArray(out)) return new Map(tops.map((n, i) => [n.id, out[i]]));
-      return out ? new Map(Object.entries(out)) : null;
+      const scheme = pref('colour_scheme') || A.DEFAULT_SCHEME;
+      const kept = String(pref('colour_order') || '').split(',').filter(Boolean).map(Number);
+      const tops = S.ix.tops;
+      const order = A.schemeOf(scheme).kind === 'scale' && kept.length === tops.length ? kept : null;
+      const list = A.themeColours(scheme, tops.length, { dark: S.isDark(), order });
+      return new Map(tops.map((id, i) => [id, list[i]]));
     } catch (e) {
       return null;
     }
@@ -105,6 +108,7 @@
       },
       look: {
         dark: S.isDark,
+        set: (dark) => S.setLook(dark ? 'dark' : 'light'),
         subscribe(fn) {
           lookListeners.add(fn);
           const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
@@ -127,7 +131,8 @@
       navigate(href) {
         window.location.hash = href;
       },
-      fileStem: ix.core.title,
+      fileStem: () => ix.core.title,
+      title: ix.core.title,
     };
   };
 
