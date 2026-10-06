@@ -22,7 +22,7 @@ block of it.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -63,6 +63,7 @@ class Rows:
     measure: str
     data: Any  # an ndarray (space, themes) or a CSR matrix (keywords, jaccard)
     sizes: np.ndarray | None = None  # jaccard: each one's number of keywords
+    _cols: np.ndarray | None = field(default=None, repr=False)
 
     def __len__(self) -> int:
         return int(self.data.shape[0])
@@ -85,9 +86,12 @@ class Rows:
         if self.measure == "space":
             return np.asarray(a @ b.T, dtype=np.float32)
         if self.measure == "themes":
+            cols = self._columns()
             out = np.zeros((a.shape[0], b.shape[0]), dtype=np.float32)
-            for j in range(a.shape[1]):
-                out += np.minimum(a[:, j][:, None], b[:, j][None, :])
+            part = np.empty_like(out)
+            for j in np.flatnonzero(np.asarray(b).any(axis=0)):  # a theme neither has adds 0
+                np.minimum(cols[j][:, None], b[:, j][None, :], out=part)
+                out += part
             return out
         dense = np.asarray(b.T.toarray(), dtype=np.float32)
         dot = np.asarray(a @ dense, dtype=np.float32)
@@ -95,6 +99,12 @@ class Rows:
             return dot
         union = self.sizes[:, None] + other.sizes[None, :] - dot
         return np.divide(dot, union, out=np.zeros_like(dot), where=union > 0)
+
+    def _columns(self) -> np.ndarray:
+        """The themes' columns, each contiguous (a theme's shares of every item)."""
+        if self._cols is None:
+            self._cols = np.ascontiguousarray(np.asarray(self.data, dtype=np.float32).T)
+        return self._cols
 
     def block_rows(self, n: int, budget: int) -> int:
         """Rows of a block of similarities against *n* items within *budget* bytes."""
