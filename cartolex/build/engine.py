@@ -597,9 +597,12 @@ def _keyword_decisions(ctx: StageContext, rctx: RunContext | None = None) -> Non
 
 
 def _extraction_run(ctx: StageContext) -> str | None:
-    """The run id of the extraction this build reads."""
+    """The run id of the extraction this build reads (``None`` for a context without a
+    project's layout)."""
     from .records import read_record
 
+    if not hasattr(ctx.layout, "run_json"):
+        return None
     record = read_record(ctx.layout, "keywords.extract")
     return record.run_id if record is not None else None
 

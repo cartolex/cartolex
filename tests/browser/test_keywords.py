@@ -112,11 +112,13 @@ def test_bands_bulk_history_and_the_ai_copilot(keywords, axe_source, tmp_path):
     page.locator(".cx-toast", has_text="3 AI decisions accepted").wait_for()
     decided = api(ui, "GET", "/api/keywords?route=ai-copilot")["data"]
     assert decided["total"] == 3
-    # the route shows in the list, and the warning is gone
+    # the route shows in the list, and the warning of the languages is gone; the copilot's
+    # acceptance gate counts the candidates nobody judged
     page.get_by_role("tab", name="Set aside").click()
     page.get_by_role("combobox", name="Decided by").select_option("ai-copilot")
     page.get_by_role("grid", name="Set aside").get_by_text("AI · copilot").first.wait_for()
-    assert page.locator(".cx-kw-warning").count() == 0
+    assert page.locator(".cx-kw-warning:not(.cx-kw-gate)").count() == 0
+    assert "not judged" in page.locator(".cx-kw-gate").inner_text()
     assert blocking(run_axe(ui, axe_source)) == []
 
 
