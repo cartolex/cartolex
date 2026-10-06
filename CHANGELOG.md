@@ -394,6 +394,19 @@ nothing in the engine names a particular deployment, source or procedure.
   attribution counts every form of a term. Portuguese is a full corpus
   language: `corpus_languages` is any subset of `en`, `fr` and `pt`, and
   another code is refused with `SettingsError`. See `docs/dev/extraction.md`.
+- **Texts in Spanish, German and Italian.** `es`, `de` and `it` are languages
+  of the texts at the level of the others: language detection, a pinned spaCy
+  model each (`es_core_news_md`, GNU GPL 3.0; `de_core_news_md`, MIT;
+  `it_core_news_md`, CC BY-NC-SA 3.0, non-commercial; installed separately with
+  `cartolex models add`, offered by the installer, never bundled), noun-phrase
+  patterns (Spanish and Italian take the Portuguese shape, with Italian
+  `dell'`, `nella`; German has adjectives and a noun, keeps the capital of
+  nouns and folds the inflections its lemmatizer leaves), function and closed
+  words, the triage kit's pre-sort and examples, and the AI's instructions. The
+  project's languages, the reference language and the command line accept the
+  codes; English, French and Portuguese are unchanged. The lexicon lab gains a
+  Spanish benchmark (`scielo-es`) and a German genitive switch
+  (`ScoringOptions.genitive`, off).
 - **A trilingual demo world.** The demo vocabulary has Portuguese forms
   (Brazilian spelling) for every theme term, compound, method, driver and
   setting, and Portuguese sentence templates; `generate(..., languages=

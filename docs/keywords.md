@@ -10,17 +10,25 @@ everything that reaches the lexicon is checked.
 
 ## 1. Candidates: the phrases people write
 
-Every text is read in its language (English, French or Portuguese) by a
-language model that knows which word is a noun, an adjective or a
-preposition. A **candidate** is a phrase built like a technical term:
+Every text is read in its language (English, French, Portuguese, Spanish,
+German or Italian, the project's **languages of the texts**) by a language
+model that knows which word is a noun, an adjective or a preposition; a text
+in another language is left out. A **candidate** is a phrase built like a
+technical term:
 
 - in English, nouns and adjectives ending on a noun: `sediment transport`,
   `sea surface temperature`, `distributed systems`. A phrase stops at `of`:
   in `the role of silicic acid uptake` the candidate is `silicic acid
   uptake`;
-- in French and Portuguese, a noun with its adjectives, and at most one
-  complement: `transport sédimentaire`, `trait de côte`, `masse d'eau`,
-  `linha de costa`, `nível do mar`.
+- in French, Portuguese, Spanish and Italian, a noun with its adjectives,
+  and at most one complement: `transport sédimentaire`, `trait de côte`,
+  `masse d'eau`, `linha de costa`, `nível do mar`, `nivel del mar`,
+  `lesión por presión`, `qualità dell'acqua`, `presa in carico`;
+- in German, adjectives ending on a noun: `künstliche Intelligenz`,
+  `psychische Gesundheit`. German writes most terms as one word
+  (`Meeresspiegelanstieg`), and two nouns in a row belong to two phrases. A
+  phrase stops at a genitive, as English stops at `of`: in `Ziel der Arbeit`
+  the candidates are `Ziel` and `Arbeit`. Nouns keep their capital.
 
 Shorter phrases inside a longer one count too: a text about `sea surface
 temperature` also speaks of `surface temperature` and `temperature`. The

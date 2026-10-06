@@ -41,7 +41,11 @@ The launcher installs the release the kit was made for, with everything in
 one folder of the user's home, `~/cartolex` (`%USERPROFILE%\cartolex` on
 Windows): a Python environment, the language models of English, French and
 Portuguese (pinned and checked against their hashes, as `cartolex models add`
-does), and `install.log`. It then adds a shortcut that opens the app in the
+does), and `install.log`. At the end it offers the models of Spanish, German
+and Italian, for texts in those languages: type their codes (`es de it`) or
+press Enter; each model's licence is shown before it is downloaded, and
+`CARTOLEX_EXTRA_LANGUAGES="es de it"` installs them without asking. It then
+adds a shortcut that opens the app in the
 browser: `cartolex.command` on the macOS desktop, a desktop and Start menu
 shortcut on Windows, an entry in the Linux applications menu. Running the
 launcher again updates the installation; deleting the folder and the shortcut
@@ -78,7 +82,7 @@ file you were given, put its path in place of `cartolex`
 
 ```bash
 uv tool install cartolex            # the command, in an environment of its own
-cartolex models add en fr           # the language models your texts need
+cartolex models add en fr           # the language models your texts need (also pt, es, de, it)
 cartolex                            # opens the app in your browser
 ```
 
@@ -99,13 +103,27 @@ cartolex
 
 ## The language models
 
-Each corpus language has one pinned model: English (`en_core_web_md`, MIT),
-French (`fr_core_news_md`, LGPL-LR) and Portuguese (`pt_core_news_md`, CC BY-SA
-4.0). They are separate installs with their own licences:
+Each language of the texts has one pinned spaCy model. They are separate
+installs, never bundled with cartolex, each under its own licence (as its
+publisher states it in the model's metadata):
+
+| language | model | licence | wheel |
+| --- | --- | --- | --- |
+| English | `en_core_web_md` 3.8.0 | MIT | 33 MB |
+| French | `fr_core_news_md` 3.8.0 | LGPL-LR | 46 MB |
+| Portuguese | `pt_core_news_md` 3.8.0 | CC BY-SA 4.0 | 42 MB |
+| Spanish | `es_core_news_md` 3.8.0 | GNU GPL 3.0 | 42 MB |
+| German | `de_core_news_md` 3.8.0 | MIT | 44 MB |
+| Italian | `it_core_news_md` 3.8.0 | CC BY-NC-SA 3.0 | 42 MB |
+
+The Italian model's licence allows **non-commercial use only**, and the Spanish
+one is under the GNU GPL: check that they suit your use before installing them.
+A project needs only the models of its languages of the texts.
 
 ```bash
 cartolex models list                # which are installed, which are needed
 cartolex models add en fr pt        # asks before each download; --yes accepts
+cartolex models add es de it        # texts in Spanish, German or Italian
 ```
 
 `cartolex models add` installs the exact version cartolex was tested with,

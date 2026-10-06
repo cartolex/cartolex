@@ -12,7 +12,7 @@ stages (AI triage, consolidation, the atlas) read the same tables as before.
 1. **People and languages.** Each person is one document: the texts of all
    their corpus documents, concatenated. Each paragraph is routed to a corpus
    language by language detection (`KeywordsConfig.corpus_languages`, any
-   subset of English, French and Portuguese — another code is refused with a
+   subset of English, French, Portuguese, Spanish, German and Italian — another code is refused with a
    `SettingsError` when the settings are made); a paragraph in another
    language is dropped.
 2. **Clean-up.** Words that PDF extraction split in two (`adh esion`) are
@@ -42,16 +42,32 @@ stages (AI triage, consolidation, the atlas) read the same tables as before.
    | English | `(ADJ\|NOUN\|PROPN)* (NOUN\|PROPN\|gerund)` | `sea surface temperature`, `distributed systems`, `decision making` |
    | French | `NOUN ADJ* ((de\|du\|des\|d'\|à\|au\|aux) DET? (NOUN\|PROPN) ADJ*)?` | `trait de côte`, `masse d'eau`, `zone à risque`, `variabilité interannuelle du niveau marin` |
    | Portuguese | the French shape, with `de` (and its elided `d'`), `em`, `por`, `para`, `com`, `a` and their contractions (`do`, `da`, `dos`, `das`, `no`, `na`, `nos`, `nas`, `pelo`, `pela`, `pelos`, `pelas`, `ao`, `aos`, `à`, `às`) | `linha de costa`, `nível do mar`, `transporte pela corrente`, `coluna d'água` |
+   | Spanish | the Portuguese shape, with `de`, `a`, `en`, `por`, `para`, `con` and the contractions `del`, `al`; the complement's noun may be a run of proper nouns | `nivel del mar`, `lesión por presión`, `trabajo en equipo`, `estado de Santa Catarina` |
+   | Italian | the same, with `di` (and its elided `d'`), `a`, `da`, `in`, `su`, `per`, `con` and their forms joined to the article (`del`, `dello`, `della`, `dei`, `degli`, `delle`, `dell'`; `al`, `all'` …; `nel`, `sul`, `dal` …) | `qualità dell'acqua`, `livello del mare`, `presa in carico`, `didattica a distanza` |
+   | German | `ADJ* (NOUN\|PROPN+)` | `künstliche Intelligenz`, `psychische Gesundheit`, `Meeresspiegelanstieg` |
 
    An English `of` complement (`degrees of freedom`) is a switch of the
    lexicon lab, off: most English `X of Y` spans are phrasing (`role of
    silicic acid uptake`, `context of storm events`), and they made the terms
    inside them look like fragments of a longer phrase ({doc}`lexicon-lab`).
 
+   The German pattern has no complement. German writes compounds as one word
+   (`Meeresspiegelanstieg`), so two nouns in a row are mostly two phrases (`…
+   die Ergebnisse Hinweise …`), never one candidate. A genitive complement
+   (`Anstieg des Meeresspiegels`: a genitive article, or adjectives, then a
+   noun) is a switch of the lexicon lab (`ScoringOptions.genitive`), off: on
+   medical abstracts, five of the 33 phrases it added were terms (`Therapie des
+   Prostatakarzinoms`), the others phrasing (`Ziel der Arbeit`, used by 75 of
+   173 people, `Ergebnisse der Studie`). The analysis records the genitive
+   article (class `D`, only with the case `Gen`), so the switch needs no new
+   parse.
+
    The Portuguese tokenizer keeps a contraction as one token tagged as a
    preposition (`do` is `de` + `o`), so `nível do mar` is `N P N`; an
    uncontracted article after a preposition (`para a costa`) is the optional
    `D`. An article that does not follow a preposition never joins two nouns.
+   The Spanish and Italian tokenizers do the same (`del`, `della`, `dell'`,
+   `sulla` are prepositions of their own).
 6. **Grouping.** Occurrences are grouped by a key: each content unit becomes
    the *corpus lemma* of its words (the lemma the corpus most often gives that
    word, so a word the tagger hesitates on stays in one group), a preposition
@@ -59,7 +75,16 @@ stages (AI triage, consolidation, the atlas) read the same tables as before.
    articles are left out. `le trait de côte` and `les traits de côte`, or
    `tide gauge` and `tide gauges`, are one candidate. The term shown is the
    key's most frequent surface form, in lower case except proper nouns and
-   words with inner capitals (`ADCP`, `Atlantic`).
+   words with inner capitals (`ADCP`, `Atlantic`), and German nouns
+   (`künstliche Intelligenz`). The German lemmatizer leaves some inflected
+   forms as they are (`künstliche`, `Befunden`, `Modells`): in a key, a German
+   noun's or adjective's lemma loses the first inflection ending (`en`, `n`,
+   `es`, `s`, `e` for a noun; `en`, `em`, `er`, `es`, `e` for an adjective)
+   whose removal gives another lemma of the corpus, so `künstliche
+   Intelligenz`, `künstlicher Intelligenz` and `künstlichen Intelligenz` are
+   one candidate. A lemma no shorter lemma of the corpus explains is kept
+   (`Prozess`, never `Proze`). The term shown keeps the most frequent form,
+   inflection included (`sozialen Arbeit`).
 
 The code is `cartolex/lexicon/noun_phrases.py`; the patterns and classes are
 tested on hand-built parses in `tests/test_noun_phrases.py`, without any model.
@@ -69,17 +94,21 @@ tested on hand-built parses in `tests/test_noun_phrases.py`, without any model.
 French writes some words elided before a vowel, with an apostrophe (straight
 or typographic): the article `l'`, the preposition `d'`, and the pronouns and
 conjunctions `qu'`, `j'`, `n'`, `s'`, `c'`, `m'`, `t'`; Portuguese elides
-`de` the same way (`d'água`). An elided word is a word unit of its own, and
-the word after it starts a unit, exactly as after a space:
+`de` the same way (`d'água`); Italian elides the article (`l'`, `un'`), `di`
+(`d'`), the prepositions joined to the article (`dell'`, `all'`, `dall'`,
+`nell'`, `sull'`, `coll'`) and `quest'`, `quell'`. An elided word is a word
+unit of its own, and the word after it starts a unit, exactly as after a
+space:
 
 - The French model splits the elided word off (`l'` + `apprentissage`). A
   token a model leaves whole — the Portuguese model keeps `d'água` as one
   noun — is split by the extraction into the elided word and the rest, with
   the rest's lemma; without that, `coluna d'água` was a noun followed by an
   unknown noun `d'água`, never a candidate.
-- `d'` is the preposition `de` (its key part is `de`), `l'` an article (left
-  out of keys); the other elided words are pronouns or conjunctions and
-  break a phrase.
+- `d'` is the preposition `de` (its key part is `de`; `di` in Italian),
+  `dell'` and the other Italian joined forms their preposition (`di`, `a` …),
+  `l'` an article (left out of keys); the other elided words are pronouns,
+  conjunctions or the article `un'` and break a phrase.
 - A word with an apostrophe inside it stays one word (`aujourd'hui`,
   `presqu'île`, the compound `olho-d'água`), and Portuguese contractions
   (`do`, `na`, `pelo`, `às`) are words of their own, prepositions of the
@@ -113,8 +142,11 @@ Each language has a short list of function words that break a phrase
 (`cartolex/_data/stopwords/function_words.json`): determiners, quantifiers,
 pronouns and citation abbreviations a tagger may mark as adjectives or nouns
 (`other`, `such`, `several`; `autres`, `plusieurs`, `nombreuses`; `outros`,
-`vários`, `cada`; `et al.`). Verbs, adverbs, articles and conjunctions are
-already outside the patterns. The lists hold no content word.
+`vários`, `cada`; `otros`, `dicho`; `altri`, `ogni`, `stesso`; `diese`,
+`mehrere`, `verschiedene`; `et al.`). Verbs, adverbs, articles and
+conjunctions are already outside the patterns. The lists hold no content
+word. A one-letter word breaks a phrase unless it is a preposition of the
+pattern (Spanish and Italian `a`: `didattica a distanza`).
 
 ### Text in another language, and stop words
 
@@ -126,7 +158,7 @@ takes the other language's articles and prepositions for nouns (`des`,
 a parse records, so the parse cache stays valid:
 
 - **Closed words.** `cartolex/_data/stopwords/closed_words.json` lists, for
-  English, French, Portuguese and Spanish, the articles, prepositions,
+  English, French, Portuguese, Spanish, Italian and German, the articles, prepositions,
   conjunctions, pronouns and forms of *to be* and *to have*. A stream's
   *foreign words* (`noun_phrases.foreign_words`) are the closed words of
   every other language, less its own closed words, function words and
@@ -135,8 +167,11 @@ a parse records, so the parse cache stays valid:
   (`noun_phrases.closed_form`): a capitalised one begins a name (`La Niña`,
   `El Niño`); a word the tokenizer left whole after an elision counts as the
   elided word (`qu'une` is `qu'`). The lists leave out words that are
-  content words or chemical symbols in another of the languages (`car`,
-  `son`, `os`, `an`, `au`, `ni`, `se`, `el`, `sem`, `tem`).
+  content words, chemical symbols or common acronyms in another of the
+  languages (`car`, `son`, `os`, `an`, `au`, `ni`, `se`, `el`, `sem`, `tem`;
+  German `die`, `war`, `hat`, `mit`, `als`, `am`; Italian `ha`, `ed`, `ai`,
+  `non`, `come`). German nouns are capitalised, so a German noun never counts
+  as another language's closed word.
 - **Foreign reading.** A paragraph whose word units of phrases hold at least
   `FOREIGN_READING` (2) different foreign words is read as another
   language's text: each foreign word cuts the phrase it is in, and is an
@@ -209,7 +244,7 @@ interface turns into words:
 | --- | --- | --- |
 | `kept` | `multiword` | a phrase of two content words or more (prepositions and articles do not count) |
 | `check` | `single-word` | one content word |
-| `check` | `common-modifier: <word>` | the adjective at the phrase's edge (first in English, last in French and Portuguese) appears in the candidates of at least `generic_spread` of the people (`recent approach`); off by default |
+| `check` | `common-modifier: <word>` | the adjective at the phrase's edge (first in English and German, last in the Romance languages) appears in the candidates of at least `generic_spread` of the people (`recent approach`); off by default |
 | `check` | `below-threshold` | a multi-word phrase outside the best `keep_share` of the candidates (off: every one is kept) |
 | `aside` | `stop-word` | one word: a stop word of the language, or a closed word of another language in text of that language (see [above](#text-in-another-language-and-stop-words)) |
 | `aside` | `stop-word-edge: <word>` | a phrase that starts or ends with a closed word of another language (`LE LITTORAL` in English) |
@@ -366,15 +401,21 @@ every stage of a project: `tests/test_build_workers.py`).
 | English | `en_core_web_md` | 3.8.0 | MIT | 33 MB |
 | French | `fr_core_news_md` | 3.8.0 | LGPL-LR | 46 MB |
 | Portuguese | `pt_core_news_md` | 3.8.0 | CC BY-SA 4.0 | 42 MB |
+| Spanish | `es_core_news_md` | 3.8.0 | GNU GPL 3.0 | 42 MB |
+| German | `de_core_news_md` | 3.8.0 | MIT | 44 MB |
+| Italian | `it_core_news_md` | 3.8.0 | CC BY-NC-SA 3.0 (non-commercial) | 42 MB |
 
 spaCy itself (`spacy>=3.8,<3.9`, MIT) is a dependency of cartolex. The models
 are separate installs from the spaCy models' release wheels, pinned by sha256
 in `tools/requirements-models.txt`; they carry their own licences and are
-never bundled with cartolex or modified. The check installs all three into
-every test environment. A user installs a model with
+never bundled with cartolex or modified. The licences are those the models'
+own metadata states (`meta.json`); the Spanish one is under the GNU GPL and
+the Italian one allows non-commercial use only, which `cartolex models list`,
+`cartolex models add` (before it downloads), the settings screen and the
+installer show. The check installs all six into every test environment. A
+user installs a model with `cartolex models add <language>`, or with
 `python -m pip install "<name> @ <wheel address>#sha256=<hash>"` (the exact
-command is in the error below; a `cartolex models add <language>` command
-will do it).
+command is in the error below).
 
 A language with text whose pinned model is missing, or installed at another
 version, stops the run before anything is parsed, with

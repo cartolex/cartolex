@@ -87,8 +87,9 @@ deterministically (the same bundle gives the same groups, ids and parts):
   `VOC`) and an acronym of another language into its translation (`ADN` into
   `DNA`; `same_acronym`);
 - **a paper's own phrases**: three words or more, one text or one person;
-- **families**: the same head word (the last word of an English phrase, the
-  first noun of a French, Portuguese or Spanish one; plural and accents aside),
+- **families**: the same head word (the last word of an English or German
+  phrase, the first noun of a French, Portuguese, Spanish or Italian one;
+  plural and accents aside),
   band and language, three or more;
 - **theme groups**: the rest, by who uses them (k-means on the people's usage,
   as opaque numbers), at most 25 a group;

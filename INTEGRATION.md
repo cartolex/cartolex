@@ -127,9 +127,10 @@ contexts, so several runs (or workspaces) can live in one process.
 **Language model.** Three settings generalize the former hard-wired FR/EN split
 and hidden English pivot (the defaults above reproduce it exactly):
 
-- `corpus_languages` — the languages extracted. Each becomes one TF-IDF stream
-  and one `raw_keywords_<lang>.csv`; a paragraph detected in another language is
-  dropped.
+- `corpus_languages` — the languages extracted (any of `en`, `fr`, `pt`, `es`,
+  `de`, `it`, each with its pinned language model). Each becomes one TF-IDF
+  stream and one `raw_keywords_<lang>.csv`; a paragraph detected in another
+  language is dropped.
 - `reference_language` — the canonical concept-key language the LLM triage
   normalizes every term into (the pivot), and the language the subfield/concept
   `label` is written in. It need **not** be one of `corpus_languages` (an
