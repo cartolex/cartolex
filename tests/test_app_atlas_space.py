@@ -246,6 +246,42 @@ def test_the_chosen_similarity_drives_the_nearest_compare_and_exports(client):
     assert stale.status_code == 412
 
 
+def test_the_texts_of_a_focus_are_its_own_from_every_text(client):
+    import pyarrow.parquet as pq
+
+    root = Path(client.app.state.cartolex.settings.project)
+    authors = pq.read_table(root / "sources" / "tables" / "authorships.parquet").to_pylist()
+    texts_of: dict[str, set[str]] = {}
+    for a in authors:
+        texts_of.setdefault(a["person_id"], set()).add(a["text_id"])
+    atlas = client.get("/api/atlas").json()
+    me = max((p["person_id"] for p in atlas["people"] if p["person_id"]),
+             key=lambda p: len(texts_of.get(p, ())))  # fmt: skip
+    got = client.get("/api/atlas/texts", params={"focus": f"person:{me}"}).json()
+    assert got["focus"] == f"person:{me}" and got["total"] == len(texts_of[me])
+    assert set(got["id"]) <= texts_of[me] and len(got["id"]) + got["unplaced"] == got["total"]
+    assert all(me in people for people in got["people"])
+    # with the network: their co-authors' texts too
+    wide = client.get("/api/atlas/texts", params={"focus": f"person:{me}", "net": 1}).json()
+    rings = client.get("/api/atlas/coauthors", params={"kind": "person", "id": me}).json()
+    every = set(texts_of[me]).union(*(texts_of.get(i["id"], set()) for i in rings["items"]))
+    assert wide["total"] == len(every) > got["total"]
+    # a sample, the same each time, when there are more than asked
+    some = client.get("/api/atlas/texts", params={"focus": f"person:{me}", "net": 1, "limit": 3})
+    again = client.get("/api/atlas/texts", params={"focus": f"person:{me}", "net": 1, "limit": 3})
+    assert some.json()["sampled"] and some.json()["id"] == again.json()["id"]
+    # an organisation's: its members' on the map
+    extras = atlas["people_extra"]
+    org = next(o for o in atlas["organisations"] if o["x"] is not None and o["level"] == "lab")
+    members = {p for p, e in extras.items() if org["id"] in (e.get("orgs") or [])}
+    theirs = client.get("/api/atlas/texts", params={"focus": f"organisation:{org['id']}"}).json()
+    assert members and theirs["total"] == len(
+        set().union(*(texts_of.get(p, set()) for p in members))
+    )
+    nobody = client.get("/api/atlas/texts", params={"focus": "person:nobody"})
+    assert nobody.status_code in (404, 422) and nobody.json()["error"]["code"] == "unknown_people"
+
+
 def test_a_keyword_is_found_with_the_candidates_merged_into_it(client):
     page = client.get("/api/keywords", params={"band": "kept", "limit": 50})
     rows = page.json()["items"]

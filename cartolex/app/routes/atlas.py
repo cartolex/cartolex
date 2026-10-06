@@ -525,12 +525,26 @@ def atlas(
     return JSONResponse(body, headers={"ETag": etag})
 
 
+#: A focus whose texts are asked for: ``kind:id``.
+FOCUS = r"^(person|projected|organisation):.{1,200}$"
+
+
 @routes.get("/api/atlas/texts", action="atlas.read")
 def atlas_texts(
-    request: Request, ctx: ProjectDep, base: Annotated[str | None, Query(max_length=64)] = None
+    request: Request,
+    ctx: ProjectDep,
+    base: Annotated[str | None, Query(max_length=64)] = None,
+    focus: Annotated[str | None, Query(pattern=FOCUS)] = None,
+    net: Annotated[int, Query(ge=0, le=3)] = 0,
+    limit: Annotated[int, Query(ge=1, le=20_000)] = 5_000,
 ) -> Response:
     """Every text placed on the map (columnar: ``id``, ``title``, ``year``, ``x``, ``y``, ``by``,
-    ``terms``, ``people``), cached like the bundle; ``base`` places them on a base's map."""
+    ``terms``, ``people``; a sample of a large corpus), cached like the bundle; ``base``
+    places them on a base's map. With ``focus`` (``person:<id>``, ``projected:<id>``,
+    ``organisation:<id>``), only the texts of the focus, from every text of the tables (and,
+    with ``net`` rings, of the people its network reaches; :mod:`cartolex.app.focus_texts`):
+    ``focus``, ``net``, ``total`` (the focus's texts), at most ``limit`` placed (``sampled``
+    beyond it)."""
     from ..atlas_layers import place_texts
     from ..corpus_view import stamp
 
@@ -539,6 +553,8 @@ def atlas_texts(
     if runs["map.layout"] is None:
         return JSONResponse({"format": TEXTS_FORMAT, "available": False,
                              "empty": empty("empty_no_map")})  # fmt: skip
+    if focus:
+        return _focus_texts(request, ctx, runs, base, focus, net, limit)
     etag = _etag(runs, ["texts", str(stamp(ctx.project)), _base_fp(ctx, base)])
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag})
@@ -558,6 +574,48 @@ def atlas_texts(
         lambda: _kept(ctx.layout.cache / "atlas", "texts", etag, make),
     )
     return Response(reply, media_type="application/json", headers={"ETag": etag})
+
+
+def _focus_texts(
+    request: Request,
+    ctx: Any,
+    runs: dict[str, str | None],
+    base: str | None,
+    focus: str,
+    net: int,
+    limit: int,
+) -> Response:
+    """The texts of a focus (see :func:`atlas_texts`)."""
+    from ..atlas_layers import place_texts
+    from ..corpus_view import stamp
+    from ..focus_texts import focus_people, focus_texts
+
+    runtime = runtime_of(request)
+    kind, _, id_ = focus.partition(":")
+    etag = _etag(runs, ["texts-focus", focus, str(net), str(limit), str(stamp(ctx.project)),
+                        _base_fp(ctx, base)])  # fmt: skip
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers={"ETag": etag})
+    if kind != "organisation" and id_ not in _people_named(runtime, ctx):
+        raise ApiError.of("unknown_people", ids=[id_])
+
+    def make() -> bytes:
+        bundle = _bundle(runtime, ctx, runs)
+        extras = _extras(runtime, ctx, runs, bundle)
+        people = focus_people(ctx.project, runtime.table_cache, kind, id_, net, extras)
+        if people is None:
+            raise ApiError.of("organisation_not_found", org=id_)
+        ids = focus_texts(ctx.project, runtime.table_cache, people)
+        placed = _with_base(ctx, bundle, base)
+        texts = place_texts(ctx, placed["keywords"], placed["people"], limit=limit, ids=ids)
+        body = {"format": TEXTS_FORMAT, "available": True, "focus": focus, "net": net,
+                "people_count": len(people), **texts}  # fmt: skip
+        return json.dumps(body, ensure_ascii=False, allow_nan=False,
+                          separators=(",", ":")).encode("utf-8")  # fmt: skip
+
+    # not kept: a focus is read once per visit (the atlas keeps it), and keeping each would
+    # push the bundle and the space out of the app's small cache
+    return Response(make(), media_type="application/json", headers={"ETag": etag})
 
 
 #: The replies of one kind kept in the project's cache (the latest ones).
