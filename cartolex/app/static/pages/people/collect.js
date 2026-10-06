@@ -1,21 +1,25 @@
 // SPDX-License-Identifier: MIT
 /**
  * Collecting: choose what to collect, read what leaves the computer, then
- * start. The notice always comes before anything is sent: each host with what
- * it is for, what it receives, about how many requests and their cost; what
- * never leaves; what is kept, and where. With an OpenAlex snapshot saved on
- * this computer, the notice first offers how OpenAlex is read: its API or the
- * snapshot, each with its time, the faster chosen (changing it plans again).
- * The job then runs in the background, with its progress and a Stop button in
- * the Activity drawer.
+ * start. The plan comes before anything is sent, and says how much of the
+ * notice to show (`notice.js`): none (nothing personal is sent, within the
+ * free daily budget: the collection starts at once, said in its toast), brief
+ * (a kind already acknowledged: one sentence, « Details ») or full (each host
+ * with what it is for, what it receives, about how many requests; what never
+ * leaves; what is kept, and where; the consent and « Don't show this again »).
+ * With an OpenAlex snapshot saved on this computer, the plan first offers how
+ * OpenAlex is read: its API or the snapshot, each with its time, the faster
+ * chosen (changing it plans again). An institution searched by its name is
+ * planned at once, without the form. The job then runs in the background,
+ * with its progress and a Stop button in the Activity drawer.
  */
-import { html, useRef, useState } from '../../core/preact.js';
+import { html, useEffect, useRef, useState } from '../../core/preact.js';
 import { formatBytes, formatDate, formatDuration, formatNumber, t } from '../../core/i18n.js';
 import { useUid } from '../../core/dom.js';
 import {
   Button, Checkbox, Dialog, ErrorCard, FormField, Input,
 } from '../../components/index.js';
-import { coded } from './common.js';
+import { BriefNotice, FullReason, Notice, quickLine } from './notice.js';
 
 function numberOr(value) {
   const n = Number(value);
@@ -95,38 +99,6 @@ function RouteChoice({ route, value, onChoose }) {
   </fieldset>`;
 }
 
-/** What leaves the computer, and what does not. */
-export function Notice({ plan }) {
-  const cost = plan.estimate && plan.estimate.cost_usd;
-  return html`<div class="cx-corpus-notice">
-    <h3 class="cx-corpus-h3">${t('corpus.notice.title')}</h3>
-    <p>${t('corpus.notice.people', { n: plan.people })}</p>
-    ${plan.leaves_the_computer.length ? html`<table class="cx-corpus-simple cx-corpus-notice__hosts">
-      <thead><tr>
-        <th scope="col">${t('corpus.notice.where')}</th><th scope="col">${t('corpus.notice.why')}</th>
-        <th scope="col">${t('corpus.notice.what')}</th><th scope="col">${t('corpus.notice.requests')}</th>
-      </tr></thead>
-      <tbody>${plan.leaves_the_computer.map((h) => html`<tr key=${h.service}>
-        <td><strong>${h.label}</strong><br /><code>${h.host || t('corpus.notice.this_computer')}</code></td>
-        <td>${coded('corpus.purpose', h.purpose)}</td>
-        <td>${h.sends.map((s) => coded('corpus.sends', s)).join(', ')}</td>
-        <td>${h.requests ? t('corpus.notice.about', { n: formatNumber(h.requests) }) : t('corpus.notice.depends')}
-          ${h.requests && h.seconds >= 1 ? html`<br /><span class="cx-corpus-muted">${t('corpus.notice.host_time', { time: formatDuration(h.seconds) })}</span>` : null}
-          ${h.cost_usd ? html`<br /><span class="cx-corpus-muted">${t('corpus.notice.cost', { usd: h.cost_usd.toFixed(3) })}</span>` : null}</td>
-      </tr>`)}</tbody>
-    </table>` : html`<p>${t('corpus.notice.nothing')}</p>`}
-    ${plan.notes.map((n, i) => html`<p key=${i} class="cx-corpus-note" role="note">${coded('corpus.note', n)}</p>`)}
-    <h3 class="cx-corpus-h3">${t('corpus.notice.never')}</h3>
-    <ul class="cx-corpus-list">${plan.never_leaves.map((n) => html`<li key=${n.code}>${coded('corpus.never', n)}</li>`)}</ul>
-    ${plan.stored && plan.stored.length ? html`<details class="cx-corpus-part">
-      <summary>${t('corpus.notice.stored')}</summary>
-      <ul class="cx-corpus-list">${plan.stored.map((n) => html`<li key=${n.code}>${coded('corpus.stored', n)}</li>`)}</ul>
-    </details>` : null}
-    ${plan.estimate ? html`<p class="cx-corpus-muted">${t('corpus.notice.estimate', {
-      time: formatDuration(Math.max(1, plan.estimate.seconds || 0)) })}${cost ? ` ${t('corpus.notice.total_cost', { usd: cost.toFixed(2) })}` : ''}</p>` : null}
-  </div>`;
-}
-
 /** The collect dialog, for *action* with its first *options*. */
 export function CollectDialog({ ctx, action, options: initial, onClose, onStarted }) {
   const [options, setOptions] = useState({ rounds: 1, min_works: 2, ...initial });
@@ -134,9 +106,15 @@ export function CollectDialog({ ctx, action, options: initial, onClose, onStarte
   const [openalex, setOpenalex] = useState(initial && initial.openalex ? initial.openalex : null);
   const [plan, setPlan] = useState(null);
   const [consent, setConsent] = useState(false);
+  const [remember, setRemember] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const startButton = useRef(null);
+  // An institution searched by its name is planned at once (no form to fill): the dialog
+  // shows only if the plan asks a notice or fails.
+  const direct = action === 'institutions' && Boolean(initial && initial.search)
+    && !(initial.institutions && initial.institutions.length);
+  const [quiet, setQuiet] = useState(direct);
 
   const body = (route = openalex) => {
     const out = { action };
@@ -162,18 +140,48 @@ export function CollectDialog({ ctx, action, options: initial, onClose, onStarte
     return out;
   };
 
+  async function start(thePlan = plan, agreed = consent) {
+    setBusy(true);
+    setError(null);
+    const route = thePlan && thePlan.openalex ? thePlan.openalex.chosen : openalex;
+    const level = thePlan && thePlan.notice ? thePlan.notice.level : 'full';
+    const result = await ctx.api.post('/api/collection/start', {
+      ...body(route), consent: level !== 'none' && agreed, remember: level === 'full' && remember });
+    setBusy(false);
+    if (!result.ok) {
+      setQuiet(false);
+      setError(result.error);
+      return;
+    }
+    onStarted(result.data.job, level === 'none' ? quickLine(thePlan) : null);
+    onClose();
+  }
+
   async function review(route = openalex) {
     setBusy(true);
     setError(null);
     const result = await ctx.api.post('/api/collection/plan', body(route));
     setBusy(false);
     if (!result.ok) {
+      setQuiet(false);
       setError(result.error);
       return;
     }
+    const level = result.data.notice ? result.data.notice.level : 'full';
+    // Nothing personal leaves the computer, within the free budget: no notice to read.
+    if (level === 'none' && !result.data.openalex) {
+      start(result.data, false);
+      return;
+    }
+    setQuiet(false);
     setPlan(result.data);
-    setConsent(!result.data.consent_needed);
+    setRemember(false);
+    setConsent(level === 'brief' || !result.data.consent_needed);
   }
+
+  useEffect(() => {
+    if (direct) review();
+  }, []);
 
   // Another way of reading OpenAlex: planned again (what leaves the computer changes).
   const choose = (route) => {
@@ -182,38 +190,33 @@ export function CollectDialog({ ctx, action, options: initial, onClose, onStarte
     review(route);
   };
 
-  async function start() {
-    setBusy(true);
-    setError(null);
-    const route = plan && plan.openalex ? plan.openalex.chosen : openalex;
-    const result = await ctx.api.post('/api/collection/start', { ...body(route), consent });
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    onStarted(result.data.job);
-    onClose();
-  }
-
+  if (quiet) return null;
+  const level = plan && plan.notice ? plan.notice.level : 'full';
   const footer = plan
     ? html`<${Button} onClick=${() => { setPlan(null); setOpenalex(null); }}>${t('corpus.collect.back')}<//>
       <${Button} variant="primary" buttonRef=${startButton} loading=${busy}
-        disabled=${plan.consent_needed && !consent} onClick=${start}>${t('corpus.collect.start')}<//>`
+        disabled=${plan.consent_needed && !consent} onClick=${() => start()}>${t('corpus.collect.start')}<//>`
     : html`<${Button} onClick=${onClose}>${t('common.cancel')}<//>
-      <${Button} variant="primary" loading=${busy} onClick=${() => review()}>${t('corpus.collect.review')}<//>`;
-  return html`<${Dialog} open=${true} onClose=${onClose} size="l"
+      <${Button} variant="primary" loading=${busy} onClick=${() => review()}>
+        ${t(action === 'institutions' ? 'corpus.collect.continue' : 'corpus.collect.review')}<//>`;
+  return html`<${Dialog} open=${true} onClose=${onClose} size=${plan && level === 'brief' ? 'm' : 'l'}
     title=${t(`corpus.collect.action.${action}`)}
-    description=${plan ? t('corpus.notice.lead') : null} footer=${footer}>
+    description=${plan ? t(level === 'brief' ? 'corpus.notice.lead_brief' : 'corpus.notice.lead') : null} footer=${footer}>
     ${error ? html`<${ErrorCard} error=${error} compact onDismiss=${() => setError(null)} />` : null}
     ${plan ? html`${plan.openalex ? html`<${RouteChoice} route=${plan.openalex}
       value=${openalex || plan.openalex.chosen} onChoose=${choose} />` : null}
-      <${Notice} plan=${plan} />
-      ${plan.consent_needed ? html`<${Checkbox} class="cx-corpus-consent" checked=${consent}
-        label=${t('corpus.notice.consent')} onChange=${(e) => setConsent(e.currentTarget.checked)} />` : null}`
+      ${level === 'brief' ? html`<${BriefNotice} plan=${plan} />` : html`<${FullReason} notice=${plan.notice} />
+        <${Notice} plan=${plan} />`}
+      ${plan.consent_needed && level === 'full' ? html`<div class="cx-corpus-consent">
+        <${Checkbox} checked=${consent} label=${t('corpus.notice.consent')}
+          onChange=${(e) => setConsent(e.currentTarget.checked)} />
+        ${plan.notice && plan.notice.personal ? html`<${Checkbox} checked=${remember}
+          label=${t('corpus.notice.remember', { action })}
+          onChange=${(e) => setRemember(e.currentTarget.checked)} />
+          <p class="cx-corpus-muted">${t('corpus.notice.remember_help')}</p>` : null}
+      </div>` : null}`
       : html`<form class="cx-corpus-form" onSubmit=${(e) => { e.preventDefault(); review(); }}>
         <${Options} action=${action} options=${options} set=${setOptions} />
       </form>`}
   <//>`;
 }
-
