@@ -144,12 +144,11 @@
       words.detail ? h('p', { class: 'cx-muted', text: words.detail }) : null];
     const page = S.pageOf(state.sel);
     if (page) body.push(h('p', {}, S.link(page, t('map.panel.open'), 'cx-button cx-button--primary')));
-    if (state.sel.kind === 'person' && S.personPart('people', state.sel.id)) {
-      const near = S.personPart('people', state.sel.id).near;
-      body.push(h('h3', { class: 'cx-map-panel__head', text: t('person.near') }),
-        h('ol', { class: 'cx-list' }, near.map(([id]) => h('li', {}, h('button', { type: 'button', class: 'cx-link-button',
-          onclick: () => onSelect({ kind: 'person', id }) }, S.personName(ix.byPerson.get(id)))))),
-        h('p', { class: 'cx-muted cx-small', text: t('map.near.note') }));
+    const own = S.selIndex(state.sel);
+    const co = own ? S.partners(own[0], own[1]) : null;
+    if (co) {
+      body.push(h('h3', { class: 'cx-map-panel__head', text: S.coTitle(own[0], co.length) }),
+        S.partnerList(own[0], co, onSelect), h('p', { class: 'cx-muted cx-small', text: t('map.coauthors.note') }));
     }
     if (state.sel.kind === 'keyword' && details) {
       const users = details.used_by[state.sel.id] || [];

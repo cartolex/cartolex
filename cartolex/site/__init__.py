@@ -9,9 +9,9 @@ server, no network and no web font.
 
 - :mod:`cartolex.site.data` gathers what a site shows from the built project:
   the theme tree, the map (people, keywords, organisations, projected people),
-  each person's and organisation's themes, keywords and real nearest
-  neighbours, and on request the titles (and abstracts) of the texts, never a
-  full text.
+  each person's and organisation's themes and keywords, who writes with whom
+  (co-authors, and the organisations each writes with), and on request the
+  titles (and abstracts) of the texts, never a full text.
 - :mod:`cartolex.site.checks` gives the privacy summary and the checks before
   publishing (names, private parts, the words of the themes, a stale map).
 - :mod:`cartolex.site.builder` writes a build, never over an earlier one,

@@ -5,8 +5,9 @@
  * themes, its keywords, its people or its time windows, each a button that
  * selects it in turn; with nothing selected, what the map shows, each count
  * with what it counts. Links open the selection on another screen (People,
- * Keywords, Themes); the space of the themes adds the nearest of a person or an
- * organisation (and « Compare with… »), and the people who use a keyword.
+ * Keywords, Themes); a person's co-authors and an organisation's partners (who they
+ * sign works with, `coauthors.js`; « Compare with… » measures a similarity), and the
+ * people who use a keyword (the space of the themes).
  */
 import { html } from '../../core/preact.js';
 import { formatNumber, formatPercent, locale, t } from '../../core/i18n.js';
@@ -14,7 +15,8 @@ import { Button, MapSymbol } from '../../components/index.js';
 import { levelLabel, orgName, periodOf, themeName } from './model.js';
 import { SHAPE_OF } from './state.js';
 import { Links, linkTo } from './links.js';
-import { Nearest, Users } from './near.js';
+import { Users } from './near.js';
+import { Coauthors } from './coauthors.js';
 
 function Shares({ index, shares, level = 1, limit = 6 }) {
   const list = Object.entries(shares || {}).sort((a, b) => b[1] - a[1]).slice(0, limit);
@@ -55,15 +57,17 @@ function Head({ kind, title, detail }) {
 
 const keywordChips = (terms) => terms.map((term) => ({ key: term, text: term, sel: { kind: 'keyword', id: term } }));
 
-/** The nearest, with « Compare with… ». */
-function Near({ space, onSelect, onCompare, kind }) {
-  return html`<${Section} title=${t('map.near.title')}>
-    <${Nearest} answer=${space} onSelect=${onSelect} kind=${kind} />
+/** Who the selection writes with, with « Compare with… ». */
+function Partners({ co, onSelect, onCompare, kind }) {
+  const count = co && co.data ? co.data.count : null;
+  const key = kind === 'organisation' ? 'map.coauthors.orgs_title' : 'map.coauthors.title';
+  return html`<${Section} title=${count === null ? t(`${key}_plain`) : t(key, { count })}>
+    <${Coauthors} answer=${co} onSelect=${onSelect} second=${co ? co.second : false} onSecond=${co ? co.onSecond : null} />
     ${onCompare ? html`<${Button} size="s" onClick=${onCompare} aria-haspopup="dialog">${t('map.compare.button')}<//>` : null}
   <//>`;
 }
 
-function Person({ index, state, id, sets, texts, onSelect, space, onCompare }) {
+function Person({ index, state, id, sets, texts, onSelect, co, onCompare }) {
   const p = index.people[index.byPerson.get(id)];
   const info = index.extra[id] || { columns: {}, orgs: [] };
   const period = periodOf(index, state);
@@ -90,7 +94,7 @@ function Person({ index, state, id, sets, texts, onSelect, space, onCompare }) {
       ${terms ? html`<${Chips} label=${t('map.panel.keywords')} onSelect=${onSelect} items=${keywordChips(terms.slice(0, 20))} />`
         : html`<p class="cx-atlas-panel__muted" aria-busy="true">${t('common.loading')}</p>`}
     <//>
-    <${Near} space=${space} onSelect=${onSelect} onCompare=${onCompare} kind="person" />
+    <${Partners} co=${co} onSelect=${onSelect} onCompare=${onCompare} kind="person" />
     ${windows.length ? html`<${Section} title=${t('map.panel.windows')}>
       <ol class="cx-atlas-windows">
         ${windows.map((w) => {
@@ -109,7 +113,7 @@ function Person({ index, state, id, sets, texts, onSelect, space, onCompare }) {
   </div>`;
 }
 
-function Organisation({ index, id, sets, onSelect, space, onCompare }) {
+function Organisation({ index, id, sets, onSelect, co, onCompare }) {
   const i = index.byOrg.get(id);
   const o = index.orgs[i];
   const level = index.levels.find((lv) => lv.id === o.level);
@@ -134,7 +138,7 @@ function Organisation({ index, id, sets, onSelect, space, onCompare }) {
         items=${members.slice(0, 60).map((k) => ({ key: index.people[k].person_id, text: index.people[k].name,
           sel: { kind: 'person', id: index.people[k].person_id } }))} />
     <//>` : null}
-    <${Near} space=${space} onSelect=${onSelect} onCompare=${onCompare} kind="organisation" />
+    <${Partners} co=${co} onSelect=${onSelect} onCompare=${onCompare} kind="organisation" />
   </div>`;
 }
 
@@ -209,7 +213,7 @@ function Keyword({ index, id, onSelect, space }) {
   </div>`;
 }
 
-function Projected({ index, id, space, onSelect }) {
+function Projected({ index, id, co, onSelect }) {
   const p = index.projected.find((o) => o.person_id === id);
   if (!p) return html`<p class="cx-atlas-panel__muted">${t('map.panel.gone')}</p>`;
   return html`<div>
@@ -218,7 +222,7 @@ function Projected({ index, id, space, onSelect }) {
     <${Section} title=${t('map.panel.themes', { level: 1 })}>
       <${Shares} index=${index} shares=${p.shares && p.shares[0]} />
     <//>
-    <${Near} space=${space} onSelect=${onSelect} kind="projected" />
+    <${Partners} co=${co} onSelect=${onSelect} kind="projected" />
   </div>`;
 }
 
@@ -240,15 +244,15 @@ function Summary({ index, state, counts, base }) {
 }
 
 /** The side panel. */
-export function Panel({ index, state, counts, sets, texts, onSelect, onClose, base, space, onCompare }) {
+export function Panel({ index, state, counts, sets, texts, onSelect, onClose, base, space, co, onCompare }) {
   const sel = state.sel;
   let body = null;
   if (sel && sel.kind === 'person' && index.byPerson.has(sel.id)) {
     body = html`<${Person} index=${index} state=${state} id=${sel.id} sets=${sets} texts=${texts} onSelect=${onSelect}
-      space=${space} onCompare=${onCompare} />`;
+      co=${co} onCompare=${onCompare} />`;
   } else if (sel && sel.kind === 'organisation' && index.byOrg.has(sel.id)) {
     body = html`<${Organisation} index=${index} id=${sel.id} sets=${sets} onSelect=${onSelect}
-      space=${space} onCompare=${onCompare} />`;
+      co=${co} onCompare=${onCompare} />`;
   } else if (sel && sel.kind === 'text') {
     body = html`<${Text} index=${index} id=${sel.id} texts=${texts} onSelect=${onSelect} />`;
   } else if (sel && sel.kind === 'theme' && index.nodes.has(sel.id)) {
@@ -256,7 +260,7 @@ export function Panel({ index, state, counts, sets, texts, onSelect, onClose, ba
   } else if (sel && sel.kind === 'keyword' && index.byTerm.has(sel.id)) {
     body = html`<${Keyword} index=${index} id=${sel.id} onSelect=${onSelect} space=${space} />`;
   } else if (sel && sel.kind === 'projected') {
-    body = html`<${Projected} index=${index} id=${sel.id} space=${space} onSelect=${onSelect} />`;
+    body = html`<${Projected} index=${index} id=${sel.id} co=${co} onSelect=${onSelect} />`;
   }
   return html`<aside class="cx-atlas-panel" aria-label=${t('map.panel.label')}>
     ${body ? html`<div class="cx-atlas-panel__close">

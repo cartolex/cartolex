@@ -172,7 +172,7 @@ export function svgOf({ view, scene, legend, color, font, measure }) {
       d += `M${n2(line.x[k] * sx + ox)} ${n2(oy - line.y[k] * sx)}L${n2(line.x[k + 1] * sx + ox)} ${n2(oy - line.y[k + 1] * sx)}`;
     }
     if (d) {
-      out.push(`<path d="${d}" fill="none" stroke="${esc(color(line.color))}" stroke-width="${line.width || 1}" stroke-opacity="${line.alpha === undefined ? 0.6 : line.alpha}"/>`);
+      out.push(`<path d="${d}" fill="none" stroke="${esc(color(line.color))}" stroke-width="${line.width || 1}" stroke-opacity="${line.alpha === undefined ? 0.6 : line.alpha}"${line.dash ? ` stroke-dasharray="${line.dash} ${line.dash}"` : ''}/>`);
     }
   }
   const anyHighlight = scene.layers.some((l) => l.highlight && l.highlightCount);
