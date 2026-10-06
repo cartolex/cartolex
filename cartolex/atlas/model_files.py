@@ -52,11 +52,13 @@ __all__ = [
     "legacy_file",
     "load_embeddings",
     "load_lexical_data",
+    "load_person_terms",
     "load_svd",
     "load_vectorizer",
     "reject_legacy",
     "save_embeddings",
     "save_lexical_data",
+    "save_person_terms",
     "save_svd",
     "save_vectorizer",
 ]
@@ -458,6 +460,52 @@ def load_lexical_data(path: Path) -> LexicalData:
             meta_ind=_frame(doc["persons"]),
             X_tf=_matrix("X_tf", matrices["X_tf"], arrays) if "X_tf" in matrices else None,
         )
+    except _REBUILD_ERRORS as exc:
+        raise _rebuild_error(path, stage, exc) from exc
+
+
+# ── The people's keywords ─────────────────────────────────────────────────────
+
+
+def save_person_terms(
+    path: Path,
+    score: Any,
+    score_tf: Any | None,
+    terms: list[str],
+    individuals: list[str],
+    *,
+    keywords_per_person: int | None,
+) -> None:
+    """Store each person's keywords as the people × keywords matrices the space reads.
+
+    *score* is the length-boosted TF-IDF, *score_tf* the plain term frequencies of the same
+    entries (or ``None``); rows are *individuals* (researcher ids), columns *terms*.
+    *keywords_per_person* records how many each person kept (``None``: every one they use).
+    """
+    info, arrays = _matrix_arrays("score", sparse.csr_matrix(score))
+    matrices = {"score": info}
+    if score_tf is not None:
+        tf_info, tf_arrays = _matrix_arrays("score_tf", sparse.csr_matrix(score_tf))
+        matrices["score_tf"] = tf_info
+        arrays.update(tf_arrays)
+    meta = {
+        "terms": _string_list(terms, "terms"),
+        "individuals": _string_list(individuals, "person identifiers"),
+        "keywords_per_person": keywords_per_person,
+        "matrices": matrices,
+    }
+    _write(path, "person_terms", meta, arrays)
+
+
+def load_person_terms(path: Path) -> tuple[Any, Any | None, list[str], list[str]]:
+    """``(score, score_tf, terms, individuals)`` stored at *path* by :func:`save_person_terms`."""
+    stage = "keywords"
+    doc, arrays = _read(path, kinds=("person_terms",), stage=stage)
+    try:
+        matrices = doc["matrices"]
+        score = _matrix("score", matrices["score"], arrays)
+        tf = _matrix("score_tf", matrices["score_tf"], arrays) if "score_tf" in matrices else None
+        return score, tf, list(doc["terms"]), list(doc["individuals"])
     except _REBUILD_ERRORS as exc:
         raise _rebuild_error(path, stage, exc) from exc
 

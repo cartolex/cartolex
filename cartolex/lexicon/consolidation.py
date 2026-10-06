@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfTransformer, TfidfVectorizer
 
-from cartolex.atlas.model_files import save_vectorizer
+from cartolex.atlas.model_files import save_person_terms, save_vectorizer
 
 from .canonicalization import (
     canonical_concept,
@@ -29,10 +29,12 @@ from .lexicon_store import (
 )
 from .scoring import LEXICON_BANDS
 from .tfidf_utils import (
-    compute_keywords_by_researcher,
     compute_keywords_by_unit,
     compute_keywords_domain,
+    listed_keywords,
+    researcher_matrices,
 )
+from .utils import make_researcher_id
 from .whitelist import build_whitelist_set, load_person_whitelist, load_whitelist, whitelist_terms
 
 if TYPE_CHECKING:
@@ -135,6 +137,21 @@ def band_allowed_concepts(raw: pd.DataFrame, keep: Collection[str]) -> set[str] 
     )
     concepts = set(raw.loc[open_rows, "concept"])
     return concepts | (set(raw["concept"]) & kept)
+
+
+def researcher_ids(meta: pd.DataFrame) -> list[str]:
+    """The researcher id of each row of *meta* (``last_name``, ``first_name``, ``unit``), as
+    the roster and the space make it from their CSV files (an empty value reads ``nan``)."""
+
+    def cell(value: object) -> str:
+        if value is None or (isinstance(value, float) and np.isnan(value)) or value == "":
+            return "nan"
+        return str(value).strip()
+
+    return [
+        make_researcher_id(cell(a), cell(b), cell(c))
+        for a, b, c in zip(meta["last_name"], meta["first_name"], meta["unit"], strict=True)
+    ]
 
 
 def counting_ngram_range(
@@ -550,19 +567,34 @@ def _run_pipeline_core(
     concept_lang_map = dict(zip(df_refined["term"], df_refined["lang"], strict=False))
 
     # 9. Attribution (researchers, units, the whole domain)
+    # Each person's keywords: the whole people × keywords matrix the space reads (every
+    # keyword a person uses, or their best top_n_researcher when set), and a short list of
+    # each person's best ones for display.
     report(85, "Computing per-researcher keywords...")
-    res_df = compute_keywords_by_researcher(
+    score, score_tf, lengths = researcher_matrices(
         X_folded,
         final_features,
-        meta_df,
         whitelist_set,
         cfg.top_n_researcher,
         cfg.length_bonus_alpha,
         X_tf=X_tf_folded.tocsr(),
     )
+    save_person_terms(
+        paths.person_terms_json,
+        score,
+        score_tf,
+        [str(t) for t in final_features],
+        researcher_ids(meta_df),
+        keywords_per_person=cfg.top_n_researcher,
+    )
+    res_df = listed_keywords(score, score_tf, lengths, final_features, meta_df)
     res_df["lang"] = res_df["term"].map(concept_lang_map).fillna(cfg.reference_language)
     res_df.to_csv(paths.person_terms_csv, index=False)
-    report(90, f"Researcher keywords saved ({len(res_df)} rows). Computing per-unit keywords...")
+    report(
+        90,
+        f"Researcher keywords saved ({score.nnz} people × keyword entries, {len(res_df)} "
+        "listed). Computing per-unit keywords...",
+    )
 
     unit_df = compute_keywords_by_unit(
         X_folded,
@@ -652,9 +684,11 @@ def run_pipeline(ctx: RunContext, *, progress_callback=None) -> None:
     removals (``ctx.stopwords``). With triage decisions, only accepted terms
     reach the lexicon; without them, every candidate but the set-aside band
     (see :func:`band_allowed_concepts`); an explicit keep wins either way.
-    Writes the refined lists, the per-person, per-group and domain tables,
-    the restricted vectorizer and term aliases, the person roster and the
-    run's settings snapshot.
+    Writes the refined lists, the people × keywords matrices
+    (``ctx.paths.person_terms_json``: every keyword a person uses, or their best
+    ``top_n_researcher``) and each person's best keywords for display, the
+    per-group and domain tables, the restricted vectorizer and term aliases, the
+    person roster and the run's settings snapshot.
     """
     with ctx.threads.applied():
         _run_pipeline_core(ctx, progress_callback=ctx.percent_reporter(progress_callback))

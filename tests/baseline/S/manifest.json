@@ -4,7 +4,7 @@
    "applied": {
     "file": "apply/applied.json.gz",
     "kind": "json",
-    "sha256": "6b4d3c6831ebf1d28234a0ebd1566acec4aa22806fff7d1ec054dbd12bd8e313"
+    "sha256": "2d1bb7b5ba01681c08cfbe98d78583966b0db8dc50f8a5041a0e02fc3668fb22"
    },
    "lexicon_weights": {
     "columns": [
@@ -30,7 +30,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 132,
-    "sha256": "a645f477cc9e2623c4fce56cde38e284224553530ed07364644697a00641f138"
+    "sha256": "534b38e1dca753cac099aad225a2b3c20f6d26d57fbce3bb407e13400c194b4b"
    },
    "person_weights": {
     "columns": [
@@ -50,8 +50,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 290,
-    "sha256": "a42f422a34a037e4624c44607d42914c0438089cc7a40c331560e25b5b84fd5c"
+    "rows": 289,
+    "sha256": "b7eb58dc590e6dc38bbdd057709d467ba345fd468744c023f55f8ae446453bf4"
    },
    "returned_matches_file": {
     "file": "apply/returned_matches_file.json",
@@ -176,7 +176,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 663,
-    "sha256": "6efcae02513564cc1158be508db63ebe0b70a076ab69439a5d464b253b25ca86"
+    "sha256": "beea800b9b2f4897e0bade55f0c3e413fd8a8422f7fce2163dd79756c9065cda"
    },
    "refined": {
     "columns": [
@@ -216,7 +216,7 @@
    "settings": {
     "file": "build/settings.json",
     "kind": "json",
-    "sha256": "275649148e5b9ba8297cbd87b8a6d4149f9a2c1a121cb199972dc4e0644f9ffa"
+    "sha256": "01245dfba1a35e31e1e50dd525783df49fc596661c4e565038f7f8040f238089"
    },
    "vectorizer": {
     "columns": [
@@ -276,18 +276,18 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 663,
-    "sha256": "a81953cd664581beb4a8616eccb9b975d1311d075b49a4f1de034dfa0d223896"
+    "rows": 712,
+    "sha256": "21c8dc137bbc8ad0b67d7b4d2216be5dd9a4432d34171f984511b5a844b62d80"
    },
    "meta": {
     "file": "bundle/meta.json",
     "kind": "json",
-    "sha256": "8e6105e590f841d57805d81cbc0a1c7f8de4bdfa924d6ddf70765e50779b4861"
+    "sha256": "d9b52f40ef25b031d5a45ede5c87aa28654d1efc0f9a2e13f532932e4748d8f1"
    },
    "round_trip": {
     "file": "bundle/round_trip.json",
     "kind": "json",
-    "sha256": "dcf25b6dab889b23bbb35a08fcb976ca4d3e85ab72fb3cba9167564c800beb84"
+    "sha256": "9103145c8519f644b741d8169246103124f18ac684a4f3f624c36f3d5daa399e"
    },
    "taxonomy": {
     "file": "bundle/taxonomy.json",
@@ -314,19 +314,19 @@
     "kind": "table",
     "ordered": false,
     "rows": 132,
-    "sha256": "ebea5155dc7794975592e68356b5e045fb53ec787a9c9c4943cb64e313d4a8d7"
+    "sha256": "7bbaa9beeadfbda191b592a9b0a785b6b76d279408ce9a7a57eedbafb3715ea2"
    },
    "zip": {
     "file": "bundle/zip.json",
     "kind": "json",
-    "sha256": "e13907e45489ce373e08ccb6509ae73fab96e20aaae04f99db81aa6734c011f4"
+    "sha256": "529dbcd10e30171397d230d237fbf359cd0105f5af924f4f945657de67beef09"
    }
   },
   "draft": {
    "draft": {
     "file": "draft/draft.json.gz",
     "kind": "json",
-    "sha256": "85f910c41f7cd1021e4b661e39e1831d53a31e6a2e08238ba6a0a8681eefbdf5"
+    "sha256": "fe6e6a502d9f69876e73be459310747ebc3c04dbea05f73954f71b86c1fa1db7"
    }
   },
   "extract": {
@@ -459,7 +459,7 @@
     "file": "group/term_scores.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "bef6b4fb4fa7f126909e29b5c5385e9870d01c35cd4b606f6e310b15039d7978",
+    "sha256": "6508e6a2a009f0f49d9f04c2557efc551297612e3dc797126fc7ef54d8b0cf31",
     "shape": [
      132
     ],
@@ -470,12 +470,12 @@
    "clustered_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "a61e9b6ba021d7bc0287d5a130e0048048e722b3f3c9fd9f23daaee3ecdfbcbc"
+    "sha256": "8cb7ae54fc6a9f7a70f2fa13d500245ef8373819b17bfb243ffc7a15fd9a35f0"
    },
    "diagnostics": {
     "file": "layout/diagnostics.json",
     "kind": "json",
-    "sha256": "dfdcfbebba0b53c58c45ea9065bf69d4dffa02bb403bad9e2c1ee29c019df3ea"
+    "sha256": "1321ff8790aeae70f4bd72b40d02ebfde1c96c9a2af69daa3ac498a2f33caa4e"
    },
    "groups": {
     "columns": [
@@ -507,18 +507,18 @@
     "kind": "table",
     "ordered": true,
     "rows": 6,
-    "sha256": "e46043c24a831d88bf8b33f188bc61770e42daa7474cf3bf9ada597151941eac"
+    "sha256": "ad78fe35215c18e570075da9635279832a0d0b22cee6377154deeac7cb7e71eb"
    },
    "person_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "4d5e4868276e37e6c961e51b36cd2b1a5fc11976f7009fda4ccfc121262a2cc9"
+    "sha256": "a494860780db7fa188171a0bc043f0442c1a6984cd732fec2a510b6f8b12fff5"
    },
    "person_xy": {
     "file": "layout/person_xy.npy",
     "kind": "array",
     "role": "layout",
-    "sha256": "103e02c8a57446ab4ade7ac49fdd218461bba2552cc2e4e9eb8c8b8d0af8f02a",
+    "sha256": "845a0d705972ab73401aa7ccf01dcea7bd0e824a98bdf4d89b23570ffbb23c8e",
     "shape": [
      37,
      2
@@ -528,13 +528,13 @@
    "term_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "66cd5c42bc0cd5847b95c37523bdd5060d2a4e5d1bbe92684920721224a8d844"
+    "sha256": "9d9c0b3af36c3105509c4ce096571461002ee77c24578b0c92ec5257f2061ccf"
    },
    "term_xy": {
     "file": "layout/term_xy.npy",
     "kind": "array",
     "role": "layout",
-    "sha256": "97c5ee0bb35823cd56e8f07c542b3d91921ca131a0f6ec3f8ecb82915c7e5a86",
+    "sha256": "748bc25315cf43ce6fa7941a810bfd91b457914853749879fbd9c303fc473151",
     "shape": [
      132,
      2
@@ -557,7 +557,7 @@
    "applicants_details": {
     "file": "projection/applicants_details.json",
     "kind": "json",
-    "sha256": "eb2eaca26f796ffad4c2d367b1e11aa4e26ba8e0ffd0a3630e83410df0bf12b1"
+    "sha256": "8ab82bd63264fbee2aa320cd08bcb46bbce7ae81ecde9bad234c375468ab32d7"
    },
    "applicants_items": {
     "count": 4,
@@ -569,7 +569,7 @@
     "file": "projection/applicants_xy.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "46d5d5681ea6dd5066072b5c4bbbcea3f4ebe17a2b1ab6b83e1ee1afb29ecca8",
+    "sha256": "164b4408a391b48874f3bb36679a339297fa5a5a6f56b8a02ec0f47fdf621aa6",
     "shape": [
      4,
      2
@@ -633,14 +633,14 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 663,
-    "sha256": "11b3f47165b232d4d5244a973306e355e03bb619c4072d1ee31620fbc6e2508b"
+    "rows": 712,
+    "sha256": "0cd96b9c7ebd5ac0e8334c51acdffd05160ba7efa49e75dd42e9dbe1f6af486b"
    },
    "person_coords": {
     "file": "space/person_coords.npy",
     "kind": "array",
     "role": "embedding",
-    "sha256": "453954c4a52b9543d6cbf3cacfd6d3557d01b451cc0c0d78d183307c3bcc7408",
+    "sha256": "188201bb50ce7090f46e5086ba4af9bbf9b12e9a2d90dbb8a23ff7e64d5a95e6",
     "shape": [
      37,
      20
@@ -650,7 +650,7 @@
    "person_table": {
     "kind": "hash",
     "of": "table",
-    "sha256": "23cc6c4f0e30024a7aaf49894970aa197a95964f5f2ebed495248a7afa534f0e"
+    "sha256": "ee6233dcd7bfe948a31a706000c2d0fb41ad4bd8dc6c24e35174819a4a6c0542"
    },
    "persons": {
     "count": 37,
@@ -719,12 +719,12 @@
     "kind": "table",
     "ordered": false,
     "rows": 140,
-    "sha256": "9ec53171bf25c275e3bcb8f4979dd7a1cf1072ebc247a3051a3858b0fb1a764a"
+    "sha256": "eab9f85d988cdb1d4c63fd783c34c9826f49b0f7c610bc567c7b67b29ecc83e6"
    },
    "windows": {
     "file": "trajectories/windows.json.gz",
     "kind": "json",
-    "sha256": "a2170be2fe0194f603a0b45dd2fafd9fdd3bb62d8c6d4fc22f24cafb6da9ca62"
+    "sha256": "c24b309f236e9aa352ce6505d9fe35d245e0b4d78a479b8e88f800b9f9a38f9e"
    }
   },
   "triage": {
@@ -757,10 +757,10 @@
  },
  "baseline": {
   "date": "2026-10-06",
-  "reason": "map.trajectories describes each person's time windows one by one by default (spans = windows); every run of consecutive windows, whose number grows with the square of a person's windows, only with spans = all. The trajectory points, the positions and the map are unchanged; the windows artifact keeps the single windows."
+  "reason": "each person's row of the space holds every keyword of the lexicon they use (keywords_per_person empty by default, was 30), stored as people x keywords matrices; the per-person table is each person's best 30 by length-boosted score, for display; the vocabulary grows to every accepted concept someone uses, and every later stage moves with it"
  },
  "environment": {
-  "engine_fingerprint": "d5f184992b4c6994a4e9f84539f855b85c1b6fd837b721cd3d529e979b016992",
+  "engine_fingerprint": "ee26410b99177278517e88ae957e007b86820a8f22696354da16fad1c6bb1784",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {

@@ -1,141 +1,141 @@
 person,bin_start,bin_end,n_docs,top_terms,umap_x,umap_y
-p003c149c87,2012,2014,2,dissolved inorganic carbon distribution,1.0768316984176636,4.475183486938477
-p003c149c87,2015,2017,3,contaminant fate modelling;microplastic ingestion;oyster larvae neurotoxicity;brominated compound exposure;antibiotic bioaccumulation,1.073551391106616,4.470801567085467
-p003c149c87,2018,2020,2,,0.7834342420101166,2.5443257093429565
-p003c149c87,2021,2023,7,copper toxicity;contaminant fate modelling;sinking particle flux;urea measurements;antibiotic bioaccumulation;hydrocarbon degradation;sediment contamination;thermal discharges,1.8591384887695312,3.815953016281128
-p003c149c87,2024,2026,4,thermal discharges;fish embryo immunotoxicity;artificial light pollution;contaminant fate modelling;copepod growth rates,1.8591384887695312,3.815953016281128
-p08ccd1fcd8,2021,2023,3,mussel mortality;sea bathing heritage;pot fishery bycatch rates;coral cover;thermal tolerance;policy instruments;oyster basin regulation;oyster farming memory,0.6881352930133748,2.533040813948768
-p08ccd1fcd8,2024,2026,2,norway lobster exploitation status;skate maturity;maritime law,2.1518490314483643,1.7229061126708984
-p0bd60b5341,2012,2014,4,norway lobster exploitation status;seagrass decline;ocean warming impacts;tuna diet;cephalopod growth,1.4347556829452517,2.2462995052337646
-p0bd60b5341,2015,2017,3,beam trawl selectivity;john dory landings;cephalopod growth;thermal tolerance;ocean warming impacts;maerl bed fragmentation;mussel mortality;crab recruitment,0.8111765330745752,2.547610833218439
-p0bd60b5341,2018,2020,3,,0.7834342420101166,2.5443257093429565
-p0bd60b5341,2021,2023,6,coral cover;skate maturity;thermal tolerance;maerl bed fragmentation;ocean warming impacts;seagrass decline;cephalopod reproduction;mussel mortality,0.8780542725664912,2.555530210108859
-p0bd60b5341,2024,2026,3,seagrass decline;thermal tolerance;beam trawl selectivity,0.8279918858588824,2.54960203563132
-p1024cb3851,2012,2014,5,oyster larvae neurotoxicity;sinking particle flux;urea measurements;sediment contamination;silver nanoparticle exposure;brominated compound exposure;microplastic ingestion;hydrocarbon bioaccumulation,1.8591384887695312,3.815953016281128
-p1024cb3851,2015,2017,3,beam trawl selectivity;cephalopod growth;thermal tolerance;silver nanoparticle exposure;ocean warming impacts;fish embryo immunotoxicity;copper toxicity;crab recruitment,0.8005907413080982,2.546357308872085
-p1024cb3851,2018,2020,3,dissolved inorganic carbon distribution;urea measurements,1.0768316984176636,4.475183486938477
-p1024cb3851,2021,2023,6,freshwater marsh vegetation;brominated compound exposure;copper toxicity;freshwater marsh morphology;delta plain biogeochemistry;contaminant fate modelling;sinking particle flux;nutrient retention,1.100072672085855,4.5037559152345485
-p1024cb3851,2024,2026,4,seagrass decline;thermal discharges;thermal tolerance;fish embryo immunotoxicity;contaminant fate modelling;oyster larvae neurotoxicity;copepod growth rates;microplastic ingestion,1.292778253555298,3.643526792526245
-p11b6019281,2012,2014,4,norway lobster exploitation status;gillnet seabed contact;ocean warming impacts;beam trawl selectivity;tuna diet,2.2439980506896973,3.0004143714904785
-p11b6019281,2015,2017,4,sea-level rise;port infrastructure flood risk;norway lobster exploitation status;tourist resort damage;john dory landings;copepod growth rates;hake biomass,2.67570532579232,2.6617364093266573
-p11b6019281,2018,2020,4,gillnet seabed contact;tuna diet;tuna size structure;common cuttlefish catch,2.2439980506896973,3.0004143714904785
-p11b6019281,2021,2023,5,coastal flood intensity;port infrastructure flood risk;sinking particle flux;storm trends;sea-level rise;wave climate,2.720295848445704,2.6966409215385214
-p11b6019281,2024,2026,6,sea-level rise;tuna size structure;freshwater marsh vegetation;storm surge return levels;pot fishery bycatch rates;tuna diet;gillnet seabed contact;freshwater marsh morphology,2.701878803013309,2.669057619388345
-p1b0e7302b4,2012,2014,2,sediment budget;wild coast governance,2.8726961612701416,1.41076397895813
-p1b0e7302b4,2015,2017,1,wild coast governance;harbour access rights;tourist beach planning;shipwreck memory;fisheries governance,2.8726961612701416,1.41076397895813
-p1b0e7302b4,2018,2020,6,pot fishery bycatch rates;harbour valuation;gillnet seabed contact;wild coast governance;common cuttlefish catch;beach access rights;shoreline access;public maritime domain compensation schemes,3.514556495454835,1.0752729141858135
-p1b0e7302b4,2021,2023,1,coastal setback legal status;wild coast governance;mooring area planning;disaster memory;beach valuation,3.324586236583696,1.934352864007998
-p1b0e7302b4,2024,2026,8,pot fishery bycatch rates;disaster memory;aquaculture lease public inquiry;gillnet seabed contact;wild coast governance;land-use conflicts;beach access rights;common cuttlefish catch,3.532891289062289,1.1079288210393106
-p1b7407135a,2021,2023,1,monsoon intensity variability;diatom frustule stable isotopes;diatom frustule abundance changes;chironomid preservation,2.6567742428986167,6.288769537199816
-p1b7407135a,2024,2026,4,internal wave persistence;front vertical structure;contourite drifts;tidal asymmetry,3.0569088459014893,5.145398616790772
-p1bea206117,2012,2014,7,oyster larvae neurotoxicity;sinking particle flux;urea measurements;microplastic ingestion;sediment contamination;silver nanoparticle exposure;brominated compound exposure;antibiotic bioaccumulation,1.8591384887695312,3.815953016281128
-p1bea206117,2015,2017,3,microplastic ingestion;silver nanoparticle exposure;fish embryo immunotoxicity;oyster larvae neurotoxicity;copper toxicity,1.102930313958955,4.523578641963429
-p1bea206117,2018,2020,3,dissolved inorganic carbon distribution;urea measurements,1.0768316984176636,4.475183486938477
-p1bea206117,2021,2023,3,sinking particle flux;urea measurements,1.0768316984176636,4.475183486938477
-p1bea206117,2024,2026,8,estuarine water quality;blue carbon ecosystems;nutrient retention;thermal discharges;fish embryo immunotoxicity;delta plain biogeochemistry;oyster larvae neurotoxicity;contaminant fate modelling,1.1790535434181124,4.629203156129277
-p1d254376e4,2012,2014,3,seagrass decline;ocean warming impacts;cephalopod growth,0.8289766173617851,2.5497186433391548
-p1d254376e4,2015,2017,2,coral cover;maerl bed fragmentation;mussel mortality,0.8682742744727467,2.5543721044150907
-p1d254376e4,2018,2020,1,,0.7834342420101166,2.5443257093429565
-p1d254376e4,2021,2023,5,maerl bed fragmentation;cephalopod reproduction;coral cover;thermal tolerance;skate maturity;ocean warming impacts;seagrass decline;mussel mortality,0.8587591639676267,2.5532453655806666
-p1d254376e4,2024,2026,2,seagrass decline;thermal tolerance,0.8304307824138517,2.549890839367245
-p208620e68a,2012,2014,5,shelf sea heat budget;deep-water circulation trends;abrupt climate events;coral climate archives;shell middens;foraminifera palaeoecology;enso variability,2.4600695429871164,6.195956371086918
-p208620e68a,2015,2017,1,planktonic foraminifera;deep-water circulation trends;submerged forest records;shell middens;contourite drifts,2.438541699443828,6.196848448851203
-p208620e68a,2018,2020,5,diatom frustule preservation;coral climate archives;shell middens;coastal dune sequence stratigraphy;diatom frustule stable isotopes;submerged forest records;estuarine core stratigraphy;planktonic foraminifera,2.430658224945021,6.199032343356599
-p208620e68a,2021,2023,7,monsoon intensity variability;diatom frustule stable isotopes;sea ice extent trends;planktonic foraminifera;diatom frustule abundance changes;chironomid stable isotopes;diatom frustule preservation;enso variability,2.6367679997390288,6.286870101233861
-p208620e68a,2024,2026,4,abrupt climate events;estuarine core stratigraphy;monsoon intensity variability;sea ice extent trends;diatom frustule abundance changes;chironomid preservation;chironomid stable isotopes;diatom frustule preservation,2.3949278025287866,6.233081217852335
-p2410a02beb,2012,2014,4,shoreline access;local ecological knowledge;coastal risk perception;naval dockyard history;mooring concession zoning;public maritime domain compensation schemes;shipwreck memory;estuary social uses,3.3708467153612145,1.8762929444065388
-p2410a02beb,2015,2017,1,mooring concession zoning;policy instruments;coastal setback enforcement;disaster memory;harbour valuation,3.4253555307069874,1.8560750271945663
-p2410a02beb,2018,2020,4,fishing village history;tourist beach planning;naval dockyard history;seaside town perceptions;beach access rights;sea bathing heritage;aquaculture lease public inquiry;coastal setback legal status,2.8726961612701416,1.41076397895813
-p2410a02beb,2021,2023,3,science-policy interface;naval dockyard history;coastal wetland planning;wild coast management;fishing village history;mooring area planning;topographic steering;eddy variability,2.8726961612701416,1.41076397895813
-p2410a02beb,2024,2026,6,territorial identity;slope currents;estuary social uses;land-use conflicts;aquaculture lease public inquiry;planned relocation;coastal tourism;harbour access rights,3.2399271195177017,1.9356508527431184
-p29e2b56443,2021,2023,2,front vertical structure;sediment budget,2.606003242819183,4.411066754048955
-p2a8a31b111,2018,2020,3,,0.7834342420101166,2.5443257093429565
-p2a8a31b111,2021,2023,4,skate maturity;sea bathing heritage;policy instruments;oyster basin regulation;oyster farming memory;mussel mortality;hake biomass;sediment budget,2.1518490314483643,1.7229061126708984
-p2a8a31b111,2024,2026,1,norway lobster exploitation status;skate maturity,2.1518490314483643,1.7229061126708984
-p2ac04475d9,2012,2014,4,shoreline access;local ecological knowledge;science-policy interface;naval dockyard history;mooring concession zoning;coastal path valuation;maritime law;sediment budget,3.461548018534514,1.89228184049856
-p2ac04475d9,2018,2020,6,public maritime domain compensation schemes;tourist beach planning;harbour valuation;wild coast governance;beach access rights;seaside town perceptions;shoreline access;policy instruments,3.4640768015667343,1.8714094692608143
-p2ac04475d9,2021,2023,5,harbour valuation;wild coast management;seaside town perceptions;fishing village history;coastal setback enforcement;science-policy interface;naval dockyard history;coastal wetland planning,3.459252463177956,1.8755538723338256
-p2ac04475d9,2024,2026,4,estuary social uses;land-use conflicts;coastal tourism;harbour access rights;mooring concession zoning;estuary governance;stakeholder participation,3.324725006876243,1.9692526400122663
-p2bc0f6c230,2012,2014,4,public maritime domain compensation schemes;naval dockyard history;mooring concession zoning;coastal setback legal status;deliberative democracy;sediment budget;coastal wetland planning;wild coast management,3.303549836796622,1.9285801222660304
-p2bc0f6c230,2015,2017,3,wild coast governance;sea bathing representations;harbour access rights;tourist beach planning;sea bathing heritage;shipwreck memory;beach valuation;fisheries governance,2.8726961612701416,1.41076397895813
-p2bc0f6c230,2018,2020,5,fishing village history;tourist beach planning;pot fishery bycatch rates;naval dockyard history;beach access rights;seaside town perceptions;sea bathing heritage;coastal setback legal status,2.8726961612701416,1.41076397895813
-p2bc0f6c230,2021,2023,3,coastal setback enforcement;seaside town perceptions;wild coast management;fishing village history;sea bathing heritage;shellfish aquaculture;harbour valuation,3.442186529863437,1.899710336492565
-p2bc0f6c230,2024,2026,4,estuary social uses;mooring concession zoning;territorial identity;wild coast governance;harbour access rights;local ecological knowledge;beach access rights;sea bathing heritage,3.364895604540173,1.935203381529746
-p476f1392b7,2018,2020,2,tidal asymmetry;nonlinear tidal constituents;tidal resonance,2.619391865175379,4.424347883677554
-p476f1392b7,2021,2023,2,cold pool transport;nonlinear tidal constituents;front vertical structure;tidal resonance;tidal asymmetry,2.618017843759511,4.422984893815631
-p476f1392b7,2024,2026,6,slope currents;nonlinear tidal constituents;cold pool transport;shelf sea heat budget;tidal rectification;front forcing mechanisms;cross-shelf flow dissipation;copepod growth rates,2.7293283209404704,4.533401696764555
-p524073cfe7,2021,2023,2,wild coast management;fishing village history;naval dockyard history;seaside town perceptions;mooring area planning;sea bathing heritage;fisheries governance;science-policy interface,2.8726961612701416,1.41076397895813
-p524073cfe7,2024,2026,6,territorial identity;tuna size structure;estuary governance;planned relocation;artificial light pollution;oyster basin regulation;john dory landings;land-use conflicts,2.451992988586426,1.029322385787964
-p53cb563851,2018,2020,3,coral climate archives;diatom frustule preservation;shell middens;coastal dune sequence stratigraphy;diatom frustule stable isotopes;barrier evolution;estuarine core stratigraphy;submerged forest records,2.4339252461267704,6.199142278156785
-p53cb563851,2021,2023,5,monsoon intensity variability;deep-water circulation trends;chironomid stable isotopes;diatom frustule stable isotopes;diatom frustule preservation;foraminifera palaeoecology;contourite drifts,2.5351762996613574,6.266644764825828
-p53cb563851,2024,2026,3,internal wave persistence;sea ice extent trends;monsoon intensity variability;abrupt climate events;chironomid preservation,2.7318743164279247,6.301615364633269
-p600045bde2,2024,2026,5,mixed layer persistence;internal wave vertical structure;slope currents;front transport;internal wave persistence;tidal currents,3.0569088459014893,5.145398616790772
-p64ef7d8bcb,2021,2023,1,,0.7834342420101166,2.5443257093429565
-p70f417c6ae,2021,2023,4,maerl bed fragmentation;sea bathing heritage;cephalopod reproduction;thermal tolerance;policy instruments;oyster basin regulation;freshwater marsh vegetation;oyster farming memory,0.7432201181319266,2.539563724178253
-p70f417c6ae,2024,2026,2,oyster basin regulation;territorial identity,3.3648700434330743,1.9228163388727089
-p768b2b9d1a,2018,2020,5,coral climate archives;barrier evolution;shell middens;enso variability;contourite drifts,2.4380410214111548,6.196869196109938
-p768b2b9d1a,2021,2023,7,monsoon intensity variability;sea ice extent trends;diatom frustule stable isotopes;deep-water circulation trends;planktonic foraminifera;diatom frustule abundance changes;coastal dune sequence stratigraphy;enso variability,2.320001785818556,6.218304082326335
-p768b2b9d1a,2024,2026,5,estuarine core stratigraphy;internal wave persistence;submerged forest records;diatom frustule abundance changes;coastal dune sequence stratigraphy;shelf sea heat budget;diatom frustule preservation;abrupt climate events,2.038914973465546,6.919217104621785
-p7d0c3f1215,2012,2014,2,norway lobster exploitation status;tuna diet,2.1518490314483643,1.7229061126708984
-p7d0c3f1215,2015,2017,4,tourist resort damage;sea-level rise;storm trends;john dory landings;coastal risk perception;port infrastructure flood risk;wave climate,2.6855305349917504,2.66947765399254
-p7d0c3f1215,2018,2020,2,coastal risk perception;port infrastructure flood risk;coastal flood intensity;planned relocation,2.6932355291260848,2.676122220213636
-p7d0c3f1215,2021,2023,5,tourist resort damage;coastal flood intensity;tuna size structure;gillnet seabed contact;port infrastructure flood risk;coastal risk perception;storm trends;wave climate,2.644555455213327,2.631546624649758
-p7d0c3f1215,2024,2026,3,sea-level rise;storm surge return levels;gillnet seabed contact;common cuttlefish catch;storm trends;wave climate,2.6400536234223155,2.632352628026975
-p8b5ea16451,2012,2014,4,deep-water circulation trends;coral climate archives;abrupt climate events;shell middens;foraminifera palaeoecology;enso variability,2.450976464634817,6.197284180868399
-p8b5ea16451,2015,2017,1,planktonic foraminifera;deep-water circulation trends;submerged forest records;shell middens;contourite drifts,2.438541699443828,6.196848448851203
-p8b5ea16451,2018,2020,1,diatom frustule preservation;shell middens;coastal dune sequence stratigraphy;diatom frustule stable isotopes;estuarine core stratigraphy;submerged forest records;coral climate archives;planktonic foraminifera,2.4205416011912897,6.198568222974358
-p8b5ea16451,2021,2023,5,monsoon intensity variability;diatom frustule stable isotopes;planktonic foraminifera;submerged forest records;coral climate archives;enso variability;diatom frustule abundance changes;coastal dune sequence stratigraphy,2.314627799418256,6.2081716301201535
-p8b5ea16451,2024,2026,2,submerged forest records;sea ice extent trends;coastal dune sequence stratigraphy;chironomid preservation;abrupt climate events;estuarine core stratigraphy;monsoon intensity variability;enso variability,2.367745717298055,6.199791910986266
-p8d2037a6c8,2012,2014,4,radar backscatter;sea surface temperature;sea surface salinity,3.833597930429697,4.292512969752539
-p8d2037a6c8,2015,2017,3,dissolved inorganic carbon distribution;sea surface temperature;radar backscatter;sea surface salinity;copepod growth rates,3.842393225159881,4.322363983442582
-p8d2037a6c8,2018,2020,3,inherent optical properties;radar backscatter;tidal asymmetry;storm surge return levels;nonlinear tidal constituents;sea surface temperature;sea surface salinity;tidal resonance,3.755902543158345,4.303088306098628
-p8d2037a6c8,2021,2023,6,sea surface temperature;radar backscatter;inherent optical properties;internal wave vertical structure;slope currents;topographic steering;barrier evolution;sediment budget,3.8170276013709374,4.28435420411739
-p8d2037a6c8,2024,2026,5,inherent optical properties;radar backscatter;sea surface temperature;sea surface salinity;storm surge return levels,3.813710353558321,4.263189025092779
-p9667797279,2012,2014,2,gillnet seabed contact;beam trawl selectivity,2.2439980506896973,3.0004143714904785
-p9667797279,2015,2017,6,tourist resort damage;john dory landings;sea-level rise;storm trends;coastal risk perception;port infrastructure flood risk;norway lobster exploitation status;copepod growth rates,2.680937713288593,2.665723722385834
-p9667797279,2018,2020,3,gillnet seabed contact;coastal risk perception;port infrastructure flood risk;tuna diet;coastal flood intensity;common cuttlefish catch;planned relocation,2.6849440026536184,2.6519968726109653
-p9667797279,2021,2023,7,coastal flood intensity;tourist resort damage;tuna size structure;gillnet seabed contact;port infrastructure flood risk;sinking particle flux;storm trends;wave climate,2.6654307135656348,2.64497103422772
-p9667797279,2024,2026,4,pot fishery bycatch rates;tuna size structure;tuna diet;gillnet seabed contact;land-use conflicts;common cuttlefish catch;coastal tourism,3.4492434306651814,0.9589445057100182
-p9a10078539,2012,2014,3,public maritime domain compensation schemes;shoreline access;local ecological knowledge;coastal wetland planning;deliberative democracy;coastal setback legal status;wild coast management;internal wave persistence,3.401929798515392,1.8661198550009723
-p9a10078539,2015,2017,3,mooring concession zoning;hake biomass;policy instruments;wild coast governance;harbour access rights;coastal setback enforcement;tourist beach planning;disaster memory,3.444819632547918,1.8573762837163212
-p9a10078539,2018,2020,2,harbour valuation;public maritime domain compensation schemes;shoreline access;stakeholder participation,3.4208660807404923,1.85275174987121
-p9a10078539,2021,2023,3,coastal setback enforcement;seaside town perceptions;coastal setback legal status;wild coast governance;wild coast management;fishing village history;mooring area planning;sea bathing heritage,3.389214402715696,1.931329459478504
-p9a10078539,2024,2026,2,aquaculture lease public inquiry;disaster memory;wild coast governance;mooring concession zoning;beach access rights;local ecological knowledge;coastal risk perception;sea bathing heritage,3.45017150692356,1.8774323222186908
-p9d99ad3759,2021,2023,2,maerl bed fragmentation;cephalopod reproduction;thermal tolerance;coral cover;cephalopod growth,0.8484842471848419,2.552028653724991
-p9d99ad3759,2024,2026,3,maritime law;land-use conflicts;skate maturity;coastal tourism,2.1518490314483643,1.7229061126708984
-paa897d91b8,2012,2014,5,sea surface temperature;radar backscatter;front forcing mechanisms;sea surface salinity;inherent optical properties,3.823301215879861,4.275383770826918
-paa897d91b8,2015,2017,3,dissolved inorganic carbon distribution;sea surface temperature;radar backscatter;sea surface salinity;cross-shelf flow dissipation;copepod growth rates;eddy variability,3.83608980867796,4.338274140303035
-paa897d91b8,2018,2020,3,inherent optical properties;radar backscatter;storm surge return levels;sea surface salinity;sea surface temperature,3.821445873003511,4.270299252126581
-paa897d91b8,2021,2023,5,radar backscatter;sea surface temperature;sea surface salinity;inherent optical properties;internal wave vertical structure;slope currents;barrier evolution;sediment budget,3.814781523833365,4.279624937653945
-paa897d91b8,2024,2026,5,inherent optical properties;radar backscatter;sea surface temperature;storm surge return levels;tidal rectification;mixed layer persistence;sea surface salinity;tidal resonance,3.741492727536667,4.237864941304221
-pafd010e10e,2012,2014,5,oyster larvae neurotoxicity;sediment contamination;silver nanoparticle exposure;brominated compound exposure;microplastic ingestion;hydrocarbon bioaccumulation;copper toxicity,1.102635858286099,4.522874209174587
-pafd010e10e,2015,2017,1,contaminant fate modelling;brominated compound exposure;antibiotic bioaccumulation,1.8591384887695312,3.815953016281128
-pafd010e10e,2018,2020,3,,0.7834342420101166,2.5443257093429565
-pafd010e10e,2021,2023,7,estuarine water quality;freshwater marsh morphology;freshwater marsh vegetation;hydrocarbon degradation;copper toxicity;delta plain biogeochemistry;contaminant fate modelling;sinking particle flux,1.183108939669352,4.625687505762803
-pafd010e10e,2024,2026,6,estuarine water quality;freshwater marsh vegetation;blue carbon ecosystems;nutrient retention;delta plain biogeochemistry;floodplain mapping;freshwater marsh morphology,1.2186252739925458,4.68209109567673
-pb841bfe353,2012,2014,4,oyster larvae neurotoxicity;silver nanoparticle exposure;brominated compound exposure;hydrocarbon degradation;hydrocarbon bioaccumulation,1.1036783717957122,4.525798787258637
-pb841bfe353,2015,2017,3,fish embryo immunotoxicity;silver nanoparticle exposure;oyster larvae neurotoxicity;hydrocarbon degradation;copper toxicity,1.1049164612511246,4.528313367847641
-pb841bfe353,2018,2020,3,fish embryo immunotoxicity;artificial light pollution;sediment contamination;thermal discharges;hydrocarbon bioaccumulation,1.8591384887695312,3.815953016281128
-pb841bfe353,2021,2023,7,estuarine water quality;freshwater marsh morphology;freshwater marsh vegetation;brominated compound exposure;delta plain biogeochemistry;floodplain mapping;nutrient retention;hydrocarbon degradation,1.194102418683597,4.645406777095255
-pb841bfe353,2024,2026,6,estuarine water quality;nutrient retention;freshwater marsh vegetation;delta plain biogeochemistry;blue carbon ecosystems;floodplain mapping;thermal discharges;fish embryo immunotoxicity,1.2107546718951707,4.670966766213934
-pd49950db2e,2021,2023,3,tidal resonance;inherent optical properties;sea surface salinity;cross-shelf flow dissipation;radar backscatter;tidal eddy dissipation,3.749268958618168,4.331589194827341
-pd49950db2e,2024,2026,5,inherent optical properties;sea surface salinity;radar backscatter;sea surface temperature;tidal rectification;tidal resonance;cold pool transport;mixed layer persistence,3.745325968063328,4.268506749270496
-pd6311dcf3c,2021,2023,4,sea ice extent trends;foraminifera palaeoecology;submerged forest records;coral climate archives;abrupt climate events;enso variability;planktonic foraminifera;barrier evolution,2.248108542648798,6.8106331999639975
-pd6311dcf3c,2024,2026,6,diatom frustule abundance changes;estuarine core stratigraphy;diatom frustule stable isotopes;submerged forest records;sea ice extent trends;abrupt climate events;coastal dune sequence stratigraphy;front vertical structure,2.3546605626074038,6.22342749952356
-pe204ac5764,2012,2014,5,radar backscatter;sea surface temperature;shelf sea heat budget;topographic steering;eddy variability;sea surface salinity;cross-shelf flow dissipation,3.81813409021121,4.379784335651471
-pe204ac5764,2015,2017,3,dissolved inorganic carbon distribution;sea surface temperature;radar backscatter;sea surface salinity;cross-shelf flow dissipation;copepod growth rates;eddy variability,3.83608980867796,4.338274140303035
-pe204ac5764,2018,2020,2,tidal asymmetry;internal wave vertical structure;nonlinear tidal constituents;tidal resonance,2.634074528303571,4.438912664661786
-pe204ac5764,2021,2023,7,sea surface salinity;radar backscatter;inherent optical properties;tidal eddy dissipation;sea surface temperature;cross-shelf flow dissipation;internal wave vertical structure;slope currents,3.7020449169718384,4.339449729454058
-pe204ac5764,2024,2026,3,cold pool transport;nonlinear tidal constituents;front forcing mechanisms;tidal rectification;sea surface salinity;inherent optical properties;tidal eddy dissipation;radar backscatter,3.74090763901253,4.319241769037564
-pe327f31153,2024,2026,1,blue carbon ecosystems,1.2319159656000462,4.71957296971428
-pefbdf68ec0,2012,2014,3,coastal risk perception;science-policy interface;public maritime domain compensation schemes;shelf sea heat budget;eddy variability;topographic steering;maritime law;estuary social uses,3.620194047303127,1.2634228397997438
-pefbdf68ec0,2015,2017,1,shellfish aquaculture;land-use conflicts,3.035863161087036,2.9304702281951904
-pefbdf68ec0,2018,2020,9,fishing village history;pot fishery bycatch rates;harbour valuation;beach access rights;public maritime domain compensation schemes;sea bathing heritage;tidal asymmetry;coastal setback legal status,3.6270749593647063,1.2756783594505738
-pefbdf68ec0,2021,2023,5,harbour valuation;coastal setback enforcement;mooring area planning;coastal setback legal status;beach valuation;science-policy interface;naval dockyard history;wild coast governance,3.458487297729944,1.8787376610049664
-pefbdf68ec0,2024,2026,5,pot fishery bycatch rates;disaster memory;wild coast governance;oyster farming memory;coastal setback enforcement;beach access rights;local ecological knowledge;mooring concession zoning,3.549854127781763,1.138141153561495
-pf4c26f33f4,2018,2020,3,inherent optical properties;radar backscatter;internal wave vertical structure;storm surge return levels;sea surface salinity;sea surface temperature,3.81077035794028,4.265134823186447
-pf4c26f33f4,2021,2023,5,radar backscatter;sea surface salinity;inherent optical properties;sea surface temperature;internal wave vertical structure;slope currents;topographic steering;tidal eddy dissipation,3.729847194250558,4.275470796806473
-pf4c26f33f4,2024,2026,6,inherent optical properties;mixed layer persistence;sea surface temperature;shelf sea heat budget;storm surge return levels;radar backscatter;slope currents;tidal rectification,3.695846988572784,4.300541610765011
-pf6914ae6c3,2021,2023,1,,0.7834342420101166,2.5443257093429565
-pfb06236f14,2021,2023,5,tourist resort damage;coastal flood intensity;coastal risk perception;sinking particle flux,2.713732280714523,2.6914920498995865
-pfb06236f14,2024,2026,5,territorial identity;land-use conflicts;storm surge return levels;sea-level rise;estuary governance;planned relocation;artificial light pollution;coastal tourism,2.8563590898719013,2.794569655463841
+p003c149c87,2012,2014,2,dissolved inorganic carbon distribution,-5.480175018310547,-5.428935527801514
+p003c149c87,2015,2017,3,contaminant fate modelling;microplastic ingestion;oyster larvae neurotoxicity;brominated compound exposure;antibiotic bioaccumulation,-5.960435390472412,-5.814196586608887
+p003c149c87,2018,2020,2,,-7.52982759475708,-6.779979705810547
+p003c149c87,2021,2023,7,copper toxicity;contaminant fate modelling;sinking particle flux;urea measurements;antibiotic bioaccumulation;hydrocarbon degradation;sediment contamination;thermal discharges,-5.960435390472412,-5.814196586608887
+p003c149c87,2024,2026,4,thermal discharges;fish embryo immunotoxicity;artificial light pollution;contaminant fate modelling;copepod growth rates,-5.960435390472412,-5.814196586608887
+p08ccd1fcd8,2021,2023,3,mussel mortality;sea bathing heritage;pot fishery bycatch rates;coral cover;thermal tolerance;policy instruments;oyster basin regulation;oyster farming memory,-7.52982759475708,-6.779979705810547
+p08ccd1fcd8,2024,2026,2,norway lobster exploitation status;skate maturity;maritime law,-7.278632164001465,-7.326600551605225
+p0bd60b5341,2012,2014,4,norway lobster exploitation status;seagrass decline;ocean warming impacts;tuna diet;cephalopod growth,-7.280935287475586,-6.330631256103516
+p0bd60b5341,2015,2017,3,beam trawl selectivity;john dory landings;cephalopod growth;thermal tolerance;ocean warming impacts;maerl bed fragmentation;mussel mortality;crab recruitment,-7.280935287475586,-6.330631256103516
+p0bd60b5341,2018,2020,3,,-7.52982759475708,-6.779979705810547
+p0bd60b5341,2021,2023,6,coral cover;skate maturity;thermal tolerance;maerl bed fragmentation;ocean warming impacts;seagrass decline;cephalopod reproduction;mussel mortality,-8.292230606079102,-6.601733207702637
+p0bd60b5341,2024,2026,3,seagrass decline;thermal tolerance;beam trawl selectivity,-8.292230606079102,-6.601733207702637
+p1024cb3851,2012,2014,5,oyster larvae neurotoxicity;sinking particle flux;urea measurements;sediment contamination;silver nanoparticle exposure;brominated compound exposure;microplastic ingestion;hydrocarbon bioaccumulation,-5.960435390472412,-5.814196586608887
+p1024cb3851,2015,2017,3,beam trawl selectivity;cephalopod growth;thermal tolerance;silver nanoparticle exposure;ocean warming impacts;fish embryo immunotoxicity;copper toxicity;crab recruitment,-7.280935287475586,-6.330631256103516
+p1024cb3851,2018,2020,3,dissolved inorganic carbon distribution;urea measurements,-5.480175018310547,-5.428935527801514
+p1024cb3851,2021,2023,6,freshwater marsh vegetation;brominated compound exposure;copper toxicity;freshwater marsh morphology;delta plain biogeochemistry;contaminant fate modelling;sinking particle flux;nutrient retention,-5.480175018310547,-5.428935527801514
+p1024cb3851,2024,2026,4,seagrass decline;thermal discharges;thermal tolerance;fish embryo immunotoxicity;contaminant fate modelling;oyster larvae neurotoxicity;copepod growth rates;microplastic ingestion,-6.192033290863037,-5.384474277496338
+p11b6019281,2012,2014,4,norway lobster exploitation status;gillnet seabed contact;ocean warming impacts;beam trawl selectivity;tuna diet,-6.465323448181152,-6.609425067901611
+p11b6019281,2015,2017,4,sea-level rise;port infrastructure flood risk;norway lobster exploitation status;tourist resort damage;john dory landings;copepod growth rates;hake biomass,-6.084862597238232,-7.352991236878921
+p11b6019281,2018,2020,4,gillnet seabed contact;tuna diet;tuna size structure;common cuttlefish catch,-6.465323448181152,-6.609425067901611
+p11b6019281,2021,2023,5,coastal flood intensity;port infrastructure flood risk;sinking particle flux;storm trends;sea-level rise;wave climate,-6.145592412583385,-7.329794972020837
+p11b6019281,2024,2026,6,sea-level rise;tuna size structure;freshwater marsh vegetation;storm surge return levels;pot fishery bycatch rates;tuna diet;gillnet seabed contact;freshwater marsh morphology,-6.465323448181152,-6.609425067901611
+p1b0e7302b4,2012,2014,2,sediment budget;wild coast governance,-6.947548840021762,-8.634399255939838
+p1b0e7302b4,2015,2017,1,wild coast governance;harbour access rights;tourist beach planning;shipwreck memory;fisheries governance,-6.938934846925169,-8.624927494638182
+p1b0e7302b4,2018,2020,6,pot fishery bycatch rates;harbour valuation;gillnet seabed contact;wild coast governance;common cuttlefish catch;beach access rights;shoreline access;public maritime domain compensation schemes,-7.212914943695068,-8.180685043334961
+p1b0e7302b4,2021,2023,1,coastal setback legal status;wild coast governance;mooring area planning;disaster memory;beach valuation,-6.941012145975831,-8.627211647938445
+p1b0e7302b4,2024,2026,8,pot fishery bycatch rates;disaster memory;aquaculture lease public inquiry;gillnet seabed contact;wild coast governance;land-use conflicts;beach access rights;common cuttlefish catch,-7.212914943695068,-8.180685043334961
+p1b7407135a,2021,2023,1,monsoon intensity variability;diatom frustule stable isotopes;diatom frustule abundance changes;chironomid preservation,-4.323820316693372,-6.972090979425063
+p1b7407135a,2024,2026,4,internal wave persistence;front vertical structure;contourite drifts;tidal asymmetry,-7.2211480140686035,-4.8826117515563965
+p1bea206117,2012,2014,7,oyster larvae neurotoxicity;sinking particle flux;urea measurements;microplastic ingestion;sediment contamination;silver nanoparticle exposure;brominated compound exposure;antibiotic bioaccumulation,-5.960435390472412,-5.814196586608887
+p1bea206117,2015,2017,3,microplastic ingestion;silver nanoparticle exposure;fish embryo immunotoxicity;oyster larvae neurotoxicity;copper toxicity,-5.960435390472412,-5.814196586608887
+p1bea206117,2018,2020,3,dissolved inorganic carbon distribution;urea measurements,-5.480175018310547,-5.428935527801514
+p1bea206117,2021,2023,3,sinking particle flux;urea measurements,-5.480175018310547,-5.428935527801514
+p1bea206117,2024,2026,8,estuarine water quality;blue carbon ecosystems;nutrient retention;thermal discharges;fish embryo immunotoxicity;delta plain biogeochemistry;oyster larvae neurotoxicity;contaminant fate modelling,-5.602734088897705,-4.8165717124938965
+p1d254376e4,2012,2014,3,seagrass decline;ocean warming impacts;cephalopod growth,-8.292230606079102,-6.601733207702637
+p1d254376e4,2015,2017,2,coral cover;maerl bed fragmentation;mussel mortality,-8.292230606079102,-6.601733207702637
+p1d254376e4,2018,2020,1,,-7.52982759475708,-6.779979705810547
+p1d254376e4,2021,2023,5,maerl bed fragmentation;cephalopod reproduction;coral cover;thermal tolerance;skate maturity;ocean warming impacts;seagrass decline;mussel mortality,-8.292230606079102,-6.601733207702637
+p1d254376e4,2024,2026,2,seagrass decline;thermal tolerance,-8.292230606079102,-6.601733207702637
+p208620e68a,2012,2014,5,shelf sea heat budget;deep-water circulation trends;abrupt climate events;coral climate archives;shell middens;foraminifera palaeoecology;enso variability,-4.060654640197754,-6.256271839141846
+p208620e68a,2015,2017,1,planktonic foraminifera;deep-water circulation trends;submerged forest records;shell middens;contourite drifts,-4.060654640197754,-6.256271839141846
+p208620e68a,2018,2020,5,diatom frustule preservation;coral climate archives;shell middens;coastal dune sequence stratigraphy;diatom frustule stable isotopes;submerged forest records;estuarine core stratigraphy;planktonic foraminifera,-4.060654640197754,-6.256271839141846
+p208620e68a,2021,2023,7,monsoon intensity variability;diatom frustule stable isotopes;sea ice extent trends;planktonic foraminifera;diatom frustule abundance changes;chironomid stable isotopes;diatom frustule preservation;enso variability,-4.319360214921263,-6.966683279523094
+p208620e68a,2024,2026,4,abrupt climate events;estuarine core stratigraphy;monsoon intensity variability;sea ice extent trends;diatom frustule abundance changes;chironomid preservation;chironomid stable isotopes;diatom frustule preservation,-4.291629332121024,-6.8984393165959
+p2410a02beb,2012,2014,4,shoreline access;local ecological knowledge;coastal risk perception;naval dockyard history;mooring concession zoning;public maritime domain compensation schemes;shipwreck memory;estuary social uses,-7.877640247344971,-8.57800579071045
+p2410a02beb,2015,2017,1,mooring concession zoning;policy instruments;coastal setback enforcement;disaster memory;harbour valuation,-7.877640247344971,-8.57800579071045
+p2410a02beb,2018,2020,4,fishing village history;tourist beach planning;naval dockyard history;seaside town perceptions;beach access rights;sea bathing heritage;aquaculture lease public inquiry;coastal setback legal status,-6.946812416321686,-8.63358950029855
+p2410a02beb,2021,2023,3,science-policy interface;naval dockyard history;coastal wetland planning;wild coast management;fishing village history;mooring area planning;topographic steering;eddy variability,-6.934421845970944,-8.619965095979019
+p2410a02beb,2024,2026,6,territorial identity;slope currents;estuary social uses;land-use conflicts;aquaculture lease public inquiry;planned relocation;coastal tourism;harbour access rights,-7.688429355621338,-8.083439826965332
+p29e2b56443,2021,2023,2,front vertical structure;sediment budget,-6.842387199401856,-5.567627906799316
+p2a8a31b111,2018,2020,3,,-7.52982759475708,-6.779979705810547
+p2a8a31b111,2021,2023,4,skate maturity;sea bathing heritage;policy instruments;oyster basin regulation;oyster farming memory;mussel mortality;hake biomass;sediment budget,-7.278632164001465,-7.326600551605225
+p2a8a31b111,2024,2026,1,norway lobster exploitation status;skate maturity,-7.278632164001465,-7.326600551605225
+p2ac04475d9,2012,2014,4,shoreline access;local ecological knowledge;science-policy interface;naval dockyard history;mooring concession zoning;coastal path valuation;maritime law;sediment budget,-7.495643138885498,-9.007047653198242
+p2ac04475d9,2018,2020,6,public maritime domain compensation schemes;tourist beach planning;harbour valuation;wild coast governance;beach access rights;seaside town perceptions;shoreline access;policy instruments,-7.495643138885498,-9.007047653198242
+p2ac04475d9,2021,2023,5,harbour valuation;wild coast management;seaside town perceptions;fishing village history;coastal setback enforcement;science-policy interface;naval dockyard history;coastal wetland planning,-7.495643138885498,-9.007047653198242
+p2ac04475d9,2024,2026,4,estuary social uses;land-use conflicts;coastal tourism;harbour access rights;mooring concession zoning;estuary governance;stakeholder participation,-7.688429355621338,-8.083439826965332
+p2bc0f6c230,2012,2014,4,public maritime domain compensation schemes;naval dockyard history;mooring concession zoning;coastal setback legal status;deliberative democracy;sediment budget;coastal wetland planning;wild coast management,-7.688429355621338,-8.083439826965332
+p2bc0f6c230,2015,2017,3,wild coast governance;sea bathing representations;harbour access rights;tourist beach planning;sea bathing heritage;shipwreck memory;beach valuation;fisheries governance,-6.942671084582814,-8.629035781104475
+p2bc0f6c230,2018,2020,5,fishing village history;tourist beach planning;pot fishery bycatch rates;naval dockyard history;beach access rights;seaside town perceptions;sea bathing heritage;coastal setback legal status,-6.943662199626882,-8.630125589862693
+p2bc0f6c230,2021,2023,3,coastal setback enforcement;seaside town perceptions;wild coast management;fishing village history;sea bathing heritage;shellfish aquaculture;harbour valuation,-7.495643138885498,-9.007047653198242
+p2bc0f6c230,2024,2026,4,estuary social uses;mooring concession zoning;territorial identity;wild coast governance;harbour access rights;local ecological knowledge;beach access rights;sea bathing heritage,-6.927535678154706,-8.612393214145916
+p476f1392b7,2018,2020,2,tidal asymmetry;nonlinear tidal constituents;tidal resonance,-6.842387199401856,-5.567627906799316
+p476f1392b7,2021,2023,2,cold pool transport;nonlinear tidal constituents;front vertical structure;tidal resonance;tidal asymmetry,-6.842387199401856,-5.567627906799316
+p476f1392b7,2024,2026,6,slope currents;nonlinear tidal constituents;cold pool transport;shelf sea heat budget;tidal rectification;front forcing mechanisms;cross-shelf flow dissipation;copepod growth rates,-6.59835958480835,-4.721399784088135
+p524073cfe7,2021,2023,2,wild coast management;fishing village history;naval dockyard history;seaside town perceptions;mooring area planning;sea bathing heritage;fisheries governance;science-policy interface,-6.948771644878407,-8.635743825826392
+p524073cfe7,2024,2026,6,territorial identity;tuna size structure;estuary governance;planned relocation;artificial light pollution;oyster basin regulation;john dory landings;land-use conflicts,-6.669958591461182,-7.9441237449646
+p53cb563851,2018,2020,3,coral climate archives;diatom frustule preservation;shell middens;coastal dune sequence stratigraphy;diatom frustule stable isotopes;barrier evolution;estuarine core stratigraphy;submerged forest records,-4.060654640197754,-6.256271839141846
+p53cb563851,2021,2023,5,monsoon intensity variability;deep-water circulation trends;chironomid stable isotopes;diatom frustule stable isotopes;diatom frustule preservation;foraminifera palaeoecology;contourite drifts,-4.355409223830745,-6.901234208441972
+p53cb563851,2024,2026,3,internal wave persistence;sea ice extent trends;monsoon intensity variability;abrupt climate events;chironomid preservation,-4.31849851004716,-7.014510414660417
+p600045bde2,2024,2026,5,mixed layer persistence;internal wave vertical structure;slope currents;front transport;internal wave persistence;tidal currents,-7.2211480140686035,-4.8826117515563965
+p64ef7d8bcb,2021,2023,1,,-7.52982759475708,-6.779979705810547
+p70f417c6ae,2021,2023,4,maerl bed fragmentation;sea bathing heritage;cephalopod reproduction;thermal tolerance;policy instruments;oyster basin regulation;freshwater marsh vegetation;oyster farming memory,-7.52982759475708,-6.779979705810547
+p70f417c6ae,2024,2026,2,oyster basin regulation;territorial identity,-6.856601987985009,-8.534396056033621
+p768b2b9d1a,2018,2020,5,coral climate archives;barrier evolution;shell middens;enso variability;contourite drifts,-4.060654640197754,-6.256271839141846
+p768b2b9d1a,2021,2023,7,monsoon intensity variability;sea ice extent trends;diatom frustule stable isotopes;deep-water circulation trends;planktonic foraminifera;diatom frustule abundance changes;coastal dune sequence stratigraphy;enso variability,-4.316210154261075,-6.862339869927332
+p768b2b9d1a,2024,2026,5,estuarine core stratigraphy;internal wave persistence;submerged forest records;diatom frustule abundance changes;coastal dune sequence stratigraphy;shelf sea heat budget;diatom frustule preservation;abrupt climate events,-4.6571784019470215,-6.277366161346436
+p7d0c3f1215,2012,2014,2,norway lobster exploitation status;tuna diet,-7.278632164001465,-7.326600551605225
+p7d0c3f1215,2015,2017,4,tourist resort damage;sea-level rise;storm trends;john dory landings;coastal risk perception;port infrastructure flood risk;wave climate,-6.099614811652415,-7.347356504238127
+p7d0c3f1215,2018,2020,2,coastal risk perception;port infrastructure flood risk;coastal flood intensity;planned relocation,-6.117928979170314,-7.340361253585939
+p7d0c3f1215,2021,2023,5,tourist resort damage;coastal flood intensity;tuna size structure;gillnet seabed contact;port infrastructure flood risk;coastal risk perception;storm trends;wave climate,-5.970478438680308,-7.396681230375504
+p7d0c3f1215,2024,2026,3,sea-level rise;storm surge return levels;gillnet seabed contact;common cuttlefish catch;storm trends;wave climate,-6.011551263885567,-7.380993118588632
+p8b5ea16451,2012,2014,4,deep-water circulation trends;coral climate archives;abrupt climate events;shell middens;foraminifera palaeoecology;enso variability,-4.060654640197754,-6.256271839141846
+p8b5ea16451,2015,2017,1,planktonic foraminifera;deep-water circulation trends;submerged forest records;shell middens;contourite drifts,-4.060654640197754,-6.256271839141846
+p8b5ea16451,2018,2020,1,diatom frustule preservation;shell middens;coastal dune sequence stratigraphy;diatom frustule stable isotopes;estuarine core stratigraphy;submerged forest records;coral climate archives;planktonic foraminifera,-4.060654640197754,-6.256271839141846
+p8b5ea16451,2021,2023,5,monsoon intensity variability;diatom frustule stable isotopes;planktonic foraminifera;submerged forest records;coral climate archives;enso variability;diatom frustule abundance changes;coastal dune sequence stratigraphy,-4.268164227167515,-6.872458580174674
+p8b5ea16451,2024,2026,2,submerged forest records;sea ice extent trends;coastal dune sequence stratigraphy;chironomid preservation;abrupt climate events;estuarine core stratigraphy;monsoon intensity variability;enso variability,-4.060654640197754,-6.256271839141846
+p8d2037a6c8,2012,2014,4,radar backscatter;sea surface temperature;sea surface salinity,-7.375606723195025,-4.061007717240807
+p8d2037a6c8,2015,2017,3,dissolved inorganic carbon distribution;sea surface temperature;radar backscatter;sea surface salinity;copepod growth rates,-7.390402351403095,-4.046597950848755
+p8d2037a6c8,2018,2020,3,inherent optical properties;radar backscatter;tidal asymmetry;storm surge return levels;nonlinear tidal constituents;sea surface temperature;sea surface salinity;tidal resonance,-7.199606466748126,-4.059432951572028
+p8d2037a6c8,2021,2023,6,sea surface temperature;radar backscatter;inherent optical properties;internal wave vertical structure;slope currents;topographic steering;barrier evolution;sediment budget,-7.388701258863876,-4.079777232664949
+p8d2037a6c8,2024,2026,5,inherent optical properties;radar backscatter;sea surface temperature;sea surface salinity;storm surge return levels,-7.363117377546204,-4.07141999723818
+p9667797279,2012,2014,2,gillnet seabed contact;beam trawl selectivity,-6.465323448181152,-6.609425067901611
+p9667797279,2015,2017,6,tourist resort damage;john dory landings;sea-level rise;storm trends;coastal risk perception;port infrastructure flood risk;norway lobster exploitation status;copepod growth rates,-6.09110592048343,-7.35060654694092
+p9667797279,2018,2020,3,gillnet seabed contact;coastal risk perception;port infrastructure flood risk;tuna diet;coastal flood intensity;common cuttlefish catch;planned relocation,-5.92793627693777,-7.412930567637714
+p9667797279,2021,2023,7,coastal flood intensity;tourist resort damage;tuna size structure;gillnet seabed contact;port infrastructure flood risk;sinking particle flux;storm trends;wave climate,-5.973113795666445,-7.395674633561423
+p9667797279,2024,2026,4,pot fishery bycatch rates;tuna size structure;tuna diet;gillnet seabed contact;land-use conflicts;common cuttlefish catch;coastal tourism,-6.465323448181152,-6.609425067901611
+p9a10078539,2012,2014,3,public maritime domain compensation schemes;shoreline access;local ecological knowledge;coastal wetland planning;deliberative democracy;coastal setback legal status;wild coast management;internal wave persistence,-7.877640247344971,-8.57800579071045
+p9a10078539,2015,2017,3,mooring concession zoning;hake biomass;policy instruments;wild coast governance;harbour access rights;coastal setback enforcement;tourist beach planning;disaster memory,-7.877640247344971,-8.57800579071045
+p9a10078539,2018,2020,2,harbour valuation;public maritime domain compensation schemes;shoreline access;stakeholder participation,-7.877640247344971,-8.57800579071045
+p9a10078539,2021,2023,3,coastal setback enforcement;seaside town perceptions;coastal setback legal status;wild coast governance;wild coast management;fishing village history;mooring area planning;sea bathing heritage,-6.953947042202588,-8.641434581268868
+p9a10078539,2024,2026,2,aquaculture lease public inquiry;disaster memory;wild coast governance;mooring concession zoning;beach access rights;local ecological knowledge;coastal risk perception;sea bathing heritage,-7.495643138885498,-9.007047653198242
+p9d99ad3759,2021,2023,2,maerl bed fragmentation;cephalopod reproduction;thermal tolerance;coral cover;cephalopod growth,-8.292230606079102,-6.601733207702637
+p9d99ad3759,2024,2026,3,maritime law;land-use conflicts;skate maturity;coastal tourism,-7.278632164001465,-7.326600551605225
+paa897d91b8,2012,2014,5,sea surface temperature;radar backscatter;front forcing mechanisms;sea surface salinity;inherent optical properties,-7.374333590826126,-4.068947300089148
+paa897d91b8,2015,2017,3,dissolved inorganic carbon distribution;sea surface temperature;radar backscatter;sea surface salinity;cross-shelf flow dissipation;copepod growth rates;eddy variability,-7.399311264861399,-4.045183979934807
+paa897d91b8,2018,2020,3,inherent optical properties;radar backscatter;storm surge return levels;sea surface salinity;sea surface temperature,-7.367520455484084,-4.067698589797903
+paa897d91b8,2021,2023,5,radar backscatter;sea surface temperature;sea surface salinity;inherent optical properties;internal wave vertical structure;slope currents;barrier evolution;sediment budget,-7.38983595833459,-4.08223134530388
+paa897d91b8,2024,2026,5,inherent optical properties;radar backscatter;sea surface temperature;storm surge return levels;tidal rectification;mixed layer persistence;sea surface salinity;tidal resonance,-7.297060299475467,-4.100183982289116
+pafd010e10e,2012,2014,5,oyster larvae neurotoxicity;sediment contamination;silver nanoparticle exposure;brominated compound exposure;microplastic ingestion;hydrocarbon bioaccumulation;copper toxicity,-5.960435390472412,-5.814196586608887
+pafd010e10e,2015,2017,1,contaminant fate modelling;brominated compound exposure;antibiotic bioaccumulation,-5.960435390472412,-5.814196586608887
+pafd010e10e,2018,2020,3,,-7.52982759475708,-6.779979705810547
+pafd010e10e,2021,2023,7,estuarine water quality;freshwater marsh morphology;freshwater marsh vegetation;hydrocarbon degradation;copper toxicity;delta plain biogeochemistry;contaminant fate modelling;sinking particle flux,-5.128875255584717,-4.701635837554932
+pafd010e10e,2024,2026,6,estuarine water quality;freshwater marsh vegetation;blue carbon ecosystems;nutrient retention;delta plain biogeochemistry;floodplain mapping;freshwater marsh morphology,-5.128875255584717,-4.701635837554932
+pb841bfe353,2012,2014,4,oyster larvae neurotoxicity;silver nanoparticle exposure;brominated compound exposure;hydrocarbon degradation;hydrocarbon bioaccumulation,-5.960435390472412,-5.814196586608887
+pb841bfe353,2015,2017,3,fish embryo immunotoxicity;silver nanoparticle exposure;oyster larvae neurotoxicity;hydrocarbon degradation;copper toxicity,-5.960435390472412,-5.814196586608887
+pb841bfe353,2018,2020,3,fish embryo immunotoxicity;artificial light pollution;sediment contamination;thermal discharges;hydrocarbon bioaccumulation,-5.960435390472412,-5.814196586608887
+pb841bfe353,2021,2023,7,estuarine water quality;freshwater marsh morphology;freshwater marsh vegetation;brominated compound exposure;delta plain biogeochemistry;floodplain mapping;nutrient retention;hydrocarbon degradation,-5.128875255584717,-4.701635837554932
+pb841bfe353,2024,2026,6,estuarine water quality;nutrient retention;freshwater marsh vegetation;delta plain biogeochemistry;blue carbon ecosystems;floodplain mapping;thermal discharges;fish embryo immunotoxicity,-5.128875255584717,-4.701635837554932
+pd49950db2e,2021,2023,3,tidal resonance;inherent optical properties;sea surface salinity;cross-shelf flow dissipation;radar backscatter;tidal eddy dissipation,-7.164731452146125,-4.044856450341341
+pd49950db2e,2024,2026,5,inherent optical properties;sea surface salinity;radar backscatter;sea surface temperature;tidal rectification;tidal resonance;cold pool transport;mixed layer persistence,-7.215943059787241,-4.07679321244553
+pd6311dcf3c,2021,2023,4,sea ice extent trends;foraminifera palaeoecology;submerged forest records;coral climate archives;abrupt climate events;enso variability;planktonic foraminifera;barrier evolution,-4.410457574888234,-6.826445266899841
+pd6311dcf3c,2024,2026,6,diatom frustule abundance changes;estuarine core stratigraphy;diatom frustule stable isotopes;submerged forest records;sea ice extent trends;abrupt climate events;coastal dune sequence stratigraphy;front vertical structure,-4.296681407323575,-6.880992474776854
+pe204ac5764,2012,2014,5,radar backscatter;sea surface temperature;shelf sea heat budget;topographic steering;eddy variability;sea surface salinity;cross-shelf flow dissipation,-7.453793709842054,-4.049233488392106
+pe204ac5764,2015,2017,3,dissolved inorganic carbon distribution;sea surface temperature;radar backscatter;sea surface salinity;cross-shelf flow dissipation;copepod growth rates;eddy variability,-7.399311264861399,-4.045183979934807
+pe204ac5764,2018,2020,2,tidal asymmetry;internal wave vertical structure;nonlinear tidal constituents;tidal resonance,-6.842387199401856,-5.567627906799316
+pe204ac5764,2021,2023,7,sea surface salinity;radar backscatter;inherent optical properties;tidal eddy dissipation;sea surface temperature;cross-shelf flow dissipation;internal wave vertical structure;slope currents,-7.189440295683392,-4.0839791156224505
+pe204ac5764,2024,2026,3,cold pool transport;nonlinear tidal constituents;front forcing mechanisms;tidal rectification;sea surface salinity;inherent optical properties;tidal eddy dissipation;radar backscatter,-7.133953842238117,-4.04867612237978
+pe327f31153,2024,2026,1,blue carbon ecosystems,-4.763806819915772,-5.24018669128418
+pefbdf68ec0,2012,2014,3,coastal risk perception;science-policy interface;public maritime domain compensation schemes;shelf sea heat budget;eddy variability;topographic steering;maritime law;estuary social uses,-6.834493815946895,-8.510086386172867
+pefbdf68ec0,2015,2017,1,shellfish aquaculture;land-use conflicts,-6.290678024291992,-7.274378299713135
+pefbdf68ec0,2018,2020,9,fishing village history;pot fishery bycatch rates;harbour valuation;beach access rights;public maritime domain compensation schemes;sea bathing heritage;tidal asymmetry;coastal setback legal status,-6.868473965561447,-8.547450226906726
+pefbdf68ec0,2021,2023,5,harbour valuation;coastal setback enforcement;mooring area planning;coastal setback legal status;beach valuation;science-policy interface;naval dockyard history;wild coast governance,-7.495643138885498,-9.007047653198242
+pefbdf68ec0,2024,2026,5,pot fishery bycatch rates;disaster memory;wild coast governance;oyster farming memory;coastal setback enforcement;beach access rights;local ecological knowledge;mooring concession zoning,-6.839653081764393,-8.515759403757993
+pf4c26f33f4,2018,2020,3,inherent optical properties;radar backscatter;internal wave vertical structure;storm surge return levels;sea surface salinity;sea surface temperature,-7.368863951461543,-4.07609452265648
+pf4c26f33f4,2021,2023,5,radar backscatter;sea surface salinity;inherent optical properties;sea surface temperature;internal wave vertical structure;slope currents;topographic steering;tidal eddy dissipation,-7.356424050691398,-4.133944453589958
+pf4c26f33f4,2024,2026,6,inherent optical properties;mixed layer persistence;sea surface temperature;shelf sea heat budget;storm surge return levels;radar backscatter;slope currents;tidal rectification,-7.190072535058549,-4.097327445596768
+pf6914ae6c3,2021,2023,1,,-7.52982759475708,-6.779979705810547
+pfb06236f14,2021,2023,5,tourist resort damage;coastal flood intensity;coastal risk perception;sinking particle flux,-6.13703231930473,-7.333064571800996
+pfb06236f14,2024,2026,5,territorial identity;land-use conflicts;storm surge return levels;sea-level rise;estuary governance;planned relocation;artificial light pollution;coastal tourism,-6.197510537063768,-7.309964406761628

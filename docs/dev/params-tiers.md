@@ -43,7 +43,7 @@ This table was approved by the owner on 1 October 2026.
 | `keywords.extract` | `common_modifier` | advanced | a rule of the keyword filters (generic words) |
 | `keywords.triage` | `enabled` | intermediate | the AI clean-up is switched on from the keywords screen; shown here for completeness |
 | `keywords.build` | `max_keywords` | essential | the size of the vocabulary |
-| `keywords.build` | `keywords_per_person` | intermediate | what the space and the map are made of; the default fits most fields |
+| `keywords.build` | `keywords_per_person` | advanced | empty by default: each person's row of the space holds every keyword of the lexicon they use; a number keeps only their best ones |
 | `keywords.build` | `keywords_per_organisation` | intermediate | the profiles of organisations |
 | `keywords.build` | `keywords_of_field` | intermediate | the profile of the whole field |
 | `keywords.build` | `weights_basis` | intermediate | a real choice of how themes weigh a person's keywords |

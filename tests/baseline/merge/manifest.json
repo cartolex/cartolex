@@ -4,13 +4,13 @@
    "anchor_meta": {
     "file": "merge/anchor_meta.json.gz",
     "kind": "json",
-    "sha256": "31dfe3b856bb2c94e613f4549bd2bae6685f545806d2c70978deacbb5c7237f5"
+    "sha256": "58881f20412a3ec4d8d10870501b815d0a715cec6499a45e5c18e928a81464b3"
    },
    "anchors": {
     "file": "merge/anchors.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "209b08f8268b308cac0bc7ee4df905b096a5ab9f26646dc9bbd27d2c4d5a1ed4",
+    "sha256": "1d21d15f149532c41942a0167f52d37450c6ac11142728b94fb0a7fe84bd1ce4",
     "shape": [
      281,
      20
@@ -21,7 +21,7 @@
     "file": "merge/concept_weights.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "3ab42d26f1d1b05c22159ff2a4c85fb0d8ffea8a5bad9334b8225868e8fcc31f",
+    "sha256": "670029ddb6bc62bba721f2bc8b7023c0c7276ff63d1a4d771e72809b4ba0c83c",
     "shape": [
      76,
      281
@@ -32,7 +32,7 @@
     "file": "merge/cross_domain_mass.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "b57ddec050b784941fb250f552e61d0f6a900afeb310c259a49347a7dcce9fc6",
+    "sha256": "537f6132b23e7b22358083f9ea6dc47b363c7a62a995d09bdb40d6181d7a1b40",
     "shape": [
      76
     ],
@@ -47,7 +47,7 @@
     "file": "merge/entropy.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "1e1cf6894216e817175fe96e1fd8525b4e7886d16661c51e5c9e07b39b46ed87",
+    "sha256": "89c2523077c9f4a4cdf5e833ee95703bd92b561c3fbac91665418fa9132fdf98",
     "shape": [
      76
     ],
@@ -56,18 +56,18 @@
    "metrics": {
     "file": "merge/metrics.json",
     "kind": "json",
-    "sha256": "99aeb5b9984f979483ebc15bee61d18666fa2ec6f922f9c300859f5655681646"
+    "sha256": "42b330168b4e8f6f097ba0622c675d8639c0a095251da999de4790523d6afd03"
    },
    "naive_table": {
     "file": "merge/naive_table.json.gz",
     "kind": "json",
-    "sha256": "e3581055300bb7a734af088cf66556375df76fe58d51f2241aa292c2dce773e6"
+    "sha256": "fc77d1ce3817d4e1440a478b34c10100f8df482b43d3595d79b97eb7ac4b4b44"
    },
    "person_coords": {
     "file": "merge/person_coords.npy",
     "kind": "array",
     "role": "embedding",
-    "sha256": "637b99b6547c46b1953f48cda50cc2b595c56ff323bc25409658299668fa3575",
+    "sha256": "c9018598e314a5c1c0b0e3146f10f3d9045afec1cb5a4ae0ba4833309a9b1b26",
     "shape": [
      76,
      20
@@ -92,8 +92,8 @@
     ],
     "kind": "table",
     "ordered": false,
-    "rows": 1441,
-    "sha256": "d5fbece32c39a8b9dcba0bee3b7bd1e1811aea95581d3db32b84c2f4cf22c2d8"
+    "rows": 1762,
+    "sha256": "cd708f00e6b227fe3c55883a4d99a5b48efc7cdfd2a7913e570576f1d577d0b6"
    },
    "rows": {
     "columns": [
@@ -119,24 +119,24 @@
     "file": "merge/sense_coords.npy.gz",
     "kind": "array",
     "role": "embedding",
-    "sha256": "d15e8c9e324af12e7cf43777f998f69d7f0bb10eb822694f65d9fda9be9e54ee",
+    "sha256": "bbfd8d694df54f2abb9e7ebfc5b69dace561ae385b0af211350a307c946cca2d",
     "shape": [
-     287,
+     289,
      20
     ],
     "stored_dtype": "float64"
    },
    "senses": {
-    "count": 287,
+    "count": 289,
     "file": "merge/senses.json",
     "kind": "strings",
-    "sha256": "925067cbfc7cdb1a41cd6bebcfe0f345b0b4547c2c26326106e4cf756d0a4bc3"
+    "sha256": "3529183a52751ec9b5eb4950206d8a09814f8a94627f235b32f58fb8d4dbfedc"
    },
    "singular_values": {
     "file": "merge/singular_values.npy",
     "kind": "array",
     "role": "spectrum",
-    "sha256": "dbb133686be1329d29f4104760ee090b6c6b218ca496e56c56bdabef68376753",
+    "sha256": "bdb007bd1181c29203c06ef1b6345cb18d651974bcb88bb356f1d2823ac640ed",
     "shape": [
      20
     ],
@@ -145,21 +145,21 @@
    "table": {
     "file": "merge/table.json.gz",
     "kind": "json",
-    "sha256": "60f36dc10adf85855dc803cf4f0a64110e6c95239b8c54d5eefd8004d456aa39"
+    "sha256": "0d4eacf7236af9b33c84256a7a5116fcf6628c075928728270a3dc8881b1d367"
    },
    "table_first_pass": {
     "file": "merge/table_first_pass.json.gz",
     "kind": "json",
-    "sha256": "60f36dc10adf85855dc803cf4f0a64110e6c95239b8c54d5eefd8004d456aa39"
+    "sha256": "0d4eacf7236af9b33c84256a7a5116fcf6628c075928728270a3dc8881b1d367"
    },
    "weights_macro": {
     "file": "merge/weights_macro.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "8d69eaaf63f88d879480e6a06b348501ae7c9f20c8a4751e0390ef1fb04903d0",
+    "sha256": "b11881919c0cc8d3eee3c698026d5d30cff6e90e41f61b04c4714d1d6ec1ac8d",
     "shape": [
      76,
-     287
+     289
     ],
     "stored_dtype": "float32"
    },
@@ -167,10 +167,10 @@
     "file": "merge/weights_pooled.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "4e3c59777a0b2a06ce2258c03c99bbde766563ff1fa20ff171d4de02a7d69007",
+    "sha256": "d0e8e4d5d489ca29cf9fef2be3f2d41b62912b550198da0c1b800a908a937727",
     "shape": [
      76,
-     287
+     289
     ],
     "stored_dtype": "float32"
    }
@@ -178,10 +178,10 @@
  },
  "baseline": {
   "date": "2026-10-06",
-  "reason": "map.trajectories describes each person's time windows one by one by default (spans = windows); every run of consecutive windows, whose number grows with the square of a person's windows, only with spans = all. The trajectory points, the positions and the map are unchanged; the windows artifact keeps the single windows."
+  "reason": "each person's row of the space holds every keyword of the lexicon they use (keywords_per_person empty by default, was 30), stored as people x keywords matrices; the per-person table is each person's best 30 by length-boosted score, for display; the vocabulary grows to every accepted concept someone uses, and every later stage moves with it"
  },
  "environment": {
-  "engine_fingerprint": "d5f184992b4c6994a4e9f84539f855b85c1b6fd837b721cd3d529e979b016992",
+  "engine_fingerprint": "ee26410b99177278517e88ae957e007b86820a8f22696354da16fad1c6bb1784",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {
@@ -228,12 +228,12 @@
    {
     "bundle": {
      "entities": "b5c134de1f46bc6e87d4fb806bc9a8266606aa548105ea88b417da2a014ecf70",
-     "entity_terms": "a81953cd664581beb4a8616eccb9b975d1311d075b49a4f1de034dfa0d223896",
-     "meta": "8e6105e590f841d57805d81cbc0a1c7f8de4bdfa924d6ddf70765e50779b4861",
-     "round_trip": "dcf25b6dab889b23bbb35a08fcb976ca4d3e85ab72fb3cba9167564c800beb84",
+     "entity_terms": "21c8dc137bbc8ad0b67d7b4d2216be5dd9a4432d34171f984511b5a844b62d80",
+     "meta": "d9b52f40ef25b031d5a45ede5c87aa28654d1efc0f9a2e13f532932e4748d8f1",
+     "round_trip": "9103145c8519f644b741d8169246103124f18ac684a4f3f624c36f3d5daa399e",
      "taxonomy": "c32b8d8348427aa361ac48a893e3c652338b32a7d7fea0b5b647776dd185afec",
-     "vocabulary": "ebea5155dc7794975592e68356b5e045fb53ec787a9c9c4943cb64e313d4a8d7",
-     "zip": "e13907e45489ce373e08ccb6509ae73fab96e20aaae04f99db81aa6734c011f4"
+     "vocabulary": "7bbaa9beeadfbda191b592a9b0a785b6b76d279408ce9a7a57eedbafb3715ea2",
+     "zip": "529dbcd10e30171397d230d237fbf359cd0105f5af924f4f945657de67beef09"
     },
     "domain_id": "a",
     "truth_sha256": "db5e4195056421cfcd019c0b96b8c03877231c66502551fef476c256de7f9fbf",
@@ -242,12 +242,12 @@
    {
     "bundle": {
      "entities": "b3eb93c98c3ffcb823c0cc3c2b2d0566a6d25cad5070082169d1f942e6dd17e9",
-     "entity_terms": "8a22bcdf32bb51d355f4ca1d880c36ae30424145ad1cc73ccfce206b1a983cd6",
-     "meta": "a73ca1ad1219b02d06247174f7cbb87998962aad66b308ce79819a15111dcdd2",
-     "round_trip": "dcf25b6dab889b23bbb35a08fcb976ca4d3e85ab72fb3cba9167564c800beb84",
-     "taxonomy": "7f6dc8e8c20fa7aafb89b7a6bbed36da188443116f3b6f04491278422fc80927",
-     "vocabulary": "95092aa49beeab02ef98b41a15e09994aeb9030d2282101e0a401830200180a0",
-     "zip": "2505eb02f3ece534adde07ef799dd2667bf7706fda0df220e06c65d6f1dc108e"
+     "entity_terms": "b68eb192056c7560a49415ce68c486a60a40375752ce4b82d5cee78e69fdcca7",
+     "meta": "156626938532ddaa2189519c1e1812b191a784ff05d1e674550eccdc02a873b6",
+     "round_trip": "9103145c8519f644b741d8169246103124f18ac684a4f3f624c36f3d5daa399e",
+     "taxonomy": "d8b854ae4bb7ab798d451388a8905cb291e1529e22fa9ec18e8d08e564a35a04",
+     "vocabulary": "d1afbb8f26778c8354d4df7a6b2c766ece7c4433e54767d4a994125dc047e88a",
+     "zip": "09aa1017e5134ab6f8ad7d061e1fbe51dafd0ef53816813ca7684f772cd5b546"
     },
     "domain_id": "b",
     "truth_sha256": "5779bec6c1d1e8bf368a7e5cd73186eb7418739ff157beccb771c2466d90327e",

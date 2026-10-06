@@ -2234,7 +2234,7 @@
   "param.keywords.build.nested_threshold": "a phrase replaces a shorter keyword it contains when it scores at least this many times the shorter one",
   "param.keywords.build.ngram_range": "the words of a keyword form counted in the texts, fewest and most (the most grows to the longest form)",
   "param.keywords.build.weights_basis": "what a keyword weighs in a person's themes: its share of their words (tf) or its length-boosted TF-IDF (tfidf); ranking and the space use TF-IDF",
-  "param.keywords.build.keywords_per_person": "each person keeps at most this many keywords, the best scored: the space and the map are made of them",
+  "param.keywords.build.keywords_per_person": "each person keeps at most this many keywords in the space, the best scored; empty: every keyword of the lexicon they use (the space and the map are made of them)",
   "param.keywords.build.keywords_per_organisation": "each organisation keeps at most this many keywords, the best scored",
   "param.keywords.build.keywords_of_field": "the whole field keeps at most this many keywords, the best scored",
   "param.themes.space.space_unit": "what the space is fitted on: the people (keywords are near when the same people use them) or the texts (near when the same texts use them)",
@@ -2734,5 +2734,6 @@
   "settings.snapshot.index_label": "Indexing command",
   "corpus.route.snapshot_indexed": "reads about {size} through its index, about {time}; nothing is sent to OpenAlex",
   "job.pause.harvest_stopped": "Paused at your request. The works of {n} of {total} people are kept: resume to go on.",
-  "job.pause.harvest_paused": "Collections failed several times in a row. The works of {n} of {total} people are kept: resume to go on, now or later."
+  "job.pause.harvest_paused": "Collections failed several times in a row. The works of {n} of {total} people are kept: resume to go on, now or later.",
+  "param.unset.keywords_per_person": "Every keyword they use"
 }

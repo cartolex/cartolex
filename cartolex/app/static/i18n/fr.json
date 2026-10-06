@@ -2234,7 +2234,7 @@
   "param.keywords.build.nested_threshold": "une expression remplace un mot-clé plus court qu'elle contient quand son score vaut au moins ce nombre de fois celui du plus court",
   "param.keywords.build.ngram_range": "les mots d'une forme de mot-clé comptée dans les textes, au moins et au plus (le plus grandit jusqu'à la forme la plus longue)",
   "param.keywords.build.weights_basis": "ce que pèse un mot-clé dans les thèmes d'une personne : sa part de ses mots (tf) ou son TF-IDF avec bonus de longueur (tfidf) ; le classement et l'espace suivent le TF-IDF",
-  "param.keywords.build.keywords_per_person": "chaque personne garde au plus ce nombre de mots-clés, les mieux notés : l'espace et la carte en sont faits",
+  "param.keywords.build.keywords_per_person": "chaque personne garde au plus ce nombre de mots-clés dans l'espace, les mieux notés ; vide : tous les mots-clés du lexique qu'elle emploie (l'espace et la carte en sont faits)",
   "param.keywords.build.keywords_per_organisation": "chaque organisation garde au plus ce nombre de mots-clés, les mieux notés",
   "param.keywords.build.keywords_of_field": "le domaine entier garde au plus ce nombre de mots-clés, les mieux notés",
   "param.themes.space.space_unit": "sur quoi l'espace est ajusté : les personnes (des mots-clés sont proches quand les mêmes personnes les emploient) ou les textes (quand les mêmes textes les emploient)",
@@ -2734,5 +2734,6 @@
   "settings.snapshot.index_label": "Commande d’indexation",
   "corpus.route.snapshot_indexed": "lit environ {size} grâce à son index, environ {time} ; rien n’est envoyé à OpenAlex",
   "job.pause.harvest_stopped": "En pause à votre demande. Les travaux de {n} personnes sur {total} sont gardés : reprenez pour continuer.",
-  "job.pause.harvest_paused": "Des collectes ont échoué plusieurs fois de suite. Les travaux de {n} personnes sur {total} sont gardés : reprenez pour continuer, maintenant ou plus tard."
+  "job.pause.harvest_paused": "Des collectes ont échoué plusieurs fois de suite. Les travaux de {n} personnes sur {total} sont gardés : reprenez pour continuer, maintenant ou plus tard.",
+  "param.unset.keywords_per_person": "Tous ceux qu'elle emploie"
 }

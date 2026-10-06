@@ -958,3 +958,14 @@ nothing in the engine names a particular deployment, source or procedure.
   worker processes, in batches given back in order (the same digest; 4.4 times
   faster on 20,000 real works with 16 workers, this process's reading bounding
   it).
+- **The themes use the whole lexicon.** Each person's row of the space holds
+  every keyword of the vocabulary (the gated list cut at `max_keywords`) their
+  texts use, with its real counts, where it held their 30 best: on the L demo
+  world the space's keywords go from 2,877 to 4,987 and the people's space
+  finds the themes far better (ARI 0.37 → 0.60 on the same keywords).
+  `keywords.build` writes the people × keywords matrices
+  (`models/person_terms.json`); `keywords_by_researcher_restricted.csv` lists
+  each person's best 30 for display only. `keywords.build.keywords_per_person`
+  is advanced and empty by default (a number brings the old rows back); the
+  stage's version rises to 4, so every project's vocabulary and what follows
+  are built again ({doc}`dev/themes-engine`).

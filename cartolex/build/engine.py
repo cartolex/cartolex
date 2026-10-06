@@ -592,8 +592,6 @@ def _keyword_decisions(ctx: StageContext, rctx: RunContext | None = None) -> Non
 
 def run_build(ctx: StageContext) -> dict[str, int]:
     """``keywords.build``: the vocabulary, per-person keywords and the person roster."""
-    import pandas as pd
-
     from ..lexicon import run_pipeline_stage_3
     from ..lexicon.io_helpers import build_researcher_index
 
@@ -603,13 +601,24 @@ def run_build(ctx: StageContext) -> dict[str, int]:
     roster = rctx.paths.roster_csv
     before = roster.read_bytes() if roster.exists() else b""
     people = _engine_call(ctx, lambda: build_researcher_index(rctx))
-    terms = pd.read_csv(rctx.paths.person_terms_csv, usecols=["term"])["term"]
     return {
-        "kept_keywords": int(terms.astype(str).str.lower().nunique()),
+        "kept_keywords": vocabulary_size(rctx.paths.person_terms_json),
         "concepts": _rows(rctx.paths.refined_pairs_csv),
         "roster_people": int(people),
         "roster_rewrite_identical": int(before == roster.read_bytes()),
     }
+
+
+def vocabulary_size(person_terms_json: Path) -> int:
+    """How many keywords the space is made of: those someone uses in the people × keywords
+    matrices ``keywords.build`` wrote (in lower case, as the space counts them)."""
+    import numpy as np
+
+    from ..atlas.model_files import load_person_terms
+
+    score, _, terms, _ = load_person_terms(person_terms_json)
+    used = np.asarray((score != 0).sum(axis=0)).ravel() > 0
+    return len({str(t).lower() for t, u in zip(terms, used.tolist(), strict=True) if u})
 
 
 #: A space of texts warns when at least this share of its keywords is not in the reference

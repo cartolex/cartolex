@@ -26,7 +26,7 @@
  "snapshot_version": 3,
  "top_n_domain": 200,
  "top_n_group": 50,
- "top_n_person": 30,
+ "top_n_person": null,
  "triage_refined_top_n": 0,
  "use_llm": true,
  "weights_basis": "tf"

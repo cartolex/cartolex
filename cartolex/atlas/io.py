@@ -89,13 +89,22 @@ def load_index(researcher_index_csv: Path) -> pd.DataFrame:
 def build_lexical_matrix(
     kw_researcher_csv: Path,
     researcher_index_csv: Path,
+    person_terms_json: Path | None = None,
 ) -> LexicalData:
     """Build the term-by-researcher lexical matrix used for SVD/UMAP.
 
-    Returns a :class:`LexicalData` bundle (sparse matrix plus row/column labels).
+    Reads the people × keywords matrices of the consolidation (*person_terms_json*, see
+    :func:`cartolex.atlas.model_files.save_person_terms`) when they exist, else the
+    per-person keyword table *kw_researcher_csv* (a run of an earlier version, whose table
+    held each person's whole row). Rows follow the roster; the keywords are those someone
+    uses, in lower case, sorted. Returns a :class:`LexicalData` bundle (sparse matrix plus
+    row/column labels).
     """
-    kw_df = load_restricted_keywords(kw_researcher_csv)
     idx_df = load_index(researcher_index_csv)
+    if person_terms_json is not None and Path(person_terms_json).exists():
+        X, X_tf, terms = _matrix_rows(person_terms_json, idx_df["id"].tolist())
+        return _lexical_data(X, X_tf, terms, idx_df)
+    kw_df = load_restricted_keywords(kw_researcher_csv)
 
     kw_df = kw_df.copy()
     kw_df["last_name"] = kw_df["last_name"].astype(str).str.strip()
@@ -142,6 +151,40 @@ def build_lexical_matrix(
         tf_ok = np.isfinite(tf)
         X_tf = sp.coo_matrix((tf[tf_ok], (i_arr[tf_ok], j_arr[tf_ok])), shape=shape).tocsr()
 
+    return _lexical_data(X, X_tf, terms, idx_df)
+
+
+def _matrix_rows(
+    person_terms_json: Path, individuals: list[str]
+) -> tuple[sp.csr_matrix, sp.csr_matrix | None, list[str]]:
+    """The stored people × keywords matrices on the roster's rows (*individuals*), their
+    keywords in lower case (two keywords that differ by case only add up), those nobody uses
+    left out, sorted."""
+    from .model_files import load_person_terms
+
+    score, tf, stored_terms, stored_ids = load_person_terms(person_terms_json)
+    id_to_row = {rid: i for i, rid in enumerate(individuals)}
+    row_of = np.array([id_to_row.get(r, -1) for r in stored_ids], dtype=np.int64)
+    used = np.asarray((score != 0).sum(axis=0)).ravel() > 0
+    lower = [str(t).lower() for t in stored_terms]
+    terms = sorted({t for t, u in zip(lower, used.tolist(), strict=True) if u})
+    term_to_col = {t: j for j, t in enumerate(terms)}
+    col_of = np.array([term_to_col.get(t, -1) for t in lower], dtype=np.int64)
+    shape = (len(individuals), len(terms))
+
+    def placed(M: sp.spmatrix) -> sp.csr_matrix:
+        coo = sp.coo_matrix(M)
+        r, c = row_of[coo.row], col_of[coo.col]
+        ok = (r >= 0) & (c >= 0) & np.isfinite(coo.data)
+        return sp.coo_matrix((coo.data[ok], (r[ok], c[ok])), shape=shape).tocsr()
+
+    return placed(score), (placed(tf) if tf is not None else None), terms
+
+
+def _lexical_data(
+    X: sp.csr_matrix, X_tf: sp.csr_matrix | None, terms: list[str], idx_df: pd.DataFrame
+) -> LexicalData:
+    individuals = idx_df["id"].tolist()
     # Drop individuals with no keywords (all-zero rows): they carry no signal,
     # survive L2-normalisation as zero vectors, and otherwise collapse into a
     # single spurious cluster in the UMAP. They are simply omitted here.

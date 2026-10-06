@@ -165,6 +165,76 @@ about as many keywords per node. Its recall of broad keywords (0.5 to 0.75)
 is the price of that balance; a fixed relative 0.2 catches more (0.66 to 0.78)
 at a slightly lower precision.
 
+## The whole lexicon: every keyword a person uses
+
+The space, the grouping, the weights and the map read the people × keywords matrix
+`keywords.build` writes (`models/person_terms.json`, {doc}`../format/derived`). Each
+person's row holds **every keyword of the vocabulary their texts use**, with its
+real counts: the vocabulary is the gated list cut at `max_keywords`, and the space's
+keywords are those of it someone uses.
+
+Until this version each person kept only their 30 best keywords
+(`keywords_per_person`), and the vocabulary was the union of those lists. The cap came
+from the first per-person keyword profiles (a short list per person, the one the sites
+show) and kept the matrix small when it was dense; it had two costs. A keyword the
+lexicon kept but nobody had among their 30 best never reached the themes (on the L
+demo world 2 110 of the 4 987 kept keywords, 42 %); and a person's usage, which
+weighs their themes, counted only their 30 best keywords. `keywords_per_person`
+stays, advanced and empty by default: a number brings the old rows back (with 30,
+the same matrix, up to the last digit the old table's text kept). Each person's
+list of their 30 best keywords (`keywords_by_researcher_restricted.csv`) is now
+for display only (the app's and the site's keywords of a person).
+
+Readers: the space (`build_lexical_matrix` reads the matrices; a run of an
+earlier version, without them, its table), the vocabulary's size
+(`kept_keywords`, the keywords someone uses), the keywords' preview (each
+keyword's holders from the matrices; with the whole lexicon, a term new to the
+scored list enters when someone uses it), the projected people
+(`project_text_vector` keeps every keyword unless a number is set), the copilot's
+themes bundle and the map bundle (the matrices' non-zero entries: larger, see
+below).
+
+**Measures** (the demo worlds built to the map with the defaults; the measures of
+`tools/space_unit_study.py`, see below; *specific*: the keywords of one theme in
+the demo's truth; *common*: the measure on the keywords both vocabularies hold,
+so the new tail of rarer keywords does not weigh on it; people: the share whose
+largest top-level theme is their true main theme, and the median number of
+top-level themes each has a share of):
+
+| world | rows | vocabulary | entries a person | text space: themes ARI (common) | people's space: themes ARI (common) | proposal: top ARI (common) | people: top theme · themes with a share |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| S | 30 best | 439 | 28 | 0.69 (0.69) | 0.48 (0.48) | 0.68 (0.68) | 0.67 · 4 |
+| | every keyword | 715 | 141 | 0.82 (0.72) | 0.64 (0.67) | 0.83 (0.75) | 0.67 · 9 |
+| L | 30 best | 2 877 | 30 | 0.86 (0.86) | 0.37 (0.37) | 0.87 (0.87) | 0.64 · 4 |
+| | every keyword | 4 987 | 257 | 0.84 (0.86) | 0.57 (0.60) | 0.81 (0.83) | 0.62 · 11 |
+
+The people's space gains most (L: themes ARI 0.37 → 0.60 on the same keywords, each
+keyword's 10 nearest of its theme 0.65 → 0.85): a person's row is their whole usage,
+not their 30 strongest terms. The text space keeps its quality on L (0.86, the
+nearest 0.99) and gains on S. The proposal's top level gains on S and loses a little
+on L (0.87 → 0.83 on the same keywords, 0.83 with the old level sizes too): its themes
+are Ward's cut of the topics' centroids, which the 2 110 rarer keywords move. People
+now have a share in more themes (their pies: the themes of all the keywords they use,
+in proportion), and their main theme stays about as often their true one.
+
+Sizes and costs: L, `keywords.build` 16 s → 15 s, its folder 2.9 → 5.8 MB (the
+matrices); `themes.space` 2.6 → 3.1 s, 2.9 → 6.5 MB; peaks unchanged (≈ 0.6 GB).
+On a sample of a real project (106 000 people, 611 000 texts, 10 000 keywords at
+the cap: the union of the 30 best already filled it, 9 938):
+
+| stage | 30 best: time · peak · folder | every keyword: time · peak · folder |
+| --- | --- | --- |
+| `keywords.build` | 372 s · 3.5 GB · 207 MB | 270 s · 3.0 GB · 500 MB (the matrices: 310 MB, 12.9 million entries, 121 a person, against 3.2 million) |
+| `themes.space` | 295 s · 3.2 GB · 480 MB | 171 s · 3.4 GB · 713 MB (its lexical data: 59 → 307 MB) |
+| `themes.group` | 70 s · 3.0 GB | 61 s · 3.2 GB |
+| `themes.apply` | 23 s · 1.6 GB | 36 s · 2.2 GB |
+| `map.layout` | 291 s · 1.9 GB | 296 s · 2.2 GB |
+
+The times move with the machine's other work (both runs shared it); the peaks grow
+by 0.2 to 0.6 GB, the stored matrices by about 0.5 GB for 10⁵ people. The
+copilot's themes bundle and the map bundle carry the people's matrices too: they
+grow in the same proportion.
+
 ## The space: the texts by default, the people as a choice
 
 `themes.space` can fit the keyword space on the people × keywords matrix

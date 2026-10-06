@@ -110,6 +110,9 @@ class EnginePaths:
     refined_pairs_csv: Path
     run_settings_json: Path
     person_terms_csv: Path
+    #: Each person's keywords as the people × keywords matrices the space reads (a model
+    #: descriptor; see cartolex.atlas.model_files.save_person_terms).
+    person_terms_json: Path
     group_terms_csv: Path
     domain_terms_csv: Path
     canonical_map_json: Path
@@ -202,6 +205,7 @@ class EnginePaths:
             refined_pairs_csv=auto / "keywords_global_refined_pairs.csv",
             run_settings_json=auto / "keywords_hyperparams.json",
             person_terms_csv=auto / "keywords_by_researcher_restricted.csv",
+            person_terms_json=models / "person_terms.json",
             group_terms_csv=auto / "keywords_by_unit_restricted.csv",
             domain_terms_csv=auto / "keywords_domain_restricted.csv",
             canonical_map_json=auto / "canonical_map.json",

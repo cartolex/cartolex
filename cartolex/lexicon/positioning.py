@@ -81,7 +81,7 @@ def project_text(
     alias_map: dict[str, str],
     length_bonus_alpha: float,
     top_k: int,
-    top_n: int = 30,
+    top_n: int | None = None,
     whitelist_terms: set[str] | None = None,
 ) -> tuple[np.ndarray, list[dict]]:
     """Transform raw text → SVD embedding + top keywords (see :func:`project_text_vector`)."""
@@ -108,7 +108,7 @@ def project_text_vector(
     alias_map: dict[str, str],
     length_bonus_alpha: float,
     top_k: int,
-    top_n: int = 30,
+    top_n: int | None = None,
     whitelist_terms: set[str] | None = None,
     feature_names: Sequence[str] | None = None,
 ) -> tuple[np.ndarray, list[dict], np.ndarray]:
@@ -129,14 +129,15 @@ def project_text_vector(
     the fitted manifold.  That means, per document:
 
     1. fold raw TF-IDF features onto canonical restricted terms (sum scores);
-    2. keep only the ``top_n`` highest-scoring canonical terms (by raw score),
-       plus any whitelist terms — the rest are zeroed;
+    2. with ``top_n`` set, keep only the ``top_n`` highest-scoring canonical terms (by
+       raw score), plus any whitelist terms — the rest are zeroed; ``None`` (the
+       default, as the space's people) keeps every one;
     3. apply the length bonus using each **canonical** term's token count;
     4. L2-normalise, then SVD-transform.
 
-    Skipping the ``top_n`` truncation (or basing the length bonus on the raw
-    n-gram instead of the canonical term) yields a denser, differently-weighted
-    vector and projects points far outside the fitted cloud.
+    A ``top_n`` other than the space's (or basing the length bonus on the raw
+    n-gram instead of the canonical term) yields a differently-weighted vector
+    and projects points outside the fitted cloud.
     """
     # Step 1: TF-IDF transform
     X_raw = sparse.csr_matrix(tfidf.transform([text]))  # (1, vocab_size)
@@ -163,7 +164,7 @@ def project_text_vector(
 
     # Step 3: Keep top_n canonical terms (by raw score) plus whitelist; zero rest.
     nz = np.where(raw_agg > 0)[0]
-    if top_n > 0 and nz.size > top_n:
+    if top_n is not None and top_n > 0 and nz.size > top_n:
         top = nz[np.argpartition(raw_agg[nz], -top_n)[-top_n:]]
     else:
         top = nz

@@ -157,7 +157,7 @@ parameter (`tier`, `widget`, `keys`, `suggestions`).
 | `keywords.build` | `nested_threshold` | 1.3 | 1–100 | Keywords |
 | `keywords.build` | `ngram_range` | [1, 4] | two whole numbers, 1–12, not going down; the most grows to the longest form | Keywords › Keywords of people and organisations |
 | `keywords.build` | `weights_basis` | tf | tf, tfidf | Keywords › Keywords of people and organisations |
-| `keywords.build` | `keywords_per_person` | 30 | 1–10 000 | Keywords › Keywords of people and organisations |
+| `keywords.build` | `keywords_per_person` | none (every keyword a person uses) | 1–100 000, or none | Keywords › Keywords of people and organisations |
 | `keywords.build` | `keywords_per_organisation` | 50 | 1–10 000 | Keywords › Keywords of people and organisations |
 | `keywords.build` | `keywords_of_field` | 200 | 1–100 000 | Keywords › Keywords of people and organisations |
 | `themes.space` | `space_unit` | rule `space_unit_texts`: text | person, text: what the space is fitted on (the texts by default; the people's space may suit a corpus in several languages better, see {doc}`themes-engine`) | Space |
@@ -240,7 +240,7 @@ What became a parameter:
 | `lexicon.scoring` | `BandRules.stop_words` (and the edges it switched with it) | true | `keywords.extract.stop_words`, `.closed_word_edges` |
 | `lexicon.scoring` | `BandRules.even_spread`, `.even_people`, `.generic_spread` | 0.9, 0.2, none | `keywords.extract.even_spread`, `.even_people`, `.common_modifier` |
 | `lexicon.config` | `nested_threshold`, `ngram_range`, `weights_basis` | 1.3, (1, 4), tf | `keywords.build.nested_threshold`, `.ngram_range`, `.weights_basis` |
-| `lexicon.config` | `top_n_researcher`, `top_n_unit`, `top_n_domain` | 30, 50, 200 | `keywords.build.keywords_per_person`, `.keywords_per_organisation`, `.keywords_of_field` |
+| `lexicon.config` | `top_n_researcher`, `top_n_unit`, `top_n_domain` | none (all), 50, 200 | `keywords.build.keywords_per_person`, `.keywords_per_organisation`, `.keywords_of_field` |
 | `atlas.reducers` | `TruncatedSVD` seed, power iterations, solver | 42, 5, randomized | `themes.space.svd_seed`, `.svd_iterations`, `.svd_algorithm` |
 | `atlas.driver` | `AtlasDefaults.clustering_n_components` | 50 | `themes.group.cluster_dimensions` |
 | `atlas.clustering` | `EXACT_WARD_LIMIT`, `micro_cluster_count` (min(points, limit)), `MICRO_SEED` | 15 000, the rule, 0 | `themes.group.exact_ward_limit`, `.micro_clusters`, `.micro_seed` |

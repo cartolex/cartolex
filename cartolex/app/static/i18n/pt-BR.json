@@ -2234,7 +2234,7 @@
   "param.keywords.build.nested_threshold": "uma expressão substitui uma palavra-chave mais curta que contém quando sua pontuação vale ao menos este número de vezes a da mais curta",
   "param.keywords.build.ngram_range": "as palavras de uma forma de palavra-chave contada nos textos, no mínimo e no máximo (o máximo cresce até a forma mais longa)",
   "param.keywords.build.weights_basis": "o que pesa uma palavra-chave nos temas de uma pessoa: sua parte das palavras dela (tf) ou seu TF-IDF com bônus de comprimento (tfidf); a classificação e o espaço usam o TF-IDF",
-  "param.keywords.build.keywords_per_person": "cada pessoa mantém no máximo este número de palavras-chave, as mais bem pontuadas: o espaço e o mapa são feitos delas",
+  "param.keywords.build.keywords_per_person": "cada pessoa mantém no máximo este número de palavras-chave no espaço, as mais bem pontuadas; vazio: todas as palavras-chave do léxico que ela usa (o espaço e o mapa são feitos delas)",
   "param.keywords.build.keywords_per_organisation": "cada organização mantém no máximo este número de palavras-chave, as mais bem pontuadas",
   "param.keywords.build.keywords_of_field": "o campo inteiro mantém no máximo este número de palavras-chave, as mais bem pontuadas",
   "param.themes.space.space_unit": "sobre o que o espaço é ajustado: as pessoas (palavras-chave ficam próximas quando as mesmas pessoas as usam) ou os textos (quando os mesmos textos as usam)",
@@ -2734,5 +2734,6 @@
   "settings.snapshot.index_label": "Comando de indexação",
   "corpus.route.snapshot_indexed": "lê cerca de {size} pelo índice, cerca de {time}; nada é enviado ao OpenAlex",
   "job.pause.harvest_stopped": "Pausado a seu pedido. Os trabalhos de {n} de {total} pessoas ficam guardados: retome para continuar.",
-  "job.pause.harvest_paused": "Coletas falharam várias vezes seguidas. Os trabalhos de {n} de {total} pessoas ficam guardados: retome para continuar, agora ou mais tarde."
+  "job.pause.harvest_paused": "Coletas falharam várias vezes seguidas. Os trabalhos de {n} de {total} pessoas ficam guardados: retome para continuar, agora ou mais tarde.",
+  "param.unset.keywords_per_person": "Todas as que ela usa"
 }
