@@ -287,7 +287,7 @@
    "round_trip": {
     "file": "bundle/round_trip.json",
     "kind": "json",
-    "sha256": "9103145c8519f644b741d8169246103124f18ac684a4f3f624c36f3d5daa399e"
+    "sha256": "dcf25b6dab889b23bbb35a08fcb976ca4d3e85ab72fb3cba9167564c800beb84"
    },
    "taxonomy": {
     "file": "bundle/taxonomy.json.gz",
@@ -757,10 +757,10 @@
  },
  "baseline": {
   "date": "2026-10-06",
-  "reason": "each person's row of the space holds every keyword of the lexicon they use (keywords_per_person empty by default, was 30), stored as people x keywords matrices; the per-person table is each person's best 30 by length-boosted score, for display; the vocabulary grows to every accepted concept someone uses, and every later stage moves with it"
+  "reason": "a map bundle reads its numbers back exactly (round_trip float parsing): with the people's whole rows, the usage written in full no longer read back to the same last digit, so the round-trip checks failed; they pass again"
  },
  "environment": {
-  "engine_fingerprint": "49c01a6254c737e11104a234572de8034e073ca363b400af59532c9c04970805",
+  "engine_fingerprint": "e8a3a5e4994466e55e6339631b77976cf8ce0df69378ea550652c39f10c31bd8",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {

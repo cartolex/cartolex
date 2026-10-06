@@ -164,3 +164,16 @@ Each entry says when the stored baseline (`tests/baseline/`) was rewritten, why,
 - Reason: each person's row of the space holds every keyword of the lexicon they use (keywords_per_person empty by default, was 30), stored as people x keywords matrices; the per-person table is each person's best 30 by length-boosted score, for display; the vocabulary grows to every accepted concept someone uses, and every later stage moves with it
 - Engine: 1.0.0.dev0, source fingerprint `49c01a6254c737e1`
 - L: against the previous baseline, 12 stages: 3 identical, 9 different (build, space, group, layout, draft, apply, trajectories, projection, bundle)
+
+## 2026-10-06 — S, merge
+
+- Reason: a map bundle reads its numbers back exactly (round_trip float parsing): with the people's whole rows, the usage written in full no longer read back to the same last digit, so the round-trip checks failed; they pass again
+- Engine: 1.0.0.dev0, source fingerprint `e8a3a5e4994466e5`
+- S: against the previous baseline, 12 stages: 11 identical, 1 different (bundle)
+- merge: against the previous baseline, 1 stage: 0 identical, 1 within tolerance
+
+## 2026-10-06 — L
+
+- Reason: a map bundle reads its numbers back exactly (round_trip float parsing): with the people's whole rows, the usage written in full no longer read back to the same last digit, so the round-trip checks failed; they pass again
+- Engine: 1.0.0.dev0, source fingerprint `e8a3a5e4994466e5`
+- L: against the previous baseline, 12 stages: 11 identical, 1 different (bundle)

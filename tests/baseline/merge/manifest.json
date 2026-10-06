@@ -10,7 +10,7 @@
     "file": "merge/anchors.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "1d21d15f149532c41942a0167f52d37450c6ac11142728b94fb0a7fe84bd1ce4",
+    "sha256": "0b4e89a81c1a12764870a120fd0db8c50e4f36be8894a38972311c2d53523ecc",
     "shape": [
      281,
      20
@@ -21,7 +21,7 @@
     "file": "merge/concept_weights.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "670029ddb6bc62bba721f2bc8b7023c0c7276ff63d1a4d771e72809b4ba0c83c",
+    "sha256": "abf42f57acee0e5874e0bd03412603088739c84fa109677c23cb54bcbe2aec2b",
     "shape": [
      76,
      281
@@ -32,7 +32,7 @@
     "file": "merge/cross_domain_mass.npy",
     "kind": "array",
     "role": "values",
-    "sha256": "537f6132b23e7b22358083f9ea6dc47b363c7a62a995d09bdb40d6181d7a1b40",
+    "sha256": "9da01dec5ca1b2f30a4dd1eb8511400dd1e2e1293ebf03d5d324323acab4b848",
     "shape": [
      76
     ],
@@ -56,7 +56,7 @@
    "metrics": {
     "file": "merge/metrics.json",
     "kind": "json",
-    "sha256": "42b330168b4e8f6f097ba0622c675d8639c0a095251da999de4790523d6afd03"
+    "sha256": "79f1d077f6456160ea1d0cfa265e311d1a8a9a59326fffed095d2fa49084c718"
    },
    "naive_table": {
     "file": "merge/naive_table.json.gz",
@@ -67,7 +67,7 @@
     "file": "merge/person_coords.npy",
     "kind": "array",
     "role": "embedding",
-    "sha256": "c9018598e314a5c1c0b0e3146f10f3d9045afec1cb5a4ae0ba4833309a9b1b26",
+    "sha256": "8303cfe78e02d3edecf58bb1f60d8573d931180431fbb31c5eb5dbdc2801a21d",
     "shape": [
      76,
      20
@@ -93,7 +93,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 1762,
-    "sha256": "cd708f00e6b227fe3c55883a4d99a5b48efc7cdfd2a7913e570576f1d577d0b6"
+    "sha256": "4936a1e0b67d4e16d2e195a0607348ad27a8c5f84a7a469a93f84b8dc3e08fd9"
    },
    "rows": {
     "columns": [
@@ -119,7 +119,7 @@
     "file": "merge/sense_coords.npy.gz",
     "kind": "array",
     "role": "embedding",
-    "sha256": "bbfd8d694df54f2abb9e7ebfc5b69dace561ae385b0af211350a307c946cca2d",
+    "sha256": "71bec969ae5c24bf98d2a67af6afd50245788b258d97f311a835fd945757b451",
     "shape": [
      289,
      20
@@ -136,7 +136,7 @@
     "file": "merge/singular_values.npy",
     "kind": "array",
     "role": "spectrum",
-    "sha256": "bdb007bd1181c29203c06ef1b6345cb18d651974bcb88bb356f1d2823ac640ed",
+    "sha256": "6310bd1f1ad95dbcd904574f54cf0dc1cbb87fd026a53eef5aa9bd59399f7a22",
     "shape": [
      20
     ],
@@ -156,7 +156,7 @@
     "file": "merge/weights_macro.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "b11881919c0cc8d3eee3c698026d5d30cff6e90e41f61b04c4714d1d6ec1ac8d",
+    "sha256": "f7290987e8a3d61495db31c01198cfaccd571ba078fd4503796c356bdbe17aa2",
     "shape": [
      76,
      289
@@ -167,7 +167,7 @@
     "file": "merge/weights_pooled.npy.gz",
     "kind": "array",
     "role": "values",
-    "sha256": "d0e8e4d5d489ca29cf9fef2be3f2d41b62912b550198da0c1b800a908a937727",
+    "sha256": "c61569b4ae9d02dfe73b74382b8a7c5aadf38fc3a172ee8854e4b722d662f9cd",
     "shape": [
      76,
      289
@@ -178,10 +178,10 @@
  },
  "baseline": {
   "date": "2026-10-06",
-  "reason": "each person's row of the space holds every keyword of the lexicon they use (keywords_per_person empty by default, was 30), stored as people x keywords matrices; the per-person table is each person's best 30 by length-boosted score, for display; the vocabulary grows to every accepted concept someone uses, and every later stage moves with it"
+  "reason": "a map bundle reads its numbers back exactly (round_trip float parsing): with the people's whole rows, the usage written in full no longer read back to the same last digit, so the round-trip checks failed; they pass again"
  },
  "environment": {
-  "engine_fingerprint": "ee26410b99177278517e88ae957e007b86820a8f22696354da16fad1c6bb1784",
+  "engine_fingerprint": "e8a3a5e4994466e55e6339631b77976cf8ce0df69378ea550652c39f10c31bd8",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {
@@ -230,7 +230,7 @@
      "entities": "b5c134de1f46bc6e87d4fb806bc9a8266606aa548105ea88b417da2a014ecf70",
      "entity_terms": "21c8dc137bbc8ad0b67d7b4d2216be5dd9a4432d34171f984511b5a844b62d80",
      "meta": "d9b52f40ef25b031d5a45ede5c87aa28654d1efc0f9a2e13f532932e4748d8f1",
-     "round_trip": "9103145c8519f644b741d8169246103124f18ac684a4f3f624c36f3d5daa399e",
+     "round_trip": "dcf25b6dab889b23bbb35a08fcb976ca4d3e85ab72fb3cba9167564c800beb84",
      "taxonomy": "c32b8d8348427aa361ac48a893e3c652338b32a7d7fea0b5b647776dd185afec",
      "vocabulary": "7bbaa9beeadfbda191b592a9b0a785b6b76d279408ce9a7a57eedbafb3715ea2",
      "zip": "529dbcd10e30171397d230d237fbf359cd0105f5af924f4f945657de67beef09"
@@ -244,7 +244,7 @@
      "entities": "b3eb93c98c3ffcb823c0cc3c2b2d0566a6d25cad5070082169d1f942e6dd17e9",
      "entity_terms": "b68eb192056c7560a49415ce68c486a60a40375752ce4b82d5cee78e69fdcca7",
      "meta": "156626938532ddaa2189519c1e1812b191a784ff05d1e674550eccdc02a873b6",
-     "round_trip": "9103145c8519f644b741d8169246103124f18ac684a4f3f624c36f3d5daa399e",
+     "round_trip": "dcf25b6dab889b23bbb35a08fcb976ca4d3e85ab72fb3cba9167564c800beb84",
      "taxonomy": "d8b854ae4bb7ab798d451388a8905cb291e1529e22fa9ec18e8d08e564a35a04",
      "vocabulary": "d1afbb8f26778c8354d4df7a6b2c766ece7c4433e54767d4a994125dc047e88a",
      "zip": "09aa1017e5134ab6f8ad7d061e1fbe51dafd0ef53816813ca7684f772cd5b546"

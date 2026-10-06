@@ -1,4 +1,4 @@
 {
- "directory": false,
- "zip": false
+ "directory": true,
+ "zip": true
 }

@@ -527,9 +527,14 @@ def _read_bundle_dir(dir_path: Path) -> CohortBundle:
     if missing:
         raise ValueError(f"Bundle {dir_path} is missing required file(s): {missing}")
 
-    terms_long = pd.read_csv(dir_path / "entity_terms.csv", dtype={"entity_id": str, "term": str})
-    entities = pd.read_csv(dir_path / "entities.csv", dtype={"entity_id": str})
-    vocabulary = pd.read_csv(dir_path / "vocabulary.csv", dtype={"term": str})
+    # Every number read back as it was written (pandas' default parser may move the last
+    # digit of a float the writer gave in full).
+    exact = {"float_precision": "round_trip"}
+    terms_long = pd.read_csv(
+        dir_path / "entity_terms.csv", dtype={"entity_id": str, "term": str}, **exact
+    )
+    entities = pd.read_csv(dir_path / "entities.csv", dtype={"entity_id": str}, **exact)
+    vocabulary = pd.read_csv(dir_path / "vocabulary.csv", dtype={"term": str}, **exact)
     # A no-score bundle round-trips with an all-empty score column; make sure
     # it comes back float NaN (not an object column of empty strings).
     for frame, col in ((terms_long, "score"), (vocabulary, "score_total")):
@@ -548,7 +553,7 @@ def _read_bundle_dir(dir_path: Path) -> CohortBundle:
     if major == 3:
         themes = json.loads((dir_path / "themes.json").read_text(encoding="utf-8"))
         theme_weights = pd.read_csv(
-            dir_path / "theme_weights.csv", dtype={"entity_id": str, "node": str}
+            dir_path / "theme_weights.csv", dtype={"entity_id": str, "node": str}, **exact
         )
 
     return CohortBundle(
