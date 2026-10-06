@@ -357,16 +357,12 @@ def map_screen(s: Shots) -> None:
     """The map with a person selected, and the comparison of two people."""
     page = s.page
     s.go("/map", settle=3000)
-    find = page.get_by_placeholder("Find a person, a theme…").first
+    find = page.get_by_role("combobox", name="Find")
     find.fill("Ioana")
     page.wait_for_timeout(800)
-    page.keyboard.press("ArrowDown")
-    page.keyboard.press("Enter")
-    page.wait_for_timeout(2500)
-    legend = page.locator("summary").filter(has_text="Legend")
-    if legend.count():
-        legend.first.click()
-        page.wait_for_timeout(500)
+    page.keyboard.press("Enter")  # the first match
+    page.locator(".cx-atlas-card h4", has_text="Co-authors").wait_for()
+    page.wait_for_timeout(1500)
     s.shot("map-person")
 
 
