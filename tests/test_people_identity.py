@@ -149,3 +149,78 @@ def test_merge_and_unmerge_through_the_api(tmp_path):
         assert "p1,p2,distinct" in pairs
     finally:
         app.state.cartolex.shutdown()
+
+
+@pytest.fixture(scope="module")
+def doubled(tmp_path_factory):
+    """A demo project (world S) with duplicate people and namesakes added, and the truth."""
+    from cartolex.demo import generate
+    from cartolex.demo.duplicates import add_duplicates
+    from cartolex.demo.project import write_project
+
+    world = generate("S", 0)
+    root = tmp_path_factory.mktemp("doubled") / "p"
+    project = write_project(world, root)
+    truth = add_duplicates(project, world, seed=0, share=0.25, homonyms=0.1)
+    project.close()
+    return root, truth
+
+
+def test_the_clear_pairs_are_one_person_and_the_namesakes_are_not(doubled):
+    from cartolex.collect.duplicates import duplicate_pairs
+
+    root, truth = doubled
+    project = Project.open(root, write=False)
+    pairs, _ = duplicate_pairs(project)
+    found = {frozenset((p.a, p.b)) for p in pairs}
+    assert all(frozenset(s[:2]) in found for s in truth.same)  # every duplicate proposed
+    clear = [p for p in pairs if p.clear]
+    assert clear and all(truth.is_same(p.a, p.b) for p in clear)
+    for a, b, _ in truth.homonyms:
+        pair = next((p for p in pairs if {p.a, p.b} == {a, b}), None)
+        assert pair is None or not pair.clear
+
+
+def test_review_a_pair_then_merge_the_clear_ones_in_one_undoable_step(doubled, tmp_path):
+    import shutil
+
+    root, truth = doubled
+    shutil.copytree(root, tmp_path / "p")
+    app = create_app(AppSettings(project=tmp_path / "p", launch_token=TOKEN,
+                                 data_dir=tmp_path / "data"))  # fmt: skip
+    client = Client(app)
+    try:
+        listed = client.get("/api/people/duplicates").json()
+        assert listed["counts"]["clear"] >= 1 and listed["items"][0]["evidence"]
+        first = listed["items"][0]
+        compared = client.get(f"/api/people/duplicates/compare?a={first['a']}&b={first['b']}")
+        assert compared.status_code == 200, compared.text
+        assert {"texts", "affiliations", "coauthors"} <= set(compared.json()["a"])
+        # a namesake judged another person never comes back
+        a, b, _ = truth.homonyms[0]
+        etag_people = etag(client.get("/api/people"))
+        decided = client.post("/api/people/duplicates/decide",
+                              json={"a": a, "b": b, "decision": "distinct"},
+                              headers={"If-Match": etag_people})  # fmt: skip
+        assert decided.status_code == 200, decided.text
+        every = client.get("/api/people/duplicates?show=all&limit=500").json()["items"]
+        assert not any({i["a"], i["b"]} == {a, b} for i in every)
+
+        preview = client.post("/api/people/duplicates/auto", json={}).json()
+        assert preview["merged"] >= 1 and not preview["applied"]
+        applied = client.post("/api/people/duplicates/auto", json={"apply": True},
+                              headers={"If-Match": etag(client.get("/api/people"))})  # fmt: skip
+        assert applied.status_code == 200, applied.text
+        merged = applied.json()["person_ids"]
+        assert all(truth.is_same(pid, client.get(f"/api/people/{pid}/sheet").json()
+                                 ["merged_into"]["person_id"]) for pid in merged)  # fmt: skip
+        last = client.get("/api/people/duplicates").json()["last_auto"]
+        assert last["person_ids"] == merged
+        undone = client.post("/api/people/unmerge",
+                             json={"person_ids": merged, "remember": "later"},
+                             headers={"If-Match": etag(client.get("/api/people"))})  # fmt: skip
+        assert undone.status_code == 200 and sorted(undone.json()["unmerged"]) == merged
+        again = client.post("/api/people/duplicates/auto", json={}).json()
+        assert again["merged"] == 0  # pairs undone are left for a person to decide
+    finally:
+        app.state.cartolex.shutdown()

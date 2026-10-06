@@ -47,6 +47,7 @@ MESSAGES: dict[str, MessageKind] = {
         "no people yet: import a list of names", "Import people", "import-people"
     ),
     "empty_no_match": MessageKind("nothing matches these filters", "Clear the filters", "none"),
+    "empty_no_duplicates": MessageKind("no two people look like one person", "Close", "none"),
     "empty_no_keywords": MessageKind(
         "no keywords yet: build the keywords first", "Build the keywords", "build"
     ),

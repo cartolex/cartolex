@@ -24,7 +24,6 @@ from ..deps import ListDep, ProjectDep, page
 from ..errors import ApiError
 from ..jobs import JobConflict, JobControl
 from ..messages import empty
-from ..people_io import read_people
 from ..routing import Routes, runtime_of
 from ..texts_view import texts_view
 from ..uploads import extract_archive, save_upload
@@ -291,30 +290,7 @@ def get_text(request: Request, text_id: str, ctx: ProjectDep) -> dict[str, Any]:
     return found
 
 
-# ── one person, duplicates ───────────────────────────────────────────────────
-
-
-@routes.get("/api/people/duplicates", action="people.read")
-def duplicates(request: Request, ctx: ProjectDep) -> dict[str, Any]:
-    """Pairs of people who may be one person, with the reason; none is merged."""
-    from cartolex.collect.people_import import find_duplicates
-
-    if not ctx.layout.table("people").exists():
-        return {"items": [], "total": 0}
-    people, _ = read_people(ctx.project, runtime_of(request).table_cache)
-    names = {p["person_id"]: f"{p['first_name']} {p['last_name']}".strip() for p in people}
-    units = {p["person_id"]: p["unit"] for p in people}
-    items = [
-        {
-            "person_id": d.person_id,
-            "other_id": d.other_id,
-            "reason": d.reason,
-            "names": [names.get(d.person_id, ""), names.get(d.other_id, "")],
-            "units": [units.get(d.person_id, ""), units.get(d.other_id, "")],
-        }
-        for d in find_duplicates(ctx.project)
-    ]
-    return {"items": items, "total": len(items)}
+# ── one person ───────────────────────────────────────────────────
 
 
 @routes.get("/api/people/{person_id}/sheet", action="people.read")
