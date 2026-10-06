@@ -114,7 +114,9 @@ person: a collaborator collected but not mapped) or `null` (not drawn);
 `lines` are the links to draw, the first ring's from the focus. For
 `kind: 'organisation'` the items are organisations of the focus's level
 (`{id, name, acronym, place, texts}`) and the answer names the `level`.
-`outside` counts the co-authors who are not in the project (never listed).
+`outside` counts the co-authors who are not in the project (never listed);
+`hidden`, when a host gives it, counts partners in the project it does not show
+(a site that leaves some people out): the card says both as counts.
 
 A host whose data is a sparse list of links (the offline site) does not write
 its own search: `ringsOf(graph, id, depth, pages)` of `atlas/rings.js` answers
@@ -134,7 +136,7 @@ items, placed(id) → place}`.
 | `look` | `{dark() → boolean, set(dark)?, subscribe(fn)?}`: Dark / Bright (without `subscribe`, the atlas watches the document's `data-theme` and the system); with `set`, the bar shows the switch | the theme store | the site's switch |
 | `title` | the field's name, at the top of the home card | the project's name | the site's title |
 | `onReady({index})`, `onScheme(id)` | told when the bundle is indexed, when the scheme changes | | |
-| `links` | `{person(id), organisation(id), text(id), keyword(term), themesKeyword(term), themesNode(id)}` → an address, or null | People, Keywords, Themes | none |
+| `links` | `{person(id), organisation(id), text(id), keyword(term), themesKeyword(term), themesNode(id)}` → an address, or `{href, label}` (the host's own words for the button), or null | People, Keywords, Themes | its own pages, if it has them |
 | `navigate(href)` | follow one of those addresses | the router | — |
 | `label(kind, id)` | the name of what the bundle left unnamed | — | the pseudonym |
 | `fileStem()` | the start of a saved view's file name | the map version | the site's title |

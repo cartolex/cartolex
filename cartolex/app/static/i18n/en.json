@@ -3318,5 +3318,6 @@
   "atlas.compare.themes": "Themes, {a} ◀ ▶ {b}",
   "atlas.compare.shared_keywords": "Keywords they share",
   "atlas.compare.shared_texts": "Texts together",
-  "atlas.compare.stop": "Stop comparing"
+  "atlas.compare.stop": "Stop comparing",
+  "atlas.card.hidden": "{count, plural, one {and # more in the project, not shown here} other {and # more in the project, not shown here}}"
 }

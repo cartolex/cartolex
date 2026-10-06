@@ -132,6 +132,7 @@ function organisationCard(card, id) {
       key: index.people[i].person_id, colour: nodeColour(card, index.personTop[i]),
       label: goLink(card, { kind: 'person', id: index.people[i].person_id }, card.view.nameOf('person', index.people[i])) })), 60)),
     network ? section(t('atlas.card.writes_with'), ...network,
+      rings && rings.hidden ? h('p', { class: 'cx-atlas-note', text: t('atlas.card.hidden', { count: rings.hidden }) }) : null,
       h('p', { class: 'cx-atlas-note', text: t('atlas.card.writes_note', { level: levelName(o.level) }) })) : null,
     comparePicker(card, { kind: 'organisation', id }),
     hostLinks(card, [[links && links.organisation ? links.organisation(id) : null, 'atlas.card.open_people']]),
@@ -168,6 +169,7 @@ function personCard(card, sel) {
     terms && terms.length ? section(t('atlas.card.keywords_most'), keywordChips(card, terms.slice(0, 12))) : null,
     network ? section(null, ...network,
       rings && rings.outside ? h('p', { class: 'cx-atlas-note', text: t('atlas.card.outside', { count: rings.outside }) }) : null,
+      rings && rings.hidden ? h('p', { class: 'cx-atlas-note', text: t('atlas.card.hidden', { count: rings.hidden }) }) : null,
       h('p', { class: 'cx-atlas-note', text: t('atlas.card.coauthors_note') })) : null,
     windows.length ? section(t('atlas.card.windows'), h('ol', { class: 'cx-atlas-windows' }, windows.map((w) => {
       const inside = !period || (w.end >= period[0] && w.start <= period[1]);

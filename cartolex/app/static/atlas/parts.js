@@ -55,13 +55,18 @@ export function shareBars(card, shares, most = 5) {
     h('span', { class: 'cx-atlas-val', text: fmt.percent(v) }))));
 }
 
-/** The host's links to its other screens: `[[href, labelKey]]` (a null href: not offered). */
+/** The host's links to its other screens: `[[link, labelKey]]`, a link being an address or
+ * `{href, label}` (the host's own words); a null link is not offered. */
 export function hostLinks(card, links) {
   const { t } = card.view;
-  const shown = links.filter(([href]) => href);
+  const shown = links.filter(([link]) => link && (typeof link === 'string' || link.href));
   if (!shown.length) return null;
-  return h('div', { class: 'cx-atlas-actions' }, shown.map(([href, key]) => h('a', { class: 'cx-atlas-btn', href,
-    dataset: { key: `link-${key}` }, text: t(key), onClick: (e) => card.follow(e, href) })));
+  return h('div', { class: 'cx-atlas-actions' }, shown.map(([link, key]) => {
+    const href = typeof link === 'string' ? link : link.href;
+    const text = typeof link === 'string' || !link.label ? t(key) : link.label;
+    return h('a', { class: 'cx-atlas-btn', href, dataset: { key: `link-${key}` }, text,
+      onClick: (e) => card.follow(e, href) });
+  }));
 }
 
 /** A line saying what is still being read, or that it could not be. */
