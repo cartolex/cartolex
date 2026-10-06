@@ -51,6 +51,7 @@ atlas.select({ kind: 'person', id: 'p0001' }, { centre: true });
 atlas.setScene(scene);        // a host's own scene in place of the map's (null: the map's)
 atlas.slot('bar');            // an element in the bar for a host's own buttons
 atlas.slot('map');            // an element over the map (a host's banner)
+atlas.hold({cardOn: false});  // a part of the layout held for a while, never kept (null: let go)
 atlas.refresh();              // read the bundle again (the map was rebuilt)
 atlas.state(); atlas.set({net: 2});   // the state (see below), and a change of it
 atlas.index(); atlas.colours();       // the indexed bundle, the themes' colours now
@@ -145,7 +146,9 @@ Without `links`, the card's « Open in People ↗ », « Open in Keywords ↗ »
 « Edit in Themes ↗ » are not shown: editing happens only in the app's Themes
 screen. A host adds its own buttons to `atlas.slot('bar')` (the app: map
 versions, distances, the Tune panel's preview) and its own banner to
-`atlas.slot('map')`.
+`atlas.slot('map')`. A host that shows a panel of its own beside the atlas (the
+app's « Tune the map ») holds the card on its rail meanwhile (`atlas.hold`); the
+person's layout is not changed, and their own choice of that part ends the hold.
 
 ## State and address
 

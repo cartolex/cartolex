@@ -75,6 +75,11 @@ nothing in the engine names a particular deployment, source or procedure.
   view on screen is saved as a PNG or SVG image, with or without its legend. The
   keywords list takes `term=` (a keyword with the candidates merged into it).
 
+- **The map is tuned beside the atlas.** « Tune the map » opens its panel beside
+  the atlas, in the card's column (the card waits on its rail, `atlas.hold`),
+  never above it: the map and a layout's preview stay in view; its width is
+  dragged and kept per person (`map.tune_width`).
+
 - **The shared site is the app's atlas.** The offline site mounts the app's own
   atlas (one code for both, `docs/dev/atlas.md`) over a data source that reads
   the site's files (`cartolex-site/3`): the map bundle as columns in

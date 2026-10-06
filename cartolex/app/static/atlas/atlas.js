@@ -71,6 +71,8 @@ export function mountAtlas(root, { source, host }) {
   const prefs = host.prefs || null;
   const store = createStore(readAtlasState(host.address ? host.address.read() : null), host.address);
   let layout = readLayout(prefs);
+  // a host's hold over the layout (a panel of its own beside the atlas): never kept
+  let held = null;
   let scheme = (prefs && prefs.get && prefs.get(SCHEME_PREF)) || DEFAULT_SCHEME;
   let dark = host.look && host.look.dark ? host.look.dark() : pageIsDark();
   let index = null;
@@ -327,11 +329,17 @@ export function mountAtlas(root, { source, host }) {
 
   function setLayout(patch) {
     const before = layout;
+    // the person's own choice ends a host's hold on that part of the layout
+    if (held) {
+      held = Object.fromEntries(Object.entries(held).filter(([k]) => !(k in patch)));
+      if (!Object.keys(held).length) held = null;
+    }
     layout = { ...layout, ...patch };
     writeLayout(prefs, layout, before);
     applyLayout();
   }
   function applyLayout() {
+    const layout = shown();
     const below = layout.at === 'below';
     if (below && cardPane.parentNode !== belowSlot) belowSlot.appendChild(cardPane);
     if (!below && cardPane.parentNode !== stage) stage.insertBefore(cardPane, cardRail);
@@ -360,6 +368,11 @@ export function mountAtlas(root, { source, host }) {
     onEnd: () => writeLayout(prefs, layout) }));
   offs.push(divider(belowSplit, { get: () => layout, onMove: (dx, dy, s) => { layout = { ...layout, below: paneSize('below', s.below - dy) }; applyLayout(); },
     onEnd: () => writeLayout(prefs, layout) }));
+
+  /** The layout drawn: the person's, under the host's hold. */
+  function shown() {
+    return held ? { ...layout, ...held } : layout;
+  }
 
   function setScheme(id) {
     scheme = schemeOf(id).id;
@@ -597,6 +610,13 @@ export function mountAtlas(root, { source, host }) {
       mapView.hideCard();
       mapView.redraw(false);
       render();
+    },
+    /** Hold part of the layout for a while (`{cardOn: false}`: the card to its rail while the
+     * host shows a panel beside the atlas), without keeping it; null lets it go. */
+    hold(patch) {
+      held = patch ? { ...patch } : null;
+      applyLayout();
+      mapView.redraw(false);
     },
     slot(name) {
       return name === 'bar' ? barSlot : name === 'map' ? mapSlot : null;

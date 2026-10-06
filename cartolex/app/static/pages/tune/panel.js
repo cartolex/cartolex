@@ -14,7 +14,8 @@
  * undo; « Rebuild from here » (the pre-flight sheet with the panel's first
  * stage forced); and what the step produced. On the keywords, the thresholds that filter the
  * stored candidates are previewed as they move (`thresholds.js`); on the map, the layout's
- * changes are drawn on the map itself (`pages/map/preview.js`). Above the header, when the
+ * changes are drawn on the map itself (`pages/map/preview.js`), and the panel opens beside
+ * the atlas (`TuneSide`), never above it. Above the header, when the
  * page's outputs need an update, a note names the first stage to rebuild and
  * offers to rebuild from it.
  */
@@ -22,7 +23,9 @@
 import { html, useEffect, useRef, useState } from '../../core/preact.js';
 import { t } from '../../core/i18n.js';
 import { useUid } from '../../core/dom.js';
-import { Button, EmptyState, ErrorCard, Icon, Input, StatusDot } from '../../components/index.js';
+import {
+  Button, EmptyState, ErrorCard, Icon, IconButton, Input, StatusDot,
+} from '../../components/index.js';
 import { useResource } from '../settings/common.js';
 import { ParamActions, ParamTable, paramRows, useParamEdits, useParamsFollow } from './params.js';
 import {
@@ -75,7 +78,7 @@ function Produced({ ctx, app, step, view, from, titled }) {
 }
 
 /** The opened panel: it reads the parameters and the diagnostics when it mounts. */
-function TuneBody({ ctx, app, id, panel, preview }) {
+function TuneBody({ ctx, app, id, panel, preview, extra = null }) {
   const params = useResource(ctx.api, '/api/params');
   useParamsFollow(params);
   // one resource per step; a panel's steps never change, so the hooks keep their order
@@ -96,8 +99,9 @@ function TuneBody({ ctx, app, id, panel, preview }) {
     ${params.error ? html`<${ErrorCard} error=${params.error} compact onRetry=${params.reload} />` : null}
     ${!params.data && !params.error ? html`<p class="cx-settings__muted" aria-busy="true">${t('common.loading')}</p>` : null}
     ${params.data ? html`<p class="cx-settings__note">${t(`tune.lead.${id}`)}</p>
-      ${layout && layout.data ? html`<${MapSettings} ctx=${ctx} app=${app} view=${layout.data} preview=${preview} />
-        <h4 class="cx-method-subtitle">${t('method.map.placement')}</h4>` : null}
+      ${layout && layout.data ? html`<${MapSettings} ctx=${ctx} app=${app} view=${layout.data} preview=${preview} />` : null}
+      ${extra}
+      ${layout && layout.data ? html`<h4 class="cx-method-subtitle">${t('method.map.placement')}</h4>` : null}
       ${id === 'keywords' ? html`<${ThresholdsPreview} ctx=${ctx} data=${params.data} edits=${editor.edits} />` : null}
       ${rows.length ? html`<${ParamTable} rows=${rows} edits=${editor.edits} setEdit=${editor.setEdit}
         label=${t(`tune.title.${id}`)} tiers />` : html`<p class="cx-settings__muted">${t('method.params.none')}</p>`}
@@ -120,6 +124,38 @@ function OutOfDate({ ctx, stage }) {
     <p>${t('tune.stale', { stage: name })}</p>
     <${Button} size="s" onClick=${() => ctx.navigate(rebuildHref(stage.id))}>${t('tune.rebuild_from', { stage: name })}<//>
   </div>`;
+}
+
+/**
+ * The « Tune » panel as a side panel beside a page's view (the map: the atlas stays whole
+ * beside it): its title with « defaults » or « N changed », its state, « Close »; the note of
+ * an out-of-date page; *top* (the page's own bar, e.g. the layout's preview); then the body,
+ * scrolled on its own, with *extra* (the page's own section) after the layout. *onClose()*
+ * hides it.
+ */
+export function TuneSide({ ctx, id, preview = null, top = null, extra = null, onClose }) {
+  const { app } = ctx;
+  const panel = PANELS[id];
+  const uid = useUid('cx-tune');
+  const { project } = app.stores;
+  const n = changedCount(panel, project.state.value);
+  const stages = project.stages.value;
+  const stale = firstStale(stages, panel.upTo);
+  return html`<section class="cx-tune cx-tune--side is-open" data-tune=${id} aria-labelledby=${`${uid}-title`}>
+    <div class="cx-tune__head">
+      <h2 class="cx-tune__title cx-tune__title--side" id=${`${uid}-title`} tabindex="-1">
+        <span>${t(`tune.title.${id}`)}</span>
+        <span class=${`cx-tune__count ${n ? 'is-changed' : ''}`}>${n ? t('tune.changed', { n }) : t('tune.defaults')}</span>
+      </h2>
+      <${StatusDot} state=${panelState(panel, stages)} size="s" label />
+      <${IconButton} icon="close" size="s" label=${t('tune.close')} onClick=${onClose} data-tune-close />
+    </div>
+    ${stale ? html`<${OutOfDate} ctx=${ctx} stage=${stale} />` : null}
+    ${top}
+    <div class="cx-tune__body">
+      <${TuneBody} ctx=${ctx} app=${app} id=${id} panel=${panel} preview=${preview} extra=${extra} />
+    </div>
+  </section>`;
 }
 
 /**

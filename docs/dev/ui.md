@@ -414,8 +414,12 @@ with a data source and the host's capabilities). `pages/map/page.js` reads
 `GET /api/atlas`, mounts it with the app's source and host (`source.js`: the
 API, the interface's messages, the page's address, the person's preferences,
 the app's Dark / Bright, the links to People, Keywords and Themes) and keeps
-around it what only the app has: the « Tune » panel and its layout preview drawn
-on the atlas's map (`preview.js`, `atlas.setScene`), the map versions and base
+around it what only the app has: the « Tune » panel, opened beside the atlas
+(`TuneSide` of `pages/tune/panel.js`: « Tune the map » in the page's head, the panel
+in the card's column, which waits on its rail meanwhile through `atlas.hold`, its
+width dragged or moved with the arrows and kept per person as `map.tune_width`) and
+its layout preview drawn on the atlas's map (`preview.js`, `atlas.setScene`, the
+preview's bar at the top of the panel), the map versions and base
 maps (`versions.js`), the distances' exports (`pages/share/distances.js`).
 Inside the atlas: the treemap of the themes (`treemap.js`: a click focuses, a
 double click or Shift+Enter opens down to the keywords, ↑ / Backspace / Escape
@@ -455,7 +459,8 @@ its seed, saved as a new version, pinned; then `map.layout` and
 `map.trajectories`) and `texts` on the People screen's Texts tab
 (`corpus.assemble`, and the build's seed and pinned year): the texts are
 collected and listed there, and the Build page has no step of its own for
-them. A panel is collapsed by default (`?tune=1` opens it); its header says
+them. A panel is collapsed by default (`?tune=1` opens it; on the map it opens
+beside the atlas, never above it); its header says
 « defaults » or « N changed », from the project state's `changed_params`, so
 a closed panel reads nothing. Opened, it reads `GET /api/params` and its
 step's diagnostics (`GET /api/method/<step>`): the essential parameters,

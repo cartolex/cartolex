@@ -315,6 +315,56 @@ def test_the_map_previews_a_layout_change_in_place(demo_s, app_for, open_app, tm
     assert pinned["layout"]["params"] == {"n_neighbors": 11}
 
 
+#: Where the atlas, its map, the side panel and the card are in the window.
+BOXES = """() => { const r = (s) => { const e = document.querySelector(s);
+  if (!e || e.hidden || !e.offsetParent) return null; const b = e.getBoundingClientRect();
+  return {left: b.left, top: b.top, right: b.right, bottom: b.bottom}; };
+  return {atlas: r('.cx-atlas-host'), map: r('.cx-atlas-map'), side: r('.cx-tune--side'),
+    card: r('.cx-atlas-pane--card')}; }"""
+
+
+def test_the_map_is_tuned_beside_the_atlas(demo_s, app_for, open_app, axe_source):
+    """« Tune the map » opens beside the atlas, never above it: the atlas keeps its place and
+    height, the card waits on its rail, and closing gives the card back."""
+    ui = open_app(app_for(demo_s))
+    page = ui.page
+    page.set_viewport_size({"width": 1280, "height": 760})
+    ui.navigate("/map")
+    settled(ui)
+    before = page.evaluate(BOXES)
+    assert before["side"] is None and before["card"] is not None
+    toggle = page.get_by_role("button", name=re.compile("Tune the map"))
+    toggle.click()
+    page.locator(".cx-tune--side [data-param='map.n_neighbors']").wait_for()
+    settled(ui)
+    page.wait_for_timeout(300)  # the map's resize observed
+    after = page.evaluate(BOXES)
+    assert toggle.get_attribute("aria-expanded") == "true"
+    assert after["side"]["left"] >= after["atlas"]["right"]
+    assert after["side"]["right"] <= 1280
+    assert abs(after["atlas"]["top"] - before["atlas"]["top"]) < 1
+    assert abs(after["atlas"]["bottom"] - before["atlas"]["bottom"]) < 1
+    assert after["card"] is None  # on its rail: the map keeps its room
+    assert after["map"]["right"] - after["map"]["left"] >= 400
+    assert blocking(run_axe(ui, axe_source, ".cx-tune--side")) == []
+    # its width is the person's: dragged with the arrows, kept
+    split = page.get_by_role("separator", name="Resize the tuning panel")
+    split.focus()
+    page.keyboard.press("ArrowLeft")
+    page.wait_for_function(
+        "() => document.querySelector('.cx-tune--side').getBoundingClientRect().width > 450"
+    )
+    page.get_by_role("button", name="Close the panel").click()
+    page.locator(".cx-tune--side").wait_for(state="detached")
+    assert page.evaluate("() => document.activeElement.hasAttribute('data-tune-toggle')")
+    page.wait_for_function("() => !document.querySelector('.cx-atlas-pane--card').hidden")
+    # the person's layout was never changed by the panel
+    prefs = page.evaluate("() => fetch('/api/me/preferences').then((r) => r.json())")
+    other = prefs["preferences"]["other"]
+    assert other.get("atlas.card_on", True) is not False
+    assert other["map.tune_width"] > 440
+
+
 @pytest.mark.slow
 def test_screenshots_of_the_tune_panels(demo_s, app_for, open_app, pytestconfig):
     target = pytestconfig.getoption("--ui-screenshots")
