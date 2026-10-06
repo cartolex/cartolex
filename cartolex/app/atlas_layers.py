@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 import re
 from collections import defaultdict
 from collections.abc import Iterable
@@ -64,13 +65,14 @@ def _rows(path: Path) -> list[dict[str, str]]:
 
 
 def _mean(points: Iterable[tuple[float, float]]) -> tuple[float, float] | None:
-    sx = sy = 0.0
-    n = 0
-    for x, y in points:
-        sx += x
-        sy += y
-        n += 1
-    return (round(sx / n, XY_DIGITS), round(sy / n, XY_DIGITS)) if n else None
+    """The mean of *points*, whatever their order (exact sums: members come from sets)."""
+    xs = list(points)
+    if not xs:
+        return None
+    n = len(xs)
+    sx = math.fsum(x for x, _ in xs)
+    sy = math.fsum(y for _, y in xs)
+    return (round(sx / n, XY_DIGITS), round(sy / n, XY_DIGITS))
 
 
 def _person_ids(ctx: Any) -> dict[tuple[str, str, str], str]:

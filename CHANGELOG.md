@@ -53,9 +53,14 @@ nothing in the engine names a particular deployment, source or procedure.
   - *Map*: the bundle is `cartolex-atlas/3`: it counts the people's time
     windows and gives their years; the windows themselves come apart, as
     columns (`GET /api/atlas/windows`, every one when they are shown, the
-    selected person's otherwise), each with its largest top-level node. On a
-    sample of 86,000 mapped people the first map request went from 205 MB,
-    97 s and 22 GB to 38 MB, 27 s and 2.4 GB; all the windows are 14 MB. The
+    selected person's otherwise), each with its largest top-level node, found
+    from the trajectories' themes read a batch at a time as codes; the reply
+    for every window is encoded once and kept. On a sample of 86,000 mapped
+    people the first map request went from 205 MB, 97 s and 22 GB to 38 MB,
+    27 s and 2.4 GB; all the windows are 14 MB. On the national map (885,000
+    windows, 10 million top-level theme rows) the windows add nothing to the
+    app's peak memory, where they added 1.9 GB. An organisation is placed at
+    the same point whatever the order of its members (exact sums). The
     texts layer draws at most 100,000 texts, a uniform sample of a larger
     corpus (the map says so), and reads only their parts: on 825,000 texts,
     22 s and 0.2 GB instead of 147 s and 7 GB.

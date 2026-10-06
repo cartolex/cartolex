@@ -489,6 +489,14 @@ def test_the_atlas_page_reads_organisations_texts_regions_and_bases(built, clien
     )
 
 
+def test_an_organisation_is_placed_the_same_whatever_its_members_order():
+    from cartolex.app.atlas_layers import _mean
+
+    points = [(1e16, 0.5), (1.0, 0.25), (-1e16, 0.125)]  # a plain sum depends on the order
+    assert _mean(points) == _mean(reversed(points)) == _mean(points[1:] + points[:1])
+    assert _mean([]) is None
+
+
 def test_the_comb_on_the_tree_sent_suggests_too_broad_keywords_put_back(depths, client_for):
     client = client_for(depths[2])
     tree = client.get("/api/themes").json()["tree"]

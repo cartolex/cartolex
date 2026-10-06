@@ -317,82 +317,118 @@ def _windows_count(layout: Any, mapped: set[str]) -> tuple[int, dict[str, int] |
     }
 
 
+#: Rows of the trajectories' themes read at a time by the windows layer.
+THEME_BATCH = 262_144
+_WINDOW_COLUMNS = ("person", "start", "end", "texts", "x", "y", "top")
+
+
 def build_windows(ctx: Any) -> dict[str, Any]:
-    """Every placed time window of the mapped people, as columns: ``person`` (an index in
-    the bundle's people), ``start``, ``end``, ``texts``, ``x``, ``y`` and ``top`` (the
-    largest top-level node, ``null`` when none)."""
+    """Every placed time window of the mapped people, as arrays: ``person`` (an index in
+    the bundle's people), ``start``, ``end``, ``texts``, ``x``, ``y`` and ``top`` (an
+    index in ``tops``, the largest top-level node's id; ``-1``: none). People, windows
+    and nodes are codes, never a string per window."""
     import numpy as np
     import pyarrow as pa
     import pyarrow.compute as pc
     import pyarrow.parquet as pq
 
     layout = ctx.layout
-    columns: dict[str, Any] = {k: [] for k in ("person", "start", "end", "texts", "x", "y", "top")}
+    empty = {k: np.zeros(0, dtype=np.int64) for k in _WINDOW_COLUMNS}
+    empty["tops"] = []
     points = _trajectory_points(layout)
     if points is None:
-        return columns
+        return empty
     identity = _identities(ctx)
-    rids: list[str] = []
     order: dict[str, int] = {}
-    for r in _rows(layout.stage("map.layout") / "umap_individuals.csv"):
-        rid = r.get("id", "")
-        rids.append(rid)
+    for k, r in enumerate(_rows(layout.stage("map.layout") / "umap_individuals.csv")):
         if identity.get((r["last_name"], r["first_name"], r["unit"])):
-            order.setdefault(rid, len(rids) - 1)
-    keep = pc.and_(
-        pc.is_in(points["researcher_id"], value_set=pa.array(sorted(order), pa.string())),
-        pc.is_valid(points["umap_x"]),
+            order.setdefault(r.get("id", ""), k)
+    rid = pc.dictionary_encode(points["researcher_id"].combine_chunks())
+    rid_names = rid.dictionary.to_pylist()
+    person_of = np.array([order.get(r, -1) for r in rid_names], dtype=np.int64)
+    person = (
+        person_of[rid.indices.to_numpy(zero_copy_only=False)] if len(rid_names) else empty["person"]
     )
-    points = points.filter(keep)
-    if not points.num_rows:
-        return columns
-    rid_list = points["researcher_id"].to_pylist()
-    person = np.array([order[r] for r in rid_list], dtype=np.int64)
+    x = points["umap_x"].to_numpy(zero_copy_only=False).astype(np.float64)
+    keep = (person >= 0) & ~np.isnan(x)
     start = points["bin_start"].to_numpy(zero_copy_only=False).astype(np.int64)
     end = points["bin_end"].to_numpy(zero_copy_only=False).astype(np.int64)
-    # Each window's largest top-level node: the level-1 rows sorted by window, then share.
-    top: list[str | None] = [None] * len(rid_list)
+    # Each window's largest top-level node: the level-1 rows, by person code and window
+    # code, the largest share first.
+    top = np.full(len(person), -1, dtype=np.int64)
+    tops: list[str] = []
     themes = layout.stage("map.trajectories") / "trajectory_themes.parquet"
-    if themes.is_file():
-        rows = pq.read_table(
-            themes,
-            columns=["researcher_id", "window", "node", "share"],
-            filters=[("level", "=", 1)],
-        )
-        if rows.num_rows:
-            keys = pc.binary_join_element_wise(
-                rows["researcher_id"].cast(pa.string()), rows["window"].cast(pa.string()), "\x00"
+    if themes.is_file() and len(person):
+        # The points' windows, named as the rows name them ("start_end"), and their keys.
+        spans, w_point = np.unique(np.stack([start, end], axis=1), axis=0, return_inverse=True)
+        w_names = pa.array([f"{a}_{b}" for a, b in spans.tolist()], pa.string())
+        p_key = rid.indices.to_numpy(zero_copy_only=False).astype(np.int64) * len(spans)
+        p_key += w_point.reshape(-1)
+        # The level-1 rows read in batches (tens of millions at national scale): of each
+        # batch, its best row per window; of those, the best.
+        nodes: dict[str, int] = {}
+        found: list[tuple[Any, Any, Any]] = []
+        parquet = pq.ParquetFile(themes)
+        for batch in parquet.iter_batches(
+            batch_size=THEME_BATCH, columns=["researcher_id", "window", "level", "node", "share"]
+        ):
+            batch = batch.filter(pc.equal(batch["level"], 1))
+            if not batch.num_rows:
+                continue
+            r = pc.index_in(batch["researcher_id"].cast(pa.string()), value_set=rid.dictionary)
+            w = pc.index_in(batch["window"].cast(pa.string()), value_set=w_names)
+            r = r.fill_null(-1).to_numpy(zero_copy_only=False).astype(np.int64)
+            w = w.fill_null(-1).to_numpy(zero_copy_only=False).astype(np.int64)
+            node = pc.dictionary_encode(batch["node"].cast(pa.string()))
+            codes = [nodes.setdefault(str(v), len(nodes)) for v in node.dictionary.to_pylist()]
+            n = np.asarray(codes, dtype=np.int64)[node.indices.to_numpy(zero_copy_only=False)]
+            share = batch["share"].to_numpy(zero_copy_only=False).astype(np.float64)
+            ok = (r >= 0) & (w >= 0)
+            found.append(_best_per_key(r[ok] * len(spans) + w[ok], share[ok], n[ok]))
+        if found:
+            key, _share, best = _best_per_key(
+                *(np.concatenate(c) for c in zip(*found, strict=True))
             )
-            ranked = pa.table({"key": keys, "share": rows["share"], "node": rows["node"]})
-            ranked = ranked.sort_by([("key", "ascending"), ("share", "descending")])
-            first = np.ones(ranked.num_rows, dtype=bool)
-            k = ranked["key"].to_numpy(zero_copy_only=False)
-            first[1:] = k[1:] != k[:-1]
-            best = dict(
-                zip(
-                    k[first].tolist(),
-                    ranked["node"].to_numpy(zero_copy_only=False)[first].tolist(),
-                    strict=True,
-                )
-            )
-            for i, (rid, s0, e0) in enumerate(
-                zip(rid_list, start.tolist(), end.tolist(), strict=True)
-            ):
-                node = best.get(f"{rid}\x00{s0}_{e0}")
-                top[i] = str(node) if node is not None else None
-    order_rows = np.lexsort((start, person))
-    x = np.round(points["umap_x"].to_numpy(zero_copy_only=False).astype(np.float64), XY_DIGITS)
-    y = np.round(points["umap_y"].to_numpy(zero_copy_only=False).astype(np.float64), XY_DIGITS)
-    texts = points["n_docs"].to_numpy(zero_copy_only=False).astype(np.int64)
+            tops = list(nodes)
+            if len(key):
+                at = np.minimum(np.searchsorted(key, p_key), len(key) - 1)
+                hit = key[at] == p_key
+                top[hit] = best[at[hit]]
+    sort = np.lexsort((start[keep], person[keep]))
+    picked = np.flatnonzero(keep)[sort]
     return {
-        "person": person[order_rows].tolist(),
-        "start": start[order_rows].tolist(),
-        "end": end[order_rows].tolist(),
-        "texts": texts[order_rows].tolist(),
-        "x": x[order_rows].tolist(),
-        "y": y[order_rows].tolist(),
-        "top": [top[i] for i in order_rows.tolist()],
+        "person": person[picked],
+        "start": start[picked],
+        "end": end[picked],
+        "texts": points["n_docs"].to_numpy(zero_copy_only=False).astype(np.int64)[picked],
+        "x": np.round(x[picked], XY_DIGITS),
+        "y": np.round(
+            points["umap_y"].to_numpy(zero_copy_only=False).astype(np.float64)[picked], XY_DIGITS
+        ),
+        "top": top[picked],
+        "tops": tops,
     }
+
+
+def _best_per_key(key: Any, share: Any, node: Any) -> tuple[Any, Any, Any]:
+    """Of the rows of each key, the one of the largest share (the first of equal ones), by
+    key."""
+    import numpy as np
+
+    ranked = np.lexsort((-share, key))
+    key, share, node = key[ranked], share[ranked], node[ranked]
+    first = np.ones(len(key), dtype=bool)
+    first[1:] = key[1:] != key[:-1]
+    return key[first], share[first], node[first]
+
+
+def _windows_json(windows: dict[str, Any], rows: Any = None) -> dict[str, list[Any]]:
+    """The windows (those at *rows*, every one by default) as the reply's columns."""
+    tops = windows["tops"]
+    pick = (lambda a: a) if rows is None else (lambda a: a[rows])
+    out = {k: pick(windows[k]).tolist() for k in ("person", "start", "end", "texts", "x", "y")}
+    out["top"] = [tops[t] if t >= 0 else None for t in pick(windows["top"]).tolist()]
+    return out
 
 
 def _etag(runs: dict[str, str | None], more: list[str | None] | None = None) -> str:
@@ -526,20 +562,30 @@ def atlas_windows(
     etag = _etag(runs, ["windows", person, _base_fp(ctx, base)])
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag})
-    windows = (
-        {k: [] for k in ("person", "start", "end", "texts", "x", "y", "top")}
-        if base
-        else runtime.atlas_cache.get(
+    if base:
+        body: Any = {k: [] for k in _WINDOW_COLUMNS}
+    else:
+        windows = runtime.atlas_cache.get(
             ("atlas-windows", ctx.id, tuple(sorted(runs.items()))), lambda: build_windows(ctx)
         )
-    )
-    if person is not None:
+        if person is None:
+            # Every window: the reply made once and kept (megabytes, not lists of objects).
+            reply = runtime.atlas_cache.get(
+                ("atlas-windows-reply", ctx.id, tuple(sorted(runs.items()))),
+                lambda: json.dumps(
+                    {"format": WINDOWS_FORMAT, "available": True, **_windows_json(windows)},
+                    separators=(",", ":"),
+                ).encode(),
+            )
+            return Response(reply, media_type="application/json", headers={"ETag": etag})
         bundle = _bundle(runtime, ctx, runs)
         at = next((i for i, p in enumerate(bundle["people"]) if p["person_id"] == person), None)
-        rows = [i for i, p in enumerate(windows["person"]) if p == at] if at is not None else []
-        windows = {k: [v[i] for i in rows] for k, v in windows.items()}
+        import numpy as np
+
+        rows = np.flatnonzero(windows["person"] == at) if at is not None else np.zeros(0, int)
+        body = _windows_json(windows, rows)
     return JSONResponse(
-        {"format": WINDOWS_FORMAT, "available": True, **windows}, headers={"ETag": etag}
+        {"format": WINDOWS_FORMAT, "available": True, **body}, headers={"ETag": etag}
     )
 
 
