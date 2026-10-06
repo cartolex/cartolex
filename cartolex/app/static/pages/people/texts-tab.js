@@ -8,7 +8,9 @@
  */
 import { html, useEffect, useState } from '../../core/preact.js';
 import { formatNumber, has, t } from '../../core/i18n.js';
-import { Drawer, EmptyState, ErrorCard, Input, Select, Table } from '../../components/index.js';
+import {
+  Button, Drawer, EmptyState, ErrorCard, Input, Select, Table,
+} from '../../components/index.js';
 import { usePaged } from './common.js';
 import { TunePanel } from '../tune/panel.js';
 
@@ -32,7 +34,7 @@ function Content({ value }) {
     ${t(`corpus.content.${value}`)}</span>`;
 }
 
-function TextDrawer({ ctx, textId, onClose, openSheet, onOpen }) {
+function TextDrawer({ ctx, textId, onClose, openSheet, onOpen, showOnMap }) {
   const [text, setText] = useState(null);
   const [error, setError] = useState(null);
   useEffect(() => {
@@ -49,6 +51,8 @@ function TextDrawer({ ctx, textId, onClose, openSheet, onOpen }) {
     description=${text ? [text.year, text.doc_type, text.doi].filter(Boolean).join(' · ') : null}>
     ${error ? html`<${ErrorCard} error=${error} compact />` : null}
     ${text ? html`<div class="cx-corpus-sheet">
+      ${showOnMap ? html`<div class="cx-corpus-actions-row"><${Button} size="s" variant="ghost"
+        onClick=${() => showOnMap('text', textId)}>${t('corpus.show_on_map')}<//></div>` : null}
       <section><h3 class="cx-corpus-h3">${t('corpus.texts.people', { n: text.people.length, all: text.n_authors || text.people.length })}</h3>
         <ul class="cx-corpus-links">${text.people.map((p) => html`<li key=${p.person_id}>
           <button type="button" class="cx-link-button" onClick=${() => openSheet(p.person_id)}>${p.name}</button>
@@ -82,12 +86,12 @@ function TextDrawer({ ctx, textId, onClose, openSheet, onOpen }) {
 }
 
 /** The Texts tab. */
-export function TextsTab({ ctx, version, openSheet }) {
+export function TextsTab({ ctx, version, openSheet, focus, onFocusClosed, showOnMap }) {
   const [content, setContent] = useState('');
   const [provider, setProvider] = useState('');
   const [q, setQ] = useState('');
   const [sort, setSort] = useState({ column: 'year', direction: 'descending' });
-  const [open, setOpen] = useState(null);
+  const [open, setOpen] = useState(focus || null);
   const list = usePaged(ctx, '/api/texts', {
     content: content || undefined, provider: provider || undefined, q: q || undefined,
     sort: `${sort.direction === 'descending' ? '-' : ''}${sort.column}`, $v: version,
@@ -126,7 +130,9 @@ export function TextsTab({ ctx, version, openSheet }) {
       sortMode="server" sort=${sort} onSortChange=${setSort} onRange=${list.onRange}
       onActivate=${(row) => !row.$pending && setOpen(row.text_id)}
       empty=${html`<${EmptyState} icon="file" title=${t('corpus.texts.empty')} />`} />
-    ${open ? html`<${TextDrawer} ctx=${ctx} textId=${open} onClose=${() => setOpen(null)}
-      openSheet=${openSheet} onOpen=${setOpen} />` : null}
+    ${open ? html`<${TextDrawer} ctx=${ctx} textId=${open} onClose=${() => {
+      setOpen(null);
+      if (onFocusClosed) onFocusClosed();
+    }} openSheet=${openSheet} onOpen=${setOpen} showOnMap=${showOnMap} />` : null}
   </div>`;
 }

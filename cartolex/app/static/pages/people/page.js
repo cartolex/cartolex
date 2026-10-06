@@ -6,6 +6,10 @@
  * and collecting open dialogs; collecting always shows what leaves the
  * computer first, then runs as a job followed in the Activity drawer; a
  * person's sheet opens in a drawer from every list.
+ *
+ * Addresses other pages link to: `/people?person=<id>` opens a person's sheet,
+ * `/people?tab=organisations&org=<id>` an organisation, `/people?tab=texts&text=<id>`
+ * a text; `/people?tab=duplicates` the pairs of people who may be one person.
  */
 import { html, useEffect, useState } from '../../core/preact.js';
 import { formatNumber, t } from '../../core/i18n.js';
@@ -19,11 +23,27 @@ import { OrganisationsTab } from './orgs-tab.js';
 import { TextsTab } from './texts-tab.js';
 import { CollaboratorsTab } from './collaborators-tab.js';
 import { CoverageTab } from './coverage-tab.js';
+import { DuplicatesTab } from './duplicates-tab.js';
 import { PersonSheet } from './sheet.js';
 import { ImportDialog } from './import.js';
 import { CollectDialog } from './collect.js';
 
-const TABS = ['people', 'identities', 'organisations', 'texts', 'collaborators', 'coverage'];
+const TABS = ['people', 'identities', 'duplicates', 'organisations', 'texts', 'collaborators',
+  'coverage'];
+
+/** An id named in the address (`person`, `org`, `text`), or null. */
+function linked(query, name) {
+  const value = query && query.get(name);
+  return value && /^[A-Za-z0-9_.:-]{1,64}$/.test(value) ? value : null;
+}
+
+/** The address without *name*, once the drawer it opened is closed. */
+function dropParam(name) {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(name)) return;
+  url.searchParams.delete(name);
+  window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+}
 
 /**
  * Where a new project's starting point lands (`?start=`): the tab to show and the
@@ -68,7 +88,9 @@ export function CorpusScreen() {
   const [tab, setTabState] = useState(() => tabOf(ctx.query));
   const [version, setVersion] = useState(0);
   const [summary, setSummary] = useState(null);
-  const [sheet, setSheet] = useState(null);
+  const [sheet, setSheet] = useState(() => linked(ctx.query, 'person'));
+  const [focus] = useState(() => ({ org: linked(ctx.query, 'org'), text: linked(ctx.query, 'text') }));
+  const [duplicates, setDuplicates] = useState(null);
   const [importing, setImporting] = useState(() => {
     const start = startOf(ctx.query);
     return start && start.importing ? { mode: start.importing, person: null } : null;
@@ -113,6 +135,12 @@ export function CorpusScreen() {
       });
     });
   }, [version, tick]);
+  // How many pairs of people may be one person: the tab's count and the People tab's note.
+  useEffect(() => {
+    ctx.api.get('/api/people/duplicates', { query: { limit: 1 } }).then((r) => {
+      if (r.ok) setDuplicates(r.data.counts || null);
+    });
+  }, [version, tick]);
   const started = (job) => {
     setWatched(job.id);
     app.stores.jobs.refresh();
@@ -123,6 +151,9 @@ export function CorpusScreen() {
   const common = {
     ctx, version, bump, toast, canCollect, refresh,
     openSheet: (id) => setSheet(id),
+    showOnMap: (kind, id) => ctx.navigate(`/map?sel=${encodeURIComponent(`${kind}:${id}`)}`),
+    duplicates,
+    openTab: (id) => setTab(id),
     openCollect: (action, options = {}) => setCollecting({ action, options }),
     openImport: (mode, person = null) => setImporting({ mode, person }),
     showPeople: (filter) => {
@@ -148,7 +179,9 @@ export function CorpusScreen() {
   const tabs = TABS.map((id) => ({
     id,
     label: t(`corpus.tab.${id}`),
-    count: id === 'identities' && counts.pending ? formatNumber(counts.pending) : undefined,
+    count: id === 'identities' && counts.pending ? formatNumber(counts.pending)
+      : id === 'duplicates' && duplicates && duplicates.open ? formatNumber(duplicates.open)
+        : undefined,
   }));
 
   return html`<div class="cx-page cx-corpus">
@@ -173,14 +206,19 @@ export function CorpusScreen() {
       class="cx-corpus__tabs"
       panel=${(id) => {
         if (id === 'identities') return html`<${IdentityQueue} ...${common} />`;
-        if (id === 'organisations') return html`<${OrganisationsTab} ...${common} />`;
-        if (id === 'texts') return html`<${TextsTab} ...${common} />`;
+        if (id === 'duplicates') return html`<${DuplicatesTab} ...${common} />`;
+        if (id === 'organisations') return html`<${OrganisationsTab} ...${common} focus=${focus.org}
+          onFocusClosed=${() => dropParam('org')} />`;
+        if (id === 'texts') return html`<${TextsTab} ...${common} focus=${focus.text}
+          onFocusClosed=${() => dropParam('text')} />`;
         if (id === 'collaborators') return html`<${CollaboratorsTab} ...${common} />`;
         if (id === 'coverage') return html`<${CoverageTab} ...${common} />`;
         return html`<${PeopleTab} ...${common} preset=${peopleFilter} />`;
       }} />
-    ${sheet ? html`<${PersonSheet} ...${common} personId=${sheet} onClose=${() => setSheet(null)} />`
-      : null}
+    ${sheet ? html`<${PersonSheet} ...${common} personId=${sheet} onClose=${() => {
+      setSheet(null);
+      dropParam('person');
+    }} />` : null}
     ${importing ? html`<${ImportDialog} ...${common} mode=${importing.mode}
       person=${importing.person} onStarted=${started}
       onClose=${(changed) => { setImporting(null); if (changed) bump(); }} />` : null}

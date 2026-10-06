@@ -4,11 +4,15 @@
  * blocking cause comes first (a person without a usable profile has a sheet
  * saying why), then the sources used and discarded, each finder's latest
  * attempt, the texts and the affiliations with their years. Actions: retry a
- * failed collection, add documents, exclude, or decide the identity.
+ * failed collection, add documents, exclude, or decide the identity; show the
+ * person on the map. A merged row says whom it is merged into, a person the
+ * rows merged into them; each merge can be undone (« two people » remembers the
+ * pair, « not sure » leaves it to review). An affiliation can be removed, and
+ * one someone added or removed taken back.
  */
 import { html, useEffect, useState } from '../../core/preact.js';
 import { formatNumber, has, t } from '../../core/i18n.js';
-import { Button, Drawer, ErrorCard } from '../../components/index.js';
+import { Button, Drawer, ErrorCard, MenuButton } from '../../components/index.js';
 import {
   CoverageState, Fact, IdentityState, coded, personName, roleLabel,
 } from './common.js';
@@ -24,7 +28,8 @@ function span(a) {
 }
 
 /** The sheet of *personId*. */
-export function PersonSheet({ ctx, personId, onClose, bump, toast, openCollect, openImport, canCollect }) {
+export function PersonSheet({ ctx, personId, onClose, bump, toast, openCollect, openImport, canCollect,
+  openSheet, showOnMap }) {
   const [person, setPerson] = useState(null);
   const [error, setError] = useState(null);
   const load = () => ctx.api.get(`/api/people/${encodeURIComponent(personId)}/sheet`).then((r) => {
@@ -49,6 +54,43 @@ export function PersonSheet({ ctx, personId, onClose, bump, toast, openCollect, 
     load();
   }
 
+  async function unmerge(ids, remember) {
+    setError(null);
+    const people = await ctx.api.get('/api/people', { query: { limit: 1 } });
+    const result = await ctx.api.post('/api/people/unmerge', { person_ids: ids, remember },
+      { ifMatch: people.etag });
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    toast({ kind: 'success', title: t('corpus.sheet.unmerged', { n: result.data.unmerged.length }) });
+    bump();
+    load();
+  }
+
+  async function affiliation(a, action) {
+    setError(null);
+    const current = await ctx.api.get('/api/affiliations/version');
+    if (!current.ok) {
+      setError(current.error);
+      return;
+    }
+    const result = await ctx.api.post('/api/affiliations', { changes: [{ person_id: personId,
+      org_id: a.org_id, start_year: action === 'remove' ? null : a.start_year, action }] },
+    { ifMatch: current.etag });
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    toast({ kind: 'success', title: t(`corpus.sheet.affiliation_${action}`, { name: a.name }) });
+    bump();
+    load();
+  }
+
+  const unmergeItems = [
+    { id: 'distinct', label: t('corpus.sheet.unmerge_distinct') },
+    { id: 'later', label: t('corpus.sheet.unmerge_later') },
+  ];
   const sheet = person && person.sheet;
   const decision = (person && person.decision) || {};
   const actions = (sheet && sheet.actions) || [];
@@ -67,7 +109,22 @@ export function PersonSheet({ ctx, personId, onClose, bump, toast, openCollect, 
             ? t(`corpus.cause.${sheet.cause}`) : sheet.cause}
           ${sheet.failure ? html`<span class="cx-corpus-muted"> ${t('corpus.sheet.failure', {
             finder: finderLabel(sheet.failure.finder), cause: sheet.failure.cause || '' })}</span>` : null}</p>` : null}
-      </section>` : html`<p class="cx-corpus-muted">${t('corpus.sheet.merged', { into: decision.merged_into || '' })}</p>`}
+      </section>` : person.merged_into ? html`<section class="cx-corpus-verdict cx-dup-merged">
+        <p>${t('corpus.sheet.merged_into', { name: person.merged_into.name })}</p>
+        <div class="cx-corpus-actions-row">
+          <${Button} size="s" onClick=${() => openSheet(person.merged_into.person_id)}>
+            ${t('corpus.sheet.open_merged_into')}<//>
+          <${MenuButton} size="s" label=${t('corpus.sheet.unmerge')} items=${unmergeItems}
+            onSelect=${(item) => unmerge([personId], item.id)} />
+        </div></section>`
+        : html`<p class="cx-corpus-muted">${t('corpus.sheet.merged', { into: decision.merged_into || '' })}</p>`}
+      ${person.merged_from && person.merged_from.length ? html`<section>
+        <h3 class="cx-corpus-h3">${t('corpus.sheet.merged_here', { n: person.merged_from.length })}</h3>
+        <ul class="cx-corpus-list">${person.merged_from.map((m) => html`<li key=${m.person_id} class="cx-dup-merged-row">
+          <button type="button" class="cx-link-button" onClick=${() => openSheet(m.person_id)}>${m.name}</button>
+          <${MenuButton} size="s" variant="ghost" label=${t('corpus.sheet.unmerge')} items=${unmergeItems}
+            onSelect=${(item) => unmerge([m.person_id], item.id)} /></li>`)}</ul>
+      </section>` : null}
       <div class="cx-corpus-actions-row">
         ${canCollect && actions.includes('retry') ? html`<${Button} size="s" icon="undo"
           onClick=${() => openCollect('retry', { people: [personId] })}>${t('corpus.sheet.retry')}<//>` : null}
@@ -76,6 +133,8 @@ export function PersonSheet({ ctx, personId, onClose, bump, toast, openCollect, 
           ${t('corpus.sheet.add_documents')}<//>` : null}
         ${actions.includes('exclude') ? html`<${Button} size="s" variant="ghost" onClick=${exclude}>
           ${t('corpus.sheet.exclude')}<//>` : null}
+        ${showOnMap && !person.merged_into ? html`<${Button} size="s" variant="ghost"
+          onClick=${() => showOnMap('person', personId)}>${t('corpus.show_on_map')}<//>` : null}
       </div>
       <dl class="cx-corpus-facts">
         <${Fact} label=${t('corpus.col.role')}>${roleLabel(decision.role || '')}${decision.set ? ` · ${decision.set}` : ''}<//>
@@ -104,10 +163,21 @@ export function PersonSheet({ ctx, personId, onClose, bump, toast, openCollect, 
       <section><h3 class="cx-corpus-h3">${t('corpus.sheet.affiliations', { n: person.affiliations.length })}</h3>
         ${person.affiliations.length ? html`<table class="cx-corpus-simple">
           <thead><tr><th scope="col">${t('corpus.col.name')}</th><th scope="col">${t('corpus.col.level')}</th>
-            <th scope="col">${t('corpus.col.years')}</th><th scope="col">${t('corpus.col.source')}</th></tr></thead>
+            <th scope="col">${t('corpus.col.years')}</th><th scope="col">${t('corpus.col.source')}</th>
+            <th scope="col"><span class="cx-visually-hidden">${t('corpus.sheet.affiliation_actions')}</span></th></tr></thead>
           <tbody>${person.affiliations.map((a, i) => html`<tr key=${`${a.org_id}-${i}`}>
-            <td>${a.name}</td><td>${a.level}</td><td>${span(a)}</td><td>${a.source}</td></tr>`)}</tbody>
+            <td>${a.name}</td><td>${a.level}</td><td>${span(a)}</td><td>${a.source}</td>
+            <td>${a.source === 'decision'
+              ? html`<${Button} size="s" variant="ghost" onClick=${() => affiliation(a, 'forget')}>
+                ${t('corpus.sheet.affiliation_forget')}<//>`
+              : html`<${Button} size="s" variant="ghost" onClick=${() => affiliation(a, 'remove')}>
+                ${t('corpus.sheet.affiliation_remove_button')}<//>`}</td></tr>`)}</tbody>
         </table>` : html`<p class="cx-corpus-muted">${t('corpus.sheet.no_affiliation')}</p>`}
+        ${(person.removed_affiliations || []).length ? html`<ul class="cx-corpus-list cx-corpus-muted">
+          ${person.removed_affiliations.map((a, i) => html`<li key=${`${a.org_id}-${i}`}>
+            ${t('corpus.sheet.affiliation_removed', { name: a.name })}
+            <${Button} size="s" variant="ghost" onClick=${() => affiliation(a, 'forget')}>
+              ${t('corpus.sheet.affiliation_put_back')}<//></li>`)}</ul>` : null}
       </section>
       <section><h3 class="cx-corpus-h3">${t('corpus.sheet.texts', { n: formatNumber(person.texts.length) })}</h3>
         <ul class="cx-corpus-list cx-corpus-texts">${person.texts.slice(0, 100).map((x) => html`<li key=${x.text_id}>

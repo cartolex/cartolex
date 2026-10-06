@@ -10,6 +10,8 @@
  * - `collaborators-tab.js`: collaborators round by round, decisions;
  * - `coverage-tab.js`: the coverage report and its actions;
  * - `sheet.js`: a person's sheet; `import.js`, `collect.js`: the dialogs;
+ * - `duplicates-tab.js`, `duplicates-compare.js`: pairs of people who may be one;
+ * - `org-drawer.js`, `org-review.js`, `institutions.js`: organisations as decided;
  * - `common.js`: state shapes, names, a list paged on the server.
  */
 
@@ -17,4 +19,4 @@ import { html } from '../core/preact.js';
 import { definePage } from '../core/page.js';
 import { CorpusScreen } from './people/page.js';
 
-export const page = definePage(() => html`<${CorpusScreen} />`, { styles: ['/static/css/corpus.css', '/static/css/settings.css', '/static/css/keywords.css', '/static/css/tune.css'] });
+export const page = definePage(() => html`<${CorpusScreen} />`, { styles: ['/static/css/corpus.css', '/static/css/identity.css', '/static/css/settings.css', '/static/css/keywords.css', '/static/css/tune.css'] });

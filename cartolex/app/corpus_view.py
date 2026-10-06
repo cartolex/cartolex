@@ -571,12 +571,22 @@ def person_detail(project: Project, person_id: str, cache: Any = None) -> dict[s
     )
 
     org_rows = org_decisions(project.layout)
+    decided = [r for r in read_affiliation_decisions(project.layout) if r["person_id"] in everyone]
     rows = effective_affiliations(
         _rows(project, "affiliations", None, [("person_id", "in", everyone)]),
-        [r for r in read_affiliation_decisions(project.layout) if r["person_id"] in everyone],
+        decided,
         org_roots(org_rows),
         {m: person_id for m in merged},
     )
+    removed_ids = sorted({r["org_id"] for r in decided if r["action"] == "remove"})
+    removed_names = {
+        o["org_id"]: o["name"]
+        for o in (
+            _rows(project, "organisations", ["org_id", "name"], [("org_id", "in", removed_ids)])
+            if removed_ids
+            else []
+        )
+    }
     org_ids = sorted({a["org_id"] for a in rows})
     orgs = {
         o["org_id"]: o
@@ -624,6 +634,15 @@ def person_detail(project: Project, person_id: str, cache: Any = None) -> dict[s
                 + [names[m] for m in merged if m in names]
             )
         ),
+        "removed_affiliations": [
+            {
+                "org_id": r["org_id"],
+                "name": removed_names.get(r["org_id"], r["org_id"]),
+                "start_year": int(r["start_year"]) if r["start_year"] else None,
+            }
+            for r in decided
+            if r["action"] == "remove"
+        ],
         "merged_from": [{"person_id": m, "name": names.get(m, m)} for m in merged],
         "merged_into": (
             {"person_id": roots[person_id], "name": names.get(roots[person_id], roots[person_id])}

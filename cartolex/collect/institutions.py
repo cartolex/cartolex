@@ -1049,8 +1049,12 @@ def read_proposal(
 ) -> InstitutionProposal:
     """The latest institution proposal (or *run_id*) read again from its raw run: the people
     with ``min_works`` works or more (and the person each already is), the suggested merges,
-    the units and the levels. Raises :class:`FileNotFoundError` when there is none."""
-    slot = _collection_slot(project, slot, "collection")
+    the units and the levels. Raises :class:`FileNotFoundError` when there is none. Reading
+    never changes the project: without a collection slot there is no proposal."""
+    if slot is None:
+        slot = next((s.id for s in project.config.slots if s.kind == "collection"), None)
+        if slot is None:
+            raise FileNotFoundError("no collection slot: no institution proposal")
     run = _latest_proposal(project, slot, run_id)
     units: dict[str, Unit] = {}
     authors = _Authors()
