@@ -97,8 +97,12 @@ def _largest(shares: Mapping[str, float]) -> str | None:
 def neighbours(vectors: dict[str, list[float]], k: int = NEIGHBOURS) -> dict[str, list[list[Any]]]:
     """Each id's *k* nearest ids by cosine similarity of *vectors*: ``{id: [[id, sim], …]}``.
 
-    Computed by blocks of rows, so ten thousand people never make a dense square matrix.
+    Computed by blocks of rows, a few at a time in threads (the array work lets them run
+    together), so a hundred thousand people never make a dense square matrix.
     """
+    import os
+    from concurrent.futures import ThreadPoolExecutor
+
     import numpy as np
 
     ids = list(vectors)
@@ -108,16 +112,33 @@ def neighbours(vectors: dict[str, list[float]], k: int = NEIGHBOURS) -> dict[str
     norms = np.linalg.norm(z, axis=1, keepdims=True)
     z = z / np.where(norms > 0, norms, 1.0)
     k = min(k, len(ids) - 1)
+
+    def block(start: int) -> tuple[np.ndarray, np.ndarray]:
+        sim = z[start : start + _ROWS] @ z.T
+        rows = np.arange(sim.shape[0])
+        sim[rows, start + rows] = -np.inf
+        np.negative(sim, out=sim)  # the nearest first, without a second copy of the block
+        best = np.argpartition(sim, k, axis=1)[:, :k]
+        near = -np.take_along_axis(sim, best, axis=1)
+        order = np.argsort(-near, axis=1, kind="stable")
+        return np.take_along_axis(best, order, axis=1), np.take_along_axis(near, order, axis=1)
+
     out: dict[str, list[list[Any]]] = {}
-    for start in range(0, len(ids), 1024):
-        block = z[start : start + 1024] @ z.T
-        for row in range(block.shape[0]):
-            block[row, start + row] = -np.inf
-        best = np.argpartition(-block, k, axis=1)[:, :k]
-        for row in range(block.shape[0]):
-            order = sorted(best[row], key=lambda j, r=row: -block[r, j])
-            out[ids[start + row]] = [[ids[j], round(float(block[row, j]), 3)] for j in order]
+    threads = max(1, min(_THREADS, os.cpu_count() or 1))
+    with ThreadPoolExecutor(threads) as pool:
+        starts = range(0, len(ids), _ROWS)
+        for start, (best, near) in zip(starts, pool.map(block, starts), strict=True):
+            for row in range(best.shape[0]):
+                out[ids[start + row]] = [
+                    [ids[j], round(float(v), 3)]
+                    for j, v in zip(best[row].tolist(), near[row].tolist(), strict=True)
+                ]
     return out
+
+
+#: Rows of the similarity computed at a time, and threads computing them.
+_ROWS = 128
+_THREADS = 4
 
 
 def _vectors(ctx: Any, engine_to_person: dict[str, str]) -> dict[str, list[float]]:
