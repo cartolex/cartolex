@@ -291,7 +291,8 @@ version, so it can be undone too).
 | `PUT /api/themes {tree, action}` | save a new version (`If-Match`); empty nodes are removed and named in the action |
 | `GET /api/themes/versions`, `GET /api/themes/versions/{id}`, `POST /api/themes/versions/{id}/restore` | versions |
 | `POST /api/themes/apply` | a build job of the themes and the map |
-| `GET /api/atlas` | what the map draws at any depth of the theme tree (levels, nodes, people, keywords, units, trajectories, projected people, bounds), `cartolex-atlas/2` (described below, with the theme editor's routes), cached by its lineage (the runs it is made from), with an `ETag` |
+| `GET /api/atlas` | what the map draws at any depth of the theme tree (levels, nodes, people, keywords, units, the number of time windows and their years, projected people, bounds), `cartolex-atlas/3` (described below, with the theme editor's routes), cached by its lineage (the runs it is made from), with an `ETag` |
+| `GET /api/atlas/windows?person=&base=` | the people's time windows as columns, `cartolex-atlas-windows/1`: `person` (an index in the bundle's `people`), `start`, `end`, `texts`, `x`, `y`, `top` (the window's largest top-level node, or `null`); every one, or one `person`'s; none on a `base`'s map; cached by the lineage, with an `ETag` |
 | `GET /api/atlas/texts` | every text placed on the map, columnar (`cartolex-atlas-texts/1`: `id`, `title`, `year`, `x`, `y`, `by`, `terms`, `people`, `unplaced`); `base` places them on a base map |
 | `GET /api/atlas/regions?kind=person\|organisation&ids=a,b` | the keywords a region spans, by id (at most 500 ids): a person's most used keywords (at most 40), or those of an organisation's current members |
 
@@ -590,17 +591,17 @@ the English `message` the same way; an empty result also names its next action.
 
 ## The atlas and the theme editor
 
-### `GET /api/atlas`: `cartolex-atlas/2`
+### `GET /api/atlas`: `cartolex-atlas/3`
 
 The atlas reads only the theme files of any depth (`themes_applied.json`,
 `theme_keywords.csv`, `theme_people.parquet`, `theme_organisations.parquet`,
-`trajectory_themes.parquet`, the `levels` of `positions.json`; see
+the `levels` of `positions.json`; see
 {doc}`../format/derived`), never the two-level files that exist at depth 2
 only, so a project of depth 1, 3 or 4 gets its map like one of depth 2.
 
 ```json
 {
-  "format": "cartolex-atlas/2", "available": true, "lineage": {"map.layout": "…"},
+  "format": "cartolex-atlas/3", "available": true, "lineage": {"map.layout": "…"},
   "map_version": "v1", "depth": 2, "source": "decisions", "weights_basis": "tf",
   "people_counted": 38,
   "levels": [{"level": 1, "names": {"en": "Theme"}}, {"level": 2, "names": {"en": "Topic"}}],
@@ -613,8 +614,7 @@ only, so a project of depth 1, 3 or 4 gets its map like one of depth 2.
                 "counts_to": 2, "weight": 0.07, "share": 0.002}],
   "units": [{"unit": "…", "x": 0, "y": 0, "size": 7, "ellipse": {"sx": 0.5, "sy": 1.0, "rho": -0.1},
              "shares": [{"s1": 0.5}, {"c3": 0.5}]}],
-  "trajectories": [{"person_id": "p0001", "start": 2021, "end": 2023, "texts": 2, "x": 0, "y": 0,
-                    "shares": [{"s1": 1.0}, {"c3": 1.0}]}],
+  "windows": 52, "window_years": {"min": 2006, "max": 2026},
   "overlays": [{"set": "applicants", "person_id": "p0041", "x": 0, "y": 0, "shares": [{}, {}]}],
   "bounds": {"xmin": -6, "xmax": 6, "ymin": -5, "ymax": 7}
 }
@@ -623,9 +623,15 @@ only, so a project of depth 1, 3 or 4 gets its map like one of depth 2.
 - `levels` and `nodes` come from `themes_applied.json` of the map (nodes in
   tree order, with their map position, the mean of their people's).
 - `shares` is one `{node id: share}` per level, from the top: the **usage
-  share** of the person (the organisation, the time window, the projected
-  person) that counts toward each node of that level; each level sums to 1
-  where there is usage. A keyword's `node` is `null` when it is set aside.
+  share** of the person (the organisation, the projected person) that counts
+  toward each node of that level; each level sums to 1 where there is usage. A
+  keyword's `node` is `null` when it is set aside.
+- `windows` counts the people's time windows placed on the map, and
+  `window_years` gives their first and last years: a map of a hundred thousand
+  people has millions, so they come apart, as columns, from
+  `GET /api/atlas/windows` (every one when they are shown, the selected
+  person's otherwise), each with its largest top-level node
+  (`trajectory_themes.parquet`).
 - The `ETag` depends on the format and the lineage; `If-None-Match` gives 304.
 
 The atlas page (`/map`) reads, beside the engine's results, what the tables

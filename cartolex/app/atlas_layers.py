@@ -470,7 +470,8 @@ def base_bundle(ctx: Any, bundle: dict[str, Any], base: dict[str, Any]) -> dict[
         "keywords": keywords,
         "people": people,
         "units": [],
-        "trajectories": [],
+        "windows": 0,
+        "window_years": None,
         "overlays": [],
         "nodes": [{**n, "x": None, "y": None} for n in bundle["nodes"]],
         "base": {

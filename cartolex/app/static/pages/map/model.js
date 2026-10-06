@@ -3,7 +3,8 @@
  * The atlas bundle (`GET /api/atlas`), indexed for the page: the theme tree
  * (children, top-level ancestors, hue families), people with their largest
  * share and their filters, organisations with their current members and the
- * mean of their members' shares, time windows per person, and names.
+ * mean of their members' shares, names; and the time windows per person, which
+ * come apart (`indexWindows`).
  */
 import { lang2, nodeName } from '../themes/model.js';
 import { filterGroups } from './state.js';
@@ -101,21 +102,15 @@ export function indexAtlas(atlas) {
   }
   const orgTop = orgs.map((o) => largest(orgShares.get(o.id))[0]);
 
+  // The time windows come apart (`GET /api/atlas/windows`, see `indexWindows`): the
+  // bundle counts them and gives their years.
   const windows = new Map();
-  for (const w of atlas.trajectories || []) {
-    if (!w.person_id || w.x === null) continue;
-    if (!windows.has(w.person_id)) windows.set(w.person_id, []);
-    windows.get(w.person_id).push(w);
-  }
-  for (const list of windows.values()) list.sort((a, b) => a.start - b.start);
-
   const years = atlas.years || {};
+  const spans = atlas.window_years || {};
   let first = years.min;
   let last = years.max;
-  for (const w of atlas.trajectories || []) {
-    if (first === null || first === undefined || w.start < first) first = w.start;
-    if (last === null || last === undefined || w.end > last) last = w.end;
-  }
+  if (spans.min !== undefined && (first === null || first === undefined || spans.min < first)) first = spans.min;
+  if (spans.max !== undefined && (last === null || last === undefined || spans.max > last)) last = spans.max;
   return {
     atlas, nodes, children, tops, topOf, hue, colourOf,
     people, extra, byPerson, personTop,
@@ -127,6 +122,22 @@ export function indexAtlas(atlas) {
     columns: atlas.columns || [],
     years: { min: first === undefined ? null : first, max: last === undefined ? null : last },
   };
+}
+
+/** The time windows of `GET /api/atlas/windows` (columns), by person id, each list in
+ * time order: `{person_id, start, end, texts, x, y, top}`. */
+export function indexWindows(index, data, into = new Map()) {
+  const fresh = new Map();
+  const n = data && data.person ? data.person.length : 0;
+  for (let k = 0; k < n; k += 1) {
+    const p = index.people[data.person[k]];
+    if (!p || !p.person_id || data.x[k] === null) continue;
+    if (!fresh.has(p.person_id)) fresh.set(p.person_id, []);
+    fresh.get(p.person_id).push({ person_id: p.person_id, start: data.start[k], end: data.end[k],
+      texts: data.texts[k], x: data.x[k], y: data.y[k], top: data.top[k] });
+  }
+  for (const list of fresh.values()) list.sort((a, b) => a.start - b.start);
+  return new Map([...into, ...fresh]);
 }
 
 /** Whether person *i* matches the filters (one value of each filtered column). */

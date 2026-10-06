@@ -29,7 +29,7 @@ export function available(index, texts) {
     organisations: index.orgs.some((o) => o.x !== null),
     texts: texts === null || texts.id.length > 0,
     projected: index.projected.length > 0,
-    windows: index.windows.size > 0,
+    windows: (index.atlas.windows || 0) > 0,
   };
 }
 

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 """The theme editor's API on the S demo world, at depths 1, 2 and 3.
 
-- ``GET /api/atlas`` (``cartolex-atlas/2``) reads only the theme files of any
+- ``GET /api/atlas`` (``cartolex-atlas/3``) reads only the theme files of any
   depth: the levels, every node, and usage shares per level for people,
   organisations, time windows and projected people;
 - ``GET /api/themes`` gives the grouping's proposal (``themes_draft.json``)
@@ -105,7 +105,7 @@ def test_the_atlas_reads_the_theme_files_of_any_depth(depths, client_for, depth)
     atlas = client.get("/api/atlas")
     bundle = atlas.json()
     assert atlas.status_code == 200 and bundle["available"]
-    assert bundle["format"] == "cartolex-atlas/2" and bundle["depth"] == depth
+    assert bundle["format"] == "cartolex-atlas/3" and bundle["depth"] == depth
     assert [lv["level"] for lv in bundle["levels"]] == list(range(1, depth + 1))
     applied = _json(root / "derived" / "map.layout" / "themes_applied.json")
     assert [n["id"] for n in bundle["nodes"]] == [n["id"] for n in applied["nodes"]]
@@ -130,9 +130,17 @@ def test_the_atlas_reads_the_theme_files_of_any_depth(depths, client_for, depth)
     assert all(ids[k["node"]]["level"] == k["level"] for k in placed)
     assert bundle["units"] and all(len(u["shares"]) == depth for u in bundle["units"])
     assert any(u["shares"][depth - 1] for u in bundle["units"])
-    windows = bundle["trajectories"]
-    assert windows and all(len(w["shares"]) == depth for w in windows)
-    assert sum(1 for w in windows if w["shares"][0]) > len(windows) // 2
+    # the time windows come apart, as columns: every one, or one person's
+    windows = client.get("/api/atlas/windows").json()
+    n = len(windows["person"])
+    assert n and n == bundle["windows"] and all(len(windows[k]) == n for k in windows if k in (
+        "start", "end", "texts", "x", "y", "top"))  # fmt: skip
+    assert windows["start"][0] >= bundle["window_years"]["min"]
+    assert sum(1 for top in windows["top"] if top) > n // 2
+    assert all(ids[top]["level"] == 1 for top in windows["top"] if top)
+    first = bundle["people"][windows["person"][0]]["person_id"]
+    mine = client.get("/api/atlas/windows", params={"person": first}).json()
+    assert mine["person"] and set(mine["person"]) == {windows["person"][0]}
     assert bundle["overlays"] and all(len(o["shares"]) == depth for o in bundle["overlays"])
     assert all(o["shares"][0] for o in bundle["overlays"])
     assert client.get("/api/atlas", headers={"If-None-Match": etag(atlas)}).status_code == 304
@@ -452,7 +460,8 @@ def test_the_atlas_page_reads_organisations_texts_regions_and_bases(built, clien
     assert (tmp_path / "copy" / "sources" / "bases" / base_id / "base_map.json").is_file()
     on_base = client.get("/api/atlas", params={"base": base_id}).json()
     assert on_base["base"]["shared_keywords"] == sum(1 for k in kws if k["x"] is not None)
-    assert on_base["base"]["people"] and not on_base["trajectories"]
+    assert on_base["base"]["people"] and not on_base["windows"]
+    assert not client.get("/api/atlas/windows", params={"base": base_id}).json()["person"]
     assert sum(1 for p in on_base["people"] if p["x"] is not None) >= 30
     refused = client.post(
         "/api/map/bases", json={"folder": str(tmp_path / "copy")}, headers={"If-Match": etag(added)}

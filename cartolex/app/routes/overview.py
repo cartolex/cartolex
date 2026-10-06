@@ -209,12 +209,12 @@ def next_step(
 
 def preview(runtime: Any, ctx: Any) -> dict[str, Any] | None:
     """An even sample of the map's people, each with the index of its top-level theme."""
-    from .atlas import build_bundle, lineage
+    from .atlas import FORMAT, build_bundle, lineage
 
     runs = lineage(ctx)
     if runs.get("map.layout") is None:
         return None
-    key = ("atlas", "cartolex-atlas/2", ctx.id, tuple(sorted(runs.items())))
+    key = ("atlas", FORMAT, ctx.id, tuple(sorted(runs.items())))
     bundle = runtime.atlas_cache.get(key, lambda: build_bundle(ctx, runs))
     tops = sorted(
         (n for n in bundle["nodes"] if n["level"] == 1), key=lambda n: (n["order"], n["id"])

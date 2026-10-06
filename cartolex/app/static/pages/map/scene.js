@@ -162,7 +162,7 @@ export function mapScene(index, state, { texts = null, sets = new Map(), locale 
     L.items = all.map(([w]) => w);
     L.shown = all.length;
     layers.push(L);
-    counts.windows = { shown: all.length, total: (index.atlas.trajectories || []).length };
+    counts.windows = { shown: all.length, total: index.atlas.windows || 0 };
     if (lit.path) {
       const path = all.filter(([, pid]) => pid === lit.path).map(([w]) => w);
       if (path.length > 1) {

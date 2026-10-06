@@ -1,13 +1,17 @@
 # SPDX-License-Identifier: MIT
 """The atlas bundle: what the map needs, cached by lineage (the runs it is made from).
 
-The bundle (``cartolex-atlas/2``) reads only the theme files of any depth
+The bundle (``cartolex-atlas/3``) reads only the theme files of any depth
 (``themes_applied.json``, ``theme_keywords.csv``, ``theme_people.parquet``,
-``theme_organisations.parquet``, ``trajectory_themes.parquet``, the ``levels``
-of ``positions.json``), never the two-level files that exist at depth 2 only.
-Every weight it gives on the theme tree is a **usage share**: for each level,
-the share of a person's (an organisation's, a time window's) usage that counts
-toward each node of that level, as ``{node id: share}``.
+``theme_organisations.parquet``, the ``levels`` of ``positions.json``), never the
+two-level files that exist at depth 2 only. Every weight it gives on the theme tree
+is a **usage share**: for each level, the share of a person's (an organisation's)
+usage that counts toward each node of that level, as ``{node id: share}``.
+
+The people's time windows are not in the bundle, which only counts them: a map of a
+hundred thousand people has millions. ``GET /api/atlas/windows`` gives them as columns
+(``cartolex-atlas-windows/1``), every one or one person's, each with its texts, its
+place and its largest top-level node (``trajectory_themes.parquet``).
 """
 
 from __future__ import annotations
@@ -31,8 +35,9 @@ routes = Routes(tags=["atlas"])
 
 #: The stages whose results the bundle reads; their run ids are its lineage.
 LINEAGE = ("corpus.assemble", "themes.apply", "map.layout", "map.trajectories", "overlays.position")
-FORMAT = "cartolex-atlas/2"
+FORMAT = "cartolex-atlas/3"
 TEXTS_FORMAT = "cartolex-atlas-texts/1"
+WINDOWS_FORMAT = "cartolex-atlas-windows/1"
 #: The most regions one request asks for.
 MAX_REGIONS = 500
 #: The top keywords each node lists.
@@ -143,11 +148,7 @@ def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
     nodes = [_node(n) for n in applied.get("nodes") or []]
 
     # People: the map's positions, their project ids, their usage shares per level.
-    corpus = layout.stage("corpus.assemble")
-    identity: dict[tuple[str, str, str], str] = {}
-    for slot in config.slots:
-        for r in _rows(corpus / slot.id / "people.csv"):
-            identity[(r["last_name"], r["first_name"], r["unit"])] = r["person_id"]
+    identity = _identities(ctx)
     people_rows = _parquet(
         applyf / "theme_people.parquet", ["researcher_id", "level", "node", "share"]
     )
@@ -209,26 +210,10 @@ def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
         for r in _rows(mapf / "umap_labs.csv")
     ]
 
-    # Trajectories: each person's time windows, placed, with their shares per level.
-    trajf = layout.stage("map.trajectories")
-    window_rows = _parquet(
-        trajf / "trajectory_themes.parquet", ["researcher_id", "window", "level", "node", "share"]
+    # Time windows: only counted here (``GET /api/atlas/windows`` gives them).
+    windows, window_years = _windows_count(
+        layout, set(r for r, pid in engine_to_person.items() if pid)
     )
-    by_window = _grouped(window_rows, lambda r: (r[0], r[1]))
-    trajectories = []
-    for r in _rows(trajf / "umap_trajectories.csv"):
-        window = f"{r['bin_start']}_{r['bin_end']}"
-        trajectories.append(
-            {
-                "person_id": engine_to_person.get(r["researcher_id"], ""),
-                "start": int(r["bin_start"]),
-                "end": int(r["bin_end"]),
-                "texts": int(r["n_docs"]),
-                "x": _num(r["umap_x"], XY_DIGITS),
-                "y": _num(r["umap_y"], XY_DIGITS),
-                "shares": _shares(depth, by_window.get((r["researcher_id"], window), [])),
-            }
-        )
 
     # Projected people: their place and their shares per level.
     overlays = []
@@ -271,7 +256,8 @@ def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
         "people": people,
         "keywords": keywords,
         "units": units,
-        "trajectories": trajectories,
+        "windows": windows,
+        "window_years": window_years,
         "overlays": overlays,
         "bounds": {
             "xmin": min(xs, default=None),
@@ -279,6 +265,133 @@ def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
             "ymin": min(ys, default=None),
             "ymax": max(ys, default=None),
         },
+    }
+
+
+def _identities(ctx: Any) -> dict[tuple[str, str, str], str]:
+    """The engine's identity of each person (last name, first name, unit) → their id."""
+    corpus = ctx.layout.stage("corpus.assemble")
+    identity: dict[tuple[str, str, str], str] = {}
+    for slot in ctx.project.config.slots:
+        for r in _rows(corpus / slot.id / "people.csv"):
+            identity[(r["last_name"], r["first_name"], r["unit"])] = r["person_id"]
+    return identity
+
+
+def _trajectory_points(layout: Any) -> Any:
+    """``umap_trajectories.csv`` as an Arrow table (its columns the windows need), or ``None``."""
+    path = layout.stage("map.trajectories") / "umap_trajectories.csv"
+    if not path.is_file():
+        return None
+    import pyarrow as pa
+    import pyarrow.csv as pacsv
+
+    columns = ["researcher_id", "bin_start", "bin_end", "n_docs", "umap_x", "umap_y"]
+    return pacsv.read_csv(
+        path,
+        convert_options=pacsv.ConvertOptions(
+            include_columns=columns,
+            column_types={"researcher_id": pa.string()},
+        ),
+    )
+
+
+def _windows_count(layout: Any, mapped: set[str]) -> tuple[int, dict[str, int] | None]:
+    """How many time windows of mapped people are placed, and their first and last years."""
+    import pyarrow as pa
+    import pyarrow.compute as pc
+
+    points = _trajectory_points(layout)
+    if points is None or not mapped:
+        return 0, None
+    keep = pc.and_(
+        pc.is_in(points["researcher_id"], value_set=pa.array(sorted(mapped), pa.string())),
+        pc.is_valid(points["umap_x"]),
+    )
+    points = points.filter(keep)
+    if not points.num_rows:
+        return 0, None
+    return points.num_rows, {
+        "min": int(pc.min(points["bin_start"]).as_py()),
+        "max": int(pc.max(points["bin_end"]).as_py()),
+    }
+
+
+def build_windows(ctx: Any) -> dict[str, Any]:
+    """Every placed time window of the mapped people, as columns: ``person`` (an index in
+    the bundle's people), ``start``, ``end``, ``texts``, ``x``, ``y`` and ``top`` (the
+    largest top-level node, ``null`` when none)."""
+    import numpy as np
+    import pyarrow as pa
+    import pyarrow.compute as pc
+    import pyarrow.parquet as pq
+
+    layout = ctx.layout
+    columns: dict[str, Any] = {k: [] for k in ("person", "start", "end", "texts", "x", "y", "top")}
+    points = _trajectory_points(layout)
+    if points is None:
+        return columns
+    identity = _identities(ctx)
+    rids: list[str] = []
+    order: dict[str, int] = {}
+    for r in _rows(layout.stage("map.layout") / "umap_individuals.csv"):
+        rid = r.get("id", "")
+        rids.append(rid)
+        if identity.get((r["last_name"], r["first_name"], r["unit"])):
+            order.setdefault(rid, len(rids) - 1)
+    keep = pc.and_(
+        pc.is_in(points["researcher_id"], value_set=pa.array(sorted(order), pa.string())),
+        pc.is_valid(points["umap_x"]),
+    )
+    points = points.filter(keep)
+    if not points.num_rows:
+        return columns
+    rid_list = points["researcher_id"].to_pylist()
+    person = np.array([order[r] for r in rid_list], dtype=np.int64)
+    start = points["bin_start"].to_numpy(zero_copy_only=False).astype(np.int64)
+    end = points["bin_end"].to_numpy(zero_copy_only=False).astype(np.int64)
+    # Each window's largest top-level node: the level-1 rows sorted by window, then share.
+    top: list[str | None] = [None] * len(rid_list)
+    themes = layout.stage("map.trajectories") / "trajectory_themes.parquet"
+    if themes.is_file():
+        rows = pq.read_table(
+            themes,
+            columns=["researcher_id", "window", "node", "share"],
+            filters=[("level", "=", 1)],
+        )
+        if rows.num_rows:
+            keys = pc.binary_join_element_wise(
+                rows["researcher_id"].cast(pa.string()), rows["window"].cast(pa.string()), "\x00"
+            )
+            ranked = pa.table({"key": keys, "share": rows["share"], "node": rows["node"]})
+            ranked = ranked.sort_by([("key", "ascending"), ("share", "descending")])
+            first = np.ones(ranked.num_rows, dtype=bool)
+            k = ranked["key"].to_numpy(zero_copy_only=False)
+            first[1:] = k[1:] != k[:-1]
+            best = dict(
+                zip(
+                    k[first].tolist(),
+                    ranked["node"].to_numpy(zero_copy_only=False)[first].tolist(),
+                    strict=True,
+                )
+            )
+            for i, (rid, s0, e0) in enumerate(
+                zip(rid_list, start.tolist(), end.tolist(), strict=True)
+            ):
+                node = best.get(f"{rid}\x00{s0}_{e0}")
+                top[i] = str(node) if node is not None else None
+    order_rows = np.lexsort((start, person))
+    x = np.round(points["umap_x"].to_numpy(zero_copy_only=False).astype(np.float64), XY_DIGITS)
+    y = np.round(points["umap_y"].to_numpy(zero_copy_only=False).astype(np.float64), XY_DIGITS)
+    texts = points["n_docs"].to_numpy(zero_copy_only=False).astype(np.int64)
+    return {
+        "person": person[order_rows].tolist(),
+        "start": start[order_rows].tolist(),
+        "end": end[order_rows].tolist(),
+        "texts": texts[order_rows].tolist(),
+        "x": x[order_rows].tolist(),
+        "y": y[order_rows].tolist(),
+        "top": [top[i] for i in order_rows.tolist()],
     }
 
 
@@ -392,6 +505,41 @@ def atlas_texts(
     )
     return JSONResponse(
         {"format": TEXTS_FORMAT, "available": True, **texts}, headers={"ETag": etag}
+    )
+
+
+@routes.get("/api/atlas/windows", action="atlas.read")
+def atlas_windows(
+    request: Request,
+    ctx: ProjectDep,
+    person: Annotated[str | None, Query(max_length=64)] = None,
+    base: Annotated[str | None, Query(max_length=64)] = None,
+) -> Response:
+    """The people's time windows, as columns (``person``: an index in the bundle's people,
+    ``start``, ``end``, ``texts``, ``x``, ``y``, ``top``): every one, or one ``person``'s;
+    none on a base's map (they are not placed there)."""
+    runtime = runtime_of(request)
+    runs = lineage(ctx)
+    if runs["map.layout"] is None:
+        return JSONResponse({"format": WINDOWS_FORMAT, "available": False,
+                             "empty": empty("empty_no_map")})  # fmt: skip
+    etag = _etag(runs, ["windows", person, _base_fp(ctx, base)])
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers={"ETag": etag})
+    windows = (
+        {k: [] for k in ("person", "start", "end", "texts", "x", "y", "top")}
+        if base
+        else runtime.atlas_cache.get(
+            ("atlas-windows", ctx.id, tuple(sorted(runs.items()))), lambda: build_windows(ctx)
+        )
+    )
+    if person is not None:
+        bundle = _bundle(runtime, ctx, runs)
+        at = next((i for i, p in enumerate(bundle["people"]) if p["person_id"] == person), None)
+        rows = [i for i, p in enumerate(windows["person"]) if p == at] if at is not None else []
+        windows = {k: [v[i] for i in rows] for k, v in windows.items()}
+    return JSONResponse(
+        {"format": WINDOWS_FORMAT, "available": True, **windows}, headers={"ETag": etag}
     )
 
 

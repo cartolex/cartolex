@@ -9,7 +9,7 @@
 import { html } from '../../core/preact.js';
 import { formatNumber, formatPercent, locale, t } from '../../core/i18n.js';
 import { Button, MapSymbol } from '../../components/index.js';
-import { largest, levelLabel, orgName, periodOf, themeName } from './model.js';
+import { levelLabel, orgName, periodOf, themeName } from './model.js';
 import { SHAPE_OF } from './state.js';
 
 function Shares({ index, shares, level = 1, limit = 6 }) {
@@ -80,7 +80,7 @@ function Person({ index, state, id, sets, texts, onSelect }) {
       <ol class="cx-atlas-windows">
         ${windows.map((w) => {
           const inside = !period || (w.end >= period[0] && w.start <= period[1]);
-          const [top] = largest(w.shares && w.shares[0]);
+          const top = w.top;
           return html`<li key=${w.start} class=${inside ? '' : 'is-outside'}>
             <span class="cx-atlas-windows__years">${t('map.period.value', { from: String(w.start), to: String(w.end) })}</span>
             <span>${top ? themeName(index, top, locale.value) : ''}</span>

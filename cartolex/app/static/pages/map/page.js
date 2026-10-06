@@ -7,7 +7,8 @@
  * the people's filters and the period hide what they leave out; the world
  * view places organisations at their address. Everything the page shows is in
  * the address (see `state.js`). Reads `GET /api/atlas` when it opens; the
- * texts, and the keywords of people and organisations, when they are shown.
+ * texts, the time windows (every person's, or the selected person's), and the
+ * keywords of people and organisations, when they are shown.
  * The map's « Tune » panel (`pages/tune/`) reads nothing until it opens; a change of the
  * layout there is previewed on this map (`preview.js`), kept as the pinned version or discarded.
  */
@@ -19,7 +20,7 @@ import {
   Button, EmptyState, ErrorCard, IconButton, MapFrame, MapSymbol,
 } from '../../components/index.js';
 import { useJobEnd } from '../people/common.js';
-import { CATEGORY_HUE, indexAtlas, matching, themeName } from './model.js';
+import { CATEGORY_HUE, indexAtlas, indexWindows, matching, themeName } from './model.js';
 import { MAX_REGIONS, mapScene, worldScene } from './scene.js';
 import { SHAPE_OF, readState, writeState } from './state.js';
 import { Controls, Segmented } from './controls.js';
@@ -146,7 +147,35 @@ export function AtlasScreen() {
     setTexts(null);
   }, [state.base, tick]);
 
-  const index = useMemo(() => (atlas && atlas.available ? indexAtlas(atlas) : null), [atlas]);
+  const bare = useMemo(() => (atlas && atlas.available ? indexAtlas(atlas) : null), [atlas]);
+  // The time windows: every person's when they are shown, else the selected person's.
+  const [windows, setWindows] = useState(() => new Map());
+  const windowsAsked = useRef({ of: null, all: false, people: new Set() });
+  const index = useMemo(() => (bare ? { ...bare, windows } : null), [bare, windows]);
+  const wantAllWindows = state.show.includes('windows');
+  const windowsOf = state.sel && state.sel.kind === 'person' ? state.sel.id : null;
+  useEffect(() => {
+    if (!bare || !(atlas.windows > 0)) return;
+    const asked = windowsAsked.current;
+    if (asked.of !== bare) {
+      asked.of = bare;
+      asked.all = false;
+      asked.people = new Set();
+      setWindows(new Map());
+    }
+    if (asked.all || (!wantAllWindows && (!windowsOf || asked.people.has(windowsOf)))) return;
+    const query = { ...(state.base ? { base: state.base } : {}), ...(wantAllWindows ? {} : { person: windowsOf }) };
+    if (wantAllWindows) asked.all = true;
+    else asked.people.add(windowsOf);
+    ctx.api.get('/api/atlas/windows', { query }).then((r) => {
+      if (windowsAsked.current.of !== bare) return;
+      if (!r.ok || !r.data.available) {
+        if (wantAllWindows) windowsAsked.current.all = false;
+        return;
+      }
+      setWindows((old) => indexWindows(bare, r.data, wantAllWindows ? new Map() : old));
+    });
+  }, [bare, wantAllWindows, windowsOf]);
   const wantTexts = state.show.includes('texts') || (state.sel && state.sel.kind === 'text');
   useEffect(() => {
     if (!index || !wantTexts || texts) return;

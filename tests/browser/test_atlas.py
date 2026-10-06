@@ -66,6 +66,22 @@ def test_the_main_flow_of_the_atlas(demo_s, app_for, open_app, axe_source):
     bounds = box.bounding_box()
     page.mouse.move(bounds["x"] + bounds["width"] / 2, bounds["y"] + bounds["height"] / 2)
     page.locator(".cx-map-frame__card", has_text=person["name"]).wait_for()
+    # their time windows, read for them alone; every person's when the windows are shown
+    windows = page.evaluate(
+        "(id) => fetch(`/api/atlas/windows?person=${id}`).then((r) => r.json())",
+        person["person_id"],
+    )
+    if windows["person"]:
+        panel.get_by_role("heading", name="Time windows").wait_for()
+        assert panel.locator(".cx-atlas-windows li").count() == len(windows["person"])
+    assert any("/api/atlas/windows?person=" in u for u in api_calls(ui, before))
+    assert atlas["windows"] > 0 and "trajectories" not in atlas
+    page.get_by_role("checkbox", name="Time windows").check()
+    page.wait_for_function(
+        "(n) => document.querySelector('.cx-atlas-kinds').textContent.includes(n)",
+        arg=str(atlas["windows"]),
+    )
+    page.get_by_role("checkbox", name="Time windows").uncheck()
 
     # organisations and texts on the map, each kind with its symbol and count
     page.get_by_role("checkbox", name="Organisations").check()

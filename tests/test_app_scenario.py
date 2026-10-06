@@ -196,7 +196,7 @@ def _scenario(client: Client, tmp_path, world) -> None:
     assert "themes.apply" in applied["result"]["ran"] and "map.layout" in applied["result"]["ran"]
     atlas = client.get("/api/atlas")
     bundle = atlas.json()
-    assert bundle["available"] and bundle["format"] == "cartolex-atlas/2"
+    assert bundle["available"] and bundle["format"] == "cartolex-atlas/3"
     assert "Renamed theme" in [n["names"].get("en") for n in bundle["nodes"]]
     assert len(bundle["people"]) >= len(cohort) - 2 and all(
         p["person_id"] for p in bundle["people"]
