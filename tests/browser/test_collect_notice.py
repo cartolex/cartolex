@@ -46,7 +46,7 @@ def test_the_notice_brief_once_acknowledged_and_none_for_a_search(corpus_app, op
 
     # ── an institution searched by its name: no dialog, the job starts, a toast says so ──
     page.get_by_role("tab", name="Organisations").click()
-    page.get_by_placeholder("Name of an institution").fill("Marine")
+    page.get_by_label("Name of an institution").fill("Marine")
     page.get_by_role("button", name="Find", exact=True).click()
     page.locator(".cx-toast", has_text="Nothing personal leaves the computer").wait_for()
     assert page.locator("dialog[open]").count() == 0
