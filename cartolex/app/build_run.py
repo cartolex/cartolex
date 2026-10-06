@@ -28,7 +28,14 @@ from typing import Any
 
 from .messages import attempt_message
 
-__all__ = ["FAILED_NEXT", "build_outcome", "child_recipe", "progress_json", "run_build"]
+__all__ = [
+    "FAILED_NEXT",
+    "BuildChildFailed",
+    "build_outcome",
+    "child_recipe",
+    "progress_json",
+    "run_build",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +47,14 @@ FAILED_NEXT = {
 }
 #: Seconds between two looks at the child (progress, cancel, its end).
 POLL_S = 0.25
+
+
+class BuildChildFailed(RuntimeError):
+    """The build's process failed outside a stage; ``child_traceback`` is its traceback."""
+
+    def __init__(self, text: str, child_traceback: str = "") -> None:
+        super().__init__(text)
+        self.child_traceback = child_traceback
 
 
 def progress_json(event: Any) -> dict[str, Any]:
@@ -109,6 +124,8 @@ def build_outcome(
             "next": {"label": label, "action": action},
         }
         out["error"] = f"{result.failed[0]}: {result.failed[1]}"
+        if result.failed_traceback:
+            out["traceback"] = result.failed_traceback  # the job's error keeps it
     return out
 
 
@@ -251,7 +268,7 @@ def run_build(
                 elif message[0] == "done":
                     return message[1]
                 else:
-                    raise RuntimeError(message[1])
+                    raise BuildChildFailed(message[1], message[2] if len(message) > 2 else "")
             elif not child.is_alive():
                 break
     finally:

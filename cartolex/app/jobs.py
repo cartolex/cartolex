@@ -44,7 +44,7 @@ from cartolex.build.machine import boot_id
 from cartolex.build.records import new_run_id
 from cartolex.project.checkpoints import JobPaused
 
-from .messages import job_error, job_pause
+from .messages import job_error, job_pause, traceback_text
 
 __all__ = [
     "ACTIVE_STATES",
@@ -289,10 +289,14 @@ class LocalJobRunner:
         try:
             result = dict(work(control) or {})
             outcome = result.get("outcome")
+            # A failed stage's traceback goes with the job's error (its log, the diagnostic).
+            trace = result.pop("traceback", None)
             if outcome in ("failed", "cancelled", "waiting", "paused"):
                 state = outcome
                 if outcome == "failed":
                     error = _returned_error(result.get("error"), job.info.progress)
+                    if isinstance(trace, str) and trace:
+                        error["traceback"] = traceback_text(trace)
             elif job.cancel.is_set() and outcome is None:
                 state = "cancelled"
         except JobPaused as paused:

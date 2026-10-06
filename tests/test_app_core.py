@@ -371,6 +371,26 @@ def test_a_build_job_runs_is_tracked_and_logged(tmp_path):
         app.state.cartolex.shutdown()
 
 
+def test_a_failed_build_keeps_the_traceback_with_the_home_folder_hidden(tmp_path, monkeypatch):
+    home = Path(__file__).resolve().parents[2]  # the folder holding this checkout
+    monkeypatch.setenv("HOME", str(home))
+    app, controls = fake_app(fake_project(tmp_path / "p"), tmp_path / "c.log")
+    controls.fail.add("keywords.extract")
+    try:
+        client = Client(app)
+        r = client.post("/api/build", json={"dry_run": False})
+        job = client.wait_job(r.json()["job"]["id"])
+        assert job["state"] == "failed" and "traceback" not in (job["result"] or {})
+        trace = job["error"]["traceback"]
+        assert "keywords.extract broke on purpose" in trace and "_build_fakes.py" in trace
+        assert str(home) not in trace and "~" in trace
+        log = (tmp_path / "p" / "logs" / "jobs" / f"{job['id']}.jsonl").read_text()
+        end = json.loads(log.splitlines()[-1])
+        assert end["event"] == "job-end" and end["error"]["traceback"] == trace
+    finally:
+        app.state.cartolex.shutdown()
+
+
 def test_a_stage_that_asks_consent_runs_only_with_it(tmp_path):
     app, controls = fake_app(fake_project(tmp_path / "p"), tmp_path / "c.log")
     try:

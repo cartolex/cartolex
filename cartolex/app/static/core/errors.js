@@ -56,8 +56,20 @@ export function jobError(job) {
   if (err.progress && err.progress.code) {
     lines.push(`progress: ${err.progress.code} ${JSON.stringify(err.progress.params || {})}`);
   }
-  if (job.finished_at) model.time = job.finished_at;
   model.technical = lines.length ? lines.join('\n') : null;
+  return withJobFacts(model, job);
+}
+
+/**
+ * *model* with the facts of the failed *job* a diagnostic needs: its id, the time it
+ * failed (not the time the card was drawn) and the traceback the app kept.
+ */
+export function withJobFacts(model, job) {
+  if (!job) return model;
+  const err = job.error && typeof job.error === 'object' ? job.error : {};
+  if (job.id) model.jobId = job.id;
+  if (job.finished_at) model.time = job.finished_at;
+  if (err.traceback) model.traceback = String(err.traceback);
   return model;
 }
 
@@ -109,21 +121,28 @@ export function redactPath(path) {
 }
 
 /**
- * The text « Copy a diagnostic » puts on the clipboard: the application, the
- * page, the error's code and HTTP details, the time. Nothing from the project.
+ * The text « Copy a diagnostic » puts on the clipboard: the application, its
+ * build, the page, the error's code and HTTP details, the time (a failed job's:
+ * when it failed), the job, the system, and a failed job's traceback (the home
+ * folder written `~` by the app). Nothing else from the project.
  */
 export function diagnosticText(error, context = {}) {
+  const build = context.build && context.build.commit
+    ? ` (${context.build.commit.slice(0, 7)}, ${context.build.date || '?'})` : '';
   const lines = [
-    `app: ${context.app || 'cartolex'} ${context.version || ''}`.trim(),
+    `app: ${context.app || 'cartolex'} ${context.version || ''}${build}`.trim(),
     `page: ${context.page || '-'}`,
     `language: ${context.locale || '-'}`,
     `time: ${error.time || new Date().toISOString()}`,
     `code: ${error.code}`,
   ];
+  if (error.jobId) lines.push(`job: ${error.jobId}`);
+  if (context.platform) lines.push(`system: ${context.platform}`);
   if (error.status !== null && error.status !== undefined) lines.push(`status: ${error.status}`);
   if (error.method || error.path) lines.push(`request: ${error.method || ''} ${error.path || ''}`.trim());
   if (error.requestId) lines.push(`request id: ${error.requestId}`);
   if (context.userAgent) lines.push(`browser: ${context.userAgent}`);
   if (error.technical) lines.push('', error.technical);
+  if (error.traceback) lines.push('', error.traceback);
   return lines.join('\n');
 }

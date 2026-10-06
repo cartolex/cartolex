@@ -19,6 +19,7 @@ build
 sizes
 keywords
 hosting
+about
 ```
 
 ```{toctree}

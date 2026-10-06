@@ -1,0 +1,9 @@
+{
+  "name": "cartolex",
+  "version": "1.0.0.dev0",
+  "build": {"commit": "0123456789abcdef0123456789abcdef01234567", "date": "2026-10-06"},
+  "authors": ["Ada Example", "Ben Sample"],
+  "licence": "MIT",
+  "source": "https://example.org/cartolex",
+  "citation": "Ada Example, Ben Sample (2026). cartolex, version 1.0.0.dev0 [software]. https://example.org/cartolex"
+}

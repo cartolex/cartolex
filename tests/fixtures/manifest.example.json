@@ -1,6 +1,8 @@
 {
   "format": "cartolex-manifest/1",
-  "app": {"id": "cartolex", "name": "cartolex", "version": "1.0.0.dev0"},
+  "app": {"id": "cartolex", "name": "cartolex", "version": "1.0.0.dev0",
+          "build": {"commit": "0123456789abcdef0123456789abcdef01234567", "date": "2026-10-06"},
+          "platform": "Linux 6.8.0 x86_64"},
   "branding": {"name": "cartolex", "logo": "/static/brand/logo.svg"},
   "locales": {"available": ["en", "fr", "pt-BR"], "default": "en",
               "catalogues": {"en": ["/static/i18n/en.json"], "fr": ["/static/i18n/fr.json"],

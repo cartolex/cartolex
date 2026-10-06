@@ -58,6 +58,10 @@ class AppSettings:
     so that its memory goes back to the computer when it ends; :attr:`build_in_child`
     false keeps it in a thread of the app.
 
+    **The last project.** :attr:`reopen_last` (local only, without :attr:`project`):
+    the project opened last is opened again at start when it is still there and no
+    other app holds it (``cartolex app`` without a folder).
+
     **Stopping when unused.** :attr:`idle_stop_s` (local only): the server stops
     once no page of the interface has been open for that many seconds and no
     job runs (:mod:`cartolex.app.presence`); ``None`` keeps it running.
@@ -89,6 +93,7 @@ class AppSettings:
     build_in_child: bool = True
     heartbeat_s: float = 5.0
     idle_stop_s: float | None = None
+    reopen_last: bool = False
 
     def __post_init__(self) -> None:
         if self.mode not in ("local", "hosted"):

@@ -1,0 +1,11 @@
+{
+  "items": [
+    {"path": "/projects/coast", "id": "demo-coast", "name": "Coastal and marine demo", "opened_at": "2026-10-06T08:30:00Z", "exists": true},
+    {"path": "/projects/estuary", "id": "estuary-1a2b", "name": "Estuary survey", "opened_at": "2026-10-05T16:10:00Z", "exists": true},
+    {"path": "/projects/reefs-held", "id": "reefs-3c4d", "name": "Reef ecology", "opened_at": "2026-10-02T09:00:00Z", "exists": true},
+    {"path": "/projects/tides-busy", "id": "tides-7a8b", "name": "Tide gauges", "opened_at": "2026-09-28T10:00:00Z", "exists": true},
+    {"path": "/projects/dunes", "id": "dunes-5e6f", "name": "Dune morphology", "opened_at": "2026-09-20T11:00:00Z", "exists": false}
+  ],
+  "total": 5,
+  "empty": null
+}

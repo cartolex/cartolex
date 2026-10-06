@@ -5,7 +5,7 @@
  * failed stage.
  */
 import { autonym, formatDuration, formatList, formatNumber, has, t } from '../../core/i18n.js';
-import { errorFromResponse } from '../../core/errors.js';
+import { errorFromResponse, jobError, withJobFacts } from '../../core/errors.js';
 import { stageName } from '../../components/index.js';
 
 /** A memory size in the interface language (« 820 MB », « 3.4 GB »). */
@@ -79,10 +79,11 @@ export function resultSentence(job) {
 export function failureError(job) {
   const failed = job && job.result && job.result.failed;
   if (!failed) {
-    return errorFromResponse({ error: { code: `job_${job ? job.state : 'failed'}` } });
+    return jobError(job)
+      || withJobFacts(errorFromResponse({ error: { code: `job_${job ? job.state : 'failed'}` } }), job);
   }
   const error = errorFromResponse({ error: { code: `build_${failed.code}`, message: failed.message,
     next: failed.next || { label: '', action: 'report' } } });
   error.technical = `${failed.stage}: ${failed.error || ''}`;
-  return error;
+  return withJobFacts(error, job);
 }

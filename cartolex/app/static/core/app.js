@@ -8,7 +8,9 @@
  *   4. render the shell (header, navigation)
  *   5. route: mount the page of the current address
  *
- * then refresh the project state (the status dots already show the cached
+ * The person's preferences kept by the app (`GET /api/me/preferences`) are read
+ * beside the manifest and replace the browser's copy before the catalogues load.
+ * Then refresh the project state (the status dots already show the cached
  * one) and start the jobs poller. A local app that stops when unused also
  * hears from the page while it is open (`presence.js`).
  */
@@ -22,7 +24,7 @@ import { runtime } from './runtime.js';
 import { Shell } from './shell.js';
 import { startPresence } from './presence.js';
 import { createJobsStore } from './stores/jobs.js';
-import { createPrefs, applyTheme } from './stores/prefs.js';
+import { applyTheme, createPrefs, fetchPrefs } from './stores/prefs.js';
 import { createProjectStore } from './stores/project.js';
 import { createRegistries } from './registries.js';
 import { ErrorCard, createToaster, jobTitle } from '../components/index.js';
@@ -75,7 +77,7 @@ export async function boot(root) {
   applyTheme(prefs.theme.value);
   const browserLanguages = navigator.languages || [navigator.language];
 
-  const manifestResult = await fetchManifest();
+  const [manifestResult, keptPrefs] = await Promise.all([fetchManifest(), fetchPrefs()]);
   if (!manifestResult.ok) {
     const code = pickLocale(['en', 'fr', 'pt-BR'], { preferred: prefs.locale.value, browser: browserLanguages });
     try {
@@ -91,18 +93,25 @@ export async function boot(root) {
   runtime.app = { ...manifest.app };
   applyAccent(manifest.branding && manifest.branding.accent);
 
-  const locales = manifest.locales;
-  const code = pickLocale(locales.available, {
-    preferred: prefs.locale.value, browser: browserLanguages, fallback: locales.default,
-  });
-  await loadLocale(code, locales.catalogues, { fallback: locales.default });
-
   const csrf = manifest.security || {};
   const api = new ApiClient({
     csrfHeader: csrf.csrf_header || 'X-Cartolex-CSRF',
     csrfToken: () => csrf.csrf_token || readCookie(csrf.csrf_cookie || 'cartolex_csrf'),
     language: () => locale.value,
   });
+  // A client of its own: saving a preference stays out of the pages' request budgets.
+  prefs.connect(keptPrefs, new ApiClient({
+    csrfHeader: csrf.csrf_header || 'X-Cartolex-CSRF',
+    csrfToken: () => csrf.csrf_token || readCookie(csrf.csrf_cookie || 'cartolex_csrf'),
+  }));
+  applyTheme(prefs.theme.value);
+
+  const locales = manifest.locales;
+  const code = pickLocale(locales.available, {
+    preferred: prefs.locale.value, browser: browserLanguages, fallback: locales.default,
+  });
+  await loadLocale(code, locales.catalogues, { fallback: locales.default });
+
   if (manifest.capabilities && manifest.capabilities.idle_stop) {
     // A client of its own: the presence calls stay out of the pages' request budgets.
     startPresence(new ApiClient({
@@ -214,7 +223,9 @@ export async function boot(root) {
     context: {
       app,
       setTitle: (text) => {
-        document.title = text ? `${text} · ${brand}` : brand;
+        // The project too, so the browser's tabs and history say which project a page is of.
+        const projectName = manifest.project && manifest.project.open ? manifest.project.name : '';
+        document.title = [text, projectName, brand].filter(Boolean).join(' · ');
       },
     },
   });

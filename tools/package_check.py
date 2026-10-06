@@ -11,8 +11,9 @@ interface, the schemas, the prompt templates, the stop-word lists and the
 vendored libraries with their licences. The wheel must hold exactly those plus
 its metadata; the source archive must hold them plus what building a wheel
 from it needs. Neither may hold tests, caches, review material or bytecode.
-The documentation built by ``tools/build_docs.py`` is accepted when it is there, and
-required with ``--docs`` (a release). Prints one line per problem and exits with 1
+The documentation built by ``tools/build_docs.py`` and the build stamp written by
+``tools/build_stamp.py`` are accepted when they are there, and required with ``--docs``
+and ``--stamp`` (a release). Prints one line per problem and exits with 1
 when there is any.
 
 Stdlib only: this script runs under any Python 3.10 or later.
@@ -59,18 +60,21 @@ SDIST_FILES = ("pyproject.toml", "README.md", "LICENSE", "PKG-INFO")
 
 #: Built, not tracked: the documentation the app serves (tools/build_docs.py), when built.
 GENERATED = f"{PACKAGE}/app/static/docs"
+#: Written, not tracked: the build stamp (tools/build_stamp.py), when written.
+STAMP = f"{PACKAGE}/_data/build.json"
 
 
 def package_files(root: Path = ROOT) -> set[str]:
     """The package's files, as POSIX paths relative to *root* (``cartolex/...``), with
-    the built documentation when it is there."""
+    the built documentation and the build stamp when they are there."""
     built = root / GENERATED
     docs = (
         {p.relative_to(root).as_posix() for p in built.rglob("*") if p.is_file()}
         if built.is_dir()
         else set()
     )
-    return _tracked(root) | docs
+    stamp = {STAMP} if (root / STAMP).is_file() else set()
+    return _tracked(root) | docs | stamp
 
 
 def _tracked(root: Path) -> set[str]:
@@ -175,11 +179,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--docs", action="store_true", help="the built documentation must be there (a release)"
     )
+    parser.add_argument(
+        "--stamp", action="store_true", help="the build stamp must be there (a release)"
+    )
     args = parser.parse_args(argv)
     expected = package_files(args.root)
     index = f"{GENERATED}/index.html"
     if args.docs and index not in expected:
         print(f"the documentation is not built: python tools/build_docs.py ({index})")
+        return 1
+    if args.stamp and STAMP not in expected:
+        print(f"no build stamp: python tools/build_stamp.py ({STAMP})")
         return 1
     status = 0
     for archive in args.archives:

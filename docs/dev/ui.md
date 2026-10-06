@@ -145,10 +145,17 @@ re-renders when it changes.
   the whole app**: every second while a job is queued or running or the
   Activity drawer is open, every twenty seconds otherwise, paused while the
   tab is hidden. When a job ends the project state refreshes and a toast
-  says so. A failed job stays listed until dismissed.
-- **Preferences** (`core/stores/prefs.js`): theme and interface language, in
-  the browser's local storage; `core/boot-theme.js` applies the theme before
-  the first paint.
+  says so. A failed job stays listed until dismissed; the header stops
+  showing it once a later job of the same kind succeeded. Every entry of the
+  Activity drawer says when it reached its state (asked for, started,
+  finished, failed, waiting, paused, stopped), date and time in the interface
+  language.
+- **Preferences** (`core/stores/prefs.js`): theme, interface language and the
+  jobs dismissed from the Activity list, kept by the app
+  (`/api/me/preferences`, read beside the manifest at start and saved at every
+  change, so they outlive the browser's storage); the browser's local storage
+  keeps a copy, which `core/boot-theme.js` reads to apply the theme before the
+  first paint.
 
 ## The API client
 
@@ -308,9 +315,21 @@ pages placed in `settings` are listed in the header's settings menu. The
 themes screen (`pages/themes.js`, {doc}`themes-editor`) is built, and so are
 the settings (`pages/settings.js`: one module per section under
 `pages/settings/`, the section in the address, `/settings?section=build`; each
-section reads what it shows when it opens) and the start screen
+section reads what it shows when it opens), the start screen
 (`pages/start.js` and `pages/start/`: recent projects, the demo project, a new
-project; `/start`, and `/start?new=1` for the form). A screen
+project; `/start`, and `/start?new=1` for the form) and the About page
+(`pages/about.js` and `pages/about/`: what cartolex is for, the pipeline as one
+SVG figure drawn with the theme's tokens, the scientific background as
+bibliographic records, the authors, citation, licence and build from
+`GET /api/app/about`; the logo leads to it, `docs/about.md` holds the same
+text). The header's project menu (`core/project-menu.js`, local only) names
+the open project and lists the recent ones (`GET /api/projects`, read when it
+opens), « All projects… » (`/start`) and « New project… » (`/start?new=1`);
+opening a project, with the warning before opening a held one anyway and the
+word on a busy app, is shared with the start screen
+(`components/project-open.js`). The settings menu ends with « About » and the
+version and build; the browser tab's title names the page, the project and the
+app. A screen
 is split into modules of a few hundred lines each, under a folder named after
 it, with a small entry module: `pages/themes.js` loads `pages/themes/editor.js`,
 which puts together the outline (`outline.js`, `rows.js`, `review.js`), the

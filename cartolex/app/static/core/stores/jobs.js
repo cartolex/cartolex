@@ -9,13 +9,28 @@
  * called once (the shell refreshes the project state and shows a toast).
  *
  * A failed or paused job stays in the list until the person dismisses it (or
- * resumes it); dismissed ids are kept with the preferences.
+ * resumes it); dismissed ids are kept with the preferences, by the app.
  */
 import { computed, signal } from '../preact.js';
+import { MAX_DISMISSED } from './prefs.js';
 
 export const ACTIVE = new Set(['queued', 'running', 'cancelling']);
 export const FAST_MS = 1000;
 export const IDLE_MS = 20000;
+
+/** A job's time in milliseconds: when it ended, else started, else was asked for. */
+export function jobTime(job) {
+  const at = Date.parse(job.finished_at || job.started_at || job.submitted_at || '');
+  return Number.isNaN(at) ? 0 : at;
+}
+
+/** The later job of the same kind that succeeded after *job* failed, if any. */
+export function supersededBy(job, list) {
+  if (job.state !== 'failed' && job.state !== 'interrupted') return null;
+  const at = jobTime(job);
+  return list.find((other) => other.id !== job.id && other.kind === job.kind
+    && other.state === 'succeeded' && jobTime(other) > at) || null;
+}
 
 /**
  * @param {object} options
@@ -43,9 +58,10 @@ export function createJobsStore({ api, dismissed, onFinished, timing = {}, enabl
     return jobs.value.filter((j) => ACTIVE.has(j.state) || !hidden.has(j.id));
   });
   /** The job the header shows: the first active one, else the latest failure or build waiting
-   * for a copilot not dismissed. */
+   * for a copilot not dismissed — but not a failure a later job of its kind made good. */
   const headline = computed(() => active.value[0]
-    || visible.value.find((j) => ['failed', 'interrupted', 'waiting', 'paused'].includes(j.state))
+    || visible.value.find((j) => ['failed', 'interrupted', 'waiting', 'paused'].includes(j.state)
+      && !supersededBy(j, jobs.value))
     || null);
 
   const apply = (list) => {
@@ -147,7 +163,7 @@ export function createJobsStore({ api, dismissed, onFinished, timing = {}, enabl
     },
     /** Hide a finished job from the list. */
     dismiss(id) {
-      dismissed.value = [...dismissed.value.filter((d) => d !== id), id].slice(-100);
+      dismissed.value = [...dismissed.value.filter((d) => d !== id), id].slice(-MAX_DISMISSED);
     },
   };
 }

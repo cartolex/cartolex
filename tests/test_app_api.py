@@ -315,16 +315,38 @@ def test_share_sources_and_empty_results(client):
     assert client.get("/api/keywords/copilot/summary").status_code == 409
 
 
+def test_the_about_page_and_the_manifest_name_the_build(client):
+    about = client.get("/api/app/about").json()
+    assert about["version"] and about["authors"] and about["licence"] == "MIT"
+    assert about["version"] in about["citation"] and about["authors"][0] in about["citation"]
+    app = client.get("/api/app/manifest").json()["app"]
+    assert app["build"] == about["build"]  # run from a checkout: its last commit
+    assert app["build"] is None or len(app["build"]["commit"]) >= 7
+    assert app["platform"]  # locally, for a diagnostic
+
+
 def test_preferences_are_kept_per_person_outside_the_project(client, tmp_path):
     empty = client.get("/api/me/preferences").json()
     assert empty["stored"] is False and empty["preferences"]["locale"] is None
     saved = client.put(
         "/api/me/preferences",
-        json={"locale": "pt-BR", "theme": "dark", "other": {"table.density": "compact"}},
+        json={
+            "locale": "pt-BR",
+            "theme": "dark",
+            "dismissed_jobs": ["20260928T101200Z-7c1e2a"],
+            "saved_at": 1791000000000,
+            "other": {"table.density": "compact"},
+        },
     )
     assert saved.status_code == 200 and saved.json()["stored"] is True
     again = client.get("/api/me/preferences").json()["preferences"]
-    assert again == {"locale": "pt-BR", "theme": "dark", "other": {"table.density": "compact"}}
+    assert again == {
+        "locale": "pt-BR",
+        "theme": "dark",
+        "dismissed_jobs": ["20260928T101200Z-7c1e2a"],
+        "saved_at": 1791000000000,
+        "other": {"table.density": "compact"},
+    }
     files = list((tmp_path / "data" / "users").glob("*.json"))
     assert len(files) == 1 and "local" not in files[0].name
     assert not any((tmp_path / "p").rglob("*preferences*"))

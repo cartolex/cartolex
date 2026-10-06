@@ -18,7 +18,7 @@ def test_boot_renders_the_navigation_and_the_first_page(ui):
     links = page.locator(".cx-nav__link")
     assert links.count() == 7  # six manifest entries and the extension's page
     assert page.locator('[data-nav="overview"]').get_attribute("aria-current") == "page"
-    assert page.title() == "Overview · cartolex"
+    assert page.title() == "Overview · Coastal and marine demo · cartolex"  # the project too
     assert ui.missing_keys() == []
 
 
@@ -137,12 +137,28 @@ def test_theme_and_language_switch_and_persist(ui):
     page.get_by_role("menuitemradio", name="Français").click()
     page.wait_for_function("() => document.documentElement.lang === 'fr'")
     assert page.locator("h1").inner_text() == "Galerie des composants"
-    assert page.title() == "Galerie des composants · cartolex"
+    assert page.title() == "Galerie des composants · Coastal and marine demo · cartolex"
     page.reload()
     ui.wait_ready(0)
     assert page.evaluate("() => document.documentElement.dataset.theme") == "dark"
     assert page.locator("h1").inner_text() == "Galerie des composants"
     assert ui.missing_keys() == []
+
+
+def test_preferences_outlive_the_browser_storage(ui, server):
+    ui.open("/gallery")
+    page = ui.page
+    page.locator(".cx-header .cx-menubutton button").click()
+    page.get_by_role("menuitemradio", name="Dark").click()
+    page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
+    deadline = time.monotonic() + 5
+    while (server.prefs or {}).get("theme") != "dark":
+        assert time.monotonic() < deadline, server.prefs
+        time.sleep(0.05)
+    page.evaluate("() => localStorage.clear()")  # a new address, or a cleared cache
+    page.reload()
+    ui.wait_ready(0)
+    assert page.evaluate("() => document.documentElement.dataset.theme") == "dark"
 
 
 @pytest.mark.parametrize("locale", ["fr", "pt-BR"])
@@ -222,6 +238,9 @@ def test_activity_indicator_drawer_and_cancel(ui, server):
     drawer = page.locator("dialog.cx-dialog--drawer[open]")
     drawer.wait_for()
     assert drawer.locator(".cx-job").count() == 2
+    when = drawer.locator(".cx-job__when")
+    assert when.count() == 2 and when.first.inner_text().startswith("Started ")
+    assert "2026" in when.first.inner_text()  # the date with the time
     drawer.get_by_role("button", name="Stop").click()
     page.wait_for_function(
         "() => [...document.querySelectorAll('.cx-job__state')]"
@@ -232,6 +251,39 @@ def test_activity_indicator_drawer_and_cancel(ui, server):
     page.keyboard.press("Escape")
     drawer.wait_for(state="hidden")
     assert ui.active()["classes"].startswith("cx-activity-indicator")  # focus returns
+
+
+def test_a_failure_made_good_by_a_later_job_of_its_kind_leaves_the_header(ui):
+    ui.open("/gallery")
+    found = ui.page.evaluate(
+        """async () => {
+          const { supersededBy } = await import('/static/core/stores/jobs.js');
+          const failed = { id: 'a', kind: 'build', state: 'failed', finished_at: '2026-10-01T10:00:00Z' };
+          const before = { id: 'b', kind: 'build', state: 'succeeded', finished_at: '2026-10-01T09:00:00Z' };
+          const other = { id: 'c', kind: 'collect', state: 'succeeded', finished_at: '2026-10-01T11:00:00Z' };
+          const after = { id: 'd', kind: 'build', state: 'succeeded', finished_at: '2026-10-01T11:00:00Z' };
+          return [supersededBy(failed, [failed, before, other]), supersededBy(failed, [after, failed])];
+        }"""
+    )
+    assert found[0] is None and found[1]["id"] == "d"
+
+
+def test_a_failed_job_s_diagnostic_names_the_job_its_time_and_its_traceback(ui):
+    ui.open("/gallery")
+    text = ui.page.evaluate(
+        r"""async () => {
+          const { diagnosticText, jobError } = await import('/static/core/errors.js');
+          const job = { id: '20261006T101200Z-7c1e2a', kind: 'build', state: 'failed',
+            finished_at: '2026-10-06T10:13:00Z',
+            error: { code: 'job_failed', params: {}, message: 'failed', exception: 'ValueError',
+                     detail: 'bad', traceback: 'Traceback (most recent call last):\n  File "~/x.py"' } };
+          return diagnosticText(jobError(job), { version: '1.0', platform: 'Linux 6.8 x86_64',
+            build: { commit: '0123456789ab', date: '2026-10-06' } });
+        }"""
+    )
+    assert "app: cartolex 1.0 (0123456, 2026-10-06)" in text
+    assert "time: 2026-10-06T10:13:00Z" in text and "job: 20261006T101200Z-7c1e2a" in text
+    assert "system: Linux 6.8 x86_64" in text and 'File "~/x.py"' in text
 
 
 @pytest.mark.slow

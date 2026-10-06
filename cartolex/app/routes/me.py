@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: MIT
-"""The person's own preferences (interface language, theme), kept for a hosted service.
+"""The person's own preferences: interface language, theme, the jobs they dismissed.
 
-Locally, the interface keeps its preferences in the browser (``localStorage``);
-a hosted service keeps them per principal on the server, so they follow a
-person from one browser to another. They live in the app's own folder
-(``<data dir>/users/<digest of the principal's id>.json``, never in a
-project), or in memory when the app has no folder.
+The interface keeps them here, per principal, so they outlive a browser's own
+storage (a new address, a cleared cache) and, hosted, follow a person from one
+browser to another; the browser keeps a copy only to paint the theme before the
+first request. They live in the app's own folder (``<data dir>/users/<digest of
+the principal's id>.json``, never in a project), or in memory when the app has
+no folder.
 """
 
 from __future__ import annotations
@@ -25,13 +26,21 @@ routes = Routes(tags=["me"])
 FORMAT = "cartolex-preferences/1"
 Key = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_.-]{0,63}$")]
 Scalar = Annotated[str, Field(max_length=200)] | int | float | bool | None
+JobId = Annotated[str, Field(pattern=r"^[A-Za-z0-9_.-]{1,64}$")]
+#: Dismissed jobs kept (the latest ones): the Activity list never holds more.
+MAX_DISMISSED = 200
 
 
 class Preferences(BaseModel):
-    """What a person chose: the interface language, the theme, and a few other settings."""
+    """What a person chose: the interface language, the theme, the finished jobs they
+    dismissed from the Activity list, and a few other settings."""
 
     locale: Annotated[str, Field(pattern=r"^[a-z]{2}(-[A-Z]{2})?$")] | None = None
     theme: Literal["system", "light", "dark"] | None = None
+    dismissed_jobs: Annotated[list[JobId], Field(max_length=MAX_DISMISSED)] = []
+    #: When the interface saved them (milliseconds since 1970, the browser's clock): between
+    #: the browser's copy and these, the newer wins.
+    saved_at: Annotated[int, Field(ge=0)] | None = None
     other: Annotated[dict[Key, Scalar], Field(max_length=50)] = {}
 
 

@@ -820,6 +820,12 @@ a.cx-button:hover {
   gap: var(--cx-space-3);
 }
 
+.cx-error-card__copied-next {
+  margin: var(--cx-space-2) 0 0;
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}
+
 .cx-error-card--compact {
   padding: var(--cx-space-3) var(--cx-space-4);
   gap: var(--cx-space-2);
@@ -1825,7 +1831,12 @@ a.cx-button:hover {
   font-size: var(--cx-text-s);
 }
 
-.cx-job__meta {
+.cx-job__when {
+  margin: 0;
+}
+
+.cx-job__meta,
+.cx-job__when {
   color: var(--cx-text-muted);
   font-size: var(--cx-text-s);
   font-variant-numeric: tabular-nums;
@@ -2333,4 +2344,29 @@ a.cx-button:hover {
   fill: none;
   stroke: var(--cx-symbol);
   stroke-width: 1.8;
+}
+
+/* Opening a project refused (components/project-open.js) */
+.cx-open-problem {
+  display: grid;
+  gap: var(--cx-space-2);
+  margin-top: var(--cx-space-3);
+}
+
+.cx-open-problem__text {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cx-space-2);
+  margin: 0;
+}
+
+.cx-open-problem__text .cx-icon {
+  flex: none;
+  color: var(--cx-warning);
+}
+
+.cx-open-problem__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-2);
 }

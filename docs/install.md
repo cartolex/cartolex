@@ -131,9 +131,13 @@ t-SNE, switched off, with the reason and the command that installs it.
 
 ## The first run
 
-`cartolex` starts the app on a free port of this computer and opens it in
-your browser with a link that works once. The start screen offers a demo
-project (an invented research community, see {doc}`demo`) or a new one. Stop
+`cartolex` starts the app on a port of this computer and opens it in your
+browser with a link that works once. It keeps the same port from one launch
+to the next when it is free, so the browser keeps your settings (light or
+dark, unsaved drafts). The first time, the start screen offers a demo project
+(an invented research community, see {doc}`demo`) or a new one; afterwards
+`cartolex` opens the project you had open last, unless it was moved or
+another cartolex holds it (then the start screen opens). Stop
 the app with Ctrl-C in its terminal, or close its terminal; it also stops by
 itself two minutes after its last browser tab closed, once no build or
 collection runs (`--idle-stop MINUTES` changes the delay, `0` keeps it running).
@@ -170,7 +174,8 @@ with `python -m pip install <file>.whl`.
 **The browser does not open.** Use the link the command printed; it works
 once. `cartolex app --no-browser` prints it without trying.
 
-**Port already in use.** `cartolex` picks a free port by itself;
+**Port already in use.** `cartolex` takes another free port by itself
+(the browser then starts with its own settings again);
 `cartolex api` uses 8000 unless given `--port` (0 picks a free one).
 
 **Windows: a path is too long.** Windows limits paths to 260 characters

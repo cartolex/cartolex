@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 /**
- * The shell: the header (brand, navigation with each area's status dot,
- * activity, display settings), the outlet pages render into, the Activity
- * drawer, the toasts and the « leave without saving? » question.
+ * The shell: the header (brand, which leads to the About page; the project
+ * menu; navigation with each area's status dot; activity; display settings,
+ * the version and build at their foot), the outlet pages render into, the
+ * Activity drawer, the toasts and the « leave without saving? » question.
  *
  * The outlet is rendered once and never re-rendered by Preact: the router
  * owns what is inside it.
@@ -11,6 +12,7 @@ import { Component, html, useRef, useState } from './preact.js';
 import { autonym, locale, t } from './i18n.js';
 import { currentRoute } from './router.js';
 import { runtime } from './runtime.js';
+import { ProjectMenu } from './project-menu.js';
 import { areaOfPage } from './states.js';
 import { THEMES } from './stores/prefs.js';
 import {
@@ -19,6 +21,13 @@ import {
 
 /** The documentation, served by the app with this version (tools/build_docs.py). */
 export const DOCS_URL = '/static/docs/index.html';
+
+/** The version and build in one line: « 1.0.0 · 3f2a1c9 · 2026-10-06 ». */
+export function versionLine(app) {
+  const build = app && app.build;
+  return [app && app.version, build && build.commit && build.commit.slice(0, 7), build && build.date]
+    .filter(Boolean).join(' · ');
+}
 
 /** The element pages render into; Preact renders it once and leaves its content alone. */
 class Outlet extends Component {
@@ -79,6 +88,8 @@ export function Shell({ app }) {
         checked: locale.value === code,
       })),
     },
+    { kind: 'separator', id: 'sep-about' },
+    { id: 'about', label: t('shell.about_item'), hint: versionLine(manifest.app) },
   ];
   const onDisplay = (item) => {
     const [kind, value] = item.id.split(/:(.*)/s);
@@ -86,6 +97,7 @@ export function Shell({ app }) {
       const entry = registries.pages.get(value);
       if (entry) app.router.navigate(entry.route);
     }
+    if (kind === 'about') app.router.navigate('/about');
     if (kind === 'theme') app.setTheme(value);
     if (kind === 'locale') app.switchLocale(value);
   };
@@ -93,11 +105,13 @@ export function Shell({ app }) {
   return html`<div class="cx-shell">
     <a class="cx-skip-link" href="#cx-main">${t('shell.skip')}</a>
     <header class="cx-header">
-      <a class="cx-brand" href="/" aria-label=${t('shell.home', { name: brandName })}>
+      <a class="cx-brand" href="/about" data-nav="about"
+        aria-label=${t('shell.about_link', { name: brandName })}>
         <img class=${`cx-brand__logo ${defaultLogo ? 'cx-brand__logo--mono' : ''}`}
           src=${branding.logo || '/static/brand/logo.svg'} alt="" width="24" height="24" />
         <span class="cx-brand__name">${brandName}</span>
       </a>
+      ${manifest.capabilities && manifest.capabilities.hosted ? null : html`<${ProjectMenu} app=${app} />`}
       <nav class="cx-nav" aria-label=${t('shell.nav')}>
         <ul class="cx-nav__list">
           ${nav.map((entry) => html`<${NavItem} key=${entry.id} entry=${entry} areas=${areas}

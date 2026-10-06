@@ -79,3 +79,25 @@ def test_a_project_held_elsewhere_opens_anyway_and_its_holder_stops_saving(clien
         write_decision(project.layout, project.layout.params_json, b"{}", expected=None, action="x")
     project.close()
     assert json.loads((root / ".lock").read_text())["host"] == "another-computer"
+
+
+def test_the_app_opens_the_last_project_again_unless_another_app_holds_it(tmp_path):
+    from _app_helpers import fake_project
+
+    root = fake_project(tmp_path / "p")
+    data = tmp_path / "data"
+    first = create_app(AppSettings(launch_token=TOKEN, data_dir=data, project=root))
+    first.state.cartolex.shutdown()
+    again = create_app(AppSettings(launch_token=TOKEN, data_dir=data, reopen_last=True))
+    try:
+        current = again.state.cartolex.projects.current()
+        assert current is not None and current.layout.root == root.resolve()
+    finally:
+        again.state.cartolex.shutdown()
+    held = {"pid": 4242, "host": "another-computer", "app": "cartolex", "since": "s"}
+    (root / ".lock").write_text(json.dumps(held))
+    blocked = create_app(AppSettings(launch_token=TOKEN, data_dir=data, reopen_last=True))
+    try:
+        assert blocked.state.cartolex.projects.current() is None  # the start screen
+    finally:
+        blocked.state.cartolex.shutdown()

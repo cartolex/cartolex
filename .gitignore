@@ -15,3 +15,5 @@ docs/_build/
 
 # The documentation built into the package (tools/build_docs.py)
 /cartolex/app/static/docs/
+# The build stamp a wheel carries (tools/build_stamp.py)
+/cartolex/_data/build.json

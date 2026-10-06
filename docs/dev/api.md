@@ -12,7 +12,7 @@ app = create_app(AppSettings(project=folder))       # an ASGI app, e.g. for uvic
 ```
 
 ```bash
-cartolex                         # the app on a free loopback port, in the browser
+cartolex                         # the app on a loopback port, in the browser (the last project)
 cartolex app my-project          # the same, with this project open
 cartolex api my-project --host 0.0.0.0 --allowed-host maps.example.org   # hosting
 cartolex api --projects-root /srv/projects --allowed-host maps.example.org
@@ -150,13 +150,16 @@ a failure), `failed`, `cancelled` and `interrupted`. A cancel stops at the next 
 checkpoints pauses instead.
 
 A failed job says why. Its `error` is
-`{code, params, message, exception, detail, step, progress}`: the cause's
+`{code, params, message, exception, detail, step, progress, traceback}`: the cause's
 code (`collect_budget_spent`, `collect_service_unavailable`,
 `collect_incomplete`, `collect_malformed`, `collect_refused`,
 `collect_cache_miss`, else `job_failed`) with its params and English words,
 the exception's class and a short message (300 characters at most), the stage
-it was in and its last progress. The interface's error card shows the code's
-words, and « Copy a diagnostic » carries the class, the message and the step.
+it was in, its last progress, and the traceback (of the failed stage, or of the
+build's process; at most 8,000 characters, its end, with the home folder written
+`~`; also in the job's log). The interface's error card shows the code's words,
+and « Copy a diagnostic » carries the job's id, the time it failed, the system,
+the class, the message, the step and the traceback.
 A spent daily budget (`collect_budget_spent`, `keyed` among its params) names
 its next action: without a key, a free one (`open:/settings?section=sources`);
 with one, waiting for the next day's budget (`none`).
@@ -186,7 +189,7 @@ The app logs JSON lines through `logging` (`cartolex.app`): each request with
 its id, method, route **template** (`/api/jobs/{job_id}`, never the values or
 the query), status and time. The server installs the formatter
 (`cartolex.app.logs.configure_logging`); creating an app changes no logging
-setting. `GET /api/diagnostic` gives the versions (Python, cartolex, the key
+setting. `GET /api/diagnostic` gives the versions (Python, cartolex and its build, the key
 libraries, the language models), the machine's size and the recent job events
 — never a project's name, path, people or texts — so it can be pasted into a
 report as it is.
@@ -201,7 +204,8 @@ report as it is.
 | `GET /api/app/manifest`, `GET /api/app/manifest/schema` | the manifest and its schema ({doc}`app-manifest`) |
 | `GET /api/session`, `DELETE /api/session` | who the session acts for; sign out |
 | `POST /api/presence {page, bye}` | a page of the interface says it is open, or (`bye`) closing; a local app started with a browser stops once none is open and no job runs (manifest capability `idle_stop`, `cartolex app --idle-stop`) |
-| `GET /api/diagnostic` | versions, machine, recent job events |
+| `GET /api/app/about` | what the About page shows: `version`, `build` (`{commit, date}` or `null`), `authors`, `licence`, `source` (the repository's address) and `citation` (how to cite cartolex), from the package's metadata |
+| `GET /api/diagnostic` | versions and build, machine, recent job events |
 | `GET /api/openapi.json` | this API's description |
 | `GET /launch?token=…` | the launch link |
 
@@ -327,10 +331,12 @@ version, so it can be undone too).
 | `POST /api/keywords/ai/run {consent}` | filter by API: switch `keywords.triage` on in `params.json` and start it as a build job (202); `ai_api_not_ready` without a key or a provider, `ai_consent_needed` without consent |
 
 **The person**: `GET /api/me/preferences` and `PUT /api/me/preferences
-{locale, theme, other}`: the interface language, the theme and a few other
-settings of the person signed in, kept in the app's own folder (a hosted
-service: they follow a person from one browser to another). Locally the
-interface keeps them in the browser.
+{locale, theme, dismissed_jobs, other}`: the interface language, the theme, the
+finished jobs dismissed from the Activity list (200 at most) and a few other
+settings of the person signed in, kept in the app's own folder, so they outlive
+the browser's storage (a hosted service: they follow a person from one browser
+to another). The interface reads them at start and saves every change; the
+browser keeps a copy to paint the theme before the first request.
 
 **The collection notices**: `GET /api/me/notices` lists the kinds of
 collection whose notice the person acknowledged (`acknowledged`: `kind`, `at`;

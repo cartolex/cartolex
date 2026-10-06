@@ -59,6 +59,20 @@ def test_a_test_build_carries_its_wheel_and_says_what_it_is(tmp_path: Path) -> N
         installer_zip.build_kit("1.2.3", tmp_path / "out", wheel=wheel, label="../x")
 
 
+def test_a_stamped_wheel_names_its_build(tmp_path: Path) -> None:
+    import json
+
+    wheel = tmp_path / "cartolex-1.2.3-py3-none-any.whl"
+    stamp = {"format": "cartolex-build/1", "commit": "0123456789abcdef" * 2, "date": "2026-10-06"}
+    with zipfile.ZipFile(wheel, "w") as zf:
+        zf.writestr("cartolex/_data/build.json", json.dumps(stamp))
+    path = installer_zip.build_kit("1.2.3", tmp_path / "out", wheel=wheel)
+    assert path.name == "cartolex-installer-1.2.3-0123456.zip"  # the commit is the label
+    with zipfile.ZipFile(path) as zf:
+        text = next(zf.read(i) for i in zf.infolist() if i.filename.endswith("build.txt"))
+    assert b"build 0123456 of 2026-10-06" in text
+
+
 @pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
 def test_the_shell_launchers_parse() -> None:
     for name in ("install-cartolex.sh", "Install cartolex.command"):

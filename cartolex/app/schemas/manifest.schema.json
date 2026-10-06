@@ -34,8 +34,19 @@
     },
     "AppInfo": {
       "additionalProperties": false,
-      "description": "The application: ``id`` and ``name`` (the host's brand, or cartolex), its version.",
+      "description": "The application: ``id`` and ``name`` (the host's brand, or cartolex), its version, the\nbuild (``None`` when unknown) and, locally, the system it runs on (for a diagnostic).",
       "properties": {
+        "build": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BuildStamp"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "id": {
           "title": "Id",
           "type": "string"
@@ -43,6 +54,18 @@
         "name": {
           "title": "Name",
           "type": "string"
+        },
+        "platform": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Platform"
         },
         "version": {
           "title": "Version",
@@ -86,6 +109,26 @@
         "logo"
       ],
       "title": "BrandingInfo",
+      "type": "object"
+    },
+    "BuildStamp": {
+      "additionalProperties": false,
+      "description": "The code running: its commit and the commit's date (``YYYY-MM-DD``).",
+      "properties": {
+        "commit": {
+          "title": "Commit",
+          "type": "string"
+        },
+        "date": {
+          "title": "Date",
+          "type": "string"
+        }
+      },
+      "required": [
+        "commit",
+        "date"
+      ],
+      "title": "BuildStamp",
       "type": "object"
     },
     "Capabilities": {
