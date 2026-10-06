@@ -428,6 +428,8 @@ catalogues give each code its text in every interface language.
 | `keys_hosted` | 409 | on a hosted service the keys are set by whoever runs it | — | `none` |
 | `snapshot_hosted` | 409 | on a hosted service there is no OpenAlex snapshot folder of this computer | — | `none` |
 | `snapshot_invalid` | 422 | {folder} cannot be the OpenAlex snapshot ({reason}): give the full path of a folder holding data/jsonl/works, authors and institutions | `folder`, `reason` | `fix-input` |
+| `budget_hosted` | 409 | on a hosted service the builds' budget is set by whoever runs it | — | `none` |
+| `budget_invalid` | 422 | {field} cannot be {value}: {reason} | `field`, `value`, `reason` | `fix-input` |
 | `rejects_hosted` | 409 | on a hosted service there is no rejection cache of this computer | — | `none` |
 | `stopword_both` | 422 | a word is both added and removed: {words} | `words` | `fix-input` |
 | `prompt_not_found` | 404 | there is no prompt {name} to change | `name` | `reload` |
@@ -449,6 +451,7 @@ catalogues give each code its text in every interface language.
 | `no_versions` | 404 | {file} has no versions; files with versions: {files} | `file`, `files` | `none` |
 | `file_not_written` | 404 | {file} does not exist yet | `file` | `none` |
 | `version_not_found` | 404 | there is no version {version} of {file} | `version`, `file` | `reload` |
+| `version_unreadable` | 409 | version {version} of {file} cannot be rebuilt from the history: {reason} | `version`, `file`, `reason` | `none` |
 | `already_current` | 409 | this version is already the current one | — | `none` |
 | `unknown_people` | 404 | unknown person id(s): {ids} | `ids` | `reload` |
 | `unknown_set` | 422 | there is no projected set {set}; sets: {sets} | `set`, `sets` | `fix-input` |

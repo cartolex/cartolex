@@ -30,6 +30,18 @@ the previous version to `decisions/history/<file>/<UTC time>-<action>.<ext>`
 first, then writes atomically. `project.json` follows the same rule. Restoring a
 version is a write like any other, so it is itself undoable.
 
+A CSV decision file of 256 KB or more (the `people.csv` of a large project)
+keeps most earlier versions as a **delta** instead,
+`<UTC time>-<action>.csv.delta`: gzipped JSON
+(`format: "cartolex-history-delta/1"`), saying how the latest earlier version kept
+whole (`of`, its name) turns into this one. `ops` lists, in order, runs
+`[start, count]` of that version's records (a record is a line, or several when
+a quoted field holds a line break) and the text of the records it lacks; `base`
+and `result` are the SHA-256 of the version it starts from and of the version it
+gives. One version in 50 is kept whole, and so is one of which more than half is
+new. A delta depends only on files of the history, which never change: editing
+the current file by hand leaves every earlier version readable.
+
 ## `people.csv`
 
 One row per person the project knows. Columns:

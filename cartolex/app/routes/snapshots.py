@@ -48,27 +48,25 @@ def _path(ctx: Any, name: str) -> Path:
 
 
 def _versions(ctx: Any, name: str) -> list[dict[str, Any]]:
-    """The versions of a file, the current first."""
-    from cartolex.project.files import fingerprint
+    """The versions of a file, the current first (an earlier one kept whole or as a delta)."""
+    from cartolex.project.files import fingerprint, history_versions
 
     path = _path(ctx, name)
-    folder = ctx.layout.history_of(path)
     entries = []
-    if folder.is_dir():
-        for f in folder.iterdir():
-            m = _VERSION.match(f.stem) if f.is_file() and f.suffix == path.suffix else None
-            if m:
-                at = datetime.strptime(m.group(1), "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
-                entries.append((at, f.stat().st_mtime_ns, f))
-    entries.sort(key=lambda e: (e[0], e[1], e[2].name), reverse=True)
+    for version, f, _delta in history_versions(ctx.layout.history_of(path), path):
+        m = _VERSION.match(version)
+        if m:
+            at = datetime.strptime(m.group(1), "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+            entries.append((at, f.stat().st_mtime_ns, version, f))
+    entries.sort(key=lambda e: (e[0], e[1], e[2]), reverse=True)
     out = []
     if path.exists():
         out.append({"id": "current", "file": name, "version": version_of(fingerprint(path))})
-    for at, _, f in entries:
-        m = _VERSION.match(f.stem)
+    for at, _, version, f in entries:
+        m = _VERSION.match(version)
         out.append(
             {
-                "id": f.stem,
+                "id": version,
                 "file": name,
                 "replaced_at": at.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "replaced_by": m.group(2).replace("-", " ") if m else "",
@@ -130,27 +128,35 @@ def list_snapshots(
     return {"files": files, "generations": _generations(ctx, runtime_of(request).registry)}
 
 
-def _version_file(ctx: Any, name: str, version: str) -> Path:
+def _version_bytes(ctx: Any, name: str, version: str) -> bytes:
+    """One version's bytes: the current file, or an earlier one (kept whole or rebuilt
+    from its delta)."""
+    from cartolex.project.files import HistoryBroken, read_version
+
     path = _path(ctx, name)
     if version == "current":
         if not path.exists():
             raise ApiError.of("file_not_written", file=name)
-        return path
-    found = ctx.layout.history_of(path) / f"{version}{path.suffix}"
-    if not _VERSION.match(version) or not found.is_file():
+        return path.read_bytes()
+    try:
+        data = read_version(ctx.layout, path, version) if _VERSION.match(version) else None
+    except HistoryBroken as exc:
+        raise ApiError.of(
+            "version_unreadable", version=version, file=name, reason=str(exc)
+        ) from None
+    if data is None:
         raise ApiError.of("version_not_found", version=version, file=name)
-    return found
+    return data
 
 
 @routes.get("/api/snapshots/{file}/{version}", action="snapshots.read")
 def read_snapshot(file: FileName, version: VersionId, ctx: ProjectDep) -> dict[str, Any]:
     """One version's content: JSON as an object, CSV as its text."""
-    path = _version_file(ctx, file, version)
-    data = path.read_bytes()
+    data = _version_bytes(ctx, file, version)
     truncated = len(data) > MAX_CONTENT
     text = data[:MAX_CONTENT].decode("utf-8", errors="replace")
     content: Any = text
-    if path.suffix == ".json" and not truncated:
+    if file.endswith(".json") and not truncated:
         content = json.loads(text)
     return {"file": file, "id": version, "content": content, "truncated": truncated}
 
@@ -181,7 +187,7 @@ def restore_snapshot(
     expected = expected_version(request)
     if version == "current":
         raise ApiError.of("already_current")
-    source = _version_file(ctx, file, version)
+    source = _version_bytes(ctx, file, version)
     project = ctx.project
     action = f"restore {version}"
     with ctx.handle.mutex:
@@ -189,16 +195,14 @@ def restore_snapshot(
         if file == "themes.json":
             restore_version(project, version, expected=expected)
         elif file == "project.json":
-            config = ProjectFile.model_validate_json(source.read_bytes())
+            config = ProjectFile.model_validate_json(source)
             project.save_config(
                 config,
                 action=action,
                 identity_change=bool(body and body.confirm_identity_change),
             )
         else:
-            write_decision(
-                ctx.layout, _path(ctx, file), source.read_bytes(), expected=expected, action=action
-            )
+            write_decision(ctx.layout, _path(ctx, file), source, expected=expected, action=action)
         if file in ("keywords.csv", "themes.json") and project.has_curation():
             project.freeze_identity("curation decisions restored")
     current = version_of(fingerprint(_path(ctx, file)))

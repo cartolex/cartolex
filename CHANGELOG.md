@@ -52,6 +52,10 @@ nothing in the engine names a particular deployment, source or procedure.
     selected person's otherwise), each with its largest top-level node. On a
     sample of 86,000 mapped people the first map request went from 205 MB,
     97 s and 22 GB to 38 MB, 27 s and 2.4 GB; all the windows are 14 MB.
+  - *Decision history*: a CSV decision file of 256 KB or more keeps most
+    earlier versions as deltas from the latest version kept whole
+    (`.csv.delta`, `cartolex-history-delta/1`; one in 50 kept whole), read and
+    restored as before (`cartolex.project.files.read_version`).
   - *App*: the texts are a view of columns built once per version of the
     tables and kept in the project's cache (`cache/views/`), memory-mapped:
     lists, filters, sorts and counts of millions of texts without an object per

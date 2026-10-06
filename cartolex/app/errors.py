@@ -241,6 +241,9 @@ ERRORS: dict[str, ErrorKind] = {
     "no_versions": ErrorKind(404, "{file} has no versions; files with versions: {files}"),
     "file_not_written": ErrorKind(404, "{file} does not exist yet"),
     "version_not_found": ErrorKind(404, "there is no version {version} of {file}", "reload"),
+    "version_unreadable": ErrorKind(
+        409, "version {version} of {file} cannot be rebuilt from the history: {reason}", "none"
+    ),
     "already_current": ErrorKind(409, "this version is already the current one"),
     # people and collection
     "unknown_people": ErrorKind(404, "unknown person id(s): {ids}", "reload"),

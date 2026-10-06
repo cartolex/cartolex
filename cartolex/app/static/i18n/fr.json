@@ -2719,6 +2719,8 @@
   "error.budget_hosted.message": "Sur un service hébergé, ce que les constructions peuvent utiliser est réglé par qui le fait tourner.",
   "error.budget_invalid.title": "Ce budget ne peut pas être enregistré",
   "error.budget_invalid.message": "{reason, select, too_small {Cette valeur est trop petite : une construction a besoin d’au moins 1 024 Mo et d’un processus.} too_large {Cet ordinateur en a moins : moins de mémoire ou moins de processeurs.} relative {Donnez le chemin complet du dossier.} not_folder {Il n’y a pas de dossier à cet endroit.} not_writable {On ne peut pas écrire dans ce dossier.} other {Cette valeur ne peut pas être enregistrée.}}",
+  "error.version_unreadable.title": "Cette version ne peut pas être reconstituée",
+  "error.version_unreadable.message": "Cette version antérieure est gardée comme un changement par rapport à une autre, qui manque ou est abîmée dans le dossier d’historique du projet.",
   "error.snapshot_unavailable.title": "L’instantané ne peut pas être lu",
   "error.snapshot_unavailable.message": "L’instantané d’OpenAlex de cet ordinateur n’est pas prêt à être lu : branchez son disque, terminez son téléchargement, ou lisez OpenAlex par l’API.",
   "settings.snapshot.indexed": "Indexé ({date}) : une collecte ne lit que ce qu’elle demande.",

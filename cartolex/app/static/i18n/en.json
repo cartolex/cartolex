@@ -2719,6 +2719,8 @@
   "error.budget_hosted.message": "On a hosted service, what builds may use is set by whoever runs it.",
   "error.budget_invalid.title": "This budget cannot be saved",
   "error.budget_invalid.message": "{reason, select, too_small {This value is too small: a build needs at least 1,024 MB and one worker.} too_large {This computer has less: fewer megabytes of memory or fewer processors.} relative {Give the folder’s full path.} not_folder {There is no folder there.} not_writable {This folder cannot be written to.} other {This value cannot be saved.}}",
+  "error.version_unreadable.title": "This version cannot be rebuilt",
+  "error.version_unreadable.message": "This earlier version is kept as a change from another one, and that one is missing or damaged in the project’s history folder.",
   "error.snapshot_unavailable.title": "The snapshot cannot be read",
   "error.snapshot_unavailable.message": "The OpenAlex snapshot of this computer is not ready to be read: plug in its disk, finish its download, or read OpenAlex from the API.",
   "settings.snapshot.indexed": "Indexed ({date}): a collection reads only what it asks for.",
