@@ -43,6 +43,7 @@ __all__ = [
     "keyword_sets",
     "map_extras",
     "place_texts",
+    "terms_of_people",
     "read_base",
     "remove_base",
 ]
@@ -223,7 +224,7 @@ def map_extras(ctx: Any, people: list[dict[str, Any]], cache: Any = None) -> dic
 # ── keywords of people, organisations and texts ─────────────────────────────
 
 
-def _terms_of_people(ctx: Any) -> dict[str, list[tuple[str, float]]]:
+def terms_of_people(ctx: Any) -> dict[str, list[tuple[str, float]]]:
     """Person id → their keywords and scores, the heaviest first (from the keywords stage)."""
     ids = _person_ids(ctx)
     out: dict[str, list[tuple[str, float]]] = defaultdict(list)
@@ -401,26 +402,22 @@ def _batches(path: Any, name: str, columns: list[str]) -> Any:
 
 
 def keyword_sets(
-    ctx: Any, kind: str, ids: list[str], extras: dict[str, Any] | None = None
+    ctx: Any,
+    kind: str,
+    ids: list[str],
+    extras: dict[str, Any] | None = None,
+    by_person: dict[str, list[tuple[str, float]]] | None = None,
 ) -> dict[str, list[str]]:
     """The keywords a person or an organisation's current members use most (at most
-    ``REGION_KEYWORDS``, the heaviest first), by id; an unknown id gets none."""
-    by_person = _terms_of_people(ctx)
+    ``REGION_KEYWORDS``, the heaviest first), by id; an unknown id gets none. *by_person*:
+    every person's keywords (:func:`terms_of_people`), when the caller keeps them."""
+    from .space_index import members_of
+
+    if by_person is None:
+        by_person = terms_of_people(ctx)
     if kind == "person":
         return {i: [t for t, _ in by_person.get(i, [])[:REGION_KEYWORDS]] for i in ids}
-    members: dict[str, set[str]] = defaultdict(set)
-    orgs = (extras or {}).get("organisations") or []
-    parents = {o["id"]: o["parents"] for o in orgs}
-    for pid, info in ((extras or {}).get("people") or {}).items():
-        todo = list(info.get("orgs") or [])
-        seen: set[str] = set()
-        while todo:
-            o = todo.pop()
-            if o in seen:
-                continue
-            seen.add(o)
-            members[o].add(pid)
-            todo.extend(parents.get(o, []))
+    members = members_of(extras)
     out: dict[str, list[str]] = {}
     for org in ids:
         total: dict[str, float] = defaultdict(float)
@@ -514,7 +511,7 @@ def base_bundle(ctx: Any, bundle: dict[str, Any], base: dict[str, Any]) -> dict[
          "y": at[k["term"]][1] if k["term"] in at else None}
         for k in bundle["keywords"]
     ]  # fmt: skip
-    by_person = _terms_of_people(ctx)
+    by_person = terms_of_people(ctx)
     people = []
     for p in bundle["people"]:
         sx = sy = w = 0.0

@@ -228,6 +228,9 @@ ERRORS: dict[str, ErrorKind] = {
     ),
     "preview_needs_build": ErrorKind(409, "this preview needs {stage} built first", "build"),
     "base_not_found": ErrorKind(404, "there is no base map {base}", "reload"),
+    "atlas_item_not_found": ErrorKind(
+        404, "the {kind} {id} has no place in the space of this map", "reload"
+    ),
     "base_no_map": ErrorKind(
         422, "{path} holds no project with a map: build its map there first", "fix-input"
     ),
@@ -430,6 +433,12 @@ ERRORS: dict[str, ErrorKind] = {
     ),
     "site_not_found": ErrorKind(404, "there is no site build {build}", "reload"),
     "export_not_found": ErrorKind(404, "there is no exported file {name}", "reload"),
+    "export_names_question": ErrorKind(
+        422, "say whether the file names people or gives them pseudonyms", "fix-input"
+    ),
+    "export_size_confirm": ErrorKind(
+        409, "this matrix has {cells} cells, about {size}: confirm to write it", "confirm"
+    ),
 }
 
 

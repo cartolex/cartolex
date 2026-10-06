@@ -45,9 +45,26 @@ class SiteBody(BaseModel):
 
 
 class ExportBody(BaseModel):
-    """A file to write: the map bundle, or the project as one zip."""
+    """A file to write: the map bundle, the project as one zip, or distances in the space
+    of the themes (``neighbours``, ``similarity``, ``vectors``) of the people on the map
+    (``of: person``; every one, or those of ``ids``) or of the organisations of one
+    ``level``. People are named or given pseudonyms as ``names`` says (asked: 422
+    ``export_names_question``); a similarity matrix above ten million cells needs
+    ``confirm`` (409 ``export_size_confirm``, its size said). ``plan`` answers what would
+    be written, without writing it."""
 
-    kind: Literal["map_bundle", "project"]
+    kind: Literal["map_bundle", "project", "neighbours", "similarity", "vectors"]
+    of: Literal["person", "organisation"] = "person"
+    level: Annotated[str | None, Field(max_length=64)] = None
+    k: Annotated[int, Field(ge=1, le=100)] = 10
+    names: Names | None = None
+    ids: Annotated[list[Annotated[str, Field(max_length=200)]] | None,
+                   Field(max_length=500_000)] = None  # fmt: skip
+    confirm: bool = False
+    plan: bool = False
+
+
+DISTANCES = ("neighbours", "similarity", "vectors")
 
 
 def _stale_stages(request: Request, project: Any) -> list[str]:
@@ -245,6 +262,8 @@ def export(request: Request, ctx: ProjectDep, body: ExportBody) -> JSONResponse:
 
     runtime = runtime_of(request)
     project = ctx.project
+    if body.kind in DISTANCES:
+        return _distances(request, ctx, body)
     if body.kind == "map_bundle" and lineage(ctx)["themes.apply"] is None:
         raise ApiError.of("no_map_to_share")
 
@@ -274,6 +293,68 @@ def export(request: Request, ctx: ProjectDep, body: ExportBody) -> JSONResponse:
     return JSONResponse({"job": info.as_dict()}, status_code=202)
 
 
+def _distances(request: Request, ctx: Any, body: ExportBody) -> JSONResponse:
+    """Plan or write an export of distances (a job)."""
+    from ..distance_exports import human_size, plan_export, write_export
+    from .atlas import space_of
+
+    runtime = runtime_of(request)
+    project = ctx.project
+    view = space_of(runtime, ctx)
+    plan = plan_export(view, body.kind, body.of, ids=body.ids, level=body.level, k=body.k)
+    if body.plan:
+        names = {lv.id: dict(lv.names) for lv in project.config.levels}
+        levels = [
+            {"id": lv, "names": names.get(lv, {}), "count": len(view.org_vectors(lv)[0])}
+            for lv in view.levels
+        ]
+        return JSONResponse(
+            {"plan": {**plan.as_dict(), "size": human_size(plan.bytes), "levels": levels}}
+        )
+    if body.of == "person" and body.names is None:
+        raise ApiError.of("export_names_question")
+    if plan.confirm and not body.confirm:
+        raise ApiError.of("export_size_confirm", cells=plan.cells, size=human_size(plan.bytes))
+
+    def work(control: JobControl) -> dict[str, Any]:
+        def say(fraction: float) -> None:
+            control.progress({"fraction": round(0.02 + 0.97 * fraction, 4),
+                              "stage": "share.export", "message": "writing"})  # fmt: skip
+
+        say(0.0)
+        path = write_export(
+            project, view, body.kind, body.of, names=body.names == "names", ids=body.ids,
+            level=body.level, k=body.k, progress=say, cancelled=lambda: control.cancelled,
+        )  # fmt: skip
+        if path is None:
+            return {"summary": "nothing changed", "summary_code": "export_cancelled"}
+        control.progress({"fraction": 1.0, "stage": "share.export", "message": "done"})
+        return {"name": path.name, "summary": f"{path.name} written",
+                "summary_code": "export_written", "summary_params": {"name": path.name}}  # fmt: skip
+
+    try:
+        info = runtime.jobs.submit(
+            project=ctx.id,
+            jobs_dir=ctx.layout.jobs,
+            kind="export",
+            work=work,
+            title="write an export",
+            title_code=f"export_{body.kind}",
+        )
+    except JobConflict as exc:
+        raise busy_error(exc.running) from exc
+    return JSONResponse({"job": info.as_dict(), "plan": plan.as_dict()}, status_code=202)
+
+
+#: The media type of an exported file, by its extension.
+EXPORT_TYPES = {
+    ".zip": "application/zip",
+    ".csv": "text/csv; charset=utf-8",
+    ".parquet": "application/vnd.apache.parquet",
+    ".npz": "application/octet-stream",
+}
+
+
 @routes.get("/api/share/exports/{name}", action="share.read")
 def export_file(ctx: ProjectDep, name: ExportName) -> Response:
     """An exported file, to download."""
@@ -282,4 +363,5 @@ def export_file(ctx: ProjectDep, name: ExportName) -> Response:
     path = exports_folder(ctx.project) / name
     if not path.is_file():
         raise ApiError.of("export_not_found", name=name)
-    return FileResponse(path, media_type="application/zip", filename=name)
+    media = EXPORT_TYPES.get(path.suffix.lower(), "application/octet-stream")
+    return FileResponse(path, media_type=media, filename=name)

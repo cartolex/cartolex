@@ -4,11 +4,13 @@
  * (light or dark; people are never named on a figure), the theme table as
  * CSV, and two files written by a job into `outputs/exports/` under dated
  * names: the map bundle (for another project's base map or a merge) and the
- * project as one zip, without its caches.
+ * project as one zip, without its caches; and distances in the space of the themes
+ * (`distances.js`: the nearest of each, every pair, the vectors).
  */
 import { html, useState } from '../../core/preact.js';
 import { formatDate, formatNumber, locale, t } from '../../core/i18n.js';
 import { Button, Card, ErrorCard, FormField, Input, ProgressBar, Select } from '../../components/index.js';
+import { DistancesDialog } from './distances.js';
 
 const MIN = 200;
 const MAX = 6000;
@@ -24,6 +26,7 @@ export function ExportsCard({ ctx, share, job, running, onStarted }) {
   const [theme, setTheme] = useState('light');
   const [error, setError] = useState(null);
   const [starting, setStarting] = useState('');
+  const [distances, setDistances] = useState(false);
   const w = clamp(width, 1600);
   const h = clamp(height, 1200);
   const figure = (format) => `/api/share/figures/map?${new URLSearchParams({ format, width: String(w),
@@ -62,7 +65,11 @@ export function ExportsCard({ ctx, share, job, running, onStarted }) {
         ${t('share.files.map_bundle')}<//>
       <${Button} loading=${starting === 'project'} disabled=${running} onClick=${() => start('project')}>
         ${t('share.files.project')}<//>
+      <${Button} disabled=${running} onClick=${() => setDistances(true)} aria-haspopup="dialog">
+        ${t('share.files.distances')}<//>
     </div>
+    <${DistancesDialog} ctx=${ctx} open=${distances} onClose=${() => setDistances(false)}
+      onStarted=${(job) => onStarted({ ok: true, data: { job } })} />
     ${job && running ? html`<${ProgressBar} value=${job.progress ? job.progress.fraction : null} label=${t('share.files.progress')} />` : null}
     ${error ? html`<${ErrorCard} error=${error} compact />` : null}
     ${files.length ? html`<ul class="cx-share-files" aria-label=${t('share.files.list')}>

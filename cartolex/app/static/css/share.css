@@ -150,3 +150,28 @@
   padding: var(--cx-space-1) 0;
   overflow-wrap: anywhere;
 }
+
+/* « Export distances »: a matrix above its threshold says its size and waits for a yes. */
+.cx-distances-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cx-space-2) var(--cx-space-3);
+  margin: var(--cx-space-2) 0;
+  padding: var(--cx-space-2) var(--cx-space-3);
+  border-left: 3px solid var(--cx-warning);
+  background: var(--cx-warning-surface);
+}
+
+.cx-distances-warning > .cx-icon {
+  color: var(--cx-warning);
+}
+
+.cx-distances-warning p {
+  flex: 1 1 20rem;
+  margin: 0;
+}
+
+.cx-distances-form > * {
+  flex: 1 1 14rem;
+}

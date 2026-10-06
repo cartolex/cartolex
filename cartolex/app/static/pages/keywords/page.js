@@ -5,7 +5,8 @@
  * the address, `?band=`), with the counting unit and the languages in the head, a warning
  * when languages would split the themes, the history of the decisions, and
  * the triage with AI (a copilot, or by API), and the keywords' « Tune » panel
- * (`pages/tune/`). Opening it reads one list page.
+ * (`pages/tune/`). Opening it reads one list page. `?q=<term>` (a link from the map or the
+ * themes) shows that keyword and the candidates merged into it, in the band that holds them.
  */
 import { html, useState } from '../../core/preact.js';
 import { formatNumber, t } from '../../core/i18n.js';
@@ -18,11 +19,13 @@ import { KeywordList } from './list.js';
 import { HistoryDrawer, MergeDialog } from './dialogs.js';
 import { ApiDialog } from './api.js';
 import { KeywordCopilotDialog } from './copilot.js';
+import { KeywordPeopleDrawer } from './people.js';
 import { TunePanel } from '../tune/panel.js';
 
 function bandOf(query) {
   const band = query && query.get('band');
-  return BANDS.includes(band) ? band : 'check';
+  if (BANDS.includes(band)) return band;
+  return query && query.get('q') ? 'kept' : 'check';
 }
 
 /** The warning: several corpus languages and no AI filtering yet. */
@@ -47,6 +50,8 @@ export function KeywordsScreen() {
   const [dialog, setDialog] = useState(() => (ctx.query && ctx.query.get('copilot') === '1'
     ? { kind: 'copilot', proposal: ctx.query.get('proposal') } : null)); // {kind, ...}
   const [watched, setWatched] = useState(null);
+  const [term, setTerm] = useState(() => (ctx.query && ctx.query.get('q')) || '');
+  const [people, setPeople] = useState('');
   const toast = (item) => app.toaster.show(item);
   const bump = () => setVersion((v) => v + 1);
 
@@ -55,6 +60,19 @@ export function KeywordsScreen() {
     const url = new URL(window.location.href);
     url.searchParams.set('band', id);
     window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+  };
+  const clearTerm = () => {
+    setTerm('');
+    const url = new URL(window.location.href);
+    url.searchParams.delete('q');
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+  };
+  // A keyword from the address: its band is the one that holds it.
+  const onData = (d) => {
+    setData(d);
+    if (!term || d.total || !d.matched_bands) return;
+    const other = BANDS.find((b) => d.matched_bands[b]);
+    if (other && other !== band) setBand(other);
   };
   useJobEnd(app, watched, (job) => {
     setWatched(null);
@@ -100,11 +118,12 @@ export function KeywordsScreen() {
       n: data.orphan_count })}</p>` : null}
     <${Tabs} tabs=${tabs} selected=${band} onSelect=${setBand} label=${t('keywords.bands')}
       class="cx-corpus__tabs"
-      panel=${(id) => html`<${KeywordList} ctx=${ctx} band=${id} version=${version} onData=${setData}
-        onChanged=${bump} toast=${toast}
+      panel=${(id) => html`<${KeywordList} ctx=${ctx} band=${id} version=${version} onData=${onData}
+        onChanged=${bump} toast=${toast} term=${term} onClearTerm=${clearTerm} onPeople=${setPeople}
         onMerge=${(rows, etag) => setDialog({ kind: 'merge', rows, etag })} />`} />
     ${dialog && dialog.kind === 'merge' ? html`<${MergeDialog} ctx=${ctx} rows=${dialog.rows}
       version=${dialog.etag} onClose=${closeDialog} onDone=${finished} />` : null}
+    <${KeywordPeopleDrawer} ctx=${ctx} term=${people} onClose=${() => setPeople('')} />
     ${dialog && dialog.kind === 'history' ? html`<${HistoryDrawer} ctx=${ctx} version=${version}
       onClose=${closeDialog} onChanged=${bump} toast=${toast} />` : null}
     ${dialog && dialog.kind === 'copilot' ? html`<${KeywordCopilotDialog} ctx=${ctx}

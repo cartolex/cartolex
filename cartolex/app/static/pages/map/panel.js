@@ -4,13 +4,17 @@
  * organisation, a text, a theme, a keyword, a projected person) with its
  * themes, its keywords, its people or its time windows, each a button that
  * selects it in turn; with nothing selected, what the map shows, each count
- * with what it counts.
+ * with what it counts. Links open the selection on another screen (People,
+ * Keywords, Themes); the space of the themes adds the nearest of a person or an
+ * organisation (and « Compare with… »), and the people who use a keyword.
  */
 import { html } from '../../core/preact.js';
 import { formatNumber, formatPercent, locale, t } from '../../core/i18n.js';
 import { Button, MapSymbol } from '../../components/index.js';
 import { levelLabel, orgName, periodOf, themeName } from './model.js';
 import { SHAPE_OF } from './state.js';
+import { Links, linkTo } from './links.js';
+import { Nearest, Users } from './near.js';
 
 function Shares({ index, shares, level = 1, limit = 6 }) {
   const list = Object.entries(shares || {}).sort((a, b) => b[1] - a[1]).slice(0, limit);
@@ -51,7 +55,15 @@ function Head({ kind, title, detail }) {
 
 const keywordChips = (terms) => terms.map((term) => ({ key: term, text: term, sel: { kind: 'keyword', id: term } }));
 
-function Person({ index, state, id, sets, texts, onSelect }) {
+/** The nearest, with « Compare with… ». */
+function Near({ space, onSelect, onCompare, kind }) {
+  return html`<${Section} title=${t('map.near.title')}>
+    <${Nearest} answer=${space} onSelect=${onSelect} kind=${kind} />
+    ${onCompare ? html`<${Button} size="s" onClick=${onCompare} aria-haspopup="dialog">${t('map.compare.button')}<//>` : null}
+  <//>`;
+}
+
+function Person({ index, state, id, sets, texts, onSelect, space, onCompare }) {
   const p = index.people[index.byPerson.get(id)];
   const info = index.extra[id] || { columns: {}, orgs: [] };
   const period = periodOf(index, state);
@@ -63,6 +75,7 @@ function Person({ index, state, id, sets, texts, onSelect }) {
   const orgs = info.orgs.map((o) => index.orgs[index.byOrg.get(o)]).filter(Boolean);
   return html`<div>
     <${Head} kind="people" title=${p.name} detail=${p.unit} />
+    <${Links} label=${t('map.links')} links=${[{ href: linkTo.person(id), label: t('map.links.person') }]} />
     ${Object.keys(info.columns).length ? html`<dl class="cx-atlas-facts">
       ${Object.entries(info.columns).map(([k, v]) => html`<div key=${k}><dt>${k}</dt><dd>${v}</dd></div>`)}
     </dl>` : null}
@@ -77,6 +90,7 @@ function Person({ index, state, id, sets, texts, onSelect }) {
       ${terms ? html`<${Chips} label=${t('map.panel.keywords')} onSelect=${onSelect} items=${keywordChips(terms.slice(0, 20))} />`
         : html`<p class="cx-atlas-panel__muted" aria-busy="true">${t('common.loading')}</p>`}
     <//>
+    <${Near} space=${space} onSelect=${onSelect} onCompare=${onCompare} kind="person" />
     ${windows.length ? html`<${Section} title=${t('map.panel.windows')}>
       <ol class="cx-atlas-windows">
         ${windows.map((w) => {
@@ -95,7 +109,7 @@ function Person({ index, state, id, sets, texts, onSelect }) {
   </div>`;
 }
 
-function Organisation({ index, id, sets, onSelect }) {
+function Organisation({ index, id, sets, onSelect, space, onCompare }) {
   const i = index.byOrg.get(id);
   const o = index.orgs[i];
   const level = index.levels.find((lv) => lv.id === o.level);
@@ -104,6 +118,7 @@ function Organisation({ index, id, sets, onSelect }) {
   const parents = (o.parents || []).map((p) => index.orgs[index.byOrg.get(p)]).filter(Boolean);
   return html`<div>
     <${Head} kind="organisations" title=${o.name} detail=${[o.acronym, level ? levelLabel(level, locale.value) : o.level].filter(Boolean).join(' · ')} />
+    <${Links} label=${t('map.links')} links=${[{ href: linkTo.organisation(id), label: t('map.links.organisation') }]} />
     <p class="cx-atlas-count">${t('map.panel.members', { now: members.length, ever: o.members_ever })}</p>
     ${parents.length ? html`<${Chips} label=${t('map.panel.parents')} onSelect=${onSelect}
       items=${parents.map((p) => ({ key: p.id, text: orgName(p), sel: { kind: 'organisation', id: p.id } }))} />` : null}
@@ -119,6 +134,7 @@ function Organisation({ index, id, sets, onSelect }) {
         items=${members.slice(0, 60).map((k) => ({ key: index.people[k].person_id, text: index.people[k].name,
           sel: { kind: 'person', id: index.people[k].person_id } }))} />
     <//>` : null}
+    <${Near} space=${space} onSelect=${onSelect} onCompare=${onCompare} kind="organisation" />
   </div>`;
 }
 
@@ -129,6 +145,7 @@ function Text({ index, id, texts, onSelect }) {
   const people = texts.people[i].filter((pid) => index.byPerson.has(pid));
   return html`<div>
     <${Head} kind="texts" title=${texts.title[i]} detail=${texts.year[i] ? String(texts.year[i]) : ''} />
+    <${Links} label=${t('map.links')} links=${[{ href: linkTo.text(id), label: t('map.links.text') }]} />
     <p class="cx-atlas-panel__muted">${t(texts.by[i] === 0 ? 'map.panel.placed_keywords' : 'map.panel.placed_authors',
       { count: texts.terms[i].length })}</p>
     ${people.length ? html`<${Section} title=${t('map.panel.authors')}>
@@ -152,6 +169,7 @@ function Theme({ index, id, onSelect }) {
   return html`<div>
     <${Head} kind="themes" title=${themeName(index, id, locale.value)}
       detail=${node.share !== null && node.share !== undefined ? t('map.panel.theme_share', { share: node.share }) : ''} />
+    <${Links} label=${t('map.links')} links=${[{ href: linkTo.themesNode(id), label: t('map.links.theme') }]} />
     ${path.length ? html`<${Chips} label=${t('map.panel.path')} onSelect=${onSelect}
       items=${path.map((p) => ({ key: p, text: themeName(index, p, locale.value), sel: { kind: 'theme', id: p } }))} />` : null}
     ${(index.children.get(id) || []).length ? html`<${Section} title=${t('map.panel.subthemes')}>
@@ -173,7 +191,7 @@ function Theme({ index, id, onSelect }) {
   </div>`;
 }
 
-function Keyword({ index, id, onSelect }) {
+function Keyword({ index, id, onSelect, space }) {
   const k = index.keywords[index.byTerm.get(id)];
   const path = [];
   for (let at = k.node; at && index.nodes.has(at); at = index.nodes.get(at).parent) path.unshift(at);
@@ -183,10 +201,15 @@ function Keyword({ index, id, onSelect }) {
     ${path.length ? html`<${Chips} label=${t('map.panel.path')} onSelect=${onSelect}
       items=${path.map((p) => ({ key: p, text: themeName(index, p, locale.value), sel: { kind: 'theme', id: p } }))} />`
       : html`<p class="cx-atlas-panel__muted">${t('map.panel.aside')}</p>`}
+    <${Links} label=${t('map.links')} links=${[{ href: linkTo.keyword(id), label: t('map.links.keyword') },
+      { href: linkTo.themesKeyword(id), label: t('map.links.keyword_themes') }]} />
+    <${Section} title=${t('map.users.title')}>
+      <${Users} answer=${space} onSelect=${onSelect} />
+    <//>
   </div>`;
 }
 
-function Projected({ index, id }) {
+function Projected({ index, id, space, onSelect }) {
   const p = index.projected.find((o) => o.person_id === id);
   if (!p) return html`<p class="cx-atlas-panel__muted">${t('map.panel.gone')}</p>`;
   return html`<div>
@@ -195,6 +218,7 @@ function Projected({ index, id }) {
     <${Section} title=${t('map.panel.themes', { level: 1 })}>
       <${Shares} index=${index} shares=${p.shares && p.shares[0]} />
     <//>
+    <${Near} space=${space} onSelect=${onSelect} kind="projected" />
   </div>`;
 }
 
@@ -216,21 +240,23 @@ function Summary({ index, state, counts, base }) {
 }
 
 /** The side panel. */
-export function Panel({ index, state, counts, sets, texts, onSelect, onClose, base }) {
+export function Panel({ index, state, counts, sets, texts, onSelect, onClose, base, space, onCompare }) {
   const sel = state.sel;
   let body = null;
   if (sel && sel.kind === 'person' && index.byPerson.has(sel.id)) {
-    body = html`<${Person} index=${index} state=${state} id=${sel.id} sets=${sets} texts=${texts} onSelect=${onSelect} />`;
+    body = html`<${Person} index=${index} state=${state} id=${sel.id} sets=${sets} texts=${texts} onSelect=${onSelect}
+      space=${space} onCompare=${onCompare} />`;
   } else if (sel && sel.kind === 'organisation' && index.byOrg.has(sel.id)) {
-    body = html`<${Organisation} index=${index} id=${sel.id} sets=${sets} onSelect=${onSelect} />`;
+    body = html`<${Organisation} index=${index} id=${sel.id} sets=${sets} onSelect=${onSelect}
+      space=${space} onCompare=${onCompare} />`;
   } else if (sel && sel.kind === 'text') {
     body = html`<${Text} index=${index} id=${sel.id} texts=${texts} onSelect=${onSelect} />`;
   } else if (sel && sel.kind === 'theme' && index.nodes.has(sel.id)) {
     body = html`<${Theme} index=${index} id=${sel.id} onSelect=${onSelect} />`;
   } else if (sel && sel.kind === 'keyword' && index.byTerm.has(sel.id)) {
-    body = html`<${Keyword} index=${index} id=${sel.id} onSelect=${onSelect} />`;
+    body = html`<${Keyword} index=${index} id=${sel.id} onSelect=${onSelect} space=${space} />`;
   } else if (sel && sel.kind === 'projected') {
-    body = html`<${Projected} index=${index} id=${sel.id} />`;
+    body = html`<${Projected} index=${index} id=${sel.id} space=${space} onSelect=${onSelect} />`;
   }
   return html`<aside class="cx-atlas-panel" aria-label=${t('map.panel.label')}>
     ${body ? html`<div class="cx-atlas-panel__close">

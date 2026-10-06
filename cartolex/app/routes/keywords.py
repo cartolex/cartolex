@@ -169,6 +169,23 @@ class Where(BaseModel):
     decision: Literal["keep", "exclude", "merge", "none"] | None = None
     route: Literal["person", "ai-handoff", "ai-copilot", "ai-api", "extraction"] | None = None
     q: Annotated[str, Field(max_length=300)] = ""
+    #: A keyword as the vocabulary names it: its own row, its forms, and the candidates
+    #: merged into it (by a decision, an AI's English form or an alias of the extraction).
+    term: Annotated[str, Field(max_length=300)] = ""
+
+
+def _names_of(ctx: Any, term: str) -> set[str]:
+    """The lower-case names that stand for *term*: itself and the aliases the keywords
+    stage folds into it (``models/term_aliases.csv``)."""
+    folded = term.strip().casefold()
+    out = {folded}
+    path = ctx.layout.stage("keywords.build") / "models" / "term_aliases.csv"
+    if folded and path.is_file():
+        with open(path, encoding="utf-8", newline="") as fh:
+            for r in csv.DictReader(fh):
+                if (r.get("canonical") or "").casefold() == folded:
+                    out.add((r.get("alias") or "").casefold())
+    return out
 
 
 def keyword_view(runtime: Any, ctx: Any, where: Where) -> dict[str, Any]:
@@ -200,14 +217,33 @@ def keyword_view(runtime: Any, ctx: Any, where: Where) -> dict[str, Any]:
         if (t, lang_) not in matched
     ]
     q = where.q.strip().casefold()
+    names = _names_of(ctx, where.term) if where.term.strip() else set()
 
     def hit(v: dict[str, Any]) -> bool:
         return q in v["term"].casefold() or any(q in f.casefold() for f in v["forms"])
 
+    def same(v: dict[str, Any]) -> bool:
+        decided = v["decision"] or {}
+        ai = v["ai"] or {}
+        return (
+            v["term"].casefold() in names
+            or any(f.casefold() in names for f in v["forms"])
+            or (
+                decided.get("decision") == "merge" and decided.get("target", "").casefold() in names
+            )
+            or (ai.get("english") or "").casefold() in names
+        )
+
+    matched_bands: dict[str, int] = {}
+    if names:
+        for v in view:
+            if same(v):
+                matched_bands[v["band"]] = matched_bands.get(v["band"], 0) + 1
     items = [
         v
         for v in view
         if (where.band is None or v["band"] == where.band)
+        and (not names or same(v))
         and (where.lang is None or v["language"] == where.lang)
         and (where.route is None or v["route"] == where.route)
         and (where.category is None or (v["category"] or "none") == where.category)
@@ -230,6 +266,7 @@ def keyword_view(runtime: Any, ctx: Any, where: Where) -> dict[str, Any]:
         "languages": by_lang,
         "orphans": orphans,
         "items": items,
+        "matched_bands": matched_bands,
     }
 
 
@@ -246,15 +283,26 @@ def list_keywords(
         Literal["person", "ai-handoff", "ai-copilot", "ai-api", "extraction"] | None, Query()
     ] = None,
     category: Annotated[Category | Literal["none"] | None, Query()] = None,
+    term: Annotated[str, Query(max_length=300)] = "",
 ) -> dict[str, Any]:
     """The candidates in their bands (kept, to check, set aside, rejected automatically) with
     the reason and the category of each, your decisions and the AI's verdicts by API applied,
-    and the route that decided each; paged, sorted and filtered here."""
+    and the route that decided each; paged, sorted and filtered here. ``term`` keeps one
+    keyword of the vocabulary: its row, its forms and the candidates merged into it, in
+    every band (``matched_bands`` counts them by band)."""
     runtime = runtime_of(request)
     v = keyword_view(
         runtime,
         ctx,
-        Where(band=band, lang=lang, decision=decision, route=route, category=category, q=params.q),
+        Where(
+            band=band,
+            lang=lang,
+            decision=decision,
+            route=route,
+            category=category,
+            q=params.q,
+            term=term,
+        ),  # fmt: skip
     )
     run_id, decisions, fp, triage = v["run"], v["decisions"], v["fp"], v["triage"]
     counts, routes_, by_lang, orphans, items = (
@@ -294,6 +342,7 @@ def list_keywords(
             "route": route,
             "category": category,
             "q": params.q,
+            "term": term,
         },
         empty=nothing,
         extra={
@@ -310,6 +359,7 @@ def list_keywords(
             "run": run_id,
             "orphans": orphans[:50],
             "orphan_count": len(orphans),
+            "matched_bands": v["matched_bands"],
             "version": version_of(fp),
         },
     )

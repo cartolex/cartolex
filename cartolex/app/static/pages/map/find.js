@@ -33,12 +33,13 @@ function entries(index, texts, lang) {
   return out;
 }
 
-/** The combobox. */
-export function Find({ index, texts, onSelect }) {
+/** The combobox: every kind, or those of *kinds* (`person`, `organisation`…). */
+export function Find({ index, texts, onSelect, kinds = null, label = '', placeholder = '' }) {
   const id = useUid('cx-atlas-find');
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
-  const all = useMemo(() => entries(index, texts, locale.value), [index, texts, locale.value]);
+  const all = useMemo(() => entries(index, texts, locale.value)
+    .filter((e) => !kinds || kinds.includes(e.kind)), [index, texts, locale.value, kinds]);
   const matches = useMemo(() => {
     const q = fold(query.trim());
     if (!q) return [];
@@ -73,13 +74,13 @@ export function Find({ index, texts, onSelect }) {
   };
   const open = matches.length > 0;
   return html`<div class="cx-atlas-find">
-    <label class="cx-visually-hidden" for=${id}>${t('map.find')}</label>
+    <label class="cx-visually-hidden" for=${id}>${label || t('map.find')}</label>
     <input id=${id} class="cx-input cx-atlas-find__input" type="search" autocomplete="off"
-      placeholder=${t('map.find.placeholder')} value=${query} role="combobox"
+      placeholder=${placeholder || t('map.find.placeholder')} value=${query} role="combobox"
       aria-expanded=${String(open)} aria-controls=${`${id}-list`} aria-autocomplete="list"
       aria-activedescendant=${open ? `${id}-${active}` : undefined}
       onInput=${(e) => { setQuery(e.currentTarget.value); setActive(0); }} onKeyDown=${onKeyDown} />
-    <ul id=${`${id}-list`} class="cx-atlas-find__list" role="listbox" aria-label=${t('map.find')} hidden=${!open}>
+    <ul id=${`${id}-list`} class="cx-atlas-find__list" role="listbox" aria-label=${label || t('map.find')} hidden=${!open}>
       ${matches.map((e, k) => html`<li key=${`${e.kind}:${e.id}`} id=${`${id}-${k}`} role="option"
         aria-selected=${String(k === active)} class=${k === active ? 'is-active' : ''}
         onMouseDown=${(ev) => { ev.preventDefault(); choose(e); }}>

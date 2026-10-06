@@ -144,6 +144,7 @@ cancel ».
 | `cache/ai/` | AI answers: per-term and per-batch triage caches, translations, label translations, token usage — terms only | the answers are paid for again |
 | `cache/parse/` | parsed texts, keyed by the text's SHA-256 and the language model's name and version | texts are parsed again |
 | `cache/http/` | service responses, each with its lifetime; failures are never cached | collection fetches again |
+| `cache/atlas/` | the app's replies that take long to make (the texts and time windows of the map), and `space-<key>/`: the space stage's people vectors (float32, of length one) and keyword shares by person and by keyword, copied once per run of `themes.space` for the nearest, the comparisons and the people who use a keyword | they are made again when the map is opened |
 
 The AI cache keys are part of the format and never change within a major
 version, so a project, or an application migrating its own caches into one,

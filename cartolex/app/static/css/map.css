@@ -676,3 +676,104 @@
     height: 60vh;
   }
 }
+
+/* Full screen: the body over the whole screen (the browser's, or fixed over the window). */
+.cx-atlas__body.is-fullscreen {
+  padding: var(--cx-space-3);
+  background: var(--cx-bg);
+}
+
+.cx-atlas__body.is-fullscreen--fixed {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--cx-z-header) + 5);
+}
+
+.cx-atlas__body.is-fullscreen--native {
+  height: 100%;
+}
+
+/* The side columns folded away: the map takes their room (a narrow window stacks them). */
+@media (min-width: 1101px) {
+  .cx-atlas__body.is-tree-folded {
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  }
+
+  .cx-atlas__body.is-panel-folded {
+    grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr);
+  }
+
+  .cx-atlas__body.is-tree-folded.is-panel-folded {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Links to the other screens, the nearest with their similarity, « Compare with… ». */
+.cx-atlas-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-1);
+  margin: 0 0 var(--cx-space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.cx-atlas-near__value {
+  margin-left: auto;
+  color: var(--cx-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cx-atlas-compare__pair {
+  margin: var(--cx-space-2) 0;
+  font-weight: 600;
+}
+
+.cx-atlas-compare__measures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--cx-space-2) var(--cx-space-4);
+  margin: var(--cx-space-2) 0;
+}
+
+.cx-atlas-compare__measures dt {
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}
+
+.cx-atlas-compare__measures dd {
+  margin: 0;
+  font-size: var(--cx-text-l);
+  font-variant-numeric: tabular-nums;
+}
+
+.cx-atlas-compare__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--cx-text-s);
+}
+
+.cx-atlas-compare__table th,
+.cx-atlas-compare__table td {
+  padding: var(--cx-space-1) var(--cx-space-2);
+  border-bottom: var(--cx-rule-width) solid var(--cx-rule);
+  text-align: left;
+}
+
+.cx-atlas-compare__table .is-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cx-atlas-compare section {
+  margin-top: var(--cx-space-4);
+}
+
+/* The canvas a saved view is drawn on: in the page (its colours resolve), never seen. */
+.cx-atlas-save {
+  position: absolute;
+  width: 0;
+  height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}

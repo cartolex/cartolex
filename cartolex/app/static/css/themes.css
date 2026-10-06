@@ -1348,3 +1348,36 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* The centre in full screen (the browser's, or fixed over the window), its button in a corner. */
+.cx-themes-centre {
+  position: relative;
+}
+
+.cx-themes-centre__fullscreen {
+  position: absolute;
+  top: var(--cx-space-1);
+  right: var(--cx-space-1);
+  z-index: 2;
+}
+
+.cx-themes-centre.is-fullscreen {
+  padding: var(--cx-space-2);
+  background: var(--cx-bg);
+}
+
+.cx-themes-centre.is-fullscreen--fixed {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--cx-z-header) + 5);
+}
+
+/* Links to the other screens (the map, the keywords, the people). */
+.cx-atlas-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-1);
+  margin: 0 0 var(--cx-space-2);
+  padding: 0;
+  list-style: none;
+}

@@ -124,11 +124,16 @@ function ranksByWeight(weights) {
  * (`kind:id` → terms). Answers `{scene, counts, notes}`: `counts` per kind
  * (`shown`, `total`), `notes` what the page should say (regions capped).
  */
-export function mapScene(index, state, { texts = null, sets = new Map(), locale = 'en' } = {}) {
+export function mapScene(index, state, { texts = null, sets = new Map(), locale = 'en', space = null } = {}) {
   const mask = matching(index, state);
   const period = periodOf(index, state);
   const inPeriod = (start, end) => !period || (end >= period[0] && start <= period[1]);
   const lit = selection(index, state, texts, sets);
+  // What the space of the themes adds: the people who use a keyword.
+  if (space) {
+    for (const i of space.people) lit.people.add(i);
+    for (const i of space.organisations) lit.organisations.add(i);
+  }
   const show = new Set(state.show);
   const layers = [];
   const regions = [];
