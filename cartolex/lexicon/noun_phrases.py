@@ -38,7 +38,8 @@ pattern is one occurrence of a candidate — nested spans included, so
   ``N P N``;
 - Spanish: the Portuguese shape with ``de``, ``a``, ``en``, ``por``,
   ``para``, ``con`` and the contractions ``del``, ``al`` (``nivel del mar``,
-  ``lesión por presión``);
+  ``lesión por presión``), the complement's noun being a noun or a run of
+  proper nouns (``estado de Santa Catarina``);
 - Italian: the same shape with ``di``, ``a``, ``da``, ``in``, ``su``,
   ``per``, ``con`` and the forms joined to the article (``del``, ``della``,
   ``dell'``, ``nel``, ``sulla`` …), which spaCy's Italian tokenizer keeps as
@@ -179,6 +180,9 @@ def _prep_map(groups: Mapping[str, Iterable[str]]) -> Mapping[str, str]:
 
 
 _EN_NP = "[ANR]*[NRG]"
+# Spanish and Italian: the French shape, a complement's noun being a noun or a run of
+# proper nouns (``estado de Santa Catarina``, not ``estado de Santa``).
+_ROMANCE_NP = "NA*(?:PD?(?:N|R+)A*)?"
 # A German head: a noun, or a run of proper nouns (``Max Planck``).
 _DE_HEAD = "(?:N|R+)"
 #: Italian prepositions, each with its forms joined to the article (elided ones
@@ -230,7 +234,7 @@ PATTERNS: Mapping[str, LanguagePatterns] = MappingProxyType(
         ),
         "es": LanguagePatterns(
             lang="es",
-            pattern="NA*(?:PD?[NR]A*)?",
+            pattern=_ROMANCE_NP,
             prepositions=_prep_map(
                 {
                     "de": ("de", "del"),
@@ -246,7 +250,7 @@ PATTERNS: Mapping[str, LanguagePatterns] = MappingProxyType(
         ),
         "it": LanguagePatterns(
             lang="it",
-            pattern="NA*(?:PD?[NR]A*)?",
+            pattern=_ROMANCE_NP,
             prepositions=_prep_map(
                 {
                     **_IT_PREPOSITIONS,

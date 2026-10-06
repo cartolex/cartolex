@@ -391,9 +391,18 @@ def test_spanish_terms_with_their_prepositions() -> None:
             ("para", "ADP", "para"),
             ("la", "DET", "el"),
             ("salud", "NOUN", "salud"),
+            ("en", "ADP", "en"),
+            ("el", "DET", "el"),
+            ("estado", "NOUN", "estado"),
+            ("de", "ADP", "de"),
+            ("Santa", "PROPN", "Santa"),
+            ("Catarina", "PROPN", "Catarina"),
         ],
     )
     found = candidates("es", doc)
+    # A name after the preposition is whole, not cut after its first word (« estado de
+    # Santa » nests in it: the part-of rule sets it aside).
+    assert ("estado de santa catarina", "estado de Santa Catarina") in found
     assert ("nivel de mar", "nivel del mar") in found
     assert ("lesión por presión", "lesiones por presión") in found
     assert ("educación para salud", "educación para la salud") in found
