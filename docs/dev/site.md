@@ -47,11 +47,24 @@ what they share on `window.CxSite`.
 
 `cartolex.site.data.gather` reads the atlas bundle (`GET /api/atlas`'s
 `build_bundle` and `map_extras`) and adds, per person, the themes of each level,
-the keywords, the organisations and the **real nearest neighbours** (the
-closest people by cosine similarity in the space the map is drawn from,
-`themes.space/pca_individuals.csv`, computed by blocks of rows); per
-organisation its themes, keywords and members; per theme its people and
-organisations (a share of at least a fifth) and keywords.
+the keywords, the organisations and the **co-authors**; per organisation its
+themes, keywords, members and the organisations of its level it writes with;
+per theme its people and organisations (a share of at least a fifth) and
+keywords.
+
+- **Who writes with whom** comes from the app's co-author graph
+  (`cartolex.app.coauthors`, see `GET /api/atlas/coauthors` in {doc}`api`):
+  `cartolex.site.data.site_links` gives it over the site's own indexes as sparse
+  arrays (`SiteData.links`: `people` and `orgs`, each `ptr`, `nbr`, `cnt` with
+  the works together, the strongest first, and `hidden`, the partners in the
+  project the site does not carry; the people's `outside`). Each page reads its
+  own: a person's part of the people's details has `co` (flat pairs of a site
+  index and the works together; an index past the people is a projected
+  person), `co_hidden` and `co_outside`, an organisation's details `co`, a named
+  projected person's `details.projected`. Projected people are in the links only
+  when the site names them; under pseudonyms the indexes are the pseudonyms'
+  order, so the links name nobody. Organisations without a level of the project
+  are left out.
 
 - **Names** are shown only when the build says so; a site of people asks at
   each build (the API refuses a build without the answer, 422
@@ -87,13 +100,16 @@ offers (build the map, open the themes, change a field).
 Home (search a person, an organisation, a keyword or a theme; arrows move
 through the results), Map (the MapFrame's controller: permanent legend, one
 symbol per kind, hover card, labels of the selection and with the zoom, lines
-from a selected person to their real nearest neighbours, the plain caveat
-about distances, the world view over the Natural Earth outline), Themes (a
+from a selected person to their co-authors (the thicker, the more works
+together) and dashed from an organisation to those it writes with, the plain
+caveat about distances, the world view over the Natural Earth outline), Themes (a
 treemap drill-down with the sub-themes as a list too, a small map, keywords,
 people, organisations), a page per person and per organisation (position,
-themes, keywords, closest people, texts when carried; « Print this page »),
+themes, keywords, co-authors or the organisations it writes with, texts when
+carried; « Print this page »),
 Index (people, organisations and keywords as searchable, paginated lists) and
-Method (what distances mean, in plain words; what the site holds). Routes are
+Method (what distances and co-authors mean, in plain words; what the site
+holds). Routes are
 in the fragment (`#/person/s3`); an unknown one says « Not found ».
 
 The site speaks English, French and Portuguese (Brazil)
@@ -123,6 +139,13 @@ organisations, 2 955 keywords, 163 themes), Chromium, from `file://`:
 | home ready | 0.14 s | |
 | opened on the map, first frame drawn | 0.3–0.4 s | |
 | a person's page (details read) | 0.16 s | |
+
+Since the co-authors replaced the nearest people, the L world's site builds in
+the same time (1.2 s, the co-author graph made in it; 0.26 s once kept) and
+weighs 0.73 MB. On a national sample (86,500 people on the map, 825,000 texts,
+2.7 million authorships) the site's links take 18 s, the co-author graphs
+included (the nearest people took 69 s), and add 18 MB spread over the
+people's parts and the details.
 
 `data/core.js` is 0.20 MB and the details 0.38 MB (since `cartolex-site/2`,
 `data/details.js` and the people's parts); the map's and the

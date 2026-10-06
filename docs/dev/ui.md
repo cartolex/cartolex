@@ -422,14 +422,20 @@ selection to the other screens (`links.js`: a person, an organisation or a
 text in People, `/people?person=`, `?tab=organisations&org=`,
 `?tab=texts&text=`; a keyword in Keywords, `/keywords?q=`, and in Themes,
 `/themes?keyword=`; a theme, `/themes?node=`), and the other screens link back
-(`/map?sel=kind:id`). From the space of the themes (`near.js`, one call per
-selection): the most similar to a person, an organisation or a projected
-person, a list in the panel with each similarity (`GET /api/atlas/neighbours`;
-nothing is drawn between them on the map: a similarity is not a link), and
-the people who use a keyword, lit on the map
-(`GET /api/atlas/keyword-people`); « Compare with… » (`compare.js`) puts a
-second person or organisation beside the selection
-(`GET /api/atlas/compare`). The body (treemap, map, panel) goes full screen
+(`/map?sel=kind:id`). Who the selection writes with (`coauthors.js`,
+`GET /api/atlas/coauthors`, one call per selection and per page asked): a
+person's (a projected person's) co-authors in the project, with the works
+together, and an organisation's partners of its level, listed in the panel and
+joined to the selection by lines on the map, the thicker the more works
+together (dashed between organisations); projected co-authors are faint (drawn
+faintly when the projected people are hidden) and never named; « Second
+circle » (`c2=1` in the address) adds the co-authors of the co-authors, with
+thinner and fainter lines. The panel shows no similarity: a similarity is not a
+link. From the space of the themes (`near.js`): the people who use a keyword,
+lit on the map (`GET /api/atlas/keyword-people`); « Compare with… »
+(`compare.js`) puts a second person or organisation beside the selection
+(`GET /api/atlas/compare`). The map's lines take a `width` in pixels and a
+`dash` (WebGL draws a wide or dashed line as a strip of triangles). The body (treemap, map, panel) goes full screen
 (`fullscreen.js`: the Fullscreen API, else fixed over the window; Escape and a
 button inside leave it), and its side columns fold away, remembered in this
 browser (`columns.js`). « Distances » (`pages/share/distances.js`, also on the
@@ -573,7 +579,7 @@ console error, an uncaught exception or a CSP violation fails a test:
   calls of the navigation and axe; and a budget: 10⁴ points panned in the
   gallery at 50 frames a second or more, a frame drawn in under 16 ms;
   `tests/browser/test_atlas_links.py`: a selection from the address with its
-  most similar, a keyword's people and its way to the keywords and the themes
+  co-authors, a keyword's people and its way to the keywords and the themes
   screens, full screen and back, the view saved as SVG and PNG.
 
 The browser tests need `tools/requirements-browser.txt` (Playwright, which
