@@ -72,6 +72,8 @@ def with_notice(request: Request, summary: dict[str, Any]) -> dict[str, Any]:
 
     runtime = runtime_of(request)
     notice = notice_level(summary, runtime.notices.read(principal_of(request).id))
+    if not summary.get("consent_needed", True):  # the service says nothing leaves (a stand-in)
+        notice = {**notice, "level": "none", "reasons": ["nothing_sent"]}
     return {**summary, "notice": notice, "consent_needed": notice["level"] != "none"}
 
 
