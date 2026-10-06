@@ -25,7 +25,15 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 from .errors import ApiError
 from .routing import Routes, runtime_of
 
-__all__ = ["ATLAS_MODULES", "MAP_MODULES", "MEDIA_TYPES", "PACKAGE_STATIC", "classic_script", "routes", "safe_file"]
+__all__ = [
+    "ATLAS_MODULES",
+    "MAP_MODULES",
+    "MEDIA_TYPES",
+    "PACKAGE_STATIC",
+    "classic_script",
+    "routes",
+    "safe_file",
+]
 
 PACKAGE_STATIC = Path(__file__).with_name("static")
 
@@ -89,7 +97,9 @@ _IMPORT = re.compile(
     r"^import\s[^;]*?\sfrom\s+'(?:\./|(?:\.\./)+)[\w/-]+\.js';[ \t]*\n", re.MULTILINE
 )
 _EXPORT = re.compile(r"^export (function|const) ([A-Za-z_$][\w$]*)", re.MULTILINE)
-_TOP = re.compile(r"^(?:export )?(?:async )?(?:function\*?|const|let|class) ([A-Za-z_$][\w$]*)", re.MULTILINE)
+_TOP = re.compile(
+    r"^(?:export )?(?:async )?(?:function\*?|const|let|class) ([A-Za-z_$][\w$]*)", re.MULTILINE
+)
 
 
 def classic_script(sources: list[Path], global_name: str) -> str:

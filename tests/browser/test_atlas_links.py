@@ -71,7 +71,9 @@ def test_the_map_links_to_the_other_screens_and_back(demo_s, app_for, open_app):
     page.get_by_role("button", name="The map alone, full screen").click()
     page.wait_for_function("() => document.querySelector('.cx-atlas-map.is-full')")
     page.locator(".cx-atlas-map").get_by_role("button", name="Home: the whole field").wait_for()
-    page.locator(".cx-atlas-map").get_by_role("button", name="Leave full screen (Esc)").first.click()
+    page.locator(".cx-atlas-map").get_by_role(
+        "button", name="Leave full screen (Esc)"
+    ).first.click()
     page.wait_for_function("() => !document.querySelector('.cx-atlas-map.is-full')")
 
     # the view saved as it is on screen: SVG with the legend, PNG

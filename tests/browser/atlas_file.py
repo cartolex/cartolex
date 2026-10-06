@@ -49,26 +49,77 @@ def synthetic_bundle(people: int, keywords: int, orgs: int, seed: int = 0) -> tu
     nodes = []
     for i in range(8):
         cx, cy = math.cos(i * 0.8) * 6, math.sin(i * 0.8) * 6
-        nodes.append({"id": f"t{i}", "parent": None, "level": 1, "order": i, "names": {"en": f"theme {i}"},
-                      "weight": 1 + i / 10, "share": 0.125, "x": cx, "y": cy})
-        nodes += [{"id": f"t{i}_{j}", "parent": f"t{i}", "level": 2, "order": j, "names": {"en": f"topic {i}.{j}"},
-                   "weight": 0.3 + j / 10, "share": None} for j in range(3)]
+        nodes.append(
+            {
+                "id": f"t{i}",
+                "parent": None,
+                "level": 1,
+                "order": i,
+                "names": {"en": f"theme {i}"},
+                "weight": 1 + i / 10,
+                "share": 0.125,
+                "x": cx,
+                "y": cy,
+            }
+        )
+        nodes += [
+            {
+                "id": f"t{i}_{j}",
+                "parent": f"t{i}",
+                "level": 2,
+                "order": j,
+                "names": {"en": f"topic {i}.{j}"},
+                "weight": 0.3 + j / 10,
+                "share": None,
+            }
+            for j in range(3)
+        ]
     kws = []
     for k in range(keywords):
         i, j = k % 8, (k // 8) % 3
-        kws.append({"term": f"term {k}", "x": math.cos(i * 0.8) * 6 + rnd.gauss(0, 1), "y": math.sin(i * 0.8) * 6
-                    + rnd.gauss(0, 1), "node": f"t{i}_{j}", "weight": rnd.random() / 50})
-    org_list = [{"id": f"o{k}", "name": f"Organisation {k}", "acronym": f"O{k}", "level": "lab", "parents": [],
-                 "x": None, "y": None, "location": None} for k in range(orgs)]
+        kws.append(
+            {
+                "term": f"term {k}",
+                "x": math.cos(i * 0.8) * 6 + rnd.gauss(0, 1),
+                "y": math.sin(i * 0.8) * 6 + rnd.gauss(0, 1),
+                "node": f"t{i}_{j}",
+                "weight": rnd.random() / 50,
+            }
+        )
+    org_list = [
+        {
+            "id": f"o{k}",
+            "name": f"Organisation {k}",
+            "acronym": f"O{k}",
+            "level": "lab",
+            "parents": [],
+            "x": None,
+            "y": None,
+            "location": None,
+        }
+        for k in range(orgs)
+    ]
     ppl, extra, sums, members = [], {}, {}, {}
     for p in range(people):
         i, j = p % 8, p % 3
         x, y = math.cos(i * 0.8) * 6 + rnd.gauss(0, 1.3), math.sin(i * 0.8) * 6 + rnd.gauss(0, 1.3)
         pid = f"p{p}"
-        ppl.append({"person_id": pid, "name": f"Person {p}", "unit": "", "x": x, "y": y,
-                    "shares": [{f"t{i}": 0.75, f"t{(i + 1) % 8}": 0.25}, {f"t{i}_{j}": 1.0}]})
+        ppl.append(
+            {
+                "person_id": pid,
+                "name": f"Person {p}",
+                "unit": "",
+                "x": x,
+                "y": y,
+                "shares": [{f"t{i}": 0.75, f"t{(i + 1) % 8}": 0.25}, {f"t{i}_{j}": 1.0}],
+            }
+        )
         org = f"o{p % orgs}"
-        extra[pid] = {"role": "mapped", "columns": {"site": "north" if p % 2 else "south"}, "orgs": [org]}
+        extra[pid] = {
+            "role": "mapped",
+            "columns": {"site": "north" if p % 2 else "south"},
+            "orgs": [org],
+        }
         s = sums.setdefault(org, [0.0, 0.0, 0])
         s[0] += x
         s[1] += y
@@ -83,11 +134,28 @@ def synthetic_bundle(people: int, keywords: int, orgs: int, seed: int = 0) -> tu
         for a in ids:
             links.append([a, ids[rnd.randrange(len(ids))], 1 + rnd.randrange(4)])
     links = [lk for lk in links if lk[0] != lk[1]]
-    bundle = {"format": "cartolex-atlas/3", "available": True, "map_version": "v1", "nodes": nodes, "people": ppl,
-              "keywords": kws, "organisations": org_list, "organisation_levels": [{"id": "lab", "names": {"en": "Lab"}}],
-              "people_extra": extra, "columns": [{"column": "site", "values": [{"value": "north", "count": people // 2},
-                                                                                  {"value": "south", "count": people - people // 2}]}],
-              "bounds": {"xmin": -10, "xmax": 10, "ymin": -10, "ymax": 10}, "overlays": []}
+    bundle = {
+        "format": "cartolex-atlas/3",
+        "available": True,
+        "map_version": "v1",
+        "nodes": nodes,
+        "people": ppl,
+        "keywords": kws,
+        "organisations": org_list,
+        "organisation_levels": [{"id": "lab", "names": {"en": "Lab"}}],
+        "people_extra": extra,
+        "columns": [
+            {
+                "column": "site",
+                "values": [
+                    {"value": "north", "count": people // 2},
+                    {"value": "south", "count": people - people // 2},
+                ],
+            }
+        ],
+        "bounds": {"xmin": -10, "xmax": 10, "ymin": -10, "ymax": 10},
+        "overlays": [],
+    }
     return bundle, links
 
 

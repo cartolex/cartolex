@@ -635,3 +635,23 @@ def test_the_map_modules_make_one_classic_script():
         assert name in script.rsplit("window[", 1)[1]
     body = [line.strip() for line in script.splitlines()]
     assert not [line for line in body if line.startswith(("import ", "export "))]
+
+
+def test_the_atlas_modules_make_one_classic_script(tmp_path):
+    """The app and the offline site mount one atlas: its modules, across folders, become one
+    classic script; two modules declaring the same top-level name are refused (they would
+    share one scope)."""
+    from cartolex.app.static_files import ATLAS_MODULES, PACKAGE_STATIC, classic_script
+
+    script = classic_script([PACKAGE_STATIC / m for m in ATLAS_MODULES], "CartolexAtlas")
+    exported = script.rsplit("window[", 1)[1]
+    for name in ("mountAtlas", "ringsOf", "createTranslator", "SCHEMES", "createMapController"):
+        assert name in exported
+    body = [line.strip() for line in script.splitlines()]
+    assert not [line for line in body if line.startswith(("import ", "export "))]
+    a = tmp_path / "a.js"
+    b = tmp_path / "b.js"
+    a.write_text("export function twice() {}\n")
+    b.write_text("import { twice } from '../x/a.js';\nconst twice = 2;\n")
+    with pytest.raises(ValueError, match="twice"):
+        classic_script([a, b], "Both")
