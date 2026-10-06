@@ -149,7 +149,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 3141,
-    "sha256": "fa8dc654410ade5991bc08b601c10f89f202e3e44b4ae33730eb4c9e6d56124c"
+    "sha256": "352e3c154db78df9fd63164a2f1d7ac0696cb6d7a2e79ca4b41816db3f9bb99b"
    },
    "person_terms": {
     "columns": [
@@ -201,17 +201,17 @@
     "kind": "table",
     "ordered": false,
     "rows": 3141,
-    "sha256": "e7743b17d83bbb8a5d40dbdfb74ff72206963981180604f1b721e50896178c16"
+    "sha256": "41d5a6df54c9d29c96ec22a4eff575dd554a2d5a2f249c959dc2267697a003b9"
    },
    "refined_en": {
     "kind": "hash",
     "of": "table",
-    "sha256": "1e374b14ab9d7197a7af6971576c436e66891b288c240791bddbb258d603f2fe"
+    "sha256": "2a8d22b6caeca0b5cf298112171222ee2008387b32e0e32dffa705ee6bfccdb9"
    },
    "refined_fr": {
     "kind": "hash",
     "of": "table",
-    "sha256": "11326ba1cedd827a1ddbcda579c82a2b38014b50f64c10a9d5c86d1b5d707af9"
+    "sha256": "466ad8605e8b474255c1a36df16c706cfadfafda5c67eb5fd247e970dccd25a7"
    },
    "settings": {
     "file": "build/settings.json",
@@ -360,7 +360,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 7021,
-    "sha256": "bb474803a1d40ab56e57ef21c779afbe320987fc21a2fe76006300a6cae1ff01"
+    "sha256": "ad7d2e2388cf5a8d7dc3c51985c49346daa6183b398dc23335bd9428436a7375"
    },
    "terms_fr": {
     "columns": [
@@ -392,7 +392,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 2248,
-    "sha256": "5808f58765c478e1e34247e7850cd8dcf4c0c850bc7c449ae3dd6e7e3c12266e"
+    "sha256": "685f2e15bce474c0bebbf7a27e46ef59ee4c0107cc2352742b20b8385be3d00d"
    },
    "terms_merged": {
     "columns": [
@@ -420,7 +420,7 @@
     "kind": "table",
     "ordered": false,
     "rows": 9178,
-    "sha256": "d85b16d12854076bf7bde674b54f73cbcd45ce35999d6225ed5a13cebd709f73"
+    "sha256": "e1ed56caaa147fe69178afa59f6e93d23053a968feeecd2fedbb471398c3c42b"
    }
   },
   "group": {
@@ -719,12 +719,12 @@
     "kind": "table",
     "ordered": false,
     "rows": 1253,
-    "sha256": "b3b83a49ce7d368bc106c828fb1b741a7f0dc15e5c64b27f4c7826b9cbbe429b"
+    "sha256": "fd36115ca99f4942f6f8d7f5493bb02aebe534f67576f655c88d14fc7a01d98f"
    },
    "windows": {
     "file": "trajectories/windows.json.gz",
     "kind": "json",
-    "sha256": "836fdf6411229dd560570fc739fb02f22778a33351228d9ed92b90982211d44a"
+    "sha256": "c202b9171c25bf3293074bd8d10f768f598b99c3c6430b5a79d7ee5aa84c3a49"
    }
   },
   "triage": {
@@ -756,11 +756,11 @@
   }
  },
  "baseline": {
-  "date": "2026-10-01",
-  "reason": "The space is fitted on the texts, as a project's themes.space does by default since the rule space_unit_texts (the workspace run follows it: run_svd(space_unit='text')); the clustering, the layout, the draft, its application, the trajectories, the projection and the bundle follow. The comb's calibration and the default sizes (keywords_per_group 40, the grids from 0.025) do not reach this run: the reference sets the level sizes and turns the comb off."
+  "date": "2026-10-06",
+  "reason": "Two changes since the last baseline. The extraction counts each text's candidates once and reads the evidence of the window's candidates afterwards: the candidates' columns are numbered in another order, so the scores' floating-point sums change in the last digits (at most 1.4e-14) and two trajectory points list terms of equal weight in the other order. And map.trajectories describes each person's time windows one by one (spans = windows): the windows artifact keeps the single windows. No term, band, group, point or position changes."
  },
  "environment": {
-  "engine_fingerprint": "84fa888e6a9c7b6d813d61ca4453c30c695629a646ad2da5355c8a65be529c77",
+  "engine_fingerprint": "d5f184992b4c6994a4e9f84539f855b85c1b6fd837b721cd3d529e979b016992",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {

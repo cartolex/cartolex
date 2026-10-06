@@ -117,25 +117,25 @@ reason = "The bundle carries the new vocabulary, entity terms and taxonomy (see 
 reference = "L"
 stage = "extract"
 artifact = "terms_en"
-sha256 = "bb474803a1d40ab56e57ef21c779afbe320987fc21a2fe76006300a6cae1ff01"
+sha256 = "ad7d2e2388cf5a8d7dc3c51985c49346daa6183b398dc23335bd9428436a7375"
 step = "g2"
-reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form; English phrases take no of complement) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the columns forms (every surface form of a candidate), people and texts (how many use it), band and reason, with the lexicon lab's band rules, the common-modifier rule off (steps 2a2, g2). Then: a single word among the language's stop words, a closed word of another language in a paragraph read as that language, a phrase starting or ending with another language's closed word, and an evenly spread single word are set aside (stop-word, stop-word-edge, even-spread); in a paragraph read as another language, its closed words cut phrases. Then: a candidate must also occur in at least 3 distinct texts (min_texts), so candidates of one or two co-authored texts leave the table."
+reason = "Candidate terms are noun phrases found by part-of-speech patterns (nested spans counted, grouped by lemma, shown in their most frequent form; English phrases take no of complement) instead of every sequence of one to four words filtered by the packaged stop-word lists; the TF-IDF scoring is unchanged. The table gains the columns forms (every surface form of a candidate), people and texts (how many use it), band and reason, with the lexicon lab's band rules, the common-modifier rule off (steps 2a2, g2). Then: a single word among the language's stop words, a closed word of another language in a paragraph read as that language, a phrase starting or ending with another language's closed word, and an evenly spread single word are set aside (stop-word, stop-word-edge, even-spread); in a paragraph read as another language, its closed words cut phrases. Then: a candidate must also occur in at least 3 distinct texts (min_texts), so candidates of one or two co-authored texts leave the table. Then: the scores' last digits follow the order in which the extraction counts (at most 1.4e-14 apart)."
 
 [[difference]]
 reference = "L"
 stage = "extract"
 artifact = "terms_fr"
-sha256 = "5808f58765c478e1e34247e7850cd8dcf4c0c850bc7c449ae3dd6e7e3c12266e"
+sha256 = "685f2e15bce474c0bebbf7a27e46ef59ee4c0107cc2352742b20b8385be3d00d"
 step = "g2"
-reason = "Same change as terms_en; French terms with a word of one or two letters (trait de côte, masse d'eau) are now kept whole. Then: stop words and evenly spread single words are set aside (see terms_en). Then: a candidate must also occur in at least 3 distinct texts (min_texts), so candidates of one or two co-authored texts leave the table."
+reason = "Same change as terms_en; French terms with a word of one or two letters (trait de côte, masse d'eau) are now kept whole. Then: stop words and evenly spread single words are set aside (see terms_en). Then: a candidate must also occur in at least 3 distinct texts (min_texts), so candidates of one or two co-authored texts leave the table. Then: the scores' last digits follow the order in which the extraction counts (at most 1.4e-14 apart)."
 
 [[difference]]
 reference = "L"
 stage = "extract"
 artifact = "terms_merged"
-sha256 = "d85b16d12854076bf7bde674b54f73cbcd45ce35999d6225ed5a13cebd709f73"
+sha256 = "e1ed56caaa147fe69178afa59f6e93d23053a968feeecd2fedbb471398c3c42b"
 step = "g2"
-reason = "The merged list of the new English and French candidates (see terms_en), with their band and reason (steps 2a2, g2). Then: with the stop-word and even-spread bands (see terms_en). Then: a candidate must also occur in at least 3 distinct texts (min_texts), so candidates of one or two co-authored texts leave the table."
+reason = "The merged list of the new English and French candidates (see terms_en), with their band and reason (steps 2a2, g2). Then: with the stop-word and even-spread bands (see terms_en). Then: a candidate must also occur in at least 3 distinct texts (min_texts), so candidates of one or two co-authored texts leave the table. Then: the scores' last digits follow the order in which the extraction counts (at most 1.4e-14 apart)."
 
 [[difference]]
 reference = "L"

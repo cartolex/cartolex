@@ -145,3 +145,9 @@ Each entry says when the stored baseline (`tests/baseline/`) was rewritten, why,
 - Engine: 1.0.0.dev0, source fingerprint `d5f184992b4c6994`
 - S: against the previous baseline, 12 stages: 11 identical, 1 different (trajectories)
 - merge: against the previous baseline, 1 stage: 1 identical
+
+## 2026-10-06 — L
+
+- Reason: Two changes since the last baseline. The extraction counts each text's candidates once and reads the evidence of the window's candidates afterwards: the candidates' columns are numbered in another order, so the scores' floating-point sums change in the last digits (at most 1.4e-14) and two trajectory points list terms of equal weight in the other order. And map.trajectories describes each person's time windows one by one (spans = windows): the windows artifact keeps the single windows. No term, band, group, point or position changes.
+- Engine: 1.0.0.dev0, source fingerprint `d5f184992b4c6994`
+- L: against the previous baseline, 12 stages: 9 identical, 1 within tolerance, 2 different (build, trajectories)
