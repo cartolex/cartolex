@@ -44,9 +44,11 @@ import numpy as np
 __all__ = [
     "FORMAT",
     "Graph",
-    "circle",
+    "answer",
+    "build_arrays",
     "org_graph",
     "person_graph",
+    "rings",
 ]
 
 #: The layout of the kept graph; a new value makes a new copy.
@@ -578,87 +580,91 @@ def _org_pairs(
 
 # ── reading ───────────────────────────────────────────────────────────────────
 
+#: The rings around an entity an answer can give (co-authors, theirs, one more).
+MAX_RINGS = 3
+
 
 @dataclass
-class Circle:
-    """The partners of one entity: the first circle (``first``: codes, ``texts``) and, when
-    asked, the second (``second``: codes, ``paths``, ``weight``; :meth:`via` the first-circle
-    partners each is reached through; ``edges``: links from the first circle to the second,
-    as ``(from, to, works)``)."""
+class Ring:
+    """The entities at one distance from another in the graph: ``codes``, ranked by
+    ``paths`` (how many entities of the ring before link to each; 1 in the first ring),
+    then by ``weight`` (the works along those links); :meth:`via` the entities of the ring
+    before each is reached through; ``edges``: every link from the ring before to this one,
+    as ``(from, to, works)``; ``partial`` when links were left unread (``max_scan``)."""
 
-    first: np.ndarray
-    texts: np.ndarray
-    second: np.ndarray | None = None
-    paths: np.ndarray | None = None
-    weight: np.ndarray | None = None
-    edges: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None
+    codes: np.ndarray
+    paths: np.ndarray
+    weight: np.ndarray
+    edges: tuple[np.ndarray, np.ndarray, np.ndarray]
     partial: bool = False
     _from: np.ndarray | None = None
     _start: np.ndarray | None = None
 
     def via(self, rank: int, most: int = 3) -> list[int]:
-        """The first-circle partners the *rank*-th of the second circle is reached
-        through, the strongest link first (at most *most*)."""
+        """The entities of the ring before the *rank*-th is reached through, the strongest
+        link first (at most *most*)."""
         if self._from is None or self._start is None:
             return []
         lo = int(self._start[rank])
         return self._from[lo : lo + min(most, int(self.paths[rank]))].tolist()
 
 
-def circle(graph: Graph, code: int, second: bool = False, max_scan: int = MAX_SCAN) -> Circle:
-    """The first circle of *code*, and the second when asked: the partners of its partners
-    that are neither it nor a partner, ranked by how many partners lead to them
-    (``paths``), then by the works along those links; at most *max_scan* links are read
-    (the strongest partners first; ``partial`` says when some were left)."""
-    first, texts = graph.links(code)
-    out = Circle(first=first, texts=texts)
-    if not second:
-        return out
-    empty = np.zeros(0, np.int64)
-    ptr = graph.arrays["ptr"]
-    sizes = (np.asarray(ptr[first + 1]) - np.asarray(ptr[first])).astype(np.int64)
-    room = np.cumsum(sizes) <= max_scan
-    out.partial = not bool(room.all())
-    parts_to: list[np.ndarray] = []
-    parts_from: list[np.ndarray] = []
-    parts_w: list[np.ndarray] = []
-    for q in first[room].tolist():
-        nb, w = graph.links(q)
-        parts_to.append(nb)
-        parts_from.append(np.full(len(nb), q, dtype=np.int64))
-        parts_w.append(w)
-    if not parts_to:
-        out.second, out.paths, out.weight = empty, empty, empty
-        out.edges = (empty, empty, empty)
-        return out
-    to = np.concatenate(parts_to).astype(np.int64)
-    frm = np.concatenate(parts_from)
-    w = np.concatenate(parts_w).astype(np.int64)
-    known = np.zeros(len(graph.ids), dtype=bool)
-    known[first] = True
-    known[code] = True
-    keep = ~known[to]
-    to, frm, w = to[keep], frm[keep], w[keep]
-    out.edges = (frm, to, w)
-    if not len(to):
-        out.second, out.paths, out.weight = empty, empty, empty
-        return out
-    order = np.lexsort((-w, to))
-    to_s, frm_s, w_s = to[order], frm[order], w[order]
-    start = np.flatnonzero(np.r_[True, to_s[1:] != to_s[:-1]])
-    paths = np.diff(np.r_[start, len(to_s)])
-    weight = np.add.reduceat(w_s, start)
-    who = to_s[start]
-    rank = np.lexsort((who, -weight, -paths))
-    out.second, out.paths, out.weight = who[rank], paths[rank], weight[rank]
-    out._from, out._start = frm_s, start[rank]
+def rings(graph: Graph, code: int, depth: int = 1, max_scan: int = MAX_SCAN) -> list[Ring]:
+    """The first *depth* rings around *code*: its partners, then the partners of each ring
+    that are in no earlier ring (nor *code*). A ring reads at most *max_scan* links, from
+    the strongest entities of the ring before (``partial`` says when some were left)."""
+    ptr = np.asarray(graph.arrays["ptr"])
+    nbr, cnt = graph.arrays["nbr"], graph.arrays["cnt"]
+    seen = np.zeros(len(graph.ids), dtype=bool)
+    seen[code] = True
+    out: list[Ring] = []
+    before = np.asarray([code], dtype=np.int64)
+    for _ in range(max(1, min(depth, MAX_RINGS))):
+        sizes = ptr[before + 1] - ptr[before]
+        room = np.cumsum(sizes) <= max_scan
+        if len(room) and not room[0]:
+            room[0] = True  # the first is read whole, whatever its size
+        partial = not bool(room.all())
+        at, pos = _expand_slices(before[room], ptr)
+        to = np.asarray(nbr[pos], dtype=np.int64) if len(pos) else np.zeros(0, np.int64)
+        w = np.asarray(cnt[pos], dtype=np.int64) if len(pos) else np.zeros(0, np.int64)
+        frm = before[room][at]
+        keep = ~seen[to]
+        frm, to, w = frm[keep], to[keep], w[keep]
+        empty = np.zeros(0, np.int64)
+        if not len(to):
+            out.append(Ring(empty, empty, empty, (frm, to, w), partial))
+            break
+        order = np.lexsort((-w, to))
+        to_s, frm_s, w_s = to[order], frm[order], w[order]
+        start = np.flatnonzero(np.r_[True, to_s[1:] != to_s[:-1]])
+        paths = np.diff(np.r_[start, len(to_s)])
+        weight = np.add.reduceat(w_s, start)
+        who = to_s[start]
+        rank = np.lexsort((who, -weight, -paths))
+        ring = Ring(who[rank], paths[rank], weight[rank], (frm, to, w), partial)
+        ring._from, ring._start = frm_s, start[rank]
+        out.append(ring)
+        seen[ring.codes] = True
+        before = ring.codes
     return out
+
+
+def _expand_slices(rows: np.ndarray, ptr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """For each of *rows*, every position of its slice of a CSR array: the index in *rows*
+    and the position."""
+    deg = ptr[rows + 1] - ptr[rows]
+    at = np.repeat(np.arange(len(rows), dtype=np.int64), deg)
+    offset = np.arange(len(at), dtype=np.int64) - np.repeat(np.cumsum(deg) - deg, deg)
+    return at, np.repeat(ptr[rows], deg) + offset
 
 
 # ── answers ───────────────────────────────────────────────────────────────────
 
-#: The most links an answer gives to draw (the strongest first).
+#: The most links an answer gives to draw per ring (the strongest first).
 MAX_LINES = 2_000
+#: The names of the rings after the first in an answer.
+RING_NAMES = ("second", "third")
 
 
 def answer(
@@ -667,74 +673,59 @@ def answer(
     describe: Any,
     drawn: Any,
     *,
-    second: bool = False,
-    offset: int = 0,
-    limit: int = 50,
-    offset2: int = 0,
-    limit2: int = 50,
+    depth: int = 1,
+    pages: list[tuple[int, int]] | None = None,
 ) -> dict[str, Any]:
     """The partners of *id_* as the API gives them (see ``GET /api/atlas/coauthors``):
     *describe(ids)* → for each id ``{id, name, …, place}``, *drawn(ids)* → whether each
-    has a place on the map (the links to draw are between those)."""
+    has a place on the map (the links to draw are between those); *pages*: the
+    ``(offset, limit)`` of each ring."""
+    depth = max(1, min(depth, MAX_RINGS))
+    pages = list(pages or []) + [(0, 50)] * MAX_RINGS
     code = graph.code(id_)
-    out: dict[str, Any] = {"id": id_, "circle": 2 if second else 1,
-                           "max_authors": graph.max_authors}  # fmt: skip
-    nobody: dict[str, Any] = {"count": 0, "items": [], "lines": []}
-    if code is None:  # in the project, but no work counted: nobody
-        out.update(texts=0, large=0, outside=0, placed=0, offset=offset, limit=limit, **nobody)
-        if second:
-            out["second"] = {**nobody, "offset": offset2, "limit": limit2, "partial": False}
-        return out
-    found = circle(graph, code, second)
+    out: dict[str, Any] = {"id": id_, "circle": depth, "max_authors": graph.max_authors}
+    found = rings(graph, code, depth) if code is not None else []
     ids = graph.ids
-    first = [ids[c] for c in found.first.tolist()]
-    texts = found.texts.tolist()
-    on = np.asarray(drawn(first), dtype=bool) if first else np.zeros(0, bool)
-    page = slice(offset, offset + limit)
     out.update(
-        texts=graph.stat("texts", code),
-        large=graph.stat("large", code),
-        outside=graph.stat("outside", code),
-        count=len(first),
-        placed=int(on.sum()),
-        offset=offset,
-        limit=limit,
-        items=[{**e, "texts": n} for e, n in zip(describe(first[page]), texts[page], strict=True)],
-        lines=[[first[k], texts[k]] for k in np.flatnonzero(on)[:MAX_LINES].tolist()],
+        texts=graph.stat("texts", code) if code is not None else 0,
+        large=graph.stat("large", code) if code is not None else 0,
+        outside=graph.stat("outside", code) if code is not None else 0,
     )
-    if second:
-        assert found.second is not None and found.paths is not None
-        assert found.weight is not None and found.edges is not None
-        rows = list(range(offset2, min(offset2 + limit2, len(found.second))))
-        shown = describe([ids[int(found.second[r])] for r in rows])
-        # The links from the first circle to the second, between partners on the map.
-        frm, to, w = found.edges
-        lines: list[list[Any]] = []
-        if len(frm):
-            codes = np.unique(np.r_[frm, to])
-            flag = np.zeros(len(ids), dtype=bool)
-            flag[codes] = np.asarray(drawn([ids[c] for c in codes.tolist()]), dtype=bool)
-            keep = flag[frm] & flag[to]
+    flag = np.zeros(len(ids), dtype=bool)
+    if found:
+        on = np.unique(np.concatenate([r.codes for r in found] + [np.asarray([code])]))
+        flag[on] = np.asarray(drawn([ids[c] for c in on.tolist()]), dtype=bool)
+    for k in range(depth):
+        ring = found[k] if k < len(found) else None
+        offset, limit = pages[k]
+        if ring is None:
+            part: dict[str, Any] = {"count": 0, "placed": 0, "items": [], "lines": [],
+                                    "partial": False}  # fmt: skip
+        else:
+            rows = list(range(offset, min(offset + limit, len(ring.codes))))
+            shown = describe([ids[int(ring.codes[r])] for r in rows])
+            items = []
+            for e, r in zip(shown, rows, strict=True):
+                item = {**e, "texts": int(ring.weight[r])}
+                if k:
+                    item["paths"] = int(ring.paths[r])
+                    item["via"] = [ids[c] for c in ring.via(r)]
+                items.append(item)
+            frm, to, w = ring.edges
+            # the first ring's links start at the entity asked about, drawn or not
+            keep = (flag[to] if k == 0 else flag[frm] & flag[to]) if len(frm) else frm > 0
             order = np.argsort(-w[keep], kind="stable")[:MAX_LINES]
-            lines = [
-                [ids[f], ids[t], n]
-                for f, t, n in zip(frm[keep][order].tolist(), to[keep][order].tolist(),
-                                   w[keep][order].tolist(), strict=True)
-            ]  # fmt: skip
-        out["second"] = {
-            "count": len(found.second),
-            "offset": offset2,
-            "limit": limit2,
-            "items": [
-                {
-                    **e,
-                    "paths": int(found.paths[r]),
-                    "texts": int(found.weight[r]),
-                    "via": [ids[c] for c in found.via(r)],
-                }
-                for e, r in zip(shown, rows, strict=True)
-            ],  # fmt: skip
-            "lines": lines,
-            "partial": found.partial,
-        }
+            f, t_, n = frm[keep][order].tolist(), to[keep][order].tolist(), w[keep][order].tolist()
+            lines = (
+                [[ids[b], c] for b, c in zip(t_, n, strict=True)]
+                if k == 0
+                else [[ids[a], ids[b], c] for a, b, c in zip(f, t_, n, strict=True)]
+            )
+            part = {"count": len(ring.codes), "placed": int(flag[ring.codes].sum()),
+                    "items": items, "lines": lines, "partial": ring.partial}  # fmt: skip
+        part.update(offset=offset, limit=limit)
+        if k == 0:
+            out.update(part)
+        else:
+            out[RING_NAMES[k - 1]] = part
     return out

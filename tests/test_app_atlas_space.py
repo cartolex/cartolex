@@ -254,15 +254,19 @@ def test_coauthors_are_the_people_who_signed_a_work_together(client):
     friend = next(iter(together[them]))
     seen = client.get("/api/atlas/coauthors", params={"kind": "person", "id": friend}).json()
     entry = next(i for i in seen["items"] if i["id"] == them)
-    assert entry["name"] is None and entry["place"] == "projected"
-    # the second circle: partners of partners, through the first
-    two = client.get("/api/atlas/coauthors", params={"kind": "person", "id": me, "circle": 2})
-    second = two.json()["second"]
+    assert entry["name"] is None and entry["place"] == "projected" and entry["mapped"] is False
+    # the second and third rings: partners of partners, through the ring before
+    three = client.get("/api/atlas/coauthors", params={"kind": "person", "id": me, "circle": 3})
+    second, third = three.json()["second"], three.json()["third"]
     first = set(together[me])
     for item in second["items"]:
         assert item["id"] not in first and item["id"] != me
         assert item["paths"] == len([q for q in first if item["id"] in together[q]])
         assert set(item["via"]) <= first
+    ring2 = {i["id"] for i in second["items"]}
+    assert second["count"] == len(ring2)  # the S world's rings fit in a page
+    for item in third["items"]:
+        assert item["id"] not in first | ring2 | {me} and set(item["via"]) <= ring2
     # a person merged into another counts as that person
     other = got["items"][-1]["id"]
     people = client.get("/api/people")
@@ -279,7 +283,15 @@ def test_coauthors_are_the_people_who_signed_a_work_together(client):
     org = next(o for o in atlas["organisations"] if o["x"] is not None and o["level"] == "lab")
     orgs = client.get("/api/atlas/coauthors", params={"kind": "organisation", "id": org["id"]})
     levels = {o["id"]: o["level"] for o in atlas["organisations"]}
-    assert orgs.json()["level"] == "lab" and org["id"] not in {i["id"] for i in orgs.json()["items"]}
+    assert orgs.json()["level"] == "lab" and org["id"] not in {
+        i["id"] for i in orgs.json()["items"]
+    }
     assert {levels[i["id"]] for i in orgs.json()["items"]} <= {"lab"}
+    ring = client.get(
+        "/api/atlas/coauthors", params={"kind": "organisation", "id": org["id"], "circle": 3}
+    ).json()
+    assert {"second", "third"} <= set(ring) and org["id"] not in {
+        i["id"] for i in ring["second"]["items"] + ring["third"]["items"]
+    }
     missing = client.get("/api/atlas/coauthors", params={"kind": "person", "id": "nobody"})
     assert missing.status_code == 404 and missing.json()["error"]["code"] == "unknown_people"

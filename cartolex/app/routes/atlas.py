@@ -867,18 +867,20 @@ def atlas_coauthors(
     ctx: ProjectDep,
     kind: Literal["person", "organisation"],
     id: Annotated[str, Query(min_length=1, max_length=200)],
-    circle: Annotated[int, Query(ge=1, le=2)] = 1,
+    circle: Annotated[int, Query(ge=1, le=3)] = 1,
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=MAX_COAUTHORS)] = 50,
     offset2: Annotated[int, Query(ge=0)] = 0,
     limit2: Annotated[int, Query(ge=1, le=MAX_COAUTHORS)] = 50,
+    offset3: Annotated[int, Query(ge=0)] = 0,
+    limit3: Annotated[int, Query(ge=1, le=MAX_COAUTHORS)] = 50,
 ) -> dict[str, Any]:
     """Who writes with a person (the people of the project who signed a work with them,
     with the works together) or an organisation (the organisations of its level whose
     people signed a work with its people); ``circle=2`` adds the partners of the partners
-    (their ``paths``: through how many partners), each list paged on the server; the
-    authors outside the project are counted, never listed (see
-    :mod:`cartolex.app.coauthors`)."""
+    (``second``: their ``paths``, through how many partners, and ``via``), ``circle=3`` one
+    more ring (``third``), each ring paged on the server; the authors outside the project
+    are counted, never listed (see :mod:`cartolex.app.coauthors`)."""
     from ..coauthors import answer, org_graph, person_graph
     from ..corpus_view import organisations
 
@@ -902,7 +904,8 @@ def atlas_coauthors(
                 name, role = people.get(i, ("", ""))
                 # A projected person is never named on the map: by their id only.
                 shown = None if role == "projected" or places.get(i) == "projected" else name
-                out.append({"id": i, "name": shown, "role": role, "place": places.get(i)})
+                out.append({"id": i, "name": shown, "role": role, "mapped": role == "mapped",
+                            "place": places.get(i)})  # fmt: skip
             return out
 
     else:
@@ -920,6 +923,6 @@ def atlas_coauthors(
                 for i in ids
             ]  # fmt: skip
 
-    found = answer(graph, id, describe, drawn, second=circle == 2, offset=offset, limit=limit,
-                   offset2=offset2, limit2=limit2)  # fmt: skip
+    pages = [(offset, limit), (offset2, limit2), (offset3, limit3)]
+    found = answer(graph, id, describe, drawn, depth=circle, pages=pages)
     return {"kind": kind, **extra, **found}
