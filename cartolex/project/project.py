@@ -146,25 +146,34 @@ class Project:
     # ── opening ──
     @classmethod
     def open(
-        cls, root: Path, *, write: bool = False, app: str = "cartolex", force: bool = False
+        cls,
+        root: Path,
+        *,
+        write: bool = False,
+        app: str = "cartolex",
+        force: bool = False,
+        holder: LockInfo | None = None,
     ) -> Project:
         """Open the project in *root*; take its lock when *write* is true.
 
         *force* overrides a lock whose holder may still run
         (:meth:`~cartolex.project.lock.ProjectLock.acquire`): only when a person
-        asked for it, knowing what it risks.
+        asked for it, knowing what it risks. With *holder*, write under the lock that
+        process holds (the application that started this one, see
+        :class:`~cartolex.project.lock.ProjectLock`): it is not taken here.
 
         A writer first repairs what a killed build may have left half done (see
-        :func:`cartolex.project.generations.recover`); :attr:`recovered` says what.
+        :func:`cartolex.project.generations.recover`); :attr:`recovered` says what (the
+        holder of a lock did, when it opened the project).
         """
         layout = ProjectLayout(Path(root))
         if not layout.project_json.exists():
             raise NotAProject(f"{root} holds no project.json")
         _check_format(layout.project_json)
         config = read_model(layout.project_json, ProjectFile)
-        lock = ProjectLock(layout, app).acquire(force=force) if write else None
+        lock = ProjectLock(layout, app, holder=holder).acquire(force=force) if write else None
         project = cls(layout, config, lock)  # type: ignore[arg-type]
-        if lock is not None:
+        if lock is not None and holder is None:
             try:
                 project.recovered = recover(layout)
             except BaseException:

@@ -14,7 +14,7 @@ from ..deps import ProjectDep
 from ..errors import ApiError
 from ..etags import check_version, etag_of, expected_version, version_of
 from ..jobs import JobConflict, JobControl
-from ..messages import attempt_message, empty
+from ..messages import empty
 from ..routing import Routes, runtime_of
 from .state import AREAS
 
@@ -79,12 +79,6 @@ def _estimate(e: Any) -> dict[str, Any] | None:
 
 #: Terms per AI call of the clean-up (the engine's ``llm_batch_size``).
 AI_BATCH = 150
-#: What to do after a failed stage, by the code of its attempt.
-FAILED_NEXT = {
-    "language_model_missing": ("Open the settings", "settings"),
-    "stage_refused": ("Open the settings", "settings"),
-    "stage_failed": ("Copy a diagnostic", "report"),
-}
 
 
 def ai_calls(ctx: Any, the_plan: Any, stage: str) -> int | None:
@@ -178,25 +172,6 @@ def pause_for(runtime: Any, ctx: Any, the_plan: Any, passed: list[str]) -> dict[
     return pause_of(ctx.project, runtime.registry, the_plan, routes_of(params), set(passed))
 
 
-def progress_json(event: Any) -> dict[str, Any]:
-    """A build's progress event for the tracker, with an estimate of the time left."""
-    eta = None
-    if event.fraction >= 0.02 and event.elapsed_s > 0:
-        eta = round(event.elapsed_s * (1 - event.fraction) / event.fraction, 1)
-    return {
-        "phase": event.phase,
-        "phases": event.phases,
-        "stage": event.stage,
-        "name": event.name,
-        "stage_fraction": event.stage_fraction,
-        "fraction": event.fraction,
-        "message": event.message,
-        "elapsed_s": event.elapsed_s,
-        "eta_s": eta,
-        "heartbeat": event.heartbeat,
-    }
-
-
 def start_build_job(
     runtime: Any,
     ctx: Any,
@@ -215,11 +190,13 @@ def start_build_job(
     whose route is a copilot, except the steps in it: it runs what comes before the
     step and ends ``waiting``, its result naming the pause (``waiting``).
     """
-    from cartolex.build import build, plan
+    from cartolex.build import plan
+
+    from ..build_run import child_recipe, run_build
 
     project, registry = ctx.project, runtime.registry
     settings = runtime.settings
-    accepted = set(consent)
+    recipe = child_recipe(runtime)
 
     def work(control: JobControl) -> dict[str, Any]:
         run_targets, pause = targets, None
@@ -246,39 +223,21 @@ def start_build_job(
                 "changed": False,
                 "waiting": pause,
             }
-        result = build(
+        out = run_build(
             project,
-            run_targets,
+            recipe,
+            control,
             registry=registry,
+            targets=run_targets,
+            consent=list(consent),
             force=[s for s in force if run_targets is None or s in run_targets],
             budget_mb=settings.build_budget_mb,
             allow_over_budget=allow_over_budget,
-            consent=lambda request: request.stage in accepted,
-            progress=lambda event: control.progress(progress_json(event)),
-            cancel=control.cancel,
             heartbeat_s=settings.heartbeat_s,
             year=settings.build_year,
             job_id=control.job_id,
         )
-        out: dict[str, Any] = {
-            "outcome": result.outcome,
-            "summary": result.summary(),
-            "ran": list(result.ran_ids),
-            "refused": dict(result.refused),
-            "not_run": list(result.not_run),
-            "changed": result.changed,
-        }
-        if result.failed:
-            said = attempt_message("failed", result.failed[1])
-            label, action = FAILED_NEXT.get(said["code"], FAILED_NEXT["stage_failed"])
-            out["failed"] = {
-                "stage": result.failed[0],
-                "error": result.failed[1],
-                **said,
-                "next": {"label": label, "action": action},
-            }
-            out["error"] = f"{result.failed[0]}: {result.failed[1]}"
-        elif pause is not None and result.outcome == "succeeded":
+        if pause is not None and out["outcome"] == "succeeded":
             out["outcome"], out["waiting"] = "waiting", pause
         return out
 

@@ -1158,6 +1158,21 @@ class RebuildReport:
     digested: int = 0
 
 
+#: A rebuild reading more raw records than this (bytes on disk, every slot) runs in a
+#: process of its own: what it holds goes back to the computer when it ends, and the
+#: process that asked for it (the app) keeps its memory as it was.
+ISOLATE_BYTES = 256 << 20
+
+
+def _raw_bytes(layout: ProjectLayout, config: ProjectFile) -> int:
+    total = 0
+    for slot in config.slots:
+        folder = layout.slot(slot.id) / "raw"
+        if folder.is_dir():
+            total += sum(p.stat().st_size for p in folder.rglob("*") if p.is_file())
+    return total
+
+
 def rebuild_sources(
     layout: ProjectLayout,
     config: ProjectFile,
@@ -1167,6 +1182,7 @@ def rebuild_sources(
     incremental: bool = True,
     jobs: int | None = None,
     scratch: Path | None = None,
+    isolate: bool | None = None,
 ) -> RebuildReport:
     """Rebuild the six source tables from every slot's raw runs and write them.
 
@@ -1186,7 +1202,22 @@ def rebuild_sources(
     digests in ``cache/sources/`` (:mod:`cartolex.collect.digests`): only the
     runs not digested yet are read whole, in *jobs* worker processes when they
     are many, and a run superseded for everyone it names is not read at all.
+
+    With *isolate* (by default when the raw records exceed :data:`ISOLATE_BYTES` and
+    the readers are the default ones), the rebuild runs in a process of its own, which
+    gives back its report, or raises what it raised.
     """
+    if isolate is None:
+        isolate = readers is None and _raw_bytes(layout, config) > ISOLATE_BYTES
+    if isolate:
+        return _rebuild_in_child(
+            layout,
+            config,
+            finder_priority=finder_priority,
+            incremental=incremental,
+            jobs=jobs,
+            scratch=scratch,
+        )
     from .digests import DIGESTERS, DigestCache
     from .harvest import current_runs
     from .merge import FINDER_PRIORITY, merge_texts
@@ -1236,3 +1267,50 @@ def rebuild_sources(
         report.warnings = list(builder.warnings)
         report.merges = merged.counts()
     return report
+
+
+def _rebuild_in_child(layout: ProjectLayout, config: ProjectFile, **kwargs: Any) -> RebuildReport:
+    """:func:`rebuild_sources` in a child process (spawned: the same on every system)."""
+    import multiprocessing
+
+    context = multiprocessing.get_context("spawn")
+    here, there = context.Pipe(duplex=False)
+    child = context.Process(
+        target=_rebuild_child,
+        args=(there, str(layout.root), config, kwargs),
+        name="cartolex-rebuild",
+    )
+    child.start()
+    there.close()
+    try:
+        message = here.recv()
+    except EOFError:
+        message = None
+    finally:
+        here.close()
+        child.join()
+    if message is None:
+        code = child.exitcode
+        why = (
+            f"was stopped by the system (signal {-code}), most often for want of memory"
+            if code is not None and code < 0
+            else f"ended without its report (exit code {code})"
+        )
+        raise RuntimeError(f"the rebuild of the source tables {why}")
+    kind, payload = message
+    if kind == "error":
+        raise payload
+    return payload
+
+
+def _rebuild_child(conn: Any, root: str, config: ProjectFile, kwargs: dict[str, Any]) -> None:
+    try:
+        report = rebuild_sources(ProjectLayout(Path(root)), config, isolate=False, **kwargs)
+        conn.send(("done", report))
+    except BaseException as exc:  # noqa: BLE001 - raised again in the process that asked
+        try:
+            conn.send(("error", exc))
+        except Exception:  # an exception that cannot be sent: its words
+            conn.send(("error", RuntimeError(f"{type(exc).__name__}: {exc}")))
+    finally:
+        conn.close()

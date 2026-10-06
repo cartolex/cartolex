@@ -149,10 +149,15 @@ sources/<slot>/raw/
   gains the ones it lacked; affiliations of the same person, organisation and
   source join into one span of years. A slot's texts are numbered (`position`)
   by year, then date, then id.
+- **A process of its own.** Above 256 MB of raw records
+  (`ISOLATE_BYTES`, with the default readers) a rebuild runs in a child process,
+  which gives back its report or raises what it raised: the process that asked
+  (the app, after a collection) keeps its memory as it was. `isolate=` forces
+  either way.
 - **Memory.** What grows with the records lives in a scratch database while
   the readers run (`cartolex.collect.workstore.WorkStore`, SQLite, in a folder
   of `rebuild_sources(..., scratch=…)`, by default the project's `cache/`,
-  removed at the end): every record of each text, the texts' parts (compressed),
+  removed at the end; a killed rebuild's folder is removed by the next one): every record of each text, the texts' parts (compressed),
   the authorships, the affiliations, the registry's keys. A part or an
   authorship stated twice keeps its first statement (`INSERT OR IGNORE`), an
   affiliation's span widens (`ON CONFLICT … DO UPDATE`). People and

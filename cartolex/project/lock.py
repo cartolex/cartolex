@@ -240,11 +240,18 @@ def _remove_if_gone(path: Path, seen: LockInfo | None, *, force: bool = False) -
 
 
 class ProjectLock:
-    """Hold a project's ``.lock`` for the life of this object (or a ``with`` block)."""
+    """Hold a project's ``.lock`` for the life of this object (or a ``with`` block).
 
-    def __init__(self, layout: ProjectLayout, app: str) -> None:
+    With *holder*, write under the lock another process holds: the application that
+    started this one to do some of its work (a build). The lock must name *holder*; it
+    is never taken, overridden or removed here, and :func:`ensure_held` checks before
+    every write that it still names *holder*.
+    """
+
+    def __init__(self, layout: ProjectLayout, app: str, *, holder: LockInfo | None = None) -> None:
         self.path = layout.lock
         self.app = app
+        self.holder = holder
         self.info: LockInfo | None = None
         #: The holder of a lock left behind that :meth:`acquire` replaced (``None``: none).
         self.replaced: LockInfo | None = None
@@ -255,6 +262,14 @@ class ProjectLock:
         *force* overrides a holder that may still run (see the module's text):
         only for a person who was told what it risks.
         """
+        if self.holder is not None:
+            now = read_lock(self.path)
+            if now != self.holder:
+                raise LockLost(self.path, now)
+            self.info = self.holder
+            with _HELD_GUARD:
+                _HELD[_key(self.path)] = self.holder
+            return self
         info = LockInfo(
             pid=os.getpid(),
             host=socket.gethostname(),
@@ -312,7 +327,7 @@ class ProjectLock:
         if self.info is None:
             return
         held = read_lock(self.path)
-        if held == self.info:
+        if held == self.info and self.holder is None:
             self.path.unlink(missing_ok=True)
         with _HELD_GUARD:
             _HELD.pop(_key(self.path), None)

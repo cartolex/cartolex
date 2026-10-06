@@ -53,7 +53,10 @@ class AppSettings:
 
     **Services.** :attr:`job_runner`, :attr:`collection`, :attr:`site_builder`
     default to the local runner and the stubs; :attr:`registry` to cartolex's
-    stages with :attr:`ai_access` (the AI key given to the build).
+    stages with :attr:`ai_access` (the AI key given to the build). A build of
+    cartolex's stages runs in a process of its own (:mod:`cartolex.app.build_run`),
+    so that its memory goes back to the computer when it ends; :attr:`build_in_child`
+    false keeps it in a thread of the app.
 
     **Stopping when unused.** :attr:`idle_stop_s` (local only): the server stops
     once no page of the interface has been open for that many seconds and no
@@ -83,6 +86,7 @@ class AppSettings:
     ai_access: AIAccess | None = None
     build_budget_mb: float | None = None
     build_year: int | None = None
+    build_in_child: bool = True
     heartbeat_s: float = 5.0
     idle_stop_s: float | None = None
 

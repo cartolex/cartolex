@@ -36,6 +36,11 @@ nothing in the engine names a particular deployment, source or procedure.
   - *Coverage*: computed from those columns, each person's counts at once;
     a harvest writes in its run's header the works each person's records hold
     and the works received, which the cause of a missing profile reads.
+  - *Processes*: a build started from the app runs in a child process under
+    the app's project lock (`ProjectLock(holder=…)`, `Project.open(holder=…)`),
+    with its progress and cancel; a rebuild of the source tables above 256 MB of
+    raw records does too (`rebuild_sources(isolate=…)`). Their memory goes back
+    to the computer when they end.
   - *App*: the texts are a view of columns built once per version of the
     tables and kept in the project's cache (`cache/views/`), memory-mapped:
     lists, filters, sorts and counts of millions of texts without an object per

@@ -134,7 +134,13 @@ counts.
 Builds, collections and site builds run as **jobs**, outside the request,
 through a `JobRunner` (submit, status, progress, cancel, list, events).
 `LocalJobRunner` runs each in a thread of the app; a queue can stand behind the
-same interface. One job runs per project at a time: a second build or
+same interface. A build of cartolex's stages runs in a process of its own
+(`cartolex.app.build_run`): the child writes under the app's project lock (as
+its *holder*), sends its progress back and stops on a cancel or when the app is
+gone, and its memory goes back to the computer when it ends; a child the
+computer stops (most often for want of memory) fails the job with that reason.
+A registry or an AI access given in code, or `AppSettings(build_in_child=False)`,
+keeps the build in the job's thread. One job runs per project at a time: a second build or
 collection is refused with 409 `busy`, naming the running job. A job's states
 are `queued`, `running`, `cancelling`, `succeeded`, `waiting` (a build that
 ended at an AI step whose route is a copilot, waiting for its result: not a

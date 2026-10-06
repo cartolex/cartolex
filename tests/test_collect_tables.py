@@ -261,3 +261,15 @@ def test_a_run_is_compressed_and_a_plain_one_is_still_read(tmp_path) -> None:
     old, new = read_runs(project.layout, "collected")
     assert old.path == plain and new.path == path
     assert list(old.records()) == list(new.records())
+
+
+def test_a_rebuild_in_a_process_of_its_own_writes_the_same_tables(tmp_path) -> None:
+    project = write_project(generate("XS", 0), tmp_path / "p")
+    try:
+        here = rebuild_sources(project.layout, project.config, isolate=False)
+        first = _bytes(project)
+        apart = rebuild_sources(project.layout, project.config, isolate=True)
+        assert _bytes(project) == first
+        assert apart.rows == here.rows and apart.merges == here.merges
+    finally:
+        project.close()
