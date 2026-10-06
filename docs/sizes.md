@@ -15,17 +15,18 @@ free to use them), capped at 16 GB.
 
 ## The tiers
 
-| machine | memory | projects it builds | a first build takes |
+| machine | memory | measured | a first build takes |
 | --- | --- | --- | --- |
-| a laptop | 16 GB | up to about 10⁴ people | 20 minutes at 10⁴ |
-| a workstation | 64 GB | up to about 10⁵ people | 6 to 7 hours at 10⁵ |
-| a server | 128 GB or more | 10⁶ people (prepared, not yet run; see below) | about two weeks today |
+| a laptop | 16 GB | the synthetic world of 10⁴ people | 20 minutes |
+| a laptop, 20 cores | 32 GB | a national harvest: 1.7 × 10⁵ people, 5.9 × 10⁶ texts | about 6 hours from the raw runs to the map, every step under 16 GB |
 
-The memory each stage needs is well below these (at most 10 GB estimated at
-10⁵ people, for the keyword extraction); the rest is for the system, the app
-and headroom. The time is mostly the keyword extraction (it parses every text)
-and, from 10⁵ people, the trajectories (every period of every person is placed
-among all the people).
+The national project is described in {doc}`large-projects`. The stages that
+grow with the texts (the extraction, the keywords' build, the text space, the
+trajectories) size their worker processes to the build's memory budget (by
+default 40 % of the computer's memory, at most 12 GB), so a smaller computer
+takes longer rather than more memory; the time is mostly the keyword
+extraction (it parses every text) and the trajectories (every period of every
+person is placed among all the people).
 
 ## What each stage costs
 
@@ -68,10 +69,14 @@ layout and the placed points with the people mapped; the grouping and the
 application of the themes with the kept keywords, which stop growing at
 10 000 (`keywords.build.max_keywords`).
 
-**Disk.** A project keeps one file per text for the engine (a 4 KB block
-each on most file systems: 2.7 GB for 10⁵ people), the parse cache (about
-2 KB per text), and the results of each stage, plus, for a stage built again,
-its previous results until the next build of that stage.
+**Disk.** Measured on the national project (1.7 × 10⁵ people, 5.9 × 10⁶
+texts): the raw runs of the harvest 65 GB, their digests 37 GB (kept so that a
+rebuild reads only new runs), the source tables 2.0 GB, the parse cache
+2.3 GB, the stages' results 6.2 GB (the trajectories 2.7 GB, the corpus
+1.4 GB), the app's texts view 1.3 GB; a stage built again keeps its previous
+results until its next build. The parse cache and a rebuild's scratch folder
+(15 GB at its peak) are best on a fast internal disk when the project lives on
+a hard disk.
 
 ## The space's dimensions
 
@@ -119,7 +124,7 @@ estimated peak exceeds the memory available now is marked « cannot run »,
 with the numbers, and so is every stage after it:
 
 ```text
-  run   keywords.extract   find keyword candidates: about 23 h, 90 GB (the default cost model); never built; CANNOT RUN: needs about 89.9 GB of memory; the budget is 58.2 GB
+  run   themes.group       group keywords into topics and themes: about 5 min, 11133 MB (the last run, scaled by kept keywords); asked for; themes.space will be rebuilt; CANNOT RUN: needs about 10.9 GB of memory; the budget is 7.8 GB
 ```
 
 The build then runs the stages before it, stops there and says why. Free
@@ -134,30 +139,11 @@ whatever their cost model gives for the project's sizes (`Stage.bounded`).
 
 ## A million people
 
-The run of a million people is prepared, not run: `tools/million.py plan`
-prints its sizes and each stage's estimate, and `tools/million.py run --out
-DIR` writes the world (in parallel) and builds it stage by stage, recording
-each stage's measures. The estimates, for 9.7 × 10⁵ people with texts, 6.1 × 10⁶
-texts and 8.2 × 10⁹ characters:
-
-| stage | time | peak memory |
-| --- | ---: | ---: |
-| `corpus.assemble` | 12 min | 28 GB |
-| `keywords.extract` | 23 h | 90 GB |
-| `keywords.build` | 6 h | 66 GB |
-| `themes.space` | 6 min | 3.5 GB |
-| `themes.group` | 7 s | 1.0 GB |
-| `themes.apply` | 4 min | 3.7 GB |
-| `map.layout` | 26 min | 2.7 GB |
-| `map.trajectories` | 300 h | 66 GB |
-| `overlays.position` | 5 h | 3.4 GB |
-
-The machine it needs: 128 GB of memory or more (the extraction holds every
-text's analysis until it scores them), 150 GB of free disk on a file system
-with 7 million free inodes (the engine reads one file per text), and 8 cores
-or more (the numeric steps use every core). Two stages would be far too slow
-as they are: the trajectories place every period of every person among a
-million people by brute force (an index of the people's vectors would take
-them from weeks to hours), and the extraction parses every text on one core
-(`KeywordsConfig.extraction_n_jobs` parses in worker processes, which the
-build does not use yet).
+The synthetic world of a million people is prepared, not run: `tools/million.py
+plan` prints its sizes and each stage's estimate (from the cost models, scaled
+beyond the worlds they were fitted on), and `tools/million.py run --out DIR`
+writes the world (in parallel) and builds it stage by stage, recording each
+stage's measures. Its 6.1 × 10⁶ texts are as many as the national project's,
+which was built on a laptop (see {doc}`large-projects`); its people are six
+times as many, and the stages that grow with the people mapped (the text
+space, the layout, the trajectories) have not been measured at that size.

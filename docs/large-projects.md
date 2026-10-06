@@ -22,6 +22,38 @@ A national harvest (170,000 people, about 12 million works) measured on a
 laptop with the snapshot on a USB hard disk: about 5 hours of reading, then
 about 0.6 ms of processing a work.
 
+## From the harvest to the map
+
+Measured on that national harvest (169,287 people, 11.3 million records of
+6.3 million distinct works), on the same laptop (20 cores, 32 GB of memory,
+the project on the USB hard disk, the scratch folder on the internal disk),
+every step capped at 16 GB of memory with a build budget of 12 GB:
+
+| step | time | peak memory |
+| --- | ---: | ---: |
+| `collect rebuild`: reading the raw runs | 1 h 52 | 7.2 GB |
+| `collect rebuild`: writing the tables (5.9 million texts, 10.4 million authorships) | 2 h 08 | 7.4 GB, and 15 GB of scratch |
+| `corpus.assemble` | 3 min | 3.2 GB |
+| `keywords.extract` | 59 min | 15.0 GB |
+| `keywords.build` | 17 min | 11.2 GB |
+| `themes.space` | 8 min | 5.8 GB |
+| `themes.group` | 5 min | 8.3 GB |
+| `themes.apply` | 37 s | 1.9 GB |
+| `map.layout` | 7 min | 2.2 GB |
+| `map.trajectories` | 32 min | 15.2 GB |
+
+About 6 hours from the raw runs to the map. The extraction and the
+trajectories went past the budget: their worker pools were sized beside a
+parent process assumed to hold 2 GB. A pool is now sized beside what its parent holds, and the keywords'
+build and the trajectories no longer hold every text's counts in their parent
+(see {doc}`sizes`).
+
+In the app, the first look at each screen computes what it shows once per
+version of the tables and keeps it: on that project, at most about a minute
+(the people list, the coverage, the texts' view, kept on disk), then a second or
+less. The map's bundle is 67 MB, the time windows 37 MB, the texts layer a
+sample of 100,000 texts (27 MB).
+
 ## Download it
 
 ```bash
