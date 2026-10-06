@@ -3,7 +3,8 @@
  * The atlas's state, kept in the host's address so that a view can be shared and survives
  * a reload: the focus (`sel`, `kind:id`) and the other side of a comparison (`with`), the
  * node the treemap opened (`open`), what the map shows (`show`) and names (`names`), the
- * organisations' level (`org`), the network's rings (`net`), the people's filters (`f`,
+ * organisations' level (`org`), the network's rings (`net`), the texts drawn (`tx`: every
+ * one, `focus` or `network`), the people's filters (`f`,
  * repeated `column:value`), the period (`from`, `to`), the keywords' categories (`kc`) and
  * colour (`kcol`), the view (`view`: `map` or `world`), a base map (`base`) and points or
  * regions (`as`). Values that are the defaults are left out of the address.
@@ -64,6 +65,7 @@ export function readAtlasState(query) {
     names: list('names').filter((k) => NAMED_KINDS.includes(k)),
     org: q.get('org') || '',
     net: Number.isFinite(net) ? Math.max(0, Math.min(3, net)) : 1,
+    tx: ['focus', 'network'].includes(q.get('tx')) ? q.get('tx') : '',
     filters: q.getAll('f').filter((f) => f.includes(':')),
     from: year('from'),
     to: year('to'),
@@ -86,6 +88,7 @@ export function queryOfState(state) {
   if (state.names.length) q.set('names', state.names.join(','));
   if (state.org) q.set('org', state.org);
   if (state.net !== 1) q.set('net', String(state.net));
+  if (state.tx) q.set('tx', state.tx);
   for (const f of state.filters) q.append('f', f);
   if (state.from !== null) q.set('from', String(state.from));
   if (state.to !== null) q.set('to', String(state.to));

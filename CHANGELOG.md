@@ -89,6 +89,13 @@ nothing in the engine names a particular deployment, source or procedure.
   `similarity`), `GET /api/atlas/neighbours` (`measure=` too) and the
   distances' exports, which write `<file>.meta.json` (`cartolex-distances/1`)
   beside each file; the Distances dialog and the Recipe name it.
+- **The texts around a person.** The map's texts layer follows the focus
+  (« Texts: all · of the focus · with the network », `tx`): a person's or an
+  organisation's members' own texts, read from every text of the tables
+  (`GET /api/atlas/texts?focus=&net=&limit=`, `cartolex.app.focus_texts`, a
+  sample beyond 5,000), with the network those of the people its rings reach
+  too; a theme's or a keyword's among the drawn texts; nothing in focus, every
+  text as before. The atlas's source gains `textsOf`.
 
 - **The shared site is the app's atlas.** The offline site mounts the app's own
   atlas (one code for both, `docs/dev/atlas.md`) over a data source that reads

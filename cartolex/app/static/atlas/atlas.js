@@ -27,6 +27,7 @@ import { createLayers, kindsAvailable } from './layers.js';
 import { createFilters, filterCount, filtersOffered } from './filters.js';
 import { createCard } from './card.js';
 import { createMapView } from './mapview.js';
+import { createTextFocus } from './texts.js';
 
 /** The preference that keeps the colour scheme. */
 export const SCHEME_PREF = 'colour_scheme';
@@ -80,6 +81,8 @@ export function mountAtlas(root, { source, host }) {
   let built = null;
   let override = null;
   let texts = null;
+  // the texts the map draws now: every one, or those of the focus (`texts.js`)
+  let shownTexts = null;
   let land = null;
   let entries = null;
   let filtersOpen = false;
@@ -159,6 +162,7 @@ export function mountAtlas(root, { source, host }) {
 
   // ── what is read beside the bundle ───────────────────────────────────────
   const rings = createRingReader(source, () => render());
+  const textFocus = createTextFocus(source, () => render());
   const nameOf = (kind, item) => {
     if (!item) return '';
     if (item.name) return item.name;
@@ -179,9 +183,10 @@ export function mountAtlas(root, { source, host }) {
       return o.acronym || o.name;
     }
     if (sel.kind === 'theme' && index.nodes.has(sel.id)) return nameIn(index.nodes.get(sel.id).names, locale);
-    if (sel.kind === 'text' && texts) {
-      const i = texts.id.indexOf(sel.id);
-      if (i >= 0) return texts.title[i] || sel.id;
+    const own = sel.kind === 'text' ? textsHaving(sel.id) : null;
+    if (own) {
+      const i = own.id.indexOf(sel.id);
+      if (i >= 0) return own.title[i] || sel.id;
     }
     return sel.kind === 'person' ? nameOf('person', { id: sel.id }) : sel.id;
   };
@@ -194,10 +199,15 @@ export function mountAtlas(root, { source, host }) {
     .then((data) => (data && data.error ? { error: data.error } : { data }))
     .catch((error) => ({ error: { message: String(error && error.message ? error.message : error) } }));
 
-  function readBeside(state) {
+  /** The texts that hold the text *id*: those drawn, else every text read. */
+  function textsHaving(id) {
+    return shownTexts && shownTexts.id.includes(id) ? shownTexts : texts;
+  }
+
+  function readBeside(state, wantTexts) {
     const sel = state.sel;
-    // the texts: when shown or one is in focus
-    if (source.texts && !texts && !asked.has('texts') && (state.show.includes('texts') || (sel && sel.kind === 'text'))) {
+    // the texts: when shown (unless only a focus's are drawn) or one is in focus
+    if (source.texts && !texts && !asked.has('texts') && wantTexts) {
       asked.add('texts');
       settle(source.texts()).then((r) => {
         if (!alive || r.error || !r.data || r.data.available === false) return;
@@ -278,7 +288,7 @@ export function mountAtlas(root, { source, host }) {
     if (sel && (sel.kind === 'person' || sel.kind === 'organisation' || sel.kind === 'projected')) patch.open = '';
     if (!sameSel(sel, state.sel) || state.with) store.set(patch, { push: true });
     if (centreIt && sel && index) {
-      const at = placeOf(index, sel, texts);
+      const at = placeOf(index, sel, textsHaving(sel.id));
       if (at && store.get().view === 'map') mapView.controller.centreOn(at.x, at.y, 3);
     }
   }
@@ -398,7 +408,7 @@ export function mountAtlas(root, { source, host }) {
     if (layer.id === 'people') return { kind: 'person', id: index.people[i].person_id };
     if (layer.id === 'keywords') return { kind: 'keyword', id: index.keywords[i].term };
     if (layer.id === 'organisations') return { kind: 'organisation', id: index.orgs[i].id };
-    if (layer.id === 'texts' && texts) return { kind: 'text', id: texts.id[i] };
+    if (layer.id === 'texts' && shownTexts) return { kind: 'text', id: shownTexts.id[i] };
     if (layer.id === 'projected') return { kind: 'projected', id: index.projected[i].person_id };
     if (layer.id === 'windows') return { kind: 'person', id: layer.items[i].person_id };
     return null;
@@ -413,9 +423,9 @@ export function mountAtlas(root, { source, host }) {
       detail = node && index.nodes.has(node) ? nameIn(index.nodes.get(node).names, locale) : '';
     } else if (sel.kind === 'organisation') detail = t('atlas.card.people', { count: (index.members.get(sel.id) || []).length });
     else if (sel.kind === 'projected') detail = t('atlas.kind.projected');
-    else if (sel.kind === 'text' && texts) {
-      const i = texts.id.indexOf(sel.id);
-      detail = texts.year[i] ? String(texts.year[i]) : '';
+    else if (sel.kind === 'text' && shownTexts) {
+      const i = shownTexts.id.indexOf(sel.id);
+      detail = shownTexts.year[i] ? String(shownTexts.year[i]) : '';
     }
     return h('div', {}, h('strong', { class: 'cx-atlas-map__card-title', text: nameOfSel(sel) }),
       detail ? h('span', { class: 'cx-atlas-map__card-detail', text: detail }) : null);
@@ -443,7 +453,8 @@ export function mountAtlas(root, { source, host }) {
       if (!layer.highlightCount) continue;
       for (let i = 0; i < layer.x.length; i += 1) if (layer.highlight[i]) grow(layer.x[i], layer.y[i]);
     }
-    const at = placeOf(index, store.get().sel, texts);
+    const sel = store.get().sel;
+    const at = placeOf(index, sel, sel ? textsHaving(sel.id) : texts);
     if (at) grow(at.x, at.y);
     if (box) mapView.zoomTo(box);
   };
@@ -494,18 +505,23 @@ export function mountAtlas(root, { source, host }) {
       // the app's other screens order a scale's themes as the map places them
       if (colours.order && prefs && prefs.set) prefs.set('colour_order', colours.order.join(','));
     }
-    readBeside(state);
     const sel = state.sel;
+    const wantTexts = state.show.includes('texts') || (sel && sel.kind === 'text');
+    const textsNow = wantTexts && state.view === 'map' ? textFocus.drawn(index, state, texts)
+      : { texts, sample: wantTexts, pending: false };
+    shownTexts = textsNow.texts;
+    readBeside(state, wantTexts && textsNow.sample);
     const ringAnswer = sel && state.net > 0 && state.view === 'map' ? rings.get(sel, state.net) : null;
     const users = sel && sel.kind === 'keyword' ? answers.users.get(sel.id) || null : null;
     const compare = sel && state.with ? answers.compare.get(`${selKey(sel)}|${selKey(state.with)}`) || null : null;
     built = state.view === 'world' ? worldScene(index, state, { land, colours })
-      : mapScene(index, state, { texts, sets, users, rings: ringAnswer, colours, locale, nameOf });
+      : mapScene(index, state, { texts: shownTexts, sets, users, rings: ringAnswer, colours, locale, nameOf });
+    if (textsNow.pending && state.show.includes('texts')) built.notes.push({ key: 'atlas.note.texts_reading' });
     mapView.redraw();
     // a focus given in the address is centred once, when the map is first drawn
     if (!centred) {
       centred = true;
-      const at = sel ? placeOf(index, sel, texts) : null;
+      const at = sel ? placeOf(index, sel, textsHaving(sel.id)) : null;
       if (at && state.view === 'map') mapView.controller.centreOn(at.x, at.y, 3);
     }
     const lit = built.scene.layers.reduce((n, l) => n + (l.highlightCount || 0), 0);
@@ -544,7 +560,8 @@ export function mountAtlas(root, { source, host }) {
       network: rings.available });
     card.update({ index, state, t, fmt, colours, locale, levelName, nameOf, nameOfSel, title: host.title || '',
       links: host.links || null, rings: ringAnswer, ringsOffered: rings.available, users, usersOffered: Boolean(source.keywordUsers),
-      compare, compareOffered: Boolean(source.compare), sets, texts, findEntries: entriesNow });
+      compare, compareOffered: Boolean(source.compare), sets, texts: sel && sel.kind === 'text' ? textsHaving(sel.id) : texts,
+      findEntries: entriesNow });
   }
 
   offs.push(store.subscribe((state, old) => {
@@ -582,6 +599,8 @@ export function mountAtlas(root, { source, host }) {
       entries = null;
       colours = null;
       texts = null;
+      shownTexts = null;
+      textFocus.clear();
       sets.clear();
       asked.clear();
       rings.clear();
@@ -632,6 +651,7 @@ export function mountAtlas(root, { source, host }) {
       alive = false;
       cancelAnimationFrame(frame);
       rings.dispose();
+      textFocus.dispose();
       offs.forEach((off) => off());
       fsAtlas.destroy();
       fsMap.destroy();

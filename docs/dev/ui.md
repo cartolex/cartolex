@@ -427,11 +427,11 @@ go back, one tab stop with the arrows), the map (`mapview.js`, `scene.js`: the
 focus lit in its own colours and the rest faded to a trace, organisation tiles
 sized by their people, the network's arcs from `rings.js`, names per kind), the
 card of links (`card.js`, `parts.js`, Compare in `compare.js`), the layers panel
-(`layers.js`), « Filters » (`filters.js`), « Find » (`find.js`), the panes
+(`layers.js`; the texts drawn, every one or those of the focus, `texts.js`), « Filters » (`filters.js`), « Find » (`find.js`), the panes
 (`panes.js`: dividers by pointer or arrows, rails, card right or below, full
 screen for the atlas, the map alone, the treemap alone) and « Save view »
 (`save.js`: PNG or SVG, with or without the legend). Its state is in the
-address (`state.js`: `sel`, `with`, `open`, `show`, `names`, `org`, `net`, `f`,
+address (`state.js`: `sel`, `with`, `open`, `show`, `names`, `org`, `net`, `tx`, `f`,
 `from`, `to`, `kc`, `kcol`, `view`, `base`, `as`); Back retraces the focus. The
 layout and the colour scheme are the person's preferences (`atlas.*`,
 `colour_scheme`), and the scheme sets the hue tokens for the whole app

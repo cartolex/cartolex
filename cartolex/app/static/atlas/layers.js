@@ -5,10 +5,12 @@
  * organisations' level, named with the project's own level names; « Network 1 · 2 · 3 »,
  * the rings around a person or an organisation (pressing the current one turns them off);
  * and, folded under « More », the other kinds (texts, projected people, time windows) and
- * points or regions.
+ * points or regions. Texts, once shown, come out of the fold with « Texts: all · of the focus
+ * · with the network » (`tx`, `texts.js`).
  */
 import { fill, h, keepFocus, symbol } from './dom.js';
 import { MAIN_KINDS, NAMED_KINDS, SHAPE_OF } from './state.js';
+import { TEXT_MODES } from './texts.js';
 
 const MORE_KINDS = ['projected', 'texts', 'windows'];
 
@@ -18,7 +20,8 @@ export function kindsAvailable(index, source) {
     people: index.people.length > 0,
     keywords: index.keywords.length > 0,
     organisations: index.orgs.some((o) => o.x !== null && o.x !== undefined),
-    texts: Boolean(source.texts),
+    texts: Boolean(source.texts || source.textsOf),
+    textsOf: Boolean(source.textsOf),
     projected: index.projected.length > 0,
     windows: Boolean(source.windows) && (index.bundle.windows || 0) > 0,
   };
@@ -69,7 +72,18 @@ export function createLayers(el, { onChange }) {
             title: t('atlas.layers.rings', { count: d }), text: String(d),
             onClick: () => onChange({ net: state.net === d ? 0 : d }) }))));
       }
-      const more = MORE_KINDS.filter((k) => has[k]);
+      // the texts, once shown, out of the fold: which ones are drawn
+      const textsOut = !world && has.texts && state.show.includes('texts');
+      if (textsOut) {
+        parts.push(row('texts'));
+        const modes = TEXT_MODES.filter((m) => m !== 'network' || (has.textsOf && network));
+        parts.push(h('div', { class: 'cx-atlas-layers__row cx-atlas-layers__net', role: 'group', 'aria-label': t('atlas.layers.texts_label') },
+          h('span', { text: t('atlas.layers.texts') }),
+          modes.map((m) => h('button', { type: 'button', class: 'cx-atlas-layers__aa', 'aria-pressed': String(state.tx === m),
+            dataset: { key: `tx-${m || 'all'}` }, title: t(`atlas.layers.texts.${m || 'all'}_help`),
+            text: t(`atlas.layers.texts.${m || 'all'}`), onClick: () => onChange({ tx: m }) }))));
+      }
+      const more = MORE_KINDS.filter((k) => has[k] && !(k === 'texts' && textsOut));
       if (!world && more.length) {
         const button = h('button', { type: 'button', class: 'cx-atlas-layers__more', 'aria-expanded': String(moreOpen), dataset: { key: 'more' },
           text: t(moreOpen ? 'atlas.layers.less' : 'atlas.layers.more'),

@@ -21,6 +21,14 @@ the time windows (a person's texts over a few years, joined in time order).
 **Filters** come from your lists' own columns, and **Period** keeps the texts
 of some years only. Drag to move, the wheel or + and − to zoom, 0 to fit.
 
+Once the texts are shown, **Texts: all · of the focus · with the network**
+chooses which: every text (a sample of a very large corpus), or only those of
+what is selected (a person's texts, all of them however large the corpus; an
+organisation's members'; a theme's, the texts with most of their keywords in
+it; a keyword's, the texts that use it), and with the network the texts of
+the co-authors the network's rings reach as well. With nothing selected,
+every text is drawn.
+
 The themes beside the map show each theme's share of all use: select one to
 light its people and keywords.
 

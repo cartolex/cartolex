@@ -89,3 +89,34 @@ def test_the_map_links_to_the_other_screens_and_back(demo_s, app_for, open_app):
         menu.click()
         page.get_by_role("menuitem", name="As a PNG image", exact=True).click()
     assert open(png.value.path(), "rb").read(8) == b"\x89PNG\r\n\x1a\n"
+
+
+#: The texts the map draws, and how many of them are lit.
+TEXTS = """() => { const l = document.querySelector('.cx-atlas-map__box').cxScene()
+  .layers.find((x) => x.id === 'texts'); return l ? [l.x.length, l.highlightCount] : null; }"""
+
+
+def test_the_texts_follow_the_focus(demo_s, app_for, open_app):
+    """« Texts: of the focus » draws a person's own texts, read from every text; with the
+    network, their co-authors' too; with nothing in focus, every text again."""
+    ui = open_app(app_for(demo_s))
+    page = ui.page
+    open_map(ui, "/map?sel=person:p0001&show=people,keywords,organisations,texts")
+    page.wait_for_function(f"() => Boolean(({TEXTS})())")
+    every = page.evaluate(TEXTS)[0]
+    modes = page.get_by_role("group", name="Which texts are drawn")
+    modes.get_by_role("button", name="of the focus").click()
+    mine = page.evaluate("() => fetch('/api/atlas/texts?focus=person:p0001').then((r) => r.json())")
+    n = len(mine["id"])
+    assert 0 < n < every
+    page.wait_for_function(
+        f"() => {{ const c = ({TEXTS})(); return Boolean(c) && c[0] === {n} && c[1] === {n}; }}"
+    )
+    assert "tx=focus" in page.url
+    modes.get_by_role("button", name="with the network").click()
+    page.wait_for_function(f"() => {{ const c = ({TEXTS})(); return Boolean(c) && c[0] > {n}; }}")
+    # nothing in focus: every text
+    page.locator(".cx-atlas__bar").get_by_role("button", name="⌂ Home").click()
+    page.wait_for_function(
+        f"() => {{ const c = ({TEXTS})(); return Boolean(c) && c[0] === {every}; }}"
+    )
