@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 """What is kept on this computer, never in a project: the keys (the AI provider's and
-OpenAlex's) and the folder of a downloaded OpenAlex snapshot.
+OpenAlex's), the folder of a downloaded OpenAlex snapshot, and what the builds may use
+of the computer (:class:`MachineBudget`).
 
 A key is personal and belongs to a machine: a project folder is shared, synced
 and backed up, so no key is ever written there. The app keeps them in its own
@@ -31,6 +32,8 @@ from cartolex.project.files import atomic_write_bytes, json_bytes, replace_path
 __all__ = [
     "KEY_SERVICES",
     "SNAPSHOT_READ_RATE",
+    "BudgetRefused",
+    "MachineBudget",
     "MachineKeys",
     "MachineSnapshot",
     "SnapshotRefused",
@@ -264,3 +267,110 @@ class MachineSnapshot:
             checked = self._checked
             self._write(data)
             self._checked = checked  # the folder did not change
+
+
+class BudgetRefused(ValueError):
+    """A budget that cannot be saved: *field* (``memory_mb``, ``workers``, ``scratch``)
+    and *reason* (``too_small``, ``too_large``, ``relative``, ``not_folder``,
+    ``not_writable``)."""
+
+    def __init__(self, field: str, reason: str, message: str) -> None:
+        super().__init__(message)
+        self.field, self.reason = field, reason
+
+
+#: The least memory a build may be given, in MB.
+MIN_BUDGET_MB = 1024
+
+
+class MachineBudget:
+    """What this computer gives to the builds the app starts: the memory their stages size
+    their work to, how many worker processes they run, a folder on a fast disk for their
+    temporary files (``<data_dir>/budget.json``). What is not saved is cartolex's default
+    for this computer (:meth:`cartolex.scale.Budget.for_machine`)."""
+
+    def __init__(self, folder: Path | None) -> None:
+        self.path = Path(folder) / "budget.json" if folder is not None else None
+        self._memory: dict[str, Any] = {}
+        self._lock = threading.Lock()
+
+    def saved(self) -> dict[str, Any]:
+        """What was saved (``memory_mb``, ``workers``, ``scratch``; each may be missing)."""
+        if self.path is None:
+            return dict(self._memory)
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def save(
+        self,
+        *,
+        memory_mb: int | None = None,
+        workers: int | None = None,
+        scratch: str | None = None,
+    ) -> None:
+        """Save the budget (``None``: the default); raises :class:`BudgetRefused`."""
+        from cartolex.scale import total_memory_mb
+
+        total = total_memory_mb()
+        if memory_mb is not None:
+            if memory_mb < MIN_BUDGET_MB:
+                raise BudgetRefused("memory_mb", "too_small", f"at least {MIN_BUDGET_MB} MB")
+            if total is not None and memory_mb > total:
+                raise BudgetRefused("memory_mb", "too_large", f"this computer has {total} MB")
+        if workers is not None:
+            cpus = os.cpu_count() or 1
+            if workers < 1:
+                raise BudgetRefused("workers", "too_small", "at least one worker")
+            if workers > cpus:
+                raise BudgetRefused("workers", "too_large", f"this computer has {cpus} processors")
+        if scratch is not None:
+            folder = Path(scratch).expanduser()
+            if not folder.is_absolute():
+                raise BudgetRefused("scratch", "relative", "give the folder's full path")
+            if not folder.is_dir():
+                raise BudgetRefused("scratch", "not_folder", f"{folder} is not a folder")
+            if not os.access(folder, os.W_OK):
+                raise BudgetRefused("scratch", "not_writable", f"{folder} cannot be written")
+            scratch = str(folder)
+        data = {
+            k: v
+            for k, v in (("memory_mb", memory_mb), ("workers", workers), ("scratch", scratch))
+            if v is not None
+        }
+        with self._lock:
+            if self.path is None:
+                self._memory = data
+            elif data:
+                atomic_write_bytes(self.path, json_bytes(data))
+            else:
+                self.path.unlink(missing_ok=True)
+
+    def budget(self) -> Any:
+        """The :class:`~cartolex.scale.Budget` of the next build."""
+        from cartolex.scale import Budget
+
+        saved = self.saved()
+        scratch = saved.get("scratch")
+        return Budget.for_machine(
+            memory_mb=saved.get("memory_mb"),
+            workers=saved.get("workers"),
+            scratch=Path(scratch) if scratch and Path(scratch).is_dir() else None,
+        )
+
+    def status(self) -> dict[str, Any]:
+        """The budget, what was saved, and the defaults of this computer."""
+        from cartolex.scale import Budget, total_memory_mb
+
+        budget, default = self.budget(), Budget.for_machine()
+        return {
+            "memory_mb": budget.memory_mb,
+            "workers": budget.workers,
+            "scratch": str(budget.scratch) if budget.scratch else None,
+            "saved": self.saved(),
+            "default": {"memory_mb": default.memory_mb, "workers": default.workers},
+            "total_memory_mb": total_memory_mb(),
+            "cpus": os.cpu_count(),
+        }

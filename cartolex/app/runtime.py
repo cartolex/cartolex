@@ -139,7 +139,7 @@ class Runtime:
         self.presence = Presence()
         self.collection: CollectionService = settings.collection or UnavailableCollection()
         self.site_builder: SiteBuilder = settings.site_builder or default_site_builder()
-        from .machine import MachineKeys, MachineSnapshot
+        from .machine import MachineBudget, MachineKeys, MachineSnapshot
 
         #: The keys saved on this computer (none on a hosted service).
         self.keys = MachineKeys(settings.data_dir if not settings.hosted else None)
@@ -148,6 +148,8 @@ class Runtime:
             use_saved_keys(self.keys.get)  # a key saved in the settings serves the collection
         #: The OpenAlex snapshot folder saved on this computer (none on a hosted service).
         self.snapshot = MachineSnapshot(settings.data_dir if not settings.hosted else None)
+        #: What the builds may use of this computer (kept in memory on a hosted service).
+        self.budget = MachineBudget(settings.data_dir if not settings.hosted else None)
         use_snapshot = getattr(self.collection, "use_snapshot", None)
         if use_snapshot is not None and not settings.hosted:
             use_snapshot(self.snapshot)  # collections may read OpenAlex from it

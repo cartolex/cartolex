@@ -1,13 +1,14 @@
 /**
- * Sizes, machine limits and build options. The main options (theme depth and
+ * Sizes, machine limits, what builds may use of this computer, and build options.
+ * The main options (theme depth and
  * group counts, the counting unit, the map's layout method) are edited here;
  * every other parameter is in the « Tune » panel of the page it shapes, and
  * the Build page's Recipe (`/build?tab=recipe`) lists them all.
  */
 
 import { html, useState } from '../../core/preact.js';
-import { t } from '../../core/i18n.js';
-import { Button, Select } from '../../components/index.js';
+import { formatNumber, t } from '../../core/i18n.js';
+import { Button, FormField, Input, Select } from '../../components/index.js';
 import { Block, State, refusal, useResource } from './common.js';
 import { ParamActions, ParamTable, shown, useParamEdits } from '../tune/params.js';
 
@@ -16,6 +17,62 @@ const MAIN = [
   ['themes.group', 'depth'], ['themes.group', 'top_groups'], ['themes.group', 'keywords_per_group'],
   ['keywords.extract', 'counting_unit'],
 ];
+
+/** What the builds the app starts may use of this computer: memory, workers, scratch folder. */
+function BudgetForm({ ctx, app, machine }) {
+  const budget = machine.data.build_budget;
+  const saved = budget.saved || {};
+  const [memory, setMemory] = useState(saved.memory_mb ? String(saved.memory_mb) : '');
+  const [workers, setWorkers] = useState(saved.workers ? String(saved.workers) : '');
+  const [scratch, setScratch] = useState(saved.scratch || '');
+  const [problem, setProblem] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const number = (text) => (text.trim() ? Number(text.trim()) : null);
+  const send = async (body) => {
+    setBusy(true);
+    setProblem(null);
+    const result = await ctx.api.put('/api/machine/budget', body);
+    setBusy(false);
+    if (!result.ok) {
+      setProblem(refusal(result.error));
+      return;
+    }
+    machine.set(result.data);
+    app.toaster.show({ kind: 'success', title: t('settings.build.budget_saved') });
+  };
+  const reset = () => {
+    setMemory(''); setWorkers(''); setScratch('');
+    send({ memory_mb: null, workers: null, scratch: null });
+  };
+  return html`<form class="cx-settings__key" onSubmit=${(e) => {
+    e.preventDefault();
+    send({ memory_mb: number(memory), workers: number(workers), scratch: scratch.trim() || null });
+  }}>
+    <p class="cx-settings__note">${t('settings.build.budget_lead')}</p>
+    <${FormField} label=${t('settings.build.budget_memory')}
+      help=${t('settings.build.budget_default', { value: t('settings.build.mb', { n: budget.default.memory_mb }) })}>
+      ${(field) => html`<${Input} ...${field} type="number" inputmode="numeric" min="1024"
+        placeholder=${formatNumber(budget.default.memory_mb)} value=${memory}
+        onInput=${(e) => setMemory(e.currentTarget.value)} />`}
+    <//>
+    <${FormField} label=${t('settings.build.budget_workers')}
+      help=${t('settings.build.budget_default', { value: formatNumber(budget.default.workers) })}>
+      ${(field) => html`<${Input} ...${field} type="number" inputmode="numeric" min="1" max=${budget.cpus || undefined}
+        placeholder=${formatNumber(budget.default.workers)} value=${workers}
+        onInput=${(e) => setWorkers(e.currentTarget.value)} />`}
+    <//>
+    <${FormField} label=${t('settings.build.budget_scratch')} help=${t('settings.build.budget_scratch_help')}>
+      ${(field) => html`<${Input} ...${field} autocomplete="off" spellcheck="false"
+        placeholder=${t('settings.build.budget_scratch_default')} value=${scratch}
+        onInput=${(e) => setScratch(e.currentTarget.value)} />`}
+    <//>
+    <div class="cx-settings__actions">
+      <${Button} type="submit" variant="primary" loading=${busy}>${t('settings.build.budget_save')}<//>
+      ${Object.keys(saved).length ? html`<${Button} variant="ghost" onClick=${reset}>${t('settings.build.budget_reset')}<//>` : null}
+    </div>
+    ${problem ? html`<p class="cx-settings__problem" role="alert"><${State} kind="warning">${problem}<//></p>` : null}
+  </form>`;
+}
 
 export function BuildSection({ ctx, app }) {
   const params = useResource(ctx.api, '/api/params');
@@ -59,6 +116,7 @@ export function BuildSection({ ctx, app }) {
           : t('settings.build.mb', { n: limits.budget_mb })}
           <div class="cx-settings__muted">${t(`settings.build.budget_from.${limits.budget_from === 'launch' ? 'launch' : 'memory'}`)}</div></dd></div>
       </dl>` : null}
+      ${machine.data && machine.data.build_budget ? html`<${BudgetForm} ctx=${ctx} app=${app} machine=${machine} />` : null}
     <//>
     <${Block} title=${t('settings.build.options')} resource=${params} class="cx-settings__wide">
       ${data ? html`<p class="cx-settings__note">${t('settings.build.options_lead')}</p>

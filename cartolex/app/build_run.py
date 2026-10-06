@@ -6,8 +6,8 @@ that memory would stay with the app once the build ends, and a build the compute
 for want of memory would stop the app with it. So the app runs a build in a child
 process: the child opens the project under the app's lock (the lock's *holder*, see
 :class:`~cartolex.project.lock.ProjectLock`), makes the same stages from what the app
-sends it (the engine's options, the extensions' stage declarations and patches, the AI
-key), and sends its progress
+sends it (the engine's options with this computer's budget, the extensions' stage
+declarations and patches, the AI key), and sends its progress
 back through a pipe; a cancel goes the other way, and the child stops when the app is
 gone. Its memory goes back to the computer when it ends.
 
@@ -129,6 +129,7 @@ def child_recipe(runtime: Any) -> dict[str, Any] | None:
             prompt_dir=runtime.extensions.prompt_dir,
             stopword_overlay=runtime.extensions.stopword_overlay or None,
             rejects_folder=runtime.rejects_folder,
+            budget=runtime.budget.budget(),
         ),
         "extensions": extensions,
         "ai_key": None if settings.hosted else runtime.keys.get("mistral"),

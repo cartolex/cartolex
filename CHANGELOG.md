@@ -40,7 +40,9 @@ nothing in the engine names a particular deployment, source or procedure.
     the app's project lock (`ProjectLock(holder=…)`, `Project.open(holder=…)`),
     with its progress and cancel; a rebuild of the source tables above 256 MB of
     raw records does too (`rebuild_sources(isolate=…)`). Their memory goes back
-    to the computer when they end.
+    to the computer when they end. Settings › Build: what the builds started
+    from the app may use of this computer (memory, worker processes, a scratch
+    folder), saved on this computer (`PUT /api/machine/budget`).
   - *App*: the texts are a view of columns built once per version of the
     tables and kept in the project's cache (`cache/views/`), memory-mapped:
     lists, filters, sorts and counts of millions of texts without an object per

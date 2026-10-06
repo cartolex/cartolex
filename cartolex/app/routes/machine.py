@@ -11,7 +11,7 @@ from fastapi import Request
 from pydantic import BaseModel, Field
 
 from ..errors import ApiError
-from ..machine import KEY_SERVICES, SnapshotRefused
+from ..machine import KEY_SERVICES, BudgetRefused, SnapshotRefused
 from ..routing import Routes, runtime_of
 
 routes = Routes(tags=["machine"])
@@ -40,6 +40,7 @@ def _view(runtime: Any) -> dict[str, Any]:
         "ai_api": runtime.ai_access() is not None,
         "openalex": OPENALEX_BUDGET,
         "snapshot": None if runtime.settings.hosted else runtime.snapshot.status(),
+        "build_budget": None if runtime.settings.hosted else runtime.budget.status(),
         "limits": {
             "cpus": os.cpu_count(),
             "available_memory_mb": None if available is None else round(available),
@@ -58,7 +59,8 @@ def _view(runtime: Any) -> dict[str, Any]:
 def machine(request: Request) -> dict[str, Any]:
     """The keys saved on this computer (whether set, where from, their last four characters),
     whether the AI clean-up can run by API, OpenAlex's daily budget, the OpenAlex snapshot
-    folder saved here (its state, release, sizes and read speed) and this computer's limits."""
+    folder saved here (its state, release, sizes and read speed), what the builds may use
+    of this computer (``build_budget``) and its limits."""
     return _view(runtime_of(request))
 
 
@@ -96,4 +98,30 @@ def save_snapshot(request: Request, body: SnapshotBody) -> dict[str, Any]:
         runtime.snapshot.save(body.folder)
     except SnapshotRefused as exc:
         raise ApiError.of("snapshot_invalid", folder=body.folder or "", reason=exc.reason) from None
+    return _view(runtime)
+
+
+class BudgetBody(BaseModel):
+    """What the builds may use of this computer; ``null``: the default."""
+
+    memory_mb: Annotated[int | None, Field(ge=1, le=10_000_000)] = None
+    workers: Annotated[int | None, Field(ge=1, le=4096)] = None
+    scratch: Annotated[str | None, Field(min_length=1, max_length=4096)] = None
+
+
+@routes.put("/api/machine/budget", action="machine.write", resource="app")
+def save_budget(request: Request, body: BudgetBody) -> dict[str, Any]:
+    """Save what the builds the app starts may use of this computer: the memory their
+    stages size their work to, their worker processes, a scratch folder on a fast disk
+    (never in a project); refused when hosted."""
+    runtime = runtime_of(request)
+    if runtime.settings.hosted:
+        raise ApiError.of("budget_hosted")
+    try:
+        runtime.budget.save(memory_mb=body.memory_mb, workers=body.workers, scratch=body.scratch)
+    except BudgetRefused as exc:
+        value = getattr(body, exc.field)
+        raise ApiError.of(
+            "budget_invalid", field=exc.field, value=str(value), reason=exc.reason
+        ) from None
     return _view(runtime)

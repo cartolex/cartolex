@@ -392,6 +392,10 @@ ERRORS: dict[str, ErrorKind] = {
         "holding data/jsonl/works, authors and institutions",
         "fix-input",
     ),
+    "budget_hosted": ErrorKind(
+        409, "on a hosted service the builds' budget is set by whoever runs it", "none"
+    ),
+    "budget_invalid": ErrorKind(422, "{field} cannot be {value}: {reason}", "fix-input"),
     "stopword_both": ErrorKind(422, "a word is both added and removed: {words}", "fix-input"),
     "rejects_hosted": ErrorKind(
         409, "on a hosted service there is no rejection cache of this computer", "none"
