@@ -41,6 +41,7 @@ __all__ = [
     "head_word",
     "is_formula",
     "junk_reason",
+    "same_acronym",
     "sort_candidates",
     "twin_pairs",
 ]
@@ -162,15 +163,33 @@ DISCOURSE: dict[str, frozenset[str]] = {
         "varios".split()
     ),
 }
-#: A chemical formula, an isotope or an acronym: kept whole, never merged into another.
+#: A chemical formula, an isotope or an acronym: kept whole, never merged into another
+#: (but an acronym's plural or translation, see :func:`same_acronym`).
 _FORMULA = re.compile(r"^[a-zδΔ]?[\d₀-₉]*(?:[A-Z][a-z]?[\d₀-₉]*){1,6}[+\-−⁺⁻]?$")
+#: An acronym of letters (``DNA``, ``mRNA``), with its plural (``VOCs``): no digit, no element.
+_ACRONYM = re.compile(r"^([a-z]{0,3}[A-Z]{2,})(s?)$")
 
 
 def is_formula(term: str) -> bool:
     """Whether *term* is written as a chemical formula, an isotope or an acronym (``CO2``,
-    ``N2O``, ``δ18O``, ``DNA``): two such terms are never the same term."""
+    ``N2O``, ``δ18O``, ``DNA``): two such terms are never the same term, but for
+    :func:`same_acronym`."""
     text = str(term).strip()
     return bool(_FORMULA.match(text)) and sum(c.isupper() for c in text) >= 1 and len(text) <= 12
+
+
+def same_acronym(term: str, target: str, *, translation: bool = False) -> bool:
+    """Whether two acronyms name one thing: one is the other's plural (``VOCs``, ``VOC``),
+    or, with *translation* (*term* is of another language than *target*), *term*
+    translates it (``ADN``, ``DNA``; ``IRM``, ``MRI``). A formula with a digit or an
+    element (``CO2``, ``Cs``) never is, nor an acronym with a lowercase prefix in
+    a translation (``mRNA`` is not ``RNA``)."""
+    a, b = _ACRONYM.match(str(term).strip()), _ACRONYM.match(str(target).strip())
+    if not (a and b):
+        return False
+    if a.group(1) == b.group(1):
+        return True
+    return translation and a.group(1)[0].isupper() and b.group(1)[0].isupper()
 
 
 def _discourse(words: Sequence[str], lang: str) -> bool:

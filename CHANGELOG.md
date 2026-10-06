@@ -939,3 +939,11 @@ nothing in the engine names a particular deployment, source or procedure.
   worker processes, in batches given back in order (the same digest; 4.4 times
   faster on 20,000 real works with 16 workers, this process's reading bounding
   it).
+- **An acronym merges into its plural and its translation.** The triage kit
+  refused every merge between two formulas or acronyms, so `ADN`, `ARN` and
+  `IRM` stayed apart from `DNA`, `RNA` and `MRI`, and `VOCs` from `VOC`. An
+  acronym's plural now merges into it, and an acronym of a language other than
+  the reference into its translation (`cartolex.copilot.sorting.same_acronym`);
+  a formula with a digit or an element (`CO` and `CO2`, `Cs`) and, in a
+  translation, an acronym with a lowercase prefix (`mRNA` is not `RNA`) still
+  never merge. The guides say so.
