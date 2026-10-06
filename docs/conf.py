@@ -7,6 +7,7 @@ from pathlib import Path as _Path
 
 project = "cartolex"
 author = "cartolex contributors"
+copyright = "2025–2026, the authors of cartolex (MIT licence)"
 extensions = ["myst_parser"]
 source_suffix = {".md": "markdown"}
 exclude_patterns = ["_build"]
@@ -17,6 +18,7 @@ html_title = "cartolex"
 # (cartolex/app/static/brand/mark.svg) with its colours fixed for each theme, since a
 # picture does not follow the theme chosen on the page.
 html_static_path = ["_static"]
+html_css_files = ["cartolex-docs.css"]
 html_favicon = "_static/cartolex-mark-light.svg"
 html_theme_options = {
     "light_logo": "cartolex-mark-light.svg",

@@ -2,14 +2,12 @@
 
 ```{image} _static/cartolex-mark-light.svg
 :alt: The cartolex logo
-:width: 120px
-:class: only-light
+:class: only-light cx-docs-logo
 ```
 
 ```{image} _static/cartolex-mark-dark.svg
 :alt: The cartolex logo
-:width: 120px
-:class: only-dark
+:class: only-dark cx-docs-logo
 ```
 
 **cartolex draws the map of a research field from the texts of the people who
