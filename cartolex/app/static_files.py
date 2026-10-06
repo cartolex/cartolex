@@ -25,7 +25,15 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 from .errors import ApiError
 from .routing import Routes, runtime_of
 
-__all__ = ["MAP_MODULES", "MEDIA_TYPES", "PACKAGE_STATIC", "classic_script", "routes", "safe_file"]
+__all__ = [
+    "ATLAS_MODULES",
+    "MAP_MODULES",
+    "MEDIA_TYPES",
+    "PACKAGE_STATIC",
+    "classic_script",
+    "routes",
+    "safe_file",
+]
 
 PACKAGE_STATIC = Path(__file__).with_name("static")
 
@@ -59,19 +67,59 @@ MAP_MODULES = (
     "components/map/controller.js",
 )
 
-_IMPORT = re.compile(r"^import\s[^;]*?\sfrom\s+'\./[\w-]+\.js';[ \t]*\n", re.MULTILINE)
+#: The atlas (``docs/dev/atlas.md``): the map's modules, the treemap's layout, the messages and
+#: the atlas's own, in the order a classic script needs them; the app and the offline site both
+#: mount it.
+ATLAS_MODULES = (
+    *MAP_MODULES,
+    "components/treemap-layout.js",
+    "core/messages.js",
+    "atlas/dom.js",
+    "atlas/schemes.js",
+    "atlas/data.js",
+    "atlas/state.js",
+    "atlas/rings.js",
+    "atlas/scene.js",
+    "atlas/save.js",
+    "atlas/panes.js",
+    "atlas/treemap.js",
+    "atlas/find.js",
+    "atlas/layers.js",
+    "atlas/filters.js",
+    "atlas/parts.js",
+    "atlas/compare.js",
+    "atlas/card.js",
+    "atlas/mapview.js",
+    "atlas/atlas.js",
+)
+
+_IMPORT = re.compile(
+    r"^import\s[^;]*?\sfrom\s+'(?:\./|(?:\.\./)+)[\w/-]+\.js';[ \t]*\n", re.MULTILINE
+)
 _EXPORT = re.compile(r"^export (function|const) ([A-Za-z_$][\w$]*)", re.MULTILINE)
+_TOP = re.compile(
+    r"^(?:export )?(?:async )?(?:function\*?|const|let|class) ([A-Za-z_$][\w$]*)", re.MULTILINE
+)
 
 
 def classic_script(sources: list[Path], global_name: str) -> str:
-    """ES modules that import only each other (``import {…} from './x.js'``) and export only
-    declarations (``export function``, ``export const``), as one classic script that sets
-    ``window[global_name]`` to everything they export: what a page opened from ``file://``
-    loads, since browsers refuse ES modules there. *sources* come in dependency order."""
+    """ES modules that import only each other (``import {…} from './x.js'`` or
+    ``'../dir/x.js'``) and export only declarations (``export function``, ``export const``),
+    as one classic script that sets ``window[global_name]`` to everything they export: what a
+    page opened from ``file://`` loads, since browsers refuse ES modules there. *sources*
+    come in dependency order. They share one scope: a top-level name declared by two modules
+    is refused (``ValueError``)."""
     names: list[str] = []
     parts: list[str] = []
+    seen: dict[str, str] = {}
     for path in sources:
         text = _IMPORT.sub("", path.read_text(encoding="utf-8"))
+        for m in _TOP.finditer(text):
+            if m.group(1) in seen:
+                raise ValueError(
+                    f"{path.name}: {m.group(1)} is also declared by {seen[m.group(1)]}"
+                )
+            seen[m.group(1)] = path.name
         names += [m.group(2) for m in _EXPORT.finditer(text)]
         text = _EXPORT.sub(r"\1 \2", text)
         if re.search(r"^\s*(import|export)\b", text, re.MULTILINE):

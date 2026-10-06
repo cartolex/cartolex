@@ -17,12 +17,20 @@ import { html, signal } from '../../core/preact.js';
 import { formatPercent, t } from '../../core/i18n.js';
 import { Button, ProgressBar } from '../../components/index.js';
 import { refusal } from '../settings/common.js';
-import { Segmented } from './controls.js';
 
 /** How long the draft must stay the same before its preview is asked for. */
 export const WAIT_MS = 400;
 const ACTIVE = new Set(['queued', 'running', 'cancelling']);
 const MUTED = '--cx-text-muted';
+
+/** A group of buttons of which one is pressed. */
+export function Segmented({ label, options, value, onChange, class: cls = '' }) {
+  return html`<div class=${`cx-atlas-segmented ${cls}`} role="group" aria-label=${label}>
+    ${options.map((o) => html`<button key=${o.value} type="button"
+      class=${`cx-atlas-segmented__item ${o.value === value ? 'is-pressed' : ''}`}
+      aria-pressed=${String(o.value === value)} onClick=${() => onChange(o.value)}>${o.label}</button>`)}
+  </div>`;
+}
 
 /** The body of a preview request: the parameters the method takes, unset ones left out. */
 export function previewBody(view, draft) {
@@ -183,10 +191,10 @@ export function createLayoutPreview({ api, jobs }) {
 }
 
 /** A MapFrame scene of preview points `[x, y, top-level theme]`, in the atlas's theme hues. */
-export function previewScene(points, themes, index) {
+export function previewScene(points, themes, index, colours) {
   const palette = (themes || []).slice(0, 31).map((th) => {
-    const hue = index.colourOf(th.id);
-    return typeof hue === 'number' && hue >= 0 && hue < 12 ? `--cx-hue-${hue + 1}` : MUTED;
+    const i = index.colourOf(th.id);
+    return i < colours.themes.length ? colours.themes[i] : MUTED;
   });
   palette.push(MUTED);
   const muted = palette.length - 1;

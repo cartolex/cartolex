@@ -150,8 +150,9 @@ re-renders when it changes.
   Activity drawer says when it reached its state (asked for, started,
   finished, failed, waiting, paused, stopped), date and time in the interface
   language.
-- **Preferences** (`core/stores/prefs.js`): theme, interface language and the
-  jobs dismissed from the Activity list, kept by the app
+- **Preferences** (`core/stores/prefs.js`): theme, interface language, the
+  jobs dismissed from the Activity list and a few settings by key (`get(key)`,
+  `set(key, value)`: the atlas's layout, the colour scheme), kept by the app
   (`/api/me/preferences`, read beside the manifest at start and saved at every
   change, so they outlive the browser's storage); the browser's local storage
   keeps a copy, which `core/boot-theme.js` reads to apply the theme before the
@@ -406,45 +407,33 @@ placeholders) and `size="fill"` (its container's height). The fixture
 server answers the themes screen with a small tree
 (`tests/fixtures/ui/themes.example.json`).
 
-The atlas (`pages/map.js`, route `/map`) loads `pages/map/page.js`: the
-treemap (`tree.js`), the map and its legend and hover card, and the panel of
-the selection (`panel.js`) side by side; the controls (`controls.js`: kinds,
-points or regions, the organisations' level, the filters from the people's
-columns, the period, « Clear the filters »); « Find on the map » (`find.js`);
-the map versions and base maps (`versions.js`); the bundle indexed
-(`model.js`) and the scene built from it (`scene.js`, and the world view).
-Its state is in the address (`state.js`: `show`, `as`, `org`, `from`, `to`,
-`f`, `sel`, `theme`, `view`, `base`), so a view can be shared and survives a
-reload; a selection given in the address is centred once the map is drawn.
-Opening it reads `GET /api/atlas` only; the texts and the keywords of
-people and organisations are read when they are shown. The panel links the
-selection to the other screens (`links.js`: a person, an organisation or a
-text in People, `/people?person=`, `?tab=organisations&org=`,
-`?tab=texts&text=`; a keyword in Keywords, `/keywords?q=`, and in Themes,
-`/themes?keyword=`; a theme, `/themes?node=`), and the other screens link back
-(`/map?sel=kind:id`). Who the selection writes with (`coauthors.js`,
-`GET /api/atlas/coauthors`, one call per selection and per page asked): a
-person's (a projected person's) co-authors in the project, with the works
-together, and an organisation's partners of its level, listed in the panel and
-joined to the selection by lines on the map, the thicker the more works
-together (dashed between organisations); projected co-authors are faint (drawn
-faintly when the projected people are hidden) and never named; « Second
-circle » (`c2=1` in the address) adds the co-authors of the co-authors, with
-thinner and fainter lines. The panel shows no similarity: a similarity is not a
-link. From the space of the themes (`near.js`): the people who use a keyword,
-lit on the map (`GET /api/atlas/keyword-people`); « Compare with… »
-(`compare.js`) puts a second person or organisation beside the selection
-(`GET /api/atlas/compare`). The map's lines take a `width` in pixels and a
-`dash` (WebGL draws a wide or dashed line as a strip of triangles). The body (treemap, map, panel) goes full screen
-(`fullscreen.js`: the Fullscreen API, else fixed over the window; Escape and a
-button inside leave it), and its side columns fold away, remembered in this
-browser (`columns.js`). « Distances » (`pages/share/distances.js`, also on the
-share screen) exports the nearest of each, the full similarity matrix or the
-vectors as a job, for every person, those the filters keep, or the
-organisations of a level. « Save the view » (`save.js`) writes the map as it is
-on screen (pan, zoom, layers, colours, selection, labels) as a PNG image (the
-Canvas 2D renderer at twice the resolution) or an SVG image, with or without
-its legend, made in the browser.
+The atlas (`pages/map.js`, route `/map`) is the one atlas the app and the
+offline site share ({doc}`atlas`: `static/atlas/`, without a library, mounted
+with a data source and the host's capabilities). `pages/map/page.js` reads
+`GET /api/atlas`, mounts it with the app's source and host (`source.js`: the
+API, the interface's messages, the page's address, the person's preferences,
+the app's Dark / Bright, the links to People, Keywords and Themes) and keeps
+around it what only the app has: the « Tune » panel and its layout preview drawn
+on the atlas's map (`preview.js`, `atlas.setScene`), the map versions and base
+maps (`versions.js`), the distances' exports (`pages/share/distances.js`).
+Inside the atlas: the treemap of the themes (`treemap.js`: a click focuses, a
+double click or Shift+Enter opens down to the keywords, ↑ / Backspace / Escape
+go back, one tab stop with the arrows), the map (`mapview.js`, `scene.js`: the
+focus lit in its own colours and the rest faded to a trace, organisation tiles
+sized by their people, the network's arcs from `rings.js`, names per kind), the
+card of links (`card.js`, `parts.js`, Compare in `compare.js`), the layers panel
+(`layers.js`), « Filters » (`filters.js`), « Find » (`find.js`), the panes
+(`panes.js`: dividers by pointer or arrows, rails, card right or below, full
+screen for the atlas, the map alone, the treemap alone) and « Save view »
+(`save.js`: PNG or SVG, with or without the legend). Its state is in the
+address (`state.js`: `sel`, `with`, `open`, `show`, `names`, `org`, `net`, `f`,
+`from`, `to`, `kc`, `kcol`, `view`, `base`, `as`); Back retraces the focus. The
+layout and the colour scheme are the person's preferences (`atlas.*`,
+`colour_scheme`), and the scheme sets the hue tokens for the whole app
+(`core/look.js`), so the Themes screen colours a theme as the atlas does.
+Opening the page reads `GET /api/atlas` only; the atlas reads the rest when it
+shows it (a keyword's people, the network, a comparison, the keywords of a
+focus, the texts, the time windows).
 
 The share screen (`pages/share.js`, route `/share`) loads
 `pages/share/page.js`: building the offline site (`site.js`: the name
@@ -524,7 +513,9 @@ that sets `window[name]`; served over HTTP the site can load them as modules.
 WebGL is tried once per page on a canvas of its own, since a canvas that gave
 a WebGL context cannot give a 2D one. The treemap's layout
 (`components/treemap-layout.js`) follows the same rules, so the site's themes
-use it too. The world view draws the outline of the land
+use it too, and so does the whole atlas ({doc}`atlas`, `ATLAS_MODULES`: the
+modules may import across folders, `../components/map/core.js`, and the script
+refuses two modules that declare the same top-level name). The world view draws the outline of the land
 (`static/data/world-land-110m.json`, Natural Earth, public domain; see its
 README).
 
@@ -573,14 +564,18 @@ console error, an uncaught exception or a CSP violation fails a test:
   with a predicate that returns a boolean, never an element: an element handle
   would keep a page alive and read as a leak.
 - the atlas on the real app (`tests/browser/test_atlas.py`, the S world): the
-  map drawn with WebGL, a person found and shown (panel, hover card, address),
-  organisations and texts shown, a filter from a people's column, the period,
-  « Clear the filters », the state across a reload, the world view, the API
-  calls of the navigation and axe; and a budget: 10⁴ points panned in the
-  gallery at 50 frames a second or more, a frame drawn in under 16 ms;
-  `tests/browser/test_atlas_links.py`: a selection from the address with its
+  map drawn with WebGL in five API calls, the treemap explored to a keyword and
+  its people, a person found with their co-authors drawn and a second ring, the
+  layers panel, two organisations compared, the filters, the colour scheme and the
+  layout kept across a reload, the map versions, the world view, axe; the map
+  inside its frame in both themes; the same atlas mounted from a page opened from
+  `file://` (`atlas_file.py`: the classic script, a synthetic bundle, the rings
+  computed in the browser); and a budget: 10⁴ points panned in the gallery at 50
+  frames a second or more, a frame drawn in under 16 ms;
+  `tests/browser/test_atlas_links.py`: a person from the address with their
   co-authors, a keyword's people and its way to the keywords and the themes
-  screens, full screen and back, the view saved as SVG and PNG.
+  screens, full screen (the atlas, the map alone) and back, the view saved as SVG
+  and PNG.
 
 The browser tests need `tools/requirements-browser.txt` (Playwright, which
 `tools/check.py` installs into the quick Python's environment) and a Chromium
