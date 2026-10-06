@@ -115,7 +115,9 @@ def test_an_error_carries_its_code_params_and_english_text():
 )
 def test_skip_reasons_have_codes(text, code, params):
     m = skip_message(text)
-    assert (m["code"], m["params"], m["message"]) == (code, params, text)
+    assert (m["code"], m["params"]) == (code, params)
+    # the words name no file and no setting's key
+    assert "params.json" not in m["message"] and ".enabled" not in m["message"]
 
 
 def test_attempts_have_codes():
@@ -124,9 +126,11 @@ def test_attempts_have_codes():
     )
     refused = attempt_message("failed", "keywords.extract: min_people is 9, but only 4 people")
     assert refused["code"] == "stage_refused" and refused["params"]["detail"].startswith("keywords")
-    assert attempt_message("failed", "StageRefused: no pinned map version")["params"] == {
-        "detail": "no pinned map version"
-    }
+    assert attempt_message("failed", "StageRefused: no pinned map version")["code"] == (
+        "stage_no_pinned_map"
+    )
+    no_texts = attempt_message("failed", "StageRefused: no mapped person has a text yet: …")
+    assert no_texts["code"] == "stage_no_texts" and "csv" not in no_texts["message"]
     missing = attempt_message("failed", "LanguageModelMissing: install fr_core_news_md")
     assert missing["code"] == "language_model_missing"
     broke = attempt_message("failed", "RuntimeError: extract broke on purpose")

@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import Request
 
 from ..deps import ProjectDep
-from ..messages import attempt_message, reason_message, skip_message
+from ..messages import attempt_message, message, reason_message, skip_message
 from ..routing import Routes, runtime_of
 
 routes = Routes(tags=["state"])
@@ -62,6 +62,23 @@ def _run(record: Any) -> dict[str, Any] | None:
     }
 
 
+def _attempt(project: Any, attempt: Any) -> dict[str, Any]:
+    """A failed or cancelled attempt: its outcome, time, error and message code."""
+    said = attempt_message(attempt.outcome, attempt.error)
+    if said["code"] == "stage_no_texts":
+        from ..build_run import someone_mapped
+
+        if not someone_mapped(project):
+            said = message("stage_no_mapped")
+    return {
+        "outcome": attempt.outcome,
+        "error": attempt.error,
+        "run_id": attempt.run_id,
+        "finished_at": attempt.finished_at.isoformat() if attempt.finished_at else None,
+        **said,
+    }
+
+
 def stage_states(runtime: Any, project: Any) -> list[dict[str, Any]]:
     """Every stage of the app's registry with its state and reasons (from the records only)."""
     from cartolex.build import status
@@ -90,20 +107,70 @@ def stage_states(runtime: Any, project: Any) -> list[dict[str, Any]]:
                 "skip": skip_message(st.skip_reason) if st.skip_reason else None,
                 "has_results": st.has_results,
                 "run": _run(st.record),
-                "attempt": None
-                if attempt is None
-                else {
-                    "outcome": attempt.outcome,
-                    "error": attempt.error,
-                    "run_id": attempt.run_id,
-                    **attempt_message(attempt.outcome, attempt.error),
-                },
+                "attempt": None if attempt is None else _attempt(project, attempt),
                 "interrupted": st.interrupted is not None and st.running is None,
                 "code_changed": st.code_changed,
                 "describe": st.describe(),
             }
         )
+    triage = next((row for row in out if row["id"] == "keywords.triage"), None)
+    if triage is not None:
+        ai_row(runtime, project, triage)
     return out
+
+
+def triage_status(runtime: Any, project: Any) -> dict[str, Any]:
+    """The route of the keyword clean-up and the copilot's work since the current extraction
+    (:func:`cartolex.app.ai_steps.copilot_status`), kept while ``keywords.csv``, the imported
+    results and the extraction's run are the same."""
+    from cartolex.build.records import read_record
+
+    from ..ai_steps import copilot_status, routes_of
+
+    layout = project.layout
+    params, _ = project.read_params()
+    record = read_record(layout, "keywords.extract")
+    run = record.run_id if record is not None else None
+
+    def stat(path: Any) -> Any:
+        try:
+            st = path.stat()
+            return (st.st_size, st.st_mtime_ns)
+        except OSError:
+            return None
+
+    key = (
+        "copilot-status",
+        str(layout.root),
+        run,
+        stat(layout.keywords_csv),
+        stat(layout.history / "ai"),
+    )
+    status = runtime.table_cache.get(key, lambda: copilot_status(project, run))
+    api = read_record(layout, "keywords.triage") is not None
+    return {
+        "route": routes_of(params)["keywords.triage"],
+        "extraction": run,
+        "api_verdicts": api,
+        **status,
+    }
+
+
+def ai_row(runtime: Any, project: Any, row: dict[str, Any]) -> None:
+    """The AI clean-up's row (``keywords.triage``, skipped unless it runs by API) as the
+    person sees it: done with the copilot (its decisions since the extraction), waiting for
+    it, or without AI; ``ai`` adds the route and the copilot's counts."""
+    status = triage_status(runtime, project)
+    row["ai"] = status
+    if row["state"] != "skipped" or status["route"] == "api":
+        return
+    if status["decisions"] and status["last"]:
+        row["state"], row["label"] = "up_to_date", "up to date"
+        row["skip"] = message("stage_copilot_done", n=status["decisions"], date=status["last"])
+    elif status["route"] == "copilot":
+        row["skip"] = message("stage_copilot_waiting", total=status["total"])
+    else:
+        row["skip"] = message("stage_ai_none")
 
 
 @routes.get("/api/project/state", action="project.read")

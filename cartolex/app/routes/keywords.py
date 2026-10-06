@@ -15,6 +15,7 @@ from typing import Annotated, Any, Literal
 from fastapi import Query, Request, Response
 from pydantic import BaseModel, Field
 
+from ..ai_steps import AI_SOURCES as _AI_SOURCES
 from ..deps import ListDep, ProjectDep, page
 from ..errors import ApiError
 from ..etags import check_version, etag_of, expected_version, version_of
@@ -99,7 +100,7 @@ def api_verdicts(runtime: Any, ctx: Any) -> tuple[dict[str, dict[str, str]], Any
 #: runs code, an AI by API, or nobody yet (the extraction's band).
 ROUTES = ("person", "ai-handoff", "ai-copilot", "ai-api", "extraction")
 #: The sources of ``keywords.csv`` that are an AI's answers the person accepted.
-AI_SOURCES = ("ai-handoff", "ai-copilot")
+AI_SOURCES = _AI_SOURCES
 
 
 def machine_rejects(runtime: Any) -> Any:

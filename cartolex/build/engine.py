@@ -392,7 +392,8 @@ def run_corpus(ctx: StageContext) -> dict[str, int]:
         characters += summary.characters.get(ctx.out / slot.id, 0)
     if not people:
         raise StageRefused(
-            "no mapped person has a text in a fit slot: set roles in decisions/people.csv"
+            "no mapped person has a text yet: collect their texts, or mark as mapped the "
+            "people whose texts make the map"
         )
     return {
         "people": len(people),

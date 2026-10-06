@@ -56,6 +56,12 @@ def _read(request: Request) -> tuple[Preferences, bool]:
         return Preferences(), False
 
 
+def preference(request: Request, key: str) -> Any:
+    """One of the other settings of the person who sends *request* (``None`` when unset)."""
+    prefs, _ = _read(request)
+    return prefs.other.get(key)
+
+
 def _view(request: Request, prefs: Preferences, stored: bool) -> dict[str, Any]:
     return {
         "preferences": prefs.model_dump(mode="json"),

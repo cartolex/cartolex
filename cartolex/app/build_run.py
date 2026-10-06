@@ -26,9 +26,16 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from .messages import attempt_message
+from .messages import attempt_message, message
 
-__all__ = ["FAILED_NEXT", "build_outcome", "child_recipe", "progress_json", "run_build"]
+__all__ = [
+    "FAILED_NEXT",
+    "build_outcome",
+    "child_recipe",
+    "progress_json",
+    "run_build",
+    "someone_mapped",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +44,13 @@ FAILED_NEXT = {
     "language_model_missing": ("Open the settings", "settings"),
     "stage_refused": ("Open the settings", "settings"),
     "stage_failed": ("Copy a diagnostic", "report"),
+    "stage_no_texts": ("Collect the texts", "open:/people?collect=harvest"),
+    "stage_no_mapped": ("Open the people", "open:/people"),
+    "stage_ai_not_set": ("Open the settings", "settings"),
+    "stage_ai_no_key": ("Open the settings", "settings"),
+    "stage_themes_rebase": ("Open the themes", "open:/themes"),
+    "stage_no_pinned_map": ("Open the map's settings", "open:/map?tune=1"),
+    "stage_layout_missing": ("Open the map's settings", "open:/map?tune=1"),
 }
 #: Seconds between two looks at the child (progress, cancel, its end).
 POLL_S = 0.25
@@ -59,6 +73,22 @@ def progress_json(event: Any) -> dict[str, Any]:
         "eta_s": eta,
         "heartbeat": event.heartbeat,
     }
+
+
+def someone_mapped(project: Any) -> bool:
+    """Whether the project maps anyone: a person whose role is ``mapped`` (without
+    ``decisions/people.csv``, everyone in the people's table is)."""
+    from cartolex.project.tables import read_decision_csv
+
+    layout = project.layout
+    if not layout.people_csv.exists():
+        return layout.table("people").exists()
+    try:
+        return any(
+            r.get("role") == "mapped" for r in read_decision_csv(layout.people_csv, "people")
+        )
+    except (OSError, ValueError):
+        return True
 
 
 def build_outcome(
@@ -94,6 +124,8 @@ def build_outcome(
     }
     if result.failed:
         said = attempt_message("failed", result.failed[1])
+        if said["code"] == "stage_no_texts" and not someone_mapped(project):
+            said = message("stage_no_mapped")
         label, action = FAILED_NEXT.get(said["code"], FAILED_NEXT["stage_failed"])
         out["failed"] = {
             "stage": result.failed[0],

@@ -156,12 +156,41 @@ def ai_view(runtime: Any, ctx: Any) -> dict[str, Any]:
     params, fp = ctx.project.read_params()
     ai = runtime.ai_access()
     ready = bool(ai is not None and (ai.api_key or ai.client_factory))
+    from .state import triage_status
+
     return {
         "routes": routes_of(params),
         "choices": {step: list(routes) for step, routes in AI_ROUTES.items()},
         "api_ready": ready and ctx.project.config.identity.ai is not None,
         "version": version_of(fp),
+        "triage": triage_status(runtime, ctx.project),
     }
+
+
+def preflight_notes(
+    runtime: Any, ctx: Any, to_run: list[str], ai: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """What the pre-flight sheet says before a build, each a message with its next action:
+    mapped people whose texts were never collected (when the texts are gathered again), a
+    copilot's result imported and not accepted, the API's verdicts a route other than the
+    API leaves aside (when the vocabulary is built again)."""
+    from ..guidance import people_facts
+    from .overview import item, review_item
+
+    out = []
+    if "corpus.assemble" in to_run:
+        try:
+            people = people_facts(runtime, ctx.project)
+        except Exception:  # a note: the sheet shows without it
+            people = {"to_harvest": 0}
+        if people["to_harvest"]:
+            out.append(item("preflight_no_texts", level="warning", n=people["to_harvest"]))
+    triage = ai["triage"]
+    if "keywords.build" in to_run and triage["pending"]:
+        out.append(review_item("preflight_copilot_pending", triage["pending"][0]))
+    if "keywords.build" in to_run and triage["api_verdicts"] and triage["route"] != "api":
+        out.append(item("preflight_api_dropped", level="warning"))
+    return out
 
 
 def pause_for(runtime: Any, ctx: Any, the_plan: Any, passed: list[str]) -> dict[str, Any] | None:
@@ -283,6 +312,7 @@ def post_build(request: Request, body: BuildBody, ctx: ProjectDep) -> Any:
         out = plan_json(the_plan, runtime.registry, ctx, pause)
         out["running"] = running.as_dict() if running else None
         out["ai"] = ai_view(runtime, ctx)
+        out["notes"] = preflight_notes(runtime, ctx, out["to_run"], out["ai"])
         if not out["to_run"]:
             out["empty"] = empty("empty_up_to_date")
         return out
@@ -388,7 +418,7 @@ def last_build(runtime: Any, ctx: Any) -> Any:
     from ..jobs import read_job_logs
 
     # The logs first, then the runner: a build submitted meanwhile is live, not interrupted.
-    logs = [j for j in read_job_logs(ctx.layout.jobs, ctx.id, limit=5) if j.kind == "build"]
+    logs = read_job_logs(ctx.layout.jobs, ctx.id, limit=1, kind="build")
     jobs = [j for j in runtime.jobs.list(ctx.id) if j.kind == "build"] or logs
     return jobs[0] if jobs else None
 
