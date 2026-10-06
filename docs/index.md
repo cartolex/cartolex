@@ -49,6 +49,7 @@ dev/reference
 dev/placement
 dev/layouts
 dev/ui
+dev/atlas
 dev/site
 dev/themes-editor
 dev/copilot
