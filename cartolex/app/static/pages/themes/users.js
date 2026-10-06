@@ -30,7 +30,7 @@ export function KeywordUsers({ api, term }) {
   if (!answer || answer.term !== term) {
     return html`<p class="cx-themes-empty-line" aria-busy="true">${t('common.loading')}</p>`;
   }
-  if (answer.error) return html`<p class="cx-themes-empty-line">${t('themes.users.none')}</p>`;
+  if (answer.error || !answer.data.known) return html`<p class="cx-themes-empty-line">${t('themes.users.none')}</p>`;
   const { items, count } = answer.data;
   return html`${items.length ? html`<ol class="cx-themes-panel__people">
       ${items.map((it) => html`<li key=${it.id}>

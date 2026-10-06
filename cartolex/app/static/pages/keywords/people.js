@@ -29,9 +29,8 @@ export function KeywordPeopleDrawer({ ctx, term, onClose }) {
   const data = answer && answer.data;
   let body;
   if (!answer) body = html`<p aria-busy="true">${t('common.loading')}</p>`;
-  else if (answer.error && answer.error.code === 'atlas_item_not_found') {
-    body = html`<p class="cx-corpus-muted">${t('keywords.people.unknown')}</p>`;
-  } else if (answer.error) body = html`<${ErrorCard} error=${answer.error} compact />`;
+  else if (answer.error) body = html`<${ErrorCard} error=${answer.error} compact />`;
+  else if (!data.known) body = html`<p class="cx-corpus-muted">${t('keywords.people.unknown')}</p>`;
   else {
     body = html`<p>${t('keywords.people.count', { count: data.count })}</p>
       <ol class="cx-kw-people">

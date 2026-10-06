@@ -798,11 +798,13 @@ def atlas_keyword_people(
 ) -> dict[str, Any]:
     """The people who use a keyword (or a form merged into it), ranked by the share of
     their keyword use it holds: ``count``, the first ``limit`` (``items``: ``id``, ``name``,
-    ``share``) and ``at``, their indexes in the bundle's people (those on the map)."""
+    ``share``) and ``at``, their indexes in the bundle's people (those on the map); ``known``
+    is false when the space has no such keyword."""
     from ..space_index import keyword_users
 
     view = space_of(runtime_of(request), ctx)
     found = keyword_users(view, term, limit)
-    if found is None:
-        raise _found("keyword", term)
-    return {"limit": limit, **found}
+    if found is None:  # not a keyword of the space: nobody, said plainly (not an error)
+        nobody = {"term": term, "count": 0, "items": [], "at": [], "at_capped": False}
+        return {"limit": limit, "known": False, **nobody}
+    return {"limit": limit, "known": True, **found}

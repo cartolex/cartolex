@@ -46,8 +46,13 @@ def client(built, tmp_path):
     root = tmp_path / "copy"
     shutil.copytree(built, root)
     app = create_app(
-        AppSettings(project=root, launch_token=TOKEN, data_dir=tmp_path / "app",
-                    build_budget_mb=1e9, build_year=2026)  # fmt: skip
+        AppSettings(
+            project=root,
+            launch_token=TOKEN,
+            data_dir=tmp_path / "app",
+            build_budget_mb=1e9,
+            build_year=2026,
+        )  # fmt: skip
     )
     yield Client(app)
     app.state.cartolex.shutdown()
@@ -123,12 +128,15 @@ def test_the_people_using_a_keyword_are_ranked_by_its_share_of_their_use(client)
     first = got["items"][0]
     who = next(p for p in atlas["people"] if p["person_id"] == first["id"])
     with open(table, encoding="utf-8") as fh:
-        mine = [r for r in csv.DictReader(fh) if f"{r['first_name']} {r['last_name']}" == who["name"]]
+        mine = [
+            r for r in csv.DictReader(fh) if f"{r['first_name']} {r['last_name']}" == who["name"]
+        ]
     total = sum(float(r["score_tf"]) for r in mine)
     part = sum(float(r["score_tf"]) for r in mine if r["term"].lower() == kw.lower())
     assert first["share"] == pytest.approx(part / total, abs=1e-3)
     unknown = client.get("/api/atlas/keyword-people", params={"term": "no such keyword"})
-    assert unknown.status_code == 404
+    assert unknown.status_code == 200 and unknown.json()["known"] is False
+    assert unknown.json()["count"] == 0 and got["known"] is True
 
 
 def test_distances_are_exported_by_a_job(client, monkeypatch):
@@ -183,8 +191,16 @@ def test_a_keyword_is_found_with_the_candidates_merged_into_it(client):
     target, other = rows[0], next(r for r in rows[1:] if r["language"] != rows[0]["language"])
     merged = client.post(
         "/api/keywords/decisions",
-        json={"decisions": [{"term": other["term"], "language": other["language"],
-                             "decision": "merge", "target": target["term"]}]},  # fmt: skip
+        json={
+            "decisions": [
+                {
+                    "term": other["term"],
+                    "language": other["language"],
+                    "decision": "merge",
+                    "target": target["term"],
+                }
+            ]
+        },  # fmt: skip
         headers={"If-Match": etag(page)},
     )
     assert merged.status_code == 200, merged.text

@@ -33,7 +33,7 @@ export function useSpaceOf(ctx, index, sel, enabled) {
     }
     if (!request) return;
     request.then((r) => setAnswer(r.ok ? { key, kind, data: r.data } : { key, kind, error: r.error }));
-  }, [index, key, enabled]);
+  }, [index ? index.atlas : null, key, enabled]); // the bundle, not the windows read beside it
   return answer && answer.key === key ? answer : null;
 }
 
@@ -58,11 +58,8 @@ export function Nearest({ answer, onSelect, kind }) {
 /** The people who use a keyword: how many, and the first, each with its share of their use. */
 export function Users({ answer, onSelect }) {
   if (!answer) return html`<p class="cx-atlas-panel__muted" aria-busy="true">${t('common.loading')}</p>`;
-  if (answer.error) {
-    return answer.error.code === 'atlas_item_not_found'
-      ? html`<p class="cx-atlas-panel__muted">${t('map.users.unknown')}</p>`
-      : html`<${ErrorCard} error=${answer.error} compact />`;
-  }
+  if (answer.error) return html`<${ErrorCard} error=${answer.error} compact />`;
+  if (!answer.data.known) return html`<p class="cx-atlas-panel__muted">${t('map.users.unknown')}</p>`;
   const { count, items } = answer.data;
   return html`<p class="cx-atlas-count">${t('map.users.count', { count })}</p>
     ${items.length ? html`<ol class="cx-atlas-list">

@@ -317,7 +317,9 @@ which puts together the outline (`outline.js`, `rows.js`, `review.js`), the
 treemap and map panels (`treemap.js`, `map.js`, `centre.js`), the side panel
 (`panel.js`), the actions and operations (`actions.js`, `operations.js`,
 `dialogs.js`), the draft store (`store.js`), the versions (`versions.js`) and
-the AI copilot (`copilot.js`, its review in `proposal.js`), the playground (`playground/`:
+the AI copilot (`copilot.js`, its review in `proposal.js`), who uses a keyword and the links to the map
+and the keywords (`users.js`; the address opens a node or a keyword, `?node=`, `?keyword=`; the centre
+goes full screen), the playground (`playground/`:
 the grouping's settings tried before adopting them), over the tree's model (`model.js`,
 `labels.js`). Static modules cost nothing after the first load (they are
 cached), so the budget of a navigation counts API calls only.
@@ -330,7 +332,10 @@ warning when languages would split the themes; one band's list
 where keeping is « put back »; search over the terms and their forms, language,
 category, route and decision filters, a category column, range selection, keep, exclude, merge and undo for the rows
 selected or for every row the filters keep, the route that decided each
-keyword); the merge dialog and the history of the decisions (`dialogs.js`);
+keyword; `?q=<term>`, a link from the map or the themes, keeps that keyword
+and the candidates merged into it, in the band that holds them; a row's
+Enter or menu opens the people who use it, `people.js`, or its place on the
+map); the merge dialog and the history of the decisions (`dialogs.js`);
 the triage with AI (« Triage with AI », the primary button): with a copilot
 (`copilot.js`: the bundle of the candidates an AI judges, kept, to check and
 set aside by default, cut into parts; its results imported, merged and
@@ -364,8 +369,26 @@ the map versions and base maps (`versions.js`); the bundle indexed
 (`model.js`) and the scene built from it (`scene.js`, and the world view).
 Its state is in the address (`state.js`: `show`, `as`, `org`, `from`, `to`,
 `f`, `sel`, `theme`, `view`, `base`), so a view can be shared and survives a
-reload. Opening it reads `GET /api/atlas` only; the texts and the keywords of
-people and organisations are read when they are shown.
+reload; a selection given in the address is centred once the map is drawn.
+Opening it reads `GET /api/atlas` only; the texts and the keywords of
+people and organisations are read when they are shown. The panel links the
+selection to the other screens (`links.js`: a person, an organisation or a
+text in People, `/people?person=`, `?tab=organisations&org=`,
+`?tab=texts&text=`; a keyword in Keywords, `/keywords?q=`, and in Themes,
+`/themes?keyword=`; a theme, `/themes?node=`), and the other screens link back
+(`/map?sel=kind:id`). From the space of the themes (`near.js`, one call per
+selection): the nearest of a person, an organisation or a projected person
+with their similarity, joined by lines on the map
+(`GET /api/atlas/neighbours`), and the people who use a keyword, lit on the
+map (`GET /api/atlas/keyword-people`); « Compare with… » (`compare.js`) puts a
+second person or organisation beside the selection
+(`GET /api/atlas/compare`). The body (treemap, map, panel) goes full screen
+(`fullscreen.js`: the Fullscreen API, else fixed over the window; Escape and a
+button inside leave it), and its side columns fold away, remembered in this
+browser (`columns.js`). « Distances » (`pages/share/distances.js`, also on the
+share screen) exports the nearest of each, the full similarity matrix or the
+vectors as a job, for every person, those the filters keep, or the
+organisations of a level.
 
 The share screen (`pages/share.js`, route `/share`) loads
 `pages/share/page.js`: building the offline site (`site.js`: the name
@@ -498,7 +521,10 @@ console error, an uncaught exception or a CSP violation fails a test:
   organisations and texts shown, a filter from a people's column, the period,
   « Clear the filters », the state across a reload, the world view, the API
   calls of the navigation and axe; and a budget: 10⁴ points panned in the
-  gallery at 50 frames a second or more, a frame drawn in under 16 ms.
+  gallery at 50 frames a second or more, a frame drawn in under 16 ms;
+  `tests/browser/test_atlas_links.py`: a selection from the address with its
+  nearest, a keyword's people and its way to the keywords and the themes
+  screens, full screen and back.
 
 The browser tests need `tools/requirements-browser.txt` (Playwright, which
 `tools/check.py` installs into the quick Python's environment) and a Chromium
