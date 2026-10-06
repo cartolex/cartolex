@@ -926,6 +926,8 @@
   "overview.shares.open": "Go to Share",
   "overview.shares.none.text": "The sites you build to share the map appear here.",
   "overview.shares.later": "Sharing is not available here; the sites built elsewhere appear here.",
+  "overview.cloud.title": "The keywords",
+  "overview.cloud.open": "Open the lexicon",
   "overview.preview.title": "The map",
   "overview.preview.open": "Open the map",
   "overview.preview.label": "A preview of the map of {n, plural, one {# person} other {# people}}",

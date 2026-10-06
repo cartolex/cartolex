@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 /**
  * The overview: the project's name and state, the one next step, the stage
- * tracker, the health panel, a preview of the map and the recent shared
- * builds, then the `overview.cards` slot extensions add cards to.
+ * tracker and, once the keywords are built, their word cloud (`cloud.js`), the
+ * health panel, a preview of the map and the recent shared builds, then the
+ * `overview.cards` slot extensions add cards to.
  *
  * Two reads: the project state (its cached copy renders at once) and
  * `GET /api/overview`. Both are read again when a job ends.
@@ -18,6 +19,7 @@ import { ImportDialog } from '../people/import.js';
 import { Health, NextStep, Shares } from './cards.js';
 import { FirstMap, setHidden } from './checklist.js';
 import { MapPreview } from './preview.js';
+import { LexiconCloud } from './cloud.js';
 
 export function Overview({ ctx }) {
   const { app } = ctx;
@@ -105,11 +107,14 @@ export function Overview({ ctx }) {
       ${view ? html`<${NextStep} item=${view.next} />` : null}
       ${view && view.steps && !listHidden ? html`<${FirstMap} steps=${view.steps}
         onHide=${() => hide(true)} />` : null}
-      <${Card} title=${t('overview.build')} level=${2} loading=${!data} class="cx-overview-stages"
-        actions=${html`<${Button} size="s" variant="secondary"
-          onClick=${() => runtime.navigate('/build')}>${t('overview.build.open')}<//>`}>
-        ${data ? html`<${StageTracker} stages=${stages} />` : null}
-      <//>
+      <div class="cx-overview__main">
+        <${Card} title=${t('overview.build')} level=${2} loading=${!data} class="cx-overview-stages"
+          actions=${html`<${Button} size="s" variant="secondary"
+            onClick=${() => runtime.navigate('/build')}>${t('overview.build.open')}<//>`}>
+          ${data ? html`<${StageTracker} stages=${stages} />` : null}
+        <//>
+        <${LexiconCloud} lexicon=${view ? view.lexicon : null} prefs=${app.stores.prefs} />
+      </div>
       <div class="cx-overview__side">
         ${view ? html`<${Health} items=${view.health} />` : null}
         <${MapPreview} preview=${view ? view.preview : null} stale=${stale} loading=${!view && !error} />

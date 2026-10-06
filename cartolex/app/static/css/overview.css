@@ -16,6 +16,7 @@
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
 }
 
+.cx-overview__main,
 .cx-overview__side {
   display: grid;
   gap: var(--cx-space-5);
@@ -126,4 +127,16 @@
 
 .cx-overview__first-show {
   margin-left: auto;
+}
+
+/* The lexicon's word cloud, leading to the Lexicon tab. */
+.cx-overview-cloud__link {
+  display: block;
+  border-radius: var(--cx-radius-m);
+}
+
+.cx-overview-cloud__image {
+  display: block;
+  width: 100%;
+  height: auto;
 }

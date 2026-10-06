@@ -71,6 +71,13 @@ def _runs(ctx: Any) -> tuple[str, str | None, str | None] | None:
     )
 
 
+def lexicon_run(ctx: Any) -> str | None:
+    """The run of the last ``keywords.build`` the lexicon is read from (``None`` before it
+    ran): cheap, it reads the stage's record only."""
+    runs = _runs(ctx)
+    return runs[0] if runs else None
+
+
 def _compute(runtime: Any, ctx: Any, build_run: str) -> dict[str, Any]:
     from cartolex.atlas.model_files import load_person_terms
 
@@ -225,26 +232,38 @@ def word_cloud(
     theme: str = "light",
     colour: str = "theme",
     language: str = "",
+    hues: tuple[str, ...] = (),
 ) -> str | None:
     """The word cloud of the lexicon as SVG (``None`` before the vocabulary is built), cached
-    by the runs it is made from and these options."""
+    by the runs it is made from and these options. *hues*, twelve ``#rrggbb`` colours (the
+    person's colour scheme), replace the interface's hue families."""
     data = lexicon(runtime, ctx)
     if data is None:
         return None
     language = language if language in data["languages"] else data["languages"][0]
-    key = ("lexicon-cloud", ctx.id, *(_runs(ctx) or ()), by, theme, colour, language)
+    key = ("lexicon-cloud", ctx.id, *(_runs(ctx) or ()), by, theme, colour, language, hues)
     return runtime.table_cache.get(
-        key, lambda: draw_cloud(data, by=by, theme=theme, colour=colour, language=language)
+        key,
+        lambda: draw_cloud(data, by=by, theme=theme, colour=colour, language=language, hues=hues),
     )
 
 
-def draw_cloud(data: dict[str, Any], *, by: str, theme: str, colour: str, language: str) -> str:
+def draw_cloud(
+    data: dict[str, Any],
+    *,
+    by: str,
+    theme: str,
+    colour: str,
+    language: str,
+    hues: tuple[str, ...] = (),
+) -> str:
     """The SVG of the *data*'s most important keywords (see :func:`word_cloud`)."""
     from wordcloud import WordCloud
 
     weight = "people" if by == "people" else "score"
     items = sorted(data["items"], key=lambda i: (-i[weight], i["rank"]))[:CLOUD_WORDS]
-    hues, muted = _palette(theme)
+    families, muted = _palette(theme)
+    hues = tuple(hues) if len(hues) == len(families) else tuple(families)
     frequencies: dict[str, float] = {}
     colour_of: dict[str, str] = {}
     for item in items:

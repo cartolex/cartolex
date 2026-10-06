@@ -20,6 +20,8 @@ routes = Routes(tags=["keywords"])
 
 Language = Annotated[str, Query(pattern=r"^[a-z]{2}$")]
 Category = Literal["concept", "method", "object", "place", "field", "none"]
+#: Twelve colours, ``rrggbb`` separated by commas (the hue families of a colour scheme).
+_HUES = r"^[0-9a-fA-F]{6}(,[0-9a-fA-F]{6}){11}$"
 
 
 def _data(request: Request, ctx: Any) -> dict[str, Any] | None:
@@ -124,13 +126,20 @@ def lexicon_cloud(
     theme: Literal["light", "dark"] = "light",
     colour: Literal["theme", "category"] = "theme",
     language: Language = "en",
+    hues: Annotated[str | None, Query(max_length=83, pattern=_HUES)] = None,
 ) -> Response:
     """The word cloud of the lexicon's most important keywords (by score or by people), as
-    SVG for a light or a dark page, coloured by theme or by category; cached by the build."""
+    SVG for a light or a dark page, coloured by theme or by category (*hues*: the twelve
+    colours of the person's colour scheme, ``rrggbb`` separated by commas); cached by the
+    build."""
     from ..errors import ApiError
     from ..lexicon_view import word_cloud
 
-    svg = word_cloud(runtime_of(request), ctx, by=by, theme=theme, colour=colour, language=language)
+    palette = tuple(f"#{h.lower()}" for h in hues.split(",")) if hues else ()
+    svg = word_cloud(
+        runtime_of(request), ctx, by=by, theme=theme, colour=colour, language=language,
+        hues=palette,
+    )  # fmt: skip
     if svg is None:
         raise ApiError.of("no_keywords")
     return Response(

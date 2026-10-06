@@ -926,6 +926,8 @@
   "overview.shares.open": "Aller à Partager",
   "overview.shares.none.text": "Les sites construits pour partager la carte apparaissent ici.",
   "overview.shares.later": "Le partage n'est pas disponible ici ; les sites construits ailleurs apparaissent ici.",
+  "overview.cloud.title": "Les mots-clés",
+  "overview.cloud.open": "Ouvrir le lexique",
   "overview.preview.title": "La carte",
   "overview.preview.open": "Ouvrir la carte",
   "overview.preview.label": "Un aperçu de la carte de {n, plural, one {# personne} other {# personnes}}",

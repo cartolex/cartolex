@@ -42,6 +42,8 @@ def test_the_next_step_leads_to_a_build_that_ends_in_one_sentence(
     page.locator("[data-first-map]").wait_for()
     page.locator(".cx-overview-preview .cx-map-frame__canvas").wait_for()
     assert page.locator(".cx-overview-stages .cx-tracker__stage").count() >= 5
+    # the keywords are built: their word cloud, which leads to the lexicon
+    page.locator(".cx-overview-cloud a[href='/keywords?band=lexicon'] img").wait_for()
     _shots(request, ui, "overview-built-light")
 
     # « Your first map » hidden for this project stays hidden after a reload, and comes back.

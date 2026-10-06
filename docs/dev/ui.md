@@ -301,14 +301,16 @@ path, and the app's Content-Security-Policy on every answer.
 
 Every core page is built;
 the overview (`pages/overview.js`: `overview/page.js`, `cards.js`,
-`checklist.js`, `preview.js`) and the build (`pages/build.js`, a page placed `hidden`:
+`checklist.js`, `preview.js`, `cloud.js`) and the build (`pages/build.js`, a page placed `hidden`:
 `build/page.js`, `preflight.js`, `run.js`, `words.js`) are built. The overview
 reads the project state and `GET /api/overview`: the project's name and
 state, the one next step, « Your first map » (a Stepper of the steps from the
 people to sharing, the current one with its button and a link to the guide,
 {doc}`../first-map`; hidden per project in the person's preferences), the stage
 tracker (a failure a later job came after says « failed on <date> », a
-cancelled attempt « cancelled on <date> »), the health panel, a small
+cancelled attempt « cancelled on <date> »), once the keywords are built their word cloud
+(`cloud.js`, the Lexicon tab's image for the page's look and colour scheme, leading to it;
+nothing before), the health panel, a small
 preview of the map (a MapFrame) and the recent shared builds. The build page
 (`/build?scope=map`) shows the pre-flight sheet from the dry run (what runs
 and why, the time, the memory against the machine's, the AI calls, the
