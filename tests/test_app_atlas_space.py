@@ -10,7 +10,10 @@ on the S demo world.
 - the exports of distances (a job): the nearest of each, the full matrix written by blocks
   (``.npz`` when large, confirmed above its threshold), pseudonyms when asked;
 - ``GET /api/keywords?term=``: a keyword of the vocabulary with the candidates merged into
-  it, in every band.
+  it, in every band;
+- ``GET /api/atlas/coauthors``: the people who signed a work with a person, with the works
+  together, a projected one never named, a merged person counted as the one they are
+  merged into; the organisations an organisation writes with.
 """
 
 from __future__ import annotations
@@ -210,3 +213,73 @@ def test_a_keyword_is_found_with_the_candidates_merged_into_it(client):
     assert found["matched_bands"] == {"kept": 1, "aside": 1}
     # a substring is not the keyword
     assert not client.get("/api/keywords", params={"term": target["term"][:-1]}).json()["total"]
+
+
+def _together(root: Path) -> dict[str, dict[str, int]]:
+    """Each person → their co-authors and the works together, from the authorships table."""
+    import pyarrow.parquet as pq
+
+    rows = pq.read_table(root / "sources" / "tables" / "authorships.parquet").to_pylist()
+    by_text: dict[str, set[str]] = {}
+    for r in rows:
+        by_text.setdefault(r["text_id"], set()).add(r["person_id"])
+    out: dict[str, dict[str, int]] = {}
+    for people in by_text.values():
+        for a in people:
+            for b in people - {a}:
+                out.setdefault(a, {})[b] = out.get(a, {}).get(b, 0) + 1
+    return out
+
+
+def test_coauthors_are_the_people_who_signed_a_work_together(client):
+    root = Path(client.app.state.cartolex.settings.project)
+    together = _together(root)
+    me = max(together, key=lambda p: len(together[p]))
+    got = client.get("/api/atlas/coauthors", params={"kind": "person", "id": me, "limit": 500})
+    got = got.json()
+    assert {i["id"]: i["texts"] for i in got["items"]} == together[me]
+    assert got["count"] == len(together[me]) and got["max_authors"] == 25
+    counts = [i["texts"] for i in got["items"]]
+    assert counts == sorted(counts, reverse=True)
+    assert {i for i, _ in got["lines"]} == {i["id"] for i in got["items"] if i["place"]}
+    # paged on the server
+    page = client.get(
+        "/api/atlas/coauthors", params={"kind": "person", "id": me, "offset": 1, "limit": 2}
+    ).json()
+    assert [i["id"] for i in page["items"]] == [i["id"] for i in got["items"][1:3]]
+    # a projected co-author is drawn apart and never named
+    atlas = client.get("/api/atlas").json()
+    projected = {o["person_id"] for o in atlas["overlays"]}
+    them = next(p for p in together if p in projected)
+    friend = next(iter(together[them]))
+    seen = client.get("/api/atlas/coauthors", params={"kind": "person", "id": friend}).json()
+    entry = next(i for i in seen["items"] if i["id"] == them)
+    assert entry["name"] is None and entry["place"] == "projected"
+    # the second circle: partners of partners, through the first
+    two = client.get("/api/atlas/coauthors", params={"kind": "person", "id": me, "circle": 2})
+    second = two.json()["second"]
+    first = set(together[me])
+    for item in second["items"]:
+        assert item["id"] not in first and item["id"] != me
+        assert item["paths"] == len([q for q in first if item["id"] in together[q]])
+        assert set(item["via"]) <= first
+    # a person merged into another counts as that person
+    other = got["items"][-1]["id"]
+    people = client.get("/api/people")
+    merged = client.post(
+        "/api/people/merge",
+        json={"target": me, "sources": [other]},
+        headers={"If-Match": etag(people)},
+    )
+    assert merged.status_code == 200, merged.text
+    after = client.get("/api/atlas/coauthors", params={"kind": "person", "id": me, "limit": 500})
+    ids = {i["id"] for i in after.json()["items"]}
+    assert other not in ids and (set(together[other]) - {me}) <= ids
+    # organisations: those of the same level, never itself
+    org = next(o for o in atlas["organisations"] if o["x"] is not None and o["level"] == "lab")
+    orgs = client.get("/api/atlas/coauthors", params={"kind": "organisation", "id": org["id"]})
+    levels = {o["id"]: o["level"] for o in atlas["organisations"]}
+    assert orgs.json()["level"] == "lab" and org["id"] not in {i["id"] for i in orgs.json()["items"]}
+    assert {levels[i["id"]] for i in orgs.json()["items"]} <= {"lab"}
+    missing = client.get("/api/atlas/coauthors", params={"kind": "person", "id": "nobody"})
+    assert missing.status_code == 404 and missing.json()["error"]["code"] == "unknown_people"
