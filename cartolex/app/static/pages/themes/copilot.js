@@ -85,8 +85,10 @@ export function ThemeCopilotDialog({ api, editor, onClose, onPreview, onApply, r
   let footer;
   if (step === 'export') {
     const c = summary && summary.counts;
+    const tokens = summary && summary.tokens ? ` ${t('copilot.themes.tokens', {
+      sent: formatNumber(summary.tokens.in), received: formatNumber(summary.tokens.out) })}` : '';
     const counts = c ? t('copilot.themes.counts', { nodes: formatNumber(c.nodes), keywords: formatNumber(c.keywords),
-      people: formatNumber(c.people) }) : null;
+      people: formatNumber(c.people) }) + tokens : null;
     body = html`<${CopilotExport} lead=${t('copilot.themes.lead')} contains=${CONTAINS} never=${NEVER}
       counts=${counts} error=${error} onDownload=${summary ? download : null} busy=${making}>
       <p class="cx-copilot__note" role="note">${t('copilot.themes.current')}</p>

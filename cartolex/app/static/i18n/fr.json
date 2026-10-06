@@ -2764,5 +2764,10 @@
   "settings.notices.reset_done": "Chaque avis sera de nouveau affiché en entier",
   "settings.notices.reset_failed": "Les avis n’ont pas pu être réinitialisés",
   "settings.notices.none": "Chaque avis est affiché en entier.",
-  "corpus.collect.continue": "Continuer"
+  "corpus.collect.continue": "Continuer",
+  "build.consent.tokens": "Environ {sent} jetons envoyés et {received} reçus, au plus (les réponses déjà payées ne sont pas redemandées).",
+  "copilot.themes.tokens": "Votre assistant lit environ {sent} jetons et en écrit environ {received}.",
+  "job.ai_tokens": "IA : {sent} jetons envoyés, {received} reçus",
+  "recipe.ai_usage.last": "Le dernier nettoyage par IA via l’API : {sent} jetons envoyés, {received} reçus.",
+  "recipe.ai_usage.total": "Toutes les exécutions de ce projet : {sent} jetons envoyés, {received} reçus (le fournisseur facture les appels)."
 }

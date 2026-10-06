@@ -2764,5 +2764,10 @@
   "settings.notices.reset_done": "Cada aviso será mostrado completo de novo",
   "settings.notices.reset_failed": "Os avisos não puderam ser redefinidos",
   "settings.notices.none": "Cada aviso é mostrado completo.",
-  "corpus.collect.continue": "Continuar"
+  "corpus.collect.continue": "Continuar",
+  "build.consent.tokens": "Cerca de {sent} tokens enviados e {received} recebidos, no máximo (respostas já pagas não são pedidas de novo).",
+  "copilot.themes.tokens": "Seu assistente lê cerca de {sent} tokens e escreve cerca de {received}.",
+  "job.ai_tokens": "IA: {sent} tokens enviados, {received} recebidos",
+  "recipe.ai_usage.last": "A última limpeza por IA via API: {sent} tokens enviados, {received} recebidos.",
+  "recipe.ai_usage.total": "Todas as execuções deste projeto: {sent} tokens enviados, {received} recebidos (o provedor cobra as chamadas)."
 }

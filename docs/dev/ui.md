@@ -343,8 +343,9 @@ The corpus screen (`pages/people.js`, route `/people`) loads
 (`identities.js`, the queue, keyboard first), Organisations (`orgs-tab.js`,
 with the people of institutions), Texts (`texts-tab.js`), Collaborators
 (`collaborators-tab.js`) and Coverage (`coverage-tab.js`); a person's sheet
-(`sheet.js`); the import and collect dialogs (`import.js`, `collect.js`, whose
-`Notice` shows what leaves the computer); and `common.js`. Its lists are paged
+(`sheet.js`); the import and collect dialogs (`import.js`, `collect.js`; `notice.js` shows
+what leaves the computer at the level the plan asks: none, brief or full, and
+OpenAlex's cost beyond its free daily budget); and `common.js`. Its lists are paged
 on the server: `usePaged(ctx, path, query, keyOf)` gives the Table a row per
 item of the list, placeholders until their page is read, and reads the pages
 the Table says are in view (`onRange`); a query key starting with `$` (a

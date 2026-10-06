@@ -5,7 +5,7 @@
  * their errors and their pauses (which stay until dismissed or resumed).
  */
 import { html, useEffect } from '../core/preact.js';
-import { formatDate, formatDuration, formatPercent, has, t } from '../core/i18n.js';
+import { formatDate, formatDuration, formatNumber, formatPercent, has, t } from '../core/i18n.js';
 import { errorFromResponse, jobError } from '../core/errors.js';
 import { runtime } from '../core/runtime.js';
 import { Button } from './button.js';
@@ -118,7 +118,9 @@ function JobItem({ job, jobs }) {
     </div>` : null}
     ${job.state === 'succeeded' ? html`<div class="cx-job__result">
       <p class="cx-job__meta">${t('job.finished_at', { time: formatDate(job.finished_at, 'time', 'short') })}
-        ${jobResultSummary(job.result) ? html`${' · '}${jobResultSummary(job.result)}` : null}</p>
+        ${jobResultSummary(job.result) ? html`${' · '}${jobResultSummary(job.result)}` : null}
+        ${job.result && job.result.ai_usage ? html`${' · '}${t('job.ai_tokens', {
+          sent: formatNumber(job.result.ai_usage.tokens_in), received: formatNumber(job.result.ai_usage.tokens_out) })}` : null}</p>
       <div class="cx-job__actions">
         ${job.result && job.result.link ? html`<a class="cx-link" href=${job.result.link}>
           ${t('job.open_result')}</a>` : null}

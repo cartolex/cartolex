@@ -2764,5 +2764,10 @@
   "settings.notices.reset_done": "Every notice will be shown in full again",
   "settings.notices.reset_failed": "The notices could not be reset",
   "settings.notices.none": "Every notice is shown in full.",
-  "corpus.collect.continue": "Continue"
+  "corpus.collect.continue": "Continue",
+  "build.consent.tokens": "About {sent} tokens sent and {received} received, at most (answers already paid for are not asked again).",
+  "copilot.themes.tokens": "Your assistant reads about {sent} tokens and writes about {received}.",
+  "job.ai_tokens": "AI: {sent} tokens sent, {received} received",
+  "recipe.ai_usage.last": "The last AI clean-up by API: {sent} tokens sent, {received} received.",
+  "recipe.ai_usage.total": "Every run of this project: {sent} tokens sent, {received} received (the provider bills the calls)."
 }

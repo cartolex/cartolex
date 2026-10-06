@@ -7,7 +7,7 @@
  * person presses « Build ».
  */
 import { html, useState } from '../../core/preact.js';
-import { t } from '../../core/i18n.js';
+import { formatNumber, t } from '../../core/i18n.js';
 import {
   Button, Card, Checkbox, EmptyState, ErrorCard, Icon, StageTracker, reasonText,
 } from '../../components/index.js';
@@ -69,6 +69,8 @@ function Consent({ request, checked, onChange }) {
       ${request.network && !request.paid ? html`<li>${t('build.consent.network')}</li>` : null}
       ${request.paid ? html`<li>${request.ai_calls_max
         ? t('build.consent.calls', { n: request.ai_calls_max }) : t('build.consent.calls_unknown')}</li>` : null}
+      ${request.ai_tokens ? html`<li>${t('build.consent.tokens', {
+        sent: formatNumber(request.ai_tokens.in), received: formatNumber(request.ai_tokens.out) })}</li>` : null}
       <li>${t('build.consent.time', { time: formatSeconds(e.seconds) })}</li>
       <li>${t(request.skipped_without ? 'build.consent.without_skip' : 'build.consent.without')}</li>
     </ul>

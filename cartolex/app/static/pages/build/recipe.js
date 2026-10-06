@@ -62,6 +62,16 @@ function Row({ ctx, row }) {
   </tr>`;
 }
 
+/** The tokens the AI clean-up by API spent: its last run, and every run of the project. */
+function AiUsage({ usage }) {
+  if (!usage) return null;
+  const { last, total } = usage;
+  return html`<p class="cx-settings__muted">${last ? t('recipe.ai_usage.last', {
+    sent: formatNumber(last.tokens_in), received: formatNumber(last.tokens_out) }) : ''}
+    ${last && total ? ' ' : ''}${total ? t('recipe.ai_usage.total', {
+      sent: formatNumber(total.tokens_in), received: formatNumber(total.tokens_out) }) : ''}</p>`;
+}
+
 export function RecipeTab({ ctx }) {
   const recipe = useResource(ctx.api, '/api/recipe');
   const [changedOnly, setChangedOnly] = useState(false);
@@ -97,6 +107,7 @@ export function RecipeTab({ ctx }) {
           download>${t('recipe.export.csv')}</a>
       </div>
     </div>
+    <${AiUsage} usage=${recipe.data.ai_usage} />
     ${recipe.data.valid ? null : html`<ul class="cx-settings__problem" role="alert">
       ${(recipe.data.problems || []).map((p, i) => html`<li key=${i}>${p}</li>`)}</ul>`}
     ${groups.length ? html`<table class="cx-settings__table cx-recipe__table" aria-label=${t('recipe.title')}>
