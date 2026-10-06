@@ -283,10 +283,12 @@ def build_trajectory_windows(
     concept_to_subfield: dict[int, int],
     report: Callable[[float, str], Any] | None = None,
     describe: Callable[[np.ndarray, np.ndarray], Any] | None = None,
+    all_spans: bool = False,
 ) -> dict[str, list[dict]]:
     """Exact per-(researcher, contiguous-bin-window) reprojection + re-weighting.
 
-    For every contiguous run of a researcher's own time-bins, sum the
+    For each of a researcher's own time-bins (with *all_spans*, for every contiguous
+    run of them: their number grows with the square of the bins), sum the
     length-bonus-weighted bin vectors, L2-normalise, and project through the
     persisted SVD (``z``), then place it on the map by its nearest mapped people
     (*anchors*, a :class:`~cartolex.atlas.placement.MapAnchors`; every window in one
@@ -297,8 +299,9 @@ def build_trajectory_windows(
     researcher actually used in that span.
 
     Windows are keyed ``"<start_year>_<end_year>"`` (the calendar span of the
-    run); the full-span key is placed like the whole-history profile. Returns ``{researcher_id: [entry, ...]}`` with
-    each entry ``{key, mass, x, y, subfields, concepts}``. Empty input -> ``{}``.
+    run; with *all_spans*, the full-span key is placed like the whole-history profile).
+    Returns ``{researcher_id: [entry, ...]}`` with each entry
+    ``{key, mass, x, y, subfields, concepts}``. Empty input -> ``{}``.
     *report*, when given, is called with the share of researchers done (it may
     raise to stop the loop). *describe*, when given, is called with each window's
     term columns and values; what it returns is the entry's ``levels`` (the
@@ -324,7 +327,7 @@ def build_trajectory_windows(
         bins = traj.B[rows].toarray()
         for i in range(len(rows)):
             acc = np.zeros(traj.B.shape[1], dtype=float)
-            for j in range(i, len(rows)):
+            for j in range(i, len(rows) if all_spans else i + 1):
                 acc = acc + bins[j]
                 mass = float(acc.sum())
                 if mass <= 0:

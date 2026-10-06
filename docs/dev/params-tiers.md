@@ -73,6 +73,7 @@ This table was approved by the owner on 1 October 2026.
 | `map.layout` | `link_radius` | advanced | an internal of the placement |
 | `map.trajectories` | `window_years` | essential | the time window of the trajectories |
 | `map.trajectories` | `min_texts_per_window` | intermediate | which windows are placed |
+| `map.trajectories` | `spans` | advanced | every run of consecutive windows (`all`): the map draws the windows themselves |
 
 The seed and the pinned year are set once for the whole build, in the texts'
 « Tune » panel (the corpus screen's Texts tab). Every parameter also has a

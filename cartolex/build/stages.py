@@ -578,7 +578,7 @@ PARAM_TIERS: dict[str, dict[str, str]] = {
         "own_name_floor": _A,
     },
     "map.layout": {"neighbours": _M, "link_radius": _A},
-    "map.trajectories": {"window_years": _E, "min_texts_per_window": _M},
+    "map.trajectories": {"window_years": _E, "min_texts_per_window": _M, "spans": _A},
 }
 
 
@@ -1321,7 +1321,9 @@ STAGES = Registry(
         Stage(
             "map.trajectories",
             "change over time",
-            version=3,  # 2: placed by nearest people; 3: weights on every theme level
+            # 2: placed by nearest people; 3: weights on every theme level; 4: one entry per
+            # window unless spans is "all"
+            version=4,
             upstream=("map.layout",),
             project=("slots",),
             params=(
@@ -1340,6 +1342,14 @@ STAGES = Registry(
                     default=1,
                     minimum=1,
                     maximum=1000,
+                ),
+                ParamSpec(
+                    "spans",
+                    "str",
+                    "what is described for each person: each time window, or also every run "
+                    "of consecutive windows (all: grows with the square of a person's windows)",
+                    default="windows",
+                    choices=("windows", "all"),
                 ),
             ),
             uses=("year",),

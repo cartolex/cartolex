@@ -138,3 +138,10 @@ Each entry says when the stored baseline (`tests/baseline/`) was rewritten, why,
 - Engine: 1.0.0.dev0, source fingerprint `12fec8ad7c659d6c`
 - S: against the previous baseline, 12 stages: 9 identical, 1 within tolerance, 2 different (build, trajectories)
 - merge: against the previous baseline, 1 stage: 1 identical
+
+## 2026-10-06 — S, merge
+
+- Reason: map.trajectories describes each person's time windows one by one by default (spans = windows); every run of consecutive windows, whose number grows with the square of a person's windows, only with spans = all. The trajectory points, the positions and the map are unchanged; the windows artifact keeps the single windows.
+- Engine: 1.0.0.dev0, source fingerprint `d5f184992b4c6994`
+- S: against the previous baseline, 12 stages: 11 identical, 1 different (trajectories)
+- merge: against the previous baseline, 1 stage: 1 identical

@@ -27,7 +27,10 @@ nothing in the engine names a particular deployment, source or procedure.
   - *Text space*: above 500,000 texts, the exact SVD through the keywords' Gram
     matrix.
   - *Trajectories*: each text counted once, a bin's vector the sum of its texts'
-    counts; the people's chunks in worker processes.
+    counts; the people's chunks in worker processes. Each person's time windows
+    are described one by one (`trajectory_windows.json`,
+    `trajectory_themes.parquet`); every run of consecutive windows, whose number
+    grows with the square of a person's windows, only with `spans: all`.
   - *Tables read*: a table's file is checked a row group at a time; a file
     cartolex wrote says so in its footer, with its rows, and is not read again
     to be checked. `cartolex.project.text_columns` reads what lists and counts

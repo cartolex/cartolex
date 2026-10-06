@@ -1187,6 +1187,7 @@ def run_trajectories(
     cohort_by: str | None = None,
     neighbours: int = PLACEMENT_K,
     link_radius: float = PLACEMENT_LINK_RADIUS,
+    all_spans: bool = False,
 ) -> None:
     """Trajectories stage: project per-(researcher, time-bin) fingerprints into the reference map.
 
@@ -1201,7 +1202,9 @@ def run_trajectories(
     their nearest mapped people (:mod:`cartolex.atlas.placement`: *neighbours*
     of them, grouped within *link_radius*). Bins are
     counted back from ``ctx.now_year``. Writes the trajectory points and the
-    per-window reprojections. Skipped with a warning if prerequisites are absent.
+    per-window reprojections (with *all_spans*, also those of every run of consecutive
+    windows: their number grows with the square of a person's windows). Skipped with a
+    warning if prerequisites are absent.
 
     *cohort_by* names a numeric column of the person roster (a start year, for
     example): the stage then also draws the mobility of the cohorts it defines
@@ -1218,6 +1221,7 @@ def run_trajectories(
             cohort_by=cohort_by,
             neighbours=neighbours,
             link_radius=link_radius,
+            all_spans=all_spans,
         )
 
 
@@ -1350,6 +1354,7 @@ def _trajectory_task(task: tuple[pd.DataFrame, Any]) -> tuple[pd.DataFrame, dict
         term_to_concept=term_to_concept,
         concept_to_subfield=concept_to_subfield,
         describe=None if tree is None else tree.describe,
+        all_spans=s["all_spans"],
     )
     level_rows = _window_level_rows(tree, windows) if tree is not None else None
     return out_df, windows, level_rows
@@ -1366,6 +1371,7 @@ def _run_trajectories(
     cohort_by: str | None,
     neighbours: int = PLACEMENT_K,
     link_radius: float = PLACEMENT_LINK_RADIUS,
+    all_spans: bool = False,
 ) -> None:
     paths = ctx.paths
     d = atlas_defaults(ctx)
@@ -1491,6 +1497,7 @@ def _run_trajectories(
             "alpha": length_alpha,
             "top_k": d.traj_top_k_terms,
             "min_docs": eff_min,
+            "all_spans": all_spans,
         }
         with windows_path.open("w", encoding="utf-8") as windows_out:
             windows_out.write("{")

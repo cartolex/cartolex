@@ -74,6 +74,7 @@ def test_build_trajectory_windows_contiguous_keys_and_mass() -> None:
         anchors=anchors,
         term_to_concept=term_to_concept,
         concept_to_subfield=concept_to_subfield,
+        all_spans=True,
     )
     assert anchors.calls == 1  # every window placed in one call
 
@@ -81,6 +82,16 @@ def test_build_trajectory_windows_contiguous_keys_and_mass() -> None:
     keys = {e["key"] for e in out["r1"]}
     # Three contiguous runs over two bins: [bin0], [bin1], [bin0..bin1].
     assert keys == {"2018_2020", "2021_2023", "2018_2023"}
+    # By default, each window alone: as many entries as windows.
+    alone = build_trajectory_windows(
+        traj,
+        svd_model=_IdentitySVD(),
+        anchors=_FirstTwoDims(),
+        term_to_concept=term_to_concept,
+        concept_to_subfield=concept_to_subfield,
+    )
+    assert [e["key"] for e in alone["r1"]] == ["2018_2020", "2021_2023"]
+    assert alone["r1"] == [e for e in out["r1"] if e["key"] != "2018_2023"]
 
     by_key = {e["key"]: e for e in out["r1"]}
     assert by_key["2018_2020"]["mass"] == 2.0

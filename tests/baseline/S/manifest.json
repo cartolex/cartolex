@@ -724,7 +724,7 @@
    "windows": {
     "file": "trajectories/windows.json.gz",
     "kind": "json",
-    "sha256": "503e169a3abfae2f5a6775d23b4bba8ca5593301278a6b0b51ec366da8fbcfc3"
+    "sha256": "a2170be2fe0194f603a0b45dd2fafd9fdd3bb62d8c6d4fc22f24cafb6da9ca62"
    }
   },
   "triage": {
@@ -757,10 +757,10 @@
  },
  "baseline": {
   "date": "2026-10-06",
-  "reason": "The extraction counts each text's candidates once and reads the evidence of the window's candidates afterwards (worker processes, a fixed order of blocks): the candidates' columns are numbered in another order, so the TF-IDF scores' floating-point sums change in the last digits (at most 3.6e-15); the refined tables follow, and one trajectory point's top terms change order between two terms of equal weight. No term, band or group changes."
+  "reason": "map.trajectories describes each person's time windows one by one by default (spans = windows); every run of consecutive windows, whose number grows with the square of a person's windows, only with spans = all. The trajectory points, the positions and the map are unchanged; the windows artifact keeps the single windows."
  },
  "environment": {
-  "engine_fingerprint": "12fec8ad7c659d6c3cd0279b5e11ce9afb602ed390c0fefc0c3d1d39fe84184d",
+  "engine_fingerprint": "d5f184992b4c6994a4e9f84539f855b85c1b6fd837b721cd3d529e979b016992",
   "engine_version": "1.0.0.dev0",
   "implementation": "CPython",
   "libraries": {

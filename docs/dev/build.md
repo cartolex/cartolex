@@ -185,6 +185,7 @@ parameter (`tier`, `widget`, `keys`, `suggestions`).
 | `map.layout` | `link_radius` | 0.25 | 0–10, a share of the map's radius | Layout › Placing on the map |
 | `map.trajectories` | `window_years` | 3 | 1–50 | Layout |
 | `map.trajectories` | `min_texts_per_window` | 1 | 1–1000 | Layout |
+| `map.trajectories` | `spans` | `windows` | `windows`: each person's time windows one by one; `all`: also every run of consecutive windows (their number grows with the square of a person's windows) | Layout |
 
 The layout of a map is not a build parameter: each map version keeps its own
 method, seed and settings in `decisions/maps.json`, an input of `map.layout`.
@@ -505,7 +506,7 @@ made with.
 | `themes.group.comb_theta`, `.comb_grid`, `.comb_sideways`, `.comb_theta_one_level`, `.comb_min_texts`, `.comb_max_cells`, `.own_name_floor` | `draft_themes(comb_options=CombOptions(theta, grid, one_level, min_texts, max_cells, sideways), own_floor=…)`; the method screen's calibration and the comb's suggestions on a curated tree read the options the grouping recorded (`cartolex.build.engine.comb_options`), and the copilot's themes bundle carries them (`data/context.json`, `grouping`) for its kit's grouping, comb and names |
 | the theme levels | every level: `draft_themes(level_sizes=…)`; the finest: `run_clustering(n_concepts=…)`; at depth 2 the top level of the two-level draft: `draft_subfields(n_subfields=…)` |
 | `map.layout.neighbours`, `.link_radius` | `run_umap(neighbours=…, link_radius=…)`, `run_trajectories(…)`, `load_positioning_models(…)`: `MapAnchors(k, link_radius)` |
-| `map.trajectories.window_years`, `.min_texts_per_window` | `run_trajectories(bin_years=…, min_docs_per_bin=…)`, with `length_alpha` from `keywords.extract.length_bonus` |
+| `map.trajectories.window_years`, `.min_texts_per_window`, `.spans` | `run_trajectories(bin_years=…, min_docs_per_bin=…, all_spans=…)`, with `length_alpha` from `keywords.extract.length_bonus` |
 | the pinned map version | `run_umap(umap_random_state=seed, …)` with its method's parameters: for `umap` (`n_neighbors`, `min_dist`, `metric`, `n_epochs`, `spread`, `set_op_mix_ratio`, `local_connectivity`, `repulsion_strength`, `negative_sample_rate`, `layout`), `umap_layout="tsne"` with `tsne_perplexity` and `metric` for `tsne`, `umap_layout="tree"` with `tree_fill`, `tree_gap`, `tree_lean`, `tree_sharp` for `tree` (`fill`, `gap`, `lean`, `sharp` in the version) |
 | `identity.ai.model` | `KeywordsConfig.llm_model` |
 | `identity.domain_title`, `identity.domain_description` | `KeywordsConfig.domain_title`, `.domain_description` (the AI's only context besides the terms) |

@@ -1135,6 +1135,7 @@ def run_trajectories(ctx: StageContext) -> dict[str, int]:
             bin_years=ctx.params["window_years"],
             min_docs_per_bin=ctx.params.get("min_texts_per_window"),
             length_alpha=rctx.settings.length_bonus_alpha,
+            all_spans=ctx.params.get("spans") == "all",
             **_placement(ctx),
         ),
     )
