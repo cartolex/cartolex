@@ -174,7 +174,7 @@ class Runtime:
         self.preferences_lock = threading.Lock()
         #: What was warned about once (a nav entry whose module is missing).
         self.warned: set[tuple[str, str]] = set()
-        self.atlas_cache = Cache(8)
+        self.atlas_cache = Cache(12)
         self.table_cache = Cache(16)
         #: The layout previews of the method screen, by what they were drawn from.
         self.preview_cache = Cache(24)

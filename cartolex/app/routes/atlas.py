@@ -653,4 +653,156 @@ def atlas_regions(
     extras = None
     if kind == "organisation" and runs["map.layout"] is not None:
         extras = _extras(runtime, ctx, runs, _bundle(runtime, ctx, runs))
-    return {"kind": kind, "keywords": keyword_sets(ctx, kind, wanted, extras)}
+    return {
+        "kind": kind,
+        "keywords": keyword_sets(ctx, kind, wanted, extras, _terms(runtime, ctx)),
+    }
+
+
+def _terms(runtime: Any, ctx: Any) -> dict[str, list[tuple[str, float]]]:
+    """Every person's keywords, the heaviest first, kept per run of the keywords and of the
+    corpus (the people's ids), so a selection does not read the keywords' table again."""
+    from cartolex.build.records import read_record
+
+    from ..atlas_layers import terms_of_people
+
+    runs = tuple(
+        (r.run_id if r else None)
+        for r in (read_record(ctx.layout, s) for s in ("keywords.build", "corpus.assemble"))
+    )
+    return runtime.atlas_cache.get(("atlas-terms", ctx.id, runs), lambda: terms_of_people(ctx))
+
+
+# ── distances in the space of the themes, and who uses a keyword ─────────────
+
+
+#: The most nearest one request asks for, and the most people a keyword's answer lists.
+MAX_NEAREST = 100
+MAX_USERS = 500
+Kind = Literal["person", "organisation", "projected"]
+
+
+def space_of(runtime: Any, ctx: Any) -> Any:
+    """The space of the themes with the map's people (:mod:`cartolex.app.space_index`), kept
+    per lineage, run of the space and tables; 409 ``no_space`` before the map is built."""
+    from ..corpus_view import stamp
+    from ..space_index import space_run, space_view
+
+    runs = lineage(ctx)
+    run = space_run(ctx.layout)
+    if runs["map.layout"] is None or run is None:
+        raise ApiError.of("no_space")
+    key = ("atlas-space", ctx.id, tuple(sorted(runs.items())), run, stamp(ctx.project))
+
+    def make() -> Any:
+        bundle = _bundle(runtime, ctx, runs)
+        return space_view(ctx, run, bundle, _extras(runtime, ctx, runs, bundle))
+
+    return runtime.atlas_cache.get(key, make)
+
+
+def _found(kind: str, id_: str) -> ApiError:
+    return ApiError.of("atlas_item_not_found", kind=kind, id=id_)
+
+
+@routes.get("/api/atlas/neighbours", action="atlas.read")
+def atlas_neighbours(
+    request: Request,
+    ctx: ProjectDep,
+    kind: Kind,
+    id: Annotated[str, Query(min_length=1, max_length=200)],
+    k: Annotated[int, Query(ge=1, le=MAX_NEAREST)] = 10,
+) -> dict[str, Any]:
+    """The *k* nearest of a person (people), a projected person (people) or an organisation
+    (organisations of its level) by the cosine of their vectors in the space of the themes:
+    ``items`` of ``{id, name, similarity}``, the nearest first."""
+    from ..space_index import nearest
+
+    view = space_of(runtime_of(request), ctx)
+    items = nearest(view, ctx, kind, id, k)
+    if items is None:
+        raise _found(kind, id)
+    return {"kind": kind, "id": id, "metric": "cosine", "k": k, "items": items}
+
+
+def _item(value: str) -> tuple[str, str]:
+    kind, _, id_ = value.partition(":")
+    if kind not in ("person", "organisation") or not id_:
+        raise ApiError.of(
+            "invalid_parameters", problems=[f"{value}: not person:<id> or organisation:<id>"]
+        )
+    return kind, id_
+
+
+@routes.get("/api/atlas/compare", action="atlas.read")
+def atlas_compare(
+    request: Request,
+    ctx: ProjectDep,
+    a: Annotated[str, Query(min_length=3, max_length=220)],
+    b: Annotated[str, Query(min_length=3, max_length=220)],
+) -> dict[str, Any]:
+    """Two people or organisations (``person:<id>``, ``organisation:<id>``) side by side: the
+    cosine of their vectors in the space, the cosine and the Jaccard index of their keyword
+    use with the keywords they share, the overlap of their top-level themes (Σ min of the
+    shares) and the texts with an author on each side."""
+    from ..space_index import compare, query_vector
+
+    view = space_of(runtime_of(request), ctx)
+    one, two = _item(a), _item(b)
+    for kind, id_ in (one, two):
+        if query_vector(view, ctx, kind, id_) is None:
+            raise _found(kind, id_)
+    out = compare(view, ctx, one, two)
+    out["texts"]["items"] = _titles(ctx, out["texts"]["items"])
+    return {"a": _named(view, *one), "b": _named(view, *two), "metric": "cosine", **out}
+
+
+def _named(view: Any, kind: str, id_: str) -> dict[str, str]:
+    if kind == "person":
+        row = view.row_of.get(id_)
+        return {"kind": kind, "id": id_, "name": view.name[row] if row is not None else id_}
+    return {"kind": kind, "id": id_, "name": (view.orgs.get(id_) or {}).get("name") or id_}
+
+
+def _titles(ctx: Any, ids: list[str]) -> list[dict[str, Any]]:
+    """The title and year of the texts of *ids*, in their order."""
+    if not ids or not ctx.layout.table("texts").exists():
+        return [{"id": i, "title": "", "year": None} for i in ids]
+    import pyarrow as pa
+    import pyarrow.compute as pc
+
+    from ..atlas_layers import _batches
+
+    wanted = pa.array(ids, pa.string())
+    found: dict[str, dict[str, Any]] = {}
+    for batch in _batches(ctx.layout.table("texts"), "texts", ["text_id", "title", "year"]):
+        keep = pc.is_in(batch.column(0), value_set=wanted)
+        if pc.any(keep).as_py():
+            for r in batch.filter(keep).to_pylist():
+                found[r["text_id"]] = {
+                    "id": r["text_id"],
+                    "title": r["title"] or "",
+                    "year": r["year"],
+                }
+        if len(found) == len(ids):
+            break
+    return [found.get(i) or {"id": i, "title": "", "year": None} for i in ids]
+
+
+@routes.get("/api/atlas/keyword-people", action="atlas.read")
+def atlas_keyword_people(
+    request: Request,
+    ctx: ProjectDep,
+    term: Annotated[str, Query(min_length=1, max_length=300)],
+    limit: Annotated[int, Query(ge=1, le=MAX_USERS)] = 50,
+) -> dict[str, Any]:
+    """The people who use a keyword (or a form merged into it), ranked by the share of
+    their keyword use it holds: ``count``, the first ``limit`` (``items``: ``id``, ``name``,
+    ``share``) and ``at``, their indexes in the bundle's people (those on the map)."""
+    from ..space_index import keyword_users
+
+    view = space_of(runtime_of(request), ctx)
+    found = keyword_users(view, term, limit)
+    if found is None:
+        raise _found("keyword", term)
+    return {"limit": limit, **found}

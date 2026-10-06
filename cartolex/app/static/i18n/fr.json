@@ -2734,5 +2734,14 @@
   "settings.snapshot.index_label": "Commande d’indexation",
   "corpus.route.snapshot_indexed": "lit environ {size} grâce à son index, environ {time} ; rien n’est envoyé à OpenAlex",
   "job.pause.harvest_stopped": "En pause à votre demande. Les travaux de {n} personnes sur {total} sont gardés : reprenez pour continuer.",
-  "job.pause.harvest_paused": "Des collectes ont échoué plusieurs fois de suite. Les travaux de {n} personnes sur {total} sont gardés : reprenez pour continuer, maintenant ou plus tard."
+  "job.pause.harvest_paused": "Des collectes ont échoué plusieurs fois de suite. Les travaux de {n} personnes sur {total} sont gardés : reprenez pour continuer, maintenant ou plus tard.",
+  "error.atlas_item_not_found.title": "Absent de l’espace de cette carte",
+  "error.atlas_item_not_found.message": "Il n’a pas de place dans l’espace dont cette carte est tirée : rechargez la carte.",
+  "error.export_names_question.title": "Noms ou pseudonymes ?",
+  "error.export_names_question.message": "Choisissez si le fichier nomme les personnes ou leur donne des pseudonymes.",
+  "error.export_size_confirm.title": "Un très gros fichier",
+  "error.export_size_confirm.message": "Cette matrice a {cells, number} cellules, environ {size}. Confirmez pour l’écrire.",
+  "job.title.export_neighbours": "Écrire les plus proches de chacun",
+  "job.title.export_similarity": "Écrire la matrice de similarité",
+  "job.title.export_vectors": "Écrire les vecteurs"
 }

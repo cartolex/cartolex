@@ -2734,5 +2734,14 @@
   "settings.snapshot.index_label": "Comando de indexação",
   "corpus.route.snapshot_indexed": "lê cerca de {size} pelo índice, cerca de {time}; nada é enviado ao OpenAlex",
   "job.pause.harvest_stopped": "Pausado a seu pedido. Os trabalhos de {n} de {total} pessoas ficam guardados: retome para continuar.",
-  "job.pause.harvest_paused": "Coletas falharam várias vezes seguidas. Os trabalhos de {n} de {total} pessoas ficam guardados: retome para continuar, agora ou mais tarde."
+  "job.pause.harvest_paused": "Coletas falharam várias vezes seguidas. Os trabalhos de {n} de {total} pessoas ficam guardados: retome para continuar, agora ou mais tarde.",
+  "error.atlas_item_not_found.title": "Fora do espaço deste mapa",
+  "error.atlas_item_not_found.message": "Ele não tem lugar no espaço de onde este mapa vem: recarregue o mapa.",
+  "error.export_names_question.title": "Nomes ou pseudônimos?",
+  "error.export_names_question.message": "Escolha se o arquivo nomeia as pessoas ou lhes dá pseudônimos.",
+  "error.export_size_confirm.title": "Um arquivo muito grande",
+  "error.export_size_confirm.message": "Esta matriz tem {cells, number} células, cerca de {size}. Confirme para escrevê-la.",
+  "job.title.export_neighbours": "Escrever os mais próximos de cada um",
+  "job.title.export_similarity": "Escrever a matriz de similaridade",
+  "job.title.export_vectors": "Escrever os vetores"
 }

@@ -2734,5 +2734,14 @@
   "settings.snapshot.index_label": "Indexing command",
   "corpus.route.snapshot_indexed": "reads about {size} through its index, about {time}; nothing is sent to OpenAlex",
   "job.pause.harvest_stopped": "Paused at your request. The works of {n} of {total} people are kept: resume to go on.",
-  "job.pause.harvest_paused": "Collections failed several times in a row. The works of {n} of {total} people are kept: resume to go on, now or later."
+  "job.pause.harvest_paused": "Collections failed several times in a row. The works of {n} of {total} people are kept: resume to go on, now or later.",
+  "error.atlas_item_not_found.title": "Not in the space of this map",
+  "error.atlas_item_not_found.message": "It has no place in the space this map is drawn from: reload the map.",
+  "error.export_names_question.title": "Names or pseudonyms?",
+  "error.export_names_question.message": "Choose whether the file names the people or gives them pseudonyms.",
+  "error.export_size_confirm.title": "A very large file",
+  "error.export_size_confirm.message": "This matrix has {cells, number} cells, about {size}. Confirm to write it.",
+  "job.title.export_neighbours": "Write the nearest of each",
+  "job.title.export_similarity": "Write the similarity matrix",
+  "job.title.export_vectors": "Write the vectors"
 }
