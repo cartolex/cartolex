@@ -37,6 +37,7 @@ __all__ = [
     "merged_groups",
     "merges_digest",
     "orcid_conflict",
+    "records_digest",
     "unmerge_changes",
 ]
 
@@ -253,3 +254,22 @@ def unmerge_changes(
 
 #: The note an automatic merge leaves on each row it merges (followed by its time).
 AUTO_MERGE_NOTE = "merged automatically"
+
+
+@functools.lru_cache(maxsize=16)
+def _records_digest(path: str, size: int, mtime_ns: int) -> str:
+    h = hashlib.sha256(b"cartolex-records/1\0")
+    for row in sorted(read_decision_csv(Path(path), "people"), key=lambda r: r["person_id"]):
+        if row.get("records"):
+            h.update(f"{row['person_id']}\0{row['records']}\n".encode())
+    return "sha256:" + h.hexdigest()
+
+
+def records_digest(people_csv: Path) -> str | None:
+    """A fingerprint of the records decided in ``people.csv`` (not the roles, not the
+    merges): what the duplicates' evidence reads of it. Computed once per version."""
+    try:
+        st = Path(people_csv).stat()
+    except FileNotFoundError:
+        return None
+    return _records_digest(str(people_csv), st.st_size, st.st_mtime_ns)

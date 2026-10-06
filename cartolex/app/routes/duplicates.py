@@ -48,16 +48,18 @@ class _Columns:
 
 
 def _key(project: Any) -> tuple[Any, ...]:
-    from cartolex.project.identity import merges_digest
+    from cartolex.project.identity import records_digest
 
     from ..corpus_view import org_stamp
 
-    return ("duplicates", *org_stamp(project), merges_digest(project.layout.people_csv))
+    return ("duplicates", *org_stamp(project), records_digest(project.layout.people_csv))
 
 
 def found_pairs(ctx: Any, runtime: Any) -> dict[str, Any]:
-    """Every pair and the facts of each person, computed once per version of the tables,
-    the merges and the decisions on organisations (decided pairs are filtered later)."""
+    """Every pair of rows and the facts of each, computed once per version of the tables,
+    the records decided and the decisions on organisations. Each row is weighed on its
+    own, whatever the merges: a merge or an unmerge, one after another in a review, never
+    computes the pairs again; :func:`standing` leaves out the pairs merges settled."""
 
     def compute() -> dict[str, Any]:
         from cartolex.collect.duplicates import duplicate_pairs
@@ -70,6 +72,7 @@ def found_pairs(ctx: Any, runtime: Any) -> dict[str, Any]:
         if not project.layout.table("people").exists():
             return {"pairs": [], "facts": {}}
         decisions, _ = coverage_inputs(project, runtime.table_cache)
+        decisions = {pid: {**row, "merged_into": ""} for pid, row in decisions.items()}
         view = texts_view(project, runtime.table_cache)
         names = {
             o["org_id"]: o["acronym"] or o["name"]
@@ -87,6 +90,16 @@ def found_pairs(ctx: Any, runtime: Any) -> dict[str, Any]:
     return runtime.table_cache.get(_key(ctx.project), compute)
 
 
+def standing(pairs: list[Any], people: dict[str, dict[str, Any]]) -> list[Any]:
+    """The pairs of people who both stand on their own now (neither merged into another)."""
+    return [
+        p
+        for p in pairs
+        if not (people.get(p.a) or {}).get("merged_into")
+        and not (people.get(p.b) or {}).get("merged_into")
+    ]
+
+
 def _brief(f: Any, person: dict[str, Any] | None) -> dict[str, Any]:
     p = person or {}
     return {
@@ -98,7 +111,7 @@ def _brief(f: Any, person: dict[str, Any] | None) -> dict[str, Any]:
         "role": p.get("role", f.role),
         "identity": p.get("identity", f.identity),
         "orcids": sorted(f.orcids),
-        "texts": f.texts,
+        "texts": (p.get("coverage") or {}).get("texts", f.texts),
         "first_year": f.first_year,
         "last_year": f.last_year,
     }
@@ -151,7 +164,7 @@ def duplicates(
     facts = found["facts"]
     counts = {"open": 0, "clear": 0, "later": 0, "distinct": 0}
     rows = []
-    for pair in found["pairs"]:
+    for pair in standing(found["pairs"], people):
         decision = (decided.get(pair_key(pair.a, pair.b)) or {}).get("decision") or None
         if decision == "distinct":
             counts["distinct"] += 1
@@ -390,7 +403,9 @@ def _clear_groups(ctx: Any, runtime: Any) -> tuple[list[dict[str, Any]], dict[st
     found = found_pairs(ctx, runtime)
     people, _ = _people(ctx, runtime)
     now = {pid: (p["role"], p["identity"]) for pid, p in people.items()}
-    groups = clear_groups(found["pairs"], found["facts"], set(read_pairs(ctx.layout)), now)
+    groups = clear_groups(
+        standing(found["pairs"], people), found["facts"], set(read_pairs(ctx.layout)), now
+    )
     return groups, people
 
 

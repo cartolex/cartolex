@@ -71,6 +71,7 @@ def surname_parts(last: str) -> tuple[str, ...]:
 def words(text: str) -> tuple[str, ...]:
     return tuple(_words(text))
 
+
 __all__ = [
     "MAX_AUTHORS",
     "MAX_BLOCK",
