@@ -110,39 +110,51 @@ class CostModel:
     #: When the driver is not known yet: another size, how many driver units per unit,
     #: and optionally the most the driver can be.
     fallback: tuple[str, float] | tuple[str, float, float] | None = None
-    #: Another size costing linearly: (size, seconds per unit, MB per unit). The size may
-    #: be a product of sizes, ``"texts*mapped_units"`` (points placed among the people).
-    extra: tuple[str, float, float] | None = None
+    #: Other sizes costing linearly: (size, seconds per unit, MB per unit), or several of
+    #: them. A size may be a product of sizes, ``"texts*mapped_units"`` (points placed
+    #: among the people).
+    extra: tuple[str, float, float] | tuple[tuple[str, float, float], ...] | None = None
 
     def __post_init__(self) -> None:
-        extra = self.extra[0].split("*") if self.extra else []
-        for name in (self.driver, *(self.fallback[:1] if self.fallback else ()), *extra):
+        names = [n for size, _, _ in self._extras() for n in size.split("*")]
+        for name in (self.driver, *(self.fallback[:1] if self.fallback else ()), *names):
             if name not in SIZE_NAMES:
                 raise ValueError(f"unknown cost driver {name!r}; known: {list(SIZE_NAMES)}")
 
+    def _extras(self) -> list[tuple[str, float, float]]:
+        if self.extra is None:
+            return []
+        if isinstance(self.extra[0], str):
+            return [self.extra]  # type: ignore[list-item]
+        return list(self.extra)  # type: ignore[arg-type]
+
     def sizes(self) -> tuple[str, ...]:
         """The sizes the model reads (recorded in a run's counts, to scale it later)."""
-        return (self.driver, *(self.extra[0].split("*") if self.extra else ()))
+        return (self.driver, *(n for size, _, _ in self._extras() for n in size.split("*")))
 
-    def extra_size(self, get: Callable[[str], int | None]) -> float | None:
-        """The extra size, from *get* (a size by name); ``None`` when a factor is unknown."""
+    def extra_size(self, get: Callable[[str], int | None]) -> tuple[float, ...] | None:
+        """The extra sizes, from *get* (a size by name); ``None`` when a factor is unknown."""
         if self.extra is None:
             return None
-        value = 1.0
-        for name in self.extra[0].split("*"):
-            got = get(name)
-            if got is None:
-                return None
-            value *= float(got)
-        return value
+        out = []
+        for size, _, _ in self._extras():
+            value = 1.0
+            for name in size.split("*"):
+                got = get(name)
+                if got is None:
+                    return None
+                value *= float(got)
+            out.append(value)
+        return tuple(out)
 
-    def _variable(self, driver: float, extra: float | None) -> tuple[float, float]:
+    def _variable(self, driver: float, extra: tuple[float, ...] | None) -> tuple[float, float]:
         """The parts of the time and the memory that grow with the sizes."""
         s = self.seconds_per_unit * driver**self.time_exponent
         m = self.memory_mb_per_unit * driver**self.memory_exponent
-        if self.extra is not None and extra is not None:
-            s += self.extra[1] * extra
-            m += self.extra[2] * extra
+        if extra is not None:
+            for (_, per_s, per_m), value in zip(self._extras(), extra, strict=True):
+                s += per_s * value
+                m += per_m * value
         return s, m
 
     def estimate(self, sizes: ProjectSizes, last: RunRecord | None) -> Estimate:
@@ -159,7 +171,7 @@ class CostModel:
             if now is None or not then:
                 return Estimate(s, m, "the last run")
             extra_then = self.extra_size(last.measures.counts.get)
-            if self.extra is not None and extra_now is not None and extra_then:
+            if self.extra is not None and extra_now is not None and extra_then and all(extra_then):
                 vs_now, vm_now = self._variable(now, extra_now)
                 vs_then, vm_then = self._variable(then, extra_then)
                 rs = vs_now / vs_then if vs_then > 0 else 1.0
@@ -208,7 +220,10 @@ class Stage:
     (it is then *skipped*), or ``None``; an opt-in stage applies only when its
     ``enabled`` parameter is true. ``extra_inputs`` lists more files it reads
     (an overlay's tables) as ``(kind, path)`` pairs. ``version`` is raised when
-    cartolex deliberately changes what the stage produces.
+    cartolex deliberately changes what the stage produces. A ``bounded`` stage sizes
+    its work (its worker processes, its blocks) to the job's memory budget
+    (:class:`cartolex.scale.Budget`): its estimated peak is at most that budget,
+    whatever its cost model gives for the project's sizes.
     """
 
     id: str
@@ -223,6 +238,7 @@ class Stage:
     network: bool = False
     paid: bool = False
     chunked: bool = False
+    bounded: bool = False
     params: tuple[ParamSpec, ...] = ()
     checks: tuple[CrossCheck, ...] = ()
     uses: tuple[str, ...] = ()
@@ -284,14 +300,23 @@ class Stage:
             return f"switched off (set {self.id}.enabled in decisions/params.json to run it)"
         return self.applies(config, params) if self.applies is not None else None
 
-    def estimate(self, sizes: ProjectSizes, last: RunRecord | None) -> Estimate:
+    def estimate(
+        self, sizes: ProjectSizes, last: RunRecord | None, memory_mb: float | None = None
+    ) -> Estimate:
+        """The stage's cost for *sizes* (from its last run when there is one); a
+        :attr:`bounded` stage's peak is at most the job's budget *memory_mb*."""
         if self.estimator is not None:
-            return self.estimator(self, sizes, last)
-        if self.cost is not None:
-            return self.cost.estimate(sizes, last)
-        if last is not None and last.measures.seconds is not None:
-            return Estimate(last.measures.seconds, last.measures.peak_memory_mb, "the last run")
-        return Estimate(None, None, "no cost model")
+            found = self.estimator(self, sizes, last)
+        elif self.cost is not None:
+            found = self.cost.estimate(sizes, last)
+        elif last is not None and last.measures.seconds is not None:
+            found = Estimate(last.measures.seconds, last.measures.peak_memory_mb, "the last run")
+        else:
+            found = Estimate(None, None, "no cost model")
+        peak = found.peak_memory_mb
+        if self.bounded and memory_mb is not None and peak is not None and peak > memory_mb:
+            return Estimate(found.seconds, memory_mb, f"{found.basis}; at most the job's budget")
+        return found
 
 
 class Registry:
@@ -694,8 +719,15 @@ STAGES = Registry(
             ),
             uses=("year",),
             provides=("people", "texts", "characters", "mapped_units"),
+            # Memory from the columnar assembly measured on 825,000 and 5.9 million texts of
+            # 169,000 people: about 0.4 KB a text and 4.6 KB a person.
             cost=CostModel(
-                "characters", 0.23, 3.1e-9, 206.0, 0.0, extra=("texts", 1.13e-4, 4.68e-3)
+                "characters",
+                0.23,
+                3.1e-9,
+                206.0,
+                0.0,
+                extra=(("texts", 1.13e-4, 3.78e-4), ("people", 0.0, 4.57e-3)),
             ),
             run=_engine("run_corpus"),
         ),
@@ -907,6 +939,7 @@ STAGES = Registry(
                     _min_texts_fit,
                 ),
             ),
+            bounded=True,
             cost=CostModel(
                 "characters", 6.44, 7.23e-6, 766.0, 1.09e-5, extra=("texts", 4.14e-3, 4.7e-4)
             ),
@@ -1025,6 +1058,7 @@ STAGES = Registry(
                 ),
             ),
             provides=("kept_keywords",),
+            bounded=True,
             cost=CostModel(
                 "characters", 5.21, 2.41e-6, 228.0, 7.52e-6, extra=("people", 1.51e-3, 5.96e-3)
             ),
@@ -1078,6 +1112,7 @@ STAGES = Registry(
                     section="solver",
                 ),
             ),
+            bounded=True,
             cost=CostModel(
                 "people", 1.27, 2.48e-4, 223.0, 0.0416, time_exponent=1.03, memory_exponent=0.82
             ),
@@ -1353,6 +1388,7 @@ STAGES = Registry(
                 ),
             ),
             uses=("year",),
+            bounded=True,
             cost=CostModel(
                 "texts", 1.17, 1.97e-3, 374.0, 0.011, extra=("texts*mapped_units", 1.84e-7, 0.0)
             ),

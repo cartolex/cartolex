@@ -68,6 +68,13 @@ nothing in the engine names a particular deployment, source or procedure.
     lists, filters, sorts and counts of millions of texts without an object per
     text; one text, one person, one organisation read from the row groups that
     hold it; the coverage and the organisations computed once per version.
+  - *Estimates*: a stage that sizes its work to the job's memory budget
+    (`Stage.bounded`: the extraction, the keywords' build, the text space, the
+    trajectories) is estimated at most that budget (`plan(memory_mb=…)`,
+    `build(memory_mb=…)`); `corpus.assemble`'s memory model follows its
+    columnar assembly (measured: 3.2 GB for 5.9 million texts, where the
+    earlier model said 27 GB and refused to run it). A cost model may have
+    several extra sizes.
   - *Budget*: `cartolex.scale.Budget` (memory, workers, scratch folder) reaches
     every stage; `cartolex build --workers --memory --scratch`. A scratch folder
     names its computer and process (`cartolex.scale.scratch_folder`): one a

@@ -254,6 +254,7 @@ def overview(request: Request, ctx: ProjectDep) -> dict[str, Any]:
             registry=runtime.registry,
             budget_mb=runtime.settings.build_budget_mb,
             year=runtime.settings.build_year,
+            memory_mb=runtime.budget.budget().memory_mb,
         )
     except (BuildBusy, ParamsError):
         the_plan = None

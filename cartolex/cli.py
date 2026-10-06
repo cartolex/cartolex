@@ -141,18 +141,17 @@ def _build(args: argparse.Namespace) -> int:
     from cartolex.build import build, plan
     from cartolex.build.engine import AIAccess, EngineOptions, engine_registry
     from cartolex.project import Project
+    from cartolex.scale import Budget
 
     targets = args.only or None
+    budget = Budget.for_machine(memory_mb=args.memory, workers=args.workers, scratch=args.scratch)
     if args.dry_run:
         project = Project.open(args.folder)
-        print(plan(project, targets, force=args.force or ()).describe())
+        print(plan(project, targets, force=args.force or (), memory_mb=budget.memory_mb).describe())
         return 0
     project = Project.open(args.folder, write=True)
     for note in project.recovered:
         print(note)
-    from cartolex.scale import Budget
-
-    budget = Budget.for_machine(memory_mb=args.memory, workers=args.workers, scratch=args.scratch)
     registry = engine_registry(
         AIAccess(api_key=os.environ.get("MISTRAL_API_KEY") or None),
         EngineOptions(rejects_folder=_data_dir(args) / "rejects", budget=budget),
@@ -175,6 +174,7 @@ def _build(args: argparse.Namespace) -> int:
             consent=(lambda request: True) if args.yes else _ask,
             progress=_Printer(),
             cancel=cancel,
+            memory_mb=budget.memory_mb,
         )
     finally:
         signal.signal(signal.SIGINT, previous)

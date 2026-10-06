@@ -126,6 +126,12 @@ The build then runs the stages before it, stops there and says why. Free
 memory (close other programs) or build on a larger machine; the Python API's
 `build(allow_over_budget=True)` runs the stage anyway.
 
+The extraction, the keywords' build, the text space and the trajectories size
+their work (their worker processes, their blocks) to the job's memory budget
+(`cartolex build --memory`, Settings › Build in the app; by default 40 % of the
+computer's memory, at most 12 GB): their estimated peak is at most that budget,
+whatever their cost model gives for the project's sizes (`Stage.bounded`).
+
 ## A million people
 
 The run of a million people is prepared, not run: `tools/million.py plan`

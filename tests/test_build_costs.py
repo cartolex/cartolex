@@ -156,3 +156,18 @@ def test_the_dry_run_refuses_a_stage_that_will_not_fit():
     # From the people alone, before a vocabulary: at most 10 000 keywords.
     early = STAGES["themes.group"].estimate(ProjectSizes(people=10**6), None)
     assert early.peak_memory_mb == pytest.approx(203.0 + 8.31e-6 * 10_000**2)
+
+
+def test_a_bounded_stage_never_needs_more_than_the_jobs_memory_budget():
+    huge = ProjectSizes(people=169_287, texts=6_000_000, characters=6 * 10**9, mapped_units=169_287)
+    for stage in STAGES:
+        est = stage.estimate(huge, None, memory_mb=12_288)
+        free = stage.estimate(huge, None)
+        if stage.bounded:
+            assert est.peak_memory_mb is None or est.peak_memory_mb <= 12_288, stage.id
+        else:
+            assert est.peak_memory_mb == free.peak_memory_mb, stage.id
+    bounded = {s.id for s in STAGES if s.bounded}
+    assert bounded == {"keywords.extract", "keywords.build", "themes.space", "map.trajectories"}
+    extract = STAGES["keywords.extract"].estimate(huge, None, memory_mb=12_288)
+    assert extract.peak_memory_mb == 12_288 and "at most the job's budget" in extract.basis

@@ -240,6 +240,7 @@ def plan(
     budget_mb: float | None = None,
     year: int | None = None,
     off: Iterable[str] = (),
+    memory_mb: float | None = None,
 ) -> BuildPlan:
     """What a build of *targets* (every stage by default) would run, keep and skip.
 
@@ -252,7 +253,9 @@ def plan(
     :class:`BuildBusy` when a job runs a stage the build would run, and
     :class:`~cartolex.build.params.ParamsError` when ``params.json`` does not
     fit the stages. The opt-in stages in *off* are skipped, as if switched off
-    (a build does so with the ones its consent was refused for).
+    (a build does so with the ones its consent was refused for). *memory_mb* is the
+    memory budget the stages will be given (:class:`cartolex.scale.Budget`, default:
+    this computer's): a bounded stage's estimated peak is at most that.
     """
     registry = registry or STAGES
     forced = set(force)
@@ -267,6 +270,11 @@ def plan(
     busy = [s for s in wanted if statuses[s].state is StageState.RUNNING]
     if busy:
         raise BuildBusy(f"a job is running {', '.join(sorted(busy))}; wait for it or cancel it")
+    if memory_mb is None:
+        from ..scale import Budget
+
+        memory_mb = Budget.for_machine().memory_mb
+    job_memory = memory_mb
     budget = budget_mb
     if budget is None:
         available = available_memory_mb()
@@ -293,7 +301,7 @@ def plan(
             n for u in registry.upstream_of(stage.id) if u in runs for n in registry[u].provides
         }
         runs.add(stage.id)
-        estimate = stage.estimate(view.sizes, st.record)
+        estimate = stage.estimate(view.sizes, st.record, job_memory)
         resolved = view.resolve(stage)
         known_now = ProjectSizes(
             **{n: (None if n in pending else v) for n, v in view.sizes.as_dict().items()}

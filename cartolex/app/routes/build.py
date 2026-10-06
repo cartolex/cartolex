@@ -197,6 +197,7 @@ def start_build_job(
     project, registry = ctx.project, runtime.registry
     settings = runtime.settings
     recipe = child_recipe(runtime)
+    memory_mb = runtime.budget.budget().memory_mb
 
     def work(control: JobControl) -> dict[str, Any]:
         run_targets, pause = targets, None
@@ -208,6 +209,7 @@ def start_build_job(
                 force=force,
                 budget_mb=settings.build_budget_mb,
                 year=settings.build_year,
+                memory_mb=memory_mb,
             )
             pause = pause_for(runtime, ctx, the_plan, passed)
             if pause is not None:
@@ -236,6 +238,7 @@ def start_build_job(
             heartbeat_s=settings.heartbeat_s,
             year=settings.build_year,
             job_id=control.job_id,
+            memory_mb=memory_mb,
         )
         if pause is not None and out["outcome"] == "succeeded":
             out["outcome"], out["waiting"] = "waiting", pause
@@ -274,6 +277,7 @@ def post_build(request: Request, body: BuildBody, ctx: ProjectDep) -> Any:
             force=force,
             budget_mb=runtime.settings.build_budget_mb,
             year=runtime.settings.build_year,
+            memory_mb=runtime.budget.budget().memory_mb,
         )
         pause = pause_for(runtime, ctx, the_plan, list(body.go_on))
         out = plan_json(the_plan, runtime.registry, ctx, pause)

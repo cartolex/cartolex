@@ -588,6 +588,7 @@ def build(
     year: int | None = None,
     probe: Callable[[str], None] | None = None,
     job_id: str | None = None,
+    memory_mb: float | None = None,
 ) -> BuildResult:
     """Run what :func:`~cartolex.build.plan` says, with the same arguments.
 
@@ -613,7 +614,13 @@ def build(
     probe = probe or (lambda _: None)
     project.recovered += recover(project.layout)
     the_plan = plan(
-        project, targets, registry=registry, force=force, budget_mb=budget_mb, year=year
+        project,
+        targets,
+        registry=registry,
+        force=force,
+        budget_mb=budget_mb,
+        year=year,
+        memory_mb=memory_mb,
     )
     # Consent is asked once per stage, before anything runs. An opt-in stage without
     # it is skipped, as if switched off: the stages after it run without it.
@@ -636,6 +643,7 @@ def build(
             budget_mb=budget_mb,
             year=year,
             off=off,
+            memory_mb=memory_mb,
         )
 
     refused: dict[str, str] = {}
