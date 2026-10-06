@@ -106,8 +106,8 @@ export function OrgReview({ ctx, onClose, toast, bump }) {
     else if (key === 'arrowup' || key === 'k') setIndex(Math.max(index - 1, 0));
     else if (key === '1') decide('merge', pair.a);
     else if (key === '2') decide('merge', pair.b);
-    else if (key === 'd') decide('distinct');
-    else if (key === 'l') decide('later');
+    else if (key === t('corpus.dup.key_distinct').toLowerCase()) decide('distinct');
+    else if (key === t('corpus.dup.key_later').toLowerCase()) decide('later');
     else return;
     event.preventDefault();
   };

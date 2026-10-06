@@ -160,11 +160,12 @@ export function DuplicatesTab({ ctx, version, bump, toast, openSheet, refresh })
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
     const pair = current.current;
     if (event.ctrlKey || event.metaKey || event.altKey || !pair) return;
+    // The letters are the interface language's (« D », « L » in English).
     const key = event.key.toLowerCase();
     if (key === '1') decide('merge', pair.a);
     else if (key === '2') decide('merge', pair.b);
-    else if (key === 'd') decide('distinct');
-    else if (key === 'l') decide('later');
+    else if (key === t('corpus.dup.key_distinct').toLowerCase()) decide('distinct');
+    else if (key === t('corpus.dup.key_later').toLowerCase()) decide('later');
     else return;
     event.preventDefault();
   };
