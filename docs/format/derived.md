@@ -156,7 +156,7 @@ as they are:
 | --- | --- | --- |
 | `triage_term_cache.json` | one AI verdict per term | `typed_v3:<model>:<domain title>:<term>` |
 | `triage_batch_cache.json` | the answer to each batch of terms | a hash of the batch's terms, the domain title and the model |
-| `usage.json` | tokens used, per call kind and model | — |
+| `usage.json` | the tokens the provider reported for every run of the AI clean-up by API, added up: `prompt_tokens`, `completion_tokens`, `total_tokens`, `updated_at` (answers from the cache count none) | — |
 
 `cache/parse/` holds parsed texts in immutable JSON-lines parts named by their
 content's digest; its layout is described with the extraction

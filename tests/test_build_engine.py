@@ -298,6 +298,13 @@ def test_the_ai_clean_up_runs_with_an_injected_client(built, tmp_path):
     assert (project.layout.cache_ai / "triage_term_cache.json").exists()
     counts = json.loads(project.layout.run_json("keywords.triage").read_text())["measures"]
     assert counts["counts"]["accepted"] > 0
+    # the tokens the provider reported: the run's counts and the project's total
+    paid = _FakeModel.calls
+    assert counts["counts"]["tokens_in"] == counts["counts"]["tokens_out"] == paid
+    from cartolex.app.ai_usage import recorded_usage
+
+    usage = recorded_usage(project.layout)
+    assert usage["last"]["tokens_in"] == paid and usage["total"]["tokens_in"] == paid
     assert project.config.identity.frozen  # the first AI answers froze it
     _FakeModel.calls = 0
     again = build(
@@ -310,6 +317,8 @@ def test_the_ai_clean_up_runs_with_an_injected_client(built, tmp_path):
         consent=lambda r: True,
     )
     assert again.outcome == "succeeded" and _FakeModel.calls == 0  # answered from cache/ai/
+    usage = recorded_usage(project.layout)
+    assert usage["last"]["tokens_in"] == 0 and usage["total"]["tokens_in"] == paid
     project.close()
 
 

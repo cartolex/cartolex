@@ -78,7 +78,9 @@ def _layout_rows(ctx: Any, seed: int, sizes: Mapping[str, Any]) -> list[dict[str
 def recipe_view(runtime: Any, ctx: Any) -> dict[str, Any]:
     """Every parameter of the build, in pipeline order: the build's seed and pinned year, each
     stage's parameters (value, default, origin with its rule, ``differs``, tier, the panel that
-    edits it), then the pinned map version's layout."""
+    edits it), then the pinned map version's layout; and ``ai_usage``, the tokens the AI
+    clean-up by API spent (:func:`~cartolex.app.ai_usage.recorded_usage`)."""
+    from .ai_usage import recorded_usage
     from .routes.params import params_view
 
     view = params_view(runtime, ctx.project)
@@ -124,6 +126,8 @@ def recipe_view(runtime: Any, ctx: Any) -> dict[str, Any]:
         "rows": rows,
         "changed": sum(bool(r["differs"]) for r in rows),
         "version": view.get("version"),
+        # the tokens the AI clean-up by API spent: its last run, every run of the project
+        "ai_usage": recorded_usage(ctx.layout),
     }
 
 
