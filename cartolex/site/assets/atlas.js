@@ -137,19 +137,25 @@
   };
 
   S.pages.map = function mapPage(main) {
-    main.classList.add('cx-main--atlas');
+    // the page holds the window's height: the atlas fills it, whatever its card holds
+    const shell = main.parentElement;
+    const fit = (on) => {
+      main.classList.toggle('cx-main--atlas', on);
+      if (shell) shell.classList.toggle('cx-site--atlas', on);
+    };
+    fit(true);
     const A = window.CartolexAtlas;
     const title = h('h1', { class: 'cx-visually-hidden', tabindex: '-1', text: t('nav.map') });
     const root = h('div', { class: 'cx-atlas-host' });
     main.append(title, root);
     if (!A || !A.mountAtlas) {
       main.append(S.missingNote());
-      return () => main.classList.remove('cx-main--atlas');
+      return () => fit(false);
     }
     const atlas = A.mountAtlas(root, { source: S.atlasSource(), host: S.atlasHost() });
     return () => {
       atlas.destroy();
-      main.classList.remove('cx-main--atlas');
+      fit(false);
     };
   };
 }());

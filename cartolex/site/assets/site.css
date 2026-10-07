@@ -393,8 +393,68 @@ h3 {
   font-size: var(--cx-text-s);
 }
 
+/* the home page's word cloud: one picture per look, the page's shown */
+
+.cx-cloud__figure {
+  margin: 0;
+}
+
+.cx-cloud__link {
+  display: block;
+  border-radius: var(--cx-radius-m);
+}
+
+.cx-cloud__img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.cx-cloud__img--dark {
+  display: none;
+}
+
+:root[data-theme='dark'] .cx-cloud__img--light {
+  display: none;
+}
+
+:root[data-theme='dark'] .cx-cloud__img--dark {
+  display: block;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .cx-cloud__img--light {
+    display: none;
+  }
+
+  :root:not([data-theme='light']) .cx-cloud__img--dark {
+    display: block;
+  }
+}
+
+.cx-cloud__figure figcaption {
+  margin-top: var(--cx-space-2);
+  font-size: var(--cx-text-s);
+}
+
+@media print {
+  .cx-cloud__img--dark {
+    display: none !important;
+  }
+
+  .cx-cloud__img--light {
+    display: block !important;
+  }
+}
+
 /* the atlas: the app's own (assets/atlas.css), given the page below the header */
 
+/* The atlas takes the height its host gives it (height: 100%): the page is the window's
+   height exactly, and the atlas fills what the header and the footer leave. With only a
+   minimum height, the atlas took the height of its content: the card's (a long list made
+   it taller than the window, a hidden card shrank it to the map's least). Narrower than
+   the atlas's stacked layout (atlas.css, 860px), its panes keep their own heights one
+   below the other and the page scrolls. */
 .cx-main--atlas {
   display: flex;
   flex-direction: column;
@@ -404,8 +464,20 @@ h3 {
 
 .cx-atlas-host {
   flex: 1;
-  min-height: calc(100vh - 7rem);
   position: relative;
+}
+
+@media not all and (max-width: 860px) {
+  .cx-site--atlas {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 30rem;
+  }
+
+  .cx-site--atlas .cx-main--atlas,
+  .cx-site--atlas .cx-atlas-host {
+    min-height: 0;
+  }
 }
 
 .cx-page-head__actions {

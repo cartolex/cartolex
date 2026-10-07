@@ -16,7 +16,8 @@ The folder::
     README.txt          « unzip the whole folder first », then what the site holds
     site.json           the build's record (not read by the page)
     assets/             tokens.css, atlas.css, site.css, atlas.js (the app's atlas as one
-                        classic script), site.js, i18n.js, world.js
+                        classic script), site.js, i18n.js, world.js, cloud-light.svg and
+                        cloud-dark.svg (the lexicon's word cloud, on the home page)
     data/               core.js (every page: the atlas bundle as columns), orgs.js,
                         people/<n>.js, keywords/<n>.js, links.js (the co-authors) and
                         texts/<n>.js (on request), loaded on demand
@@ -199,6 +200,34 @@ def _atlas_assets() -> dict[str, bytes]:
         ).encode(),
         "assets/atlas.css": ATLAS_CSS.read_bytes(),
     }
+
+
+#: The looks the home page's word cloud is drawn for (``assets/cloud-<look>.svg``).
+CLOUD_LOOKS = ("light", "dark")
+
+
+def _clouds(project: Project, language: str) -> dict[str, bytes]:
+    """The home page's word cloud: the lexicon's, drawn by the app
+    (:func:`cartolex.app.lexicon_view.word_cloud`: its most important keywords, coloured by
+    their top-level theme in the interface's hues, the atlas's default scheme) for the light
+    and the dark look, in *language* when the project displays it, else in its first display
+    language. Nothing when the project has no lexicon or the lexicon no keyword."""
+    from types import SimpleNamespace
+
+    from cartolex.app.lexicon_view import word_cloud
+    from cartolex.app.runtime import Cache
+
+    from .data import project_context
+
+    runtime = SimpleNamespace(table_cache=Cache(4))  # the lexicon is read once for both looks
+    ctx = project_context(project)
+    out = {}
+    for look in CLOUD_LOOKS:
+        svg = word_cloud(runtime, ctx, theme=look, language=language.split("-")[0])
+        if svg is None or "<text" not in svg:
+            return {}
+        out[f"assets/cloud-{look}.svg"] = svg.encode()
+    return out
 
 
 def _script(name: str, value: Any) -> bytes:
@@ -458,8 +487,11 @@ def build_site(
             n, written, data.counts["abstracts"] = _write_texts(project, staging, data.texts)
             shards["texts"] = n
             sizes.update(written)
+        say(0.88, "drawing the word cloud")
+        clouds = _clouds(project, options.language)
         core = {
             **data.core,
+            "has": {**data.core["has"], "cloud": bool(clouds)},
             "title": title,
             "built_at": at.isoformat(timespec="seconds"),
             "language": options.language,
@@ -475,6 +507,7 @@ def build_site(
             "data/core.js": _script("core", core),
             "data/orgs.js": _script("orgs", data.orgs),
             **_atlas_assets(),
+            **clouds,
         }
         files["data/links.js"] = _script("links", data.links)
         if world:

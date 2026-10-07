@@ -1041,6 +1041,12 @@
   min-height: 24px;
 }
 
+/* the crumbs keep that height with no link in them (nothing in focus): the bar, and the map
+   below it, do not move when a focus is chosen */
+.cx-atlas__crumbs ol {
+  min-height: 24px;
+}
+
 .cx-atlas-layers__aa {
   min-width: 24px;
 }

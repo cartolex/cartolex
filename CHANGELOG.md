@@ -8,6 +8,8 @@ line.
 - The About page is short: what cartolex measures (who talks the same, in the lexical space), what it is built on (spaCy, scikit-learn, SciPy, UMAP, openTSNE), three key references and the Zenodo citation; every method and library it relies on is in the new documentation page « References ». The documentation's front page and the README say the same; the overview shows the word cloud under the health panel.
 
 - The Keywords screen is now called « Lexicon » (fr « Lexique », pt-BR « Léxico »), and its tab of the built lexicon « Final lexicon »; its address stays `/keywords`.
+- The offline site's home page shows the lexicon's word cloud (the app's, drawn at the build for the light and the dark look), a link to the atlas.
+- The offline site's atlas keeps one height, the window's: a long card no longer made it taller than the window, nor a hidden card shorter.
 
 A generic engine with an explicit API: every stage takes a run context, and
 nothing in the engine names a particular deployment, source or procedure.

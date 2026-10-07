@@ -63,6 +63,21 @@
 
   const SHAPE = { people: 'circle', orgs: 'square', keywords: 'diamond', themes: 'square' };
 
+  /** The lexicon's word cloud, drawn at the build for each look (the style sheet shows the
+   * one of the page's look), a link to the atlas; nothing when the build drew none. */
+  function cloud() {
+    if (!(S.ix.core.has || {}).cloud) return null;
+    const img = (look) => h('img', { src: `assets/cloud-${look}.svg`, alt: t('home.cloud.alt'), width: 1400,
+      height: 760, class: `cx-cloud__img cx-cloud__img--${look}`, decoding: 'async' });
+    return h('section', { class: 'cx-card cx-cloud', 'aria-labelledby': 'cx-home-cloud' }, [
+      h('h2', { id: 'cx-home-cloud', class: 'cx-visually-hidden', text: t('home.cloud') }),
+      h('figure', { class: 'cx-cloud__figure' }, [
+        h('a', { href: '#/map', class: 'cx-cloud__link' }, [img('light'), img('dark')]),
+        h('figcaption', { class: 'cx-muted', text: t('home.cloud.caption') }),
+      ]),
+    ]);
+  }
+
   S.pages.home = function home(main) {
     const core = S.ix.core;
     const input = h('input', { type: 'search', id: 'cx-find', class: 'cx-input cx-input--large', autocomplete: 'off',
@@ -108,6 +123,7 @@
       h('h1', { class: 'cx-page__title', tabindex: '-1', text: core.title }),
       h('p', { class: 'cx-lead', text: S.t('home.lead', { people: core.people.id.length, orgs: core.orgs.id.length,
         keywords: core.keywords.term.length, themes: S.ix.tops.length }) }),
+      cloud(),
       h('section', { class: 'cx-card cx-find', 'aria-labelledby': 'cx-find-label' }, [
         h('label', { for: 'cx-find', id: 'cx-find-label', class: 'cx-find__label', text: t('home.search') }),
         input, count, results]),
