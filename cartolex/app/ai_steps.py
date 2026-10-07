@@ -29,6 +29,7 @@ __all__ = [
     "copilot_done",
     "copilot_status",
     "pause_of",
+    "route_copilot_triage",
     "routes_of",
     "step_of",
     "with_routes",
@@ -87,6 +88,21 @@ def with_routes(params: Any, routes: dict[str, str]) -> Any:
     return params.model_validate(
         {**params.model_dump(mode="json", by_alias=True), "ai": ai, "stages": stages}
     )
+
+
+def route_copilot_triage(project: Any) -> bool:
+    """After a copilot's keyword triage is accepted: set the clean-up's route to the copilot
+    when it was « No AI » (never over the API), as a params change kept in the history
+    like any other; whether the route changed."""
+    params, fp = project.read_params()
+    if routes_of(params)["keywords.triage"] != "none":
+        return False
+    project.save_params(
+        with_routes(params, {"keywords.triage": "copilot"}),
+        expected=fp,
+        action="AI route keywords.triage=copilot (a copilot's triage accepted)",
+    )
+    return True
 
 
 def _run_time(run_id: str) -> datetime | None:

@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from ..deps import ProjectDep
 from ..errors import ApiError
 from ..etags import check_version, etag_of, expected_version, version_of
-from ..messages import empty
+from ..messages import empty, message
 from ..people_io import decided_now
 from ..routing import Routes, runtime_of
 from .keywords import _decisions, _write, extracted
@@ -142,7 +142,12 @@ def accept(
     ctx: ProjectDep,
 ) -> dict[str, Any]:
     """Write the accepted decisions into ``keywords.csv`` (source ``ai-handoff``, or
-    ``ai-copilot`` for a copilot's result); ``If-Match``."""
+    ``ai-copilot`` for a copilot's result); ``If-Match``. A copilot's result also sets the
+    build's route for the clean-up to the copilot when it was « No AI »
+    (:func:`cartolex.app.ai_steps.route_copilot_triage`): ``route``, the route after it,
+    and ``note``, ``accepted_route_copilot`` when it changed (else ``null``)."""
+    from ..ai_steps import route_copilot_triage, routes_of
+
     expected = expected_version(request)
     with ctx.handle.mutex:
         check_version(ctx.layout.keywords_csv, expected)
@@ -171,8 +176,15 @@ def accept(
         fp = _write(ctx, rows, expected, f"accept {len(items)} AI answers")
         ctx.project.freeze_identity("first AI answers")
         feed_rejects(request, ctx, items, source)
+        switched = source == "ai-copilot" and route_copilot_triage(ctx.project)
+        route = routes_of(ctx.project.read_params()[0])["keywords.triage"]
     response.headers["ETag"] = etag_of(fp)
-    return {"accepted": len(items), "version": version_of(fp)}
+    return {
+        "accepted": len(items),
+        "version": version_of(fp),
+        "route": route,
+        "note": message("accepted_route_copilot") if switched else None,
+    }
 
 
 def feed_rejects(request: Request, ctx: Any, items: list[dict[str, Any]], route: str) -> int:

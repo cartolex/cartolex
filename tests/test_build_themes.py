@@ -135,6 +135,25 @@ def test_deeper_trees_build_end_to_end(built, tmp_path, depth):
     _check_bundle(root, tmp_path, depth)
 
 
+def test_a_depth_too_deep_for_the_vocabulary_builds_fewer_levels_and_says_so(built, tmp_path):
+    from cartolex.app.messages import run_notes
+
+    # 40 keywords per group make fewer finest groups than the 15 at the top on the S world's
+    # few hundred keywords: no level grows below the top, so the themes take one level
+    root = _copy(built, tmp_path, "themes.group.depth=3")
+    _check_depth(root, 1)
+    record = _json(root / "derived" / "themes.group" / "run.json")
+    counts = record["measures"]["counts"]
+    assert (counts["depth"], counts["depth_asked"]) == (1, 3)
+    assert any("1 level instead of the 3 asked" in w for w in record["warnings"])
+    note = run_notes("themes.group", counts)[0]
+    assert note["code"] == "themes_depth_lowered"
+    assert note["params"] == {"keywords": counts["kept_keywords"], "depth": 1, "asked": 3}
+    # the saved parameter stays as it was set
+    params = _json(root / "decisions" / "params.json")
+    assert params["stages"]["themes.group"]["depth"] == 3
+
+
 @pytest.fixture(scope="module")
 def two_levels(built, tmp_path_factory) -> Path:
     # without the comb, the proposal is the two-level draft read as a tree

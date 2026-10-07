@@ -4,11 +4,12 @@
 The flow of a person who triages with a copilot from the Lexicon: the bundle is
 downloaded from the dialog, cartolex's own kit answers it (in this process, in
 parts the second time), the result goes back through the dialog and is accepted
-(all, then a part); then builds with the route left at « No AI » and set to
-« With your copilot », before and after the candidates are found again. The AI
-clean-up must read as done with the copilot, waiting for it, or done in part,
-on the pre-flight sheet, the build's tracker and result, the waiting card and
-the overview; never « Skipped » once a copilot's triage applies.
+(all, then a part). The first acceptance sets the build's route from « No AI »
+to « With your copilot » and its toast says so; then builds, before and after
+the candidates are found again, and with the route set back to « No AI ». The
+AI clean-up must read as done with the copilot, waiting for it, or done in
+part, on the pre-flight sheet, the build's tracker and result, the waiting card
+and the overview; never « Skipped » once a copilot's triage applies.
 """
 
 from __future__ import annotations
@@ -46,9 +47,10 @@ def _answer(folder: Path, parts: int) -> list[Path]:
     return results
 
 
-def _triage(ui, folder: Path, *, parts: int = 1, only_one: bool = False) -> None:
+def _triage(ui, folder: Path, *, parts: int = 1, only_one: bool = False) -> str:
     """Lexicon › Triage with AI › With an AI copilot: download the bundle, answer it, import
-    the result(s) and accept every decision (or, with *only_one*, a single one)."""
+    the result(s) and accept every decision (or, with *only_one*, a single one); the text of
+    the toast that says so."""
     page = ui.page
     ui.navigate("/keywords?band=check")
     page.locator(".cx-corpus__actions .cx-menubutton button").click()
@@ -73,7 +75,13 @@ def _triage(ui, folder: Path, *, parts: int = 1, only_one: bool = False) -> None
         d.get_by_role("button", name="Choose none", exact=True).click()
         d.locator(".cx-kw-review [role=row][aria-rowindex='2']").click()
     d.locator(".cx-dialog__footer button").last.click()
-    page.locator(".cx-toast", has_text="accepted").first.wait_for()
+    toast = page.locator(".cx-toast", has_text="accepted").first
+    toast.wait_for()
+    return toast.inner_text()
+
+
+def _routes(ui) -> dict:
+    return api(ui, "POST", "/api/build", {"dry_run": True})["data"]["ai"]["routes"]
 
 
 def _route(ui, route: str) -> None:
@@ -123,19 +131,23 @@ def test_a_copilot_triage_reads_as_done_through_every_build(demo_s, app_for, ope
     ui = open_app(app_for(demo_s))
     page = ui.page
 
-    # Route left at « No AI »: the triage accepted, then a whole build.
-    _triage(ui, tmp_path / "first")
+    # Route at « No AI »: the triage accepted sets it to the copilot, and says so.
+    assert _routes(ui)["keywords.triage"] == "none"
+    said = _triage(ui, tmp_path / "first")
+    assert "The build will now ask your copilot for new keywords" in said
+    assert _routes(ui)["keywords.triage"] == "copilot"
+    # A whole build: the copilot's triage is done, nothing waits.
     assert _preflight(ui, "/build") == DONE
     assert _build(ui, r"^Build \d+ stages$") == DONE
     assert _overview(ui, DONE).startswith("Done with your copilot (")
 
-    # Route « With your copilot », the candidates found again: the build waits for it.
-    _route(ui, "copilot")
+    # The candidates found again: the build waits for the copilot.
     assert _preflight(ui, "/build?scope=keywords&force=keywords.extract") == WAITS
     assert _build(ui, "^Build 1 stage, then pause$", "waiting") == WAITS
     _overview(ui, WAITS)
     # Its triage of the new candidates, in two parts, one decision accepted; then continue.
-    _triage(ui, tmp_path / "second", parts=2, only_one=True)
+    said = _triage(ui, tmp_path / "second", parts=2, only_one=True)
+    assert "ask your copilot" not in said  # the route was already the copilot
     _overview(ui, DONE)
     ui.navigate("/build?scope=keywords")
     assert _build(ui, "^Continue the build$") == DONE
@@ -150,5 +162,5 @@ def test_a_copilot_triage_reads_as_done_through_every_build(demo_s, app_for, ope
     page.locator("[data-note='preflight_copilot_new']").wait_for()
     assert _build(ui, "^Build 2 stages$") == "Partly done with your copilot"
     line = _overview(ui, "Partly done with your copilot")
-    assert line.startswith("No AI clean-up of the candidates found since your copilot's triage")
+    assert line.startswith("The clean-up is at « No AI »: the candidates found since")
     assert ui.collected.console_errors == [] and ui.collected.page_errors == []

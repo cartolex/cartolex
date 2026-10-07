@@ -12,7 +12,9 @@
 import { html, useEffect, useState } from '../../core/preact.js';
 import { formatNumber, locale, t } from '../../core/i18n.js';
 import { useUid } from '../../core/dom.js';
-import { Button, Checkbox, Dialog, ErrorCard, FormField, Icon, Select, Stepper } from '../../components/index.js';
+import {
+  Button, Checkbox, Dialog, ErrorCard, FormField, Icon, Select, Stepper, messageOf,
+} from '../../components/index.js';
 import {
   COPILOT_STEPS, CopilotExport, CopilotImport, CopilotOutcome, CurationNotes, EarlierResults, stepState,
 } from '../copilot/parts.js';
@@ -26,7 +28,8 @@ const PARTS = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
  * @param {object} props.ctx the page's context
  * @param {string} [props.scope] the candidates to send first (`unjudged`: those nobody judged)
  * @param {Function} props.onClose
- * @param {(message: string) => void} props.onDone after an accept
+ * @param {(message: string, more?: object) => void} props.onDone after an accept (`more`: the
+ *   toast's message and action when the build's route changed)
  * @param {string} [props.proposal] an imported result to open at its review
  */
 export function KeywordCopilotDialog({ ctx, scope: initialScope = 'all', onClose, onDone, proposal: initial }) {
@@ -84,8 +87,16 @@ export function KeywordCopilotDialog({ ctx, scope: initialScope = 'all', onClose
     const r = await ctx.api.post(`/api/ai/proposals/${encodeURIComponent(proposal.id)}/accept`,
       { all, terms }, { ifMatch: `"${proposal.keywords_version}"` });
     setBusy(false);
-    if (r.ok) onDone(t('keywords.ai.accepted', { n: r.data.accepted }));
-    else setError(r.error);
+    if (!r.ok) {
+      setError(r.error);
+      return;
+    }
+    // A copilot's triage accepted with the route at « No AI »: the build now asks the copilot.
+    const note = r.data.note;
+    onDone(t('keywords.ai.accepted', { n: r.data.accepted }), note ? {
+      message: messageOf(note), timeout: 15000,
+      action: { label: t(`overview.action.${note.code}`), onClick: () => ctx.navigate('/build') },
+    } : {});
   };
 
   let body;

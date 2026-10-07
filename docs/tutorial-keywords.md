@@ -120,6 +120,11 @@ project's, or an older one) is flagged before you accept.
 Accepted decisions apply at the next build: press **Build…** on the overview
 (or **Continue the build** if the build was waiting) and start it.
 
+Accepting also sets the build's **AI help › Keyword clean-up** to **With your
+copilot** when it was **No AI** (never when it is **By API**), and the toast
+says so: the build will ask your copilot for the new keywords a later
+extraction finds. You can switch it back on the Build screen.
+
 From now on, **only the keywords someone accepted** (you or the assistant)
 enter the vocabulary. New candidates nobody judged are counted on the
 Lexicon screen, « N candidates not judged »: **Send them to the AI** makes a

@@ -16,8 +16,9 @@ import { AiChoice } from './ai.js';
 import { actionLabel, follow } from '../overview/cards.js';
 
 /** The sheet's notes (`plan.notes`): mapped people never harvested, a copilot result not
- * accepted, the API's verdicts left aside; each with its button. */
-function Notes({ notes }) {
+ * accepted, the API's verdicts left aside; each with its button. A build's result shows its
+ * own (`result.notes`: fewer theme levels than asked) the same way. */
+export function Notes({ notes }) {
   if (!notes || !notes.length) return null;
   return html`<ul class="cx-build-notes" aria-label=${t('build.notes')}>
     ${notes.map((n) => html`<li key=${n.code} class=${`cx-build-notes__item is-${n.level}`}

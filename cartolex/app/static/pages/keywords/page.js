@@ -95,9 +95,9 @@ export function KeywordsScreen() {
     { id: 'api', label: t('keywords.ai.by_api') },
   ];
   const closeDialog = () => setDialog(null);
-  const finished = (message) => {
+  const finished = (message, more = {}) => {
     setDialog(null);
-    toast({ kind: 'success', title: message });
+    toast({ kind: 'success', title: message, ...more });
     bump();
     app.stores.project.refresh(); // a decision makes the vocabulary out of date
   };

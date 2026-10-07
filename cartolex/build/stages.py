@@ -32,7 +32,6 @@ from .params import (
     CrossCheck,
     ParamSpec,
     ProjectSizes,
-    theme_level_sizes,
 )
 
 if TYPE_CHECKING:
@@ -433,16 +432,11 @@ def _levels_grow(values: Mapping[str, Any], sizes: ProjectSizes, _: ProjectFile)
         if any(b <= a for a, b in zip(levels, levels[1:], strict=False)):
             return f"level_sizes {list(levels)} does not grow from the top"
         return None
-    top, depth = values["top_groups"], values["depth"]
+    # A vocabulary too small for the depth asked is not refused: the grouping takes the
+    # deepest number of levels that grows (``fitting_depth``) and says so.
+    top = values["top_groups"]
     if top >= k:
         return f"top_groups is {top}, but the vocabulary holds only {k} keyword(s)"
-    levels = theme_level_sizes(k, depth, top, values["keywords_per_group"])
-    if any(b <= a for a, b in zip(levels, levels[1:], strict=False)):
-        return (
-            f"with {k} keywords, top_groups {top} and keywords_per_group "
-            f"{values['keywords_per_group']}, {depth} levels would not grow from the top "
-            f"({' › '.join(map(str, levels))} groups); lower the depth or the group size"
-        )
     return None
 
 
@@ -1333,8 +1327,9 @@ STAGES = Registry(
             ),
             checks=(
                 CrossCheck(
-                    "the levels grow from the top, and there are fewer groups than keywords",
-                    ("depth", "top_groups", "keywords_per_group", "level_sizes"),
+                    "the level sizes set grow from the top, and there are fewer groups than "
+                    "keywords (a depth too deep for the vocabulary gets fewer levels)",
+                    ("top_groups", "level_sizes"),
                     ("kept_keywords",),
                     _levels_grow,
                 ),

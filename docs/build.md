@@ -41,7 +41,9 @@ an update (the Map, for instance) offers to build only what it needs.
 **No AI**, **With your copilot** (the build stops at this step and waits for
 the assistant's result, see {doc}`tutorial-keywords`) or **By API** (the
 keyword clean-up only; needs a provider and a key in Settings › AI). The
-choice is kept in the project.
+choice is kept in the project. Accepting a copilot's keyword triage on the
+Lexicon screen sets the keyword clean-up to **With your copilot** when it was
+**No AI**.
 
 ## Building
 
@@ -128,7 +130,10 @@ tree, for instance), or `decisions/params.json`. `--set` writes
 `decisions/params.json`, after checking the value; a value the stage cannot
 take is refused with the reason. `--set themes.group.depth=3`, for example,
 groups the keywords into three levels of themes (1 to 4), whatever the rule
-says.
+says. When the vocabulary is too small for the depth asked (after a clean-up
+that removed many keywords, for instance), the grouping takes the deepest
+number of levels that grows from the top, and the build's result and the
+Themes screen say so; the setting itself stays as you set it.
 
 ```bash
 cartolex versions my-project

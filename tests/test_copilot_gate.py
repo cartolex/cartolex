@@ -94,6 +94,11 @@ def test_an_accepted_copilot_triage_lets_in_only_the_accepted_keywords(client, p
         headers={"If-Match": f'"{proposal["keywords_version"]}"'},
     )
     assert accepted.status_code == 200, accepted.text
+    # The route was « No AI »: the build now asks the copilot, and the toast says so.
+    assert accepted.json()["route"] == "copilot"
+    assert accepted.json()["note"]["code"] == "accepted_route_copilot"
+    dry = client.post("/api/build", json={"dry_run": True}).json()
+    assert dry["ai"]["routes"]["keywords.triage"] == "copilot"
     after = client.get("/api/keywords", params={"unjudged": True, "limit": 500}).json()
     gate = after["gate"]
     assert gate["mode"] == "copilot" and gate["unjudged"] == after["total"] > 0
@@ -116,3 +121,23 @@ def test_an_accepted_copilot_triage_lets_in_only_the_accepted_keywords(client, p
     )
     assert kept_all.json()["decided"] == gate["unjudged"]
     assert client.get("/api/keywords").json()["gate"]["unjudged"] == 0
+
+
+def test_an_accepted_copilot_triage_never_overrides_the_api_route(client):
+    version = client.post("/api/build", json={"dry_run": True}).json()["ai"]["version"]
+    put = client.put(
+        "/api/build/ai", json={"keywords.triage": "api"}, headers={"If-Match": f'"{version}"'}
+    )
+    assert put.status_code == 200, put.text
+    term = client.get("/api/keywords", params={"band": "kept", "limit": 1}).json()["items"][0]
+    keep = {"term": term["term"], "language": term["language"], "decision": "exclude"}
+    proposal = client.post(
+        "/api/keywords/copilot/import", json={"result": _result("b2", [keep])}
+    ).json()
+    accepted = client.post(
+        f"/api/ai/proposals/{proposal['id']}/accept",
+        json={"all": True},
+        headers={"If-Match": f'"{proposal["keywords_version"]}"'},
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert (accepted.json()["route"], accepted.json()["note"]) == ("api", None)

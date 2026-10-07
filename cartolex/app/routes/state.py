@@ -160,8 +160,10 @@ def triage_view(status: dict[str, Any], *, extraction_runs: bool = False) -> dic
     """How the AI clean-up reads when it does not run by API (``None`` when it does), from
     its *status* (:func:`triage_status`): ``state``, ``ai_state`` (``copilot_done``, done
     with the copilot since the extraction; ``copilot_waiting``, its route is the copilot
-    and nothing was accepted since; ``copilot_earlier``, no AI route, the copilot's earlier
-    decisions still apply; ``none``) and its message, ``skip``.
+    and nothing was accepted since; ``copilot_earlier``, the route at « No AI », the
+    copilot's earlier decisions still apply: accepting a copilot's triage sets the route to
+    the copilot, so the route was set back since, or the triage predates that rule;
+    ``none``) and its message, ``skip``.
 
     The pre-flight sheet and the tracker of every build show the stage the same way
     as the project state; *extraction_runs*: as it will read once a build that finds
