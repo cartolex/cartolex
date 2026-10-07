@@ -371,7 +371,9 @@ def map_screen(s: Shots) -> None:
     d.get_by_label("In space (3D)").check()
     d.get_by_role("button", name="Draw it", exact=True).click()
     s.wait_job()
-    page.wait_for_timeout(1500)
+    d.locator("[data-version='v2'] .cx-atlas-versions__trust").wait_for()
+    d.evaluate("e => e.querySelectorAll('*').forEach((x) => { x.scrollTop = 0; })")
+    page.wait_for_timeout(1000)
     s.shot("map-versions", d)
     page.keyboard.press("Escape")
     layout = page.get_by_label("Layout", exact=True)
@@ -380,6 +382,12 @@ def map_screen(s: Shots) -> None:
     page.wait_for_function(
         "() => document.querySelector('.cx-atlas-map__box').dataset.dimensions === '3'"
     )
+    # the whole map, fitted, without the toasts of the build
+    for close in page.locator(".cx-toast").get_by_role("button", name="Dismiss").all():
+        close.click()
+    page.locator(".cx-atlas-map__box").focus()
+    page.keyboard.press("0")
+    page.evaluate("document.activeElement.blur()")
     page.wait_for_timeout(2500)
     s.shot("map-3d")
     layout.select_option(index=0)

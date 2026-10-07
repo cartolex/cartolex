@@ -56,11 +56,21 @@ draws it, and the distances, the exports and the themes' places come from it.
   redraw the map** or **Build it beside the pinned one** (the default for a
   map in space, which leaves the reference flat).
 
+```{image} images/map-versions.png
+:alt: The map versions: the pinned flat version and a version in space built beside it, each with its nearest kept and « Build it too »; below, « Try another layout », flat or in space, pinned or built beside.
+```
+
 ## A map in three dimensions
 
 A map version can be laid out in three dimensions (**Map versions**, **In
 space (3D)**): its places keep more of the distances than a flat
-map can, and groups that overlap on the flat map may stand apart. Everything
+map can, and groups that overlap on the flat map may stand apart.
+
+```{image} images/map-3d.png
+:alt: The map in three dimensions, chosen with « Layout »: the people and the themes' names in space, with Turn and Front among the map's buttons.
+```
+
+Everything
 of the flat map works on it: the layers, the selection and what it lights,
 the co-authors' lines, the names, Find, the filters, the colours, Save the
 view (the picture as it is turned on screen).
