@@ -1635,6 +1635,7 @@
   "corpus.note.note_retry_own": "{n, plural, one {# falha} other {# falhas}} de {finder} são tentadas de novo pela sua própria ação.",
   "corpus.note.note_nothing_to_retry": "Nenhuma coleta falhou: nada a tentar de novo.",
   "corpus.note.note_large_institution": "Os trabalhos assinados numa instituição grande pedem uma requisição a cada 100 trabalhos.",
+  "corpus.note.note_collaborators_cap": "A estimativa conta os trabalhos das pessoas de partida e até {cap, number} colaboradores por rodada: uma rodada com menos leva menos tempo, e uma rodada que passa do teto é deixada de lado depois de lidos os trabalhos de onde ela parte.",
   "corpus.note.note_snapshot": "O OpenAlex é lido do snapshot {snapshot} neste computador: nada é enviado a ele.",
   "corpus.note.note_openalex_budget": "O OpenAlex permite US$ {usd, number} por dia sem chave: esta coleta precisa de uma chave de API gratuita, ou de cerca de {days, plural, one {# dia} other {# dias}} ({key_days, plural, one {# dia} other {# dias}} com uma chave).",
   "corpus.note.note_openalex_budget_key": "O OpenAlex permite US$ {usd, number} por dia com a sua chave: esta coleta leva cerca de {days, plural, one {# dia} other {# dias}} dele.",

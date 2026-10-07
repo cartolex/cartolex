@@ -415,7 +415,8 @@ in common.
   for each collaborator their 100 most recent works (one request per 50 people
   with fewer works, one per person with more). Requests go one after the other,
   each taking about half a second: a round of 1,000 collaborators takes some
-  minutes. The job's progress names the reading under way.
+  minutes. The plan says how many requests and about how long, counting up to
+  the cap; the job's progress names the reading under way.
 - A collaborator is **context** by default: their texts shape the lexicon
   with a weight, they are not on the map. Decide otherwise with `--decide`:
   `mapped`, `projected`, `no` (excluded) or `later`. Decisions go to

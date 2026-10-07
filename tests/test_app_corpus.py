@@ -153,7 +153,11 @@ def test_collecting_from_the_services_end_to_end(client, services, tmp_path):
     blocked = client.get(f"/api/people/{waiting[0]['person_id']}/sheet").json()
     assert blocked["sheet"]["cause_text"]
 
-    # ── collaborators: the job's log says each phase ──
+    # ── collaborators: the plan counts the seeds' works, the job's log says each phase ──
+    plan = client.post("/api/collection/plan", json={"action": "collaborators", "cap": 500})
+    plan = plan.json()
+    assert "note_collaborators_cap" in {n["code"] for n in plan["notes"]}
+    assert plan["estimate"]["requests"] > 2
     started = client.post(
         "/api/collection/start", json={"action": "collaborators", "cap": 500, "consent": True}
     )

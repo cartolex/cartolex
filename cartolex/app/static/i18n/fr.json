@@ -1635,6 +1635,7 @@
   "corpus.note.note_retry_own": "{n, plural, one {# échec} other {# échecs}} de {finder} se relancent par sa propre action.",
   "corpus.note.note_nothing_to_retry": "Aucune collecte n’a échoué : rien à relancer.",
   "corpus.note.note_large_institution": "Les travaux signés dans une grande institution demandent une requête par tranche de 100.",
+  "corpus.note.note_collaborators_cap": "L’estimation compte les travaux des personnes de départ et jusqu’à {cap, number} collaborateurs par tour : un tour qui en trouve moins prend moins de temps, et un tour qui dépasse le plafond est écarté une fois lus les travaux dont il part.",
   "corpus.note.note_snapshot": "OpenAlex est lu dans l’instantané {snapshot} sur cet ordinateur : rien ne lui est envoyé.",
   "corpus.note.note_openalex_budget": "OpenAlex accorde {usd, number} $ US par jour sans clé : cette collecte demande une clé d’API gratuite, ou environ {days, plural, one {# jour} other {# jours}} ({key_days, plural, one {# jour} other {# jours}} avec une clé).",
   "corpus.note.note_openalex_budget_key": "OpenAlex accorde {usd, number} $ US par jour avec votre clé : cette collecte en prend environ {days, plural, one {# jour} other {# jours}}.",

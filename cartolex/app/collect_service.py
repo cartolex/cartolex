@@ -292,8 +292,9 @@ class ServiceCollection(BaseCollection):
                     "leaves it",
                 },
             )
-        for h in hosts:  # the time each host's requests take at its rate
-            h["seconds"] = round(h["requests"] / h["rate"], 1) if h["rate"] else None
+        for h in hosts:  # the time each host's requests take, one after the other
+            svc = self.settings.service(h["service"])
+            h["seconds"] = round(svc.seconds(h["requests"]), 1) if h["rate"] else None
         seconds = sum(h["seconds"] or 0 for h in hosts)
         return {
             "available": True,
@@ -348,8 +349,7 @@ class ServiceCollection(BaseCollection):
             raise ApiError.of("snapshot_unavailable", state="none")
         if status is None or openalex is None or not openalex.requests:
             return None  # nothing asked of OpenAlex: nothing to read either way
-        rate = self.settings.service("openalex").rate.per_second
-        api_seconds = openalex.requests / rate if rate else 0.0
+        api_seconds = self.settings.service("openalex").seconds(openalex.requests)
         days = 0
         if openalex.cost_usd and not self.local:
             keyed = bool(self.settings.api_key("openalex"))

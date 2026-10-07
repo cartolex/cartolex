@@ -1635,6 +1635,7 @@
   "corpus.note.note_retry_own": "{n, plural, one {# failure} other {# failures}} of {finder} are retried by its own action.",
   "corpus.note.note_nothing_to_retry": "Nobody’s collection failed: nothing to retry.",
   "corpus.note.note_large_institution": "The works signed at a large institution take one request per 100 works.",
+  "corpus.note.note_collaborators_cap": "The estimate counts the seeds’ works and up to {cap, number} collaborators a round: a round with fewer takes less, and a round past the cap is left out once the works it starts from are read.",
   "corpus.note.note_snapshot": "OpenAlex is read from the snapshot {snapshot} on this computer: nothing is sent to it.",
   "corpus.note.note_openalex_budget": "OpenAlex allows US$ {usd, number} a day without a key: this collection needs a free API key, or about {days, plural, one {# day} other {# days}} ({key_days, plural, one {# day} other {# days}} with a key).",
   "corpus.note.note_openalex_budget_key": "OpenAlex allows US$ {usd, number} a day with your key: this collection takes about {days, plural, one {# day} other {# days}} of it.",

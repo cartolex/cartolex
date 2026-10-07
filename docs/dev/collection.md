@@ -474,7 +474,11 @@ read, `collaborators_fit`, `collaborators_tables`) and when each phase ends:
 `seeds`, `parents`, `round` (the collaborators found, the large works, the cut),
 `collaborators`, `fit` and `tables`, with their seconds and counts. The app's job
 writes each as a `phase` line of `logs/jobs/<job id>.jsonl`, with the requests the
-phase sent, read from the cache and retried.
+phase sent, read from the cache and retried. The plan's estimate
+(`privacy.collaborator_requests`) counts the seeds' works from their texts in the
+tables and up to `cap` collaborators like them, and its time takes each request's
+answer into account (`Service.latency`, 0.6 s for OpenAlex), not only the rate:
+a job sends its requests one after the other.
 
 ## Failures and coverage
 

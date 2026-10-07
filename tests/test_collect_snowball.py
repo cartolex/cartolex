@@ -6,6 +6,7 @@ from __future__ import annotations
 import pytest
 from _collect_world import client, confirm_truth, demo_project, world_ids
 
+from cartolex.collect import CollectSettings, local_settings
 from cartolex.collect.harvest import harvest
 from cartolex.collect.http import ServiceUnavailable
 from cartolex.collect.openalex import (
@@ -15,8 +16,10 @@ from cartolex.collect.openalex import (
     most_recent,
     works_of_authors,
 )
+from cartolex.collect.privacy import collaborator_requests
 from cartolex.collect.snapshot import Snapshot, SnapshotSource
 from cartolex.collect.snowball import (
+    _seed_people,
     decide_collaborators,
     read_snowball,
     snowball,
@@ -170,6 +173,20 @@ def test_a_fit_reads_the_most_recent_works_one_request_per_prolific_author(
     assert len([r for r in listed if r.path == "authors"]) == 1
     batched = [r for r in listed if r.path == "works" and "sort" not in r.query]
     assert len({r.query["filter"] for r in batched}) == 1  # one list (its pages)
+
+
+def test_the_plan_counts_the_requests_a_round_takes_and_their_answers(services, seeded) -> None:
+    project, _bib, _ids = seeded
+    harvest(project, client(services, project))
+    mapped = _seed_people(project, None)
+    http = client(services, project)
+    report = snowball(project, OpenAlexApi(http), cap=500)
+    # From the seeds' texts in the tables, for as many collaborators as the round found.
+    estimate = collaborator_requests(project, mapped, len(mapped), len(report.collaborators), 1)
+    assert http.counts["sent"] <= estimate <= 2 * http.counts["sent"]
+    # Requests go one after the other: each takes its answer's time, not only the rate's.
+    assert CollectSettings().service("openalex").seconds(10) == pytest.approx(6.0)
+    assert local_settings({"openalex": "http://127.0.0.1"}).service("openalex").seconds(10) < 0.1
 
 
 def test_the_cap_cuts_a_whole_round_and_names_it(services, seeded) -> None:
