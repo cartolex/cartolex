@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -189,7 +190,12 @@ def test_variant_families_start_with_the_default() -> None:
 
 @pytest.mark.models("en", "fr")
 def test_the_lab_runs_end_to_end(tmp_path: Path) -> None:
-    run = importlib.import_module("run")
+    # By its path: another tool's ``run`` module may already be imported under that name.
+    spec = importlib.util.spec_from_file_location("lexicon_lab_run", LAB / "run.py")
+    assert spec is not None and spec.loader is not None
+    run = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = run  # its dataclasses look their module up
+    spec.loader.exec_module(run)
     out = tmp_path / "report.md"
     argv = ["--suite", "smoke", "--out", str(out), "--cache", str(tmp_path / "cache")]
     assert run.main(argv) == 0

@@ -50,7 +50,16 @@ from pathlib import Path
 from typing import Any
 
 from .http import Cancelled, Fetched, Page
-from .openalex import INSTITUTION_WORK_FIELDS, PER_PAGE, WORK_FIELDS, Years, bare_doi, short_id
+from .openalex import (
+    INSTITUTION_WORK_FIELDS,
+    PER_PAGE,
+    WORK_FIELDS,
+    Step,
+    Years,
+    bare_doi,
+    fit_reading,
+    short_id,
+)
 
 __all__ = [
     "ENTITIES",
@@ -1269,8 +1278,15 @@ class SnapshotSource:
             store.close()
 
     def works_of_authors(
-        self, author_ids: Sequence[str], years: Years
+        self,
+        author_ids: Sequence[str],
+        years: Years,
+        *,
+        max_authors: int | None = None,
+        step: Step | None = None,
     ) -> dict[str, list[dict[str, Any]]]:
+        """The works of each author record (one pass; a snapshot never cuts author lists, so
+        *max_authors* changes nothing, and the pass reports its own progress)."""
         ids = sorted({a for a in author_ids if a})
         found = self.snapshot.works(author_ids=ids, years=years) if ids else {}
         out: dict[str, list[dict[str, Any]]] = {a: [] for a in ids}
@@ -1280,6 +1296,23 @@ class SnapshotSource:
                 if key in out:
                     out[key].append(w)
         return out
+
+    def fit_works(
+        self,
+        author_ids: Sequence[str],
+        years: Years,
+        *,
+        left_out: Mapping[str, Collection[str]] | None = None,
+        step: Step | None = None,
+    ) -> dict[str, tuple[list[dict[str, Any]], int]]:
+        """For each author record, the works a topical fit reads within *years* and how many
+        it has there, as the API's :func:`~cartolex.collect.openalex.fit_works` reads them
+        (:func:`~cartolex.collect.openalex.fit_reading`), from one pass."""
+        found = self.works_of_authors(author_ids, years)
+        skip = left_out or {}
+        return {
+            aid: (fit_reading(works, skip.get(aid, ())), len(works)) for aid, works in found.items()
+        }
 
 
 def _cursor_offset(cursor: str | None) -> int:

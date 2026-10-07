@@ -333,7 +333,8 @@ truncated or when four authors or more are in alphabetical order;
 `cartolex.collect.privacy.plan_collection` estimates the requests of a planned
 resolution or harvest per host and the OpenAlex cost at its published prices,
 and lists what is sent and what never is; `record_job` writes the job's record
-(hosts, kinds of data, counts) to `logs/jobs/`.
+(hosts, kinds of data, counts, and the phases a search of collaborators told of)
+to `logs/jobs/collect-<action>-<run id>.jsonl`.
 
 The command line (`cartolex.cli_collect`) reads the contact address and the
 OpenAlex key from `--contact` / `$CARTOLEX_CONTACT` and `--openalex-key` /
@@ -438,13 +439,30 @@ starts from (`works_of_authors`), leaves out the works with more than
 project (by record, or by an ORCID a project person has), with the joint works,
 the people they wrote with and how often; the round is taken only if the
 people proposed stay within `cap`, else it is left out whole and named in
-`report.cut`. The collaborators' own works are read for their fit,
+`report.cut`. The works are asked for with `ROUND_FIELDS` (the title, abstract,
+dates and authors), and a work whose author list a list answer cut is asked for
+whole only when it shows `max_authors` authors or fewer (`complete_authors(…,
+max_authors=…)`): one that shows more is left out of the graph either way, and
+with 100 authors shown and `max_authors` at 25 none is. The collaborators' own
+works are then read for their fit (`fit_works`, `FIT_FIELDS`, no authors): the
+works counts of their records first (`works_counts`, one list per 50 records),
+then the works of those with 100 works or fewer (`FIT_WORKS`) 50 records a list,
+and for each of the others their most recent works a page of 100 at a time
+(`recent_page`, `sort=publication_date:desc`) until the fit has enough
+(`fit_enough`: at least 50 works not left out, the joint ones, or 100 more than
+those): a prolific co-author costs a request, two when most of their recent
+works are joint ones, not one per hundred works and one per large
+collaboration. A collaborator the next round
+of the same call starts from is read whole instead (their co-authors are
+needed), and that reading serves the next round. The API and the snapshot read the
+same works for a fit (`fit_reading`: the same pages of the works, the most recent
+first). The fit is
 `topical_fit(seeds, candidates)`: cosine similarity of `(1 + ln tf) × idf`
 vectors over the words (three letters or more, folded, the packaged function
 words left out) of titles and abstracts, idf over the round's texts
 (`1 + ln((1 + N) / (1 + df))`), the seeds' profile the mean of their unit
-vectors; a candidate is measured on their works other than the joint ones
-(the joint ones when there is no other). The path of a collaborator is the
+vectors; a candidate is measured on the works read other than the joint ones,
+the 100 most recent at most (the joint ones when there is no other). The path of a collaborator is the
 path of the person of the round before they wrote most with (ties by id), and
 themselves. `cap` and `max_authors` default to `params.json`'s `collect.snowball`
 (200, 25). Collaborators become people (`collaborators`), `context` and
@@ -452,6 +470,19 @@ themselves. `cap` and `max_authors` default to `params.json`'s `collect.snowball
 `decide_collaborators(project, {person: decision})` changes both (`no` →
 `excluded`, `later` → `undecided`, `projected` → the set `collaborators`).
 Nothing is written when a request fails: a round is whole or absent.
+
+`snowball(…, progress=…, on_phase=…)` says how far it is (the codes
+`collaborators_seeds`, `collaborators_parents`, `collaborators_round`,
+`collaborators_collaborators` with the records done, their total and the works
+read, `collaborators_fit`, `collaborators_tables`) and when each phase ends:
+`seeds`, `parents`, `round` (the collaborators found, the large works, the cut),
+`collaborators`, `fit` and `tables`, with their seconds and counts. The app's job
+writes each as a `phase` line of `logs/jobs/<job id>.jsonl`, with the requests the
+phase sent, read from the cache and retried. The plan's estimate
+(`privacy.collaborator_requests`) counts the seeds' works from their texts in the
+tables and up to `cap` collaborators like them, and its time takes each request's
+answer into account (`Service.latency`, 0.6 s for OpenAlex), not only the rate:
+a job sends its requests one after the other.
 
 ## Failures and coverage
 

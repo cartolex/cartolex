@@ -109,10 +109,18 @@ class Service:
     contact_param: str | None = None
     #: Whether an API key, when given, goes in an ``Authorization: Bearer`` header.
     bearer_key: bool = False
+    #: The seconds an answer typically takes to come back. A job sends its requests one
+    #: after the other, so a request takes at least this long, whatever the rate allows.
+    latency: float = 0.0
 
     def lifetime(self, kind: str) -> float:
         """Seconds an answer of this *kind* stays fresh in the cache."""
         return float(self.lifetimes.get(kind, self.lifetimes.get("default", DAY)))
+
+    def seconds(self, requests: float) -> float:
+        """About how long *requests* sent one after the other take: each waits its turn at
+        the rate, and its answer."""
+        return requests * max(1.0 / self.rate.per_second, self.latency)
 
 
 def _frozen(mapping: Mapping[str, float]) -> Mapping[str, float]:
@@ -133,6 +141,9 @@ SERVICES: Mapping[str, Service] = MappingProxyType(
             # is 10,000 list requests (10⁶ works), $0.10 without a key is 1,000 (10⁵ works).
             # the real limit is the daily budget, so cartolex stays far below it.
             rate=RateLimit(per_second=10.0, burst=10),
+            # A list of 100 works with their abstracts and authors takes 0.3 to 0.8 s to
+            # come back, plus its transfer (a few hundred kB): the pace of a job, not the rate.
+            latency=0.6,
             lifetimes=_frozen(
                 {
                     "default": 7 * DAY,
@@ -164,6 +175,7 @@ SERVICES: Mapping[str, Service] = MappingProxyType(
             # Documented: 12 requests a second, bursts of 40; 25,000 reads a day per address
             # without registration (info.orcid.org, checked 2026-09-28).
             rate=RateLimit(per_second=8.0, burst=8),
+            latency=0.3,
             lifetimes=_frozen(
                 {"default": 7 * DAY, "registry_works": 7 * DAY, "registry_record": 30 * DAY}
             ),
@@ -295,6 +307,7 @@ class CollectSettings:
     * *api_keys* — per service (``{"openalex": "…"}``); never cached, never logged;
     * *endpoints* — per service, another base URL (the demo services);
     * *rates* — per service, another rate limit (the demo services answer at once);
+    * *latencies* — per service, another typical answer time (:attr:`Service.latency`);
     * *use_system_proxy* — whether the proxy settings of the system apply.
     """
 
@@ -302,6 +315,7 @@ class CollectSettings:
     api_keys: Mapping[str, str] = field(default_factory=dict)
     endpoints: Mapping[str, str] = field(default_factory=dict)
     rates: Mapping[str, RateLimit] = field(default_factory=dict)
+    latencies: Mapping[str, float] = field(default_factory=dict)
     timeouts: Timeouts = field(default_factory=Timeouts)
     retry: RetryPolicy = field(default_factory=RetryPolicy)
     use_system_proxy: bool = True
@@ -318,6 +332,8 @@ class CollectSettings:
             changes["base_url"] = self.endpoints[name].rstrip("/")
         if name in self.rates:
             changes["rate"] = self.rates[name]
+        if name in self.latencies:
+            changes["latency"] = float(self.latencies[name])
         return replace(base, **changes) if changes else base
 
     def api_key(self, name: str) -> str | None:
@@ -341,6 +357,7 @@ def local_settings(
         api_keys=dict(api_keys or {}),
         endpoints=dict(endpoints),
         rates={name: RateLimit(per_second=1000.0, burst=1000) for name in endpoints},
+        latencies={name: 0.0 for name in endpoints},
         timeouts=timeouts or Timeouts(connect=2.0, read=10.0),
         retry=retry or RetryPolicy(max_attempts=3, base_delay=0.01, max_delay=0.05),
         use_system_proxy=False,

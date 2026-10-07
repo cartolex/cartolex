@@ -21,9 +21,10 @@ part of its vocabulary. :func:`snowball` proposes them **round by round**:
   work, and the **topical fit** (:func:`topical_fit`).
 
 **Topical fit.** The cosine similarity between the words of the candidate's
-titles and abstracts in the window (their works other than the joint ones, which
-say what they work on beyond the collaboration; the joint ones when they have
-no other) and the words of the seeds' titles and abstracts: words of three letters or more,
+titles and abstracts in the window (their most recent works other than the
+joint ones, which say what they work on beyond the collaboration, at most 100:
+:data:`~cartolex.collect.openalex.FIT_WORKS`, read a page of 100 at a time until
+at least 50 are their own; the joint ones when they have no other) and the words of the seeds' titles and abstracts: words of three letters or more,
 folded (case and accents aside), function words left out, each weighted by
 ``(1 + ln tf) × idf`` with ``idf = 1 + ln((1 + N) / (1 + df))`` over the N
 texts of the seeds and the round's candidates; every seed weighs the same in
@@ -42,8 +43,9 @@ from __future__ import annotations
 
 import json
 import math
+import time
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -57,7 +59,15 @@ from cartolex.project.tables import decision_csv_bytes, read_decision_csv
 
 from .decisions import collect_params, decided_now, read_people, slot_window, update_people
 from .names import split_full_name, words
-from .openalex import OpenAlexSource, Years, short_id
+from .openalex import (
+    FIT_WORKS,
+    OpenAlexSource,
+    Step,
+    Years,
+    fit_reading,
+    most_recent,
+    short_id,
+)
 from .people_import import _collection_slot, _registry_ids
 from .tables import RawRun, RawWriter, SourceBuilder, iso, parse_time, rebuild_sources
 from .text import abstract_from_inverted_index
@@ -85,10 +95,15 @@ DECISIONS = {
 FIT_MEASURE = (
     "cosine similarity of the words of titles and abstracts (three letters or more, folded, "
     "function words left out), weighted by (1 + ln tf) × idf over the round's texts, "
-    "between the candidate's works other than the joint ones (the joint ones when there is "
-    "no other) and the seeds' works (every seed weighing the same)"
+    "between the candidate's most recent works other than the joint ones (at most 100, read "
+    "a page of 100 at a time until 50 are their own; the joint ones when there is no other) "
+    "and the seeds' works (every seed weighing the same)"
 )
 KIND = "snowball"
+#: What hears the progress of a search: ``(fraction, message, code=…, params=…)``.
+Progress = Callable[..., None]
+#: What hears the end of each phase: ``(phase, seconds=…, round=…, counts…)``.
+OnPhase = Callable[..., None]
 
 
 # ── topical fit ──────────────────────────────────────────────────────────────
@@ -339,6 +354,8 @@ def snowball(
     max_authors: int | None = None,
     slot: str | None = None,
     now: datetime | None = None,
+    progress: Progress | None = None,
+    on_phase: OnPhase | None = None,
 ) -> SnowballReport:
     """Propose the next *rounds* rounds of collaborators (see the module docstring).
 
@@ -347,6 +364,18 @@ def snowball(
     in ``decisions/snowball.csv``, from its collaborators not refused. *cap*
     and *max_authors* default to ``params.json``'s (``collect.snowball``), the
     years to the slot's window.
+
+    What is read: the works of the people a round starts from (with their
+    co-authors), then, for the collaborators found, what their topical fit
+    needs (:meth:`~cartolex.collect.openalex.OpenAlexSource.fit_works`: their
+    most recent works, :func:`~cartolex.collect.openalex.fit_reading`), or all
+    their works when the next round starts from them in the same call. A work
+    whose author list an answer cut has more authors than any list shows: it
+    is asked for whole only when *max_authors* could keep it.
+
+    *progress* hears ``(fraction, message, code=…, params=…)`` as the reading
+    goes; *on_phase* hears the end of each phase (``seeds``, ``round``,
+    ``collaborators``, ``fit``, ``tables``) with its seconds and counts.
     """
     if rounds < 1:
         raise ValueError("rounds must be at least 1")
@@ -388,25 +417,38 @@ def snowball(
                 paths[r["person_id"]] = r["path"].split(">") if r["path"] else [r["person_id"]]
     proposed_before = len({r["person_id"] for r in previous})
     seen = set(known) | {a for recs in parents.values() for a in recs}
+    tell = _Teller(progress, on_phase, rounds)
+    seed_records = sorted({a for recs in seed_people.values() for a in recs})
+    tell.start("seeds")
     seed_works = source.works_of_authors(
-        sorted({a for recs in seed_people.values() for a in recs}), years
+        seed_records, years, max_authors=max_authors, step=tell.reading("seeds", len(seed_records))
     )
+    read = {short_id(w.get("id")) for ws in seed_works.values() for w in ws}
+    tell.end("seeds", people=len(seed_people), records=len(seed_records), works=len(read))
     seed_texts = {
         pid: _dedupe(w for a in records for w in seed_works.get(a, ()))
         for pid, records in seed_people.items()
     }
     records_out: list[dict[str, Any]] = []
     total = proposed_before
-    for k in range(last_round + 1, last_round + rounds + 1):
+    read_before: dict[str, list[dict[str, Any]]] = {}  # the last round's people, read whole
+    last = last_round + rounds
+    for k in range(last_round + 1, last + 1):
         if not parents:
             break
-        parent_works = (
-            seed_works
-            if k == 1
-            else source.works_of_authors(
-                sorted({a for recs in parents.values() for a in recs}), years
+        tell.round = k
+        wanted = sorted({a for recs in parents.values() for a in recs})
+        if k == 1:
+            parent_works = seed_works
+        elif all(a in read_before for a in wanted):
+            parent_works = {a: read_before[a] for a in wanted}
+        else:
+            tell.start("parents")
+            parent_works = source.works_of_authors(
+                wanted, years, max_authors=max_authors, step=tell.reading("parents", len(wanted))
             )
-        )
+            tell.end("parents", records=len(wanted))
+        tell.start("round")
         owner = {a: key for key, recs in parents.items() for a in recs}
         found: dict[str, dict[str, Any]] = {}
         large: set[str] = set()
@@ -449,18 +491,38 @@ def snowball(
                         for p in mine:
                             entry["parents"][p] += 1
         report.large_works += len(large)
-        if total + len(found) > cap:
+        cut = total + len(found) > cap
+        tell.end("round", collaborators=len(found), large_works=len(large), cut=cut)
+        if cut:
             report.cut = (
                 f"round {k} ({len(found)} collaborator(s)) would take the people proposed "
                 f"past the cap of {cap} ({total} already): it is left out whole; raise "
                 "collect.snowball.cap in params.json to take it"
             )
             break
-        cand_works = source.works_of_authors(sorted(found), years) if found else {}
+        tell.start("collaborators")
+        step = tell.reading("collaborators", len(found))
+        if not found:
+            cand_works: dict[str, tuple[list[dict[str, Any]], int]] = {}
+        elif k < last:  # the next round starts from them: their works are read whole
+            read_before = source.works_of_authors(
+                sorted(found), years, max_authors=max_authors, step=step
+            )
+            whole = {c: _dedupe(ws) for c, ws in read_before.items()}
+            cand_works = {
+                c: (fit_reading(ws, found[c]["joint"]), len(ws)) for c, ws in whole.items()
+            }
+        else:  # their most recent works, the joint ones left out
+            joint = {c: set(found[c]["joint"]) for c in found}
+            cand_works = source.fit_works(sorted(found), years, left_out=joint, step=step)
+        read = {short_id(w.get("id")) for ws, _n in cand_works.values() for w in ws}
+        tell.end("collaborators", people=len(found), works=len(read))
+        tell.start("fit")
         fits = topical_fit(
             seed_texts,
-            {c: _own_texts(cand_works.get(c, ()), parent_works, found[c]) for c in found},
+            {c: _own_texts(cand_works.get(c, ((), 0))[0], parent_works, found[c]) for c in found},
         )
+        tell.end("fit", people=len(found))
         next_parents: dict[str, list[str]] = {}
         for cid in sorted(found):
             entry = found[cid]
@@ -484,7 +546,7 @@ def snowball(
                 "fit": fits.get(cid, 0.0),
                 "organisation": org,
                 "joint": joint,
-                "works": len(cand_works.get(cid, ())),
+                "works": cand_works.get(cid, ((), 0))[1],
                 "retrieved_at": iso(now),
             }
             records_out.append(record)
@@ -505,6 +567,7 @@ def snowball(
         "source": source.label,
     }
     # Written even when nothing was proposed: the run records the seeds and the cut.
+    tell.start("tables", message=f"{len(records_out)} collaborators: writing the tables")
     with RawWriter(project.layout, slot, KIND, header, now=now) as out:
         for rec in records_out:
             out.add(rec)
@@ -556,7 +619,93 @@ def snowball(
             )
         update_people(project.layout, people_changes, action="collaborators proposed", now=now)
         _write_snowball(project, rows, action="collaborators proposed")
+    tell.end("tables", collaborators=len(records_out))
     return report
+
+
+class _Teller:
+    """Says how far a search is (*progress*) and when each phase ends (*on_phase*).
+
+    The seeds' works take the first 30 % of the bar, the rounds share the next 60 % (the
+    works of the people a round starts from, then those of its collaborators), the
+    tables the last 10 %.
+    """
+
+    SPANS = {"seeds": (0.0, 0.3), "tables": (0.9, 1.0)}
+
+    def __init__(self, progress: Progress | None, on_phase: OnPhase | None, rounds: int):
+        self.progress, self.on_phase, self.rounds = progress, on_phase, max(1, rounds)
+        self.round = 0  # the round being read (0: the seeds)
+        self.first_round: int | None = None
+        self.started = time.monotonic()
+
+    def _span(self, phase: str) -> tuple[float, float]:
+        if phase in self.SPANS:
+            return self.SPANS[phase]
+        if self.first_round is None:
+            self.first_round = self.round
+        width = 0.6 / self.rounds
+        lo = 0.3 + width * (self.round - self.first_round)
+        spans = {
+            "parents": (0.0, 0.3),  # the works of the people the round starts from
+            "round": (0.3, 0.3),  # its co-authors
+            "collaborators": (0.3, 0.95),  # what their fit reads
+            "fit": (0.95, 1.0),
+        }[phase]
+        return lo + width * spans[0], lo + width * spans[1]
+
+    def _say(
+        self, fraction: float, message: str, code: str, eta_s: int | None = None, **params: Any
+    ) -> None:
+        if self.progress is not None:
+            self.progress(fraction, message, code=code, params=params, eta_s=eta_s)
+
+    def start(self, phase: str, *, message: str | None = None) -> None:
+        self.started = time.monotonic()
+        lo, _hi = self._span(phase)
+        if phase == "tables":
+            self._say(lo, message or "writing the tables", "collaborators_tables")
+        elif phase in ("round", "fit"):
+            words = "finding the co-authors" if phase == "round" else "measuring the fit"
+            self._say(
+                lo, f"round {self.round}: {words}", f"collaborators_{phase}", round=self.round
+            )
+
+    def reading(self, phase: str, total: int) -> Step:
+        """What a reading of *total* records reports through, after each request or batch."""
+        lo, hi = self._span(phase)
+        what = {
+            "seeds": "the seeds' works",
+            "parents": f"round {self.round}: the works of the people it starts from",
+            "collaborators": f"round {self.round}: the collaborators' works",
+        }[phase]
+
+        started = time.monotonic()
+        # The time left, while the collaborators of the last round are read (the rest is short).
+        last = phase == "collaborators" and self.round == (self.first_round or 0) + self.rounds - 1
+
+        def step(done: int, of: int, works: int) -> None:
+            elapsed = time.monotonic() - started
+            eta = round(elapsed / done * (of - done)) if last and done and elapsed >= 5 else None
+            self._say(
+                lo + (hi - lo) * done / max(1, of),
+                f"{what}: {done} of {of}, {works} works read",
+                f"collaborators_{phase}",
+                eta_s=eta,
+                round=self.round,
+                done=done,
+                total=of,
+                works=works,
+            )
+
+        step(0, total, 0)
+        return step
+
+    def end(self, phase: str, **counts: Any) -> None:
+        if self.on_phase is not None:
+            if phase != "seeds" and phase != "tables":
+                counts = {"round": self.round, **counts}
+            self.on_phase(phase, seconds=round(time.monotonic() - self.started, 1), **counts)
 
 
 def _first_seeds(project: Project) -> dict[str, list[str]] | None:
@@ -583,12 +732,12 @@ def _own_texts(
     parent_works: Mapping[str, Sequence[Mapping[str, Any]]],
     entry: Mapping[str, Any],
 ) -> list[Mapping[str, Any]]:
-    """The texts a candidate's fit is measured on: their works other than the joint ones,
-    or the joint ones when they have no other."""
+    """The texts a candidate's fit is measured on: their :data:`FIT_WORKS` most recent works
+    other than the joint ones, or the joint ones when they have no other."""
     joint = set(entry["joint"])
     own = [w for w in _dedupe(works) if short_id(w.get("id")) not in joint]
     if own:
-        return own
+        return most_recent(own, FIT_WORKS)
     return _dedupe(w for ws in parent_works.values() for w in ws if short_id(w.get("id")) in joint)
 
 

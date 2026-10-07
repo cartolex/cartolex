@@ -360,9 +360,11 @@ class OpenAlexService:
         if not 1 <= per_page <= MAX_PER_PAGE:
             raise _BadQuery(f"per_page is {per_page}; it must be between 1 and {MAX_PER_PAGE}")
         rows = self._select(entity, query.get("search", ""), query.get("filter", ""))
+        if query.get("sort"):
+            rows = _sorted_rows(entity, rows, query["sort"])
         count = len(rows)
         signature = hashlib.sha256(
-            f"{entity}|{query.get('search', '')}|{query.get('filter', '')}".encode()
+            f"{entity}|{query.get('search', '')}|{query.get('filter', '')}|{query.get('sort', '')}".encode()
         ).hexdigest()[:12]
         meta: dict[str, Any] = {
             "count": count,
@@ -537,6 +539,18 @@ class OpenAlexService:
                 out.append(iid)
                 todo += list(self.bib.institutions[iid].parents)
         return out
+
+
+#: The fields a list of works can be sorted by (``sort=<field>[:desc]``).
+_WORK_SORTS = ("publication_date", "publication_year")
+
+
+def _sorted_rows(entity: str, rows: list[dict[str, Any]], sort: str) -> list[dict[str, Any]]:
+    """*rows* in the order ``sort`` asks (stable: rows of the same value keep their order)."""
+    key, _, direction = sort.partition(":")
+    if entity != "works" or key not in _WORK_SORTS or direction not in ("", "asc", "desc"):
+        raise _BadQuery(f"{sort} is not a sort the demo knows")
+    return sorted(rows, key=lambda r: str(r.get(key) or ""), reverse=direction == "desc")
 
 
 def _parse_filters(text: str) -> Iterable[tuple[str, str]]:
