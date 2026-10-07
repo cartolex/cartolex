@@ -45,6 +45,8 @@ export function createMapController(options) {
   const s = {
     view: createView(),
     fitted: false,
+    // a centring asked before the first fit: [x, y, zoom]
+    pending: null,
     frame: 0,
     drag: null,
     grid: null,
@@ -66,7 +68,12 @@ export function createMapController(options) {
     });
   };
   const fit = () => {
-    if (fitView(s.view, scene().bounds)) s.fitted = true;
+    if (fitView(s.view, scene().bounds)) {
+      s.fitted = true;
+      // a centring asked before the map had a size is applied once it has one
+      if (s.pending) centreView(s.view, ...s.pending);
+      s.pending = null;
+    }
     request();
   };
   const zoomAt = (factor, px, py) => {
@@ -189,7 +196,8 @@ export function createMapController(options) {
     panBy,
     /** Centre on the data point (x, y), at *zoom* (relative to the fitted map) when given. */
     centreOn(x, y, zoom) {
-      centreView(s.view, x, y, zoom);
+      if (!s.fitted) s.pending = [x, y, zoom];
+      else centreView(s.view, x, y, zoom);
       request();
     },
     /** Where (x, y) is on screen now: `[px, py]`. */

@@ -66,8 +66,13 @@ The site has no map of its own: its Atlas page mounts the app's atlas
 (`mountAtlas`, see {doc}`atlas`) with the site as its data source and its host.
 
 - **The source** (`assets/source.js`) answers from the site's files in the
-  shapes of the app's API: `bundle()` (`cartolex-atlas/3`, made in the browser
-  from `data/core.js`'s columns), `keywordUsers` (`data/keywords/<n>.js`),
+  shapes of the app's API: `bundle({version})` (`cartolex-atlas/3`, made in the
+  browser from `data/core.js`'s columns, with `dimensions`, `versions` and `z` on
+  a map in space; another version carried: the core's bundle with the places of
+  `data/layout-<id>.js`, loaded the first time it is shown, about 1 MB for 15,000
+  people in 3D, and kept; with more than one version the source says `layouts`,
+  so the atlas offers its « Layout » select; a version the site does not carry
+  answers an error and the atlas goes back to the first), `keywordUsers` (`data/keywords/<n>.js`),
   `coauthors` (the atlas's `ringsOf` over the sparse lists of `data/links.js`,
   read the first time the network is asked for), `compare` (the cosine of the
   two vectors, the top-level themes in common, the texts written together),

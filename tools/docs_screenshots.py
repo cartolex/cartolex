@@ -354,7 +354,8 @@ def themes(s: Shots) -> None:
 
 
 def map_screen(s: Shots) -> None:
-    """The map with a person selected, and the comparison of two people."""
+    """The map with a person selected; a layout in space built beside it (the map versions,
+    then the map in 3D)."""
     page = s.page
     s.go("/map", settle=3000)
     find = page.get_by_role("combobox", name="Find")
@@ -364,6 +365,25 @@ def map_screen(s: Shots) -> None:
     page.locator(".cx-atlas-card h4", has_text="Co-authors").wait_for()
     page.wait_for_timeout(1500)
     s.shot("map-person")
+    # a layout in space, built beside the pinned flat map, then shown with « Layout »
+    s.button("Map versions", exact=True).click()
+    d = s.dialog()
+    d.get_by_label("In space (3D)").check()
+    d.get_by_role("button", name="Draw it", exact=True).click()
+    s.wait_job()
+    page.wait_for_timeout(1500)
+    s.shot("map-versions", d)
+    page.keyboard.press("Escape")
+    layout = page.get_by_label("Layout", exact=True)
+    layout.wait_for()
+    layout.select_option(index=1)
+    page.wait_for_function(
+        "() => document.querySelector('.cx-atlas-map__box').dataset.dimensions === '3'"
+    )
+    page.wait_for_timeout(2500)
+    s.shot("map-3d")
+    layout.select_option(index=0)
+    page.wait_for_timeout(1500)
 
 
 def share(s: Shots) -> None:

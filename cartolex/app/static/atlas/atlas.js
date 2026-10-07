@@ -92,6 +92,8 @@ export function mountAtlas(root, { source, host }) {
   let filtersOpen = false;
   let alive = true;
   let centred = false;
+  // the next draw fits the map first (a bundle was read)
+  let refit = false;
   const sets = new Map();
   const asked = new Set();
   const answers = { users: new Map(), compare: new Map() };
@@ -542,7 +544,9 @@ export function mountAtlas(root, { source, host }) {
     built = state.view === 'world' ? worldScene(index, state, { land, colours })
       : mapScene(index, state, { texts: shownTexts, sets, users, rings: ringAnswer, colours, locale, nameOf });
     if (textsNow.pending && state.show.includes('texts')) built.notes.push({ key: 'atlas.note.texts_reading' });
-    mapView.redraw();
+    // a bundle just read is fitted first, then a focus given in the address is centred
+    mapView.redraw(refit);
+    refit = false;
     // a focus given in the address is centred once, when the map is first drawn
     if (!centred) {
       centred = true;
@@ -594,9 +598,10 @@ export function mountAtlas(root, { source, host }) {
   }
 
   /** The « Layout » select: the built versions, the shown one chosen; a version in three
-   * dimensions cannot carry a base map (offered disabled while one is shown). */
+   * dimensions cannot carry a base map (offered disabled while one is shown). Offered only
+   * by a source that reads another version (`source.layouts`). */
   function updateLayouts(state) {
-    const versions = index.bundle.versions || [];
+    const versions = source.layouts ? index.bundle.versions || [] : [];
     layoutGroup.hidden = versions.length < 2;
     if (versions.length < 2) return;
     const shownId = index.bundle.map_version || state.map || versions[0].id;
@@ -672,8 +677,8 @@ export function mountAtlas(root, { source, host }) {
       loading.removeAttribute('aria-busy');
       stage.hidden = false;
       applyLayout();
+      refit = true;
       draw();
-      mapView.redraw(true);
       if (host.onReady) host.onReady({ index });
     });
   }

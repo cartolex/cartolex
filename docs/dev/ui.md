@@ -428,8 +428,9 @@ around it what only the app has: the « Tune » panel, opened beside the atlas
 in the card's column, which waits on its rail meanwhile through `atlas.hold`, its
 width dragged or moved with the arrows and kept per person as `map.tune_width`) and
 its layout preview drawn on the atlas's map (`preview.js`, `atlas.setScene`, the
-preview's bar at the top of the panel), the map versions and base
-maps (`versions.js`), the distances' exports (`pages/share/distances.js`).
+preview's bar at the top of the panel), the map versions (`versions.js`: flat or in
+space, pinned or built beside, « Build it too », nearest kept, « Show ») and base
+maps (`bases.js`), the distances' exports (`pages/share/distances.js`).
 Inside the atlas: the treemap of the themes (`treemap.js`: a click focuses, a
 double click or Shift+Enter opens down to the keywords, ↑ / Backspace / Escape
 go back, one tab stop with the arrows), the map (`mapview.js`, `scene.js`: the
@@ -451,7 +452,7 @@ focus, the texts, the time windows).
 
 The share screen (`pages/share.js`, route `/share`) loads
 `pages/share/page.js`: building the offline site (`site.js`: the name
-question, the texts, the title and language, the privacy summary and the
+question, the texts, the title and language, the map layouts it carries, the privacy summary and the
 checks before publishing, each with its fix), the builds (`builds.js`: latest,
 stale, open, download as one zip) and figures, tables and files
 (`exports.js`). Opening it reads `GET /api/share` and `GET /api/share/plan`;
@@ -597,6 +598,11 @@ console error, an uncaught exception or a CSP violation fails a test:
   Turn and Front, the view saved as SVG, axe), two built versions and the
   « Layout » select, `map=` in the address and the World view, and the same
   budget with 10⁵ people and 10⁵ texts in 3D turned;
+  a focus given in the address centred in 2D and 3D;
+  `tests/browser/test_map_layouts.py` (slow): a layout in space built beside the
+  flat map through « Map versions », shown with « Layout » (texts of the focus,
+  Network 2, the trajectory, in space), offered by « Share » and built into a
+  site; an offline site carrying both layouts switched to the one in space;
   `tests/browser/test_atlas_links.py`: a person from the address with their
   co-authors, a keyword's people and its way to the keywords and the themes
   screens, full screen (the atlas, the map alone) and back, the view saved as SVG

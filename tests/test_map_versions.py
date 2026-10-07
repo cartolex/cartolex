@@ -193,6 +193,11 @@ def test_map_versions_are_marked_built_and_3d_is_refused_to_flat_methods(client)
     unbuilt = client.post("/api/map/versions", json={"action": "build", "version": "v2",
                           "built": False}, headers={"If-Match": etag(versions)})  # fmt: skip
     assert {v["id"]: v["built"] for v in unbuilt.json()["versions"]}["v2"] is False
+    # each version says whether the last build drew it (still v2's until the next build),
+    # and how many of each person's nearest stay nearest on it
+    listed = {v["id"]: v for v in unbuilt.json()["versions"]}
+    assert listed["v2"]["ready"] and listed["v2"]["measure"]["dimensions"] == 3
+    assert all(0 < listed[v]["measure"]["trustworthiness"] <= 1 for v in ("v1", "v2"))
 
 
 @models

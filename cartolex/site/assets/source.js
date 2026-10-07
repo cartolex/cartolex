@@ -4,9 +4,13 @@
  * source »): it answers from the site's files what the app answers from its
  * server, in the same shapes.
  *
- * - `bundle()`: the atlas bundle (`cartolex-atlas/3`) made from `data/core.js`'s
+ * - `bundle({version})`: the atlas bundle (`cartolex-atlas/3`) made from `data/core.js`'s
  *   columns: people by their site ids (`s1`…), with no name in a site of
- *   pseudonyms; organisations `o1`…; projected people `q1`…
+ *   pseudonyms; organisations `o1`…; projected people `q1`… The core is placed on the
+ *   first map version the site carries (`core.versions`); another one's places come
+ *   from `data/layout-<id>.js` (loaded the first time it is shown), in the core's rows.
+ *   With more than one version the source says `layouts`, and the atlas offers its
+ *   « Layout » select.
  * - `keywordUsers(term)`: from `data/keywords/<n>.js` (the users kept per keyword,
  *   their share of its use); `at` holds those kept, `at_capped` says when there
  *   are more.
@@ -52,6 +56,38 @@
   }
   S.partners = partners;
 
+  /** `{z}` of row *i* of the columns *cols* when they have a `z` (a map in space), else nothing. */
+  function zOf(cols, i) {
+    return cols.z ? { z: cols.z[i] } : {};
+  }
+
+  /** The places of row *i* of the columns *cols* (`x`, `y`, and `z` in space). */
+  function placeAt(cols, i) {
+    const at = { x: cols.x[i], y: cols.y[i] };
+    if (cols.z) at.z = cols.z[i];
+    return at;
+  }
+
+  /** *bundle* placed on another map version: its places from *layout* (`data/layout-<id>.js`),
+   * in the core's rows; a flat version leaves no `z`. */
+  function placedOn(bundle, layout) {
+    const move = (list, cols) => list.map((item, i) => {
+      const { z, ...rest } = item;
+      return cols && i < cols.x.length ? { ...rest, ...placeAt(cols, i) } : rest;
+    });
+    return {
+      ...bundle,
+      map_version: layout.id,
+      dimensions: layout.dimensions === 3 ? 3 : 2,
+      bounds: layout.bounds,
+      people: move(bundle.people, layout.people),
+      keywords: move(bundle.keywords, layout.keywords),
+      overlays: move(bundle.overlays, layout.projected),
+      organisations: move(bundle.organisations, layout.orgs),
+      nodes: move(bundle.nodes, layout.nodes),
+    };
+  }
+
   /** The bundle the atlas reads, made once from the core's columns. */
   function makeBundle(core) {
     const nodes = core.nodes;
@@ -67,25 +103,29 @@
     const peopleExtra = {};
     const people = p.id.map((id, i) => {
       peopleExtra[id] = { role: '', columns: {}, orgs: p.orgs[i].map((j) => o.id[j]) };
-      return { person_id: id, name: p.name[i], unit: '', x: p.x[i], y: p.y[i], shares: shares(p.shares[i]) };
+      return { person_id: id, name: p.name[i], unit: '', x: p.x[i], y: p.y[i], ...zOf(p, i), shares: shares(p.shares[i]) };
     });
     const levels = core.org_levels.map((lv) => ({ id: lv.id, names: lv.names,
       count: o.level.filter((l) => l === lv.id).length }));
+    const versions = core.versions || [];
     return {
       format: 'cartolex-atlas/3',
       available: true,
       map_version: core.map_version,
+      pinned_version: (versions.find((v) => v.pinned) || {}).id || core.map_version,
+      versions,
+      dimensions: core.dimensions === 3 ? 3 : 2,
       depth: core.depth,
       levels: core.levels,
       nodes,
       people,
-      keywords: k.term.map((term, i) => ({ term, x: k.x[i], y: k.y[i], node: k.node[i] >= 0 ? nodes[k.node[i]].id : null,
+      keywords: k.term.map((term, i) => ({ term, x: k.x[i], y: k.y[i], ...zOf(k, i), node: k.node[i] >= 0 ? nodes[k.node[i]].id : null,
         level: k.level[i], counts_to: k.counts_to[i], weight: k.weight[i], share: k.share[i], category: k.category[i] })),
       units: [],
-      overlays: q.id.map((id, i) => ({ set: '', person_id: id, name: q.name[i], x: q.x[i], y: q.y[i],
+      overlays: q.id.map((id, i) => ({ set: '', person_id: id, name: q.name[i], x: q.x[i], y: q.y[i], ...zOf(q, i),
         shares: shares(q.shares[i]) })),
       organisations: o.id.map((id, i) => ({ id, name: o.name[i], acronym: o.acronym[i], level: o.level[i],
-        parents: o.parents[i].map((j) => o.id[j]), x: o.x[i], y: o.y[i], members: o.members[i],
+        parents: o.parents[i].map((j) => o.id[j]), x: o.x[i], y: o.y[i], ...zOf(o, i), members: o.members[i],
         members_ever: o.members_ever[i], location: o.location[i] ? { lon: o.location[i][0], lat: o.location[i][1] } : null })),
       organisation_levels: levels,
       people_extra: peopleExtra,
@@ -104,10 +144,24 @@
     const core = ix.core;
     const has = core.has || {};
     let bundle = null;
+    const placedBundles = new Map();
+    const versions = core.versions || [];
     const source = {
-      bundle() {
+      bundle(options) {
         if (!bundle) bundle = makeBundle(core);
-        return Promise.resolve(bundle);
+        const version = options && options.version;
+        if (!version || version === core.map_version) return Promise.resolve(bundle);
+        if (!versions.some((v) => v.id === version)) {
+          return Promise.resolve({ error: { code: 'map_version_not_built', message: S.t('missing.title') } });
+        }
+        if (placedBundles.has(version)) return Promise.resolve(placedBundles.get(version));
+        const part = `layout-${version}`;
+        return S.load(part).then((ok) => {
+          if (!ok) return { error: { code: 'site_part_missing', message: S.t('missing.title') } };
+          const placed = placedOn(bundle, S.data[part]);
+          placedBundles.set(version, placed);
+          return placed;
+        });
       },
       keywordsOf(kind, ids) {
         const parts = kind === 'person' ? [...new Set(ids.map((id) => S.partOf('people', id)))] : ['orgs'];
@@ -156,6 +210,7 @@
       };
     }
     if (S.data.world) source.land = () => Promise.resolve(S.data.world);
+    if (versions.length > 1) source.layouts = true;
 
     /** One side of a comparison, with its parts loaded: `{kind, id, i, vector, themes, people}`. */
     function side(ref) {

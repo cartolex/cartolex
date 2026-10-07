@@ -108,7 +108,8 @@ def test_the_main_flow_of_the_atlas(demo_s, app_for, open_app, axe_source):
     page.wait_for_function(f"() => ({LIT})().people > 0")  # its people lit on the map
     box.focus()
     page.keyboard.press("Escape")
-    assert query(ui)["sel"][0].startswith("theme:")
+    # Escape goes back to the theme: the address follows on the next frame
+    page.wait_for_function("() => /[?&]sel=theme(:|%3A)/.test(location.search)")
 
     # a person found by name: their co-authors listed and drawn, then a second ring
     linked = None

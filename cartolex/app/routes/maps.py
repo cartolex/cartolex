@@ -43,7 +43,16 @@ def _view(ctx: Any) -> dict[str, Any]:
     from cartolex.project.maps import read_maps
 
     maps, fp = read_maps(ctx.layout)
-    versions = [{**v.model_dump(mode="json"), "pinned": v.id == maps.pinned} for v in maps.versions]
+    drawn = _drawn(ctx)
+    versions = [
+        {
+            **v.model_dump(mode="json"),
+            "pinned": v.id == maps.pinned,
+            "ready": v.id in drawn,
+            "measure": drawn.get(v.id),
+        }
+        for v in maps.versions
+    ]
     from cartolex.build.engine import TSNE_FROM_PEOPLE
     from cartolex.project.models import SPACE_METHODS
 
@@ -64,6 +73,40 @@ def _view(ctx: Any) -> dict[str, Any]:
         "version": version_of(fp),
         "empty": None if versions else empty("empty_no_map_versions"),
     }
+
+
+def _drawn(ctx: Any) -> dict[str, dict[str, Any] | None]:
+    """The versions the last build of the map drew, by id: what it measured of each
+    (``seconds``, ``trustworthiness``: how many of each person's nearest people stay
+    nearest on the map), else ``None``."""
+    import json
+
+    from cartolex.app.map_versions import built_versions, version_place
+    from cartolex.build.records import read_record
+
+    built = built_versions(ctx)
+    if not built:
+        return {}
+    record = read_record(ctx.layout, "map.layout")
+    listed = (record.measures.model_extra or {}).get("versions") if record else None
+    measured = {str(m["id"]): m for m in listed or [] if isinstance(m, dict) and m.get("id")}
+    out: dict[str, dict[str, Any] | None] = {}
+    for v in built:
+        m = measured.get(v["id"]) or {}
+        trust = m.get("trustworthiness")
+        if trust is None:  # a map built before the versions were measured: its diagnostics
+            place = version_place(ctx, v["id"])
+            try:
+                doc = json.loads((place.layout / "umap_diagnostics.json").read_text("utf-8"))
+                trust = doc.get("trustworthiness") if isinstance(doc, dict) else None
+            except (OSError, ValueError, AttributeError):
+                trust = None
+        out[v["id"]] = {
+            "dimensions": v["dimensions"],
+            "seconds": m.get("seconds"),
+            "trustworthiness": float(trust) if isinstance(trust, int | float) else None,
+        }
+    return out
 
 
 def _check_layout_params(maps: Any, body: VersionAction) -> None:
@@ -152,8 +195,13 @@ def change_versions(
     if body.build:
         from .build import start_build_job
 
+        # the map and what is placed on each built version (time windows, projected people)
         view["job"] = start_build_job(
-            runtime_of(request), ctx, ["map.layout"], title="draw the map", title_code="draw_map"
+            runtime_of(request),
+            ctx,
+            ["map.layout", "map.trajectories", "overlays.position"],
+            title="draw the map",
+            title_code="draw_map",
         )["job"]
     response.headers["ETag"] = etag_of(view["version"])
     return view

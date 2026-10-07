@@ -100,7 +100,10 @@ of the atlas keeps working.
 
 The reads of places (`bundle`, `texts`, `textsOf`, `windows`) are given the
 `version` the atlas shows when it is not the pinned one; a source with a single
-version may ignore it. A version that cannot be read (no longer built) sends
+version may ignore it. A source that reads another version says so with
+`layouts: true` (the app's, and the offline site's when it carries more than one
+layout); only then does the bar offer « Layout », so a source that cannot switch
+never shows a select that does nothing. A version that cannot be read (no longer built) sends
 the atlas back to the pinned one.
 
 Names: a person's `name` may be `null` (a site built with pseudonyms, a

@@ -6,13 +6,16 @@
  * A people atlas asks at each build whether the site shows names or
  * pseudonyms: neither is chosen until the person chooses, and the build
  * waits for the answer. Texts are left out unless asked (titles, or titles
- * and abstracts; never a full text). The summary and the checks are read
- * again when an option changes.
+ * and abstracts; never a full text). The map layouts it carries are the built
+ * map versions ticked (every one by default, the pinned first; it opens on the
+ * first). The summary and the checks are read again when an option changes.
  */
 import { html, useEffect, useRef, useState } from '../../core/preact.js';
 import { formatBytes, formatList, formatNumber, locale, t } from '../../core/i18n.js';
 import { runtime } from '../../core/runtime.js';
-import { Button, Card, ErrorCard, FormField, Icon, Input, ProgressBar, Select } from '../../components/index.js';
+import {
+  Button, Card, Checkbox, ErrorCard, FormField, Icon, Input, ProgressBar, Select,
+} from '../../components/index.js';
 
 const LEVEL_ICON = { blocker: 'error', question: 'help', warning: 'warning', info: 'info' };
 const LANGUAGES = ['en', 'fr', 'pt-BR'];
@@ -47,6 +50,32 @@ function checkText(check) {
   return t(`share.check.${check.code}`, params);
 }
 
+/** « Map layouts »: the built map versions, each ticked to be carried (at least one); *chosen*
+ * is null for every one. */
+function Layouts({ known, chosen, plan, onChange }) {
+  const on = (id) => (chosen ? chosen.includes(id) : true);
+  const toggle = (id, checked) => {
+    const now = known.map((v) => v.id).filter((v) => (v === id ? checked : on(v)));
+    if (!now.length) return;
+    onChange(now.length === known.length ? null : now);
+  };
+  const bytes = plan && plan.summary.site_bytes ? plan.summary.site_bytes.layouts : 0;
+  const count = known.filter((v) => on(v.id)).length;
+  return html`<fieldset class="cx-share-choice" id="cx-share-layouts" aria-describedby="cx-share-layouts-help">
+    <legend class="cx-share-choice__legend">${t('share.layouts')}</legend>
+    <p class="cx-share__note" id="cx-share-layouts-help">${t('share.layouts.help')}</p>
+    ${known.map((v) => html`<div key=${v.id} class="cx-share-layouts__item">
+      <${Checkbox} checked=${on(v.id)} disabled=${on(v.id) && count === 1} data-version=${v.id}
+        title=${on(v.id) && count === 1 ? t('share.layouts.last') : undefined}
+        label=${[v.id, t(v.dimensions === 3 ? 'map.versions.dims.3' : 'map.versions.dims.2'),
+          v.method ? t(`map.method.${v.method}`) : '', v.note || '', v.pinned ? t('share.layouts.pinned') : '']
+          .filter(Boolean).join(' · ')}
+        onChange=${(e) => toggle(v.id, e.currentTarget.checked)} />
+    </div>`)}
+    ${bytes ? html`<p class="cx-share__note">${t('share.layouts.size', { size: formatBytes(bytes) })}</p>` : null}
+  </fieldset>`;
+}
+
 /** What the site will hold and never hold. */
 function Summary({ summary, options }) {
   const s = summary;
@@ -61,6 +90,9 @@ function Summary({ summary, options }) {
     <li><${Icon} name="check" /><span>${t('share.summary.orgs', { n: s.organisations })}</span></li>
     <li><${Icon} name="check" /><span>${t('share.summary.keywords', { keywords: s.keywords, themes: s.themes })}</span></li>
     <li><${Icon} name=${options.texts === 'abstracts' ? 'warning' : 'check'} /><span>${t(`share.summary.texts.${options.texts}`)}</span></li>
+    ${(s.versions || []).length > 1 ? html`<li><${Icon} name="check" /><span>${t('share.summary.layouts', {
+      n: s.versions.length, list: formatList(s.versions.map((v) => `${v.id} (${t(v.dimensions === 3
+        ? 'map.versions.dims.3' : 'map.versions.dims.2')})`)) })}</span></li>` : null}
     <li><${Icon} name="cross" /><span>${t('share.summary.never', { n: s.full_texts })}</span></li>
   </ul>`;
 }
@@ -80,7 +112,9 @@ function Checks({ checks, onFix }) {
 
 export function SiteCard({ ctx, available, job, running, onStarted }) {
   const [options, setOptions] = useState({ names: null, namesProjected: false, texts: 'none', title: '',
-    language: LANGUAGES.includes(locale.value) ? locale.value : 'en' });
+    language: LANGUAGES.includes(locale.value) ? locale.value : 'en', versions: null });
+  // the built map versions (every one, as a plan with no choice of them answers)
+  const [known, setKnown] = useState([]);
   const [plan, setPlan] = useState(null);
   const [planError, setPlanError] = useState(null);
   const [starting, setStarting] = useState(false);
@@ -92,8 +126,10 @@ export function SiteCard({ ctx, available, job, running, onStarted }) {
     if (o.names !== null) query.names = o.names ? 'names' : 'pseudonyms';
     query.names_projected = o.namesProjected ? 'names' : 'pseudonyms';
     if (o.title) query.title = o.title;
+    if (o.versions) query.versions = o.versions.join(',');
     const r = await ctx.api.get('/api/share/plan', { query });
     if (r.ok) {
+      if (!o.versions) setKnown(r.data.summary.versions || []);
       setPlan(r.data);
       setPlanError(null);
     } else setPlanError(r.error);
@@ -123,7 +159,8 @@ export function SiteCard({ ctx, available, job, running, onStarted }) {
     const r = onStarted(await ctx.api.post('/api/share/builds', {
       names: options.names === null ? null : options.names ? 'names' : 'pseudonyms',
       names_projected: options.namesProjected ? 'names' : 'pseudonyms',
-      texts: options.texts, title: options.title, language: options.language }));
+      texts: options.texts, title: options.title, language: options.language,
+      ...(options.versions ? { versions: options.versions } : {}) }));
     setStarting(false);
     if (!r.ok) setStartError(r.error);
   };
@@ -157,6 +194,8 @@ export function SiteCard({ ctx, available, job, running, onStarted }) {
     <${Choice} name="texts" label=${t('share.texts')} value=${options.texts}
       options=${['none', 'titles', 'abstracts'].map((v) => ({ value: v, label: textsLabel(v, plan) }))}
       onChange=${(v) => set({ texts: v })} />
+    ${known.length > 1 ? html`<${Layouts} known=${known} chosen=${options.versions} plan=${plan}
+      onChange=${(versions) => set({ versions })} />` : null}
     <h3 class="cx-share__head">${t('share.summary')}</h3>
     ${planError ? html`<${ErrorCard} error=${planError} compact onRetry=${() => readPlan(options)} />`
       : plan ? html`<${Summary} summary=${plan.summary} options=${options} />

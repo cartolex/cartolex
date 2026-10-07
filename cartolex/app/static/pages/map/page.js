@@ -183,6 +183,20 @@ export function AtlasScreen() {
     setBase(id);
   };
 
+  /** Show a built map version in the atlas (`map=<id>`; the pinned one: none). A base map
+   * is shown on the pinned version only, so it is left first. */
+  const showVersion = (v) => {
+    setVersionsOpen(false);
+    const id = v.pinned ? '' : v.id;
+    if (base) {
+      const url = new URL(window.location.href);
+      if (id) url.searchParams.set('map', id);
+      else url.searchParams.delete('map');
+      window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+      changeBase('');
+    } else if (atlas) atlas.set({ map: id });
+  };
+
   const available = bundle && bundle.available;
   const tuneCount = changedCount(PANELS.map, app.stores.project.state.value);
   const head = html`<header class="cx-atlas__head">
@@ -254,6 +268,7 @@ export function AtlasScreen() {
     <${VersionsDialog} ctx=${ctx} open=${versionsOpen} onClose=${() => setVersionsOpen(false)}
       drawn=${(shownBundle || bundle).map_version} base=${base} onBase=${changeBase}
       pinned3d=${(bundle.versions || []).some((v) => v.pinned && v.dimensions === 3)}
+      onShow=${showVersion} refresh=${tick}
       onBuild=${(job) => {
         setWatched(job.id);
         app.stores.jobs.refresh();

@@ -192,3 +192,7 @@
 .cx-distances-form > * {
   flex: 1 1 14rem;
 }
+
+.cx-share-layouts__item {
+  padding: var(--cx-space-1) 0;
+}

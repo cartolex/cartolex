@@ -24,7 +24,12 @@ Open **Share** in the navigation. The box **Build the offline site** asks:
 - **Names of the placed people**: the projected people (newcomers,
   applicants) may be a sensitive set: pseudonyms unless you choose otherwise;
 - **Texts**: none (keywords and places only), the titles, or the titles and
-  abstracts, each with the size it adds to the site.
+  abstracts, each with the size it adds to the site;
+- **Map layouts**, when more than one map version is built (**Map versions**,
+  {doc}`tutorial-map`): the layouts the site carries, flat or in three
+  dimensions, every one by default, the pinned one first. The site opens on
+  the first one ticked; a reader switches with **Layout** at the top of its
+  map, and each other layout is read only when it is shown.
 
 ```{image} images/share-site.png
 :alt: The Share screen: the questions of the offline site (title, language, names or pseudonyms, texts) and the figures, tables and files.

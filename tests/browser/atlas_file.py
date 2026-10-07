@@ -103,6 +103,7 @@ MAIN = """
   const graph = { neighbours: (id) => links.get(id) || [], placed: (id) => (names.has(id) ? 'map' : null),
     describe: (ids) => ids.map((id) => ({ id, name: names.get(id) || null })) };
   const source = {
+    layouts: true,
     bundle: ({ version } = {}) => {
       window.FAKE_READS.push(['bundle', version || '']);
       return Promise.resolve(versionOf(version));

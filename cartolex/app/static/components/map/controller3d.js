@@ -80,7 +80,12 @@ export function createMapController3D(options) {
   };
   const fit = () => {
     const sc = scene();
-    if (fitView3(s.view, sc.bounds, 16, sphereNow(sc))) s.fitted = true;
+    if (fitView3(s.view, sc.bounds, 16, sphereNow(sc))) {
+      s.fitted = true;
+      // a centring asked before the map had a size is applied once it has one
+      if (s.pending) centreView3(s.view, ...s.pending);
+      s.pending = null;
+    }
     request();
   };
   const zoomAt = (factor, px, py) => {
@@ -233,7 +238,8 @@ export function createMapController3D(options) {
     },
     /** Centre on (x, y, z), at *zoom* (relative to the fitted map) when given. */
     centreOn(x, y, zoom, z = 0) {
-      centreView3(s.view, x, y, z, zoom);
+      if (!s.fitted) s.pending = [x, y, z, zoom];
+      else centreView3(s.view, x, y, z, zoom);
       request();
     },
     /** Where (x, y, z) is on screen now: `[px, py]`, or null behind the camera. */

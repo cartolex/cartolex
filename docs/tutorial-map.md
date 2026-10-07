@@ -37,10 +37,29 @@ person in time order, the first and last years named: where their work went
 over the years. It is off until you turn it on, and stays on (in the page's
 address) while you select other people.
 
+## Map versions
+
+**Map versions**, at the top of the map, lists how the map was drawn: each
+version's method, seed, note, and whether it is flat (**2D**) or in space
+(**3D**). The **pinned** version is the reference: every build of the map
+draws it, and the distances, the exports and the themes' places come from it.
+
+- **Nearest kept** says how faithful a built version is: how many of each
+  person's nearest people stay nearest on the map (its trustworthiness; 100 %
+  would keep them all).
+- **Build it too** has a version drawn at each build of the map, beside the
+  pinned one (which is always built), so the atlas and the offline site can
+  show it. The map is built again to draw the change: **Build the map now**,
+  or at the next build. A built version has **Show**.
+- **Try another layout** draws a new version: another method, another seed,
+  **Flat (2D)** or **In space (3D)** (a UMAP layout only), then **Pin it and
+  redraw the map** or **Build it beside the pinned one** (the default for a
+  map in space, which leaves the reference flat).
+
 ## A map in three dimensions
 
-A map version can be laid out in three dimensions (**Map versions**, a UMAP
-layout with 3 dimensions): its places keep more of the distances than a flat
+A map version can be laid out in three dimensions (**Map versions**, **In
+space (3D)**): its places keep more of the distances than a flat
 map can, and groups that overlap on the flat map may stand apart. Everything
 of the flat map works on it: the layers, the selection and what it lights,
 the co-authors' lines, the names, Find, the filters, the colours, Save the

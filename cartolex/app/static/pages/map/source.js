@@ -23,6 +23,7 @@ export function apiSource(ctx, { first, base }) {
   const withBase = (query = {}) => (base() ? { ...query, base: base() } : query);
   const placed = ({ version, ...query } = {}) => withBase(version ? { ...query, version } : query);
   return {
+    layouts: true, // bundle({version}) reads another built map version
     bundle({ version } = {}) {
       if (kept && (!version || version === kept.map_version)) {
         const b = kept;

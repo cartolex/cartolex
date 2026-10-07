@@ -166,6 +166,24 @@ def test_a_map_in_three_dimensions(file_page, axe_source):
     assert blocking(axe_file_page(page, axe_source)) == []
 
 
+@pytest.mark.parametrize("dimensions", [2, 3])
+def test_a_focus_in_the_address_is_centred(file_page, dimensions):
+    """A focus given in the address is drawn at the map's centre, zoomed in (the map is
+    fitted first, never after the centring)."""
+    page = file_page("#sel=person:p3", dimensions=dimensions)
+    page.wait_for_function(f"() => {BOX}.cxMap.view().zoom > 2")
+    off = page.evaluate(
+        f"""() => {{
+          const people = window.ATLAS.index().people;
+          const p = people.find((q) => q.person_id === 'p3');
+          const at = {BOX}.cxMap.project(p.x, p.y, p.z || 0);
+          const r = {BOX}.getBoundingClientRect();
+          return [Math.abs(at[0] - r.width / 2), Math.abs(at[1] - r.height / 2)];
+        }}"""
+    )
+    assert off[0] < 2 and off[1] < 2, off
+
+
 def test_two_built_versions_and_the_layout_select(file_page):
     page = file_page(versions=True, windows=True)
     box = page.locator(".cx-atlas-map__box")
