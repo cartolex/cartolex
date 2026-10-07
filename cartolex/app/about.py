@@ -113,8 +113,9 @@ def about() -> dict[str, Any]:
     year = (stamp or {}).get("date", "")[:4]
     citation = ", ".join(authors) + (f" ({year})" if year else "")
     citation += f". cartolex, version {version} [software]."
-    if source:
-        citation += f" {source}"
+    doi = package["urls"].get("doi", "")
+    if doi or source:
+        citation += f" Zenodo. {doi}" if doi else f" {source}"
     return {
         "name": "cartolex",
         "version": version,

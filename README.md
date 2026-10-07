@@ -90,9 +90,9 @@ behind each step, with their references: [docs/references.md](docs/references.md
 
 ## How to cite
 
-cartolex is archived on [Zenodo](https://zenodo.org), one record per version,
-each with its DOI: please cite the record of the version you used (the app's
-About page gives the version). [`CITATION.cff`](CITATION.cff) (« Cite this
+cartolex is archived on Zenodo, one record per version, each with its DOI:
+please cite the record of the version you used (the app's About page gives the
+version). All versions: [doi:10.5281/zenodo.23223331](https://doi.org/10.5281/zenodo.23223331). [`CITATION.cff`](CITATION.cff) (« Cite this
 repository » on GitHub) and [`codemeta.json`](codemeta.json) carry the
 reference for reference managers; [How to cite](docs/cite.md) gives a BibTeX
 entry, and [the references](docs/references.md) the methods to cite beside it.

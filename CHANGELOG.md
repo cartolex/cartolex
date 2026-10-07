@@ -3,6 +3,12 @@
 This file covers the 1.0 line. The history of the 0.x releases stays with that
 line.
 
+## 1.0.1 — 2026-10-07
+
+- cartolex's DOI on Zenodo, 10.5281/zenodo.23223331 (every version), in the
+  About page's citation, the package's metadata, `CITATION.cff`,
+  `codemeta.json`, the README and « How to cite ».
+
 ## 1.0.0 — 2026-10-07
 
 This version runs on Linux and macOS; it does not run on Windows yet (a later

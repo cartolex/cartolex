@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use cartolex, please cite it as below."
 title: "cartolex"
-version: "1.0.0"
+version: "1.0.1"
 date-released: "2026-10-07"
 abstract: >-
   cartolex maps a body of texts by the words of their authors: the vocabulary they
@@ -11,6 +11,7 @@ abstract: >-
 type: software
 license: MIT
 repository-code: "https://github.com/cartolex/cartolex"
+doi: "10.5281/zenodo.23223331"
 keywords:
   - science mapping
   - keyword extraction

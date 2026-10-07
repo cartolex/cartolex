@@ -7,8 +7,9 @@ Ronceray.
 **cartolex is archived on Zenodo, one record per version, each with its DOI.**
 Cite the record of the version you used: its page gives the reference in the
 common styles (« Cite as ») and exports it to reference managers. Zenodo also
-gives a DOI that always leads to the latest version: use it only to refer to
-cartolex in general.
+gives a DOI that always leads to the latest version,
+[10.5281/zenodo.23223331](https://doi.org/10.5281/zenodo.23223331): it lists
+every version's record; use it alone only to refer to cartolex in general.
 
 These pages belong to version **{{ version }}**. The version of the app you
 run is on its About page (the logo at the top left of every screen) and at
@@ -20,8 +21,8 @@ version.
 > Klüger, E., & Ronceray, P. ({{ year }}). *cartolex* (version {{ version }})
 > [Computer software]. Zenodo.
 
-followed by the DOI of that version's record. Before a version is archived,
-give the address of its source instead: <https://github.com/cartolex/cartolex>.
+followed by the DOI of that version's record (its Zenodo page, reached from
+the DOI above).
 
 ## BibTeX
 

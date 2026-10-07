@@ -39,7 +39,8 @@ _bibtex = f"""```bibtex
   title   = {{cartolex}},
   version = {{{version}}},
   year    = {{{_year}}},
-  url     = {{https://github.com/cartolex/cartolex}},
+  doi     = {{10.5281/zenodo.23223331}},
+  url     = {{https://doi.org/10.5281/zenodo.23223331}},
   license = {{MIT}}
 }}
 ```"""
