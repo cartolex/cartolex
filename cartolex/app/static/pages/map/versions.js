@@ -60,11 +60,13 @@ function VersionRow({ v, drawn, busy, act, onShow }) {
       ${' '}<span class="cx-atlas-versions__dims">${t(space ? 'map.versions.dims.3' : 'map.versions.dims.2')}</span>
       ${v.pinned ? html` <${StatusPill} state="up_to_date" detail=${t('map.versions.pinned')} />` : null}
       ${v.id === drawn ? html` <span class="cx-atlas-versions__drawn">${t('map.versions.drawn')}</span>` : null}
-      <p class="cx-atlas-panel__muted">
-        ${typeof trust === 'number' ? html`<span class="cx-atlas-versions__trust">${t('map.versions.trust',
-          { value: trust })}</span> ` : null}
-        ${v.built && !v.ready ? html`<span>${t('map.versions.not_ready')}</span> ` : null}
-        ${v.note || ''} ${v.created_at ? formatDate(v.created_at) : ''}</p>
+      <p class="cx-atlas-panel__muted">${[
+        typeof trust === 'number' ? html`<span class="cx-atlas-versions__trust">${t('map.versions.trust',
+          { value: trust })}</span>` : null,
+        v.built && !v.ready ? t('map.versions.not_ready') : null,
+        v.note || null,
+        v.created_at ? formatDate(v.created_at) : null,
+      ].filter(Boolean).map((part, k) => html`${k ? ' · ' : ''}${part}`)}</p>
     </div>
     <div class="cx-atlas-versions__actions">
       <${Switch} id=${switchId} label=${t('map.versions.build_too')} checked=${v.pinned || Boolean(v.built)}
