@@ -38,11 +38,11 @@ contains**.
 
 ### 1. Open the copilot
 
-On the **Keywords** screen, press **Triage with AI**, then **With an AI copilot
+On the **Lexicon** screen, press **Triage with AI**, then **With an AI copilot
 (runs code, no key)…**.
 
 ```{image} images/keywords-list.png
-:alt: The Keywords screen: the bands Kept, To check, Set aside, Rejected automatically and Lexicon, and the list of candidates with their reason, people, texts and score.
+:alt: The Lexicon screen: the bands Kept, To check, Set aside, Rejected automatically and Final lexicon, and the list of candidates with their reason, people, texts and score.
 ```
 
 (You can also choose, on the Build screen, **AI help › Keyword clean-up › With
@@ -122,12 +122,12 @@ Accepted decisions apply at the next build: press **Build…** on the overview
 
 From now on, **only the keywords someone accepted** (you or the assistant)
 enter the vocabulary. New candidates nobody judged are counted on the
-Keywords screen, « N candidates not judged »: **Send them to the AI** makes a
+Lexicon screen, « N candidates not judged »: **Send them to the AI** makes a
 bundle of them alone, **Keep them anyway** lets them in.
 
 ### 6. See the lexicon
 
-Open the **Lexicon** tab of the Keywords screen: the keywords the last build
+Open the **Final lexicon** tab of the Lexicon screen: the keywords the last build
 kept, the whole vocabulary the themes and the map use, with a **Word cloud**.
 **Size by** *Score* or *People*, **Colour by** *Theme* or *Category*. The list
 below gives each keyword's term in each language, its rank, people, texts,
@@ -142,7 +142,7 @@ of the field. Open the **Themes** screen next: {doc}`tutorial-themes`.
 
 ## By hand, or by API
 
-- **By hand**: on any band of the Keywords screen, select rows (click,
+- **By hand**: on any band of the Lexicon screen, select rows (click,
   Shift-click, or the filters, then « All N shown ») and choose **Keep**,
   **Exclude** or **Merge…**. Merging a French term into its English
   translation makes them one keyword on the map.

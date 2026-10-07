@@ -164,7 +164,7 @@ at the top of the overview.
    what to do, with a button: no mapped person has texts yet (collect them),
    or nobody is mapped (choose people on the People screen). *Done when the
    vocabulary is built.*
-6. **Keyword review.** The **Keywords** screen shows the candidates in their
+6. **Keyword review.** The **Lexicon** screen shows the candidates in their
    bands, *kept*, *to check* and *set aside*: keep, exclude or merge them,
    one or many, then build again to apply your decisions ({doc}`keywords`,
    {doc}`tutorial-keywords`). *Done when you have made at least one decision

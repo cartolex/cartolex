@@ -3,7 +3,7 @@
 cartolex builds its keywords from the texts of the people it maps: nothing
 comes from an outside list of terms. This page says, in plain words, how a
 phrase in a text becomes a keyword of the map: what you see on the
-**Keywords** screen (the bands and their reasons), and what the AI clean-up
+**Lexicon** screen (the bands and their reasons), and what the AI clean-up
 changes ({doc}`tutorial-keywords` does it step by step). The rules were chosen
 by measuring them on test corpora ({doc}`dev/lexicon-lab`), quality first:
 everything that reaches the lexicon is checked.
@@ -154,7 +154,7 @@ amphipodes`) is a keyword; a single everyday word (`water`, `growth`) is
 not, unless the field uses it as a term of art. Its answers are kept: the
 same candidate is never paid for twice.
 
-**Triage with AI** (the Keywords screen's primary button) offers two routes:
+**Triage with AI** (the Lexicon screen's primary button) offers two routes:
 **by API**, the batches above, with a key; or **with an AI copilot**, without a
 key and without cartolex sending anything. The copilot is a zip you give to an
 assistant that can run code: the candidates with their evidence (how many

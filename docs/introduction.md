@@ -98,7 +98,7 @@ outside list of terms.
   place, a field) and its name in the reference language, so that a term and
   its translation become one keyword.
 - The **lexicon** is what the last build kept: the keywords the themes and the
-  map use, on the **Lexicon** tab of the Keywords screen, with a word cloud.
+  map use, on the **Final lexicon** tab of the Lexicon screen, with a word cloud.
 
 {doc}`keywords` explains each rule in plain words.
 

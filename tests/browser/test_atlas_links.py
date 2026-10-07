@@ -45,7 +45,7 @@ def test_the_map_links_to_the_other_screens_and_back(demo_s, app_for, open_app):
     term = max(atlas["keywords"], key=lambda k: k["weight"] or 0)["term"]
     ui.navigate(f"/map?sel=keyword:{quote(term)}")
     card_section(page, "Used by").wait_for()
-    panel.get_by_role("link", name="Open in Keywords ↗").click()
+    panel.get_by_role("link", name="Open in the lexicon ↗").click()
     page.locator(".cx-kw-term-filter").wait_for()
     page.wait_for_function(
         "(t) => [...document.querySelectorAll('.cx-kw-term')].some((e) => e.textContent === t)",

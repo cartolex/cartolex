@@ -312,7 +312,7 @@ def answer_triage(folder: Path) -> Path:
 
 def keywords(s: Shots) -> None:
     """The Keywords screen, a copilot's triage exported, answered, reviewed and accepted, the
-    build again, the Lexicon tab."""
+    build again, the Final lexicon tab."""
     page = s.page
     s.go("/keywords?band=check", settle=2000)
     s.shot("keywords-list")
@@ -337,7 +337,7 @@ def keywords(s: Shots) -> None:
     s.button(re.compile(r"^Build \d+ stages")).click()
     s.wait_job()
     s.go("/keywords?band=lexicon", settle=3000)
-    tab = page.get_by_role("tab", name=re.compile("^Lexicon"))
+    tab = page.get_by_role("tab", name=re.compile("^Final lexicon"))
     if tab.count():
         tab.first.click()
         page.wait_for_timeout(3000)

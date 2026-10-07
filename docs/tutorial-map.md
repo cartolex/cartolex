@@ -32,7 +32,7 @@ light its people and keywords.
   used keywords; an organisation's people; a keyword's users; a theme's
   keywords and the people who weigh most on it.
 - Its links open the same thing elsewhere: **Open in People** (the person's
-  sheet and texts), **Open in Organisations**, **Open in Keywords**, **Open in
+  sheet and texts), **Open in Organisations**, **Open in the lexicon**, **Open in
   Themes**. Those screens lead back to the map, centred on it.
 - The address of the page keeps the selection: copy it to come back to the
   same view.

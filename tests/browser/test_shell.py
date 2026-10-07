@@ -315,7 +315,7 @@ def test_a_failing_slot_contribution_is_contained(ui):
     card = ui.page.locator('[data-slot="keywords.cards"] .cx-error-card')
     expect_text = card.inner_text()
     assert "A part of this page failed" in expect_text
-    assert ui.page.locator("h1").inner_text() == "Keywords"  # the page works on
+    assert ui.page.locator("h1").inner_text() == "Lexicon"  # the page works on
 
 
 @pytest.mark.allow_console_errors  # the browser logs the module it could not load

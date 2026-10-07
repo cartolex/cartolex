@@ -85,7 +85,7 @@ def test_skip_link_and_navigation(gallery):
     assert page.evaluate("() => document.querySelector('.cx-gallery').dataset.kept") == "yes"
     page.locator("#cx-main").focus()
     page.keyboard.press("Shift+Tab")
-    tab_until(ui, lambda a: a["text"] == "Keywords", key="Shift+Tab")
+    tab_until(ui, lambda a: a["text"] == "Lexicon", key="Shift+Tab")
     before = ui.token()
     page.keyboard.press("Enter")
     ui.wait_ready(before)
