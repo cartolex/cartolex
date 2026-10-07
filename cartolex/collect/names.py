@@ -16,8 +16,12 @@ from collections.abc import Iterable, Sequence
 
 __all__ = [
     "PARTICLES",
+    "NameForm",
+    "comparable_words",
     "compatible_first_names",
     "fold",
+    "name_agreement",
+    "name_form",
     "name_key",
     "name_similarity",
     "split_full_name",
@@ -56,6 +60,27 @@ PARTICLES = frozenset(
 )
 _SPLIT = re.compile(r"[^0-9a-z]+")
 _WORD = re.compile(r"\w+")
+#: A word of any script (letters and digits, without the underscore).
+_ANY_WORD = re.compile(r"[^\W_]+")
+#: Letters a canonical decomposition leaves as they are, in Latin letters.
+_LATIN = str.maketrans(
+    {
+        "ø": "o",
+        "đ": "d",
+        "ð": "d",
+        "ł": "l",
+        "ŀ": "l",
+        "ħ": "h",
+        "ı": "i",
+        "ŧ": "t",
+        "æ": "ae",
+        "œ": "oe",
+        "þ": "th",
+        "ß": "ss",
+    }  # fmt: skip
+)
+#: Particles that are words of their own (a one-letter one may be an initial).
+_GIVEN_PARTICLES = frozenset(p for p in PARTICLES if len(p) > 1)
 
 
 def strip_accents(text: str) -> str:
@@ -204,3 +229,81 @@ def name_similarity(
                 if c[0] > best[0]:
                     best = c
     return best
+
+
+# ── comparing two people's names ─────────────────────────────────────────────
+
+#: A name as two names are compared (:func:`name_form`): the surname's parts without
+#: particles, the given names, and the surname's words joined without any separator.
+NameForm = tuple[tuple[str, ...], tuple[str, ...], str]
+
+
+def comparable_words(text: str) -> list[str]:
+    """The words of *text* as two people's names are compared: case and accents set aside,
+    the letters a decomposition keeps (``ø``, ``ł``, ``æ``…) written in Latin letters,
+    the letters of every script kept; hyphens, apostrophes and dots separate words.
+
+    Only for comparisons: :func:`words` and :func:`name_key` make the keys a project
+    stores, which never change."""
+    return _ANY_WORD.findall(fold(text).translate(_LATIN))
+
+
+def name_form(last: str | None, first: str | None) -> NameForm:
+    """*last*, *first* as two names are compared (:data:`NameForm`). A name with no
+    surname but a first-name cell is split as a full name."""
+    last, first = last or "", first or ""
+    if not last.strip() and first.strip():
+        last, first = split_full_name(first)
+    surname = comparable_words(last)
+    parts = tuple(w for w in surname if w not in PARTICLES) or tuple(surname)
+    given = tuple(w for w in comparable_words(first) if w not in _GIVEN_PARTICLES)
+    return parts, given, "".join(surname)
+
+
+def _same_given(x: str, y: str) -> bool:
+    return x == y or (len(x) == 1 and y[0] == x) or (len(y) == 1 and x[0] == y)
+
+
+def given_names_agree(a: Sequence[str], b: Sequence[str]) -> bool:
+    """Whether two lists of given names may be one person's: the first ones agree (equal,
+    or one is the other's initial) and the shorter list follows the longer one in order
+    (``Ada`` and ``Ada M.``, ``A. M.`` and ``Ada Maria``). An empty list agrees."""
+    if not a or not b:
+        return True
+    if not _same_given(a[0], b[0]):
+        return False
+    short, long_ = (a, b) if len(a) <= len(b) else (b, a)
+    i = 0
+    for word in long_:
+        if i < len(short) and _same_given(short[i], word):
+            i += 1
+    return i == len(short)
+
+
+def name_agreement(a: NameForm, b: NameForm) -> str | None:
+    """How two names (:func:`name_form`) agree, the closest first: ``same`` (the same
+    surname and given names, a full one among them), ``initials`` (the same, initials
+    only), ``order`` (the same words in another order or another split between surname
+    and given names), ``initial`` (the same surname, given names that agree with initials),
+    ``given`` (the same surname, one with more given names), ``part`` (one surname part of
+    the other, or its parts in another order, given names that agree); ``None``: they do
+    not agree."""
+    (sa, ga, qa), (sb, gb, qb) = a, b
+    if not (sa or ga) or not (sb or gb):
+        return None
+    same_surname = bool(sa) and (sa == sb or (len(qa) > 1 and qa == qb))
+    full = any(len(w) > 1 for w in ga + gb)
+    if same_surname and ga == gb:
+        return "same" if full else "initials"
+    bag_a, bag_b = sorted(sa + ga), sorted(sb + gb)
+    if bag_a == bag_b and len(bag_a) >= 2 and any(len(w) > 1 for w in ga):
+        return "order"
+    if not given_names_agree(ga, gb):
+        return None
+    if same_surname:
+        initials = all(len(w) == 1 for w in ga) or all(len(w) == 1 for w in gb)
+        return "initial" if initials else "given"
+    pa, pb = set(sa), set(sb)
+    if pa and pb and (pa < pb or pb < pa or pa == pb):
+        return "part"
+    return None

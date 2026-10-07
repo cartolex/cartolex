@@ -190,9 +190,10 @@ def merge_changes(
     back as it was.
 
     Refused (:class:`MergeRefused`) when a source is the target (``self_merge``), the
-    target is itself merged (``merged_target``), or the two sides carry different ORCIDs
-    (``merge_orcid_conflict``) unless *override*: two different iDs are two people,
-    unless someone who knows says otherwise.
+    target is itself merged (``merged_target``), or two of them (the target or a source,
+    with the rows merged into each) carry different ORCIDs (``merge_orcid_conflict``)
+    unless *override*: two different iDs are two people, unless someone who knows says
+    otherwise.
     """
     sources = [s for s in dict.fromkeys(sources)]
     if target in sources:
@@ -205,17 +206,19 @@ def merge_changes(
     roots = merge_roots(rows)
     groups = merged_groups(roots)
     if not override:
-        mine = effective_orcids((target, *groups.get(target, ())), rows, table_orcids)
-        for source in sources:
-            theirs = effective_orcids((source, *groups.get(source, ())), rows, table_orcids)
-            if orcid_conflict(mine, theirs):
-                raise MergeRefused(
-                    "merge_orcid_conflict",
-                    f"{target} and {source} have different ORCIDs",
-                    target=target,
-                    source=source,
-                    orcids=sorted(mine | theirs),
-                )
+        # every two of them, sources included: all become one person
+        sides = [(pid, effective_orcids((pid, *groups.get(pid, ())), rows, table_orcids))
+                 for pid in (target, *sources)]  # fmt: skip
+        for i, (one, mine) in enumerate(sides):
+            for other, theirs in sides[i + 1 :]:
+                if orcid_conflict(mine, theirs):
+                    raise MergeRefused(
+                        "merge_orcid_conflict",
+                        f"{one} and {other} have different ORCIDs",
+                        target=one,
+                        source=other,
+                        orcids=sorted(mine | theirs),
+                    )
     changes: dict[str, dict[str, str]] = {}
     for source in sources:
         change = {"merged_into": target}

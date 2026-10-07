@@ -61,7 +61,7 @@ from cartolex.project.identity import merge_roots
 from cartolex.project.models import Level
 
 from .decisions import read_people, slot_window, update_people
-from .names import compatible_first_names, split_full_name, surname_parts
+from .names import name_agreement, name_form, split_full_name
 from .openalex import PER_PAGE, OpenAlexSource, Years, parse_institution_ref, short_id
 from .people_import import _collection_slot, _ensure_levels
 from .tables import (
@@ -206,6 +206,10 @@ class MergeSuggestion:
     works: int
     clear: bool = False
     people: list[dict[str, Any]] = field(default_factory=list)
+    #: The reason as a code: ``same_orcid``, ``same_name_unit`` (the same name at the same
+    #: unit, no work in common), ``same_name`` (the same full name), ``same_name_work``
+    #: (the same full name, both on one work: two people, unless one author is listed twice).
+    code: str = ""
 
 
 @dataclass
@@ -953,29 +957,42 @@ class _TableView:
         return _person_of(self.a.entry(aid), self.units_of)
 
 
+#: Why records may be one person: each code's English words.
+MERGE_REASONS = {
+    "same_orcid": "the same ORCID",
+    "same_name_unit": "the same name at the same unit, no work in common",
+    "same_name": "the same name",
+    "same_name_work": "the same name, both on one work",
+}
+
+
 def _merges(view: _TableView, min_works: int) -> list[MergeSuggestion]:
-    """Author records that may be one person: a shared ORCID; or the same surname, first names
-    that agree (one may be an initial), a unit in common and no work in common (and not two
-    different ORCIDs). One of them must reach *min_works*, or the two together must.
+    """Author records that may be one person: a shared ORCID; the same full name (the
+    same words, whatever the units, a work in common said so); or the same surname, first
+    names that agree (one may be an initial), a unit in common and no work in common.
+    Never two different ORCIDs. One of them must reach *min_works*, or the two together
+    must.
 
     The works and units of an author are looked at only within a group that may hold a
     pair, so memory stays that of the largest group."""
-    names = {aid: _split_name(view.name(aid)) for aid in view.ids()}
+    forms = {aid: name_form(*_split_name(view.name(aid))) for aid in view.ids()}
     pairs: dict[tuple[str, str], str] = {}
     by_orcid: dict[str, list[str]] = defaultdict(list)
-    by_surname: dict[str, list[str]] = defaultdict(list)
-    for aid in sorted(names):
+    blocks: dict[tuple[str, ...], list[str]] = defaultdict(list)
+    for aid in sorted(forms):
         orcid = view.orcid(aid)
         if orcid:
             by_orcid[orcid].append(aid)
-        key = " ".join(surname_parts(names[aid][0]))
-        if key:
-            by_surname[key].append(aid)
+        parts, given, _ = forms[aid]
+        if parts:
+            blocks[("surname", *parts)].append(aid)
+        if parts or given:
+            blocks[("name", *sorted(parts + given))].append(aid)
     for group in by_orcid.values():
         for i, a in enumerate(group):
             for b in group[i + 1 :]:
-                pairs[(a, b)] = "the same ORCID"
-    for group in by_surname.values():
+                pairs[(a, b)] = "same_orcid"
+    for group in blocks.values():
         if len(group) < 2:
             continue
         works = {aid: view.works(aid) for aid in group}
@@ -983,29 +1000,29 @@ def _merges(view: _TableView, min_works: int) -> list[MergeSuggestion]:
         for i, a in enumerate(group):
             for b in group[i + 1 :]:
                 oa, ob = view.orcid(a), view.orcid(b)
-                if (
-                    (a, b) not in pairs
-                    and not (oa and ob and oa != ob)
-                    and compatible_first_names(names[a][1], names[b][1])
-                    and stated[a] & stated[b]
-                    and not works[a] & works[b]
-                ):
-                    pairs[(a, b)] = "the same name at the same unit, no work in common"
+                if (a, b) in pairs or (oa and ob and oa != ob):
+                    continue
+                agree = name_agreement(forms[a], forms[b])
+                if agree in ("same", "order"):
+                    pairs[(a, b)] = "same_name_work" if works[a] & works[b] else "same_name"
+                elif agree and stated[a] & stated[b] and not works[a] & works[b]:
+                    pairs[(a, b)] = "same_name_unit"
     out = []
-    for (a, b), reason in sorted(pairs.items()):
+    for (a, b), code in sorted(pairs.items()):
         wa, wb = view.works(a), view.works(b)
         total = len(wa | wb)
         if max(len(wa), len(wb)) < min_works and total < min_works:
             continue
-        clear = reason == "the same ORCID" and compatible_first_names(names[a][1], names[b][1])
-        clear = clear and set(surname_parts(names[a][0])) & set(surname_parts(names[b][0])) != set()
+        agree = name_agreement(forms[a], forms[b])
+        clear = code == "same_orcid" and agree is not None
         out.append(
             MergeSuggestion(
                 [f"openalex:{a}", f"openalex:{b}"],
-                reason,
+                MERGE_REASONS[code],
                 total,
                 clear=clear,
                 people=[asdict(view.person(x)) for x in (a, b)],
+                code=code,
             )
         )
     return out
