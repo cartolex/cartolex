@@ -64,8 +64,10 @@ co-authors.
 - The **Distances** pane (beside **Atlas**, at the top of the screen) ranks
   everyone by how alike they are to a person or an organisation, lists who
   talks the same without working together (and the reverse) and draws
-  matrices ordered by theme, measured in your browser; the shared site has the
-  same page (see {doc}`tutorial-share`).
+  matrices ordered by theme, by any of the four similarities below (the first
+  and the last measured in your browser, the others by the app); the shared
+  site has the same page with the two the browser measures (see
+  {doc}`tutorial-share`).
 - **Export distances** writes, as a file, the nearest of each person or
   organisation, every pair (the full matrix), or the vectors, with names or
   pseudonyms. The file is listed on the **Share** screen when it is written,
