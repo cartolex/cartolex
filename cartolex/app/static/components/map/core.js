@@ -30,10 +30,18 @@
  *               size? (pixels; 12, 13 when strong)}],
  *    bounds: {xmin, xmax, ymin, ymax}}
  *
+ * A scene in three dimensions says `dimensions: 3`: its layers carry `z` (Float32Array) beside
+ * `x` and `y`, its lines `z` pairs, its labels `z`, its bounds `zmin` and `zmax`, and its
+ * regions `members` (`{x, y, z}`: the member points; their projection is hulled on screen at
+ * each frame) in place of a `polygon`. It is drawn by `controller3d.js` (`webgl3d.js`,
+ * `canvas3d.js`); everything else of the scene means what it means in 2D.
+ *
  * A **view** is `{scale, tx, ty, width, height, fitScale}`: a data point
  * (x, y) is on screen at (x · scale + tx, ty − y · scale); its `zoom` is
- * `scale / fitScale` (1 when the whole map fits).
+ * `scale / fitScale` (1 when the whole map fits). A 3D view (`space.js`, `dims: 3`) is an
+ * orbit camera with the same `scale`, `fitScale` and zoom.
  */
+import { projectPoint } from './space.js';
 
 export const MIN_SCALE = 1e-4;
 export const MAX_ZOOM = 400;
@@ -188,10 +196,20 @@ export function placeLabels(labels, view, measure) {
   const zoom = zoomOf(view);
   const placed = [];
   const order = labels.filter((l) => l.strong).concat(labels.filter((l) => !l.strong));
+  const space = view.dims === 3;
+  const q = [0, 0, 0, 0];
   for (const label of order) {
     if (!label.strong && (label.minZoom || 0) > zoom) continue;
-    const px = label.x * view.scale + view.tx;
-    const py = view.ty - label.y * view.scale - (label.offset || 0);
+    let px = 0;
+    let py = 0;
+    if (space) {
+      if (!projectPoint(view, label.x, label.y, label.z || 0, q)) continue;
+      px = q[0];
+      py = q[1] - (label.offset || 0);
+    } else {
+      px = label.x * view.scale + view.tx;
+      py = view.ty - label.y * view.scale - (label.offset || 0);
+    }
     if (px < 0 || py < 0 || px > view.width || py > view.height) continue;
     const w = measure(label.text, Boolean(label.strong), label) + 8;
     const half = Math.max(9, (label.size || 12) * 0.75);

@@ -50,7 +50,7 @@ void main() {
   v_color = u_pass > 0.5 && u_pass < 1.5 ? u_ring : vec4(c.rgb, c.a * u_alpha);
 }`;
 
-const PRECISION = `
+export const PRECISION = `
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
 #else
@@ -136,7 +136,7 @@ void main() {
 /** Whether a line is drawn as a strip (wider than a pixel, or dashed). */
 const stroked = (line) => (line.width || 1) > 1.01 || Boolean(line.dash);
 
-function compile(gl, vs, fs) {
+export function compile(gl, vs, fs) {
   const program = gl.createProgram();
   for (const [type, source] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
     const shader = gl.createShader(type);

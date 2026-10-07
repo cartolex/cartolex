@@ -6,8 +6,10 @@
  * organisations' level (`org`), the network's rings (`net`), the texts drawn (`tx`: every
  * one, `focus` or `network`), the people's filters (`f`,
  * repeated `column:value`), the period (`from`, `to`), the keywords' categories (`kc`) and
- * colour (`kcol`), the view (`view`: `map` or `world`), a base map (`base`) and points or
- * regions (`as`). Values that are the defaults are left out of the address.
+ * colour (`kcol`), the view (`view`: `map` or `world`), a base map (`base`), points or
+ * regions (`as`), the map version shown (`map`: its id; the pinned, or the first, when absent)
+ * and a focused person's trajectory (`traj`: their time windows joined in time order).
+ * Values that are the defaults are left out of the address.
  */
 
 /** What the map can show, in the order of the layers panel. */
@@ -74,6 +76,8 @@ export function readAtlasState(query) {
     view: q.get('view') === 'world' ? 'world' : 'map',
     base: q.get('base') || '',
     as: q.get('as') === 'regions' ? 'regions' : 'points',
+    map: q.get('map') || '',
+    traj: q.get('traj') === '1',
   };
 }
 
@@ -97,6 +101,8 @@ export function queryOfState(state) {
   if (state.view !== 'map') q.set('view', state.view);
   if (state.base) q.set('base', state.base);
   if (state.as !== 'points') q.set('as', state.as);
+  if (state.map) q.set('map', state.map);
+  if (state.traj) q.set('traj', '1');
   return q;
 }
 

@@ -108,12 +108,24 @@ export function createRingReader(source, onAnswer) {
 }
 
 /** The segments of a gentle arc from (x1, y1) to (x2, y2): a quadratic curve bent by a
- * fifth of its length to the left, as pairs of points appended to *xs*, *ys*. */
-export function arcInto(xs, ys, x1, y1, x2, y2, steps = 12) {
-  const cx = (x1 + x2) / 2 - (y2 - y1) * 0.18;
-  const cy = (y1 + y2) / 2 + (x2 - x1) * 0.18;
+ * fifth of its length to the left, as pairs of points appended to *xs*, *ys*. With *zs* (a
+ * map in three dimensions), from z1 to z2: bent by a fifth of its length in space, across
+ * the segment and level (its left on the flat map seen from the front), and *zs* gets the
+ * z of each point. */
+export function arcInto(xs, ys, x1, y1, x2, y2, steps = 12, zs = null, z1 = 0, z2 = 0) {
+  let cx = (x1 + x2) / 2 - (y2 - y1) * 0.18;
+  let cy = (y1 + y2) / 2 + (x2 - x1) * 0.18;
+  const cz = (z1 + z2) / 2;
+  if (zs) {
+    const length = Math.hypot(x2 - x1, y2 - y1, z2 - z1);
+    const flat = Math.hypot(x2 - x1, y2 - y1);
+    const [ux, uy] = flat > length * 1e-3 ? [-(y2 - y1) / flat, (x2 - x1) / flat] : [1, 0];
+    cx = (x1 + x2) / 2 + ux * length * 0.18;
+    cy = (y1 + y2) / 2 + uy * length * 0.18;
+  }
   let px = x1;
   let py = y1;
+  let pz = z1;
   for (let k = 1; k <= steps; k += 1) {
     const s = k / steps;
     const u = 1 - s;
@@ -121,6 +133,11 @@ export function arcInto(xs, ys, x1, y1, x2, y2, steps = 12) {
     const y = u * u * y1 + 2 * u * s * cy + s * s * y2;
     xs.push(px, x);
     ys.push(py, y);
+    if (zs) {
+      const z = u * u * z1 + 2 * u * s * cz + s * s * z2;
+      zs.push(pz, z);
+      pz = z;
+    }
     px = x;
     py = y;
   }
@@ -132,19 +149,20 @@ const RING_STYLE = [[1, 0.75], [0.6, 0.34], [0.45, 0.18]];
 /**
  * The scene's lines of the rings of *answer* around the focus at *from* (`{x, y}`): one line
  * per look (width and opacity); *placeOf(id)* gives where each partner is (`{x, y,
- * projected}`) or null. For organisations (*orgs*), the links are wider and in *color*.
+ * projected}`) or null. For organisations (*orgs*), the links are wider and in *color*. In
+ * three dimensions (*space*), the places carry `z` and so do the lines.
  */
-export function ringLines(answer, from, placeOf, { orgs = false, color = '--cx-text' } = {}) {
+export function ringLines(answer, from, placeOf, { orgs = false, color = '--cx-text', space = false } = {}) {
   const groups = new Map();
   const add = (a, b, width, alpha) => {
     const w = Math.round(width * 2) / 2;
     const key = `${w}|${alpha}`;
     let g = groups.get(key);
     if (!g) {
-      g = { xs: [], ys: [], width: w, alpha };
+      g = { xs: [], ys: [], zs: space ? [] : null, width: w, alpha };
       groups.set(key, g);
     }
-    arcInto(g.xs, g.ys, a.x, a.y, b.x, b.y);
+    arcInto(g.xs, g.ys, a.x, a.y, b.x, b.y, 12, g.zs, a.z || 0, b.z || 0);
   };
   ringList(answer).forEach((ring, d) => {
     const [base, alpha] = RING_STYLE[d] || RING_STYLE[2];
@@ -159,5 +177,5 @@ export function ringLines(answer, from, placeOf, { orgs = false, color = '--cx-t
     }
   });
   return [...groups.values()].map((g, k) => ({ id: `ring-${k}`, x: Float32Array.from(g.xs), y: Float32Array.from(g.ys),
-    color, alpha: g.alpha, width: g.width }));
+    ...(g.zs ? { z: Float32Array.from(g.zs) } : {}), color, alpha: g.alpha, width: g.width }));
 }

@@ -183,6 +183,7 @@ export function createMapController(options) {
 
   return {
     renderer: renderer.name || 'custom',
+    dimensions: 2,
     fit,
     zoomBy: (factor) => zoomAt(factor, s.view.width / 2, s.view.height / 2),
     panBy,
@@ -191,6 +192,8 @@ export function createMapController(options) {
       centreView(s.view, x, y, zoom);
       request();
     },
+    /** Where (x, y) is on screen now: `[px, py]`. */
+    project: (x, y) => [x * s.view.scale + s.view.tx, s.view.ty - y * s.view.scale],
     hitTest: hit,
     view: () => ({ ...s.view, zoom: zoomOf(s.view) }),
     /** Draw again (the scene changed); *refit* fits it first. */

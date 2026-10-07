@@ -33,6 +33,8 @@ const clampWidth = (v) => Math.max(TUNE_LIMITS[0], Math.min(TUNE_LIMITS[1], Math
 
 /** The base map in the address ('' for none). */
 const baseOf = () => new URLSearchParams(window.location.search).get('base') || '';
+/** The map version the address shows ('' for the pinned one). */
+const versionOf = () => new URLSearchParams(window.location.search).get('map') || '';
 
 /** The people on the map the atlas's filters keep (null: no filter). */
 function shownPeople(atlas) {
@@ -45,13 +47,18 @@ function shownPeople(atlas) {
 
 /** The mounted atlas, in an element of its own; mounted again when the bundle or the
  * interface's language changes. */
-function AtlasMount({ ctx, bundle, onAtlas }) {
+function AtlasMount({ ctx, bundle, onAtlas, onShown }) {
   const ref = useRef(null);
   const lang = locale.value;
   useEffect(() => {
     const project = ctx.app.manifest.project;
+    let shown = bundle;
     const host = appHost(ctx, { title: project && project.open ? project.name || '' : '',
-      stem: () => bundle.map_version || 'view' });
+      stem: () => shown.map_version || 'view',
+      onReady: ({ index }) => {
+        shown = index.bundle;
+        onShown(index.bundle);
+      } });
     const atlas = mountAtlas(ref.current, { source: apiSource(ctx, { first: bundle, base: baseOf }), host });
     onAtlas(atlas);
     return () => {
@@ -101,6 +108,8 @@ export function AtlasScreen() {
   const [tick, setTick] = useState(0);
   const [base, setBase] = useState(baseOf);
   const [atlas, setAtlas] = useState(null);
+  // the bundle the atlas shows now (another map version, chosen in its « Layout »)
+  const [shownBundle, setShownBundle] = useState(null);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [distances, setDistances] = useState(false);
   const [watched, setWatched] = useState(null);
@@ -128,7 +137,9 @@ export function AtlasScreen() {
 
   useEffect(() => {
     setError(null);
-    ctx.api.get('/api/atlas', { query: base ? { base } : {} }).then((r) => {
+    // a base map is placed on the pinned (flat) version only
+    const version = base ? '' : versionOf();
+    ctx.api.get('/api/atlas', { query: { ...(base ? { base } : {}), ...(version ? { version } : {}) } }).then((r) => {
       if (!r.ok) setError(r.error);
       else setBundle(r.data);
     });
@@ -161,8 +172,11 @@ export function AtlasScreen() {
 
   const changeBase = (id) => {
     const url = new URL(window.location.href);
-    if (id) url.searchParams.set('base', id);
-    else url.searchParams.delete('base');
+    if (id) {
+      url.searchParams.set('base', id);
+      // a base map is shown on the pinned version: the address leaves any other one
+      url.searchParams.delete('map');
+    } else url.searchParams.delete('base');
     url.searchParams.delete('sel');
     url.searchParams.delete('with');
     window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
@@ -176,7 +190,7 @@ export function AtlasScreen() {
       <h1 class="cx-page__title" tabindex="-1">${t('nav.map')}</h1>
       ${available ? html`<p class="cx-atlas__summary">${t('map.summary', {
         people: (bundle.people || []).filter((p) => p.x !== null).length, keywords: (bundle.keywords || []).length,
-        version: bundle.map_version || '' })}</p>` : null}
+        version: (shownBundle || bundle).map_version || '' })}</p>` : null}
     </div>
     ${available ? html`<div class="cx-atlas__actions">
       <${Button} icon="panel-right" buttonRef=${tuneButton} aria-expanded=${tuneOpen ? 'true' : 'false'}
@@ -216,7 +230,7 @@ export function AtlasScreen() {
     <div class=${`cx-atlas-body ${tuneOpen ? 'has-side' : ''}`} style=${`--cx-tune-width: ${tuneWidth}px`}>
       <div class="cx-atlas-body__main">
         ${!tuneOpen && previewing ? previewBar : null}
-        <${AtlasMount} ctx=${ctx} bundle=${bundle} onAtlas=${setAtlas} />
+        <${AtlasMount} ctx=${ctx} bundle=${bundle} onAtlas=${setAtlas} onShown=${setShownBundle} />
       </div>
       ${tuneOpen ? html`<${TuneDivider} width=${tuneWidth} onWidth=${setTuneWidth}
           onEnd=${(w) => prefs.set(TUNE_WIDTH, w)} />
@@ -238,7 +252,8 @@ export function AtlasScreen() {
           action: { label: t('nav.share'), onClick: () => ctx.navigate('/share') } });
       }} />
     <${VersionsDialog} ctx=${ctx} open=${versionsOpen} onClose=${() => setVersionsOpen(false)}
-      drawn=${bundle.map_version} base=${base} onBase=${changeBase}
+      drawn=${(shownBundle || bundle).map_version} base=${base} onBase=${changeBase}
+      pinned3d=${(bundle.versions || []).some((v) => v.pinned && v.dimensions === 3)}
       onBuild=${(job) => {
         setWatched(job.id);
         app.stores.jobs.refresh();

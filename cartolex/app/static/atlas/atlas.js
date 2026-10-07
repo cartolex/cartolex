@@ -9,6 +9,10 @@
  * fades what does not belong to it, the treemap shows its own weights, the card lists what
  * is connected to it. Back retraces the focus; Escape goes up one level; ⌂ Home goes back to
  * the whole field.
+ *
+ * A project may have several built map versions (`bundle.versions`, the pinned first): the
+ * bar's « Layout » chooses the one shown (`map` in the state), read again through the
+ * source with its `version`; a version in three dimensions is drawn by the 3D map.
  */
 import { fill, h, listen, symbol } from './dom.js';
 import { indexBundle, indexWindows, nameIn, orgLevelOf, pathTo, placeOf } from './data.js';
@@ -115,10 +119,20 @@ export function mountAtlas(root, { source, host }) {
   } });
   const worldBtn = h('button', { type: 'button', class: 'cx-atlas-btn', 'aria-pressed': 'false', text: t('atlas.world'),
     title: t('atlas.world_help'), onClick: () => store.set({ view: store.get().view === 'world' ? 'map' : 'world' }) });
+  // the map versions built: which one is shown
+  const layoutSelect = h('select', { class: 'cx-atlas-layout', 'aria-label': t('atlas.layout'), title: t('atlas.layout_help'),
+    onChange: (e) => {
+      const versions = (index && index.bundle.versions) || [];
+      const id = e.currentTarget.value;
+      store.set({ map: versions.length && versions[0].id === id ? '' : id });
+    } });
+  const layoutGroup = h('label', { class: 'cx-atlas-layout-group', hidden: true },
+    h('span', { class: 'cx-atlas-layout__label', text: t('atlas.layout') }), layoutSelect);
   const barSlot = h('span', { class: 'cx-atlas__slot' });
   const fullBtn = h('button', { type: 'button', class: 'cx-atlas-btn', text: `⤢ ${t('atlas.full')}` });
   const bar = h('div', { class: 'cx-atlas__bar' }, crumbs,
-    h('div', { class: 'cx-atlas__tools' }, find.el, homeBtn, backBtn, filtersBtn, schemeSelect, lookGroup, worldBtn, barSlot, fullBtn));
+    h('div', { class: 'cx-atlas__tools' }, find.el, homeBtn, backBtn, filtersBtn, schemeSelect, lookGroup, layoutGroup, worldBtn,
+      barSlot, fullBtn));
   const filtersEl = h('div', { class: 'cx-atlas__filters', role: 'group', 'aria-label': t('atlas.filters'), hidden: true });
   const notesEl = h('div', { class: 'cx-atlas__notes' });
 
@@ -161,8 +175,17 @@ export function mountAtlas(root, { source, host }) {
   stage.hidden = true;
 
   // ── what is read beside the bundle ───────────────────────────────────────
+  // the source's reads of places, for the map version shown (the pinned one: no version)
+  const versionArg = () => (store.get().map ? { version: store.get().map } : {});
+  const placed = {
+    ...source,
+    bundle: () => source.bundle(versionArg()),
+    ...(source.texts ? { texts: () => source.texts(versionArg()) } : {}),
+    ...(source.textsOf ? { textsOf: (query) => source.textsOf({ ...query, ...versionArg() }) } : {}),
+    ...(source.windows ? { windows: (query = {}) => source.windows({ ...query, ...versionArg() }) } : {}),
+  };
   const rings = createRingReader(source, () => render());
-  const textFocus = createTextFocus(source, () => render());
+  const textFocus = createTextFocus(placed, () => render());
   const nameOf = (kind, item) => {
     if (!item) return '';
     if (item.name) return item.name;
@@ -209,21 +232,21 @@ export function mountAtlas(root, { source, host }) {
     // the texts: when shown (unless only a focus's are drawn) or one is in focus
     if (source.texts && !texts && !asked.has('texts') && wantTexts) {
       asked.add('texts');
-      settle(source.texts()).then((r) => {
+      settle(placed.texts()).then((r) => {
         if (!alive || r.error || !r.data || r.data.available === false) return;
         texts = r.data;
         entries = null;
         render();
       });
     }
-    // the time windows: every person's when shown, else the person in focus
+    // the time windows: every person's when shown, else the trajectory of the person in focus
     if (source.windows && (index.bundle.windows || 0) > 0) {
       const all = state.show.includes('windows');
-      const who = sel && sel.kind === 'person' ? sel.id : null;
+      const who = sel && sel.kind === 'person' && state.traj ? sel.id : null;
       if ((all && !windowsAsked.all) || (!all && who && !windowsAsked.all && !windowsAsked.people.has(who))) {
         if (all) windowsAsked.all = true;
         else windowsAsked.people.add(who);
-        settle(source.windows(all ? {} : { person: who })).then((r) => {
+        settle(placed.windows(all ? {} : { person: who })).then((r) => {
           if (!alive || r.error || !r.data || r.data.available === false) return;
           index.windows = indexWindows(index, r.data, all ? new Map() : index.windows);
           render();
@@ -289,7 +312,7 @@ export function mountAtlas(root, { source, host }) {
     if (!sameSel(sel, state.sel) || state.with) store.set(patch, { push: true });
     if (centreIt && sel && index) {
       const at = placeOf(index, sel, textsHaving(sel.id));
-      if (at && store.get().view === 'map') mapView.controller.centreOn(at.x, at.y, 3);
+      if (at && store.get().view === 'map') mapView.controller.centreOn(at.x, at.y, 3, at.z);
     }
   }
   function home() {
@@ -440,22 +463,24 @@ export function mountAtlas(root, { source, host }) {
   const zoomSelection = () => {
     if (!built) return;
     let box = null;
-    const grow = (x, y) => {
-      if (!box) box = { xmin: x, xmax: x, ymin: y, ymax: y };
+    const grow = (x, y, z = 0) => {
+      if (!box) box = { xmin: x, xmax: x, ymin: y, ymax: y, zmin: z, zmax: z };
       else {
         box.xmin = Math.min(box.xmin, x);
         box.xmax = Math.max(box.xmax, x);
         box.ymin = Math.min(box.ymin, y);
         box.ymax = Math.max(box.ymax, y);
+        box.zmin = Math.min(box.zmin, z);
+        box.zmax = Math.max(box.zmax, z);
       }
     };
     for (const layer of built.scene.layers) {
       if (!layer.highlightCount) continue;
-      for (let i = 0; i < layer.x.length; i += 1) if (layer.highlight[i]) grow(layer.x[i], layer.y[i]);
+      for (let i = 0; i < layer.x.length; i += 1) if (layer.highlight[i]) grow(layer.x[i], layer.y[i], layer.z ? layer.z[i] : 0);
     }
     const sel = store.get().sel;
     const at = placeOf(index, sel, sel ? textsHaving(sel.id) : texts);
-    if (at) grow(at.x, at.y);
+    if (at) grow(at.x, at.y, at.z);
     if (box) mapView.zoomTo(box);
   };
   const mapView = createMapView(mapEl, { t, label: t('atlas.map.label'), scene: currentScene,
@@ -522,11 +547,14 @@ export function mountAtlas(root, { source, host }) {
     if (!centred) {
       centred = true;
       const at = sel ? placeOf(index, sel, textsHaving(sel.id)) : null;
-      if (at && state.view === 'map') mapView.controller.centreOn(at.x, at.y, 3);
+      if (at && state.view === 'map') mapView.controller.centreOn(at.x, at.y, 3, at.z);
     }
     const lit = built.scene.layers.reduce((n, l) => n + (l.highlightCount || 0), 0);
+    const space = !override && built.scene.dimensions === 3;
     mapView.setStatus(sel ? t('atlas.status', { count: lit, name: nameOfSel(sel) }) : '');
-    mapView.setLabel(override ? override.label : state.view === 'world' ? t('atlas.map.world_label') : t('atlas.map.label'));
+    mapView.setLabel(override ? override.label : state.view === 'world' ? t('atlas.map.world_label')
+      : space ? t('atlas.map.label_3d') : t('atlas.map.label'));
+    hint.textContent = t(space ? 'atlas.map.hint_3d' : 'atlas.map.hint');
     mapView.setFullLabel(fsMap.on() ? t('atlas.full_leave') : t('atlas.map.alone'));
 
     // the bar
@@ -545,6 +573,7 @@ export function mountAtlas(root, { source, host }) {
     schemeSelect.value = scheme;
     worldBtn.hidden = !index.orgs.some((o) => o.location);
     worldBtn.setAttribute('aria-pressed', String(state.view === 'world'));
+    updateLayouts(state);
     layersEl.hidden = false;
     if (lookGroup) lookGroup.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.mode === 'dark') === dark)));
     const fullLabel = fsAtlas.on() ? t('atlas.full_leave') : t('atlas.full');
@@ -564,7 +593,29 @@ export function mountAtlas(root, { source, host }) {
       findEntries: entriesNow });
   }
 
+  /** The « Layout » select: the built versions, the shown one chosen; a version in three
+   * dimensions cannot carry a base map (offered disabled while one is shown). */
+  function updateLayouts(state) {
+    const versions = index.bundle.versions || [];
+    layoutGroup.hidden = versions.length < 2;
+    if (versions.length < 2) return;
+    const shownId = index.bundle.map_version || state.map || versions[0].id;
+    const key = versions.map((v) => `${v.id}|${v.dimensions}`).join(',') + (state.base ? '|base' : '');
+    if (layoutSelect.dataset.key !== key) {
+      layoutSelect.dataset.key = key;
+      fill(layoutSelect, versions.map((v) => h('option', { value: v.id, disabled: Boolean(state.base) && v.dimensions === 3,
+        text: [v.id, t(v.dimensions === 3 ? 'atlas.layout.3d' : 'atlas.layout.2d'), v.method || '', v.note || '']
+          .filter(Boolean).join(' · ') })));
+    }
+    layoutSelect.value = shownId;
+    layoutSelect.title = state.base ? t('atlas.layout.base_2d') : t('atlas.layout_help');
+  }
+
   offs.push(store.subscribe((state, old) => {
+    if (old && old.map !== state.map) {
+      load();
+      return;
+    }
     if (old && (old.view !== state.view || old.base !== state.base)) mapView.redraw(true);
     render();
   }));
@@ -583,12 +634,20 @@ export function mountAtlas(root, { source, host }) {
     escape();
   }));
 
+  let reading = 0;
   function load() {
     loading.hidden = false;
     loading.setAttribute('aria-busy', 'true');
     loading.textContent = t('atlas.loading');
-    settle(source.bundle()).then((r) => {
-      if (!alive) return;
+    reading += 1;
+    const mine = reading;
+    settle(placed.bundle()).then((r) => {
+      if (!alive || mine !== reading) return;
+      // a version no longer built (an old address): the pinned one instead
+      if ((r.error || !r.data) && store.get().map) {
+        store.set({ map: '' });
+        return;
+      }
       if (r.error || !r.data) {
         fill(loading, h('span', { text: t('atlas.unread') }), ' ',
           h('button', { type: 'button', class: 'cx-atlas-btn', text: t('atlas.retry'), onClick: () => load() }));
@@ -596,6 +655,7 @@ export function mountAtlas(root, { source, host }) {
         return;
       }
       index = indexBundle(r.data);
+      centred = false;
       entries = null;
       colours = null;
       texts = null;

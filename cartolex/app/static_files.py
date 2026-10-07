@@ -61,10 +61,14 @@ MEDIA_TYPES = {
 
 #: The map's modules without a library, in the order a classic script needs them.
 MAP_MODULES = (
+    "components/map/space.js",
     "components/map/core.js",
     "components/map/canvas2d.js",
     "components/map/webgl.js",
     "components/map/controller.js",
+    "components/map/canvas3d.js",
+    "components/map/webgl3d.js",
+    "components/map/controller3d.js",
 )
 
 #: The atlas (``docs/dev/atlas.md``): the map's modules, the treemap's layout, the messages and

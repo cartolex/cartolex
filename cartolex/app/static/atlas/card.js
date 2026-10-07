@@ -64,7 +64,8 @@ function themeCard(card, id) {
     .map((o) => [o, index.orgSharesAt(o.id, level)[id] || 0]).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   const here = index.centres.get(id);
   const near = here ? [...index.centres].filter(([other]) => other !== id && (index.nodes.get(other).level || 1) === level)
-    .map(([other, c]) => [other, (c.x - here.x) ** 2 + (c.y - here.y) ** 2]).sort((a, b) => a[1] - b[1]).slice(0, 3) : [];
+    .map(([other, c]) => [other, (c.x - here.x) ** 2 + (c.y - here.y) ** 2 + ((c.z || 0) - (here.z || 0)) ** 2])
+    .sort((a, b) => a[1] - b[1]).slice(0, 3) : [];
   const terms = (node.top_keywords && node.top_keywords.length ? node.top_keywords
     : (index.nodeKeywords.get(id) || []).map((k) => index.keywords[k].term)).slice(0, 12);
   const kids = index.children.get(id) || [];
