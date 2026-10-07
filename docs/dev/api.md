@@ -212,6 +212,21 @@ report as it is.
 **Projects**: `GET /api/projects/current`, `POST /api/projects/open {path, force}`
 (`force`: override a lock held elsewhere, after a warning),
 `POST /api/projects/close`, `GET /api/projects/recent` (locally);
+`POST /api/projects/forget {path}` takes a project out of the recent list (its folder
+stays; answers the list); `GET /api/projects/removal?path=` says what deleting a recent
+project's folder would remove (`path`, `name`, `bytes`, `files`, `kept`: the entries
+cartolex did not write, which stay with the folder, `open`: the project open here, `held`:
+the application that holds it elsewhere) and `POST /api/projects/delete {path, confirm}`
+deletes it (locally, `cartolex.app.removal`): the open project is closed first, then,
+under the project's lock, what cartolex writes at a project's root (`project.json` last),
+links removed as links and never followed, and the folder when nothing else is left in it
+(`deleted`, `folder_removed`, `kept`, `closed`). Refused: a folder not in the recent list
+(`project_not_listed`), not a cartolex project, a link, the home folder or one holding it
+or the app's own folder (`project_delete_refused`, `reason`: `not_a_project`, `link`,
+`missing`, `protected`), without `confirm` (`project_delete_confirm`), while another
+application holds the project (`project_delete_held`, never overridden) or a job runs on it
+(`busy`), and on a hosted service (`project_delete_hosted`); a file the system refuses
+stops it (`project_delete_failed`, the project still opens);
 `GET /api/projects` (hosted: the projects the principal may open);
 `POST /api/projects {folder | id, name, domain_title, domain_description,
 languages, reference, display, start}` creates a project, with the extensions' slots,
@@ -324,13 +339,16 @@ version, so it can be undone too).
 
 | route | what it does |
 | --- | --- |
-| `GET /api/share` | the site builds in `outputs/sites/` (paged: `offset`, `limit`), the newest first, each with `latest`, `stale` (what it was built from changed since: the runs it reads, the tables, a decision file), its options and counts; `exports` (the files in `outputs/exports/`); `available` |
+| `GET /api/share` | the site builds in `outputs/sites/` (paged: `offset`, `limit`), the newest first, each with `latest`, `stale` (what it was built from changed since: the runs it reads, the tables, a decision file), its options and counts, `zip_size` and `disk` (its files and its zip, in bytes); `exports` (the files in `outputs/exports/`); `disk`: what sharing takes (`sites`, `zips`, `exports`, `leftovers`, `total`, and `older`: the `count` and `bytes` « delete older builds » frees); `available`. A deletion is refused (`busy`) while a site build or an export runs |
 | `GET /api/share/plan?names=&texts=&title=&language=` | the privacy summary of a build with these options (people named or pseudonymised, organisations, keywords, themes, texts carried, full texts kept out, `text_bytes`: what the titles, and the titles and abstracts, would add to the site, in bytes, the abstracts estimated; `site_bytes`: what the atlas's data would weigh, estimated, `core`, `links`, `parts`, `atlas`) and the checks before publishing, each `{code, level, params, fix}`: `blocker` (`no_map`), `question` (`names_unanswered`), `warning` (`names_shown`, `projected_names_shown`, `abstracts_included`, `abstracts_large` and `titles_large` (the texts would add more than 500 MB: `size`, and `titles`, in bytes), `site_large` (the atlas would read more than 50 MB at once: `size`, and `total` with the parts, in bytes), `map_stale`, `themes_untranslated`, `themes_technical`, `themes_empty`, `title_generic`), `info` (`full_texts_kept`); `ready` |
 | `POST /api/share/builds {names, texts, title, language}` | build the offline site (a job, 202): `names` (`names` or `pseudonyms`) is required for a people atlas (422 `names_question`); `names_projected` (the projected people's, `pseudonyms` by default) is asked apart; `texts` is `none` (the default), `titles` or `abstracts` |
 | `GET /api/share/builds/<id>/site/<path>`, `GET /api/share/builds/<id>/zip` | a build's files (to open it in the browser), and the build as one zip whose README comes first (written once, file by file, to `outputs/sites/.zips/<id>.zip`, and served from there) |
 | `GET /api/share/figures/map?format=png\|svg&width=&height=&theme=` | the map as an image of the size asked, light or dark (people never named) |
 | `GET /api/share/tables/themes.csv` | the theme tree as CSV |
 | `POST /api/share/exports {kind}`, `GET /api/share/exports/<name>` | write the map bundle (`map_bundle`) or the project as one zip without its caches (`project`) into `outputs/exports/` (a job, dated names), and download it. Distances in the space of the themes (`cartolex.app.distance_exports`): `neighbours` (the `k` nearest of each: `source`, `target`, `rank`, `similarity`; CSV up to a million rows, else Parquet), `similarity` (every pair's cosine, written by blocks of rows: CSV up to four million cells, else `.npz` with `similarity` as float32, `ids` and `names`; above ten million cells 409 `export_size_confirm` with its size until `confirm`) and `vectors` (CSV up to five million values, else Parquet), `of` the people on the map (every one, or those of `ids`: the people the map's filters keep) or the organisations of a `level`; the nearest and the matrix follow the project's measure of similarity (the plan's `measure`; none for the vectors), and `<file>.meta.json` (`cartolex-distances/1`: `measure`, `kind`, `of`, `level`, `count`, `k`, `names`, `space_run`, `map_version`, `made_at`) is written beside each file, also in a Parquet file's schema metadata (`cartolex`) and as an `.npz`'s member `meta.json`; people named or given pseudonyms (`s1`, `s2`… in a shuffled order, no name) as `names` says (422 `export_names_question`); `plan: true` answers what would be written (`count`, `cells`, `format`, `bytes`, `size`, `confirm`, and the organisations' `levels` with their names and counts) without writing |
+| `DELETE /api/share/builds/<id>`, `DELETE /api/share/builds/<id>/zip` | delete a site build and its zip (`bytes` freed, `latest`: the build the marker names now, the newest left), or its zip only (written again when downloaded); `site_delete_elsewhere` for a build a host keeps outside `outputs/sites/` (`cartolex.site.cleanup`) |
+| `POST /api/share/builds/prune {plan}` | delete every build but the latest, with their zips, and what interrupted work left (an unfinished build's hidden folder, a zip whose build is gone): `ids`, `count`, `leftovers`, `bytes`, `kept`; `plan: true` only says so |
+| `DELETE /api/share/exports/<name>` | delete an exported file and the `<stem>.meta.json` beside it (`files`, `bytes`) |
 | `GET /api/settings`, `PUT /api/settings` | languages, language models, the AI identity (with what changing a frozen one costs: 409 `identity_frozen` unless `confirm_identity_change`), slots, projected sets, levels, data sources |
 | `GET /api/settings/rejects`, `PUT /api/settings/rejects {enabled}` | the candidates rejected automatically: whether the project uses the rejection lists (the `rejects` parameter of `keywords.extract`, ETag of `params.json`), the terms of cartolex's list per corpus language, this computer's cache (`<data dir>/rejects/`, none on a hosted service) |
 | `GET /api/settings/rejects/terms?lang=`, `POST /api/settings/rejects/clear {language, terms}` | the cache's terms (one per term and language: how many projects gave it, the routes, the last day), paged; remove some terms, or empty the cache (of one language); `rejects_hosted` on a hosted service |
@@ -446,6 +464,12 @@ catalogues give each code its text in every interface language.
 | `project_folder_missing` | 422 | choose the folder of the new project | — | `fix-input` |
 | `project_folder_relative` | 422 | the project's folder is a full path: {path} | `path` | `fix-input` |
 | `project_id_missing` | 422 | a hosted project needs an id | — | `fix-input` |
+| `project_not_listed` | 404 | {path} is not among the projects listed here | `path` | `reload` |
+| `project_delete_hosted` | 409 | on a hosted service a project's files are deleted by whoever runs it | — | `none` |
+| `project_delete_refused` | 409 | {path} cannot be deleted from here ({reason}) | `path`, `reason` | `none` |
+| `project_delete_confirm` | 422 | deleting the folder {path} cannot be undone: confirm it to delete it | `path` | `confirm` |
+| `project_delete_held` | 409 | the project is open in {app} (process {pid} on {host}, since {since}); close it there before deleting its folder | `app`, `pid`, `host`, `since` | `none` |
+| `project_delete_failed` | 409 | the folder {path} was not deleted entirely ({error}); what is left can still be opened or deleted again | `path`, `error` | `retry` |
 | `field_title_missing` | 422 | name the field the map covers (its title): the AI receives it with the terms | — | `fix-input` |
 | `no_language_pack` | 422 | cartolex has no language pack for {languages}; choose among {available} | `languages`, `available` | `fix-input` |
 | `identity_frozen` | 409 | the project's identity is frozen: changing its {changed} means cached AI answers are not reused (they are paid for again) or texts are parsed again; confirm the change to make it anyway | `changed` | `confirm` |
@@ -549,6 +573,7 @@ catalogues give each code its text in every interface language.
 | `names_question` | 422 | say whether the site shows people's names or pseudonyms | — | `fix-input` |
 | `site_not_found` | 404 | there is no site build {build} | `build` | `reload` |
 | `export_not_found` | 404 | there is no exported file {name} | `name` | `reload` |
+| `site_delete_elsewhere` | 409 | the build {build} is kept outside the project's outputs; it is not deleted here | `build` | `none` |
 | `export_names_question` | 422 | say whether the file names people or gives them pseudonyms | — | `fix-input` |
 | `export_size_confirm` | 409 | this matrix has {cells} cells, about {size}: confirm to write it | `cells`, `size` | `confirm` |
 

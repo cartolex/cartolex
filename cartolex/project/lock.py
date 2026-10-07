@@ -42,6 +42,7 @@ __all__ = [
     "LockLost",
     "ProjectLock",
     "ensure_held",
+    "lock_holder",
     "read_lock",
     "remove_stale_lock",
 ]
@@ -338,6 +339,19 @@ class ProjectLock:
 
     def __exit__(self, *exc: object) -> None:
         self.release()
+
+
+def lock_holder(layout: ProjectLayout) -> LockInfo | None:
+    """Who holds the project's lock and may still write to it: the holder when it still runs
+    on this host or runs on another (which cannot be checked from here), else ``None`` (no
+    lock, or one left behind that the next opener takes over). An unreadable lock file
+    counts as held until it is old enough to be taken over (its holder is unknown)."""
+    if not layout.lock.exists():
+        return None
+    held = read_lock(layout.lock)
+    if held is None:
+        return None if _left_half_written(layout.lock) else LockInfo(0, "?", "?", "?")
+    return None if _holder_gone(layout.lock, held) else held
 
 
 def remove_stale_lock(layout: ProjectLayout, *, force: bool = False) -> LockInfo | None:
