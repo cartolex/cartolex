@@ -571,10 +571,29 @@ class ThemesFile(_Model):
 Shows = Annotated[str, Field(pattern=r"^(people|texts|organisations:[a-z0-9][a-z0-9_-]{0,63})$")]
 
 
+#: The layout methods that draw a map in space (three dimensions); the others draw flat maps.
+SPACE_METHODS = ("umap",)
+#: The recipes of the UMAP method (its ``layout`` parameter) that draw flat maps only.
+FLAT_RECIPES = ("tsne_anchored", "tsne", "tree")
+
+
 class MapLayout(_Model):
     method: NonEmpty
     seed: Annotated[int, Field(ge=0, lt=2**32)] = 0
     params: dict[str, Any] = Field(default_factory=dict)
+    #: A flat map (2) or a map in space (3: the UMAP method only).
+    dimensions: Literal[2, 3] = 2
+
+    @model_validator(mode="after")
+    def _space_needs_umap(self) -> MapLayout:
+        if self.dimensions == 3 and (
+            self.method not in SPACE_METHODS or self.params.get("layout") in FLAT_RECIPES
+        ):
+            raise ValueError(
+                f"the {self.method} layout draws flat maps only: a map in space "
+                f"(dimensions 3) needs one of {list(SPACE_METHODS)}"
+            )
+        return self
 
 
 class MapVersion(_Model):
@@ -584,6 +603,9 @@ class MapVersion(_Model):
     base: Slug | None = None
     created_at: datetime
     note: str = ""
+    #: Built with the pinned version (people, keywords, organisations, texts, projected
+    #: people and time windows placed on it too). The pinned version is always built.
+    built: bool = False
 
 
 class MapsFile(_Model):

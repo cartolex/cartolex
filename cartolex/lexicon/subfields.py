@@ -1140,6 +1140,8 @@ def apply_subfield_files(
             coords = emb.umap_ind[member_res_indices]
             sf["centroid_umap_x"] = float(coords[:, 0].mean())
             sf["centroid_umap_y"] = float(coords[:, 1].mean())
+            if coords.shape[1] == 3:  # a pinned map in space
+                sf["centroid_umap_z"] = float(coords[:, 2].mean())
 
     # ── Per-researcher soft subfield weights (distribution for pie charts) ────
     # Turn cosine distances into a per-researcher probability-like distribution

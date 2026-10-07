@@ -230,6 +230,8 @@ class StageContext:
         self.upstream = dict(upstream)
         self.records = dict(records or {})
         self.counts: dict[str, int] = {}
+        #: More measures to record beside the counts (``versions`` of the map's layout).
+        self.measures: dict[str, Any] = {}
         self.warnings: list[str] = []
         self._report = report
         self._cancel = cancel
@@ -552,7 +554,11 @@ def _run_stage(
         inputs=[*inputs.stages, *inputs.files],
         identity=inputs.identity,
         measures=Measures(
-            seconds=seconds, peak_memory_mb=peak.peak_mb, own_memory_mb=peak.own_mb, counts=counts
+            seconds=seconds,
+            peak_memory_mb=peak.peak_mb,
+            own_memory_mb=peak.own_mb,
+            counts=counts,
+            **ctx.measures,
         ),
         warnings=ctx.warnings,
     )

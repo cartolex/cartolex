@@ -14,7 +14,7 @@ it a block of rows at a time (:mod:`cartolex.atlas.blocks`).
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -229,25 +229,37 @@ def text_counts(vectorizer: Any, texts: list[str]) -> sparse.csr_matrix:
     )
 
 
-def project_trajectories(B: np.ndarray | sparse.spmatrix, svd_model, anchors) -> np.ndarray:
+def project_trajectories(
+    B: np.ndarray | sparse.spmatrix, svd_model, anchors, also: Sequence[Any] = ()
+) -> Any:
     """Place bin fingerprints on the map.
 
     L2-normalise → ``svd.transform`` → placed by the nearest mapped people
     (*anchors*, a :class:`~cartolex.atlas.placement.MapAnchors`), a block of rows at
-    a time. *B* may be dense or sparse. Returns an ``(n_bins, 2)`` array; an empty
-    input yields shape ``(0, 2)``.
+    a time. *B* may be dense or sparse. Returns an ``(n_bins, d)`` array (*d*: the map's
+    dimensions, 2 or 3); an empty input yields shape ``(0, d)``. With *also* (the anchors
+    of other map versions), returns the list of the positions on each map, *anchors*'
+    first: the bins go through the SVD once.
     """
+    maps = [anchors, *also]
     if not sparse.issparse(B):
         B = np.asarray(B, dtype=float)
     if B.shape[0] == 0:
-        return np.zeros((0, 2))
+        places = [np.zeros((0, _dimensions(a))) for a in maps]
+        return places if also else places[0]
     Z = np.vstack(
         [
             svd_model.transform(normalize(dense_rows(B, rows), norm="l2", axis=1))
             for rows in row_blocks(B.shape[0], B.shape[1])
         ]
     )
-    return anchors.place(Z)
+    places = [a.place(Z) for a in maps]
+    return places if also else places[0]
+
+
+def _dimensions(anchors: Any) -> int:
+    """The dimensions of the map of *anchors* (2 when they do not say)."""
+    return int(getattr(anchors, "dimensions", 2))
 
 
 def _window_projector(svd_model) -> Callable[[np.ndarray], np.ndarray]:
@@ -284,7 +296,8 @@ def build_trajectory_windows(
     report: Callable[[float, str], Any] | None = None,
     describe: Callable[[np.ndarray, np.ndarray], Any] | None = None,
     all_spans: bool = False,
-) -> dict[str, list[dict]]:
+    also: Sequence[Any] = (),
+) -> Any:
     """Exact per-(researcher, contiguous-bin-window) reprojection + re-weighting.
 
     For each of a researcher's own time-bins (with *all_spans*, for every contiguous
@@ -305,12 +318,15 @@ def build_trajectory_windows(
     *report*, when given, is called with the share of researchers done (it may
     raise to stop the loop). *describe*, when given, is called with each window's
     term columns and values; what it returns is the entry's ``levels`` (the
-    window's weights on every level of a theme tree, for example).
+    window's weights on every level of a theme tree, for example). On a map in space
+    each entry also has ``z``. With *also* (the anchors of other map versions), returns
+    ``(windows, others)``: *others* holds, per version, ``{researcher_id: [{key, x, y[,
+    z]}, ...]}``, each window placed on that version's map (one SVD pass for all).
     """
     from cartolex.lexicon.subfields import researcher_group_weights
 
     if traj.B.shape[0] == 0 or traj.meta.empty:
-        return {}
+        return ({}, [{} for _ in also]) if also else {}
     to_space = _window_projector(svd_model)
     meta = traj.meta.reset_index(drop=True)
     out: dict[str, list[dict]] = {}
@@ -349,9 +365,24 @@ def build_trajectory_windows(
                     cols = np.flatnonzero(acc > 0)
                     entry["levels"] = describe(cols, acc[cols])
                 pending.append((str(rid), entry))
-    xy = anchors.place(np.vstack(vectors)) if vectors else np.zeros((0, 2))
-    for (rid, entry), (x, y) in zip(pending, xy, strict=True):
-        entry = {**entry, "x": round(float(x), 4), "y": round(float(y), 4)}
-        keys = ("key", "mass", "x", "y", "subfields", "concepts", "levels")
+    V = np.vstack(vectors) if vectors else None
+    xy = anchors.place(V) if V is not None else np.zeros((0, _dimensions(anchors)))
+    for (rid, entry), at in zip(pending, xy, strict=True):
+        entry = {**entry, **_rounded_place(at)}
+        keys = ("key", "mass", "x", "y", "z", "subfields", "concepts", "levels")
         out.setdefault(rid, []).append({k: entry[k] for k in keys if k in entry})
-    return out
+    if not also:
+        return out
+    others: list[dict[str, list[dict]]] = []
+    for other in also:
+        oxy = other.place(V) if V is not None else np.zeros((0, _dimensions(other)))
+        placed: dict[str, list[dict]] = {}
+        for (rid, entry), at in zip(pending, oxy, strict=True):
+            placed.setdefault(rid, []).append({"key": entry["key"], **_rounded_place(at)})
+        others.append(placed)
+    return out, others
+
+
+def _rounded_place(at: np.ndarray) -> dict[str, float]:
+    """A window's place, ``x``, ``y`` (and ``z`` on a map in space), to four decimals."""
+    return {axis: round(float(v), 4) for axis, v in zip(("x", "y", "z"), at, strict=False)}

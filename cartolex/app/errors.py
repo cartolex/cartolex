@@ -211,6 +211,19 @@ ERRORS: dict[str, ErrorKind] = {
     # map versions and snapshots
     "map_version_not_found": ErrorKind(404, "there is no map version {version}", "reload"),
     "map_version_missing": ErrorKind(422, "name the version to {action}", "fix-input"),
+    "map_version_not_built": ErrorKind(
+        404,
+        "the map version {version} is not built: mark it to be built and build the map",
+        "build",
+    ),
+    "layout_dimensions_unsupported": ErrorKind(
+        422, "the {method} layout draws flat maps only: a map in space needs umap", "fix-input"
+    ),
+    "base_needs_2d": ErrorKind(
+        409,
+        "a base map places a flat map only, and {version} is a map in space: show a flat version",
+        "fix-input",
+    ),
     "map_version_pinned": ErrorKind(
         409, "{version} is pinned: pin another version before discarding it", "fix-input"
     ),

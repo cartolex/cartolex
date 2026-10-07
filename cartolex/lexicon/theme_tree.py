@@ -1115,8 +1115,8 @@ def apply_tree(
         if xy is not None:
             pos = int(tree.position[i])  # type: ignore[attr-defined]
             m = float(mass[n.level][pos])
-            entry["x"] = float(at_xy[n.level][pos, 0] / m) if m > 0 else None
-            entry["y"] = float(at_xy[n.level][pos, 1] / m) if m > 0 else None
+            for col, axis in enumerate(("x", "y", "z")[: xy.shape[1]]):
+                entry[axis] = float(at_xy[n.level][pos, col] / m) if m > 0 else None
         entries.append(entry)
 
     people = pd.DataFrame(columns=PEOPLE_COLUMNS)
@@ -1205,6 +1205,8 @@ def apply_themes(
     tree_json: Path | None = None,
     tables: bool = True,
     person_ids: Mapping[str, str] | None = None,
+    person_xy: np.ndarray | None = None,
+    applied_out: Path | None = None,
 ) -> AppliedThemes:
     """Apply stage: apply a tree and write the applied tree and its tables.
 
@@ -1221,7 +1223,9 @@ def apply_themes(
     is applied again and only ``ctx.paths.themes_applied_json`` is written: the
     layout does this once the map is drawn, to place the nodes on it.
     *person_ids* maps the engine's researcher ids to other ids, written beside
-    them in the people table.
+    them in the people table. *person_xy* and *applied_out* place the nodes on another
+    map version (its people's positions; ``z`` too on a map in space) and write its
+    applied tree there.
     """
     paths = ctx.paths
     tree_out: Path | None = paths.themes_tree_json
@@ -1240,13 +1244,14 @@ def apply_themes(
             lexical_data_json=paths.lexical_data_json,
             embeddings_json=paths.embeddings_json,
             tree_out=tree_out,
-            applied_out=paths.themes_applied_json,
+            applied_out=applied_out or paths.themes_applied_json,
             keywords_out=paths.theme_keywords_csv if tables else None,
             people_out=paths.theme_people_parquet if tables else None,
             organisations_out=paths.theme_organisations_parquet if tables else None,
             weights_basis=ctx.settings.weights_basis,
             person_ids=person_ids,
             source=source,
+            person_xy=person_xy,
         )
 
 
@@ -1270,8 +1275,11 @@ def apply_theme_files(
     weights_basis: str = "tf",
     person_ids: Mapping[str, str] | None = None,
     source: str = "",
+    person_xy: np.ndarray | None = None,
 ) -> AppliedThemes:
-    """Apply the tree of *tree_json* and write the results to the files given (see :func:`apply_themes`)."""
+    """Apply the tree of *tree_json* and write the results to the files given (see :func:`apply_themes`).
+
+    The nodes are placed at their people's positions: *person_xy*, else the stored map's."""
     from cartolex.atlas.model_files import load_embeddings, load_lexical_data
 
     from .subfields import _require_lexical_models, _researcher_id_series
@@ -1305,7 +1313,7 @@ def apply_theme_files(
         researcher_ids=_researcher_id_series(meta).tolist(),
         units=units,
         person_ids=person_ids,
-        person_xy=emb.umap_ind,
+        person_xy=emb.umap_ind if person_xy is None else person_xy,
         tables=tables,
         weights_basis=basis,
     )

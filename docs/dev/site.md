@@ -7,7 +7,7 @@ builds it, lists the builds, and makes figures, tables and files.
 
 ## A build
 
-`build_site(project, SiteOptions(names, texts, title, language))` writes
+`build_site(project, SiteOptions(names, texts, title, language, versions))` writes
 `outputs/sites/<date>_<time>/` (a second build in the same second gets `-2`):
 
 ```text
@@ -21,8 +21,20 @@ assets/        tokens.css (the app's, copied), atlas.css and atlas.js (the app's
                cloud, when the project has a lexicon)
 data/          core.js (every page), orgs.js, links.js (who writes with whom),
                people/<n>.js, keywords/<n>.js and texts/<n>.js (only when texts are
-               asked for)
+               asked for), layout-<id>.js (each other map version carried)
 ```
+
+**Map versions.** A site carries the built map versions `SiteOptions.versions`
+names (every built one by default, the pinned first; one that is not built: 404
+`map_version_not_built` from the API). `data/core.js` is placed on the first, as
+a site always was, and adds `dimensions` (2, or 3 for a map in space: every
+place then has a `z`) and `versions` (the versions carried:
+`[{id, dimensions, method, note, pinned}]`). Each other version is
+`data/layout-<id>.js` (`window.CX_SITE["layout-<id>"]`): its places only, as
+columns in the core's rows, `{id, dimensions, people, keywords, orgs, projected,
+nodes, bounds}`, each of `people`…`nodes` `{x, y[, z]}`. `site.json` lists
+`versions`; the plan's summary lists them too, and `site_bytes.layouts`
+estimates what the layouts add (8 bytes a coordinate; 7.2 measured on the large demo world).
 
 A person's details and texts are in the part `(number − 1) mod n` of their
 site id (`s<number>`), a keyword's users in the part `index mod n` of its place

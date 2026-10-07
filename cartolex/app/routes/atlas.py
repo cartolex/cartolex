@@ -128,20 +128,47 @@ def _node(entry: dict[str, Any]) -> dict[str, Any]:
         "keywords": int(entry.get("keywords", 0)),
         "keywords_counted": int(entry.get("keywords_counted", 0)),
         "top_keywords": list(entry.get("top_keywords") or [])[:TOP_KEYWORDS],
-        "x": _num(entry.get("x"), XY_DIGITS),
-        "y": _num(entry.get("y"), XY_DIGITS),
+        **_xyz(entry.get("x"), entry.get("y"), entry.get("z"), "z" in entry),
     }
 
 
-def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
-    """The bundle of the current results (read from the stages' folders)."""
-    from cartolex.build.records import read_record
+def _xyz(x: Any, y: Any, z: Any = None, space: bool = False) -> dict[str, float | None]:
+    """A place as the bundle gives it: ``x``, ``y``, and ``z`` on a map in space (*space*)."""
+    out = {"x": _num(x, XY_DIGITS), "y": _num(y, XY_DIGITS)}
+    if space:
+        out["z"] = _num(z, XY_DIGITS)
+    return out
+
+
+def _place(ctx: Any, version: str | None) -> Any:
+    """Where built map version *version* is (the pinned one by default); 404
+    ``map_version_not_built`` when it is not built."""
+    from ..map_versions import version_place
+
+    place = version_place(ctx, version)
+    if place is None:
+        raise ApiError.of("map_version_not_built", version=version or "")
+    return place
+
+
+def build_bundle(
+    ctx: Any, runs: dict[str, str | None], version: str | None = None
+) -> dict[str, Any]:
+    """The bundle of the current results (read from the stages' folders), placed on built map
+    version *version* (the pinned one by default; ``LookupError`` when it is not built)."""
+    from ..map_versions import built_versions, version_place
 
     layout = ctx.layout
     config = ctx.project.config
-    mapf = layout.stage("map.layout")
+    place = version_place(ctx, version)
+    if place is None:
+        raise LookupError(f"map version {version} is not built")
+    space = place.dimensions == 3
+    pinf = layout.stage("map.layout")
+    mapf = place.layout
     applyf = layout.stage("themes.apply")
-    applied = _json(mapf / "themes_applied.json") or _json(applyf / "themes_applied.json")
+    applied = _json(mapf / "themes_applied.json") or _json(pinf / "themes_applied.json")
+    applied = applied or _json(applyf / "themes_applied.json")
     depth = int(applied.get("depth") or 0)
     levels = [
         {"level": int(lv.get("level", i)), "names": dict(lv.get("names") or {})}
@@ -166,8 +193,7 @@ def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
                 "person_id": pid,
                 "name": f"{r['first_name']} {r['last_name']}".strip(),
                 "unit": r["unit"],
-                "x": _num(r["umap_x"], XY_DIGITS),
-                "y": _num(r["umap_y"], XY_DIGITS),
+                **_xyz(r["umap_x"], r["umap_y"], r.get("umap_z"), space),
                 "shares": _shares(depth, by_researcher.get(rid, [])),
             }
         )
@@ -177,13 +203,16 @@ def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
     # Their categories (concept, method, object, place, field), when an AI or a person gave one.
     categories = _json(layout.stage("keywords.build") / "categories.json")
     keywords = []
-    for r in _rows(mapf / "umap_terms_clustered.csv") or _rows(mapf / "umap_terms.csv"):
+    rows = _rows(pinf / "umap_terms_clustered.csv") or _rows(pinf / "umap_terms.csv")
+    if not place.pinned:  # the pinned map's order, so a keyword has one index on every version
+        at = {r["term"]: r for r in _rows(mapf / "umap_terms.csv")}
+        rows = [at.get(r["term"]) or {"term": r["term"]} for r in rows]
+    for r in rows:
         w = placed.get(r["term"]) or {}
         keywords.append(
             {
                 "term": r["term"],
-                "x": _num(r["umap_x"], XY_DIGITS),
-                "y": _num(r["umap_y"], XY_DIGITS),
+                **_xyz(r.get("umap_x"), r.get("umap_y"), r.get("umap_z"), space),
                 "node": w.get("node") or None,
                 "level": int(w["level"]) if w.get("level") else None,
                 "counts_to": int(w["counts_to"]) if w.get("counts_to") else 0,
@@ -199,8 +228,7 @@ def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
     units = [
         {
             "unit": r["unit"],
-            "x": _num(r["umap_x"], XY_DIGITS),
-            "y": _num(r["umap_y"], XY_DIGITS),
+            **_xyz(r["umap_x"], r["umap_y"], r.get("umap_z"), space),
             "size": int(float(r.get("size") or 0)),
             "ellipse": {
                 "sx": _num(r.get("sx")),
@@ -214,14 +242,20 @@ def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
 
     # Time windows: only counted here (``GET /api/atlas/windows`` gives them).
     windows, window_years = _windows_count(
-        layout, set(r for r, pid in engine_to_person.items() if pid)
+        place.trajectories, set(r for r, pid in engine_to_person.items() if pid)
     )
 
-    # Projected people: their place and their shares per level.
+    # Projected people: their place (on the version shown) and their shares per level.
     overlays = []
     for overlay in config.overlays:
         doc = _json(layout.stage("overlays.position") / overlay.id / "positions.json")
-        for item in doc.get("items", []):
+        items = doc.get("items", [])
+        where = items
+        if not place.pinned:  # the version's places, written in the same order
+            where = _json(place.overlays / overlay.id / "positions.json").get("items", [])
+            if len(where) != len(items):
+                where = [{} for _ in items]
+        for item, at in zip(items, where, strict=True):
             rows = [
                 (lv.get("level", 0), n.get("id"), n.get("share"))
                 for lv in item.get("levels") or []
@@ -231,24 +265,26 @@ def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
                 {
                     "set": overlay.id,
                     "person_id": item.get("person_id"),
-                    "x": _num(item.get("x"), XY_DIGITS),
-                    "y": _num(item.get("y"), XY_DIGITS),
+                    **_xyz(at.get("x"), at.get("y"), at.get("z"), space),
                     "shares": _shares(depth, rows),
                 }
             )
 
-    xs = [p["x"] for p in people if p["x"] is not None] + [
-        k["x"] for k in keywords if k["x"] is not None
-    ]
-    ys = [p["y"] for p in people if p["y"] is not None] + [
-        k["y"] for k in keywords if k["y"] is not None
-    ]
-    record = read_record(layout, "map.layout")
-    drawn = record.measures.counts.get("version") if record else None
+    bounds: dict[str, float | None] = {}
+    for axis in ("x", "y", "z") if space else ("x", "y"):
+        values = [p[axis] for p in people if p[axis] is not None] + [
+            k[axis] for k in keywords if k[axis] is not None
+        ]
+        bounds[f"{axis}min"] = min(values, default=None)
+        bounds[f"{axis}max"] = max(values, default=None)
+    versions = built_versions(ctx)
     return {
         "format": FORMAT,
         "lineage": runs,
-        "map_version": f"v{drawn}" if drawn else None,  # the version the map was drawn with
+        "map_version": place.id,  # the version shown (the pinned one by default)
+        "pinned_version": versions[0]["id"] if versions else place.id,
+        "versions": versions,
+        "dimensions": place.dimensions,
         "depth": depth,
         "levels": levels,
         "source": applied.get("source") or None,
@@ -261,12 +297,7 @@ def build_bundle(ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
         "windows": windows,
         "window_years": window_years,
         "overlays": overlays,
-        "bounds": {
-            "xmin": min(xs, default=None),
-            "xmax": max(xs, default=None),
-            "ymin": min(ys, default=None),
-            "ymax": max(ys, default=None),
-        },
+        "bounds": bounds,
     }
 
 
@@ -286,15 +317,19 @@ def _identities(ctx: Any) -> dict[tuple[str, str, str], str]:
     return identity
 
 
-def _trajectory_points(layout: Any) -> Any:
-    """``umap_trajectories.csv`` as an Arrow table (its columns the windows need), or ``None``."""
-    path = layout.stage("map.trajectories") / "umap_trajectories.csv"
+def _trajectory_points(folder: Path) -> Any:
+    """``umap_trajectories.csv`` of *folder* (a map version's trajectories) as an Arrow table
+    (its columns the windows need, ``umap_z`` on a map in space), or ``None``."""
+    path = folder / "umap_trajectories.csv"
     if not path.is_file():
         return None
     import pyarrow as pa
     import pyarrow.csv as pacsv
 
+    with open(path, encoding="utf-8", newline="") as fh:
+        header = fh.readline().strip().split(",")
     columns = ["researcher_id", "bin_start", "bin_end", "n_docs", "umap_x", "umap_y"]
+    columns += ["umap_z"] if "umap_z" in header else []
     return pacsv.read_csv(
         path,
         convert_options=pacsv.ConvertOptions(
@@ -304,12 +339,12 @@ def _trajectory_points(layout: Any) -> Any:
     )
 
 
-def _windows_count(layout: Any, mapped: set[str]) -> tuple[int, dict[str, int] | None]:
+def _windows_count(folder: Path, mapped: set[str]) -> tuple[int, dict[str, int] | None]:
     """How many time windows of mapped people are placed, and their first and last years."""
     import pyarrow as pa
     import pyarrow.compute as pc
 
-    points = _trajectory_points(layout)
+    points = _trajectory_points(folder)
     if points is None or not mapped:
         return 0, None
     keep = pc.and_(
@@ -330,25 +365,29 @@ THEME_BATCH = 262_144
 _WINDOW_COLUMNS = ("person", "start", "end", "texts", "x", "y", "top")
 
 
-def build_windows(ctx: Any) -> dict[str, Any]:
+def build_windows(ctx: Any, version: str | None = None) -> dict[str, Any]:
     """Every placed time window of the mapped people, as arrays: ``person`` (an index in
-    the bundle's people), ``start``, ``end``, ``texts``, ``x``, ``y`` and ``top`` (an
-    index in ``tops``, the largest top-level node's id; ``-1``: none). People, windows
-    and nodes are codes, never a string per window."""
+    the bundle's people), ``start``, ``end``, ``texts``, ``x``, ``y`` (``z`` on a map in
+    space) and ``top`` (an index in ``tops``, the largest top-level node's id; ``-1``:
+    none), placed on built map version *version* (the pinned one by default). People,
+    windows and nodes are codes, never a string per window."""
     import numpy as np
     import pyarrow as pa
     import pyarrow.compute as pc
     import pyarrow.parquet as pq
 
+    from ..map_versions import version_place
+
     layout = ctx.layout
+    place = version_place(ctx, version)
     empty = {k: np.zeros(0, dtype=np.int64) for k in _WINDOW_COLUMNS}
     empty["tops"] = []
-    points = _trajectory_points(layout)
+    points = _trajectory_points(place.trajectories) if place is not None else None
     if points is None:
         return empty
     identity = _identities(ctx)
     order: dict[str, int] = {}
-    for k, r in enumerate(_rows(layout.stage("map.layout") / "umap_individuals.csv")):
+    for k, r in enumerate(_rows(place.layout / "umap_individuals.csv")):
         if identity.get(_identity_key(r)):
             order.setdefault(r.get("id", ""), k)
     rid = pc.dictionary_encode(points["researcher_id"].combine_chunks())
@@ -404,18 +443,24 @@ def build_windows(ctx: Any) -> dict[str, Any]:
                 top[hit] = best[at[hit]]
     sort = np.lexsort((start[keep], person[keep]))
     picked = np.flatnonzero(keep)[sort]
-    return {
+
+    def axis(name: str) -> Any:
+        values = points[name].to_numpy(zero_copy_only=False).astype(np.float64)
+        return np.round(values[picked], XY_DIGITS)
+
+    out = {
         "person": person[picked],
         "start": start[picked],
         "end": end[picked],
         "texts": points["n_docs"].to_numpy(zero_copy_only=False).astype(np.int64)[picked],
         "x": np.round(x[picked], XY_DIGITS),
-        "y": np.round(
-            points["umap_y"].to_numpy(zero_copy_only=False).astype(np.float64)[picked], XY_DIGITS
-        ),
+        "y": axis("umap_y"),
         "top": top[picked],
         "tops": tops,
     }
+    if "umap_z" in points.column_names:
+        out["z"] = axis("umap_z")
+    return out
 
 
 def _best_per_key(key: Any, share: Any, node: Any) -> tuple[Any, Any, Any]:
@@ -434,7 +479,8 @@ def _windows_json(windows: dict[str, Any], rows: Any = None) -> dict[str, list[A
     """The windows (those at *rows*, every one by default) as the reply's columns."""
     tops = windows["tops"]
     pick = (lambda a: a) if rows is None else (lambda a: a[rows])
-    out = {k: pick(windows[k]).tolist() for k in ("person", "start", "end", "texts", "x", "y")}
+    columns = ("person", "start", "end", "texts", "x", "y", *(("z",) if "z" in windows else ()))
+    out = {k: pick(windows[k]).tolist() for k in columns}
     out["top"] = [tops[t] if t >= 0 else None for t in pick(windows["top"]).tolist()]
     return out
 
@@ -444,20 +490,39 @@ def _etag(runs: dict[str, str | None], more: list[str | None] | None = None) -> 
     return f'"atlas-{hashlib.sha256(key.encode()).hexdigest()[:32]}"'
 
 
-def _bundle(runtime: Any, ctx: Any, runs: dict[str, str | None]) -> dict[str, Any]:
-    key = ("atlas", FORMAT, ctx.id, tuple(sorted(runs.items())))
-    return runtime.atlas_cache.get(key, lambda: build_bundle(ctx, runs))
+def _bundle(
+    runtime: Any, ctx: Any, runs: dict[str, str | None], version: str | None = None
+) -> dict[str, Any]:
+    """The bundle on built map version *version* (the pinned one by default; give the id
+    :func:`_place` found), kept per lineage and version."""
+    key = ("atlas", FORMAT, ctx.id, tuple(sorted(runs.items())), version)
+    return runtime.atlas_cache.get(key, lambda: build_bundle(ctx, runs, version))
 
 
 def _extras(runtime: Any, ctx: Any, runs: dict[str, str | None], bundle: dict[str, Any]) -> Any:
-    """The organisations, filters and years of the map (from the tables: their stamp keys it)."""
+    """The organisations, filters and years of the map (from the tables: their stamp keys it),
+    placed on the bundle's map version."""
     from ..atlas_layers import map_extras
     from ..corpus_view import stamp
 
-    key = ("atlas-extras", ctx.id, tuple(sorted(runs.items())), stamp(ctx.project))
+    key = ("atlas-extras", ctx.id, tuple(sorted(runs.items())), stamp(ctx.project),
+           bundle.get("map_version"))  # fmt: skip
     return runtime.atlas_cache.get(
         key, lambda: map_extras(ctx, bundle["people"], runtime.table_cache)
     )
+
+
+def _pinned_id(ctx: Any, version: str | None) -> str | None:
+    """*version*, or ``None`` when it names the pinned version (one cache entry for both)."""
+    if version is None:
+        return None
+    place = _place(ctx, version)
+    return None if place.pinned else place.id
+
+
+#: A map version's id, as ``maps.json`` names it.
+VERSION = r"^[A-Za-z0-9_-]{1,32}$"
+Version = Annotated[str | None, Query(pattern=VERSION)]
 
 
 def _with_base(ctx: Any, bundle: dict[str, Any], base: str | None) -> dict[str, Any]:
@@ -482,14 +547,25 @@ def _base_fp(ctx: Any, base: str | None) -> str | None:
     return f"{base}:{st.st_size}:{st.st_mtime_ns}"
 
 
+def _check_base(ctx: Any, version: str | None, base: str | None) -> None:
+    """A base places a flat map only: 409 ``base_needs_2d`` on a map in space."""
+    if base and _place(ctx, version).dimensions != 2:
+        raise ApiError.of("base_needs_2d", version=version or _place(ctx, None).id)
+
+
 @routes.get("/api/atlas", action="atlas.read")
 def atlas(
-    request: Request, ctx: ProjectDep, base: Annotated[str | None, Query(max_length=64)] = None
+    request: Request,
+    ctx: ProjectDep,
+    base: Annotated[str | None, Query(max_length=64)] = None,
+    version: Version = None,
 ) -> Response:
     """The data the map draws, cached by its lineage; ``If-None-Match`` gives 304 when unchanged.
 
     The bundle carries what the atlas page adds (``organisations``, ``organisation_levels``,
-    ``columns``, ``people_extra``, ``years``); ``base`` places it on a base's map."""
+    ``columns``, ``people_extra``, ``years``); ``base`` places it on a base's map (a flat
+    map's only: 409 ``base_needs_2d``). ``version`` shows another built map version (404
+    ``map_version_not_built`` when it is not built); ``versions`` lists the built ones."""
     from ..corpus_view import stamp
 
     runtime = runtime_of(request)
@@ -502,10 +578,12 @@ def atlas(
                 "empty": empty("empty_no_map"),
             }
         )
-    etag = _etag(runs, [str(stamp(ctx.project)), _base_fp(ctx, base)])
+    version = _pinned_id(ctx, version)
+    _check_base(ctx, version, base)
+    etag = _etag(runs, [str(stamp(ctx.project)), _base_fp(ctx, base), version])
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag})
-    bundle = _bundle(runtime, ctx, runs)
+    bundle = _bundle(runtime, ctx, runs, version)
     extras = _extras(runtime, ctx, runs, bundle)
     placed = _with_base(ctx, bundle, base)
     if base:
@@ -537,6 +615,7 @@ def atlas_texts(
     focus: Annotated[str | None, Query(pattern=FOCUS)] = None,
     net: Annotated[int, Query(ge=0, le=3)] = 0,
     limit: Annotated[int, Query(ge=1, le=20_000)] = 5_000,
+    version: Version = None,
 ) -> Response:
     """Every text placed on the map (columnar: ``id``, ``title``, ``year``, ``x``, ``y``, ``by``,
     ``terms``, ``people``; a sample of a large corpus), cached like the bundle; ``base``
@@ -544,7 +623,8 @@ def atlas_texts(
     ``organisation:<id>``), only the texts of the focus, from every text of the tables (and,
     with ``net`` rings, of the people its network reaches; :mod:`cartolex.app.focus_texts`):
     ``focus``, ``net``, ``total`` (the focus's texts), at most ``limit`` placed (``sampled``
-    beyond it)."""
+    beyond it). ``version``: placed on another built map version (``z`` too on a map in
+    space)."""
     from ..atlas_layers import place_texts
     from ..corpus_view import stamp
 
@@ -553,14 +633,16 @@ def atlas_texts(
     if runs["map.layout"] is None:
         return JSONResponse({"format": TEXTS_FORMAT, "available": False,
                              "empty": empty("empty_no_map")})  # fmt: skip
+    version = _pinned_id(ctx, version)
+    _check_base(ctx, version, base)
     if focus:
-        return _focus_texts(request, ctx, runs, base, focus, net, limit)
-    etag = _etag(runs, ["texts", str(stamp(ctx.project)), _base_fp(ctx, base)])
+        return _focus_texts(request, ctx, runs, base, focus, net, limit, version)
+    etag = _etag(runs, ["texts", str(stamp(ctx.project)), _base_fp(ctx, base), version])
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag})
 
     def make() -> bytes:
-        bundle = _with_base(ctx, _bundle(runtime, ctx, runs), base)
+        bundle = _with_base(ctx, _bundle(runtime, ctx, runs, version), base)
         texts = place_texts(ctx, bundle["keywords"], bundle["people"])
         return json.dumps(
             {"format": TEXTS_FORMAT, "available": True, **texts},
@@ -584,6 +666,7 @@ def _focus_texts(
     focus: str,
     net: int,
     limit: int,
+    version: str | None = None,
 ) -> Response:
     """The texts of a focus (see :func:`atlas_texts`)."""
     from ..atlas_layers import place_texts
@@ -593,7 +676,7 @@ def _focus_texts(
     runtime = runtime_of(request)
     kind, _, id_ = focus.partition(":")
     etag = _etag(runs, ["texts-focus", focus, str(net), str(limit), str(stamp(ctx.project)),
-                        _base_fp(ctx, base)])  # fmt: skip
+                        _base_fp(ctx, base), version])  # fmt: skip
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag})
     if kind != "organisation" and id_ not in _people_named(runtime, ctx):
@@ -606,7 +689,7 @@ def _focus_texts(
         if people is None:
             raise ApiError.of("organisation_not_found", org=id_)
         ids = focus_texts(ctx.project, runtime.table_cache, people)
-        placed = _with_base(ctx, bundle, base)
+        placed = _with_base(ctx, _bundle(runtime, ctx, runs, version), base)
         texts = place_texts(ctx, placed["keywords"], placed["people"], limit=limit, ids=ids)
         body = {"format": TEXTS_FORMAT, "available": True, "focus": focus, "net": net,
                 "people_count": len(people), **texts}  # fmt: skip
@@ -653,10 +736,12 @@ def atlas_windows(
     ctx: ProjectDep,
     person: Annotated[str | None, Query(max_length=64)] = None,
     base: Annotated[str | None, Query(max_length=64)] = None,
+    version: Version = None,
 ) -> Response:
     """The people's time windows, as columns (``person``: an index in the bundle's people,
-    ``start``, ``end``, ``texts``, ``x``, ``y``, ``top``): every one, or one ``person``'s;
-    none on a base's map (they are not placed there)."""
+    ``start``, ``end``, ``texts``, ``x``, ``y`` (``z`` on a map in space), ``top``): every
+    one, or one ``person``'s; none on a base's map (they are not placed there).
+    ``version``: placed on another built map version."""
     runtime = runtime_of(request)
     runs = lineage(ctx)
     if runs["map.layout"] is None:
@@ -664,8 +749,10 @@ def atlas_windows(
                              "empty": empty("empty_no_map")})  # fmt: skip
     from ..corpus_view import stamp
 
+    version = _pinned_id(ctx, version)
+    _check_base(ctx, version, base)
     # The people identified on the map come from the tables: their stamp keys the windows.
-    etag = _etag(runs, ["windows", person, str(stamp(ctx.project)), _base_fp(ctx, base)])
+    etag = _etag(runs, ["windows", person, str(stamp(ctx.project)), _base_fp(ctx, base), version])
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag})
     if base:
@@ -674,7 +761,8 @@ def atlas_windows(
 
         def windows() -> dict[str, Any]:
             return runtime.atlas_cache.get(
-                ("atlas-windows", ctx.id, tuple(sorted(runs.items()))), lambda: build_windows(ctx)
+                ("atlas-windows", ctx.id, tuple(sorted(runs.items())), version),
+                lambda: build_windows(ctx, version),
             )
 
         if person is None:
@@ -690,7 +778,7 @@ def atlas_windows(
                 lambda: _kept(ctx.layout.cache / "atlas", "windows", etag, make),
             )
             return Response(reply, media_type="application/json", headers={"ETag": etag})
-        bundle = _bundle(runtime, ctx, runs)
+        bundle = _bundle(runtime, ctx, runs, version)
         at = next((i for i, p in enumerate(bundle["people"]) if p["person_id"] == person), None)
         import numpy as np
 

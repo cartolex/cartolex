@@ -68,7 +68,7 @@ class Placement:
     the group, renormalised to sum to 1; zero elsewhere).
     """
 
-    xy: np.ndarray  # (n, 2)
+    xy: np.ndarray  # (n, d): the map's dimensions (2, or 3 for a map in space)
     neighbours: np.ndarray  # (n, k) anchor indices, nearest first
     distances: np.ndarray  # (n, k) cosine distances
     neighbour_weights: np.ndarray  # (n, k), each row sums to 1
@@ -124,7 +124,7 @@ def _unit_rows(m: np.ndarray) -> np.ndarray:
 def _heaviest_group(positions: np.ndarray, weights: np.ndarray, radius: float) -> np.ndarray:
     """For each row, the neighbours of its heaviest linked group (a boolean mask).
 
-    *positions* are the ``(n, k, 2)`` map positions of the neighbours, *weights*
+    *positions* are the ``(n, k, d)`` map positions of the neighbours, *weights*
     ``(n, k)``. Groups are the connected parts of the links (positions within
     *radius* of each other); each group is labelled by its lowest neighbour
     index, so on equal weights the group of the nearest neighbour wins.
@@ -187,7 +187,8 @@ def place(
     """Place each row of *vectors* on the map of the anchors (see the module's notes).
 
     *vectors* and *anchor_vectors* live in the same SVD space; *anchor_xy* are the
-    anchors' map positions. *k* is capped at the number of anchors (minus one when
+    anchors' map positions, ``(n_anchors, d)`` for a map of *d* dimensions (2, or 3 for
+    a map in space): the points get as many. *k* is capped at the number of anchors (minus one when
     *exclude_self*, which leaves out anchor ``i`` for vector ``i``, for
     leave-one-out checks). *link_radius* is a share of the map's radius. Work
     proceeds in chunks of at most *chunk* rows and :data:`CHUNK_CELLS` distances,
@@ -200,8 +201,8 @@ def place(
     A = np.atleast_2d(anchor_vectors) if unit_anchors else _unit_rows(np.atleast_2d(anchor_vectors))
     XY = np.asarray(anchor_xy, dtype=np.float64)
     n_anchors = A.shape[0]
-    if XY.shape != (n_anchors, 2):
-        raise ValueError(f"anchor_xy has shape {XY.shape}, expected ({n_anchors}, 2)")
+    if XY.ndim != 2 or XY.shape[0] != n_anchors or XY.shape[1] < 2:
+        raise ValueError(f"anchor_xy has shape {XY.shape}, expected ({n_anchors}, d ≥ 2)")
     if V.shape[1] != A.shape[1]:
         raise ValueError(f"vectors have {V.shape[1]} dimensions, anchors {A.shape[1]}")
     k = max(1, min(k, n_anchors - (1 if exclude_self else 0)))
@@ -209,7 +210,7 @@ def place(
         radius = link_radius * map_radius(XY)
     chunk = max(1, min(int(chunk), CHUNK_CELLS // max(1, n_anchors)))
     n = V.shape[0]
-    xy = np.empty((n, 2))
+    xy = np.empty((n, XY.shape[1]))
     nbrs = np.empty((n, k), dtype=np.int64)
     dist = np.empty((n, k))
     plain = np.empty((n, k))
@@ -247,7 +248,7 @@ class MapAnchors:
     """
 
     vectors: np.ndarray  # (n, dims)
-    xy: np.ndarray  # (n, 2)
+    xy: np.ndarray  # (n, d): 2, or 3 for a map in space
     k: int = K
     link_radius: float = LINK_RADIUS
     normalised: bool = False
@@ -262,11 +263,16 @@ class MapAnchors:
         """The anchors' vectors, of length one."""
         return self._unit  # type: ignore[attr-defined]
 
+    @property
+    def dimensions(self) -> int:
+        """The map's dimensions (2, or 3 for a map in space)."""
+        return int(np.shape(self.xy)[1]) if np.ndim(self.xy) == 2 else 2
+
     def place(self, vectors: np.ndarray) -> np.ndarray:
-        """The map positions of *vectors* (``(n, 2)``; no rows give ``(0, 2)``)."""
+        """The map positions of *vectors* (``(n, d)``; no rows give ``(0, d)``)."""
         vectors = np.asarray(vectors, dtype=np.float64)
         if vectors.size == 0:
-            return np.zeros((0, 2))
+            return np.zeros((0, self.dimensions))
         return place(
             vectors,
             self._unit,  # type: ignore[attr-defined]

@@ -26,7 +26,7 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
 from .builder import SiteOptions
-from .data import SiteTexts, estimate_bytes
+from .data import SiteTexts, estimate_bytes, site_versions
 
 if TYPE_CHECKING:
     from cartolex.project import Project
@@ -143,6 +143,7 @@ def plan(
         "themes": 0,
         "full_texts": 0,
         "never": ["full_texts", "identifiers", "people_columns"],
+        "versions": [],
     }
     layout = project.layout
     if layout.table("text_parts").exists():
@@ -173,10 +174,20 @@ def plan(
     )
     sizes = texts.estimate() if texts is not None else {"titles": 0, "abstracts": 0}
     summary["text_bytes"] = {"titles": sizes["titles"], "abstracts": sizes["abstracts"]}
+    # The map versions it carries: the first in the core, each other in a layout of its own.
+    try:
+        shipped = site_versions(project, list(options.versions) or None)
+    except KeyError:
+        shipped = site_versions(project)
+    summary["versions"] = shipped
+    placed = len(people) + summary["keywords"] + len(orgs) + summary["projected"]
+    placed += summary["themes"]
+    layout_values = sum(placed * int(v["dimensions"]) for v in shipped[1:])
     # What the atlas's data would weigh: estimated from the counts and the co-author pairs.
     summary["site_bytes"] = estimate_bytes(
-        len(people), summary["keywords"], len(orgs), summary["themes"], _pairs(project, cache)
-    )
+        len(people), summary["keywords"], len(orgs), summary["themes"], _pairs(project, cache),
+        layout_values,
+    )  # fmt: skip
     if people:
         if options.names is None:
             checks.append(_check("names_unanswered", "question", {"action": "fix-input",
@@ -200,7 +211,7 @@ def plan(
                              size=sizes["titles"]))  # fmt: skip
     weight = summary["site_bytes"]
     if weight["atlas"] > LARGE_ATLAS_BYTES:
-        total = weight["core"] + weight["links"] + weight["parts"]
+        total = weight["core"] + weight["links"] + weight["parts"] + weight["layouts"]
         checks.append(_check("site_large", "warning", None, size=weight["atlas"], total=total))
     if summary["full_texts"]:
         checks.append(_check("full_texts_kept", "info", None, count=summary["full_texts"]))

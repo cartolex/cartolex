@@ -38,6 +38,12 @@ size; the work goes in chunks, so memory stays proportional to the chunk times
 the number of people. Placing the 3,072 keywords of the large demo world takes
 0.09 s.
 
+The method does not depend on the map's dimensions: on a map in space (a map
+version of `dimensions` 3) the neighbours' places, the link radius and the
+weighted mean have three coordinates, and every placed point gets three. Each
+built map version places the same points on its own map, from the same
+neighbours in the space.
+
 | where | what is placed |
 | --- | --- |
 | `map.layout` | the keywords (except in the joint layout, which fits people and keywords together) |

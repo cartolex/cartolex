@@ -68,15 +68,19 @@ def _rows(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(fh))
 
 
-def _mean(points: Iterable[tuple[float, float]]) -> tuple[float, float] | None:
-    """The mean of *points*, whatever their order (exact sums: members come from sets)."""
+def _mean(points: Iterable[tuple[float, ...]]) -> tuple[float, ...] | None:
+    """The mean of *points* (``(x, y)``, or ``(x, y, z)`` on a map in space), whatever their
+    order (exact sums: members come from sets)."""
     xs = list(points)
     if not xs:
         return None
     n = len(xs)
-    sx = math.fsum(x for x, _ in xs)
-    sy = math.fsum(y for _, y in xs)
-    return (round(sx / n, XY_DIGITS), round(sy / n, XY_DIGITS))
+    return tuple(round(math.fsum(axis) / n, XY_DIGITS) for axis in zip(*xs, strict=True))
+
+
+def _at(item: dict[str, Any]) -> tuple[float, ...]:
+    """An item's place: ``(x, y)``, or ``(x, y, z)`` when it has a ``z`` (a map in space)."""
+    return (item["x"], item["y"], item["z"]) if "z" in item else (item["x"], item["y"])
 
 
 def _person_ids(ctx: Any) -> dict[tuple[str, str, str], str]:
@@ -96,7 +100,8 @@ def _person_ids(ctx: Any) -> dict[tuple[str, str, str], str]:
 def map_extras(ctx: Any, people: list[dict[str, Any]], cache: Any = None) -> dict[str, Any]:
     """Organisations placed on the map, the people's filters and the years the map covers.
 
-    *people* are the bundle's people (``person_id``, ``x``, ``y``). Answers
+    *people* are the bundle's people (``person_id``, ``x``, ``y``, and ``z`` on a map in
+    space: the organisations get one too, the mean of their members'). Answers
     ``organisations``, ``organisation_levels`` (smallest first, with their names),
     ``columns`` (each extra column's values and counts among the people on the map),
     ``people`` (person id → ``role``, ``columns``, ``orgs``: current organisations)
@@ -107,8 +112,9 @@ def map_extras(ctx: Any, people: list[dict[str, Any]], cache: Any = None) -> dic
 
     project = ctx.project
     layout = ctx.layout
+    space = any("z" in p for p in people)
     on_map = {
-        p["person_id"]: (p["x"], p["y"])
+        p["person_id"]: _at(p)
         for p in people
         if p.get("person_id") and p.get("x") is not None and p.get("y") is not None
     }
@@ -159,6 +165,7 @@ def map_extras(ctx: Any, people: list[dict[str, Any]], cache: Any = None) -> dic
                 "parents": o["parents"],
                 "x": xy[0] if xy else None,
                 "y": xy[1] if xy else None,
+                **({"z": xy[2] if xy else None} if space else {}),
                 "members": len(members),
                 "members_ever": len(ever.get(o["org_id"], ())),
                 "location": None,
@@ -293,7 +300,8 @@ def place_texts(
     those of *ids* (the texts of a focus): at the mean of the keywords found in its title and
     abstract (``by: keywords``), else at the mean of its authors on the map (``by: authors``).
 
-    Columnar, for large corpora: ``id``, ``title``, ``year``, ``x``, ``y``, ``by`` (0 keywords,
+    Columnar, for large corpora: ``id``, ``title``, ``year``, ``x``, ``y`` (``z`` too when the
+    keywords and people have one: a map in space), ``by`` (0 keywords,
     1 authors), ``terms`` (indexes into *keywords* of the terms found) and ``people`` (the
     authors on the map); ``total`` texts in the tables, ``sampled`` when only some are
     drawn. Texts placed neither way are counted in ``unplaced``. Only the texts drawn
@@ -311,6 +319,9 @@ def place_texts(
         "id": [], "title": [], "year": [], "x": [], "y": [], "by": [], "terms": [], "people": [],
         "unplaced": 0, "total": 0, "sampled": False,
     }  # fmt: skip
+    space = any("z" in k for k in keywords) or any("z" in p for p in people)
+    if space:
+        out["z"] = []
     if not layout.table("texts").exists():
         return out
     texts = read_source_table(layout.table("texts"), "texts", ["text_id", "title", "year"])
@@ -324,7 +335,7 @@ def place_texts(
         out["sampled"] = True
     wanted = texts["text_id"].combine_chunks()
     at = {
-        k["term"]: (i, k["x"], k["y"])
+        k["term"]: (i, _at(k))
         for i, k in enumerate(keywords)
         if k.get("x") is not None and k.get("y") is not None
     }
@@ -334,9 +345,7 @@ def place_texts(
     }
     matcher = _Matcher(at.keys(), aliases)
     on_map = {
-        p["person_id"]: (p["x"], p["y"])
-        for p in people
-        if p.get("person_id") and p.get("x") is not None
+        p["person_id"]: _at(p) for p in people if p.get("person_id") and p.get("x") is not None
     }
     authors: dict[str, list[str]] = defaultdict(list)
     if layout.table("authorships").exists():
@@ -375,7 +384,7 @@ def place_texts(
     for t in texts.to_pylist():
         tid = t["text_id"]
         found = matcher.find(" \n ".join(content.get(tid) or [t["title"] or ""]))
-        xy = _mean((at[term][1], at[term][2]) for term in found)
+        xy = _mean(at[term][1] for term in found)
         by = 0
         if xy is None:
             xy = _mean(on_map[pid] for pid in authors.get(tid, []))
@@ -388,6 +397,8 @@ def place_texts(
         out["year"].append(t["year"])
         out["x"].append(xy[0])
         out["y"].append(xy[1])
+        if space:
+            out["z"].append(xy[2])
         out["by"].append(by)
         out["terms"].append(sorted(at[term][0] for term in found))
         out["people"].append(sorted(set(authors.get(tid, []))))

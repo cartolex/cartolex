@@ -525,7 +525,13 @@ the pinned version; `cartolex versions` pins another or adds one with another
 seed (`--try-another --seed N`) or another layout method (`--method umap|tsne|tree`,
 which starts from that method's defaults). A method the stage does not know, a
 parameter its method does not take, or `tsne` without the optional openTSNE
-package is refused with the reason ([layouts](layouts.md)).
+package is refused with the reason ([layouts](layouts.md)). `--dimensions 3` draws a
+map in space (`umap` only; another method is refused), and `--built` (with
+`--try-another`, or `--built ID`) marks a version to be built with the pinned one:
+`run_layout` then draws every built version, the pinned one in the stage's own
+files and each other in `versions/<id>/`, and `map.trajectories` and
+`overlays.position` place on each ([derived files](../format/derived.md)).
+`--not-built ID` removes the mark.
 
 **The curated theme tree.** Before `themes.apply` runs, its `prepare` rebases
 `decisions/themes.json` onto the current vocabulary when it is based on

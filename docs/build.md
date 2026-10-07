@@ -134,7 +134,9 @@ says.
 cartolex versions my-project
 cartolex versions my-project --try-another --seed 7
 cartolex versions my-project --pin v2
+cartolex versions my-project --try-another --seed 8 --dimensions 3 --built
 ```
 
-lists, adds and pins map versions. See {doc}`dev/command-line` for every
+lists, adds and pins map versions; the last adds a map in space and builds it
+beside the pinned map, to be shown in the atlas and carried by the offline site. See {doc}`dev/command-line` for every
 command, and {doc}`dev/build` for how the stages are declared.

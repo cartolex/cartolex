@@ -9,6 +9,7 @@ values in its ``paths.atlas_params_json``, read when a stage runs.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import json
 import logging
@@ -52,6 +53,7 @@ from cartolex.lexicon.io_helpers import SlotIndex, slot_indexes
 from cartolex.scale import sorted_unique
 
 if TYPE_CHECKING:
+    from cartolex.atlas.types import Embeddings
     from cartolex.context import RunContext
 
 logger = logging.getLogger(__name__)
@@ -306,7 +308,9 @@ def _refresh_clustered_umap_coords(terms_clustered_csv: Path, terms: list[str], 
         return
     if "term" not in df.columns:
         return
-    coords = {str(t): (float(x), float(y)) for t, (x, y) in zip(terms, umap_terms, strict=False)}
+    coords = {
+        str(t): (float(xy[0]), float(xy[1])) for t, xy in zip(terms, umap_terms, strict=False)
+    }
     df["umap_x"] = (
         df["term"].astype(str).map(lambda t: coords.get(t, (float("nan"), float("nan")))[0])
     )
@@ -473,7 +477,9 @@ def run_umap(
     tree_sharp: float | None = None,
     neighbours: int = PLACEMENT_K,
     link_radius: float = PLACEMENT_LINK_RADIUS,
-) -> None:
+    n_components: int | None = None,
+    out_dir: Path | None = None,
+) -> Embeddings:
     """UMAP layout stage: project the SVD space to 2D (the final lexical step).
 
     ``umap_fallback="tsne"`` accepts an anchored t-SNE *preview* layout when umap-learn
@@ -502,6 +508,12 @@ def run_umap(
     (:func:`cartolex.atlas.tree_layout.tree_layout`); the terms are placed from their
     *neighbours* nearest researchers, grouped within *link_radius*
     (:mod:`cartolex.atlas.placement`).
+
+    *n_components* (default: the settings', 2) is the map's dimensions: 3 draws a map in
+    space (the UMAP recipes only), whose tables gain a ``umap_z`` column. *out_dir* writes
+    another map version: its person, term and group tables and its diagnostics, under
+    their usual names in *out_dir*; the stored embeddings and the clustered terms (the
+    pinned map's) are left as they are. Returns the embeddings with the map's positions.
     """
     tree_options = {
         k: float(v)
@@ -514,7 +526,7 @@ def run_umap(
         if v is not None
     }
     with ctx.threads.applied():
-        _run_umap(
+        return _run_umap(
             ctx,
             umap_n_neighbors=umap_n_neighbors,
             umap_min_dist=umap_min_dist,
@@ -534,6 +546,8 @@ def run_umap(
             tsne_perplexity=tsne_perplexity,
             tree_options=tree_options,
             placement=(int(neighbours), float(link_radius)),
+            n_components=n_components,
+            out_dir=out_dir,
         )
 
 
@@ -558,11 +572,25 @@ def _run_umap(
     tsne_perplexity: float | None = None,
     tree_options: dict[str, float] | None = None,
     placement: tuple[int, float] = (PLACEMENT_K, PLACEMENT_LINK_RADIUS),
-) -> None:
+    n_components: int | None = None,
+    out_dir: Path | None = None,
+) -> Embeddings:
     paths = ctx.paths
     d = atlas_defaults(ctx)
     _require_lexical_models(paths)
     ctx.enforce_staleness("umap", force=force)
+    eff_n_components = int(n_components or d.umap_n_components)
+    pinned_map = out_dir is None
+    if out_dir is not None:  # another version: its tables in its own folder
+        out = Path(out_dir)
+        paths = dataclasses.replace(
+            paths,
+            atlas_dir=out,
+            layout_persons_csv=out / paths.layout_persons_csv.name,
+            layout_terms_csv=out / paths.layout_terms_csv.name,
+            layout_groups_csv=out / paths.layout_groups_csv.name,
+            layout_diagnostics_json=out / paths.layout_diagnostics_json.name,
+        )
 
     eff_umap_n_neighbors = umap_n_neighbors or d.umap_n_neighbors
     eff_umap_min_dist = umap_min_dist if umap_min_dist is not None else d.umap_min_dist
@@ -631,7 +659,7 @@ def _run_umap(
         emb,
         n_neighbors=eff_umap_n_neighbors,
         min_dist=eff_umap_min_dist,
-        n_components=d.umap_n_components,
+        n_components=eff_n_components,
         metric=eff_umap_metric,
         random_state=eff_umap_random_state,
         n_epochs=eff_umap_n_epochs,
@@ -665,26 +693,21 @@ def _run_umap(
 
     ctx.report(0.8, "writing the layout")
     df_umap_ind = data.meta_ind.copy()
-    df_umap_ind["umap_x"] = emb.umap_ind[:, 0]
-    df_umap_ind["umap_y"] = emb.umap_ind[:, 1]
+    _put_xy(df_umap_ind, emb.umap_ind)
     paths.atlas_dir.mkdir(parents=True, exist_ok=True)
     df_umap_ind.to_csv(paths.layout_persons_csv, index=False)
     logger.info("Wrote UMAP embeddings for individuals to %s", paths.layout_persons_csv)
 
-    df_umap_terms = pd.DataFrame(
-        {
-            "term": data.terms,
-            "umap_x": emb.umap_terms[:, 0],
-            "umap_y": emb.umap_terms[:, 1],
-        }
-    )
+    df_umap_terms = pd.DataFrame({"term": data.terms})
+    _put_xy(df_umap_terms, emb.umap_terms)
     df_umap_terms.to_csv(paths.layout_terms_csv, index=False)
     logger.info("Wrote UMAP embeddings for terms to %s", paths.layout_terms_csv)
 
-    # If clustering already ran (before the layout), its per-term overlay coords are
-    # stale/NaN — refresh them from this projection so the clustered map is correct
-    # without forcing a re-run of the clustering (membership is SVD-based and unchanged).
-    _refresh_clustered_umap_coords(paths.terms_clustered_csv, data.terms, emb.umap_terms)
+    if pinned_map:
+        # If clustering already ran (before the layout), its per-term overlay coords are
+        # stale/NaN — refresh them from this projection so the clustered map is correct
+        # without forcing a re-run of the clustering (membership is SVD-based and unchanged).
+        _refresh_clustered_umap_coords(paths.terms_clustered_csv, data.terms, emb.umap_terms)
 
     df_labs = aggregate_labs(
         data.meta_ind,
@@ -694,8 +717,9 @@ def _run_umap(
     df_labs.to_csv(paths.layout_groups_csv, index=False)
     logger.info("Wrote lab embeddings to %s", paths.layout_groups_csv)
 
-    # Update persisted embeddings with UMAP coordinates for subsequent steps.
-    save_embeddings(emb, paths.embeddings_json)
+    if pinned_map:
+        # Update persisted embeddings with UMAP coordinates for subsequent steps.
+        save_embeddings(emb, paths.embeddings_json)
 
     # Quantify the joint embedding (intermingling / corona / faithfulness) so the
     # operator gets a number instead of eyeballing the map for a corona artifact.
@@ -707,10 +731,23 @@ def _run_umap(
     )
 
     logger.info(
-        "UMAP complete: %d individuals, %d terms projected to 2D",
+        "UMAP complete: %d individuals, %d terms projected to %dD",
         len(data.individuals),
         len(data.terms),
+        emb.umap_ind.shape[1],
     )
+    return emb
+
+
+#: The coordinate columns of a layout table, by dimension.
+XY_COLUMNS = ("umap_x", "umap_y", "umap_z")
+
+
+def _put_xy(df: pd.DataFrame, xy: np.ndarray) -> None:
+    """Set a layout table's coordinate columns from *xy*: ``umap_x``, ``umap_y``, and
+    ``umap_z`` for a map in space (``(n, 3)``)."""
+    for col, name in enumerate(XY_COLUMNS[: xy.shape[1]]):
+        df[name] = xy[:, col]
 
 
 def _write_umap_diagnostics(
@@ -1190,6 +1227,7 @@ def run_trajectories(
     neighbours: int = PLACEMENT_K,
     link_radius: float = PLACEMENT_LINK_RADIUS,
     all_spans: bool = False,
+    versions: Sequence[tuple[np.ndarray, Path]] = (),
 ) -> None:
     """Trajectories stage: project per-(researcher, time-bin) fingerprints into the reference map.
 
@@ -1211,6 +1249,11 @@ def run_trajectories(
     *cohort_by* names a numeric column of the person roster (a start year, for
     example): the stage then also draws the mobility of the cohorts it defines
     (ten-unit bands of its values) in ``ctx.paths.cohort_trajectories_png``.
+
+    *versions* places the same windows on other map versions too, in the same pass: for
+    each, its people's positions (rows as the stored embeddings') and the folder where
+    its ``umap_trajectories.csv`` (the points' ids, years, texts and places) and
+    ``trajectory_windows.json`` (each window's ``key`` and place) are written.
     """
     with ctx.threads.applied():
         _run_trajectories(
@@ -1224,6 +1267,7 @@ def run_trajectories(
             neighbours=neighbours,
             link_radius=link_radius,
             all_spans=all_spans,
+            versions=versions,
         )
 
 
@@ -1344,14 +1388,31 @@ def _set_trajectories(setup: dict) -> None:
             link_radius=setup["link_radius"],
             normalised=True,
         ),
+        other_maps=[
+            MapAnchors(
+                np.load(setup["anchors"], mmap_mode="r", allow_pickle=False),
+                xy,
+                k=setup["k"],
+                link_radius=setup["link_radius"],
+                normalised=True,
+            )
+            for xy in setup.get("other_xy", ())
+        ],
         maps=_lexicon_maps(Path(setup["subfields"]), terms),
         tree_obj=tree,
         counts=_counts_matrix(setup["counts"]),
     )
 
 
-def _trajectory_task(task: tuple[pd.DataFrame, Any]) -> tuple[pd.DataFrame, dict, list | None]:
-    """In a worker: one chunk of people's bins, points and windows."""
+#: The columns of a time window's point on another map version (its ``umap_trajectories.csv``).
+VERSION_POINT_COLUMNS = ("researcher_id", "bin_start", "bin_end", "n_docs")
+
+
+def _trajectory_task(
+    task: tuple[pd.DataFrame, Any],
+) -> tuple[pd.DataFrame, dict, list | None, list[tuple[pd.DataFrame, dict]]]:
+    """In a worker: one chunk of people's bins, points and windows (and their places on the
+    other map versions)."""
     from cartolex.atlas.trajectories import (
         build_trajectory_matrix,
         build_trajectory_windows,
@@ -1374,10 +1435,20 @@ def _trajectory_task(task: tuple[pd.DataFrame, Any]) -> tuple[pd.DataFrame, dict
         min_docs_per_bin=s["min_docs"],
         counts=counts,
     )
-    coords = project_trajectories(traj.B, s["svd"], s["anchor_map"])
+    others = s.get("other_maps") or []
+    placed = project_trajectories(traj.B, s["svd"], s["anchor_map"], also=others)
+    coords = placed[0] if others else placed
     out_df = traj.meta.copy()
-    out_df["umap_x"] = coords[:, 0] if len(out_df) else []
-    out_df["umap_y"] = coords[:, 1] if len(out_df) else []
+    _put_points(out_df, coords)
+    other_points = []
+    for xy in placed[1:] if others else []:
+        points = (
+            out_df[list(VERSION_POINT_COLUMNS)].copy()
+            if len(out_df)
+            else pd.DataFrame(columns=list(VERSION_POINT_COLUMNS))
+        )
+        _put_points(points, xy)
+        other_points.append(points)
     # Time machine: each window projected through the SVD and placed on the map; the
     # per-window subfield/concept weights are aggregated from each window's own terms
     # through the applied lexicon (evidence-based, not SVD proximity).
@@ -1391,9 +1462,19 @@ def _trajectory_task(task: tuple[pd.DataFrame, Any]) -> tuple[pd.DataFrame, dict
         concept_to_subfield=concept_to_subfield,
         describe=None if tree is None else tree.describe,
         all_spans=s["all_spans"],
+        also=others,
     )
+    other_windows: list[dict] = []
+    if others:
+        windows, other_windows = windows
     level_rows = _window_level_rows(tree, windows) if tree is not None else None
-    return out_df, windows, level_rows
+    return out_df, windows, level_rows, list(zip(other_points, other_windows, strict=True))
+
+
+def _put_points(df: pd.DataFrame, coords: np.ndarray) -> None:
+    """The points' places: ``umap_x``, ``umap_y`` (and ``umap_z`` on a map in space)."""
+    for col, name in enumerate(XY_COLUMNS[: coords.shape[1]]):
+        df[name] = coords[:, col] if len(df) else []
 
 
 def _run_trajectories(
@@ -1408,6 +1489,7 @@ def _run_trajectories(
     neighbours: int = PLACEMENT_K,
     link_radius: float = PLACEMENT_LINK_RADIUS,
     all_spans: bool = False,
+    versions: Sequence[tuple[np.ndarray, Path]] = (),
 ) -> None:
     paths = ctx.paths
     d = atlas_defaults(ctx)
@@ -1541,8 +1623,20 @@ def _run_trajectories(
             "all_spans": all_spans,
             "counts": counts,
         }
-        with windows_path.open("w", encoding="utf-8") as windows_out:
+        if versions:
+            setup["other_xy"] = [np.asarray(xy, dtype=np.float64) for xy, _ in versions]
+        with contextlib.ExitStack() as files:
+            windows_out = files.enter_context(windows_path.open("w", encoding="utf-8"))
             windows_out.write("{")
+            other_out = []
+            for _, folder in versions:
+                Path(folder).mkdir(parents=True, exist_ok=True)
+                fh = files.enter_context(
+                    (Path(folder) / paths.trajectory_windows_json.name).open("w", encoding="utf-8")
+                )
+                fh.write("{")
+                other_out.append(fh)
+            written = {id(fh): 0 for fh in other_out}
             results = ordered_map(
                 _trajectory_task,
                 tasks(),
@@ -1551,7 +1645,7 @@ def _run_trajectories(
                 initargs=(setup,),
                 ahead=1,
             )
-            for c, (out_df, windows, level_rows) in enumerate(results):
+            for c, (out_df, windows, level_rows, others) in enumerate(results):
                 ctx.report(0.2 + 0.75 * (c + 1) / max(n_chunks, 1), "time windows")
                 out_df.to_csv(out_csv, index=False, mode="w" if c == 0 else "a", header=c == 0)
                 n_points += len(out_df)
@@ -1564,7 +1658,23 @@ def _run_trajectories(
                     windows_out.write(json.dumps(rid, ensure_ascii=False) + ": ")
                     windows_out.write(json.dumps(entries, ensure_ascii=False))
                     n_windowed += 1
+                for (points, placed), fh, (_, folder) in zip(
+                    others, other_out, versions, strict=True
+                ):
+                    points.to_csv(
+                        Path(folder) / paths.trajectories_csv.name,
+                        index=False,
+                        mode="w" if c == 0 else "a",
+                        header=c == 0,
+                    )
+                    for rid, entries in placed.items():
+                        fh.write(", " if written[id(fh)] else "")
+                        fh.write(json.dumps(rid, ensure_ascii=False) + ": ")
+                        fh.write(json.dumps(entries, ensure_ascii=False))
+                        written[id(fh)] += 1
             windows_out.write("}")
+            for fh in other_out:
+                fh.write("}")
     finally:
         shutil.rmtree(work, ignore_errors=True)
     levels.close()

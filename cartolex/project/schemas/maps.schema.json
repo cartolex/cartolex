@@ -3,6 +3,15 @@
     "MapLayout": {
       "additionalProperties": true,
       "properties": {
+        "dimensions": {
+          "default": 2,
+          "enum": [
+            2,
+            3
+          ],
+          "title": "Dimensions",
+          "type": "integer"
+        },
         "method": {
           "minLength": 1,
           "title": "Method",
@@ -42,6 +51,11 @@
           ],
           "default": null,
           "title": "Base"
+        },
+        "built": {
+          "default": false,
+          "title": "Built",
+          "type": "boolean"
         },
         "created_at": {
           "format": "date-time",

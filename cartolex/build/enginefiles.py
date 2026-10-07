@@ -34,6 +34,7 @@ from ..context import EnginePaths, PathPattern
 __all__ = [
     "ENGINE_FILES",
     "UNAVAILABLE",
+    "VERSION_FILES",
     "FromProject",
     "NotProvided",
     "OwnFolder",
@@ -303,12 +304,30 @@ def copy_amended(stage_id: str, folders: Mapping[str, Path]) -> list[str]:
     return copied
 
 
+#: What a stage writes for each built map version other than the pinned one, in
+#: ``versions/<id>/`` of its folder, under the names of the pinned version's files (which
+#: stay where they are): only what is placed on the map. ``overlays.position`` writes
+#: ``versions/<id>/<set>/positions.json`` beside its sets' own (not engine files).
+VERSION_FILES: dict[str, tuple[str, ...]] = {
+    "map.layout": (
+        "umap_individuals.csv",
+        "umap_terms.csv",
+        "umap_labs.csv",
+        "umap_diagnostics.json",
+        "themes_applied.json",
+    ),
+    "map.trajectories": ("umap_trajectories.csv", "trajectory_windows.json"),
+}
+
+
 def files_of(stage_id: str) -> list[str]:
-    """The relative paths (``{}`` for a family) a stage writes, amended copies included."""
+    """The relative paths (``{}`` for a family) a stage writes, amended copies and the
+    other built map versions' files (``versions/{}/…``) included."""
     out: list[str] = []
     for place in ENGINE_FILES.values():
         if isinstance(place, Owned) and stage_id in place.writers:
             out.append(place.rel)
             if place.model:
                 out.append(str(Path(place.rel).with_suffix(".npz")))
+    out += [f"versions/{{}}/{rel}" for rel in VERSION_FILES.get(stage_id, ())]
     return out

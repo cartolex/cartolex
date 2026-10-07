@@ -1,12 +1,15 @@
 # SPDX-License-Identifier: MIT
-"""Map versions (``decisions/maps.json``): add, pin, try another layout.
+"""Map versions (``decisions/maps.json``): add, pin, try another layout, build several.
 
 A map version records what a map shows and how it was drawn (layout method,
-seed, parameters, an optional base). One version is pinned: rebuilds reuse its
-layout, so the map people know does not move. « Try another layout » adds a
+seed, parameters, flat or in space, an optional base). One version is pinned:
+rebuilds reuse its layout, so the map people know does not move, and it is the
+reference (distances, exports, the themes' places). « Try another layout » adds a
 version beside it; the pinned one changes only when someone pins another.
-Versions are never edited in place; :func:`discard` removes one that is not
-pinned (the file's history keeps it, like every earlier version).
+Other versions may be marked ``built`` (:func:`set_built`): each build of the map
+draws them too and places everything on them (:func:`built_versions`). Versions
+are never edited in place but for that mark; :func:`discard` removes one that is
+not pinned (the file's history keeps it, like every earlier version).
 """
 
 from __future__ import annotations
@@ -18,9 +21,19 @@ from typing import Any
 
 from .files import fingerprint, json_bytes, read_model, write_decision
 from .layout import ProjectLayout
-from .models import MapLayout, MapsFile, MapVersion
+from .models import FLAT_RECIPES, SPACE_METHODS, MapLayout, MapsFile, MapVersion
 
-__all__ = ["add_version", "discard", "pin", "pinned", "read_maps", "save_maps", "try_another"]
+__all__ = [
+    "add_version",
+    "built_versions",
+    "discard",
+    "pin",
+    "pinned",
+    "read_maps",
+    "save_maps",
+    "set_built",
+    "try_another",
+]
 
 
 def read_maps(layout: ProjectLayout) -> tuple[MapsFile, str | None]:
@@ -53,15 +66,23 @@ def add_version(
     note: str = "",
     pin_it: bool | None = None,
     now: datetime | None = None,
+    dimensions: int = 2,
+    built: bool = False,
 ) -> tuple[MapsFile, str]:
-    """A new version (``v1``, ``v2``…); the first one is pinned unless *pin_it* says otherwise."""
+    """A new version (``v1``, ``v2``…); the first one is pinned unless *pin_it* says otherwise.
+
+    *dimensions* 3 draws a map in space (the UMAP method only: ``ValueError`` otherwise);
+    *built* marks it to be built with the pinned one."""
     version = MapVersion(
         id=_next_id(maps),
         shows=list(shows),
-        layout=MapLayout(method=method, seed=seed, params=dict(params or {})),
+        layout=MapLayout(
+            method=method, seed=seed, params=dict(params or {}), dimensions=dimensions
+        ),
         base=base,
         created_at=now or datetime.now(timezone.utc),
         note=note,
+        built=built,
     )
     pinned_id = maps.pinned
     if pin_it or (pin_it is None and maps.pinned is None):
@@ -79,12 +100,16 @@ def try_another(
     note: str = "",
     now: datetime | None = None,
     params: dict[str, Any] | None = None,
+    dimensions: int | None = None,
+    built: bool = False,
 ) -> tuple[MapsFile, str]:
     """A new version drawn like the pinned one, with another seed (or method); the pin stays.
 
     Another method starts from its own defaults: the pinned version's layout
     parameters belong to its method. *params* are set over them (``None`` in
-    *params* removes one: back to the method's default).
+    *params* removes one: back to the method's default). *dimensions* (2 or 3) is the
+    pinned version's when not given, 2 for a method that draws flat maps only; *built*
+    marks the new version to be built with the pinned one.
     """
     current = pinned(maps)
     if current is None:
@@ -96,6 +121,12 @@ def try_another(
             layout.pop(key, None)
         else:
             layout[key] = value
+    if dimensions is None:
+        dimensions = current.layout.dimensions
+        if (method or current.layout.method) not in SPACE_METHODS:
+            dimensions = 2
+        elif layout.get("layout") in FLAT_RECIPES:
+            dimensions = 2
     return add_version(
         maps,
         shows=current.shows,
@@ -106,6 +137,8 @@ def try_another(
         note=note,
         pin_it=False,
         now=now,
+        dimensions=dimensions,
+        built=built,
     )
 
 
@@ -128,3 +161,27 @@ def discard(maps: MapsFile, version_id: str) -> MapsFile:
 def pinned(maps: MapsFile) -> MapVersion | None:
     """The pinned version, if any."""
     return next((v for v in maps.versions if v.id == maps.pinned), None)
+
+
+def set_built(maps: MapsFile, version_id: str, built: bool) -> MapsFile:
+    """Mark *version_id* to be built with the pinned one (*built*), or no longer. The pinned
+    version is built whatever its mark."""
+    if version_id not in {v.id for v in maps.versions}:
+        raise KeyError(f"no map version {version_id!r}")
+    return maps.model_copy(
+        update={
+            "versions": [
+                v.model_copy(update={"built": bool(built)}) if v.id == version_id else v
+                for v in maps.versions
+            ]
+        }
+    )
+
+
+def built_versions(maps: MapsFile) -> list[MapVersion]:
+    """The versions a build of the map draws: the pinned one first, then those marked
+    ``built``, in the file's order (none without a pinned version)."""
+    first = pinned(maps)
+    if first is None:
+        return []
+    return [first, *(v for v in maps.versions if v.built and v.id != first.id)]

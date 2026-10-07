@@ -77,20 +77,28 @@ ITEM_BYTES = {
     "person_part": 410,
     "keyword_users": 662,
     "link_pair": 20,
+    #: One coordinate of a place in another map version's layout (``data/layout-<id>.js``).
+    "layout_value": 8,
 }
 
 
-def estimate_bytes(people: int, keywords: int, orgs: int, themes: int, pairs: int) -> dict:
+def estimate_bytes(
+    people: int, keywords: int, orgs: int, themes: int, pairs: int, layout_values: int = 0
+) -> dict:
     """What a site's data would weigh, from its counts (:data:`ITEM_BYTES`): ``core``
     (``data/core.js``, read with every page), ``links`` (``data/links.js``, read when the
     network is first shown), ``parts`` (the people's and keywords' parts, read one at a
-    time), and ``atlas`` (``core`` and ``links``: what the atlas reads at most at once)."""
+    time), ``layouts`` (the other map versions' places, *layout_values* coordinates in all,
+    each read when its version is shown) and ``atlas`` (``core`` and ``links``: what the
+    atlas reads at most at once)."""
     b = ITEM_BYTES
     core = (people * b["core_person"] + keywords * b["core_keyword"] + orgs * b["core_org"]
             + themes * b["core_theme"])  # fmt: skip
     links = pairs * b["link_pair"]
     parts = people * b["person_part"] + keywords * b["keyword_users"]
-    return {"core": core, "links": links, "parts": parts, "atlas": core + links}
+    layouts = layout_values * b["layout_value"]
+    return {"core": core, "links": links, "parts": parts, "layouts": layouts,
+            "atlas": core + links}  # fmt: skip
 
 
 class SiteDataError(Exception):
@@ -112,6 +120,8 @@ class SiteData:
     links: dict[str, Any]
     texts: SiteTexts | None
     counts: dict[str, int] = field(default_factory=dict)
+    #: The other map versions the site carries: ``data/layout-<id>.js`` each, by id.
+    layouts: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 def project_context(project: Project) -> Any:
@@ -128,6 +138,30 @@ def _rows(path: Path) -> list[dict[str, str]]:
 
 def _r(value: Any, digits: int) -> float | None:
     return None if value is None else round(float(value), digits)
+
+
+def _axes(space: bool) -> tuple[str, ...]:
+    return ("x", "y", "z") if space else ("x", "y")
+
+
+def _columns(items: list[dict[str, Any]], space: bool) -> dict[str, list[float | None]]:
+    """The coordinate columns of *items*: ``x``, ``y`` (``z`` on a map in space)."""
+    return {a: [_r(i.get(a), XY) for i in items] for a in _axes(space)}
+
+
+def site_versions(project: Project, wanted: list[str] | None = None) -> list[dict[str, Any]]:
+    """The built map versions a site carries: *wanted* (ids, in that order; ``KeyError``
+    for one that is not built), or every built one, the pinned first."""
+    from cartolex.app.map_versions import built_versions
+
+    built = built_versions(project_context(project))
+    if not wanted:
+        return built
+    by_id = {v["id"]: v for v in built}
+    missing = [v for v in wanted if v not in by_id]
+    if missing:
+        raise KeyError(missing[0])
+    return [by_id[v] for v in dict.fromkeys(wanted)]
 
 
 def _shares(levels: list[dict[str, float]], code: Mapping[str, int]) -> list[list[int]]:
@@ -453,10 +487,14 @@ def gather(
     texts: str = "none",
     progress: Callable[[float, str], None] | None = None,
     rng: random.Random | None = None,
+    versions: list[str] | None = None,
 ) -> SiteData:
     """The data of a site of *project*: names shown when *names* (projected people's when
     *names_projected*: pseudonyms otherwise, in a shuffled order), texts as *texts*
-    (``none``, ``titles`` or ``abstracts``). Raises :class:`SiteDataError` without a map."""
+    (``none``, ``titles`` or ``abstracts``), on the built map versions *versions* (every
+    built one by default, the pinned first): ``core`` on the first, a layout of each other
+    (:attr:`SiteData.layouts`). Raises :class:`SiteDataError` without a map
+    (``no_map``) or with a version that is not built (``map_version_not_built``)."""
     import numpy as np
 
     from cartolex.app.atlas_layers import keyword_sets, map_extras, terms_of_people
@@ -467,8 +505,13 @@ def gather(
     runs = lineage(ctx)
     if runs["map.layout"] is None:
         raise SiteDataError("no_map")
+    try:
+        shipped = site_versions(project, versions)
+    except KeyError as exc:
+        raise SiteDataError("map_version_not_built") from exc
     say(0.05, "reading the map")
-    bundle = build_bundle(ctx, runs)
+    bundle = build_bundle(ctx, runs, shipped[0]["id"] if shipped else None)
+    space = bundle.get("dimensions") == 3
     extras = map_extras(ctx, bundle["people"])
     depth = int(bundle["depth"] or 0)
 
@@ -486,8 +529,7 @@ def gather(
             "keywords": n["keywords"],
             "keywords_counted": n.get("keywords_counted", 0),
             "top_keywords": list(n.get("top_keywords") or []),
-            "x": _r(n.get("x"), XY),
-            "y": _r(n.get("y"), XY),
+            **{a: _r(n.get(a), XY) for a in _axes(space)},
         }
         for n in bundle["nodes"]
     ]
@@ -516,7 +558,7 @@ def gather(
         orgs = [
             {
                 "id": u["unit"], "name": u["unit"], "acronym": "", "level": "unit",
-                "parents": [], "x": u["x"], "y": u["y"], "members": u["size"],
+                "parents": [], "x": u["x"], "y": u["y"], "z": u.get("z"), "members": u["size"],
                 "members_ever": u["size"], "location": None,
             }
             for u in bundle["units"]
@@ -529,8 +571,7 @@ def gather(
     people_core = {
         "id": [sid[pid] for pid in pids],
         "name": [p["name"] if names else None for p in mapped],
-        "x": [_r(p["x"], XY) for p in mapped],
-        "y": [_r(p["y"], XY) for p in mapped],
+        **_columns(mapped, space),
         "shares": [_shares(p["shares"][:depth], code) for p in mapped],
         "orgs": [[position[o] for o in person_orgs.get(pid, []) if o in position] for pid in pids],
     }
@@ -540,8 +581,7 @@ def gather(
         "acronym": [o.get("acronym") or "" for o in orgs],
         "level": [o["level"] or "" for o in orgs],
         "parents": [[position[q] for q in o.get("parents") or [] if q in position] for o in orgs],
-        "x": [_r(o["x"], XY) for o in orgs],
-        "y": [_r(o["y"], XY) for o in orgs],
+        **_columns(orgs, space),
         "members": [int(o.get("members") or 0) for o in orgs],
         "members_ever": [int(o.get("members_ever") or 0) for o in orgs],
         "location": [
@@ -554,8 +594,7 @@ def gather(
     keywords = [k for k in bundle["keywords"] if k["x"] is not None]
     kw_core = {
         "term": [k["term"] for k in keywords],
-        "x": [_r(k["x"], XY) for k in keywords],
-        "y": [_r(k["y"], XY) for k in keywords],
+        **_columns(keywords, space),
         "node": [code.get(k["node"], -1) if k["node"] else -1 for k in keywords],
         "level": [k.get("level") for k in keywords],
         "counts_to": [k.get("counts_to") or 0 for k in keywords],
@@ -565,6 +604,7 @@ def gather(
     }
 
     # ── projected people: placed on the finished map, never moving it ──
+    at_overlay = {id(o): k for k, o in enumerate(bundle["overlays"])}
     projected = [o for o in bundle["overlays"] if o["x"] is not None and o["y"] is not None]
     projected_names = _names_of(ctx) if names_projected and projected else {}
     if not names_projected:
@@ -575,8 +615,7 @@ def gather(
             projected_names.get(o["person_id"]) or None if names_projected else None
             for o in projected
         ],
-        "x": [_r(o["x"], XY) for o in projected],
-        "y": [_r(o["y"], XY) for o in projected],
+        **_columns(projected, space),
         "shares": [_shares(o["shares"][:depth], code) for o in projected],
     }
 
@@ -634,9 +673,24 @@ def gather(
     say(0.9, "texts")
     texts_part = SiteTexts.of(project, sid, texts)
 
+    # ── the other map versions: their places, in the rows of the core ──
+    rows = {
+        "people": [at_of[id(p)] for p in mapped],
+        "keywords": [k["term"] for k in keywords],
+        "orgs": [o["id"] for o in orgs],
+        "projected": [at_overlay[id(o)] for o in projected],
+        "nodes": [n["id"] for n in nodes],
+    }
+    layouts = {}
+    for k, v in enumerate(shipped[1:], start=1):
+        say(0.9 + 0.05 * k / len(shipped), "the map's other layouts")
+        layouts[v["id"]] = site_layout(ctx, runs, v, rows, units=not extras["organisations"])
+
     config = project.config
     core = {
         "map_version": bundle["map_version"],
+        "dimensions": bundle.get("dimensions", 2),
+        "versions": shipped,
         "depth": depth,
         "levels": bundle["levels"],
         "languages": list(config.languages.display),
@@ -675,4 +729,48 @@ def gather(
         links=links,
         texts=texts_part,
         counts=counts,
+        layouts=layouts,
     )
+
+
+def site_layout(
+    ctx: Any,
+    runs: dict[str, str | None],
+    version: dict[str, Any],
+    rows: dict[str, list[Any]],
+    *,
+    units: bool = False,
+) -> dict[str, Any]:
+    """The places of map version *version* (``data/layout-<id>.js``) in the rows of the
+    site's core (*rows*: the bundle's index of each person, each keyword's term, each
+    organisation's id, the bundle's index of each projected person, each theme's id):
+    ``people``, ``keywords``, ``orgs``, ``projected`` and ``nodes`` as columns ``x``, ``y``
+    (``z`` on a map in space), ``bounds`` and ``dimensions``. *units*: the site's
+    organisations are the engine's units (the project has no organisations table)."""
+    from cartolex.app.atlas_layers import map_extras
+    from cartolex.app.routes.atlas import build_bundle
+
+    bundle = build_bundle(ctx, runs, version["id"])
+    space = bundle.get("dimensions") == 3
+    people = bundle["people"]
+    terms = {k["term"]: k for k in bundle["keywords"]}
+    if units:
+        orgs = {u["unit"]: u for u in bundle["units"]}
+    else:
+        orgs = {o["id"]: o for o in map_extras(ctx, people)["organisations"]}
+    nodes = {n["id"]: n for n in bundle["nodes"]}
+    overlays = bundle["overlays"]
+
+    def pick(found: dict[str, Any], keys: list[Any]) -> list[dict[str, Any]]:
+        return [found.get(k) or {} for k in keys]
+
+    return {
+        "id": version["id"],
+        "dimensions": bundle.get("dimensions", 2),
+        "people": _columns([people[i] for i in rows["people"]], space),
+        "keywords": _columns(pick(terms, rows["keywords"]), space),
+        "orgs": _columns(pick(orgs, rows["orgs"]), space),
+        "projected": _columns([overlays[i] for i in rows["projected"]], space),
+        "nodes": _columns(pick(nodes, rows["nodes"]), space),
+        "bounds": bundle["bounds"],
+    }

@@ -19,9 +19,11 @@ routes = Routes(tags=["map"])
 
 class VersionAction(BaseModel):
     """``pin`` a version, ``try`` another layout (a new version beside the pinned one, another
-    seed), or ``discard`` a version nobody pinned. ``build`` also starts a build of the map."""
+    seed; ``dimensions`` 3 for a map in space, umap only; ``built`` to build it too), ``build``
+    a version with the pinned one or no longer (``built``), or ``discard`` a version nobody
+    pinned. The field ``build`` also starts a build of the map."""
 
-    action: Literal["pin", "try", "discard"]
+    action: Literal["pin", "try", "discard", "build"]
     version: Annotated[str | None, Field(pattern=r"^[A-Za-z0-9_-]{1,32}$")] = None
     seed: Annotated[int | None, Field(ge=0, lt=2**32)] = None
     method: Literal["umap", "tsne", "tree"] | None = None
@@ -29,6 +31,11 @@ class VersionAction(BaseModel):
     #: set over the pinned version's (same method) or the method's defaults; ``None`` removes one.
     params: Annotated[dict[str, float | int | str | None], Field(max_length=16)] = {}
     note: Annotated[str, Field(max_length=500)] = ""
+    #: ``try``: a flat map (2) or a map in space (3); the pinned version's by default.
+    dimensions: Literal[2, 3] | None = None
+    #: ``build``: build the version with the pinned one (true) or no longer (false);
+    #: ``try``: build the new version too.
+    built: bool | None = None
     build: bool = False
 
 
@@ -38,12 +45,15 @@ def _view(ctx: Any) -> dict[str, Any]:
     maps, fp = read_maps(ctx.layout)
     versions = [{**v.model_dump(mode="json"), "pinned": v.id == maps.pinned} for v in maps.versions]
     from cartolex.build.engine import TSNE_FROM_PEOPLE
+    from cartolex.project.models import SPACE_METHODS
 
     from ..method import LAYOUT_METHODS, unavailable_methods
 
     missing = unavailable_methods()
     return {
         "methods": list(LAYOUT_METHODS),
+        #: The dimensions each method draws (3: a map in space).
+        "dimensions": {m: [2, 3] if m in SPACE_METHODS else [2] for m in LAYOUT_METHODS},
         "unavailable": missing,
         "default_method": {
             "tsne_from_people": TSNE_FROM_PEOPLE,
@@ -74,6 +84,14 @@ def _check_layout_params(maps: Any, body: VersionAction) -> None:
             raise ApiError.of(
                 "layout_param_unknown", method=method, param=key, known=", ".join(known) or "—"
             )
+    if body.dimensions == 3:
+        from cartolex.project.models import FLAT_RECIPES, SPACE_METHODS
+
+        recipe = body.params.get("layout")
+        if recipe is None and method == pinned(maps).layout.method:
+            recipe = pinned(maps).layout.params.get("layout")
+        if method not in SPACE_METHODS or recipe in FLAT_RECIPES:
+            raise ApiError.of("layout_dimensions_unsupported", method=recipe or method)
 
 
 @routes.get("/api/map/versions", action="map.read")
@@ -88,18 +106,23 @@ def list_versions(response: Response, ctx: ProjectDep) -> dict[str, Any]:
 def change_versions(
     request: Request, response: Response, body: VersionAction, ctx: ProjectDep
 ) -> dict[str, Any]:
-    """Pin, try or discard (send ``If-Match`` with the version of ``maps.json`` you read)."""
-    from cartolex.project.maps import discard, pin, read_maps, save_maps, try_another
+    """Pin, try, build or discard (send ``If-Match`` with the version of ``maps.json`` you
+    read)."""
+    from cartolex.project.maps import discard, pin, read_maps, save_maps, set_built, try_another
 
     expected = expected_version(request)
     with ctx.handle.mutex:
         check_version(ctx.layout.maps_json, expected)
         maps, _ = read_maps(ctx.layout)
         try:
-            if body.action in ("pin", "discard") and not body.version:
+            if body.action in ("pin", "discard", "build") and not body.version:
                 raise ApiError.of("map_version_missing", action=body.action)
             if body.action == "pin":
                 maps, action = pin(maps, body.version), f"pin {body.version}"
+            elif body.action == "build":
+                built = True if body.built is None else body.built
+                maps = set_built(maps, body.version, built)
+                action = f"{'build' if built else 'unbuild'} {body.version}"
             elif body.action == "discard":
                 if body.version == maps.pinned:
                     raise ApiError.of("map_version_pinned", version=body.version)
@@ -112,7 +135,13 @@ def change_versions(
                     raise ApiError.of("no_pinned_version")
                 _check_layout_params(maps, body)
                 maps, added = try_another(
-                    maps, seed=seed, method=body.method, note=body.note, params=body.params
+                    maps,
+                    seed=seed,
+                    method=body.method,
+                    note=body.note,
+                    params=body.params,
+                    dimensions=body.dimensions,
+                    built=bool(body.built),
                 )
                 action = f"try {added}"
         except KeyError as exc:

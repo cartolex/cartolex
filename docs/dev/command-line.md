@@ -33,7 +33,8 @@ cartolex status FOLDER
 cartolex build FOLDER [--dry-run] [--only STAGE…] [--force STAGE…] [--yes]
                       [--workers N] [--memory MB] [--scratch DIR]
 cartolex params FOLDER [--set STAGE.NAME=VALUE …]
-cartolex versions FOLDER [--pin ID | --try-another --seed N]
+cartolex versions FOLDER [--pin ID | --try-another --seed N [--method M] [--dimensions 2|3] [--built]
+                          | --built ID | --not-built ID]
 cartolex project validate FOLDER
 cartolex project unlock FOLDER [--force]
 cartolex rejects …                         the terms rejected automatically on this computer

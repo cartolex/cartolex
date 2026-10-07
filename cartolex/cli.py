@@ -10,7 +10,8 @@
     cartolex status FOLDER
     cartolex build FOLDER [--dry-run] [--only STAGE…] [--force STAGE…] [--yes]
     cartolex params FOLDER [--set STAGE.NAME=VALUE …]
-    cartolex versions FOLDER [--pin ID | --try-another --seed N]
+    cartolex versions FOLDER [--pin ID | --try-another --seed N [--dimensions 3] [--built]
+                              | --built ID | --not-built ID]
     cartolex project validate FOLDER
     cartolex project unlock FOLDER [--force]
     cartolex models list
@@ -326,9 +327,18 @@ def _params(args: argparse.Namespace) -> int:
 
 def _versions(args: argparse.Namespace) -> int:
     from cartolex.project import Project
-    from cartolex.project.maps import pin, read_maps, save_maps, try_another
+    from cartolex.project.maps import pin, read_maps, save_maps, set_built, try_another
 
-    changing = args.pin is not None or args.try_another
+    mark = args.built if isinstance(args.built, str) else args.not_built
+    if (args.built is True) != bool(args.try_another) and args.built is not None:
+        print(
+            "--built names a version (--built ID), or the one --try-another adds", file=sys.stderr
+        )
+        return 2
+    if args.built is not None and (args.pin is not None or args.not_built is not None):
+        print("--built goes with --try-another or alone", file=sys.stderr)
+        return 2
+    changing = args.pin is not None or args.try_another or mark is not None
     project = Project.open(args.folder, write=changing)
     try:
         maps, fp = read_maps(project.layout)
@@ -337,20 +347,45 @@ def _versions(args: argparse.Namespace) -> int:
             save_maps(project.layout, maps, expected=fp, action=f"pin {args.pin}")
             print(f"pinned {args.pin}: the next build draws the map with it")
         elif args.try_another:
-            maps, version = try_another(
-                maps, seed=args.seed, method=args.method, note=args.note or ""
-            )
+            try:
+                maps, version = try_another(
+                    maps,
+                    seed=args.seed,
+                    method=args.method,
+                    note=args.note or "",
+                    dimensions=args.dimensions,
+                    built=args.built is True,
+                )
+            except ValueError as exc:
+                print(f"cannot add this version: {exc}", file=sys.stderr)
+                return 2
             save_maps(project.layout, maps, expected=fp, action=f"try {version}")
             how = f"{args.method} layout, " if args.method else ""
-            print(f"added {version} ({how}seed {args.seed}); pin it to use it")
+            then = "the next build draws it too" if args.built is True else "pin it to use it"
+            print(f"added {version} ({how}seed {args.seed}); {then}")
+        elif mark is not None:
+            built = isinstance(args.built, str)
+            maps = set_built(maps, mark, built)
+            save_maps(
+                project.layout,
+                maps,
+                expected=fp,
+                action=f"{'build' if built else 'unbuild'} {mark}",
+            )
+            print(
+                f"{mark}: the next build draws it too"
+                if built
+                else f"{mark}: no longer built (unless pinned)"
+            )
         if not maps.versions:
             print("no map version yet: the first build adds and pins v1")
         for v in maps.versions:
-            mark = "*" if v.id == maps.pinned else " "
+            mark = "*" if v.id == maps.pinned else ("+" if v.built else " ")
             params = f" {v.layout.params}" if v.layout.params else ""
+            space = " 3D" if v.layout.dimensions == 3 else ""
             print(
-                f"{mark} {v.id}  {v.layout.method} seed {v.layout.seed}{params}  "
-                f"shows {', '.join(v.shows)}  {v.created_at:%Y-%m-%d}  {v.note}".rstrip()
+                f"{mark} {v.id}  {v.layout.method}{space} seed {v.layout.seed}"
+                f"{params}  shows {', '.join(v.shows)}  {v.created_at:%Y-%m-%d}  {v.note}".rstrip()
             )
         return 0
     finally:
@@ -658,7 +693,24 @@ def _parser(extensions: Sequence[Extension] = ()) -> argparse.ArgumentParser:
     group = ve.add_mutually_exclusive_group()
     group.add_argument("--pin", metavar="ID", help="pin this version")
     group.add_argument("--try-another", action="store_true", help="add a version, another seed")
+    group.add_argument(
+        "--not-built", metavar="ID", help="no longer build this version with the pinned one"
+    )
+    ve.add_argument(
+        "--built",
+        nargs="?",
+        const=True,
+        metavar="ID",
+        help="build this version with the pinned one (with --try-another: the new version)",
+    )
     ve.add_argument("--seed", type=int, default=1, help="the seed of --try-another")
+    ve.add_argument(
+        "--dimensions",
+        type=int,
+        choices=(2, 3),
+        help="--try-another: a flat map (2) or a map in space (3, umap only); "
+        "default: the pinned version's",
+    )
     ve.add_argument(
         "--method",
         choices=("umap", "tsne", "tree"),

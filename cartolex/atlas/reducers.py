@@ -116,11 +116,12 @@ def fit_anchored_tsne(
 
 
 def place_terms(Z_terms: np.ndarray, Z_ind: np.ndarray, xy_ind: np.ndarray) -> np.ndarray:
-    """The map positions of the terms, placed by their nearest researchers."""
+    """The map positions of the terms, placed by their nearest researchers (as many columns
+    as *xy_ind*: 2, or 3 for a map in space)."""
     from .placement import place
 
     if not len(Z_terms):
-        return np.zeros((0, 2))
+        return np.zeros((0, np.shape(xy_ind)[1] if np.ndim(xy_ind) == 2 else 2))
     return place(Z_terms, Z_ind, xy_ind).xy
 
 
@@ -482,6 +483,10 @@ def compute_text_svd_embeddings(
     )
 
 
+#: The layouts that draw flat maps only (two dimensions).
+FLAT_LAYOUTS = ("tsne", "tree", "tsne_anchored")
+
+
 def compute_umap(
     emb: Embeddings,
     *,
@@ -506,7 +511,7 @@ def compute_umap(
     usage: Any = None,
     tree_options: dict[str, float] | None = None,
 ) -> Embeddings:
-    """Project the SVD embeddings down to 2D with UMAP (or another layout).
+    """Project the SVD embeddings down to 2D (or 3D) with UMAP (or another layout).
 
     ``fallback="tsne"`` opts in to the anchored t-SNE layout as a *preview* when a
     UMAP layout was requested but umap-learn is not importable. Without the
@@ -533,7 +538,16 @@ def compute_umap(
     map by their nearest researchers (:mod:`cartolex.atlas.placement`), as every
     later point is (projected documents, the trajectories' time bins): no
     fitted model is kept.
+
+    *n_components* above 2 (a map in space) is drawn by the UMAP recipes only
+    (``researcher``, ``researcher_concepts``, ``joint``): the others raise ``ValueError``.
     """
+    flat_only = layout in FLAT_LAYOUTS or (fallback == "tsne" and not umap_available())
+    if n_components != 2 and flat_only:
+        raise ValueError(
+            f"the {layout} layout draws flat maps only (n_components=2); "
+            "a map in space needs a UMAP recipe and umap-learn"
+        )
     if layout == "tsne":
         logger.info("Computing a t-SNE layout of the researchers (openTSNE, terms placed)...")
         emb.umap_ind, emb.umap_terms = fit_tsne_layout(

@@ -30,6 +30,19 @@ ExportName = Annotated[str, PathParam(pattern=r"^[\w-][\w.-]{0,127}$")]
 Names = Literal["names", "pseudonyms"]
 Texts = Literal["none", "titles", "abstracts"]
 Language = Literal["en", "fr", "pt-BR"]
+VersionId = Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{1,32}$")]
+
+
+def _check_versions(ctx: Any, versions: list[str]) -> None:
+    """Every map version a site is asked to carry is built: else 404 ``map_version_not_built``."""
+    if not versions:
+        return
+    from cartolex.site.data import site_versions
+
+    try:
+        site_versions(ctx.project, versions)
+    except KeyError as exc:
+        raise ApiError.of("map_version_not_built", version=str(exc.args[0])) from exc
 
 
 class SiteBody(BaseModel):
@@ -42,6 +55,9 @@ class SiteBody(BaseModel):
     texts: Texts = "none"
     title: Annotated[str, Field(max_length=120)] = ""
     language: Language = "en"
+    #: The built map versions the site carries, the one it opens on first; none: every
+    #: built one, the pinned first.
+    versions: Annotated[list[VersionId], Field(max_length=32)] = []
 
 
 class ExportBody(BaseModel):
@@ -118,12 +134,16 @@ def plan(
     texts: Texts = "none",
     title: Annotated[str, Query(max_length=120)] = "",
     language: Language = "en",
+    versions: Annotated[str, Query(pattern=r"^[A-Za-z0-9_,-]{0,1100}$")] = "",
 ) -> dict[str, Any]:
     """What a build with these options would carry and never carry (the privacy summary), and
-    the checks before publishing (``blocker``, ``question``, ``warning``, ``info``)."""
+    the checks before publishing (``blocker``, ``question``, ``warning``, ``info``).
+    ``versions``: the map versions to carry, comma-separated (default: every built one)."""
     from cartolex.site.builder import SiteOptions
     from cartolex.site.checks import plan as site_plan
 
+    wanted = [v for v in versions.split(",") if v]
+    _check_versions(ctx, wanted)
     options = SiteOptions.of(
         {
             "names": names,
@@ -131,6 +151,7 @@ def plan(
             "texts": texts,
             "title": title,
             "language": language,
+            "versions": wanted,
         }
     )
     from .atlas import _bundle, _extras, lineage
@@ -162,6 +183,7 @@ def start(request: Request, ctx: ProjectDep, body: SiteBody | None = None) -> JS
     from cartolex.site.checks import plan as site_plan
 
     body = body or SiteBody()
+    _check_versions(ctx, body.versions)
     raw = body.model_dump()
     codes = {c["code"] for c in site_plan(ctx.project, SiteOptions.of(raw))["checks"]}
     if "no_map" in codes:

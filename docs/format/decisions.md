@@ -369,7 +369,10 @@ The operations on a tree and their rules are described in
   "pinned": "v3",
   "versions": [
     {"id": "v3", "shows": ["people"], "layout": {"method": "umap", "seed": 7}, "base": null,
-     "created_at": "2026-09-28T11:00:00Z", "note": "after the September curation"}
+     "created_at": "2026-09-28T11:00:00Z", "note": "after the September curation"},
+    {"id": "v4", "shows": ["people"],
+     "layout": {"method": "umap", "seed": 8, "dimensions": 3}, "base": null,
+     "created_at": "2026-10-07T09:00:00Z", "note": "in space", "built": true}
   ]
 }
 ```
@@ -378,6 +381,15 @@ The operations on a tree and their rules are described in
 possibly several. `base` names a base from `project.json` when the version is
 placed on another project's map. A rebuild keeps the pinned version's layout;
 another layout is tried as a new version beside it.
+
+`layout.dimensions` is `2` (a flat map, the default) or `3` (a map in space): only
+the `umap` method draws in space, and not with its flat recipes (`layout`:
+`tsne_anchored`, `tsne`, `tree`); a version that asks for it otherwise is refused
+when the file is read. `built` (default `false`) marks a version to be built with
+the pinned one: each build of the map draws every built version and places the
+people, keywords, organisations, texts, projected people and time windows on it
+(see {doc}`derived`). The pinned version is always built, whatever its mark, and
+stays the reference: distances, exports and the themes' places come from it.
 
 `layout.method` is one of:
 

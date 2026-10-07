@@ -956,7 +956,8 @@ def layout_preview(ctx: Any, method: str, seed: int, params: Mapping[str, Any]) 
             cur = np.asarray(drawn.umap_ind, dtype=float)[rows]
             out["current"] = {
                 "overlap": round(neighbour_overlap(Z, cur, k=NEIGHBOURS), 4),
-                "points": [[*p, h] for p, h in zip(_round(cur), hues, strict=True)],
+                # the preview is flat: a pinned map in space is shown from above (x, y)
+                "points": [[*p, h] for p, h in zip(_round(cur[:, :2]), hues, strict=True)],
             }
     return out
 

@@ -86,7 +86,7 @@ def test_errors_are_built_from_the_catalogue_with_their_params():
 def test_every_code_has_a_valid_next_action_and_is_documented():
     docs = DOCS.read_text(encoding="utf-8")
     for code, kind in ERRORS.items():
-        assert re.fullmatch(r"[a-z][a-z_]*", code), code
+        assert re.fullmatch(r"[a-z][a-z0-9_]*", code), code
         assert kind.next_action in NEXT_ACTIONS, code
         assert f"`{code}`" in docs, f"{code} is not listed in docs/dev/api.md"
     for code in MESSAGES:

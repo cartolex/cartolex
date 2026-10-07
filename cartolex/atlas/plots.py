@@ -85,7 +85,8 @@ def aggregate_labs(
     *,
     min_researchers_per_lab: int,
 ) -> pd.DataFrame:
-    """Aggregate individual UMAP positions into per-group centroids.
+    """Aggregate individual UMAP positions into per-group centroids (and, on a flat map,
+    each group's ellipse; a map in space adds ``umap_z`` and has no ellipse).
 
     One row per value of the group column (``unit``) with at least
     *min_researchers_per_lab* persons, sorted by group; the group value is also
@@ -96,26 +97,23 @@ def aggregate_labs(
         raise ValueError("UMAP embeddings not computed for individuals.")
 
     df = meta_ind.copy()
-    df["umap_x"] = emb.umap_ind[:, 0]
-    df["umap_y"] = emb.umap_ind[:, 1]
+    space = emb.umap_ind.shape[1] == 3  # a map in space: no ellipse
+    axes = ["umap_x", "umap_y", "umap_z"] if space else ["umap_x", "umap_y"]
+    for col, name in enumerate(axes):
+        df[name] = emb.umap_ind[:, col]
 
     df = df[[unit_value(u) != NO_UNIT for u in df["unit"]]]
     rows = []
     for unit, grp in df.groupby("unit"):
         if len(grp) < min_researchers_per_lab:
             continue
-        row = {
-            "unit": unit,
-            "umap_x": grp["umap_x"].mean(),
-            "umap_y": grp["umap_y"].mean(),
-            "size": len(grp),
-        }
-        cov = lab_covariance(grp["umap_x"].to_numpy(), grp["umap_y"].to_numpy())
+        row = {"unit": unit, **{name: grp[name].mean() for name in axes}, "size": len(grp)}
+        cov = None if space else lab_covariance(grp["umap_x"].to_numpy(), grp["umap_y"].to_numpy())
         if cov is not None:
             row.update(cov)
         rows.append(row)
 
-    df_labs = pd.DataFrame(rows, columns=None if rows else ["unit", "umap_x", "umap_y", "size"])
+    df_labs = pd.DataFrame(rows, columns=None if rows else ["unit", *axes, "size"])
     df_labs = df_labs.sort_values("unit")
     return df_labs
 

@@ -45,7 +45,7 @@ readers use:
 | `themes.group/text_keywords.npz` | with the comb: which keyword each text uses (texts × the vocabulary's keywords, in its row order; `indices`, `indptr`, `shape`), each text once; the editor reads the comb on a curated tree from it |
 | `themes.apply/themes_tree.json` | the tree applied, as read: `decisions/themes.json` when it exists, else the proposal |
 | `themes.apply/themes_applied.json` | `cartolex-themes-applied/1`: `depth`, `levels` (with names), `source` (`decisions` or `draft`), `weights_basis`, `people_counted`, and every node in tree order with its `id`, `parent`, `level`, `order`, `names`, `color`, `weight`, `share`, `keywords` (on the node itself), `keywords_counted` and `top_keywords` |
-| `map.layout/themes_applied.json` | the same, each node with its place on the map (`x`, `y`) |
+| `map.layout/themes_applied.json` | the same, each node with its place on the map (`x`, `y`; `z` on a map in space) |
 | `themes.apply/theme_keywords.csv` | one row per placed keyword: `term`, `term_index`, `node`, `level` (its node's), `counts_to` (the levels its usage counts toward), `weight`, `share` |
 | `themes.apply/theme_people.parquet` | one row per mapped person and node with a weight: `researcher_id`, `person_id`, `level`, `node`, `weight`, `share` |
 | `themes.apply/theme_organisations.parquet` | one row per organisation (`unit`) and node: `unit`, `level`, `node`, `weight`, `share`, `people` |
@@ -68,6 +68,32 @@ At depth 2 the theme stages also write the engine's two-level documents
 of `trajectory_windows.json`, the `themes` and `topics` of `positions.json`).
 They serve the numeric reference and the migration of older projects; nothing
 new reads them, and at other depths they are absent (or empty).
+
+## Map versions
+
+`map.layout` draws every built map version of `decisions/maps.json` (the pinned
+one and those marked `built`), and the stages after it place on each. The pinned
+version's files are where they always are; every other built version's are in
+`versions/<id>/` of each stage's folder, under the same names, holding only what
+is placed on that map:
+
+| file | what it holds |
+| --- | --- |
+| `map.layout/umap_individuals.csv` | each mapped person (the people of the space, in its rows) and their place: `umap_x`, `umap_y`, and `umap_z` on a map in space |
+| `map.layout/umap_terms.csv` | each keyword's place: `term`, `umap_x`, `umap_y` (`umap_z`) |
+| `map.layout/umap_labs.csv` | each engine group (`unit`) of enough people: its centre (`umap_x`, `umap_y`, `umap_z`), `size`, and on a flat map its ellipse (`sx`, `sy`, `rho`) |
+| `map.layout/umap_diagnostics.json` | the layout's measures (`trustworthiness`, mixing, corona) |
+| `map.layout/themes_applied.json` | the applied tree, each node at the mean place of its people |
+| `map.trajectories/umap_trajectories.csv` | each time window's point; in `versions/<id>/` only `researcher_id`, `bin_start`, `bin_end`, `n_docs` and the place |
+| `map.trajectories/trajectory_windows.json` | each person's windows; in `versions/<id>/` only each window's `key` and place (`x`, `y`, `z`) |
+| `overlays.position/<set>/positions.json` | the projected people; in `versions/<id>/<set>/` only `person_id` and the place, in the order of the set's own file |
+
+The space, the stored embeddings (`models/embeddings.json`), the clustered
+keywords and the two-level documents are the pinned version's alone. A map in
+space adds a third coordinate (`umap_z`, `z`) to every place; a flat map has
+none. `run.json` of `map.layout` lists the versions it built in
+`measures.versions`: `[{"id", "dimensions", "method", "seconds",
+"trustworthiness"}]`, the pinned one first.
 
 ## `run.json`
 

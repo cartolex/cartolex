@@ -1142,15 +1142,8 @@ def prepare_maps(project: Project) -> list[str]:
     return [f"added and pinned map version {version} ({method} layout)"]
 
 
-def run_layout(ctx: StageContext) -> dict[str, int]:
-    """``map.layout``: the map of the pinned version, then the themes placed on it."""
-    from ..atlas import driver
-    from ..project.maps import pinned, read_maps
-
-    maps, _ = read_maps(ctx.layout)
-    version = pinned(maps)
-    if version is None:
-        raise StageRefused("no pinned map version in decisions/maps.json")
+def _layout_kwargs(version: Any) -> dict[str, Any]:
+    """The layout stage's arguments of a map version (refused when it cannot be drawn)."""
     method = LAYOUT_METHODS.get(version.layout.method)
     if method is None:
         raise StageRefused(
@@ -1174,16 +1167,103 @@ def run_layout(ctx: StageContext) -> dict[str, int]:
             raise StageRefused(
                 "the tsne layout needs the optional openTSNE package: pip install 'cartolex[tsne]'"
             )
+    if version.layout.dimensions == 3:
+        from ..atlas.reducers import umap_available
+
+        if not umap_available():
+            raise StageRefused(f"map version {version.id}: a map in space needs umap-learn")
+    return kwargs
+
+
+#: The folder of a map version other than the pinned one, in each stage that places on it.
+VERSIONS_DIR = "versions"
+
+
+def version_folder(stage_folder: Path, version_id: str, pinned_id: str | None) -> Path:
+    """Where a stage keeps what it placed on map version *version_id*: its own folder for
+    the pinned version, ``versions/<id>/`` in it for another built one."""
+    return stage_folder if version_id == pinned_id else stage_folder / VERSIONS_DIR / version_id
+
+
+def _diagnosed(path: Path) -> float | None:
+    """The trustworthiness a layout's diagnostics measured (``None``: not measured)."""
+    try:
+        value = json.loads(path.read_text(encoding="utf-8")).get("trustworthiness")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return round(float(value), 6) if isinstance(value, int | float) else None
+
+
+def run_layout(ctx: StageContext) -> dict[str, int]:
+    """``map.layout``: the map of the pinned version, then the themes placed on it; then each
+    other built version's map, in ``versions/<id>/``, with the themes placed on it."""
+    import time
+
+    from ..atlas import driver
+    from ..lexicon.theme_tree import apply_themes
+    from ..project.maps import built_versions, read_maps
+
+    maps, _ = read_maps(ctx.layout)
+    versions = built_versions(maps)
+    if not versions:
+        raise StageRefused("no pinned map version in decisions/maps.json")
+    version = versions[0]
+    kwargs_of = {v.id: _layout_kwargs(v) for v in versions}
     copy_amended(ctx.stage.id, _folders(ctx))
-    rctx = run_context(ctx, _settings(ctx), hi=0.9)
-    kwargs.update(_placement(ctx))
+    share = 1.0 / len(versions)  # of the progress, per version
+    rctx = run_context(ctx, _settings(ctx), hi=0.9 * share)
+    placement = _placement(ctx)
+    kwargs = {**kwargs_of[version.id], **placement}
+    measured = []
+    t0 = time.monotonic()
     _engine_call(
-        ctx, lambda: driver.run_umap(rctx, umap_random_state=version.layout.seed, **kwargs)
+        ctx,
+        lambda: driver.run_umap(
+            rctx,
+            umap_random_state=version.layout.seed,
+            n_components=version.layout.dimensions,
+            **kwargs,
+        ),
     )
-    rctx = rctx.replace(progress=_progress_bridge(ctx, 0.9, 1.0))
+    rctx = rctx.replace(progress=_progress_bridge(ctx, 0.9 * share, share))
     counts = _apply_tree(ctx, rctx, tables=False)
     if rctx.paths.subfields_json.exists():  # the apply stage wrote the two-level documents
         counts.update(_apply(ctx, rctx))
+    measured.append((version, time.monotonic() - t0, rctx.paths.layout_diagnostics_json))
+    for k, other in enumerate(versions[1:], start=1):
+        ctx.check_cancel()
+        out = version_folder(ctx.out, other.id, version.id)
+        lo = k * share
+        vctx = rctx.replace(progress=_progress_bridge(ctx, lo, lo + 0.9 * share))
+        okw = {**kwargs_of[other.id], **placement}
+        t0 = time.monotonic()
+        emb = _engine_call(
+            ctx,
+            lambda vctx=vctx, other=other, out=out, okw=okw: driver.run_umap(
+                vctx,
+                umap_random_state=other.layout.seed,
+                n_components=other.layout.dimensions,
+                out_dir=out,
+                **okw,
+            ),
+        )
+        _engine_call(
+            ctx,
+            lambda vctx=vctx, emb=emb, out=out: apply_themes(
+                vctx, tables=False, person_xy=emb.umap_ind, applied_out=out / "themes_applied.json"
+            ),
+        )
+        measured.append((other, time.monotonic() - t0, out / "umap_diagnostics.json"))
+    ctx.measures["versions"] = [
+        {
+            "id": v.id,
+            "dimensions": v.layout.dimensions,
+            "method": v.layout.method,
+            "seconds": round(seconds, 3),
+            "trustworthiness": _diagnosed(diagnostics),
+        }
+        for v, seconds, diagnostics in measured
+    ]
     return {"version": int(version.id[1:]) if version.id[1:].isdigit() else 0, **counts}
 
 
@@ -1198,10 +1278,43 @@ def _placement(ctx: StageContext) -> dict[str, Any]:
     return out
 
 
+def built_others(layout_folder: Path) -> list[str]:
+    """The map versions other than the pinned one that a run of ``map.layout`` built (in
+    *layout_folder*, its results), by id."""
+    folder = layout_folder / VERSIONS_DIR
+    if not folder.is_dir():
+        return []
+    return sorted(
+        p.name for p in folder.iterdir() if p.is_dir() and (p / "umap_individuals.csv").is_file()
+    )
+
+
+def version_xy(folder: Path) -> Any:
+    """The people's places on a map version (its ``umap_individuals.csv`` in *folder*), as
+    an ``(n, d)`` array in the rows of the stored embeddings."""
+    import numpy as np
+    import pandas as pd
+
+    table = pd.read_csv(folder / "umap_individuals.csv", usecols=lambda c: c.startswith("umap_"))
+    axes = [c for c in ("umap_x", "umap_y", "umap_z") if c in table.columns]
+    return table[axes].to_numpy(dtype=np.float64)
+
+
+def _other_maps(ctx: StageContext) -> list[tuple[str, Any, Path]]:
+    """The other built map versions: id, people's places, and this stage's folder for it."""
+    layout_folder = ctx.folder("map.layout")
+    return [
+        (vid, version_xy(layout_folder / VERSIONS_DIR / vid), ctx.out / VERSIONS_DIR / vid)
+        for vid in built_others(layout_folder)
+    ]
+
+
 def run_trajectories(ctx: StageContext) -> dict[str, int]:
-    """``map.trajectories``: positions per person and time window."""
+    """``map.trajectories``: positions per person and time window (on the pinned map, and on
+    each other built version, in ``versions/<id>/``)."""
     from ..atlas import driver
 
+    others = _other_maps(ctx)
     rctx = run_context(ctx, _settings(ctx))
     _engine_call(
         ctx,
@@ -1211,6 +1324,7 @@ def run_trajectories(ctx: StageContext) -> dict[str, int]:
             min_docs_per_bin=ctx.params.get("min_texts_per_window"),
             length_alpha=rctx.settings.length_bonus_alpha,
             all_spans=ctx.params.get("spans") == "all",
+            versions=[(xy, out) for _, xy, out in others],
             **_placement(ctx),
         ),
     )
@@ -1222,7 +1336,8 @@ def run_trajectories(ctx: StageContext) -> dict[str, int]:
 def run_overlays(ctx: StageContext) -> dict[str, int]:
     """``overlays.position``: each projected set placed on the finished map.
 
-    Writes ``<set>/positions.json`` per set: each person's place in the space
+    Writes ``<set>/positions.json`` per set (and, for each other built map version,
+    ``versions/<id>/<set>/positions.json`` with each person's place on it): each person's place in the space
     and on the map, keywords, nearest keywords, and their weights on every
     level of the theme tree (``levels``: from the terms that place them, as a
     mapped person's). At depth 2 each person also keeps the two-level
@@ -1269,6 +1384,15 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
     )
     corpus = ctx.folder("corpus.assemble") / "overlays"
     feature_names = tfidf.get_feature_names_out()
+    other_anchors = []
+    if anchors is not None:
+        from ..atlas.placement import MapAnchors
+
+        other_anchors = [
+            (vid, MapAnchors(anchors.unit, xy, k=anchors.k, link_radius=anchors.link_radius,
+                             normalised=True))
+            for vid, xy, _ in _other_maps(ctx)
+        ]  # fmt: skip
     placed = 0
     sets = ctx.project.config.overlays
     for n_set, overlay in enumerate(sets):
@@ -1327,15 +1451,36 @@ def run_overlays(ctx: StageContext) -> dict[str, int]:
                 ]
             items.append(item)
         if items and anchors is not None:
-            xy = anchors.place(np.vstack([np.asarray(it["z"]) for it in items]))
-            for it, (px, py) in zip(items, xy, strict=True):
-                it["x"], it["y"] = float(px), float(py)
+            vectors = np.vstack([np.asarray(it["z"]) for it in items])
+            xy = anchors.place(vectors)
+            for it, at in zip(items, xy, strict=True):
+                it.update(_place_of(at))
+            # each other built map version: the same people, their places only
+            for vid, other in other_anchors:
+                where = other.place(vectors)
+                doc = {
+                    "format": "cartolex-positions/1",
+                    "set": overlay.id,
+                    "version": vid,
+                    "items": [
+                        {"person_id": it["person_id"], **_place_of(at)}
+                        for it, at in zip(items, where, strict=True)
+                    ],
+                }
+                atomic_write_bytes(
+                    ctx.out / VERSIONS_DIR / vid / overlay.id / "positions.json", json_bytes(doc)
+                )
         atomic_write_bytes(
             ctx.out / overlay.id / "positions.json",
             json_bytes({"format": "cartolex-positions/1", "set": overlay.id, "items": items}),
         )
         placed += len(items)
     return {"placed": placed}
+
+
+def _place_of(at: Any) -> dict[str, float]:
+    """A placed point's ``x``, ``y`` (and ``z`` on a map in space)."""
+    return {axis: float(v) for axis, v in zip(("x", "y", "z"), at, strict=False)}
 
 
 # ── the registry ─────────────────────────────────────────────────────────────

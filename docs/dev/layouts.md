@@ -92,3 +92,22 @@ version.
 has wheels for Python 3.10 to 3.14 on Linux x86-64, macOS (universal) and
 Windows x86-64, but none for Linux on ARM, where it builds from source. It
 needs only numpy, scipy and scikit-learn, which cartolex already requires.
+
+## Maps in space
+
+A map version may be drawn in three dimensions (`layout.dimensions: 3` in
+`decisions/maps.json`): the `umap` method only, with its UMAP recipes
+(`n_components=3`); `tsne` and `tree` draw flat maps and refuse it. Everything
+else is placed on a map in space as on a flat one, by its nearest people
+({doc}`placement`), with three coordinates. A map in space keeps the space's
+neighbourhoods a little better: trustworthiness (k = 15) of the large demo world
+0.983 flat, 0.986 in space (seed 1).
+
+Several versions can be built at once (`built`): the pinned one stays the
+reference, and each other is drawn after it, in `versions/<id>/` of each
+placing stage ({doc}`../format/derived`). On the large demo world (343 people,
+3,072 keywords), an extra version in space costs about 1.0 s of layout, 0.7 s
+of time windows and 0.2 s of projected people once the libraries are warm
+(the first layout of a process also compiles UMAP: 16 s); `run.json` of
+`map.layout` records each version's `seconds` and `trustworthiness`
+(`measures.versions`).

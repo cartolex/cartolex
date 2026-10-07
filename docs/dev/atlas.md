@@ -85,7 +85,7 @@ of the atlas keeps working.
 
 | method | answers |
 | --- | --- |
-| `bundle()` | **required.** The atlas bundle, the shape of `GET /api/atlas` (`cartolex-atlas/3`, {doc}`api`): `levels`, `nodes`, `people`, `keywords`, `organisations`, `organisation_levels`, `people_extra`, `columns`, `years`, `overlays`, `windows`, `window_years`, `bounds`, `map_version`. Of these, `nodes`, `people`, `keywords` and `bounds` are required; the others may be left out (empty) |
+| `bundle()` | **required.** The atlas bundle, the shape of `GET /api/atlas` (`cartolex-atlas/3`, {doc}`api`): `levels`, `nodes`, `people`, `keywords`, `organisations`, `organisation_levels`, `people_extra`, `columns`, `years`, `overlays`, `windows`, `window_years`, `bounds`, `map_version`, `pinned_version`, `versions`, `dimensions` (below). Of these, `nodes`, `people`, `keywords` and `bounds` are required; the others may be left out (empty) |
 | `keywordUsers(term, {limit})` | the people who use a keyword: `{known, count, items: [{id, name, share}], at: [indexes in people]}` (`GET /api/atlas/keyword-people`) |
 | `coauthors({kind, id, circle, pages})` | who writes with a person or an organisation, `circle` rings (1 to 3), the shape of `GET /api/atlas/coauthors` (below); `pages` is `[[offset, limit]…]` per ring |
 | `compare(a, b)` | two people or organisations (`{kind, id}`): `{space, keywords: {cosine, jaccard, common, shared}, themes: {overlap, shared}, texts: {shared, items}}`, any part may be missing (`GET /api/atlas/compare`) |
@@ -99,6 +99,39 @@ Names: a person's `name` may be `null` (a site built with pseudonyms, a
 projected person): the atlas then shows the host's label for them
 (`host.label`), else `t('atlas.person.unnamed', {id})`. The atlas never asks a
 source for a name the bundle left out.
+
+### Map versions and maps in space: the data
+
+A project may build several map versions (`decisions/maps.json`: the pinned one
+and those marked `built`), flat or in space ({doc}`../format/decisions`). The
+bundle says which one it is placed on and which others there are:
+
+| field | what it holds |
+| --- | --- |
+| `map_version` | the version shown (the pinned one unless `?version=` asked another) |
+| `pinned_version` | the pinned version, the reference (distances, exports, themes) |
+| `versions` | the built versions, the pinned first: `[{id, dimensions, method, note, pinned}]` |
+| `dimensions` | `2` (a flat map) or `3` (a map in space) |
+| `bounds` | `xmin`, `xmax`, `ymin`, `ymax`, and `zmin`, `zmax` in space |
+
+On a map in space every place has a `z` beside `x` and `y`: `people`,
+`keywords`, `units`, `overlays`, `organisations` (the mean of their current
+members, `z` included), `nodes`; the columns of `GET /api/atlas/texts` and
+`GET /api/atlas/windows` gain a `z` column. A flat map's bundle has no `z` at
+all. People, keywords, units and projected people come in the same order on
+every version (the pinned map's), so an index means the same item whichever
+version is shown; a unit's `ellipse` is empty in space. The routes that return
+places take `version` (`/api/atlas`, `/api/atlas/texts`, `/api/atlas/windows`;
+404 `map_version_not_built` when it is not built), and their ETags and caches
+are per version. A base places a flat map only: `base` with a map in space is
+refused (409 `base_needs_2d`). What does not depend on the places (distances,
+nearest people, co-authors, regions, who uses a keyword) is the same on every
+version.
+
+The offline site carries the versions it was built with (`SiteOptions.versions`,
+every built one by default, the pinned first): `data/core.js` is placed on the
+first and gains `dimensions` and `versions`; each other is
+`data/layout-<id>.js` ({doc}`site`).
 
 ### The network rings
 

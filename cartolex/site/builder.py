@@ -69,6 +69,8 @@ FORMAT = "cartolex-site/3"
 LANGUAGES = ("en", "fr", "pt-BR")
 #: What a site may carry of the texts: nothing (the default), titles, titles and abstracts.
 TEXT_MODES = ("none", "titles", "abstracts")
+#: A map version's id, as ``maps.json`` names it.
+VERSION_ID = re.compile(r"[A-Za-z0-9_-]{1,32}")
 #: The stages whose results a site reads: their runs are part of its fingerprint.
 READS = (
     "corpus.assemble",
@@ -115,10 +117,19 @@ class SiteOptions:
     texts: str = "none"
     title: str = ""
     language: str = "en"
+    #: The built map versions the site carries, the one it opens on first (``data/core.js``;
+    #: each other in ``data/layout-<id>.js``); empty: every built one, the pinned first.
+    versions: tuple[str, ...] = ()
 
     @classmethod
     def of(cls, raw: Mapping[str, Any]) -> SiteOptions:
         """Options from a request's values; unknown values fall back to the defaults."""
+        wanted = raw.get("versions") or ()
+        if isinstance(wanted, str):
+            wanted = wanted.split(",")
+        versions = tuple(
+            str(v) for v in wanted if isinstance(v, str) and VERSION_ID.fullmatch(str(v))
+        )
         names = raw.get("names")
         if isinstance(names, str):
             names = {"names": True, "pseudonyms": False}.get(names)
@@ -132,6 +143,7 @@ class SiteOptions:
             texts=str(texts),
             title=title,
             language=str(language),
+            versions=tuple(dict.fromkeys(versions)),
         )
 
 
@@ -463,6 +475,7 @@ def build_site(
         names_projected=options.names_projected,
         texts=options.texts,
         progress=lambda f, m: say(0.8 * f, m),
+        versions=list(options.versions) or None,
     )
     if stop():
         return {"cancelled": True}
@@ -510,6 +523,8 @@ def build_site(
             **clouds,
         }
         files["data/links.js"] = _script("links", data.links)
+        for vid, places in data.layouts.items():
+            files[f"data/layout-{vid}.js"] = _script(f"layout-{vid}", places)
         if world:
             files["assets/world.js"] = _script(
                 "world", json.loads(WORLD.read_text(encoding="utf-8"))["rings"]
@@ -520,7 +535,12 @@ def build_site(
             "built_at": at.isoformat(timespec="seconds"),
             "cartolex": cartolex_version(),
             "map_version": data.core["map_version"],
-            "options": {**asdict(options), "title": title},
+            "versions": [v["id"] for v in data.core.get("versions") or []],
+            "options": {
+                **asdict(options),
+                "title": title,
+                "versions": list(options.versions),
+            },  # fmt: skip
             "inputs": fingerprint,
             "counts": data.counts,
         }
