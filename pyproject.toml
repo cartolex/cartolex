@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cartolex"
-version = "1.0.0.dev0"
+version = "1.0.0"
 description = "Map a body of texts by the words of their authors: emergent keywords, a lexical space whose distances show who talks the same, themes, co-authorship and an atlas"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,7 +25,7 @@ keywords = [
   "topic maps",
 ]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Environment :: Web Environment",
   "Framework :: FastAPI",
   "Intended Audience :: Science/Research",

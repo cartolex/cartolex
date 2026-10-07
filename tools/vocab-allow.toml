@@ -10,3 +10,13 @@ reason = "author affiliations"
 path = "codemeta.json"
 patterns = [4, 64]
 reason = "author affiliations"
+
+[[allow]]
+path = "LICENSE"
+patterns = [4]
+reason = "authors' institutions in the copyright line"
+
+[[allow]]
+path = "docs/conf.py"
+patterns = [4]
+reason = "authors' institutions in the copyright line"

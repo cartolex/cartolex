@@ -147,10 +147,10 @@ uv pip install --python <installation>/env/bin/python --reinstall --no-deps dist
 
 ## Continuous integration
 
-Two workflows run on GitHub Actions, started by hand only (Actions → the
-workflow → Run workflow); no push or pull request starts them.
+Two workflows run on GitHub Actions.
 
-- `.github/workflows/ci.yml` runs the checks above with `tools/check.py`, one
+- `.github/workflows/ci.yml`, on every push to `main`, every pull request,
+  and by hand (Actions → CI → Run workflow), runs the checks above with `tools/check.py`, one
   job per check: lint, vocabulary and interface modules on Linux; the tests on
   Linux, macOS and Windows with Python 3.10 and 3.14, and 3.12 on Linux; the
   reference comparison (size S) on Linux, or on every system when the run asks
@@ -161,8 +161,12 @@ workflow → Run workflow); no push or pull request starts them.
   into the package, then the source archive, the wheel and the installer kit,
   checks the archives with `tools/package_check.py --docs --stamp`, keeps
   them as the run's artifact, and on each system runs
-  `tools/install_check.py` and the kit's launcher with the built wheel. It
-  publishes nothing.
+  `tools/install_check.py` and the kit's launcher with the built wheel.
+  Started by hand, it publishes nothing. Started by a tag `vX.Y.Z` (which
+  must equal the version in `pyproject.toml`), it then publishes the wheel
+  and the source archive on PyPI by trusted publishing (environment `pypi`),
+  and makes a GitHub release with the three archives and the version's
+  section of `CHANGELOG.md` as its notes; Zenodo archives that release.
 
 The vocabulary scan's list is a repository secret, `CARTOLEX_DENYLIST`, that
 holds the list's text; the workflow writes it to a temporary file and points

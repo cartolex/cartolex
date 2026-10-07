@@ -6,8 +6,8 @@ import re as _re
 from pathlib import Path as _Path
 
 project = "cartolex"
-author = "cartolex contributors"
-copyright = "2025–2026, the authors of cartolex (MIT licence)"
+author = "Elisa Klüger and Pierre Ronceray"
+copyright = "2025–2026, Elisa Klüger (Aix-Marseille Université) and Pierre Ronceray (CNRS)"
 extensions = ["myst_parser"]
 source_suffix = {".md": "markdown"}
 exclude_patterns = ["_build"]

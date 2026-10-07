@@ -1,12 +1,18 @@
 # Build the source archive, the wheel and the installer kit, check what they
 # hold, and install the wheel on each system as a new user would
-# (tools/install_check.py). They are kept as the run's artifact; nothing is
-# published or tagged.
+# (tools/install_check.py).
 #
-# Started by hand only (Actions → Release build → Run workflow).
+# Started by hand (Actions → Release build → Run workflow), the archives are
+# only kept as the run's artifact. Started by pushing a tag vX.Y.Z equal to the
+# version in pyproject.toml, they are then published: the wheel and the source
+# archive on PyPI (trusted publishing, environment `pypi`), then a GitHub
+# release with all three and the version's CHANGELOG section. Zenodo archives
+# that release and gives it its DOI.
 name: Release build
 
 on:
+  push:
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -24,6 +30,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: The tag names the version in pyproject.toml
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml)"
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME, version $version"; exit 1; }
       - uses: astral-sh/setup-uv@v6
       - name: The documentation, built into the package (the app serves it)
         run: uv run --no-project --python 3.12 --with "sphinx>=7.2" --with "myst-parser>=3" --with "furo>=2024.1" tools/build_docs.py
@@ -84,3 +96,48 @@ jobs:
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File $launcher.FullName
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & "$env:CARTOLEX_HOME\env\Scripts\cartolex.exe" models list
+
+  pypi:
+    name: publish on PyPI
+    needs: install
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/cartolex/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Only the wheel and the source archive (the installer kit goes to the GitHub release)
+        run: mkdir pypi && mv dist/*.whl dist/*.tar.gz pypi/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: pypi/
+
+  github-release:
+    name: GitHub release
+    needs: pypi
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: The release, with the version's CHANGELOG section as its notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '$0 ~ "^## " {on = index($0, "## " v " ") == 1; next} on' CHANGELOG.md > notes.md
+          test -s notes.md || { echo "no CHANGELOG section for $version"; exit 1; }
+          gh release create "$GITHUB_REF_NAME" dist/* --title "cartolex $version" --notes-file notes.md --verify-tag

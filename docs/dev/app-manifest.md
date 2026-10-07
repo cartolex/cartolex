@@ -8,7 +8,7 @@ is the contract between the app and any interface built on it.
 ```json
 {
   "format": "cartolex-manifest/1",
-  "app": {"id": "cartolex", "name": "cartolex", "version": "1.0.0.dev0",
+  "app": {"id": "cartolex", "name": "cartolex", "version": "1.0.0",
           "build": {"commit": "3f2a1c9e…", "date": "2026-10-06"}, "platform": "Linux 6.8.0 x86_64"},
   "branding": {"name": "cartolex", "logo": "/static/brand/logo.svg", "accent": null},
   "locales": {"available": ["en", "fr", "pt-BR"], "default": "en",

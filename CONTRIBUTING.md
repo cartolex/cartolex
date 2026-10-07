@@ -108,7 +108,7 @@ triage stage and the engine is fully offline.
 
 ### Status
 
-The 1.0 line is in development (`1.0.0.dev0`). The public API surface is
+The 1.0 line is in beta, from version 1.0.0. The public API surface is
 `cartolex.lexicon` (`KeywordsConfig`, `CorpusSlot`, the stage functions and
 errors), `cartolex.context` (`RunContext`, `EnginePaths`), `cartolex.atlas.driver`
 and the documented module functions; the corpus-contract columns are part of

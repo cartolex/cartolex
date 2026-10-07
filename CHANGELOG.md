@@ -3,7 +3,7 @@
 This file covers the 1.0 line. The history of the 0.x releases stays with that
 line.
 
-## Unreleased
+## 1.0.0 — 2026-10-07
 
 - Map versions in space and several built layouts: **Map versions** draws a new version flat or in space (3D, UMAP), pinned or built beside the pinned one, marks any version « Build it too », shows how many of each person's nearest people each built version keeps (`GET /api/map/versions`: `ready`, `measure`), and shows a built one in the atlas (`map=`). A version's build redraws the map area (the layout, the time windows, the projected people). The offline site carries the layouts chosen in **Share** (« Map layouts », every built one by default) and its atlas switches between them (`data/layout-<id>.js`, read when shown). A focus given in the address is centred again once the map is drawn.
 

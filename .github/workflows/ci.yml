@@ -1,7 +1,7 @@
 # The checks of tools/check.py on Linux, macOS and Windows (docs/dev/checks.md).
 #
-# Started by hand only (Actions → CI → Run workflow): no push or pull-request
-# trigger until the maintainers decide otherwise.
+# Runs on every push to main and every pull request, and by hand (Actions → CI →
+# Run workflow), which can add the reference comparison on macOS and Windows.
 #
 # The vocabulary scan reads its list of banned terms from the repository secret
 # CARTOLEX_DENYLIST (the list's text, one pattern per line); the list itself is
@@ -9,6 +9,9 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
     inputs:
       reference_all_systems:
