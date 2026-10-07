@@ -9,6 +9,20 @@
   max-width: var(--cx-text-width);
 }
 
+/* The logo beside the title. The mark (brand/mark.svg) draws itself for the page's
+   colour scheme (`color-scheme`, set by the theme in tokens.css). */
+.cx-about__head {
+  display: flex;
+  align-items: center;
+  gap: var(--cx-space-5);
+}
+
+.cx-about__logo {
+  flex: none;
+  width: 6rem;
+  height: 6rem;
+}
+
 .cx-about__section {
   margin-top: var(--cx-space-6);
 }

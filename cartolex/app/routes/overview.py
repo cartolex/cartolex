@@ -298,6 +298,15 @@ def preview(runtime: Any, ctx: Any) -> dict[str, Any] | None:
     }
 
 
+def _lexicon(ctx: Any) -> dict[str, Any] | None:
+    """The lexicon's word cloud to show (``{"run": …}``, the keywords' build it is drawn
+    from), once a vocabulary build exists; ``None`` before."""
+    from ..lexicon_view import lexicon_run
+
+    run = lexicon_run(ctx)
+    return {"run": run} if run else None
+
+
 @routes.get("/api/overview", action="project.read")
 def overview(request: Request, ctx: ProjectDep) -> dict[str, Any]:
     """The next step, the health panel, the map's preview and the recent site builds."""
@@ -379,5 +388,6 @@ def overview(request: Request, ctx: ProjectDep) -> dict[str, Any]:
         "checklist": {"key": key, "hidden": preference(request, key) is True},
         "people": people,
         "preview": atlas,
+        "lexicon": _lexicon(ctx),
         "shares": {"items": shares, "available": runtime.site_builder.available},
     }

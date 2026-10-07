@@ -293,6 +293,13 @@ a:hover,
   max-width: var(--cx-text-width);
 }
 
+/* Screens that fill the window: a list or an editor that fills the window under the
+   header (corpus.css, themes.css) has a least height, never a fixed one. The part that
+   fills it — a list, the editor's columns — scrolls inside itself, has no height of its own
+   (`contain: size`) and takes what is left, never less than --cx-fill-min. When the screen
+   holds more than the window (an open « Tune » panel, the word cloud, banners), it grows
+   and the page scrolls, so its end is always reachable. */
+
 .cx-grid {
   display: grid;
   gap: var(--cx-space-5);

@@ -23,6 +23,7 @@ def test_the_overview_leads_from_a_first_build_to_the_themes(tmp_path):
         assert first["next"]["code"] == "next_first_build"
         assert first["next"]["next"]["action"] == "build"
         assert first["preview"] is None and first["shares"]["items"] == []
+        assert first["lexicon"] is None  # no word cloud before the keywords are built
         steps = {s["id"]: s["state"] for s in first["steps"]}
         assert steps["people"] == steps["identities"] == "done" and steps["build"] == "todo"
         job = client.post("/api/build", json={"dry_run": False}).json()["job"]["id"]

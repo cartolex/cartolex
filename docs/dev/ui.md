@@ -301,14 +301,16 @@ path, and the app's Content-Security-Policy on every answer.
 
 Every core page is built;
 the overview (`pages/overview.js`: `overview/page.js`, `cards.js`,
-`checklist.js`, `preview.js`) and the build (`pages/build.js`, a page placed `hidden`:
+`checklist.js`, `preview.js`, `cloud.js`) and the build (`pages/build.js`, a page placed `hidden`:
 `build/page.js`, `preflight.js`, `run.js`, `words.js`) are built. The overview
 reads the project state and `GET /api/overview`: the project's name and
 state, the one next step, « Your first map » (a Stepper of the steps from the
 people to sharing, the current one with its button and a link to the guide,
 {doc}`../first-map`; hidden per project in the person's preferences), the stage
 tracker (a failure a later job came after says « failed on <date> », a
-cancelled attempt « cancelled on <date> »), the health panel, a small
+cancelled attempt « cancelled on <date> »), once the keywords are built their word cloud
+(`cloud.js`, the Lexicon tab's image for the page's look and colour scheme, leading to it;
+nothing before), the health panel, a small
 preview of the map (a MapFrame) and the recent shared builds. The build page
 (`/build?scope=map`) shows the pre-flight sheet from the dry run (what runs
 and why, the time, the memory against the machine's, the AI calls, the
@@ -323,7 +325,8 @@ the settings (`pages/settings.js`: one module per section under
 section reads what it shows when it opens), the start screen
 (`pages/start.js` and `pages/start/`: recent projects, the demo project, a new
 project; `/start`, and `/start?new=1` for the form) and the About page
-(`pages/about.js` and `pages/about/`: what cartolex is for, the pipeline as one
+(`pages/about.js` and `pages/about/`: the logo (`brand/mark.svg`, or the host's own),
+what cartolex is for, the pipeline as one
 SVG figure drawn with the theme's tokens, the scientific background as
 bibliographic records, the authors, citation, licence and build from
 `GET /api/app/about`; the logo leads to it, `docs/about.md` holds the same
@@ -383,7 +386,8 @@ The People screen (`pages/people.js`, route `/people`) loads
 (`identities.js`, the queue, keyboard first: waiting, or accepted automatically
 to review), Duplicates (`duplicates-tab.js`, pairs of people who may be one,
 compared side by side in `duplicates-compare.js`, decided with the keyboard, the
-clear pairs merged in one undoable step), Organisations (`orgs-tab.js`: an
+clear pairs, or every pair above a likelihood chosen with a slider, 50 % at first,
+merged in one undoable step after a preview), Organisations (`orgs-tab.js`: an
 organisation's drawer with what people decide about it, `org-drawer.js`; the
 pairs that may be one organisation, `org-review.js`; the people of institutions,
 `institutions.js`), Texts (`texts-tab.js`), Collaborators
@@ -404,7 +408,12 @@ the Table says are in view (`onRange`); a query key starting with `$` (a
 version) restarts the list without being sent. The Table takes
 `onRange({first, last})` (the rows in view), `onActiveChange(row)` (the
 active row, for a panel beside the list), rows marked `$pending` (shown as
-placeholders) and `size="fill"` (its container's height). The fixture
+placeholders) and `size="fill"` (what is left of its screen). A screen that fills the
+window under the header (the people's and keywords' lists, the theme editor) has a least
+height, never a fixed one: its list, or the editor's columns, has no height of its own
+(`contain: size`) and never shrinks below `--cx-fill-min`, so what is above it (an open
+« Tune » panel, the word cloud, banners) pushes it down and the page scrolls to its end
+(`tests/browser/test_layout.py`). The fixture
 server answers the themes screen with a small tree
 (`tests/fixtures/ui/themes.example.json`).
 

@@ -69,7 +69,8 @@ Decide with the buttons or the keyboard: **1** or **2** one person (keeping
 the left or the right row), **D** two people, **L** later. A merge keeps the
 texts and records of both rows, and can be undone from the person's sheet
 (**Unmerge**). **Merge the clear pairs** merges, in one step you can undo,
-the pairs that share an ORCID or a record.
+the pairs that share an ORCID or a record; **Merge above a likelihood…** merges every
+pair at least as likely as the threshold you choose (50 % at first), after a preview.
 
 Pairs come back here after each import or collection, with what the texts
 then tell (a shared ORCID, texts at the same place).

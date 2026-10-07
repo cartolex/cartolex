@@ -16,8 +16,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--cx-space-3);
-  height: calc(100vh - var(--cx-header-height) - 2 * var(--cx-space-4));
-  min-height: 34rem;
+  min-height: max(34rem, var(--cx-fill-page));
 }
 
 .cx-themes > .cx-themes__body {
@@ -124,11 +123,14 @@
   gap: var(--cx-space-2);
 }
 
+/* The three columns fill what is left of the window (see base.css « Screens that fill
+   the window »), at least --cx-fill-min high. */
 .cx-themes__body {
   display: grid;
   grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr) minmax(16rem, 21rem);
   gap: var(--cx-space-3);
-  min-height: 0;
+  min-height: max(20rem, 100vh - var(--cx-header-height) - 14rem);
+  contain: size;
 }
 
 .cx-themes-outline,
@@ -964,12 +966,9 @@
 
 /* A narrow window: the columns stack, the outline and the centre keep a height. */
 @media (max-width: 70rem) {
-  .cx-themes {
-    height: auto;
-  }
-
   .cx-themes__body {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    contain: none;
   }
 
   .cx-themes-outline {

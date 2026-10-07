@@ -3,18 +3,18 @@
  * The Lexicon tab of the keywords screen: what the last vocabulary build made of the
  * candidates, the whole lexicon the themes use. A word cloud of its most important
  * keywords (by score or by people, coloured by theme or by category, drawn on the
- * server for the page's light or dark theme), the list paged on the server (a term
+ * server for the page's light or dark theme and the colour scheme, `cloud.js`), the list paged on the server (a term
  * per display language, twins merged; rank, people, texts, category, theme, forms;
  * search, sort, filters), its CSV, and the keyword decisions on the candidates a row
  * gathers (keep, exclude, merge), applied by the next build: a note says so.
  */
 import { html, useEffect, useMemo, useState } from '../../core/preact.js';
 import { locale, t } from '../../core/i18n.js';
-import { effectiveTheme } from '../../core/stores/prefs.js';
 import {
   Button, Card, EmptyState, ErrorCard, Icon, Input, Select, Table,
 } from '../../components/index.js';
 import { usePaged } from '../people/common.js';
+import { cloudSrc } from './cloud.js';
 import { CategoryMark, decide } from './common.js';
 
 const CATEGORIES = ['concept', 'method', 'object', 'place', 'field', 'none'];
@@ -46,9 +46,7 @@ function Segmented({ label, value, options, onChange }) {
 function WordCloud({ app, run, language }) {
   const [by, setBy] = useState('score');
   const [colour, setColour] = useState('theme');
-  const theme = effectiveTheme(app.stores.prefs.theme.value);
-  const src = `/api/keywords/lexicon/cloud?by=${by}&colour=${colour}&theme=${theme}`
-    + `&language=${encodeURIComponent(language)}&run=${encodeURIComponent(run || '')}`;
+  const src = cloudSrc(app.stores.prefs, { run, language, by, colour });
   return html`<${Card} title=${t('keywords.lexicon.cloud')} class="cx-kw-lexicon__cloud"
     actions=${html`<${Segmented} label=${t('keywords.lexicon.size_by')} value=${by} onChange=${setBy}
         options=${[{ value: 'score', label: t('keywords.lexicon.by.score') },

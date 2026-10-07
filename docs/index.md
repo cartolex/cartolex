@@ -1,15 +1,5 @@
 # cartolex
 
-```{image} _static/cartolex-mark-light.svg
-:alt: The cartolex logo
-:class: only-light cx-docs-logo
-```
-
-```{image} _static/cartolex-mark-dark.svg
-:alt: The cartolex logo
-:class: only-dark cx-docs-logo
-```
-
 **cartolex draws the map of a research field from the texts of the people who
 work in it.** Give it a list of people, a laboratory or an institution: it
 collects their publications from open bibliographic services, finds the

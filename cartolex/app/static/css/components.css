@@ -1603,11 +1603,15 @@ a.cx-button:hover {
   height: 28rem;
 }
 
-/* A table that takes its container's height (a screen's main list). */
+/* A table that takes its container's height (a screen's main list): it has no height of
+   its own, so a long list never makes its screen taller, and it never shrinks below
+   --cx-fill-min, so what is above it pushes it down instead of squeezing it (base.css
+   « Screens that fill the window »). */
 .cx-table--fill {
   grid-template-rows: minmax(0, 1fr) auto;
-  min-height: 0;
+  min-height: var(--cx-fill-min);
   height: 100%;
+  contain: size;
 }
 
 .cx-table--fill .cx-table__scroller {

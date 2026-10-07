@@ -51,3 +51,16 @@ def test_the_word_cloud_is_an_svg_with_its_font_and_the_page_colours(client):
     assert svg.startswith("<svg") and "viewBox" in svg and "<text" in svg
     assert "@font-face" in svg and "<title>" in svg
     assert light.text != dark.text  # the dark page's hues
+
+
+def test_the_word_cloud_takes_the_colour_scheme_and_the_overview_shows_it(client):
+    hues = ["0a0b0c", "1a1b1c", "2a2b2c", "3a3b3c", "4a4b4c", "5a5b5c"] * 2
+    cloud = client.get("/api/keywords/lexicon/cloud", params={"hues": ",".join(hues)})
+    assert cloud.status_code == 200
+    used = {h for h in hues if f"#{h}" in cloud.text.lower()}
+    assert used and "#c25d58" not in cloud.text.lower()  # the scheme's, not the tokens'
+    bad = client.get("/api/keywords/lexicon/cloud", params={"hues": "red,blue"})
+    assert bad.status_code == 422
+    # the overview names the build its cloud is drawn from, once there is one
+    lexicon = client.get("/api/overview").json()["lexicon"]
+    assert lexicon["run"] == client.get("/api/keywords/lexicon").json()["run"]
