@@ -24,6 +24,7 @@ from .duplicates import (
     _key,
     _people,
     _side,
+    decided_pairs,
     folded,
     found_pairs,
     standing,
@@ -50,7 +51,6 @@ def review(ctx: Any, runtime: Any) -> dict[str, Any]:
     merges and the pairs decided: each group's members, its pairs (with their decision)
     and the people in brief."""
     from cartolex.collect.duplicates import review_groups
-    from cartolex.project.pairs import read_pairs
 
     layout = ctx.project.layout
     key = ("duplicate-groups", *_key(ctx.project), _stamp(layout.people_csv),
@@ -59,7 +59,7 @@ def review(ctx: Any, runtime: Any) -> dict[str, Any]:
     def compute() -> dict[str, Any]:
         found = found_pairs(ctx, runtime)
         people, _ = _people(ctx, runtime)
-        decided = {k: (r.get("decision") or "") for k, r in read_pairs(layout).items()}
+        decided = decided_pairs(ctx, people)
         distinct = {k for k, d in decided.items() if d == "distinct"}
         pairs = standing(found["pairs"], people, found["facts"])
         groups = review_groups(pairs, found["facts"], distinct)

@@ -108,6 +108,25 @@ def standing(
     return standing_pairs(pairs, facts, merge_roots(people))
 
 
+def decided_pairs(ctx: Any, people: dict[str, dict[str, Any]]) -> dict[tuple[str, str], str]:
+    """The pairs decided (``people_pairs.csv``), read as the people that stand now: a row
+    said to be another person than someone, then merged, makes the person it is merged
+    into another person than them too (``distinct`` over ``later``)."""
+    from cartolex.project.identity import merge_roots
+    from cartolex.project.pairs import pair_key, read_pairs
+
+    roots = merge_roots(people)
+    out: dict[tuple[str, str], str] = {}
+    for (a, b), row in read_pairs(ctx.layout).items():
+        ra, rb = roots.get(a, a), roots.get(b, b)
+        if ra == rb:
+            continue
+        key = pair_key(ra, rb)
+        if out.get(key) != "distinct":
+            out[key] = row.get("decision") or ""
+    return out
+
+
 def folded(text: str) -> str:
     """*text* as a search compares it: case and accents aside."""
     from cartolex.collect.names import fold
@@ -170,18 +189,18 @@ def duplicates(
     the pair is ``clear`` (the automatic merge takes it) and whether two ORCIDs conflict.
     ``show``: ``open`` (not decided), ``clear``, ``later`` or ``all`` (``distinct`` pairs
     never come back). Counts per kind; ``last_auto``, the latest automatic merge."""
-    from cartolex.project.pairs import pair_key, read_pairs
+    from cartolex.project.pairs import pair_key
 
     runtime = runtime_of(request)
     found = found_pairs(ctx, runtime)
     people, fp = _people(ctx, runtime)
-    decided = read_pairs(ctx.layout)
+    decided = decided_pairs(ctx, people)
     facts = found["facts"]
     counts = {"open": 0, "clear": 0, "later": 0, "distinct": 0}
     rows = []
     q = folded(params.q) if params.q else ""
     for pair in standing(found["pairs"], people, facts):
-        decision = (decided.get(pair_key(pair.a, pair.b)) or {}).get("decision") or None
+        decision = decided.get(pair_key(pair.a, pair.b)) or None
         if decision == "distinct":
             counts["distinct"] += 1
             continue
@@ -418,7 +437,6 @@ def _clear_groups(
     """The groups the automatic merge would make
     (:func:`cartolex.collect.duplicates.clear_groups`), on the roles of now."""
     from cartolex.collect.duplicates import clear_groups
-    from cartolex.project.pairs import read_pairs
 
     found = found_pairs(ctx, runtime)
     people, _ = _people(ctx, runtime)
@@ -426,7 +444,7 @@ def _clear_groups(
     groups = clear_groups(
         standing(found["pairs"], people, found["facts"]),
         found["facts"],
-        set(read_pairs(ctx.layout)),
+        set(decided_pairs(ctx, people)),
         now,
         min_score=min_score,
     )

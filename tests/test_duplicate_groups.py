@@ -239,3 +239,12 @@ def test_a_project_without_people_has_no_group(tmp_path):
         assert listed["total"] == 0 and listed["counts"]["open"] == 0
     finally:
         app.state.cartolex.shutdown()
+
+
+def test_two_people_said_apart_stay_apart_after_one_is_merged(grouped, tmp_path):
+    client = grouped
+    assert any(set(g["ids"]) == {"p7", "p9"} for g in _groups(client, "all")["items"])
+    project = Project.open(tmp_path / "p", write=False)
+    remember_pairs(project.layout, [("p8", "p9")], "distinct")  # p8, now merged into p7
+    project.close()
+    assert not any("p9" in g["ids"] for g in _groups(client, "all")["items"])
