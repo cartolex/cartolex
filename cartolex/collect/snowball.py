@@ -21,10 +21,10 @@ part of its vocabulary. :func:`snowball` proposes them **round by round**:
   work, and the **topical fit** (:func:`topical_fit`).
 
 **Topical fit.** The cosine similarity between the words of the candidate's
-titles and abstracts in the window (their works other than the joint ones, which
-say what they work on beyond the collaboration; the joint ones when they have
-no other; of a prolific candidate, among their 100 most recent works only,
-:data:`~cartolex.collect.openalex.FIT_WORKS`) and the words of the seeds' titles and abstracts: words of three letters or more,
+titles and abstracts in the window (their most recent works other than the
+joint ones, which say what they work on beyond the collaboration, at most 100:
+:data:`~cartolex.collect.openalex.FIT_WORKS`, read a page of 100 at a time until
+at least 50 are their own; the joint ones when they have no other) and the words of the seeds' titles and abstracts: words of three letters or more,
 folded (case and accents aside), function words left out, each weighted by
 ``(1 + ln tf) × idf`` with ``idf = 1 + ln((1 + N) / (1 + df))`` over the N
 texts of the seeds and the round's candidates; every seed weighs the same in
@@ -59,7 +59,15 @@ from cartolex.project.tables import decision_csv_bytes, read_decision_csv
 
 from .decisions import collect_params, decided_now, read_people, slot_window, update_people
 from .names import split_full_name, words
-from .openalex import FIT_WORKS, OpenAlexSource, Step, Years, most_recent, short_id
+from .openalex import (
+    FIT_WORKS,
+    OpenAlexSource,
+    Step,
+    Years,
+    fit_reading,
+    most_recent,
+    short_id,
+)
 from .people_import import _collection_slot, _registry_ids
 from .tables import RawRun, RawWriter, SourceBuilder, iso, parse_time, rebuild_sources
 from .text import abstract_from_inverted_index
@@ -87,9 +95,9 @@ DECISIONS = {
 FIT_MEASURE = (
     "cosine similarity of the words of titles and abstracts (three letters or more, folded, "
     "function words left out), weighted by (1 + ln tf) × idf over the round's texts, "
-    "between the candidate's works other than the joint ones, among their 100 most recent "
-    "(the joint ones when there is no other), and the seeds' works (every seed weighing the "
-    "same)"
+    "between the candidate's most recent works other than the joint ones (at most 100, read "
+    "a page of 100 at a time until 50 are their own; the joint ones when there is no other) "
+    "and the seeds' works (every seed weighing the same)"
 )
 KIND = "snowball"
 #: What hears the progress of a search: ``(fraction, message, code=…, params=…)``.
@@ -360,7 +368,7 @@ def snowball(
     What is read: the works of the people a round starts from (with their
     co-authors), then, for the collaborators found, what their topical fit
     needs (:meth:`~cartolex.collect.openalex.OpenAlexSource.fit_works`: their
-    :data:`~cartolex.collect.openalex.FIT_WORKS` most recent works), or all
+    most recent works, :func:`~cartolex.collect.openalex.fit_reading`), or all
     their works when the next round starts from them in the same call. A work
     whose author list an answer cut has more authors than any list shows: it
     is asked for whole only when *max_authors* could keep it.
@@ -501,9 +509,12 @@ def snowball(
                 sorted(found), years, max_authors=max_authors, step=step
             )
             whole = {c: _dedupe(ws) for c, ws in read_before.items()}
-            cand_works = {c: (most_recent(ws, FIT_WORKS), len(ws)) for c, ws in whole.items()}
-        else:
-            cand_works = source.fit_works(sorted(found), years, step=step)
+            cand_works = {
+                c: (fit_reading(ws, found[c]["joint"]), len(ws)) for c, ws in whole.items()
+            }
+        else:  # their most recent works, the joint ones left out
+            joint = {c: set(found[c]["joint"]) for c in found}
+            cand_works = source.fit_works(sorted(found), years, left_out=joint, step=step)
         read = {short_id(w.get("id")) for ws, _n in cand_works.values() for w in ws}
         tell.end("collaborators", people=len(found), works=len(read))
         tell.start("fit")
@@ -721,12 +732,12 @@ def _own_texts(
     parent_works: Mapping[str, Sequence[Mapping[str, Any]]],
     entry: Mapping[str, Any],
 ) -> list[Mapping[str, Any]]:
-    """The texts a candidate's fit is measured on: their works other than the joint ones,
-    or the joint ones when they have no other."""
+    """The texts a candidate's fit is measured on: their :data:`FIT_WORKS` most recent works
+    other than the joint ones, or the joint ones when they have no other."""
     joint = set(entry["joint"])
     own = [w for w in _dedupe(works) if short_id(w.get("id")) not in joint]
     if own:
-        return own
+        return most_recent(own, FIT_WORKS)
     return _dedupe(w for ws in parent_works.values() for w in ws if short_id(w.get("id")) in joint)
 
 

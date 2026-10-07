@@ -446,19 +446,23 @@ max_authors=…)`): one that shows more is left out of the graph either way, and
 with 100 authors shown and `max_authors` at 25 none is. The collaborators' own
 works are then read for their fit (`fit_works`, `FIT_FIELDS`, no authors): the
 works counts of their records first (`works_counts`, one list per 50 records),
-then the works of those with 100 works or fewer 50 records a list, and for each
-of the others their 100 most recent works in one request (`recent_works`,
-`sort=publication_date:desc`): a prolific co-author costs one request, not one
-per hundred works and one per large collaboration. A collaborator the next round
+then the works of those with 100 works or fewer (`FIT_WORKS`) 50 records a list,
+and for each of the others their most recent works a page of 100 at a time
+(`recent_page`, `sort=publication_date:desc`) until the fit has enough
+(`fit_enough`: at least 50 works not left out, the joint ones, or 100 more than
+those): a prolific co-author costs a request, two when most of their recent
+works are joint ones, not one per hundred works and one per large
+collaboration. A collaborator the next round
 of the same call starts from is read whole instead (their co-authors are
-needed), and that reading serves the next round. `FIT_WORKS` (100) bounds the
-works a fit reads, from the API and the snapshot alike (`most_recent`). The fit is
+needed), and that reading serves the next round. The API and the snapshot read the
+same works for a fit (`fit_reading`: the same pages of the works, the most recent
+first). The fit is
 `topical_fit(seeds, candidates)`: cosine similarity of `(1 + ln tf) × idf`
 vectors over the words (three letters or more, folded, the packaged function
 words left out) of titles and abstracts, idf over the round's texts
 (`1 + ln((1 + N) / (1 + df))`), the seeds' profile the mean of their unit
-vectors; a candidate is measured on their works other than the joint ones,
-among their 100 most recent (the joint ones when there is no other). The path of a collaborator is the
+vectors; a candidate is measured on the works read other than the joint ones,
+the 100 most recent at most (the joint ones when there is no other). The path of a collaborator is the
 path of the person of the round before they wrote most with (ties by id), and
 themselves. `cap` and `max_authors` default to `params.json`'s `collect.snowball`
 (200, 25). Collaborators become people (`collaborators`), `context` and

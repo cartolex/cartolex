@@ -398,8 +398,8 @@ Each collaborator comes with the works written together, the people of the
 round before they wrote with (the seeds, in round 1), the **path** back to a
 seed, the last joint year, the organisation stated on the latest joint work,
 and their **topical fit**: the cosine similarity between the words of their
-own titles and abstracts (those not written with the seeds, among their 100
-most recent; the joint ones when there is no other) and the seeds', each word
+own titles and abstracts (their most recent not written with the seeds, at
+most 100; the joint ones when there is no other) and the seeds', each word
 weighted by its frequency and its rarity; 1 is the same vocabulary, 0 no word
 in common.
 
@@ -412,8 +412,9 @@ in common.
   200 co-authors: the first round then stops once the seeds' works are read,
   and a higher cap takes it.
 - **What it takes:** the seeds' works (about one request per 100 works), then
-  for each collaborator their 100 most recent works (one request per 50 people
-  with fewer works, one per person with more). Requests go one after the other,
+  for each collaborator their most recent works (one request per 50 people with
+  100 works or fewer, one per person with more, two when most of their recent
+  works are joint ones). Requests go one after the other,
   each taking about half a second: a round of 1,000 collaborators takes some
   minutes. The plan says how many requests and about how long, counting up to
   the cap; the job's progress names the reading under way.

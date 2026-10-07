@@ -51,14 +51,13 @@ from typing import Any
 
 from .http import Cancelled, Fetched, Page
 from .openalex import (
-    FIT_WORKS,
     INSTITUTION_WORK_FIELDS,
     PER_PAGE,
     WORK_FIELDS,
     Step,
     Years,
     bare_doi,
-    most_recent,
+    fit_reading,
     short_id,
 )
 
@@ -1299,13 +1298,21 @@ class SnapshotSource:
         return out
 
     def fit_works(
-        self, author_ids: Sequence[str], years: Years, *, step: Step | None = None
+        self,
+        author_ids: Sequence[str],
+        years: Years,
+        *,
+        left_out: Mapping[str, Collection[str]] | None = None,
+        step: Step | None = None,
     ) -> dict[str, tuple[list[dict[str, Any]], int]]:
-        """For each author record, its :data:`~cartolex.collect.openalex.FIT_WORKS` most
-        recent works within *years* and how many it has there (as the API's
-        :func:`~cartolex.collect.openalex.fit_works`), from one pass."""
+        """For each author record, the works a topical fit reads within *years* and how many
+        it has there, as the API's :func:`~cartolex.collect.openalex.fit_works` reads them
+        (:func:`~cartolex.collect.openalex.fit_reading`), from one pass."""
         found = self.works_of_authors(author_ids, years)
-        return {aid: (most_recent(works, FIT_WORKS), len(works)) for aid, works in found.items()}
+        skip = left_out or {}
+        return {
+            aid: (fit_reading(works, skip.get(aid, ())), len(works)) for aid, works in found.items()
+        }
 
 
 def _cursor_offset(cursor: str | None) -> int:
