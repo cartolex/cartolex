@@ -219,6 +219,7 @@ class StageContext:
         cancel: threading.Event | None,
         probe: Callable[[str], None],
         records: Mapping[str, RunRecord] | None = None,
+        inputs: Any = None,
     ) -> None:
         self.project = project
         self.stage = stage
@@ -229,6 +230,9 @@ class StageContext:
         self.identity = identity
         self.upstream = dict(upstream)
         self.records = dict(records or {})
+        #: What this run is computed from (:class:`~cartolex.build.planning.RunInputs`), when
+        #: the build gives it: a stage that keeps parts of its last results compares them.
+        self.inputs = inputs
         self.counts: dict[str, int] = {}
         #: More measures to record beside the counts (``versions`` of the map's layout).
         self.measures: dict[str, Any] = {}
@@ -519,6 +523,7 @@ def _run_stage(
         cancel=cancel,
         probe=probe,
         records={u: view.records[u] for u in readable},  # type: ignore[misc]
+        inputs=inputs,
     )
     for note in prepared:
         ctx.warn(note)

@@ -93,7 +93,25 @@ keywords and the two-level documents are the pinned version's alone. A map in
 space adds a third coordinate (`umap_z`, `z`) to every place; a flat map has
 none. `run.json` of `map.layout` lists the versions it built in
 `measures.versions`: `[{"id", "dimensions", "method", "seconds",
-"trustworthiness"}]`, the pinned one first.
+"trustworthiness", "key", "reused", "pinned"}]`, the pinned one first (a kept version keeps the `seconds` it took to draw; the pinned one also keeps
+the run's `counts`).
+
+**A version unchanged is not drawn again.** Each built version has a `key`, a
+digest of everything its files are made from: the run's inputs (code, stage
+version, parameters such as `neighbours` and `link_radius`, the upstream runs,
+the project parts) without `decisions/maps.json`, plus the version's own
+`layout` (method, seed, parameters, dimensions) and whether it is pinned. When
+the generation a run replaces recorded the same key for a version, its files are
+copied from it instead of computed (`reused: true`; for the pinned version, every
+file of the stage's folder but `versions/`, the amended embeddings, themes and
+two-level documents included; for another, its `versions/<id>/` folder), and the
+progress says so. Marking another version built, unmarking one, adding a version
+or editing a note thus redraws only what changed; a version no longer built is
+simply left out. `map.trajectories` and `overlays.position` record a key per
+version too (their own inputs without the layout's run, the version's layout key
+and the pinned version's): when every version's key is the one their last
+generation recorded, the whole stage is copied from it; otherwise it is computed
+whole (its pass over the texts serves every version at once).
 
 ## `run.json`
 

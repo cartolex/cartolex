@@ -247,3 +247,58 @@ def test_a_project_whose_pinned_map_is_in_space_is_refused_as_a_base(built, clie
     error = refused.json()["error"]
     assert error["code"] == "base_needs_2d_source" and error["params"]["version"] == "v2"
     assert not (Path(client.app.state.cartolex.settings.project) / "sources" / "bases").exists()
+
+
+# ── an unchanged version is kept, not drawn again ────────────────────────────
+
+PLACED = ("map.layout", "map.trajectories", "overlays.position")
+
+
+def _placed_files(root: Path) -> dict[str, bytes]:
+    derived = root / "derived"
+    return {
+        p.relative_to(derived).as_posix(): p.read_bytes()
+        for s in PLACED
+        for p in (derived / s).rglob("*")
+        if p.is_file() and p.name != "run.json"
+    }
+
+
+def _reused(root: Path, stage: str) -> dict[str, bool]:
+    record = json.loads((root / "derived" / stage / "run.json").read_text())
+    return {v["id"]: v["reused"] for v in record["measures"]["versions"]}
+
+
+@models
+def test_an_unchanged_version_is_kept_and_kept_files_are_the_computed_ones(built, tmp_path):
+    from cartolex.cli import main as cli
+
+    root, _ = built
+    # the second build of the fixture kept the pinned map and drew the new one
+    assert _reused(root, "map.layout") == {"v1": True, "v2": False}
+    assert _reused(root, "map.trajectories") == {"v1": False, "v2": False}
+    copy = shutil.copytree(root, tmp_path / "p", ignore=shutil.ignore_patterns(".lock"))
+    kept = _placed_files(copy)
+
+    # a version added but not built, a note: nothing is drawn again, every stage kept whole
+    assert cli(["versions", str(copy), "--try-another", "--seed", "9"]) == 0
+    assert cli(["build", str(copy)]) == 0
+    for stage in PLACED:
+        assert _reused(copy, stage) == {"v1": True, "v2": True}, stage
+    assert _placed_files(copy) == kept
+
+    # without the keys of the last generation, every version is computed: the same bytes
+    for stage in PLACED:
+        record = copy / "derived" / stage / "run.json"
+        doc = json.loads(record.read_text())
+        for v in doc["measures"]["versions"]:
+            v.pop("key")
+        record.write_text(json.dumps(doc))
+    assert cli(["build", str(copy), "--force", "map.layout"]) == 0
+    assert _reused(copy, "map.layout") == {"v1": False, "v2": False}
+    assert _placed_files(copy) == kept
+
+    # a parameter the layout reads: drawn again
+    assert cli(["params", str(copy), "--set", "map.layout.neighbours=6"]) == 0
+    assert cli(["build", str(copy)]) == 0
+    assert _reused(copy, "map.layout") == {"v1": False, "v2": False}

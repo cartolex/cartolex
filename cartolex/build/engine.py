@@ -1142,6 +1142,104 @@ def prepare_maps(project: Project) -> list[str]:
     return [f"added and pinned map version {version} ({method} layout)"]
 
 
+#: What a map version's key covers; raise it when that changes (older keys then never match).
+VERSION_KEY_FORMAT = 1
+#: The decision file that lists the map versions: each version's own entry is in its key, the
+#: rest of the file (other versions, notes, which one is built) is not.
+MAPS_FILE = "decisions/maps.json"
+
+
+def _own_inputs(ctx: StageContext, *, skip_stage: str | None = None) -> dict[str, Any] | None:
+    """What this run is computed from (the build's inputs: code, parameters, upstream runs,
+    files, project parts), without ``maps.json`` and without *skip_stage*'s run; ``None``
+    when the build did not say (no reuse then)."""
+    inputs = getattr(ctx, "inputs", None)
+    if inputs is None:
+        return None
+    return {
+        "code": inputs.code.fingerprint,
+        "stage_version": inputs.code.stage_version,
+        "parameters": {k: v.value for k, v in sorted(inputs.resolved.values.items())},
+        "stages": [[i.stage, i.run_id] for i in inputs.stages if i.stage != skip_stage],
+        "files": [[f.path, f.fingerprint] for f in inputs.files if f.path != MAPS_FILE],
+        "identity": inputs.identity,
+    }
+
+
+def _digest(*parts: Any) -> str:
+    import hashlib
+
+    text = json.dumps([VERSION_KEY_FORMAT, *parts], sort_keys=True, ensure_ascii=False, default=str)
+    return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _last_versions(ctx: StageContext) -> tuple[Path, dict[str, dict[str, Any]]]:
+    """This stage's current results (the generation this run replaces) and the map versions
+    they recorded with a key, by id (none when there are none)."""
+    from .records import read_record
+
+    folder = ctx.layout.stage(ctx.stage.id)
+    record = read_record(ctx.layout, ctx.stage.id)
+    if record is None or not folder.is_dir():
+        return folder, {}
+    measured = (record.measures.model_extra or {}).get("versions") or []
+    return folder, {
+        str(m["id"]): m for m in measured if isinstance(m, dict) and m.get("id") and m.get("key")
+    }
+
+
+def _copy_kept(source: Path, target: Path, *, skip: tuple[str, ...] = ()) -> None:
+    """Copy *source*'s files into *target* (over what is there), but its record and *skip*."""
+    import shutil
+
+    for item in source.iterdir():
+        if item.name in ("run.json", *skip):
+            continue
+        dest = target / item.name
+        if item.is_dir():
+            shutil.copytree(item, dest, dirs_exist_ok=True)
+        else:
+            shutil.copy2(item, dest)
+
+
+def _keep_pinned(ctx: StageContext, last: Path) -> None:
+    """The pinned version's files of the last generation, copied into this run's folder."""
+    _copy_kept(last, ctx.out, skip=(VERSIONS_DIR,))
+
+
+def _keep_version(ctx: StageContext, last: Path, version_id: str) -> None:
+    """Another version's folder of the last generation, copied into this run's folder."""
+    import shutil
+
+    shutil.copytree(last / VERSIONS_DIR / version_id, ctx.out / VERSIONS_DIR / version_id)
+
+
+def _layout_keys(ctx: StageContext) -> dict[str, str]:
+    """The keys of the map versions the ``map.layout`` run this run reads built, by id."""
+    record = ctx.record("map.layout")
+    measured = (record.measures.model_extra or {}).get("versions") if record else None
+    return {str(m["id"]): str(m["key"]) for m in measured or [] if m.get("key")}
+
+
+def _reused_whole(ctx: StageContext, keys: dict[str, str], pinned_id: str) -> dict | None:
+    """When every version of this run has the key the last generation recorded for it, copy
+    the last generation's files (the pinned version's and each other's folder; a version no
+    longer built is left behind) and answer the counts it recorded; else ``None``."""
+    folder, last = _last_versions(ctx)
+    if not keys or any(last.get(v, {}).get("key") != k for v, k in keys.items()):
+        return None
+    if not (last[pinned_id].get("pinned") and (folder / "run.json").is_file()):
+        return None
+    if any(not (folder / VERSIONS_DIR / v).is_dir() for v in keys if v != pinned_id):
+        return None
+    ctx.progress(0.1, "map versions unchanged: their results are kept")
+    _keep_pinned(ctx, folder)
+    for v in keys:
+        if v != pinned_id:
+            _keep_version(ctx, folder, v)
+    return dict(last[pinned_id].get("counts") or {})
+
+
 def _layout_kwargs(version: Any) -> dict[str, Any]:
     """The layout stage's arguments of a map version (refused when it cannot be drawn)."""
     method = LAYOUT_METHODS.get(version.layout.method)
@@ -1196,9 +1294,12 @@ def _diagnosed(path: Path) -> float | None:
 
 def run_layout(ctx: StageContext) -> dict[str, int]:
     """``map.layout``: the map of the pinned version, then the themes placed on it; then each
-    other built version's map, in ``versions/<id>/``, with the themes placed on it."""
-    import time
+    other built version's map, in ``versions/<id>/``, with the themes placed on it.
 
+    Each version gets a key: everything its files are made from (this run's inputs but
+    ``maps.json``, the version's own layout, whether it is pinned). A version whose key is
+    the one the last generation recorded is not drawn again: its files are copied from it
+    (``reused`` in ``measures.versions``)."""
     from ..atlas import driver
     from ..lexicon.theme_tree import apply_themes
     from ..project.maps import built_versions, read_maps
@@ -1209,6 +1310,19 @@ def run_layout(ctx: StageContext) -> dict[str, int]:
         raise StageRefused("no pinned map version in decisions/maps.json")
     version = versions[0]
     kwargs_of = {v.id: _layout_kwargs(v) for v in versions}
+    own = _own_inputs(ctx)
+    keys = {
+        v.id: _digest(own, v.layout.model_dump(mode="json"), v.id == version.id) for v in versions
+    }
+    last_folder, last = _last_versions(ctx) if own is not None else (None, {})
+
+    def unchanged(v: Any) -> bool:
+        if last.get(v.id, {}).get("key") != keys[v.id] or last_folder is None:
+            return False
+        if v.id == version.id:
+            return bool(last[v.id].get("counts")) and (last_folder / "run.json").is_file()
+        return (last_folder / VERSIONS_DIR / v.id).is_dir()
+
     copy_amended(ctx.stage.id, _folders(ctx))
     share = 1.0 / len(versions)  # of the progress, per version
     rctx = run_context(ctx, _settings(ctx), hi=0.9 * share)
@@ -1216,27 +1330,39 @@ def run_layout(ctx: StageContext) -> dict[str, int]:
     kwargs = {**kwargs_of[version.id], **placement}
     measured = []
     t0 = time.monotonic()
-    _engine_call(
-        ctx,
-        lambda: driver.run_umap(
-            rctx,
-            umap_random_state=version.layout.seed,
-            n_components=version.layout.dimensions,
-            **kwargs,
-        ),
+    if unchanged(version):
+        ctx.progress(0.0, f"map version {version.id}: unchanged, kept")
+        _keep_pinned(ctx, last_folder)
+        counts = dict(last[version.id]["counts"])
+    else:
+        _engine_call(
+            ctx,
+            lambda: driver.run_umap(
+                rctx,
+                umap_random_state=version.layout.seed,
+                n_components=version.layout.dimensions,
+                **kwargs,
+            ),
+        )
+        rctx = rctx.replace(progress=_progress_bridge(ctx, 0.9 * share, share))
+        counts = _apply_tree(ctx, rctx, tables=False)
+        if rctx.paths.subfields_json.exists():  # the apply stage wrote the two-level documents
+            counts.update(_apply(ctx, rctx))
+    measured.append(
+        (version, time.monotonic() - t0, rctx.paths.layout_diagnostics_json, unchanged(version))
     )
-    rctx = rctx.replace(progress=_progress_bridge(ctx, 0.9 * share, share))
-    counts = _apply_tree(ctx, rctx, tables=False)
-    if rctx.paths.subfields_json.exists():  # the apply stage wrote the two-level documents
-        counts.update(_apply(ctx, rctx))
-    measured.append((version, time.monotonic() - t0, rctx.paths.layout_diagnostics_json))
     for k, other in enumerate(versions[1:], start=1):
         ctx.check_cancel()
         out = version_folder(ctx.out, other.id, version.id)
         lo = k * share
+        t0 = time.monotonic()
+        if unchanged(other):
+            ctx.progress(lo, f"map version {other.id}: unchanged, kept")
+            _keep_version(ctx, last_folder, other.id)
+            measured.append((other, time.monotonic() - t0, out / "umap_diagnostics.json", True))
+            continue
         vctx = rctx.replace(progress=_progress_bridge(ctx, lo, lo + 0.9 * share))
         okw = {**kwargs_of[other.id], **placement}
-        t0 = time.monotonic()
         emb = _engine_call(
             ctx,
             lambda vctx=vctx, other=other, out=out, okw=okw: driver.run_umap(
@@ -1253,16 +1379,21 @@ def run_layout(ctx: StageContext) -> dict[str, int]:
                 vctx, tables=False, person_xy=emb.umap_ind, applied_out=out / "themes_applied.json"
             ),
         )
-        measured.append((other, time.monotonic() - t0, out / "umap_diagnostics.json"))
+        measured.append((other, time.monotonic() - t0, out / "umap_diagnostics.json", False))
     ctx.measures["versions"] = [
         {
             "id": v.id,
             "dimensions": v.layout.dimensions,
             "method": v.layout.method,
-            "seconds": round(seconds, 3),
+            # a kept version keeps the time it took to draw
+            "seconds": round(last[v.id].get("seconds", seconds) if reused else seconds, 3),
             "trustworthiness": _diagnosed(diagnostics),
+            "key": keys[v.id] if own is not None else None,
+            "reused": reused,
+            "pinned": v.id == version.id,
+            **({"counts": counts} if v.id == version.id else {}),
         }
-        for v, seconds, diagnostics in measured
+        for v, seconds, diagnostics, reused in measured
     ]
     return {"version": int(version.id[1:]) if version.id[1:].isdigit() else 0, **counts}
 
@@ -1314,6 +1445,11 @@ def run_trajectories(ctx: StageContext) -> dict[str, int]:
     each other built version, in ``versions/<id>/``)."""
     from ..atlas import driver
 
+    keys, pinned_id = _placed_keys(ctx)
+    kept = _reused_whole(ctx, keys, pinned_id) if keys else None
+    if kept is not None:
+        _record_placed(ctx, keys, pinned_id, kept, reused=True)
+        return kept
     others = _other_maps(ctx)
     rctx = run_context(ctx, _settings(ctx))
     _engine_call(
@@ -1330,10 +1466,63 @@ def run_trajectories(ctx: StageContext) -> dict[str, int]:
     )
     if not rctx.paths.trajectories_csv.exists():
         raise RuntimeError("the trajectories were not computed (see the log for why)")
-    return {"points": _rows(rctx.paths.trajectories_csv)}
+    counts = {"points": _rows(rctx.paths.trajectories_csv)}
+    _record_placed(ctx, keys, pinned_id, counts, reused=False)
+    return counts
+
+
+def _placed_keys(ctx: StageContext) -> tuple[dict[str, str], str]:
+    """The keys of what a placing stage (time windows, projected people) writes per map
+    version: this run's inputs but the layout's run, with the version's layout key and the
+    pinned version's (its stored embeddings and themes are read for every version); and the
+    pinned version's id. None when the layout recorded no keys or the build gave no inputs."""
+    layout_keys = _layout_keys(ctx)
+    own = _own_inputs(ctx, skip_stage="map.layout")
+    record = ctx.record("map.layout")
+    measured = (record.measures.model_extra or {}).get("versions") if record else None
+    if own is None or not layout_keys or not measured:
+        return {}, ""
+    pinned_id = str(measured[0]["id"])
+    if pinned_id not in layout_keys:
+        return {}, ""
+    pinned_key = layout_keys[pinned_id]
+    return {
+        v: _digest(own, k, pinned_key, v == pinned_id) for v, k in layout_keys.items()
+    }, pinned_id
+
+
+def _record_placed(
+    ctx: StageContext, keys: dict[str, str], pinned_id: str, counts: dict, *, reused: bool
+) -> None:
+    """``measures.versions`` of a placing stage: each version's key, and whether it was kept."""
+    if not keys:
+        return
+    ctx.measures["versions"] = [
+        {
+            "id": v,
+            "key": k,
+            "reused": reused,
+            "pinned": v == pinned_id,
+            **({"counts": dict(counts)} if v == pinned_id else {}),
+        }
+        for v, k in sorted(keys.items(), key=lambda vk: vk[0] != pinned_id)
+    ]
 
 
 def run_overlays(ctx: StageContext) -> dict[str, int]:
+    """``overlays.position``: see :func:`_place_overlays`; kept from the last generation when
+    every map version's key is the one it recorded."""
+    keys, pinned_id = _placed_keys(ctx)
+    kept = _reused_whole(ctx, keys, pinned_id) if keys else None
+    if kept is None:
+        kept, reused = _place_overlays(ctx), False
+    else:
+        reused = True
+    _record_placed(ctx, keys, pinned_id, kept, reused=reused)
+    return kept
+
+
+def _place_overlays(ctx: StageContext) -> dict[str, int]:
     """``overlays.position``: each projected set placed on the finished map.
 
     Writes ``<set>/positions.json`` per set (and, for each other built map version,
