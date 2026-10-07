@@ -61,7 +61,12 @@ co-authors.
   same), the keywords both use, the themes both weigh on, the texts they
   wrote together. It is measured from their texts, not on the picture: quote
   this number, not a distance on the map.
-- **Distances** exports, as a file, the nearest of each person or
+- The **Distances** pane (beside **Atlas**, at the top of the screen) ranks
+  everyone by how alike they are to a person or an organisation, lists who
+  talks the same without working together (and the reverse) and draws
+  matrices ordered by theme, measured in your browser; the shared site has the
+  same page (see {doc}`tutorial-share`).
+- **Export distances** writes, as a file, the nearest of each person or
   organisation, every pair (the full matrix), or the vectors, with names or
   pseudonyms. The file is listed on the **Share** screen when it is written,
   with a small `.meta.json` beside it that says how it was measured; a very

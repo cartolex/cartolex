@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 /**
- * What the app gives the atlas (`docs/dev/atlas.md`): its data source, read from the API
- * (`GET /api/atlas` and the routes beside it), and its host: the interface's messages and
+ * What the app gives the atlas and Distances (`docs/dev/atlas.md`): its data source, read from
+ * the API (`GET /api/atlas` and the routes beside it), and its host: the interface's messages and
  * language, the address of the page, the person's preferences kept by the app, the app's
  * Dark / Bright, and the links to the People, Keywords and Themes screens.
  */
@@ -9,6 +9,14 @@ import { locale, t } from '../../core/i18n.js';
 import { linkTo } from './links.js';
 
 const LAND = '/static/data/world-land-110m.json';
+
+/** Base64 bytes as an Int8Array. */
+function int8Of(b64) {
+  const bin = window.atob(b64 || '');
+  const out = new Int8Array(bin.length);
+  for (let i = 0; i < bin.length; i += 1) out[i] = (bin.charCodeAt(i) << 24) >> 24;
+  return out;
+}
 
 /** The answer of an API call as a source gives it: the data, or `{error}`. */
 const unwrap = (r) => (r.ok ? r.data : { error: r.error || { code: 'network' } });
@@ -49,6 +57,11 @@ export function apiSource(ctx, { first, base }) {
     textsOf: ({ kind, id, net = 0, limit }) => ctx.api.get('/api/atlas/texts',
       { query: withBase({ focus: `${kind}:${id}`, net, ...(limit ? { limit } : {}) }) }).then(unwrap),
     windows: ({ person } = {}) => ctx.api.get('/api/atlas/windows', { query: withBase(person ? { person } : {}) }).then(unwrap),
+    vectors: (kind) => ctx.api.get('/api/atlas/vectors', { query: { kind } })
+      .then((r) => (r.ok ? { dim: r.data.dim, values: int8Of(r.data.values) } : { error: r.error })),
+    links: (kind) => ctx.api.get('/api/atlas/links', { query: { kind } }).then(unwrap),
+    measure: () => ctx.api.get('/api/params').then((r) => (r.ok && r.data.global && r.data.global.similarity
+      ? r.data.global.similarity.value : null)),
     land: () => ctx.keep(fetch(LAND).then((r) => (r.ok ? r.json() : null)).catch(() => null))
       .then((doc) => (doc && Array.isArray(doc.rings) ? doc.rings : { error: { code: 'land' } })),
   };

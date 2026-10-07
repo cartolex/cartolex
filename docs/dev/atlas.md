@@ -197,13 +197,87 @@ each top-level theme for the page's dark or bright look; the map, the
 treemap, the legends, saved views and the app's Themes screen use it, so a
 theme has the same colour everywhere.
 
+## Distances
+
+Distances (how alike people and organisations are) is written the same way: one
+piece of code in `cartolex/app/static/distances/`, mounted by the offline site
+as its « Distances » page and by the app as the Map screen's « Distances » pane
+(`?pane=distances`), over the same source and host as the atlas.
+
+```text
+cartolex/app/static/distances/
+  distances.js  mountDistances(root, {source, host}): the tabs, the measure, the state
+  engine.js     the measures, the ranked list, the pairs, the matrices, CSV (no DOM)
+  scope.js      who is compared (people, organisations of a level, a theme), selections, caps
+  controls.js   the selects, the table, the pager, « Download CSV »
+  rank.js       the ranked list
+  pairs.js      « talk the same, don't work together » and its opposite
+  matrix.js     the matrices
+  heatmap.js    the heatmap on a canvas, its legend, its keyboard
+```
+
+```js
+const view = mountDistances(root, { source, host });   // the app: an ES module import
+const view = window.CartolexAtlas.mountDistances(root, { source, host });   // the site
+view.set({ of: 'person:p0001' }); view.state(); view.destroy();
+```
+
+**The measures** are computed in the browser, from 0 to 1 as the app's
+(`cartolex/app/similarity.py`), with the wording of the « Similarity »
+parameter: `space`, the cosine of the vectors in the space of the themes (from
+`vectors`), and `themes`, Σ min of the top-level theme shares (from the
+bundle). The others (`keywords`, `jaccard`) need every person's whole
+vocabulary, which neither host sends to the browser; when the project's measure
+is one of them, the page says so and offers these two. An organisation is the
+mean of its members, as in the app.
+
+**The source** adds three optional methods (without `vectors`, only `themes` is
+offered; without `links`, nobody is said to write together):
+
+| method | answers |
+| --- | --- |
+| `vectors(kind)` | every person's (`person`) or organisation's (`organisation`) vector over the bundle's order (`people`, `organisations`): `{dim, values}`, `values` an `Int8Array` of `n × dim` (a row of zeros: no place in the space). The app: `GET /api/atlas/vectors`; the site: `data/vectors/<n>.js` and `data/orgs.js` |
+| `links(kind)` | who writes with whom over the bundle's order, CSR: `{ptr, nbr, cnt}` (texts together, the strongest first; organisations paired within a level). The app: `GET /api/atlas/links`; the site: `data/links.js` |
+| `measure()` | the project's measure (`params.json`'s `similarity`), the one shown first |
+
+**The host** is the atlas's (`t`, `locale`, `address`, `prefs` for the colour
+scheme, `look`, `label`, `links` to the pages of people and organisations,
+`navigate`, `fileStem`) with `atlas(sel, other)`, the address of the atlas with
+`sel` in focus and `other` compared with it (Compare, a theme).
+
+**The state** is in the address: `d` (`rank`, `pairs`, `matrix`), `of` (the
+focus, `kind:id`), `m` (the measure), `among` (`person` or
+`organisation:<level>`), `th` (a theme: those whose main theme it is), `pg`
+(the page), `mode` (`apart` or `together`), `mx` (the matrix: `orgs`,
+`orgs_themes`, `themes`, `people`, `people_orgs`, `people_themes`), `in` (a
+selection of people: `organisation:<id>`, `theme:<id>` or `person:<id>` with
+their co-authors) and `tl` (the themes' level).
+
+**Scale.** Nothing holds a field's people × people. The ranked list scores
+everyone against the focus in blocks, giving the page back between them; « talk
+the same » measures every pair of its scope, at most `PAIRS_CAP` (5,000) items,
+on contiguous rows, pausing every 40 ms; « work together » reads the links, so it
+holds for a whole field; a matrix of people or organisations has at most
+`MATRIX_CAP` (300) rows, the largest organisations or the people with the largest
+shares, and says so. Measured in Chromium on a synthetic site of 170,000 people
+(184 dimensions, 18,888 organisations, 736,000 pairs of co-authors): the page and
+its first ranked list in 1.4 s (the vectors' 42 MB read), each further ranked
+list in 0.3–0.4 s, « work together » over the whole field in 2.7 s, every pair of
+3,792 people in 2.6 s, a 300 × 300 matrix in under 1 s; at most 450 MB of memory.
+
+The matrices are heatmaps on a canvas, rows and columns ordered by their main
+top-level theme (the tree's order), then by their share of it, with a band in
+the theme's colour (the atlas's scheme), cells along the scheme's scale
+(Viridis for a scheme of one colour per theme). The keyboard moves a cursor that a
+live line reads out; Enter opens the cell, Shift+Enter the row.
+
 ## How the offline site packages it
 
 `cartolex.app.static_files.ATLAS_MODULES` lists the modules in dependency
-order (the map's, the treemap's layout, `core/messages.js`, then `atlas/`);
+order (the map's, the treemap's layout, `core/messages.js`, then `atlas/` and `distances/`);
 `classic_script(ATLAS_MODULES, 'CartolexAtlas')` turns them into one classic
 script, `assets/atlas.js`, that sets `window.CartolexAtlas` to everything they
-export (`mountAtlas`, `ringsOf`, `createTranslator`, `SCHEMES`…). The site
+export (`mountAtlas`, `mountDistances`, `ringsOf`, `createTranslator`, `SCHEMES`…). The site
 ships `css/atlas.css` beside its tokens, and the `atlas.*` messages of the
 app's three catalogues in its own `i18n.js`. The site's own code is its data
 source (from its data files) and its host (no links, its own storage, its

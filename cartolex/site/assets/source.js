@@ -12,9 +12,13 @@
  *   are more.
  * - `coauthors(…)`: the shared `ringsOf` over the sparse lists of `data/links.js`
  *   (loaded the first time the network is asked for).
- * - `compare(a, b)`: the cosine of the two vectors (`space`, from the people's
- *   parts and `data/orgs.js`), the top-level themes in common (`themes`) and the
+ * - `compare(a, b)`: the cosine of the two vectors (`space`, from the vectors' parts
+ *   and `data/orgs.js`), the top-level themes in common (`themes`) and the
  *   texts written together (`texts.shared`, from the links); no keywords part.
+ * - `vectors(kind)`, `links(kind)`, `measure()`: what the « Distances » page reads
+ *   (`docs/dev/atlas.md`): every person's vector (`data/vectors/<n>.js`, all the parts)
+ *   or organisation's (`data/orgs.js`), the co-authors as sparse lists over the
+ *   bundle's order (`data/links.js`), the project's measure of similarity.
  * - `keywordsOf(kind, ids)`: from the people's parts and `data/orgs.js`.
  * - `land()`: the outline of the land (`assets/world.js`), when the site has it.
  *
@@ -30,6 +34,27 @@
   function vector(b64) {
     if (!b64) return null;
     const v = S.ints(b64, Int8Array);
+    let n = 0;
+    for (let i = 0; i < v.length; i += 1) n += v[i] * v[i];
+    n = Math.sqrt(n);
+    return n ? Array.from(v, (x) => x / n) : null;
+  }
+
+  /** A person's int8 vector, once their part of the vectors is loaded (or null): part
+   * `(number − 1) mod n` of `data/vectors/<n>.js`, row `⌊(number − 1) / n⌋` of it. */
+  function personVector(id) {
+    const n = ((S.data.core && S.data.core.shards) || {}).vectors || 1;
+    const part = S.data[S.partOf('vectors', id)];
+    if (!part) return null;
+    if (!part.rows) part.rows = S.ints(part.v, Int8Array);
+    const row = Math.floor((parseInt(String(id).slice(1), 10) - 1) / n);
+    const v = part.rows.subarray(row * part.dim, (row + 1) * part.dim);
+    return v.length === part.dim ? v : null;
+  }
+
+  /** The cosine-ready unit vector of an int8 row (null for none or zeros). */
+  function unit(v) {
+    if (!v) return null;
     let n = 0;
     for (let i = 0; i < v.length; i += 1) n += v[i] * v[i];
     n = Math.sqrt(n);
@@ -156,15 +181,50 @@
       };
     }
     if (S.data.world) source.land = () => Promise.resolve(S.data.world);
+    source.measure = () => Promise.resolve(core.measure || null);
+    if (has.vectors) source.vectors = vectorsOf;
+    if (has.links) {
+      source.links = (kind) => S.load('links').then((ok) => {
+        if (!ok) return { error: { code: 'site_part_missing', message: S.t('missing.title') } };
+        return S.data.links[kind === 'organisation' ? 'orgs' : 'people'];
+      });
+    }
+
+    /** Every person's (or organisation's) vector, over the bundle's order: `{dim, values}`
+     * (int8 rows; zeros for one without a place). */
+    function vectorsOf(kind) {
+      if (kind === 'organisation') {
+        return S.load('orgs').then(() => {
+          const rows = core.orgs.id.map((id) => ((S.data.orgs || {})[id] || {}).v);
+          const first = rows.find(Boolean);
+          const dim = first ? S.ints(first, Int8Array).length : 0;
+          const values = new Int8Array(rows.length * dim);
+          rows.forEach((b64, i) => { if (b64) values.set(S.ints(b64, Int8Array).subarray(0, dim), i * dim); });
+          return { dim, values };
+        });
+      }
+      const n = (core.shards || {}).vectors || 1;
+      const parts = Array.from({ length: n }, (_, k) => `vectors/${k}`);
+      return Promise.all(parts.map(S.load)).then((oks) => {
+        if (oks.some((ok) => !ok)) return { error: { code: 'site_part_missing', message: S.t('missing.title') } };
+        const dim = S.data[parts[0]].dim;
+        const ids = core.people.id;
+        const values = new Int8Array(ids.length * dim);
+        ids.forEach((id, i) => {
+          const v = personVector(id);
+          if (v) values.set(v, i * dim);
+        });
+        return { dim, values };
+      });
+    }
 
     /** One side of a comparison, with its parts loaded: `{kind, id, i, vector, themes, people}`. */
     function side(ref) {
       if (ref.kind === 'person' && ix.byPerson.has(ref.id)) {
         const i = ix.byPerson.get(ref.id);
-        return S.load(S.partOf('people', ref.id)).then(() => {
-          const d = S.personPart('people', ref.id) || {};
-          return { kind: 'person', id: ref.id, i, vector: vector(d.v), themes: new Map(S.sharesOf(i, 0)) };
-        });
+        const parts = has.vectors ? [S.partOf('vectors', ref.id)] : [];
+        return Promise.all(parts.map(S.load)).then(() => ({ kind: 'person', id: ref.id, i,
+          vector: unit(personVector(ref.id)), themes: new Map(S.sharesOf(i, 0)) }));
       }
       if (ref.kind === 'organisation' && ix.byOrg.has(ref.id)) {
         const i = ix.byOrg.get(ref.id);

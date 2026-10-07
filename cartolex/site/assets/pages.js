@@ -200,7 +200,7 @@
     main.append(
       h('h1', { class: 'cx-page__title', tabindex: '-1', text: t('nav.about') }),
       section('map'),
-      section('distances'),
+      section('distances', h('p', {}, [t('about.distances.page'), ' ', S.link('/distances', t('nav.distances'))])),
       section('coauthors'),
       section('themes'),
       section('contents', h('ul', { class: 'cx-list' }, [

@@ -20,13 +20,14 @@ assets/        tokens.css (the app's, copied), atlas.css and atlas.js (the app's
                have an address), cloud-light.svg and cloud-dark.svg (the lexicon's word
                cloud, when the project has a lexicon)
 data/          core.js (every page), orgs.js, links.js (who writes with whom),
-               people/<n>.js, keywords/<n>.js and texts/<n>.js (only when texts are
-               asked for)
+               people/<n>.js, vectors/<n>.js (the people's vectors), keywords/<n>.js
+               and texts/<n>.js (only when texts are asked for)
 ```
 
-A person's details and texts are in the part `(number − 1) mod n` of their
-site id (`s<number>`), a keyword's users in the part `index mod n` of its place
-among the core's keywords, *n* in `core.shards` (`people`, `keywords`, `texts`),
+A person's details, vector and texts are in the part `(number − 1) mod n` of their
+site id (`s<number>`) (a vector part holds int8 rows, the person's at row
+`⌊(number − 1) / n⌋`), a keyword's users in the part `index mod n` of its place
+among the core's keywords, *n* in `core.shards` (`people`, `vectors`, `keywords`, `texts`),
 chosen so that a part holds about 2 MB (`SHARD_BYTES`): a page loads the part
 of what it shows, so a national site's gigabytes of titles never load at once.
 The parts are written one at a time. `site.json`'s format is `cartolex-site/3`.
@@ -59,7 +60,8 @@ The site has no map of its own: its Atlas page mounts the app's atlas
   `coauthors` (the atlas's `ringsOf` over the sparse lists of `data/links.js`,
   read the first time the network is asked for), `compare` (the cosine of the
   two vectors, the top-level themes in common, the texts written together),
-  `keywordsOf` and `land`. The site has no texts on the map and no time
+  `keywordsOf` and `land`; and, for the Distances page, `vectors` (every part
+  of `data/vectors/`), `links` and `measure` (`core.measure`, the project's). The site has no texts on the map and no time
   windows: those methods are left out, and the atlas does not offer them.
 - **The host** (`assets/atlas.js`): the site's catalogues, its light or dark
   look, the fragment's query as the atlas's address (`#/map?sel=person:s3`),
@@ -78,8 +80,12 @@ The site has no map of its own: its Atlas page mounts the app's atlas
   and none under 0.5 %,
   their organisations); the keywords; the organisations; the projected people;
   the years; what the site can answer (`has`);
-- `people` and `orgs`: each one's keywords (15, the most used first) and vector
-  in the space of the themes (int8, base64), for « Compare »;
+- `people` and `orgs`: each one's keywords (15, the most used first); the
+  organisations' vector in the space of the themes (int8, base64), for « Compare »;
+- `vectors` (`data/vectors/<n>.js`, `{dim, v}`): the people's vectors, int8 rows
+  (each scaled so that its largest component is ±127) in parts of about 2 MB:
+  « Compare » reads one, the Distances page all of them (moved out of the people's
+  parts, so a site weighs what it did);
 - `keywords`: each keyword's users (`[count, person, thousandths, …]`, the 100
   whose use it holds the largest share of);
 - `links` (`site_links`): who writes with whom over the site's own indexes,
@@ -91,8 +97,8 @@ The site has no map of its own: its Atlas page mounts the app's atlas
   follow the pseudonyms, so the links name nobody; the rings are found in the
   browser.
 
-The real nearest neighbours are no longer computed: the atlas shows real
-links (co-authors), and similarity only in « Compare ».
+The atlas shows real links (co-authors), and similarity only in « Compare »;
+the Distances page measures in the browser (see {doc}`atlas`, « Distances »).
 
 - **Names** are shown only when the build says so; a site of people asks at
   each build (the API refuses a build without the answer, 422
@@ -133,7 +139,10 @@ organisation, a keyword or a theme, arrows moving through the results; the
 themes), Atlas (the app's atlas: the treemap of the themes, the
 map, the card of links; its own Find, Back, Home, panes and full screen; the
 page is the window's height and the atlas fills what the header and the footer
-leave, whatever its card holds), a
+leave, whatever its card holds), Distances (the app's Distances,
+`assets/distances.js` mounting `mountDistances` over the same source: a ranked
+list, pairs, matrices, each saved as CSV with the names the site shows,
+`#/distances?d=rank&of=person:s3`), a
 page per person and per organisation (themes per level, keywords,
 organisations or members, who they write with, texts when carried; « Show on
 the atlas », « Print this page »), Index (people, organisations and keywords
@@ -200,8 +209,12 @@ not grow with the project, at most 200 words; reading the lexicon does, as the
 app's Lexicon screen does).
 
 `data/core.js` is 0.24 MB (the theme shares of every person), the keywords'
-users 0.28 MB, the atlas's script 0.23 MB, the people's parts 0.14 MB, the
-links 0.03 MB.
+users 0.28 MB, the atlas's script 0.31 MB (0.23 MB before Distances), the
+people's parts 0.13 MB, their vectors 0.01 MB (20 dimensions), the links 0.03 MB.
+Distances adds 0.09 MB of script and messages (71 KB of script, 17 KB of messages in three languages) and moves the vectors out of the
+people's parts: on a national field (170,000 people, 184 dimensions) the vectors
+are 42 MB in 20 parts, which the Distances page reads at once (see {doc}`atlas`
+for its times).
 
 A sample of 86 543 mapped people (1 million texts, 21 790 organisations,
 9 938 keywords): gathering the data took 74 s and 4.2 GB at most (123 s and

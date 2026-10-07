@@ -367,7 +367,7 @@ def map_screen(s: Shots) -> None:
 
 
 def share(s: Shots) -> None:
-    """The Share screen with its questions answered, then a site built."""
+    """The Share screen with its questions answered, a site built, and its Distances page."""
     page = s.page
     page.set_viewport_size({"width": VIEWPORT["width"], "height": 1300})
     s.go("/share", settle=2000)
@@ -380,6 +380,15 @@ def share(s: Shots) -> None:
     builds = page.locator("section, .cx-card").filter(has_text="Site builds").last
     s.shot("share-built", builds)
     page.set_viewport_size(VIEWPORT)
+    # the site as a reader opens it: its Distances page, a matrix of the organisations
+    site = builds.locator("a[href$='/site/index.html']").first.get_attribute("href")
+    page.goto(s.app.base + site + "#/distances?d=matrix&mx=orgs")
+    page.wait_for_function(
+        "() => { const s = document.querySelector('.cx-dist__status');"
+        " return s && /×/.test(s.textContent); }"
+    )
+    page.wait_for_timeout(1000)
+    s.shot("share-site-distances")
 
 
 def institution(s: Shots) -> None:

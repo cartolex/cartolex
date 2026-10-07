@@ -6,8 +6,9 @@
  * meanwhile, `atlas.hold`; its width the person's), and its layout preview drawn on the
  * atlas's map (`preview.js`), the
  * map versions and base maps (`versions.js`), the distances' exports
- * (`pages/share/distances.js`). Opening it reads `GET /api/atlas` only; the atlas reads the
- * rest when it shows it.
+ * (`pages/share/distances.js`); and, in place of the atlas, the « Distances » pane
+ * (`distances.js`, `?pane=distances`: ranked lists, pairs and matrices, the offline site's own
+ * code). Opening it reads `GET /api/atlas` only; the atlas reads the rest when it shows it.
  */
 import { html, useEffect, useMemo, useRef, useState } from '../../core/preact.js';
 import { locale, t } from '../../core/i18n.js';
@@ -24,6 +25,10 @@ import { PANELS, changedCount } from '../tune/common.js';
 import { PreviewBar, createLayoutPreview, previewScene } from './preview.js';
 import { DistancesDialog } from '../share/distances.js';
 import { apiSource, appHost } from './source.js';
+import { DistancesMount } from './distances.js';
+
+/** The panes the screen shows, one at a time. */
+const PANES = ['atlas', 'distances'];
 
 /** The width of the side « Tune » panel: the person's preference, its limits and default. */
 const TUNE_WIDTH = 'map.tune_width';
@@ -107,6 +112,15 @@ export function AtlasScreen() {
   const [keeping, setKeeping] = useState(false);
   const prefs = app.stores.prefs;
   const [tuneOpen, setTuneOpen] = useState(() => Boolean(ctx.query && ctx.query.get('tune') === '1'));
+  const [pane, setPane] = useState(() => (ctx.query && ctx.query.get('pane') === 'distances' ? 'distances' : 'atlas'));
+  const showPane = (id) => {
+    const url = new URL(window.location.href);
+    if (id === 'distances') url.searchParams.set('pane', id);
+    else url.searchParams.delete('pane');
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+    if (id === 'distances') setTuneOpen(false);
+    setPane(id);
+  };
   const [tuneWidth, setTuneWidth] = useState(() => {
     const kept = Number(prefs.get(TUNE_WIDTH));
     return Number.isFinite(kept) && kept > 0 ? clampWidth(kept) : TUNE_DEFAULT;
@@ -179,9 +193,13 @@ export function AtlasScreen() {
         version: bundle.map_version || '' })}</p>` : null}
     </div>
     ${available ? html`<div class="cx-atlas__actions">
-      <${Button} icon="panel-right" buttonRef=${tuneButton} aria-expanded=${tuneOpen ? 'true' : 'false'}
+      <div class="cx-atlas__panes" role="group" aria-label=${t('map.pane')}>
+        ${PANES.map((id) => html`<${Button} key=${id} variant=${pane === id ? 'primary' : 'secondary'}
+          aria-pressed=${pane === id ? 'true' : 'false'} data-pane=${id} onClick=${() => showPane(id)}>${t(`map.pane.${id}`)}<//>`)}
+      </div>
+      ${pane === 'atlas' ? html`<${Button} icon="panel-right" buttonRef=${tuneButton} aria-expanded=${tuneOpen ? 'true' : 'false'}
         aria-controls="cx-map-tune" data-tune-toggle onClick=${() => openTune(!tuneOpen)}>${t('tune.title.map')}${
-        tuneCount ? html` <span class="cx-tune__count is-changed">${t('tune.changed', { n: tuneCount })}</span>` : null}<//>
+        tuneCount ? html` <span class="cx-tune__count is-changed">${t('tune.changed', { n: tuneCount })}</span>` : null}<//>` : null}
       <${Button} icon="download" onClick=${() => setDistances(true)} aria-haspopup="dialog">${t('map.distances.button')}<//>
       <${Button} icon="settings" onClick=${() => setVersionsOpen(true)}>${t('map.versions.button')}<//>
     </div>` : null}
@@ -205,6 +223,7 @@ export function AtlasScreen() {
     setKeeping(false);
   };
   const baseInfo = bundle.base || null;
+  const project = app.manifest.project;
   const previewing = preview.phase.value !== 'idle';
   const previewBar = html`<${PreviewBar} store=${preview} onKeep=${keep} busy=${keeping} />`;
   return html`<div class="cx-page cx-atlas-page">
@@ -213,7 +232,9 @@ export function AtlasScreen() {
       <p>${t('map.base.banner', { name: baseInfo.name, version: baseInfo.map_version, shared: baseInfo.shared_keywords })}</p>
       <${Button} size="s" onClick=${() => changeBase('')}>${t('map.base.back')}<//>
     </div>` : null}
-    <div class=${`cx-atlas-body ${tuneOpen ? 'has-side' : ''}`} style=${`--cx-tune-width: ${tuneWidth}px`}>
+    ${pane === 'distances' ? html`<div class="cx-distances-pane">
+      <${DistancesMount} ctx=${ctx} bundle=${baseInfo ? null : bundle} title=${project && project.open ? project.name || '' : ''} />
+    </div>` : html`<div class=${`cx-atlas-body ${tuneOpen ? 'has-side' : ''}`} style=${`--cx-tune-width: ${tuneWidth}px`}>
       <div class="cx-atlas-body__main">
         ${!tuneOpen && previewing ? previewBar : null}
         <${AtlasMount} ctx=${ctx} bundle=${bundle} onAtlas=${setAtlas} />
@@ -224,7 +245,7 @@ export function AtlasScreen() {
           <${TuneSide} ctx=${ctx} id="map" preview=${preview} top=${previewing ? previewBar : null}
             onClose=${() => openTune(false)} />
         </div>` : null}
-    </div>
+    </div>`}
     <${DistancesDialog} ctx=${ctx} open=${distances} onClose=${() => setDistances(false)}
       shown=${distances ? shownPeople(atlas) : null}
       onTune=${() => {
