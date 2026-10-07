@@ -225,3 +225,20 @@ def test_a_site_carries_several_layouts_aligned_to_its_core(built, tmp_path):
             assert layout[part][axis] == alone[part][axis], (part, axis)
     assert layout["nodes"]["z"] == [n["z"] for n in alone["nodes"]]
     assert layout["bounds"] == alone["bounds"]
+
+
+@models
+def test_a_project_whose_pinned_map_is_in_space_is_refused_as_a_base(built, client, tmp_path):
+    from cartolex.cli import main as cli
+
+    other = shutil.copytree(built[0], tmp_path / "other", ignore=shutil.ignore_patterns(".lock"))
+    assert cli(["versions", str(other), "--pin", "v2"]) == 0
+    assert cli(["build", str(other)]) == 0
+    bases = client.get("/api/map/bases")
+    refused = client.post(
+        "/api/map/bases", json={"folder": str(other)}, headers={"If-Match": etag(bases)}
+    )
+    assert refused.status_code == 409
+    error = refused.json()["error"]
+    assert error["code"] == "base_needs_2d_source" and error["params"]["version"] == "v2"
+    assert not (Path(client.app.state.cartolex.settings.project) / "sources" / "bases").exists()

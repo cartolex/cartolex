@@ -450,10 +450,19 @@ def keyword_sets(
 # ── bases: another project's map ─────────────────────────────────────────────
 
 
+class BaseNeedsFlatMap(Exception):
+    """The project to copy as a base has a pinned map in space: only a flat map is a base."""
+
+    def __init__(self, name: str, version: str) -> None:
+        super().__init__(f"{name}: map version {version} is in space")
+        self.name, self.version = name, version
+
+
 def add_base(ctx: Any, folder: Path, base_id: str) -> dict[str, Any]:
     """Copy the map of the project in *folder* (its keywords, its people's places without
     their names, its top-level themes) into ``sources/bases/<base_id>/``; the base's entry
-    for ``project.json``. Raises ``FileNotFoundError`` when *folder* has no map."""
+    for ``project.json``. Raises ``FileNotFoundError`` when *folder* has no map, and
+    :class:`BaseNeedsFlatMap` when its pinned map is in space."""
     from ..build.records import read_record
     from ..project.files import atomic_write_bytes, json_bytes
     from ..project.layout import ProjectLayout
@@ -466,6 +475,8 @@ def add_base(ctx: Any, folder: Path, base_id: str) -> dict[str, Any]:
     config = json.loads(other.project_json.read_text(encoding="utf-8"))
     record = read_record(other, "map.layout")
     drawn = record.measures.counts.get("version") if record else None
+    if "umap_z" in terms[0]:  # a map in space: a view of it from above would mislead
+        raise BaseNeedsFlatMap(str(config.get("name") or folder.name), f"v{drawn or 1}")
     applied = {}
     if (mapf / "themes_applied.json").is_file():
         applied = json.loads((mapf / "themes_applied.json").read_text(encoding="utf-8"))

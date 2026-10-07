@@ -205,6 +205,7 @@ def add_base(
     top-level themes) and add it to ``project.json``'s bases (send ``If-Match``)."""
     from pathlib import Path
 
+    from cartolex.app.atlas_layers import BaseNeedsFlatMap
     from cartolex.app.atlas_layers import add_base as copy_base
     from cartolex.project import StaleWrite
     from cartolex.project.files import fingerprint
@@ -231,6 +232,8 @@ def add_base(
             n += 1
         try:
             entry = copy_base(ctx, folder, base_id)
+        except BaseNeedsFlatMap as exc:
+            raise ApiError.of("base_needs_2d_source", name=exc.name, version=exc.version) from exc
         except (FileNotFoundError, ValueError, KeyError) as exc:
             raise ApiError.of("base_no_map", path=str(folder)) from exc
         new = config.model_copy(update={"bases": [*config.bases, Base(**entry)]})

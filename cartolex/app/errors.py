@@ -219,6 +219,12 @@ ERRORS: dict[str, ErrorKind] = {
     "layout_dimensions_unsupported": ErrorKind(
         422, "the {method} layout draws flat maps only: a map in space needs umap", "fix-input"
     ),
+    "base_needs_2d_source": ErrorKind(
+        409,
+        "the pinned map of {name} ({version}) is in space, and a base is a flat map: pin a "
+        "flat version there (or build one) to serve as a base",
+        "fix-input",
+    ),
     "base_needs_2d": ErrorKind(
         409,
         "a base map places a flat map only, and {version} is a map in space: show a flat version",
