@@ -6,7 +6,7 @@
  */
 import { autonym, formatDuration, formatList, formatNumber, has, t } from '../../core/i18n.js';
 import { errorFromResponse, jobError, withJobFacts } from '../../core/errors.js';
-import { messageOf, stageName } from '../../components/index.js';
+import { aiStateText, messageOf, stageName } from '../../components/index.js';
 
 /** A memory size in the interface language (« 820 MB », « 3.4 GB »). */
 export function formatMb(mb) {
@@ -19,6 +19,13 @@ export function formatMb(mb) {
 /** A duration estimate (« about 2 min »), or « unknown ». */
 export function formatSeconds(s) {
   return s === null || s === undefined ? t('build.unknown') : formatDuration(Math.max(1, s));
+}
+
+/** The AI clean-up's row from its view (`ai`: as the project state shows it once the build
+ * ends): done with the copilot, waiting for it, its earlier decisions only, or skipped. */
+export function aiRow(base, ai) {
+  return { ...base, state: ai.state, stateText: aiStateText(ai.ai_state) || t('build.action.skip'),
+    note: ai.skip ? messageOf(ai.skip) : '' };
 }
 
 /** A stage's name from its id (the catalogue's, else the id). */
