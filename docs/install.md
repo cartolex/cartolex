@@ -33,7 +33,7 @@ Portuguese (`LEIAME-pt-BR.txt`):
 
 | system | launcher | the first time |
 | --- | --- | --- |
-| macOS | `Install cartolex.command` | right-click › Open, then Open (Gatekeeper; on recent systems: System Settings › Privacy & Security › Open Anyway) |
+| macOS | `Install cartolex.command` | double-click; if macOS says the file « is damaged and can't be opened »: open Terminal, type `sh ` (with a space), drag the file into the window, press Enter (right-click › Open does not lift that message; the installer then clears the folder's quarantine) |
 | Windows | `Install cartolex.bat` (extract the zip first) | SmartScreen: More info › Run anyway |
 | Linux | `install-cartolex.sh` | `chmod +x install-cartolex.sh`, then `./install-cartolex.sh` |
 

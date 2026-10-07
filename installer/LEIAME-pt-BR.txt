@@ -27,15 +27,26 @@ macOS
 -----
 
 1. Clique duas vezes no arquivo zip para descompactá-lo e abra a pasta.
-2. Clique com o botão direito (ou Control-clique) em "Install
-   cartolex.command" e escolha Abrir. O macOS avisa que não pode verificar o
-   desenvolvedor: escolha Abrir de novo. (Na primeira vez, um clique duplo
-   comum só mostra um aviso; botão direito > Abrir é o caminho. Em versões
-   recentes do macOS, se não houver o botão Abrir: Ajustes do Sistema >
-   Privacidade e Segurança, depois "Abrir Mesmo Assim" ao lado da mensagem
-   sobre o instalador.)
-3. Uma janela do Terminal mostra o andamento. Quando aparecer "Done",
-   pressione Enter.
+2. Clique duas vezes em "Install cartolex.command". Se a instalação começar
+   numa janela do Terminal, tudo certo: siga para o passo 3.
+
+   Se o macOS disser que o arquivo "está danificado e não pode ser aberto"
+   (ou que não pode verificar o desenvolvedor), o arquivo não está danificado:
+   o macOS põe em quarentena tudo o que sai de um arquivo baixado. Botão
+   direito > Abrir NÃO resolve essa mensagem, e desde o macOS 15 não funciona
+   mais. Faça assim, uma única vez; funciona sempre:
+
+     a. Abra o Terminal: Cmd + Espaço, digite Terminal, depois Enter.
+     b. Na janela do Terminal, digite  sh  seguido de UM ESPAÇO. Ainda não
+        pressione Enter.
+     c. No Finder, arraste o arquivo "Install cartolex.command" para a janela
+        do Terminal: o caminho se escreve sozinho.
+     d. Pressione Enter.
+
+   Nenhum caminho para digitar. O instalador retira a quarentena da pasta no
+   caminho: você não precisará fazer isso de novo.
+3. A janela do Terminal mostra o andamento. Quando aparecer "Done", pressione
+   Enter.
 4. Um arquivo "cartolex.command" está agora na sua mesa. Clique duas vezes
    nele para abrir o cartolex no navegador. Deixe a janela do Terminal aberta
    enquanto trabalha; feche-a para encerrar o cartolex.
@@ -55,6 +66,11 @@ Windows
 4. Um atalho "cartolex" está agora na área de trabalho e no menu Iniciar. Ele
    abre o cartolex no navegador. Deixe a janela preta aberta enquanto
    trabalha; feche-a para encerrar o cartolex.
+
+Se a página ficar vazia ou aparecer desorganizada no Microsoft Edge (em
+computadores gerenciados, o Edge às vezes muda para o "modo Internet
+Explorer" para endereços locais), copie o endereço mostrado na janela preta
+para o Google Chrome ou o Firefox.
 
 Se o instalador disser que não há Python neste computador: instale o Python
 a partir de https://www.python.org/downloads/ (marque "Add python.exe to

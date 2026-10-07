@@ -55,6 +55,15 @@ for name in HTTPS_PROXY https_proxy HTTP_PROXY http_proxy NO_PROXY no_proxy; do
   [ -n "${!name:-}" ] && say "proxy setting in use: $name"
 done
 
+# macOS quarantines everything extracted from a downloaded archive, so a double-clicked
+# .command can die with "is damaged and can't be opened", which right-click > Open does
+# not lift (and which macOS 15 no longer lets anyone bypass). Running through `sh` is not
+# subject to it (Gatekeeper gates execution, not reading): that is how the README tells
+# people to start this. Clear the flag on this folder now, so it behaves normally after.
+if [ "$(uname -s)" = "Darwin" ]; then
+  xattr -dr com.apple.quarantine "$HERE" 2>/dev/null || true
+fi
+
 # What to install: the pinned release, or a wheel given for testing.
 WHEEL="${CARTOLEX_WHEEL:-}"
 if [ -z "$WHEEL" ]; then

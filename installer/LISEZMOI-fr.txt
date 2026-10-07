@@ -29,14 +29,26 @@ macOS
 
 1. Double-cliquez sur le fichier zip pour le décompresser, puis ouvrez le
    dossier.
-2. Faites un clic droit (ou Contrôle-clic) sur « Install cartolex.command » et
-   choisissez Ouvrir. macOS indique qu'il ne peut pas vérifier le développeur :
-   choisissez de nouveau Ouvrir. (La première fois, un simple double-clic ne
-   montre qu'un avertissement ; clic droit > Ouvrir permet de passer. Sur un
-   macOS récent, s'il n'y a pas de bouton Ouvrir : Réglages Système >
-   Confidentialité et sécurité, puis « Ouvrir quand même » à côté du message
-   sur l'installateur.)
-3. Une fenêtre Terminal montre l'avancement. Quand elle affiche « Done »,
+2. Double-cliquez sur « Install cartolex.command ». Si l'installation démarre
+   dans une fenêtre Terminal, tout va bien : passez à l'étape 3.
+
+   Si macOS répond que le fichier « est endommagé et ne peut pas être ouvert »
+   (ou qu'il ne peut pas vérifier le développeur), le fichier n'est pas abîmé :
+   macOS met en quarantaine tout ce qui sort d'une archive téléchargée. Le
+   clic droit > Ouvrir ne lève PAS ce message, et depuis macOS 15 il ne
+   fonctionne plus du tout. Faites plutôt ceci, une seule fois ; cela marche
+   toujours :
+
+     a. Ouvrez Terminal : Cmd + Espace, tapez Terminal, puis Entrée.
+     b. Dans la fenêtre Terminal, tapez  sh  suivi d'UNE ESPACE. Ne validez
+        pas encore.
+     c. Depuis le Finder, glissez le fichier « Install cartolex.command » dans
+        la fenêtre Terminal : son emplacement s'écrit tout seul.
+     d. Appuyez sur Entrée.
+
+   Aucun chemin à taper. L'installateur lève la quarantaine du dossier au
+   passage : vous n'aurez plus à le faire.
+3. La fenêtre Terminal montre l'avancement. Quand elle affiche « Done »,
    appuyez sur Entrée.
 4. Un fichier « cartolex.command » se trouve maintenant sur votre bureau.
    Double-cliquez dessus pour ouvrir cartolex dans votre navigateur. Laissez
@@ -59,6 +71,11 @@ Windows
    menu Démarrer. Il ouvre cartolex dans votre navigateur. Laissez sa fenêtre
    noire ouverte pendant que vous travaillez ; fermez-la pour arrêter
    cartolex.
+
+Si la page reste vide ou s'affiche en vrac dans Microsoft Edge (sur les
+postes gérés, Edge bascule parfois en « mode Internet Explorer » pour les
+adresses locales), copiez l'adresse affichée dans la fenêtre noire dans
+Google Chrome ou Firefox.
 
 Si l'installateur indique qu'il n'y a pas de Python sur cet ordinateur :
 installez Python depuis https://www.python.org/downloads/ (cochez « Add

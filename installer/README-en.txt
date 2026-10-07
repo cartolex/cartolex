@@ -26,13 +26,25 @@ macOS
 -----
 
 1. Double-click the zip file to unpack it, then open the folder.
-2. Right-click (or Control-click) "Install cartolex.command" and choose Open.
-   macOS says it cannot check the developer: choose Open again. (A plain
-   double-click the first time only shows a warning; right-click > Open is
-   the way through. On recent macOS, if there is no Open button: System
-   Settings > Privacy & Security, then "Open Anyway" next to the message
-   about the installer.)
-3. A Terminal window shows the progress. When it says "Done", press Enter.
+2. Double-click "Install cartolex.command". If the installation starts in a
+   Terminal window, all is well: go to step 3.
+
+   If macOS says the file "is damaged and can't be opened" (or that it cannot
+   check the developer), the file is not damaged: macOS quarantines
+   everything that comes out of a downloaded archive. Right-click > Open does
+   NOT lift that message, and since macOS 15 it no longer works at all. Do
+   this instead, once; it always works:
+
+     a. Open Terminal: press Cmd + Space, type Terminal, press Enter.
+     b. In the Terminal window, type  sh  followed by ONE SPACE. Do not press
+        Enter yet.
+     c. From the Finder, drag the file "Install cartolex.command" into the
+        Terminal window: its location writes itself.
+     d. Press Enter.
+
+   There is no path to type. The installer lifts the quarantine of the folder
+   as it goes, so you never need this again.
+3. The Terminal window shows the progress. When it says "Done", press Enter.
 4. A file "cartolex.command" is now on your desktop. Double-click it to open
    cartolex in your browser. Keep its Terminal window open while you work;
    close it to stop cartolex.
@@ -50,6 +62,11 @@ Windows
 4. A "cartolex" shortcut is now on your desktop and in the Start menu. It
    opens cartolex in your browser. Keep its black window open while you work;
    close it to stop cartolex.
+
+If the page stays empty or looks broken in Microsoft Edge (on managed
+computers, Edge sometimes switches to "Internet Explorer mode" for local
+addresses), copy the address shown in the black window into Google Chrome or
+Firefox.
 
 If the installer says there is no Python on this computer: install Python
 from https://www.python.org/downloads/ (tick "Add python.exe to PATH" on the
