@@ -248,3 +248,14 @@ def test_two_people_said_apart_stay_apart_after_one_is_merged(grouped, tmp_path)
     remember_pairs(project.layout, [("p8", "p9")], "distinct")  # p8, now merged into p7
     project.close()
     assert not any("p9" in g["ids"] for g in _groups(client, "all")["items"])
+
+
+def test_an_import_lists_a_name_written_another_way(tmp_path):
+    from cartolex.collect.people_import import find_duplicates
+
+    people = [("p1", "Sørvik", "Ada", None), ("p2", "Sorvik", "Ada", None),
+              ("p3", "Ada", "Tavelin", None), ("p4", "Tavelin", "Ada", None)]  # fmt: skip
+    project = _project(tmp_path / "p", people, [])
+    found = {(d.person_id, d.other_id): d.reason for d in find_duplicates(project)}
+    project.close()
+    assert found == {("p1", "p2"): "the same name", ("p3", "p4"): "the same name"}

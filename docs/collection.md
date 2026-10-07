@@ -151,9 +151,14 @@ people (or left for later) are remembered in `decisions/people_pairs.csv`.
 Measured on the demo worlds with duplicates and namesakes added
 (`cartolex.demo.duplicates`: 15 % of the people given a second row written six
 ways, 8 % made namesakes of someone, half of them in the same group; worlds S
-and L, five seeds): every duplicate is proposed, the clear pairs are all right
-(67 of 67) and hold 46 % of the duplicates; the others wait for a person, among
-the most likely pairs (140 of the 145 first pairs are duplicates).
+and L, five seeds each): every one of the 250 duplicates is proposed, the clear
+pairs are all right (111 of 111) and hold 44 % of the duplicates; the others wait
+for a person, among the most likely pairs (236 of the 250 first pairs are
+duplicates), and no group of three or more joins two different people. On a
+world of 179,000 people (170,500 generated, 5 % given one or two more rows written
+another way, 4,000 renamed into 80 common names), the review lists 26,933 groups;
+the first list takes 29 s while the project's views are built, then a page
+0.2 s.
 
 ````{admonition} On the command line
 :class: note

@@ -36,7 +36,7 @@ from cartolex.project.models import Level, Slot
 from cartolex.project.tables import read_source_table
 
 from .decisions import read_people, update_people
-from .names import compatible_first_names, fold, name_key, split_full_name, surname_parts, words
+from .names import fold, name_agreement, name_form, name_key, split_full_name, surname_parts, words
 from .pdfworker import DEFAULT_TIMEOUT, PdfError, extract_pdf, pdf_worker
 from .tables import RawRun, RawWriter, SourceBuilder, iso, parse_time, rebuild_sources
 from .text import clean, detect_language
@@ -719,13 +719,25 @@ def read_people_runs(runs: list[RawRun], builder: SourceBuilder) -> None:
 # ── duplicates ───────────────────────────────────────────────────────────────
 
 
+#: How two names agree (:func:`~cartolex.collect.names.name_agreement`) → the reason given.
+_NAME_REASONS = {
+    "same": "the same name",
+    "order": "the same name",
+    "initials": "the same name",
+    "initial": "the same surname, a first name as an initial",
+    "given": "the same surname, more given names on one side",
+    "part": "one surname is part of the other",
+}
+
+
 def find_duplicates(project: Project, *, among: set[str] | None = None) -> list[DuplicateProposal]:
     """Pairs of people who may be one person, with the reason; none is merged.
 
     Two rows are proposed when they share an identifier (ORCID, OpenAlex, HAL),
     when their names are the same once case, accents, hyphens and particles are
-    set aside, or when their first names are compatible (one is the other's
-    initial) and one surname is the other or a part of it. With *among*, only
+    set aside (whatever the order of their words), or when their given names agree
+    (one may be an initial, or have more of them) and one surname is the other or a
+    part of it (:func:`~cartolex.collect.names.name_agreement`). With *among*, only
     pairs involving one of those people. Pairs already decided (one merged into
     the other) are left out.
     """
@@ -759,31 +771,20 @@ def find_duplicates(project: Project, *, among: set[str] | None = None) -> list[
         for i, a in enumerate(pids):
             for b in pids[i + 1 :]:
                 propose(a, b, f"the same {scheme} identifier")
-    by_surname: dict[str, list[dict[str, Any]]] = {}
-    for p in people:
-        for part in surname_parts(p["last_name"]):
-            by_surname.setdefault(part, []).append(p)
-    for group in by_surname.values():
+    # Blocks: each surname part, and every word of the name whatever its order.
+    blocks: dict[tuple[str, ...], list[str]] = {}
+    forms = {p["person_id"]: name_form(p["last_name"], p["first_name"]) for p in people}
+    for pid, (parts, given, _joined) in forms.items():
+        for part in parts:
+            blocks.setdefault(("surname", part), []).append(pid)
+        if parts or given:
+            blocks.setdefault(("name", *sorted(parts + given)), []).append(pid)
+    for group in blocks.values():
         for i, a in enumerate(group):
             for b in group[i + 1 :]:
-                ka, kb = (
-                    name_key(a["last_name"], a["first_name"]),
-                    name_key(b["last_name"], b["first_name"]),
-                )
-                if ka == kb:
-                    propose(a["person_id"], b["person_id"], "the same name")
-                    continue
-                if not compatible_first_names(a["first_name"], b["first_name"]):
-                    continue
-                sa, sb = surname_parts(a["last_name"]), surname_parts(b["last_name"])
-                if sa == sb:
-                    propose(
-                        a["person_id"],
-                        b["person_id"],
-                        "the same surname, a first name as an initial",
-                    )
-                elif set(sa) < set(sb) or set(sb) < set(sa):
-                    propose(a["person_id"], b["person_id"], "one surname is part of the other")
+                reason = _NAME_REASONS.get(name_agreement(forms[a], forms[b]) or "")
+                if reason:
+                    propose(a, b, reason)
     return sorted(out, key=lambda d: (d.person_id, d.other_id))
 
 
