@@ -37,8 +37,11 @@ __all__ = [
     "OPENALEX_PRICES",
     "SNAPSHOT_ADVICE_USD",
     "STORED",
+    "TYPICAL_PROLIFIC",
+    "TYPICAL_WORKS",
     "CollectionPlan",
     "PlannedHost",
+    "collaborator_requests",
     "openalex_budget",
     "plan_collection",
     "record_job",
@@ -217,6 +220,56 @@ PURPOSES = {
 ACTIONS = ("resolve", "harvest", "institutions", "collaborators", "coverage")
 
 
+#: When the people's texts are not collected yet: the works of a person, on average, and
+#: the share of people with more than a page of them.
+TYPICAL_WORKS = 40
+TYPICAL_PROLIFIC = 0.15
+
+
+def collaborator_requests(
+    project: Project, mapped: Mapping[str, Sequence[str]], seeds: int, cap: int, rounds: int
+) -> int:
+    """About how many OpenAlex lists *rounds* rounds of collaborators take from *seeds* seeds,
+    up to *cap* collaborators (:func:`cartolex.collect.snowball.snowball`).
+
+    The seeds' works are counted from the texts the tables give the *mapped* people (their
+    records, a page per 100 works and a list of pages per 50 records), as are, by their likeness,
+    the collaborators': the works counts of their records (a list per 50), then a page
+    per 100 works of those with a page of works or fewer, and one list for each of the
+    others (their most recent works). A round that starts the next one reads its
+    collaborators' works whole.
+    """
+    from .openalex import AUTHOR_BATCH, FIT_WORKS, PER_PAGE
+
+    counts: list[int] = []
+    path = project.layout.table("authorships")
+    if mapped and path.exists():
+        per = read_source_table(path, "authorships", ["person_id"])["person_id"].to_pylist()
+        texts: dict[str, int] = {}
+        for pid in per:
+            texts[pid] = texts.get(pid, 0) + 1
+        counts = [texts.get(pid, 0) for pid in mapped]
+    if counts and sum(counts):
+        mean = sum(counts) / len(counts)
+        small = [c for c in counts if c <= FIT_WORKS]
+        prolific = 1 - len(small) / len(counts)
+        small_mean = sum(small) / len(small) if small else 0.0
+    else:
+        mean, prolific = float(TYPICAL_WORKS), TYPICAL_PROLIFIC
+        small_mean = float(TYPICAL_WORKS) * 0.75
+
+    def lists(people: float, works: float) -> int:
+        # a page per 100 works, and the empty page that ends each list
+        return 2 * math.ceil(people / AUTHOR_BATCH) + math.floor(people * works / PER_PAGE)
+
+    n = lists(max(1, seeds), mean)  # the seeds' works
+    rounds = max(1, rounds)
+    n += (rounds - 1) * (math.ceil(cap / AUTHOR_BATCH) + lists(cap, mean))  # read whole
+    n += math.ceil(cap / AUTHOR_BATCH)  # the works counts of the last round's collaborators
+    n += lists(cap * (1 - prolific), small_mean) + math.ceil(cap * prolific)
+    return n
+
+
 def plan_collection(
     project: Project,
     action: str,
@@ -242,9 +295,10 @@ def plan_collection(
     variant and per stated institution, a harvest at least one list per 50
     OpenAlex records of consecutive people and one per registry record (more
     for people with many works), an institution one list
-    of its units and at least one of its works, a round of collaborators a
-    list per 50 records. Answers already in the cache are not sent again, so
-    the real count can be lower.
+    of its units and at least one of its works, a round of collaborators the
+    pages of its seeds' works and of up to *cap* collaborators'
+    (:func:`collaborator_requests`). Answers already in the cache are not sent
+    again, so the real count can be lower.
     """
     if action not in ACTIONS:
         raise ValueError(f"unknown action {action!r}; expected one of {ACTIONS}")
@@ -307,15 +361,21 @@ def plan_collection(
                 )
             )
     elif action == "collaborators":
-        if seeds is None:
-            from .snowball import _seed_people
+        from .snowball import _seed_people
 
-            seeds = len(_seed_people(project, None))
-        n_people = seeds
-        per_round = math.ceil(max(1, n_people) / 50) + math.ceil(max(1, cap or 200) / 50)
-        add("openalex", "list", per_round * max(1, rounds))
+        mapped = _seed_people(project, None)
+        n_people = len(mapped) if seeds is None else seeds
+        cap = cap or 200
+        add("openalex", "list", collaborator_requests(project, mapped, n_people, cap, rounds))
         purposes["openalex"] = PURPOSES["collaborators"]
         sends["openalex"] = SENDS[("collaborators", "openalex")]
+        notes.append((
+            "note_collaborators_cap",
+            f"the estimate counts the seeds' works and up to {cap} collaborators a round: a "
+            "round with fewer takes less, and a round past the cap is left out once the "
+            "works it starts from are read",
+            {"cap": cap},
+        ))  # fmt: skip
     else:
         targets = _targets(project, action, people)
         n_people = len(targets)
@@ -436,11 +496,13 @@ def record_job(
     counts: Mapping[str, Any],
     egress: Sequence[Mapping[str, Any]],
     finished: datetime | None = None,
+    phases: Sequence[Mapping[str, Any]] = (),
 ) -> str:
     """Write ``logs/jobs/<job id>.jsonl`` for a collection job; returns the job id.
 
-    It holds the job's kind, times, outcome and counts, and one line per host
-    contacted with the kinds of data sent: never a name, an identifier or a text.
+    It holds the job's kind, times, outcome and counts, one line per host
+    contacted with the kinds of data sent, and one per phase the job told of
+    (*phases*: its name, seconds and counts): never a name, an identifier or a text.
     """
     finished = finished or datetime.now(timezone.utc)
     job_id = f"collect-{kind}-{new_run_id(started)}"
@@ -456,6 +518,7 @@ def record_job(
             }
             for e in egress
         ),
+        *({"event": "phase", **dict(p)} for p in phases),
         {
             "event": "end",
             "outcome": outcome,

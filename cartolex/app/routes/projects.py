@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastapi import Request
+from fastapi import Query, Request
 from pydantic import BaseModel, Field
 
 from ..errors import ApiError
@@ -118,6 +118,79 @@ def recent(request: Request) -> dict[str, Any]:
         "total": len(items),
         "empty": None if items else empty("empty_no_recent"),
     }
+
+
+class ListedBody(BaseModel):
+    """A project of the recent list, by its folder as the list gives it."""
+
+    path: Annotated[str, Field(min_length=1, max_length=4096)]
+
+
+class DeleteBody(ListedBody):
+    """Delete a recent project's folder: ``confirm`` says the person was asked."""
+
+    confirm: bool = False
+
+
+def _deletable(request: Request, path: str) -> tuple[LocalProjects, Any, bool]:
+    """The local host, what deleting *path* would remove, and whether it is the open project;
+    refused on a hosted service, for a folder not listed or not a project, while a job runs."""
+    from ..projects import local_project_id
+    from ..removal import active_jobs, inspect
+
+    runtime = runtime_of(request)
+    if runtime.settings.hosted:
+        raise ApiError.of("project_delete_hosted")
+    host = _local(request)
+    folder = host.listed(path)
+    plan = inspect(folder, data_dir=runtime.settings.data_dir)
+    current = host.current()
+    is_open = current is not None and current.layout.root.resolve() == folder.resolve()
+    pid = current.id if is_open and current else local_project_id(folder)
+    running = active_jobs(runtime.jobs.list(pid))
+    if running is not None:
+        raise busy_error(running)
+    return host, plan, is_open
+
+
+@routes.post("/api/projects/forget", action="projects.open", resource="app")
+def forget(request: Request, body: ListedBody) -> dict[str, Any]:
+    """Take a project out of the recent list (locally); its folder stays as it is."""
+    host = _local(request)
+    host.listed(body.path)
+    host.forget(body.path)
+    return recent(request)
+
+
+@routes.get("/api/projects/removal", action="projects.read", resource="app")
+def removal(request: Request, path: Annotated[str, Query(min_length=1, max_length=4096)]
+            ) -> dict[str, Any]:  # fmt: skip
+    """What deleting a recent project's folder would remove (its size, the entries cartolex
+    did not write, kept), whether it is open here, and why it would be refused."""
+    from cartolex.project.layout import ProjectLayout
+    from cartolex.project.lock import lock_holder
+
+    host, plan, is_open = _deletable(request, path)
+    held = None if is_open else lock_holder(ProjectLayout(plan.root))
+    return {**plan.as_dict(), "open": is_open,
+            "held": None if held is None else {"app": held.app, "pid": held.pid,
+                                               "host": held.host, "since": held.since}}  # fmt: skip
+
+
+@routes.post("/api/projects/delete", action="projects.delete", resource="app")
+def delete_project(request: Request, body: DeleteBody) -> dict[str, Any]:
+    """Delete a recent project's folder (locally, after ``confirm``): the open project is
+    closed first; refused while another application holds it or a job runs."""
+    from ..removal import delete_project_folder
+
+    host, plan, is_open = _deletable(request, body.path)
+    if not body.confirm:
+        raise ApiError.of("project_delete_confirm", path=str(plan.root))
+    if is_open:
+        host.close()
+    done = delete_project_folder(plan)
+    host.forget(body.path)
+    return {**done, "closed": is_open}
 
 
 @routes.get("/api/projects", action="projects.read", resource="app")

@@ -253,6 +253,9 @@ class LocalProjects(ProjectHost):
         }
         self._recent = [entry] + [e for e in self._recent if e.get("path") != root]
         self._recent = self._recent[:MAX_RECENT]
+        self._save_recent()
+
+    def _save_recent(self) -> None:
         path = self._recent_file()
         if path is not None:
             from cartolex.project.files import atomic_write_bytes, json_bytes
@@ -260,6 +263,21 @@ class LocalProjects(ProjectHost):
             atomic_write_bytes(
                 path, json_bytes({"format": "cartolex-recent/1", "projects": self._recent})
             )
+
+    def listed(self, path: str) -> Path:
+        """The folder of the recent project *path* (as the list gives it); refused with
+        ``project_not_listed`` when the list has no such project."""
+        with self._lock:
+            known = any(e.get("path") == path for e in self._recent)
+        if not known:
+            raise ApiError.of("project_not_listed", path=path)
+        return Path(path)
+
+    def forget(self, path: str) -> None:
+        """Take *path* out of the recent list (its folder stays as it is)."""
+        with self._lock:
+            self._recent = [e for e in self._recent if e.get("path") != path]
+            self._save_recent()
 
     def recent(self) -> list[dict[str, Any]]:
         with self._lock:

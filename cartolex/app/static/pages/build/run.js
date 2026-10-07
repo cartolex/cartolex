@@ -6,7 +6,8 @@
 import { html } from '../../core/preact.js';
 import { formatDuration, formatPercent, t } from '../../core/i18n.js';
 import { Button, Card, ErrorCard, ProgressBar, StageTracker } from '../../components/index.js';
-import { failureError, namesOf, resultSentence } from './words.js';
+import { aiRow, failureError, namesOf, resultSentence } from './words.js';
+import { Notes } from './preflight.js';
 
 const ACTIVE = new Set(['queued', 'running', 'cancelling']);
 
@@ -18,7 +19,9 @@ export function isActive(job) {
 /**
  * Every stage of the project in build order, with what this build does to it:
  * done, running (with its progress), waiting, stopped, kept, skipped, not run, held
- * back for a copilot.
+ * back for a copilot (the AI step a build waits at among them). The AI clean-up,
+ * skipped, reads as the project state shows it (`tracker.ai`): done with the copilot,
+ * waiting for it, its earlier decisions only.
  */
 export function trackerRows(order, tracker, job) {
   const own = new Map((tracker.stages || []).map((s) => [s.stage, s]));
@@ -45,12 +48,14 @@ export function trackerRows(order, tracker, job) {
       } else {
         rows.push({ ...base, state: 'never_built', stateText: t('build.stage.waiting') });
       }
-    } else if (held.has(id)) {
+    } else if (held.has(id) || (pause && pause.step === id)) {
       rows.push({ ...base, state: 'never_built', stateText: t('build.action.held') });
     } else if (refused.has(id)) {
       rows.push({ ...base, state: 'skipped', stateText: t('build.stage.refused') });
     } else if (kept.has(id)) {
       rows.push({ ...base, state: 'up_to_date', stateText: t('build.action.keep') });
+    } else if (skipped.has(id) && tracker.ai && tracker.ai.stage === id) {
+      rows.push(aiRow(base, tracker.ai));
     } else if (skipped.has(id)) {
       rows.push({ ...base, state: 'skipped', stateText: t('build.action.skip') });
     }
@@ -89,6 +94,7 @@ export function Result({ job, rows, onOverview, onAgain }) {
     ${refused.length ? html`<p class="cx-build-note">${t('build.result.not_run', {
       n: refused.length, stages: namesOf(refused) })}</p>` : null}
     ${failed ? html`<${ErrorCard} error=${failureError(job)} level=${3} />` : null}
+    <${Notes} notes=${job.result && job.result.notes} />
     <${StageTracker} stages=${rows} label=${t('build.run.stages')} compact />
     <div class="cx-build-actions">
       <${Button} variant="primary" onClick=${onOverview}>${t('build.to_overview')}<//>

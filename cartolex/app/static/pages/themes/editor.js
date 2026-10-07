@@ -15,7 +15,7 @@ import { runtime } from '../../core/runtime.js';
 import { errorFromResponse, jobError } from '../../core/errors.js';
 import { ACTIVE } from '../../core/stores/jobs.js';
 import {
-  Button, ConfirmDialog, EmptyState, ErrorCard, Icon, IconButton, MenuButton, ProgressBar,
+  Button, ConfirmDialog, EmptyState, ErrorCard, Icon, IconButton, MenuButton, ProgressBar, messageOf,
 } from '../../components/index.js';
 import { lang2, levelName } from './model.js';
 import { entryLabel } from './labels.js';
@@ -475,6 +475,10 @@ export function ThemesEditor() {
   }
   if (base && base.source === 'draft') {
     banners.push(html`<${Banner} key="draft">${t('themes.source.draft')}<//>`);
+  }
+  // what the last grouping says of a tree of this depth (fewer levels than asked)
+  for (const note of info.notes || []) {
+    banners.push(html`<${Banner} key=${`note-${note.code}`}>${messageOf(note)}<//>`);
   }
   if (info.based_on_current === false) {
     banners.push(html`<${Banner} key="vocabulary" tone="warning" actions=${base && base.source === 'saved'

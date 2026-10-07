@@ -153,6 +153,24 @@ def test_collecting_from_the_services_end_to_end(client, services, tmp_path):
     blocked = client.get(f"/api/people/{waiting[0]['person_id']}/sheet").json()
     assert blocked["sheet"]["cause_text"]
 
+    # ── collaborators: the plan counts the seeds' works, the job's log says each phase ──
+    plan = client.post("/api/collection/plan", json={"action": "collaborators", "cap": 500})
+    plan = plan.json()
+    assert "note_collaborators_cap" in {n["code"] for n in plan["notes"]}
+    assert plan["estimate"]["requests"] > 2
+    started = client.post(
+        "/api/collection/start", json={"action": "collaborators", "cap": 500, "consent": True}
+    )
+    job = client.wait_job(started.json()["job"]["id"])
+    assert job["state"] == "succeeded" and job["result"]["collaborators"] > 0
+    log = tmp_path / "p" / "logs" / "jobs" / f"{job['id']}.jsonl"
+    lines = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    phases = {line["phase"]: line for line in lines if line["event"] == "phase"}
+    assert list(phases) == ["seeds", "round", "collaborators", "fit", "tables"]
+    assert phases["seeds"]["requests"] > 0 and phases["collaborators"]["requests"] > 0
+    assert phases["round"]["collaborators"] == job["result"]["collaborators"]
+    assert all(isinstance(p["seconds"], float) for p in phases.values())
+
     # ── bulk role change by filter ──
     listed = client.get("/api/people")
     changed = client.patch(

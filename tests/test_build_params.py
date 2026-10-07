@@ -16,6 +16,7 @@ from cartolex.build import (
     ProjectSizes,
     Registry,
     Stage,
+    fitting_depth,
     load_params,
     space_dimensions,
     theme_depth,
@@ -313,12 +314,6 @@ def test_a_rule_waits_for_its_sizes():
             ProjectSizes(kept_keywords=40, mapped_units=500),
             "only 40 keyword(s)",
         ),
-        (
-            "themes.group",
-            {"depth": 3, "keywords_per_group": 200},
-            ProjectSizes(kept_keywords=2_000, mapped_units=500),
-            "would not grow",
-        ),
         ("keywords.extract", {"min_people": 9}, ProjectSizes(people=4), "only 4 people"),
         ("keywords.extract", {"min_texts": 9}, ProjectSizes(texts=4), "only 4 texts"),
     ],
@@ -329,6 +324,23 @@ def test_cross_checks_refuse_impossible_values(stage, set_, sizes, message):
     resolved = resolve_params(STAGES[stage], params, sizes, year=YEAR)
     problems = resolved.problems(STAGES[stage], sizes, make_config())
     assert len(problems) == 1 and message in problems[0]
+
+
+def test_a_vocabulary_too_small_for_the_depth_gets_fewer_levels_not_a_refusal():
+    from cartolex.build.engine import theme_levels
+
+    stage = STAGES["themes.group"]
+    sizes = ProjectSizes(kept_keywords=2_000, mapped_units=500)
+    params = ParamsFile(stages={"themes.group": {"depth": 3, "keywords_per_group": 200}})
+    resolved = resolve_params(stage, params, sizes, year=YEAR)
+    assert resolved.problems(stage, sizes, make_config()) == []
+    # 10 finest groups under 15 at the top: no depth above 1 grows
+    assert fitting_depth(2_000, 3, 15, 200) == 1
+    # 331 keywords, 20 per group: three levels grow (15 › 16 › 17), four do not
+    assert fitting_depth(331, 4, 15, 20) == 3
+    assert fitting_depth(50_000, 3, 15, 20) == 3  # the depth asked whenever it grows
+    asked = {"depth": 4, "top_groups": 15, "keywords_per_group": 20, "level_sizes": None}
+    assert theme_levels(asked, 331) == (15, 16, 17)
 
 
 def test_cross_checks_wait_for_unknown_sizes():

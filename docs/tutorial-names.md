@@ -56,24 +56,31 @@ import found.
 ### 3. Merge the people listed twice
 
 The same person often appears twice in a list (« Ada Stordomaro » and
-« A. Stordomaro »). The **Duplicates** tab lists the pairs that may be one
-person, each with its likelihood. Choose a pair: the panel puts the two side
-by side (names, ORCID, records, organisations, texts, co-authors) and says why
-they were proposed, *for* and *against*.
+« A. Stordomaro »), sometimes three times or more. The **Duplicates** tab
+lists the groups of people that may be one person, each with its likelihood: two
+rows, or three records of one person and more. Choose a group: the panel puts
+them side by side (names, ORCID, records, organisations, texts, co-authors) and
+says why each pair was proposed, *for* and *against*.
 
 ```{image} images/names-duplicates.png
 :alt: The Duplicates tab: a pair of people compared side by side, with the reasons for and against, and the buttons to decide.
 ```
 
 Decide with the buttons or the keyboard: **1** or **2** one person (keeping
-the left or the right row), **D** two people, **L** later. A merge keeps the
-texts and records of both rows, and can be undone from the person's sheet
-(**Unmerge**). **Merge the clear pairs** merges, in one step you can undo,
+the left or the right row), **D** two people, **L** later. In a group of three
+or more, **1**…**9** keeps that one and merges the people ticked into it,
+**Shift+1**…**Shift+9** ticks or unticks one, and **D** sets the unticked
+apart from the others (all ticked: they are all different people). A merge keeps
+the texts and records of every row, is undone at once from the message that
+follows it, and later from the person's sheet (**Unmerge**). **Merge the clear pairs** merges, in one step you can undo,
 the pairs that share an ORCID or a record; **Merge above a likelihood…** merges every
 pair at least as likely as the threshold you choose (50 % at first), after a preview.
 
 Pairs come back here after each import or collection, with what the texts
-then tell (a shared ORCID, texts at the same place).
+then tell (a shared ORCID, texts at the same place). When you know that people
+are one person and nobody proposed them, select their rows on the **People** tab
+and choose **Same person…**, or open one person's sheet and choose **Same person
+as…** to find the others by name.
 
 ### 4. Find their identities
 

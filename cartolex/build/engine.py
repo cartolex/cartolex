@@ -32,7 +32,7 @@ from ..project.models import ProjectFile, ThemesFile
 from ..scale import Budget
 from .enginefiles import UNAVAILABLE, copy_amended, engine_paths
 from .execution import Cancelled, StageRefused
-from .params import theme_level_sizes
+from .params import fitting_depth, theme_level_sizes
 
 if TYPE_CHECKING:
     from ..context import RunContext
@@ -754,12 +754,16 @@ def run_space(ctx: StageContext) -> dict[str, int]:
 
 
 def theme_levels(params: Mapping[str, Any], kept_keywords: int) -> tuple[int, ...]:
-    """The number of groups per theme level, from the top (``level_sizes`` when set)."""
+    """The number of groups per theme level, from the top (``level_sizes`` when set).
+
+    Without ``level_sizes``, the depth asked when its levels grow from the top for
+    this vocabulary, else the deepest that does (:func:`~cartolex.build.params.fitting_depth`).
+    """
     if params.get("level_sizes"):
         return tuple(int(n) for n in params["level_sizes"])
-    return theme_level_sizes(
-        kept_keywords, params["depth"], params["top_groups"], params["keywords_per_group"]
-    )
+    top, per_group = params["top_groups"], params["keywords_per_group"]
+    depth = fitting_depth(kept_keywords, params["depth"], top, per_group)
+    return theme_level_sizes(kept_keywords, depth, top, per_group)
 
 
 def ward_options(params: Mapping[str, Any]) -> Any:
@@ -796,7 +800,9 @@ def run_group(ctx: StageContext) -> dict[str, int]:
     """``themes.group``: the finest groups (the term clustering), the levels above, the proposal.
 
     Writes the proposal tree (``themes_draft.json``) at every depth and, at
-    depth 2, the engine's two-level draft (``subfields_draft.json``) too.
+    depth 2, the engine's two-level draft (``subfields_draft.json``) too. A
+    vocabulary too small for the depth asked gets fewer levels (:func:`theme_levels`):
+    the run warns, and its measures add ``depth_asked`` and ``depth_keywords``.
     """
     from ..atlas import driver
     from ..lexicon.subfields import draft_subfields
@@ -804,6 +810,13 @@ def run_group(ctx: StageContext) -> dict[str, int]:
 
     kept = int(ctx.sizes.kept_keywords or 0)
     levels = theme_levels(ctx.params, kept)
+    asked = None if ctx.params.get("level_sizes") else int(ctx.params["depth"])
+    lowered = asked is not None and len(levels) < asked
+    if lowered:
+        ctx.warn(
+            f"the vocabulary holds {kept} keywords: the themes have {len(levels)} "
+            f"level{'s' if len(levels) > 1 else ''} instead of the {asked} asked"
+        )
     ward = ward_options(ctx.params)
     rctx = run_context(ctx, _settings(ctx), hi=0.6)
     _engine_call(
@@ -844,6 +857,8 @@ def run_group(ctx: StageContext) -> dict[str, int]:
         "topics": per_level[-1],
         **{f"groups_level_{i}": n for i, n in enumerate(per_level, start=1)},
         "too_broad": too_broad,
+        # only when the vocabulary was too small for the depth asked (a stage note)
+        **({"depth_asked": asked, "depth_keywords": kept} if lowered else {}),
     }
 
 

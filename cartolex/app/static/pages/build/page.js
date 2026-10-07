@@ -96,7 +96,8 @@ function BuildTab({ ctx }) {
     const held = new Set((plan && plan.pause && plan.pause.held) || []);
     setTracker({ job, stages: ((plan && plan.to_run) || []).filter((stage) => !held.has(stage))
       .map((stage) => ({ stage, state: 'waiting' })),
-    kept: plan ? plan.to_keep : [], skipped: plan ? plan.to_skip : [], refused: [] });
+    kept: plan ? plan.to_keep : [], skipped: plan ? plan.to_skip : [], refused: [],
+    ai: plan ? (plan.items.find((i) => i.ai) || {}).ai || null : null });
     setWatching(job.id);
     jobs.refresh();
   };

@@ -37,6 +37,8 @@ __all__ = [
     "org_rows",
     "people_rows",
     "query_rows",
+    "rows_of_orgs",
+    "theme_rows",
 ]
 
 #: The measure of a project that names none.
@@ -99,6 +101,31 @@ class Rows:
             return dot
         union = self.sizes[:, None] + other.sizes[None, :] - dot
         return np.divide(dot, union, out=np.zeros_like(dot), where=union > 0)
+
+    def pairs(self, a: np.ndarray, b: np.ndarray) -> np.ndarray:
+        """The similarity of item ``a[k]`` to item ``b[k]`` for each *k* (float32): pairs
+        measured one by one, so that a field's links are measured without a matrix."""
+        a = np.asarray(a, dtype=np.int64)
+        b = np.asarray(b, dtype=np.int64)
+        out = np.zeros(len(a), dtype=np.float32)
+        for s in range(0, len(a), 65536):
+            x, y = a[s : s + 65536], b[s : s + 65536]
+            if self.measure == "space":
+                d = self.data
+                out[s : s + len(x)] = np.einsum("ij,ij->i", d[x], d[y])
+            elif self.measure == "themes":
+                d = self.data
+                out[s : s + len(x)] = np.minimum(d[x], d[y]).sum(axis=1)
+            else:
+                dot = np.asarray(self.data[x].multiply(self.data[y]).sum(axis=1)).ravel()
+                if self.measure == "keywords":
+                    out[s : s + len(x)] = dot
+                else:
+                    union = self.sizes[x] + self.sizes[y] - dot
+                    out[s : s + len(x)] = np.divide(
+                        dot, union, out=np.zeros_like(dot, dtype=np.float64), where=union > 0
+                    )
+        return out
 
     def _columns(self) -> np.ndarray:
         """The themes' columns, each contiguous (a theme's shares of every item)."""
@@ -230,3 +257,27 @@ def query_rows(view: Any, ctx: Any, measure: str, kind: str, id_: str) -> Rows |
         return _org_rows(view, measure, [id_])
     q = query_vector(view, ctx, kind, id_)
     return None if q is None else Rows("space", q.reshape(1, -1))
+
+
+def rows_of_orgs(view: Any, measure: str, ids: list[str]) -> Rows:
+    """The organisations *ids* (any levels, in this order) under *measure*: the mean of each
+    one's current members (zeros for one without members on the map)."""
+    return _org_rows(view, measure, ids)
+
+
+def theme_rows(view: Any, measure: str, weights: Any) -> Rows:
+    """Themes as rows, from *weights* (themes × the space's rows: each person's share of each
+    theme): by ``space``, their people's vectors weighted by their shares, of length one; by
+    ``themes``, their shares over the people, of length one (two themes are close when the same
+    people work in both); by ``keywords`` and ``jaccard``, their people's keyword use weighted
+    by their shares. Measured by their own ``Rows`` (``space`` for the first two: a cosine)."""
+    from scipy import sparse
+
+    w = sparse.csr_matrix(weights, dtype=np.float32)
+    if measure in ("space", "themes"):
+        dense = np.asarray(w @ view.space.vectors if measure == "space" else w.toarray(),
+                           dtype=np.float32)  # fmt: skip
+        norms = np.linalg.norm(dense, axis=1, keepdims=True)
+        dense = np.divide(dense, norms, out=np.zeros_like(dense), where=norms > 0)
+        return Rows("space", dense)
+    return _from_use(measure, w @ _csr(view))

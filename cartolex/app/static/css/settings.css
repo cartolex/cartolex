@@ -310,6 +310,44 @@
   font-size: var(--cx-text-xs);
 }
 
+/* « Remove… »: remove from the list, or delete the folder. */
+.cx-start__choices {
+  display: grid;
+  gap: var(--cx-space-3);
+  margin-bottom: var(--cx-space-3);
+}
+
+.cx-start__choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cx-space-2);
+  cursor: pointer;
+}
+
+.cx-start__choice input {
+  margin-top: 0.2rem;
+  accent-color: var(--cx-text);
+}
+
+.cx-start__choice > span {
+  display: grid;
+  gap: var(--cx-space-1);
+}
+
+.cx-start__choice-label {
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-start__plan p {
+  margin: 0 0 var(--cx-space-2);
+}
+
+.cx-start__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-2);
+}
+
 .cx-start__form {
   max-width: 48rem;
 }

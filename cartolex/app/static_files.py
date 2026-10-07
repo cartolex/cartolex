@@ -71,9 +71,9 @@ MAP_MODULES = (
     "components/map/controller3d.js",
 )
 
-#: The atlas (``docs/dev/atlas.md``): the map's modules, the treemap's layout, the messages and
-#: the atlas's own, in the order a classic script needs them; the app and the offline site both
-#: mount it.
+#: The atlas (``docs/dev/atlas.md``): the map's modules, the treemap's layout, the messages,
+#: the atlas's own and Distances' (``distances/``, which imports the rest of its folder), in the
+#: order a classic script needs them; the app and the offline site both mount them.
 ATLAS_MODULES = (
     *MAP_MODULES,
     "components/treemap-layout.js",
@@ -96,6 +96,7 @@ ATLAS_MODULES = (
     "atlas/card.js",
     "atlas/mapview.js",
     "atlas/atlas.js",
+    "distances/distances.js",
 )
 
 _IMPORT = re.compile(

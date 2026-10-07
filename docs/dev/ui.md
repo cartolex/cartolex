@@ -323,8 +323,9 @@ themes screen (`pages/themes.js`, {doc}`themes-editor`) is built, and so are
 the settings (`pages/settings.js`: one module per section under
 `pages/settings/`, the section in the address, `/settings?section=build`; each
 section reads what it shows when it opens), the start screen
-(`pages/start.js` and `pages/start/`: recent projects, the demo project, a new
-project; `/start`, and `/start?new=1` for the form) and the About page
+(`pages/start.js` and `pages/start/`: recent projects, each with « Remove… »,
+`remove.js`: out of the list, or its folder deleted after a last question; the demo
+project, a new project; `/start`, and `/start?new=1` for the form) and the About page
 (`pages/about.js` and `pages/about/`: the logo (`brand/mark.svg`, or the host's own),
 what cartolex is for, the pipeline as one
 SVG figure drawn with the theme's tokens, the scientific background as
@@ -384,10 +385,14 @@ apply at the next build.
 The People screen (`pages/people.js`, route `/people`) loads
 `pages/people/page.js`: the tabs People (`people-tab.js`), Identities
 (`identities.js`, the queue, keyboard first: waiting, or accepted automatically
-to review), Duplicates (`duplicates-tab.js`, pairs of people who may be one,
-compared side by side in `duplicates-compare.js`, decided with the keyboard, the
-clear pairs, or every pair above a likelihood chosen with a slider, 50 % at first,
-merged in one undoable step after a preview), Organisations (`orgs-tab.js`: an
+to review), Duplicates (`duplicates-tab.js`, groups of people who may be one, two or
+more, compared side by side in `duplicates-compare.js` (a column per person, the one
+kept and those taken in chosen there), merged, split or left for later with the
+keyboard; the clear pairs, or every pair above a likelihood chosen with a slider,
+50 % at first, merged in one undoable step after a preview, `duplicates-auto.js`);
+« Same person… » for rows selected in the People tab and « Same person as… » in a
+sheet (`same-person.js`: the people side by side, a search for more, one undoable
+merge), Organisations (`orgs-tab.js`: an
 organisation's drawer with what people decide about it, `org-drawer.js`; the
 pairs that may be one organisation, `org-review.js`; the people of institutions,
 `institutions.js`), Texts (`texts-tab.js`), Collaborators
@@ -454,8 +459,8 @@ The share screen (`pages/share.js`, route `/share`) loads
 `pages/share/page.js`: building the offline site (`site.js`: the name
 question, the texts, the title and language, the map layouts it carries, the privacy summary and the
 checks before publishing, each with its fix), the builds (`builds.js`: latest,
-stale, open, download as one zip) and figures, tables and files
-(`exports.js`). Opening it reads `GET /api/share` and `GET /api/share/plan`;
+stale, open, download as one zip, the disk each takes) and figures, tables and files
+(`exports.js`), each deleted after a question (`delete.js`). Opening it reads `GET /api/share` and `GET /api/share/plan`;
 a build or an export is a job followed through the jobs poller (see
 {doc}`site`).
 

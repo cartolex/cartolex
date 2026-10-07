@@ -156,21 +156,50 @@ def triage_status(runtime: Any, project: Any) -> dict[str, Any]:
     }
 
 
+def triage_view(status: dict[str, Any], *, extraction_runs: bool = False) -> dict[str, Any] | None:
+    """How the AI clean-up reads when it does not run by API (``None`` when it does), from
+    its *status* (:func:`triage_status`): ``state``, ``ai_state`` (``copilot_done``, done
+    with the copilot since the extraction; ``copilot_waiting``, its route is the copilot
+    and nothing was accepted since; ``copilot_earlier``, the route at « No AI », the
+    copilot's earlier decisions still apply: accepting a copilot's triage sets the route to
+    the copilot, so the route was set back since, or the triage predates that rule;
+    ``none``) and its message, ``skip``.
+
+    The pre-flight sheet and the tracker of every build show the stage the same way
+    as the project state; *extraction_runs*: as it will read once a build that finds
+    the candidates again ends (the copilot's decisions then predate them).
+    """
+    if status["route"] == "api":
+        return None
+    decisions = 0 if extraction_runs else status["decisions"]
+    view: dict[str, Any] = {"stage": "keywords.triage", "state": "skipped"}
+    if decisions and status["last"]:
+        view["state"], view["ai_state"] = "up_to_date", "copilot_done"
+        view["skip"] = message("stage_copilot_done", n=decisions, date=status["last"])
+    elif status["route"] == "copilot":
+        view["ai_state"] = "copilot_waiting"
+        view["skip"] = message("stage_copilot_waiting", total=status["total"])
+    elif status["total"]:
+        view["ai_state"] = "copilot_earlier"
+        view["skip"] = message("stage_copilot_earlier", n=status["total"])
+    else:
+        view["ai_state"], view["skip"] = "none", message("stage_ai_none")
+    return view
+
+
 def ai_row(runtime: Any, project: Any, row: dict[str, Any]) -> None:
     """The AI clean-up's row (``keywords.triage``, skipped unless it runs by API) as the
-    person sees it: done with the copilot (its decisions since the extraction), waiting for
-    it, or without AI; ``ai`` adds the route and the copilot's counts."""
+    person sees it (:func:`triage_view`); ``ai`` adds the route and the copilot's counts."""
     status = triage_status(runtime, project)
     row["ai"] = status
-    if row["state"] != "skipped" or status["route"] == "api":
+    if row["state"] != "skipped":
         return
-    if status["decisions"] and status["last"]:
-        row["state"], row["label"] = "up_to_date", "up to date"
-        row["skip"] = message("stage_copilot_done", n=status["decisions"], date=status["last"])
-    elif status["route"] == "copilot":
-        row["skip"] = message("stage_copilot_waiting", total=status["total"])
-    else:
-        row["skip"] = message("stage_ai_none")
+    view = triage_view(status)
+    if view is None:
+        return
+    row["state"], row["ai_state"], row["skip"] = view["state"], view["ai_state"], view["skip"]
+    if view["state"] == "up_to_date":
+        row["label"] = "up to date"
 
 
 @routes.get("/api/project/state", action="project.read")

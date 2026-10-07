@@ -292,8 +292,9 @@ class ServiceCollection(BaseCollection):
                     "leaves it",
                 },
             )
-        for h in hosts:  # the time each host's requests take at its rate
-            h["seconds"] = round(h["requests"] / h["rate"], 1) if h["rate"] else None
+        for h in hosts:  # the time each host's requests take, one after the other
+            svc = self.settings.service(h["service"])
+            h["seconds"] = round(svc.seconds(h["requests"]), 1) if h["rate"] else None
         seconds = sum(h["seconds"] or 0 for h in hosts)
         return {
             "available": True,
@@ -348,8 +349,7 @@ class ServiceCollection(BaseCollection):
             raise ApiError.of("snapshot_unavailable", state="none")
         if status is None or openalex is None or not openalex.requests:
             return None  # nothing asked of OpenAlex: nothing to read either way
-        rate = self.settings.service("openalex").rate.per_second
-        api_seconds = openalex.requests / rate if rate else 0.0
+        api_seconds = self.settings.service("openalex").seconds(openalex.requests)
         days = 0
         if openalex.cost_usd and not self.local:
             keyed = bool(self.settings.api_key("openalex"))
@@ -498,7 +498,7 @@ class ServiceCollection(BaseCollection):
         runner = getattr(self, f"_run_{action}")
         try:
             factory = self._client_factory(project, control, clients)
-            result = runner(project, opts, factory, done, opened)
+            result = runner(project, opts, factory, done, opened, control)
         except Cancelled:
             result = {"outcome": "cancelled", "ran": list(done)}
         except JobPaused as paused:
@@ -656,6 +656,7 @@ class ServiceCollection(BaseCollection):
         client: Any,
         done: list[str],
         opened: list[Any],
+        control: JobControl,
     ) -> dict[str, Any]:
         from cartolex.collect.decisions import read_people as decisions_of
         from cartolex.collect.finders import people_refs
@@ -727,6 +728,7 @@ class ServiceCollection(BaseCollection):
         client: Any,
         done: list[str],
         opened: list[Any],
+        control: JobControl,
     ) -> dict[str, Any]:
         from cartolex.collect.finders import people_refs
         from cartolex.collect.harvest import harvest
@@ -792,6 +794,7 @@ class ServiceCollection(BaseCollection):
         client: Any,
         done: list[str],
         opened: list[Any],
+        control: JobControl,
     ) -> dict[str, Any]:
         from cartolex.collect.institutions import find_institutions, propose_people
 
@@ -869,11 +872,28 @@ class ServiceCollection(BaseCollection):
         client: Any,
         done: list[str],
         opened: list[Any],
+        control: JobControl,
     ) -> dict[str, Any]:
         from cartolex.collect.snowball import snowball
 
         years = tuple(opts["years"]) if opts.get("years") else None
         first = client(0, 1, "collaborators")
+        sent = dict(first.counts)
+
+        def on_phase(phase: str, **detail: Any) -> None:
+            # Each phase in the job's log, with the requests it sent and read from the cache:
+            # where the time went.
+            now = dict(first.counts)
+            control.event(
+                "phase",
+                phase=phase,
+                requests=now["sent"] - sent["sent"],
+                cached=now["cached"] - sent["cached"],
+                retried=now["retried"] - sent["retried"],
+                **detail,
+            )
+            sent.update(now)
+
         report = snowball(
             project,
             self._openalex(project, opts, first, opened),
@@ -882,6 +902,8 @@ class ServiceCollection(BaseCollection):
             years=years,  # type: ignore[arg-type]
             cap=opts.get("cap"),
             max_authors=opts.get("max_authors"),
+            progress=first.progress,
+            on_phase=on_phase,
         )
         done.append("snowball")
         return {
@@ -900,6 +922,7 @@ class ServiceCollection(BaseCollection):
         client: Any,
         done: list[str],
         opened: list[Any],
+        control: JobControl,
     ) -> dict[str, Any]:
         from cartolex.collect.coverage import retry_failed
 

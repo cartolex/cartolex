@@ -19,8 +19,9 @@ The folder::
                         classic script), site.js, i18n.js, world.js, cloud-light.svg and
                         cloud-dark.svg (the lexicon's word cloud, on the home page)
     data/               core.js (every page: the atlas bundle as columns), orgs.js,
-                        people/<n>.js, keywords/<n>.js, links.js (the co-authors) and
-                        texts/<n>.js (on request), loaded on demand
+                        people/<n>.js, vectors/<n>.js (the people's vectors, for
+                        Compare and the Distances page), keywords/<n>.js, links.js (the
+                        co-authors) and texts/<n>.js (on request), loaded on demand
 
 Data files are classic scripts (``window.CX_SITE[<part>] = …``): a page opened from
 ``file://`` can load a script but cannot read a JSON file. A person's details and texts
@@ -46,7 +47,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from .data import gather
+from .data import gather, vector_parts
 
 if TYPE_CHECKING:
     from cartolex.project import Project
@@ -100,6 +101,7 @@ SITE_SCRIPTS = (
     "core.js",
     "source.js",
     "atlas.js",
+    "distances.js",
     "pages.js",
     "person.js",
     "main.js",
@@ -493,6 +495,10 @@ def build_site(
     if staging.exists():
         shutil.rmtree(staging)
     shards = {"people": _shard_count(data.people), "keywords": _shard_count(data.keywords)}
+    vectors = data.vectors
+    if vectors is not None:
+        # base64 makes 4 bytes of 3; a part holds about SHARD_BYTES
+        shards["vectors"] = max(1, -(-(vectors.size * 4 // 3) // SHARD_BYTES))
     sizes: dict[str, int] = {}
     try:
         if data.texts is not None:
@@ -547,6 +553,13 @@ def build_site(
         sizes.update({name: len(body) for name, body in files.items()})
         sizes.update(_write_shards(staging, "people", data.people, shards["people"]))
         sizes.update(_write_shards(staging, "keywords", data.keywords, shards["keywords"]))
+        if vectors is not None:
+            for k, part in enumerate(vector_parts(vectors, shards["vectors"])):
+                body = _script(f"vectors/{k}", {"dim": int(vectors.shape[1]), "v": part})
+                path = staging / "data" / "vectors" / f"{k}.js"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(body)
+                sizes[f"data/vectors/{k}.js"] = len(body)
         record["files"] = dict(sorted(sizes.items()))
         record["size"] = sum(sizes.values())
         files["site.json"] = (json.dumps(record, indent=2, ensure_ascii=False) + "\n").encode()

@@ -97,6 +97,13 @@ def test_collaborators_from_the_command_line(tmp_path, capsys) -> None:
     assert main(["collect", "collaborators", str(folder), *xs]) == 0
     out = capsys.readouterr().out
     assert "round 1:" in out and "decide with --decide" in out
+    # Each phase is said as it ends, and kept in the job's record with its requests.
+    assert "seeds: " in out and "collaborators: " in out
+    (record,) = (folder / "logs" / "jobs").glob("collect-collaborators-*.jsonl")
+    events = [json.loads(line) for line in record.read_text(encoding="utf-8").splitlines()]
+    phases = [e for e in events if e["event"] == "phase"]
+    assert [p["phase"] for p in phases][:2] == ["seeds", "round"]
+    assert phases[0]["requests"] > 0
     rows = read_decision_csv(folder / "decisions" / "snowball.csv", "snowball")
     assert rows and {r["decision"] for r in rows} == {"context"}
     first = rows[0]["person_id"]

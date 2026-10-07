@@ -179,8 +179,8 @@ def test_a_decided_identity_is_changed_from_the_sheet(corpus_app, open_app, axe_
     _until(lambda: _identity(ui, pid)["identity"] == "none")
     assert _identity(ui, pid)["records"] == []
     dialog.wait_for(state="detached")
-    # the sheet reads the person again after the dialog closes: wait for it under load
-    page.locator(".cx-corpus-sheet").filter(has_text="No record").wait_for()
+    # the sheet reads the person again once the dialog closed
+    _until(lambda: "No record" in page.locator(".cx-corpus-sheet").inner_text())
 
     # again: a pasted record; then the candidate picked by its number and confirmed (⏎)
     page.get_by_role("button", name="Change identity…").click()

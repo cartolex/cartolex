@@ -47,6 +47,9 @@ class _Columns:
             self._ids = self.view.table["text_id"].to_pylist()
         return self._ids[row]
 
+    def title_keys(self) -> tuple[np.ndarray, np.ndarray]:
+        return self.view.title_keys()
+
 
 def _key(project: Any) -> tuple[Any, ...]:
     from cartolex.project.identity import records_digest
@@ -71,7 +74,7 @@ def found_pairs(ctx: Any, runtime: Any) -> dict[str, Any]:
 
         project = ctx.project
         if not project.layout.table("people").exists():
-            return {"pairs": [], "facts": {}}
+            return {"pairs": [], "facts": {}, "common_names": []}
         decisions, _ = coverage_inputs(project, runtime.table_cache)
         decisions = {pid: {**row, "merged_into": ""} for pid, row in decisions.items()}
         view = texts_view(project, runtime.table_cache)
@@ -79,26 +82,56 @@ def found_pairs(ctx: Any, runtime: Any) -> dict[str, Any]:
             o["org_id"]: o["acronym"] or o["name"]
             for o in organisations(project, runtime.table_cache)
         }
+        report: dict[str, Any] = {}
         pairs, facts = duplicate_pairs(
             project,
             decisions=decisions,
             columns=lambda: _Columns(view),
             org_roots=org_roots(org_decisions(project.layout)),
             org_names=names,
+            report=report,
         )
-        return {"pairs": pairs, "facts": facts}
+        return {"pairs": pairs, "facts": facts, "common_names": report.get("common_names", [])}
 
     return runtime.table_cache.get(_key(ctx.project), compute)
 
 
-def standing(pairs: list[Any], people: dict[str, dict[str, Any]]) -> list[Any]:
-    """The pairs of people who both stand on their own now (neither merged into another)."""
-    return [
-        p
-        for p in pairs
-        if not (people.get(p.a) or {}).get("merged_into")
-        and not (people.get(p.b) or {}).get("merged_into")
-    ]
+def standing(
+    pairs: list[Any], people: dict[str, dict[str, Any]], facts: dict[str, Any]
+) -> list[Any]:
+    """The pairs as the people that stand on their own now
+    (:func:`cartolex.collect.duplicates.standing_pairs`): a merged row is the person it is
+    merged into."""
+    from cartolex.collect.duplicates import standing_pairs
+    from cartolex.project.identity import merge_roots
+
+    return standing_pairs(pairs, facts, merge_roots(people))
+
+
+def decided_pairs(ctx: Any, people: dict[str, dict[str, Any]]) -> dict[tuple[str, str], str]:
+    """The pairs decided (``people_pairs.csv``), read as the people that stand now: a row
+    said to be another person than someone, then merged, makes the person it is merged
+    into another person than them too (``distinct`` over ``later``)."""
+    from cartolex.project.identity import merge_roots
+    from cartolex.project.pairs import pair_key, read_pairs
+
+    roots = merge_roots(people)
+    out: dict[tuple[str, str], str] = {}
+    for (a, b), row in read_pairs(ctx.layout).items():
+        ra, rb = roots.get(a, a), roots.get(b, b)
+        if ra == rb:
+            continue
+        key = pair_key(ra, rb)
+        if out.get(key) != "distinct":
+            out[key] = row.get("decision") or ""
+    return out
+
+
+def folded(text: str) -> str:
+    """*text* as a search compares it: case and accents aside."""
+    from cartolex.collect.names import fold
+
+    return fold(text)
 
 
 def _brief(f: Any, person: dict[str, Any] | None) -> dict[str, Any]:
@@ -156,17 +189,18 @@ def duplicates(
     the pair is ``clear`` (the automatic merge takes it) and whether two ORCIDs conflict.
     ``show``: ``open`` (not decided), ``clear``, ``later`` or ``all`` (``distinct`` pairs
     never come back). Counts per kind; ``last_auto``, the latest automatic merge."""
-    from cartolex.project.pairs import pair_key, read_pairs
+    from cartolex.project.pairs import pair_key
 
     runtime = runtime_of(request)
     found = found_pairs(ctx, runtime)
     people, fp = _people(ctx, runtime)
-    decided = read_pairs(ctx.layout)
+    decided = decided_pairs(ctx, people)
     facts = found["facts"]
     counts = {"open": 0, "clear": 0, "later": 0, "distinct": 0}
     rows = []
-    for pair in standing(found["pairs"], people):
-        decision = (decided.get(pair_key(pair.a, pair.b)) or {}).get("decision") or None
+    q = folded(params.q) if params.q else ""
+    for pair in standing(found["pairs"], people, facts):
+        decision = decided.get(pair_key(pair.a, pair.b)) or None
         if decision == "distinct":
             counts["distinct"] += 1
             continue
@@ -190,7 +224,7 @@ def duplicates(
             "decision": decision,
             "people": [_brief(a, people.get(pair.a)), _brief(b, people.get(pair.b))],
         }
-        if params.q and not any(params.q in x["name"].casefold() for x in item["people"]):
+        if q and not any(q in folded(x["name"]) for x in item["people"]):
             continue
         rows.append(item)
     response.headers["ETag"] = etag_of(fp)
@@ -294,7 +328,7 @@ def compare(
     shared_ids = sides[a].pop("text_ids") & sides[b].pop("text_ids")
     found = found_pairs(ctx, runtime)
     pair = next(
-        (p for p in found["pairs"] if {p.a, p.b} == {a, b}),
+        (p for p in standing(found["pairs"], people, found["facts"]) if {p.a, p.b} == {a, b}),
         None,
     )
     orgs_a = {x["org_id"]: x["name"] for x in sides[a]["affiliations"]}
@@ -403,15 +437,14 @@ def _clear_groups(
     """The groups the automatic merge would make
     (:func:`cartolex.collect.duplicates.clear_groups`), on the roles of now."""
     from cartolex.collect.duplicates import clear_groups
-    from cartolex.project.pairs import read_pairs
 
     found = found_pairs(ctx, runtime)
     people, _ = _people(ctx, runtime)
     now = {pid: (p["role"], p["identity"]) for pid, p in people.items()}
     groups = clear_groups(
-        standing(found["pairs"], people),
+        standing(found["pairs"], people, found["facts"]),
         found["facts"],
-        set(read_pairs(ctx.layout)),
+        set(decided_pairs(ctx, people)),
         now,
         min_score=min_score,
     )

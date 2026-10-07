@@ -16,6 +16,10 @@ request                                       kind                        sends
 ``works?filter=author.id:``                   ``works_by_author``         identifiers
 ``works?filter=authorships.institutions.``    ``works_by_institution``    identifiers
 ``lineage:`` (page by page, three fields)
+``works?filter=author.id:&sort=``              ``works_by_author``         an identifier
+(one author's most recent works, a page)
+``authors?filter=openalex:``                  ``author``                  identifiers
+(the works count of 50 records at a time)
 ``works?filter=doi:``                         ``works_by_doi``            DOIs, 50 at a time
 ============================================= =========================== ==============
 
@@ -31,7 +35,7 @@ can stand in for the API.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
 from dataclasses import replace
 from typing import Any, Protocol
 
@@ -41,9 +45,12 @@ __all__ = [
     "AUTHORS_SHOWN",
     "AUTHOR_BATCH",
     "DOI_BATCH",
+    "FIT_FIELDS",
+    "FIT_WORKS",
     "INSTITUTION_WORK_FIELDS",
     "PAGING",
     "PER_PAGE",
+    "ROUND_FIELDS",
     "WORK_FIELDS",
     "OpenAlexApi",
     "OpenAlexSource",
@@ -57,6 +64,11 @@ __all__ = [
     "authors_by_orcid",
     "bare_doi",
     "doc_type",
+    "fit_enough",
+    "fit_reading",
+    "fit_works",
+    "most_recent",
+    "recent_page",
     "record_dois",
     "search_authors",
     "search_institutions",
@@ -65,6 +77,7 @@ __all__ = [
     "works_by_authors",
     "works_by_dois",
     "works_by_institutions",
+    "works_counts",
     "works_of_authors",
 ]
 
@@ -109,6 +122,13 @@ WORK_FIELDS = ",".join(
         "updated_date",
     )
 )
+#: The fields of a work a collaborator's topical fit reads (:data:`FIT_FIELDS`: the title and
+#: abstract, the date), and those a round of collaborators reads from the works of the people
+#: it starts from (:data:`ROUND_FIELDS`: the co-authors and their organisations too).
+FIT_FIELDS = "id,title,display_name,publication_year,publication_date,abstract_inverted_index"
+ROUND_FIELDS = FIT_FIELDS + ",authorships"
+#: The most recent works of their own a collaborator's topical fit is measured on (a page).
+FIT_WORKS = 100
 #: The fields of a work an institution's proposal reads (``select``: a quarter of a full
 #: record's size or less).
 INSTITUTION_WORK_FIELDS = "id,publication_year,authorships"
@@ -240,15 +260,21 @@ def _authors_cut(record: dict[str, Any]) -> bool:
     )
 
 
-def complete_authors(client: HttpClient, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def complete_authors(
+    client: HttpClient, records: list[dict[str, Any]], *, max_authors: int | None = None
+) -> list[dict[str, Any]]:
     """The works of a list answer, each whose authors the list cut replaced by its own record.
 
     A list names a work's first :data:`AUTHORS_SHOWN` authors only: without the others,
-    the people further down the list would not be found on the work.
+    the people further down the list would not be found on the work. With *max_authors*,
+    a work that shows more authors than that is left as it is: a reader that leaves out
+    the works with more authors needs no more of them.
     """
     out = list(records)
     for i, record in enumerate(out):
-        wid = short_id(record.get("id")) if _authors_cut(record) else None
+        shown = len(record.get("authorships") or [])
+        wanted = _authors_cut(record) and (max_authors is None or shown <= max_authors)
+        wid = short_id(record.get("id")) if wanted else None
         if wid:
             found = work(client, wid)
             if found is not None:
@@ -343,24 +369,185 @@ def institution_work_pages(
     )
 
 
+#: What a long reading reports after each request or batch: (done, total, works so far).
+Step = Callable[[int, int, int], None]
+
+
 def works_of_authors(
-    client: HttpClient, author_ids: Sequence[str], *, years: tuple[int, int] | None = None
+    client: HttpClient,
+    author_ids: Sequence[str],
+    *,
+    years: tuple[int, int] | None = None,
+    fields: str = WORK_FIELDS,
+    max_authors: int | None = None,
+    step: Step | None = None,
 ) -> tuple[dict[str, list[dict[str, Any]]], list[Fetched]]:
     """The works of each author record, asked :data:`AUTHOR_BATCH` records at a time.
 
     Returns author id → its works (a work of two of them is under both), and the answers.
+    *fields* are the fields asked for; *max_authors* is passed to :func:`complete_authors`.
+    *step* hears of each batch done.
     """
     ids = sorted({a for a in author_ids if a})
     out: dict[str, list[dict[str, Any]]] = {a: [] for a in ids}
     answers = []
+    works = 0
     for i in range(0, len(ids), AUTHOR_BATCH):
         batch = set(ids[i : i + AUTHOR_BATCH])
-        fetched = works_by_authors(client, sorted(batch), years=years)
+        fetched = works_by_authors(
+            client, sorted(batch), years=years, fields=fields, max_authors=max_authors
+        )
         answers.append(fetched)
+        works += len(fetched.data)
         for work in fetched.data:
             for aid in _work_authors(work) & batch:
                 out[aid].append(work)
+        if step is not None:
+            step(min(len(ids), i + AUTHOR_BATCH), len(ids), works)
     return out, answers
+
+
+def works_counts(client: HttpClient, author_ids: Sequence[str]) -> dict[str, int]:
+    """The number of works OpenAlex counts for each author record (all years), asked
+    :data:`AUTHOR_BATCH` records at a time; a record OpenAlex no longer has is left out."""
+    ids = sorted({a for a in author_ids if a})
+    out: dict[str, int] = {}
+    for i in range(0, len(ids), AUTHOR_BATCH):
+        batch = ids[i : i + AUTHOR_BATCH]
+        fetched = client.get_json(
+            SERVICE,
+            "authors",
+            {
+                "filter": "openalex:" + "|".join(batch),
+                "select": "id,works_count",
+                "per_page": AUTHOR_BATCH,
+            },
+            kind="author",
+            sends=["identifier"],
+            validate=_check_list,
+        )
+        for record in fetched.data["results"]:
+            aid = short_id(record.get("id"))
+            if aid in batch and isinstance(record.get("works_count"), int):
+                out[aid] = record["works_count"]
+    return out
+
+
+def recent_page(
+    client: HttpClient,
+    author_id: str,
+    page: int,
+    *,
+    years: tuple[int, int] | None = None,
+    fields: str = FIT_FIELDS,
+) -> tuple[list[dict[str, Any]], int]:
+    """One page of an author record's works within *years*, the most recent first
+    (:data:`PER_PAGE` a page, *page* from 1), and how many works it has there in all."""
+    filters = [f"author.id:{author_id}", *_window(years)]
+    fetched = client.get_json(
+        SERVICE,
+        "works",
+        {
+            "filter": ",".join(filters),
+            "select": fields,
+            "sort": "publication_date:desc",
+            "per_page": PER_PAGE,
+            "page": page,
+        },
+        kind="works_by_author",
+        sends=["identifier"],
+        validate=_check_list,
+    )
+    return list(fetched.data["results"]), int(fetched.data["meta"]["count"])
+
+
+def most_recent(works: Iterable[dict[str, Any]], limit: int | None = None) -> list[dict[str, Any]]:
+    """*works*, the most recent first (by publication date, then year; the later id first
+    among works of the same day), the first *limit* of them."""
+
+    def when(work: dict[str, Any]) -> tuple[str, str]:
+        date = work.get("publication_date") or str(work.get("publication_year") or "")
+        return str(date), short_id(work.get("id")) or ""
+
+    return sorted(works, key=when, reverse=True)[:limit]
+
+
+def fit_enough(read: Sequence[dict[str, Any]], left_out: Collection[str], total: int) -> bool:
+    """Whether a topical fit has read enough of an author's works, the most recent first:
+    all of them, or at least half :data:`FIT_WORKS` works not in *left_out* (the joint
+    works, which a fit leaves out), or :data:`FIT_WORKS` more than those."""
+    if len(read) >= total or len(read) >= FIT_WORKS + len(left_out):
+        return True
+    own = sum(1 for w in read if short_id(w.get("id")) not in left_out)
+    return own >= FIT_WORKS // 2
+
+
+def fit_reading(works: Iterable[dict[str, Any]], left_out: Collection[str]) -> list[dict[str, Any]]:
+    """What a topical fit reads of an author's *works*: pages of :data:`PER_PAGE`, the most
+    recent first, until :func:`fit_enough`."""
+    ordered = most_recent(works)
+    read: list[dict[str, Any]] = []
+    for i in range(0, len(ordered), PER_PAGE):
+        read += ordered[i : i + PER_PAGE]
+        if fit_enough(read, left_out, len(ordered)):
+            break
+    return read
+
+
+def fit_works(
+    client: HttpClient,
+    author_ids: Sequence[str],
+    *,
+    years: tuple[int, int] | None = None,
+    left_out: Mapping[str, Collection[str]] | None = None,
+    step: Step | None = None,
+) -> dict[str, tuple[list[dict[str, Any]], int]]:
+    """For each author record, the works a topical fit reads (:func:`fit_reading`, with the
+    works *left_out* of each fit) within *years* (:data:`FIT_FIELDS`), and how many it has
+    there in all.
+
+    The records' works counts come first (:func:`works_counts`, one request per
+    :data:`AUTHOR_BATCH` records). The works of the records with :data:`FIT_WORKS` works or
+    fewer are then asked :data:`AUTHOR_BATCH` records at a time, as :func:`works_of_authors`
+    does; each of the others is asked for its most recent works a page at a time
+    (:func:`recent_page`) until the fit has enough: a prolific author costs a request (two
+    when most of their recent works are left out), not one per hundred works. *step* hears
+    of the records done.
+    """
+    ids = sorted({a for a in author_ids if a})
+    skip = left_out or {}
+    counts = works_counts(client, ids)
+    small = [a for a in ids if counts.get(a, FIT_WORKS + 1) <= FIT_WORKS]
+    large = [a for a in ids if counts.get(a, FIT_WORKS + 1) > FIT_WORKS]
+    out: dict[str, tuple[list[dict[str, Any]], int]] = {}
+    works = 0
+
+    def batch_step(done: int, _total: int, read: int) -> None:
+        if step is not None:
+            step(done, len(ids), read)
+
+    if small:
+        found, _answers = works_of_authors(
+            client, small, years=years, fields=f"{FIT_FIELDS},authorships", step=batch_step
+        )
+        for aid in small:
+            own = found.get(aid, [])
+            out[aid] = (fit_reading(own, skip.get(aid, ())), len(own))
+            works += len(own)
+    for k, aid in enumerate(large, start=1):
+        read: list[dict[str, Any]] = []
+        page, total = 1, 0
+        while True:
+            results, total = recent_page(client, aid, page, years=years)
+            read += results
+            if not results or fit_enough(read, skip.get(aid, ()), total):
+                break
+            page += 1
+        out[aid] = (read, total)
+        works += len(read)
+        if step is not None:
+            step(len(small) + k, len(ids), works)
+    return out
 
 
 def author_batches(groups: Sequence[Sequence[str]], size: int = AUTHOR_BATCH) -> list[list[int]]:
@@ -421,9 +608,16 @@ def _window(years: tuple[int, int] | None) -> list[str]:
 
 
 def works_by_authors(
-    client: HttpClient, author_ids: Sequence[str], *, years: tuple[int, int] | None = None
+    client: HttpClient,
+    author_ids: Sequence[str],
+    *,
+    years: tuple[int, int] | None = None,
+    fields: str = WORK_FIELDS,
+    max_authors: int | None = None,
 ) -> Fetched:
-    """Every work of these author records within *years*, all pages, checked complete."""
+    """Every work of these author records within *years*, all pages, checked complete, with
+    *fields*; each work whose author list the answer cut is replaced by its own record
+    (:func:`complete_authors`, with *max_authors*)."""
     ids = sorted({a for a in author_ids if a})
     if not ids:
         raise ValueError("no author record to ask for")
@@ -431,13 +625,13 @@ def works_by_authors(
     fetched = client.get_all(
         SERVICE,
         "works",
-        {"filter": ",".join(filters), "select": WORK_FIELDS, "per_page": PER_PAGE},
+        {"filter": ",".join(filters), "select": fields, "per_page": PER_PAGE},
         kind="works_by_author",
         sends=["identifier"],
         paging=PAGING,
         validate=_check_list,
     )
-    return replace(fetched, data=complete_authors(client, fetched.data))
+    return replace(fetched, data=complete_authors(client, fetched.data, max_authors=max_authors))
 
 
 def record_dois(client: HttpClient, author_id: str) -> set[str]:
@@ -540,8 +734,22 @@ class OpenAlexSource(Protocol):
     ) -> Iterator[Page]: ...
 
     def works_of_authors(
-        self, author_ids: Sequence[str], years: Years
+        self,
+        author_ids: Sequence[str],
+        years: Years,
+        *,
+        max_authors: int | None = None,
+        step: Step | None = None,
     ) -> dict[str, list[dict[str, Any]]]: ...
+
+    def fit_works(
+        self,
+        author_ids: Sequence[str],
+        years: Years,
+        *,
+        left_out: Mapping[str, Collection[str]] | None = None,
+        step: Step | None = None,
+    ) -> dict[str, tuple[list[dict[str, Any]], int]]: ...
 
 
 class OpenAlexApi:
@@ -581,6 +789,32 @@ class OpenAlexApi:
         )
 
     def works_of_authors(
-        self, author_ids: Sequence[str], years: Years
+        self,
+        author_ids: Sequence[str],
+        years: Years,
+        *,
+        max_authors: int | None = None,
+        step: Step | None = None,
     ) -> dict[str, list[dict[str, Any]]]:
-        return works_of_authors(self.client, author_ids, years=api_window(years))[0]
+        """The works of each record with :data:`ROUND_FIELDS` (see :func:`works_of_authors`)."""
+        return works_of_authors(
+            self.client,
+            author_ids,
+            years=api_window(years),
+            fields=ROUND_FIELDS,
+            max_authors=max_authors,
+            step=step,
+        )[0]
+
+    def fit_works(
+        self,
+        author_ids: Sequence[str],
+        years: Years,
+        *,
+        left_out: Mapping[str, Collection[str]] | None = None,
+        step: Step | None = None,
+    ) -> dict[str, tuple[list[dict[str, Any]], int]]:
+        """What each record's topical fit reads (see :func:`fit_works`)."""
+        return fit_works(
+            self.client, author_ids, years=api_window(years), left_out=left_out, step=step
+        )

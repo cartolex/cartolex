@@ -100,7 +100,41 @@ def test_the_atlas_data_of_a_site(project):
     users = next(iter(data.keywords.values()))
     assert users[0] >= (len(users) - 1) // 2 and (len(users) - 1) // 2 <= KEYWORD_USERS
     assert all(0 <= i < len(people["id"]) for i in users[1::2])
-    assert all(set(d) <= {"k", "v"} for d in data.people.values())
+    assert all(set(d) <= {"k"} for d in data.people.values())
+
+
+def test_the_vectors_parts_keep_the_spaces_cosines(project):
+    """The people's vectors (« Compare » and the « Distances » page): int8 rows in site
+    order, in parts by the people's rule, whose cosines are the space's."""
+    import base64
+
+    import numpy as np
+
+    from cartolex.app.space_index import space_run, space_view
+    from cartolex.site.data import gather, project_context, vector_parts
+
+    data = gather(project, names=True)
+    assert data.core["measure"] == "space"
+    v = data.vectors
+    assert v.dtype == np.int8 and len(v) == len(data.core["people"]["id"])
+    parts = vector_parts(v, 3)
+    # site number s<k> is in part (k − 1) mod 3, row (k − 1) // 3
+    k = 5
+    row = np.frombuffer(base64.b64decode(parts[(k - 1) % 3]), np.int8).reshape(-1, v.shape[1])
+    assert (row[(k - 1) // 3] == v[k - 1]).all()
+    # the cosines are the space's, to the int8 rounding
+    from cartolex.app.atlas_layers import map_extras
+    from cartolex.app.routes.atlas import build_bundle, lineage
+
+    ctx = project_context(project)
+    bundle = build_bundle(ctx, lineage(ctx))
+    view = space_view(ctx, space_run(ctx.layout), bundle, map_extras(ctx, bundle["people"]))
+    by_name = {p["name"]: p["person_id"] for p in bundle["people"]}
+    names = data.core["people"]["name"]
+    z = np.asarray(view.space.vectors)
+    a, b = view.row_of[by_name[names[0]]], view.row_of[by_name[names[1]]]
+    unit = v[:2].astype(float) / np.linalg.norm(v[:2].astype(float), axis=1, keepdims=True)
+    assert abs(float(unit[0] @ unit[1]) - float(z[a] @ z[b])) < 0.02
 
 
 def test_the_links_are_the_coauthors_over_the_sites_own_indexes(project):

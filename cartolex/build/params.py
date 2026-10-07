@@ -43,6 +43,7 @@ __all__ = [
     "Rule",
     "check_params",
     "resolve_params",
+    "fitting_depth",
     "space_dimensions",
     "theme_depth",
     "theme_level_sizes",
@@ -158,6 +159,21 @@ def theme_level_sizes(
     ratio = finest / top_groups
     inner = [round(top_groups * ratio ** (i / (depth - 1))) for i in range(1, depth - 1)]
     return (int(top_groups), *inner, finest)
+
+
+def fitting_depth(kept_keywords: int, depth: int, top_groups: int, keywords_per_group: int) -> int:
+    """The deepest number of theme levels, from *depth* down to 1, whose sizes
+    (:func:`theme_level_sizes`) grow from the top for a vocabulary of *kept_keywords*.
+
+    *depth* itself whenever its levels grow; fewer when the vocabulary is too small
+    for it (after a clean-up that removed many keywords, for instance); one level
+    always fits.
+    """
+    for d in range(int(depth), 1, -1):
+        levels = theme_level_sizes(kept_keywords, d, top_groups, keywords_per_group)
+        if all(b > a for a, b in zip(levels, levels[1:], strict=False)):
+            return d
+    return 1
 
 
 #: The space's dimensions on a small project, and where the rule starts to grow them.

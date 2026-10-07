@@ -214,6 +214,7 @@ def institutions(request: Request, ctx: ProjectDep, params: ListDep) -> dict[str
             {
                 "records": m.records,
                 "reason": m.reason,
+                "code": m.code,
                 "works": m.works,
                 "clear": m.clear,
                 "people": m.people,

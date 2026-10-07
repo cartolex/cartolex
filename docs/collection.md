@@ -93,22 +93,42 @@ again changes nothing; a person already decided keeps their decisions.
 
 **Duplicates** are proposed, never merged on their own: two rows that share an
 identifier, whose names are the same once case, accents, hyphens and particles
-are set aside, or whose first names agree (one may be an initial) with one
-surname containing the other. Each pair is weighed on what the project knows
-of both (`cartolex.collect.duplicates`): a shared ORCID or record, the names
-and the other names, an organisation, co-authors, texts where both hold the
-same place (one author recorded twice) or different places (two authors of one
-text), years that follow on; two different ORCIDs count strongly against. A pair
+are set aside (letters such as « ø » or « ł » read as « o » and « l », every
+script kept), the same words split another way between surname and given names
+or in another order, the same surname with given names that agree (one may be an
+initial, or have a middle name), or one surname containing the other. Each pair
+is weighed on what the project knows of both (`cartolex.collect.duplicates`): a
+shared ORCID or record, the names and the other names, an organisation,
+co-authors, texts where both hold the same place (one author recorded twice) or
+different known places (two authors of one text), a text of the same title on
+each side (one work recorded under both), years that follow on; two different
+ORCIDs count strongly against. Evidence against lowers a pair, never hides it:
+two rows of the same full name are always proposed, unless someone said they are
+two people. When more than 50 people bear a name, two of them are proposed only
+with evidence beyond it (an identifier, an organisation, co-authors, a text), and
+the Duplicates tab names such names. A pair
 is **clear** when both carry the same ORCID or record and their names agree, or
 when one author is recorded twice at the same place of a text, never with two
 different ORCIDs or a text they wrote together: a name, an organisation and
 co-authors in common are not enough, since two namesakes of one lab have all
-three. The corpus screen's Duplicates tab shows the pairs side by side; « Merge
-the clear pairs » merges the clear ones in one step, undone in one; « Merge above a
-likelihood… » does the same for every pair whose likelihood is at least a threshold
-(50 % at first), after showing how many people it would merge and the pairs nearest the
-threshold. Neither ever merges two different ORCIDs, a pair you said is two people, or
-two people such a pair holds apart through a third.
+three. After a merge, a row's pairs are those of the person it is merged into, so a
+namesake of a merged row stays proposed.
+
+The corpus screen's Duplicates tab works on **groups**: the pairs at least 70 % likely
+join their people (three records of one person are one group), never across a pair
+you said is two people nor two different ORCIDs, at most 20 people; every other pair
+is a group of two. A group is compared side by side, then merged into the one you
+keep (all of them, or those you tick), split (the ticked ones set apart from the
+others: two people each), or left for later, each in one step; a merge is undone in
+one. « Merge the clear pairs » merges the clear ones in one step, undone in one;
+« Merge above a likelihood… » does the same for every pair whose likelihood is at
+least a threshold (50 % at first), after showing how many people it would merge and
+the groups nearest the threshold. Both join pairs into groups the same way, and
+neither ever merges two different ORCIDs, a pair you said is two people (or left for
+later), or two people such a pair holds apart through a third. People you know to be
+one person are merged by hand: select them in the People list, « Same person… », or
+« Same person as… » in a person's sheet; the institutions' proposal takes the people
+you select as one person.
 
 ````{admonition} On the command line
 :class: note
@@ -131,9 +151,14 @@ people (or left for later) are remembered in `decisions/people_pairs.csv`.
 Measured on the demo worlds with duplicates and namesakes added
 (`cartolex.demo.duplicates`: 15 % of the people given a second row written six
 ways, 8 % made namesakes of someone, half of them in the same group; worlds S
-and L, five seeds): every duplicate is proposed, the clear pairs are all right
-(67 of 67) and hold 46 % of the duplicates; the others wait for a person, among
-the most likely pairs (140 of the 145 first pairs are duplicates).
+and L, five seeds each): every one of the 250 duplicates is proposed, the clear
+pairs are all right (111 of 111) and hold 44 % of the duplicates; the others wait
+for a person, among the most likely pairs (236 of the 250 first pairs are
+duplicates), and no group of three or more joins two different people. On a
+world of 179,000 people (170,500 generated, 5 % given one or two more rows written
+another way, 4,000 renamed into 80 common names), the review lists 26,933 groups;
+the first list takes 29 s while the project's views are built, then a page
+0.2 s.
 
 ````{admonition} On the command line
 :class: note
@@ -398,16 +423,26 @@ Each collaborator comes with the works written together, the people of the
 round before they wrote with (the seeds, in round 1), the **path** back to a
 seed, the last joint year, the organisation stated on the latest joint work,
 and their **topical fit**: the cosine similarity between the words of their
-own titles and abstracts (those not written with the seeds; the joint ones
-when there is no other) and the seeds', each word weighted by its frequency
-and its rarity; 1 is the same vocabulary, 0 no word in common.
+own titles and abstracts (their most recent not written with the seeds, at
+most 100; the joint ones when there is no other) and the seeds', each word
+weighted by its frequency and its rarity; 1 is the same vocabulary, 0 no word
+in common.
 
 - A work with **more than 25 authors** is left out of the co-author graph: a
   large collaboration says little about who works with whom
   (`collect.snowball.max_authors` in `params.json`, or `--max-authors`).
 - **Whole rounds only**, up to a **cap** of 200 people proposed
   (`collect.snowball.cap`, or `--cap`): a round that would pass it is left out
-  whole, with a warning that names it.
+  whole, with a warning that names it. A hundred people usually have more than
+  200 co-authors: the first round then stops once the seeds' works are read,
+  and a higher cap takes it.
+- **What it takes:** the seeds' works (about one request per 100 works), then
+  for each collaborator their most recent works (one request per 50 people with
+  100 works or fewer, one per person with more, two when most of their recent
+  works are joint ones). Requests go one after the other,
+  each taking about half a second: a round of 1,000 collaborators takes some
+  minutes. The plan says how many requests and about how long, counting up to
+  the cap; the job's progress names the reading under way.
 - A collaborator is **context** by default: their texts shape the lexicon
   with a weight, they are not on the map. Decide otherwise with `--decide`:
   `mapped`, `projected`, `no` (excluded) or `later`. Decisions go to

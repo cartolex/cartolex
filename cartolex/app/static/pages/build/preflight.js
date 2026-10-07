@@ -11,13 +11,14 @@ import { formatNumber, t } from '../../core/i18n.js';
 import {
   Button, Card, Checkbox, EmptyState, ErrorCard, Icon, StageTracker, messageOf, reasonText,
 } from '../../components/index.js';
-import { formatMb, formatSeconds, nameOf } from './words.js';
+import { aiRow, formatMb, formatSeconds, nameOf } from './words.js';
 import { AiChoice } from './ai.js';
 import { actionLabel, follow } from '../overview/cards.js';
 
 /** The sheet's notes (`plan.notes`): mapped people never harvested, a copilot result not
- * accepted, the API's verdicts left aside; each with its button. */
-function Notes({ notes }) {
+ * accepted, the API's verdicts left aside; each with its button. A build's result shows its
+ * own (`result.notes`: fewer theme levels than asked) the same way. */
+export function Notes({ notes }) {
   if (!notes || !notes.length) return null;
   return html`<ul class="cx-build-notes" aria-label=${t('build.notes')}>
     ${notes.map((n) => html`<li key=${n.code} class=${`cx-build-notes__item is-${n.level}`}
@@ -60,11 +61,9 @@ export function planRows(plan, stages, declined = new Set()) {
       return { ...base, state: 'skipped', stateText: t('build.action.skip'), note: t('build.consent.skipped') };
     }
     if (item.action === 'keep') return { ...base, state: 'up_to_date', stateText: t('build.action.keep') };
+    if (item.action === 'skip' && item.ai) return aiRow(base, item.ai);
     if (item.action === 'skip') {
-      // The AI clean-up done with a copilot reads as done, not as skipped.
-      const done = known && known.ai && known.state === 'up_to_date';
-      return { ...base, state: done ? 'up_to_date' : 'skipped',
-        stateText: done ? t('build.action.done_copilot') : t('build.action.skip'),
+      return { ...base, state: 'skipped', stateText: t('build.action.skip'),
         note: known && known.skip ? messageOf(known.skip) : (item.reasons || [])[0] || '' };
     }
     const e = item.estimate || {};

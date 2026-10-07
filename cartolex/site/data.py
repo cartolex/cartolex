@@ -10,8 +10,11 @@ from its server. :func:`gather` makes those files' contents:
   place, their themes' shares per level, their organisations), the keywords, the
   organisations, the projected people, the years;
 - ``people`` (``data/people/<n>.js``, a part loaded with the person it holds): each
-  person's keywords and their vector in the space of the themes, for « Compare »;
-- ``orgs`` (``data/orgs.js``): the same for the organisations;
+  person's keywords;
+- ``vectors`` (``data/vectors/<n>.js``): each person's vector in the space of the themes
+  (int8 rows, in parts as the people's), for « Compare » and the « Distances » page, which
+  reads them all;
+- ``orgs`` (``data/orgs.js``): each organisation's keywords and vector;
 - ``keywords`` (``data/keywords/<n>.js``): who uses each keyword most, with the share of
   their use it holds;
 - ``links`` (``data/links.js``, loaded when the network is asked for): who writes with
@@ -49,8 +52,10 @@ __all__ = [
     "SiteTexts",
     "estimate_bytes",
     "gather",
+    "int8_rows",
     "project_context",
     "site_links",
+    "vector_parts",
 ]
 
 #: Keywords kept per person and organisation, the most used first.
@@ -74,7 +79,8 @@ ITEM_BYTES = {
     "core_keyword": 56,
     "core_org": 77,
     "core_theme": 400,
-    "person_part": 410,
+    "person_part": 234,
+    "person_vector": 176,
     "keyword_users": 662,
     "link_pair": 20,
     #: One coordinate of a place in another map version's layout (``data/layout-<id>.js``).
@@ -87,17 +93,19 @@ def estimate_bytes(
 ) -> dict:
     """What a site's data would weigh, from its counts (:data:`ITEM_BYTES`): ``core``
     (``data/core.js``, read with every page), ``links`` (``data/links.js``, read when the
-    network is first shown), ``parts`` (the people's and keywords' parts, read one at a
-    time), ``layouts`` (the other map versions' places, *layout_values* coordinates in all,
-    each read when its version is shown) and ``atlas`` (``core`` and ``links``: what the
-    atlas reads at most at once)."""
+    network is first shown), ``parts`` (the people's, their vectors' and the keywords'
+    parts, read one at a time), ``vectors`` (the people's vectors, which the « Distances »
+    page reads all at once), ``layouts`` (the other map versions' places, *layout_values*
+    coordinates in all, each read when its version is shown) and ``atlas`` (``core`` and
+    ``links``: what the atlas reads at most at once)."""
     b = ITEM_BYTES
     core = (people * b["core_person"] + keywords * b["core_keyword"] + orgs * b["core_org"]
             + themes * b["core_theme"])  # fmt: skip
     links = pairs * b["link_pair"]
-    parts = people * b["person_part"] + keywords * b["keyword_users"]
+    vectors = people * b["person_vector"]
+    parts = people * b["person_part"] + vectors + keywords * b["keyword_users"]
     layouts = layout_values * b["layout_value"]
-    return {"core": core, "links": links, "parts": parts, "layouts": layouts,
+    return {"core": core, "links": links, "parts": parts, "vectors": vectors, "layouts": layouts,
             "atlas": core + links}  # fmt: skip
 
 
@@ -115,6 +123,7 @@ class SiteData:
 
     core: dict[str, Any]
     people: dict[str, Any]
+    vectors: Any  # the people's vectors, int8 rows in site order (``None``: no space)
     orgs: dict[str, Any]
     keywords: dict[str, Any]
     links: dict[str, Any]
@@ -179,15 +188,28 @@ def _shares(levels: list[dict[str, float]], code: Mapping[str, int]) -> list[lis
     return out
 
 
-def _vector(v: Any) -> str:
-    """A vector as base64 bytes (int8, its largest component ±127): a cosine does not
-    depend on the scale, and the site reads it as ``Int8Array``."""
+def int8_rows(v: Any) -> Any:
+    """Each row of *v* as int8, its largest component ±127 (a row of zeros stays zeros): a
+    cosine does not depend on the scale."""
     import numpy as np
 
-    v = np.asarray(v, dtype=np.float64)
-    top = float(np.abs(v).max()) if len(v) else 0.0
-    q = np.zeros(len(v), np.int8) if top <= 0 else np.round(v / top * 127).astype(np.int8)
-    return base64.b64encode(q.tobytes()).decode("ascii")
+    v = np.atleast_2d(np.asarray(v, dtype=np.float64))
+    top = np.abs(v).max(axis=1, keepdims=True) if v.shape[1] else np.zeros((len(v), 1))
+    scaled = np.divide(v, top, out=np.zeros_like(v), where=top > 0)
+    return np.round(scaled * 127).astype(np.int8)
+
+
+def _vector(v: Any) -> str:
+    """A vector as base64 bytes (int8, its largest component ±127), which the site reads as
+    ``Int8Array``."""
+    return base64.b64encode(int8_rows(v)[0].tobytes()).decode("ascii")
+
+
+def vector_parts(vectors: Any, n: int) -> list[str]:
+    """The people's vectors (int8 rows in site order) as *n* parts, base64: part *k* holds
+    the rows of the site numbers ``s<k+1>``, ``s<k+1+n>``…, in that order (the people's
+    parts' rule, ``(number − 1) mod n``)."""
+    return [base64.b64encode(vectors[k::n].tobytes()).decode("ascii") for k in range(n)]
 
 
 #: A text's entry in a site, beyond its title's bytes (``{"title":"","year":2020},``).
@@ -630,12 +652,14 @@ def gather(
     say(0.55, "the space of the themes")
     space = _space(ctx, bundle, extras)
     people_details: dict[str, dict[str, Any]] = {}
+    vectors = None
+    if space is not None:
+        rows = np.asarray([space.row_of.get(pid, -1) for pid in pids], dtype=np.int64)
+        dense = np.zeros((len(pids), space.space.vectors.shape[1]), dtype=np.float32)
+        dense[rows >= 0] = np.asarray(space.space.vectors)[rows[rows >= 0]]
+        vectors = int8_rows(dense) if len(pids) else np.zeros((0, dense.shape[1]), np.int8)
     for pid in pids:
-        entry: dict[str, Any] = {"k": person_terms.get(pid, [])[:KEYWORDS]}
-        row = space.row_of.get(pid) if space is not None else None
-        if row is not None:
-            entry["v"] = _vector(space.space.vectors[row])
-        people_details[sid[pid]] = entry
+        people_details[sid[pid]] = {"k": person_terms.get(pid, [])[:KEYWORDS]}
     orgs_details: dict[str, dict[str, Any]] = {}
     for o in orgs:
         entry = {"k": org_terms.get(o["id"], [])[:KEYWORDS]}
@@ -685,12 +709,14 @@ def gather(
     for k, v in enumerate(shipped[1:], start=1):
         say(0.9 + 0.05 * k / len(shipped), "the map's other layouts")
         layouts[v["id"]] = site_layout(ctx, runs, v, rows, units=not extras["organisations"])
+    from cartolex.app.similarity import measure_of
 
     config = project.config
     core = {
         "map_version": bundle["map_version"],
         "dimensions": bundle.get("dimensions", 2),
         "versions": shipped,
+        "measure": measure_of(project),
         "depth": depth,
         "levels": bundle["levels"],
         "languages": list(config.languages.display),
@@ -724,6 +750,7 @@ def gather(
     return SiteData(
         core=core,
         people=people_details,
+        vectors=vectors,
         orgs=orgs_details,
         keywords=users,
         links=links,

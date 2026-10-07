@@ -106,12 +106,14 @@ def builds(
     limit: Annotated[int, Query(ge=1, le=500)] = 50,
 ) -> dict[str, Any]:
     """The site builds in ``outputs/sites/`` (the newest first, the ``latest`` marked, each
-    ``stale`` when what it was built from changed since), the exported files, and whether
-    building works."""
+    ``stale`` when what it was built from changed since, with the bytes it takes on disk),
+    the exported files, what they all take (``disk``), and whether building works."""
+    from cartolex.site.cleanup import disk
     from cartolex.site.exports import list_exports
 
     builder = runtime_of(request).site_builder
     items = builder.builds(ctx.project)
+    usage = disk(ctx.project, items)
     return {
         "available": builder.available,
         "items": items[offset : offset + limit],
@@ -119,6 +121,7 @@ def builds(
         "offset": offset,
         "limit": limit,
         "exports": list_exports(ctx.project),
+        "disk": usage,
         "empty": None
         if items
         else empty("empty_no_site" if builder.available else "empty_no_site_unavailable"),
@@ -393,3 +396,87 @@ def export_file(ctx: ProjectDep, name: ExportName) -> Response:
         raise ApiError.of("export_not_found", name=name)
     media = EXPORT_TYPES.get(path.suffix.lower(), "application/octet-stream")
     return FileResponse(path, media_type=media, filename=name)
+
+
+# ── deleting what sharing keeps ──────────────────────────────────────────────
+
+#: The jobs that write what these routes delete.
+WRITERS = ("site", "export")
+
+
+def _not_writing(request: Request, ctx: Any) -> None:
+    """Refuse (``busy``) while a site build or an export runs on the project."""
+    from ..jobs import ACTIVE_STATES
+
+    for job in runtime_of(request).jobs.list(ctx.id):
+        if job.kind in WRITERS and job.state in ACTIVE_STATES:
+            raise busy_error(job)
+
+
+def _own_build(request: Request, ctx: Any, build_id: str) -> None:
+    """The build must be one of the project's own, in ``outputs/sites/``."""
+    folder = _folder(request, ctx, build_id)
+    own = ctx.layout.outputs / "sites"
+    if folder.parent.resolve() != own.resolve() or folder.is_symlink():
+        raise ApiError.of("site_delete_elsewhere", build=build_id)
+
+
+@routes.delete("/api/share/builds/{build_id}", action="share.delete")
+def delete_build(request: Request, ctx: ProjectDep, build_id: BuildId) -> dict[str, Any]:
+    """Delete a site build and its zip (``bytes`` freed; ``latest``: the build marked latest
+    now); refused while a site build or an export runs."""
+    from cartolex.site.cleanup import delete_build as remove
+
+    _not_writing(request, ctx)
+    _own_build(request, ctx, build_id)
+    with ctx.handle.mutex:
+        done = remove(ctx.project, build_id)
+    if done is None:
+        raise ApiError.of("site_not_found", build=build_id)
+    return done
+
+
+@routes.delete("/api/share/builds/{build_id}/zip", action="share.delete")
+def delete_build_zip(request: Request, ctx: ProjectDep, build_id: BuildId) -> dict[str, Any]:
+    """Delete a build's zip only (it is written again when downloaded)."""
+    from cartolex.site.cleanup import delete_zip
+
+    _not_writing(request, ctx)
+    _own_build(request, ctx, build_id)
+    with ctx.handle.mutex:
+        freed = delete_zip(ctx.project, build_id)
+    if freed is None:
+        raise ApiError.of("site_not_found", build=build_id)
+    return {"id": build_id, "bytes": freed}
+
+
+class PruneBody(BaseModel):
+    """``plan``: only say what would be deleted."""
+
+    plan: bool = False
+
+
+@routes.post("/api/share/builds/prune", action="share.delete")
+def prune(request: Request, ctx: ProjectDep, body: PruneBody | None = None) -> dict[str, Any]:
+    """Delete every build but the latest, with their zips, and what interrupted builds left
+    (``ids``, ``count``, ``leftovers``, ``bytes``, ``kept``); ``plan`` only says so."""
+    from cartolex.site.cleanup import delete_older
+
+    body = body or PruneBody()
+    if not body.plan:
+        _not_writing(request, ctx)
+    with ctx.handle.mutex:
+        return delete_older(ctx.project, plan=body.plan)
+
+
+@routes.delete("/api/share/exports/{name}", action="share.delete")
+def delete_export(request: Request, ctx: ProjectDep, name: ExportName) -> dict[str, Any]:
+    """Delete an exported file, and the description written beside it (``.meta.json``)."""
+    from cartolex.site.cleanup import delete_export as remove
+
+    _not_writing(request, ctx)
+    with ctx.handle.mutex:
+        done = remove(ctx.project, name)
+    if done is None:
+        raise ApiError.of("export_not_found", name=name)
+    return done

@@ -176,6 +176,31 @@ ERRORS: dict[str, ErrorKind] = {
         422, "the project's folder is a full path: {path}", "fix-input"
     ),
     "project_id_missing": ErrorKind(422, "a hosted project needs an id", "fix-input"),
+    "project_not_listed": ErrorKind(404, "{path} is not among the projects listed here", "reload"),
+    "project_delete_hosted": ErrorKind(
+        409, "on a hosted service a project's files are deleted by whoever runs it", "none"
+    ),
+    "project_delete_refused": ErrorKind(
+        409, "{path} cannot be deleted from here ({reason})", "none"
+    ),
+    "project_delete_confirm": ErrorKind(
+        422,
+        "deleting the folder {path} cannot be undone: confirm it to delete it",
+        "confirm",
+        "Delete the folder",
+    ),
+    "project_delete_held": ErrorKind(
+        409,
+        "the project is open in {app} (process {pid} on {host}, since {since}); close it there "
+        "before deleting its folder",
+        "none",
+    ),
+    "project_delete_failed": ErrorKind(
+        409,
+        "the folder {path} was not deleted entirely ({error}); what is left can still be "
+        "opened or deleted again",
+        "retry",
+    ),
     "field_title_missing": ErrorKind(
         422,
         "name the field the map covers (its title): the AI receives it with the terms",
@@ -452,6 +477,11 @@ ERRORS: dict[str, ErrorKind] = {
     ),
     "site_not_found": ErrorKind(404, "there is no site build {build}", "reload"),
     "export_not_found": ErrorKind(404, "there is no exported file {name}", "reload"),
+    "site_delete_elsewhere": ErrorKind(
+        409,
+        "the build {build} is kept outside the project's outputs; it is not deleted here",
+        "none",
+    ),
     "export_names_question": ErrorKind(
         422, "say whether the file names people or gives them pseudonyms", "fix-input"
     ),

@@ -135,8 +135,10 @@ def test_merging_above_a_score_never_joins_two_people_said_apart_nor_two_orcids(
     assert [sorted([g["keep"], *g["merge"]]) for g in groups] == [["p1", "p2", "p3"]]
     assert clear_groups(pairs, facts, min_score=0.7)[0]["merge"] in (["p2"], ["p1"])
     assert clear_groups(pairs, facts) == []  # none is clear
-    # p1 and p3 said to be two people: the chain through p2 does not join them
-    assert clear_groups(pairs, facts, {("p1", "p3")}, min_score=0.5) == []
+    # p1 and p3 said to be two people: the chain through p2 does not join them; the
+    # likelier pair still joins its two people
+    apart = clear_groups(pairs, facts, {("p1", "p3")}, min_score=0.5)
+    assert [sorted([g["keep"], *g["merge"]]) for g in apart] == [["p1", "p2"]]
 
 
 def test_merge_and_unmerge_through_the_api(tmp_path):
