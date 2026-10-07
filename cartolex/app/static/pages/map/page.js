@@ -62,10 +62,11 @@ function AtlasMount({ ctx, bundle, onAtlas }) {
   return html`<div ref=${ref} class="cx-atlas-host"></div>`;
 }
 
-/** Focus the element of *id* once it is shown (the panel reads its parameters first). */
+/** Focus the element of *id* once it is shown (the panel reads its parameters first) and no
+ * dialog is open (a dialog gives the focus back to its opener when it closes). */
 function focusOnceShown(id, tries = 40) {
   const at = document.getElementById(id);
-  if (at) {
+  if (at && !document.querySelector('dialog[open]')) {
     at.scrollIntoView({ block: 'start' });
     at.focus();
   } else if (tries > 0) setTimeout(() => focusOnceShown(id, tries - 1), 100);
@@ -229,7 +230,7 @@ export function AtlasScreen() {
       onTune=${() => {
         setDistances(false);
         setTuneOpen(true);
-        focusOnceShown('cx-map-similarity-title');
+        setTimeout(() => focusOnceShown('cx-map-similarity-title'), 50);
       }}
       onStarted=${() => {
         app.stores.jobs.refresh();

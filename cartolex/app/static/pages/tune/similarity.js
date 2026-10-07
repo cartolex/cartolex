@@ -18,15 +18,16 @@ export const MEASURES = ['space', 'keywords', 'jaccard', 'themes'];
 /** The section; *params* is the panel's resource of `GET /api/params`. */
 export function SimilarityField({ ctx, params }) {
   const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const [asked, setAsked] = useState(null);
   const own = params.data && params.data.global && params.data.global.similarity;
   if (!own) return null;
-  const value = own.value || 'space';
+  // the choice shows at once; the saved value once the app answers
+  const value = asked || own.value || 'space';
   const choose = async (measure) => {
-    if (measure === value || busy) return;
-    setBusy(true);
+    if (measure === value || asked) return;
+    setAsked(measure);
     const r = await ctx.api.put('/api/params/similarity', { measure }, { ifMatch: params.etag });
-    setBusy(false);
+    setAsked(null);
     if (!r.ok) {
       setError(r.error);
       return;
@@ -39,11 +40,11 @@ export function SimilarityField({ ctx, params }) {
   };
   return html`<section class="cx-similarity" id="cx-map-similarity" aria-labelledby="cx-map-similarity-title">
     <h4 class="cx-method-subtitle" id="cx-map-similarity-title" tabindex="-1">${t('similarity.title')}</h4>
-    <fieldset class="cx-share-choice" aria-busy=${busy ? 'true' : 'false'}>
+    <fieldset class="cx-share-choice" aria-busy=${asked ? 'true' : 'false'}>
       <legend class="cx-share-choice__legend">${t('similarity.legend')}</legend>
       <p class="cx-share__note">${t('similarity.lead')}</p>
       ${MEASURES.map((m) => html`<label key=${m} class="cx-share-choice__option" data-measure=${m}>
-        <input type="radio" name="cx-map-similarity" value=${m} checked=${value === m} disabled=${busy}
+        <input type="radio" name="cx-map-similarity" value=${m} checked=${value === m}
           onChange=${() => choose(m)} />
         <span><span class="cx-share-choice__label">${t(`atlas.similarity.${m}`)}${
           m === own.default ? html` <span class="cx-settings__muted">${t('similarity.default')}</span>` : null}</span>
