@@ -6,10 +6,11 @@
  * proposal of their people, paged and searched on the server, and the records
  * that may be one person, each with what tells them apart and « Take as one
  * person ». « Take everyone » asks the role and the levels, takes each clear
- * pair (the same ORCID) as one person and asks about the other pairs.
+ * pair (the same ORCID) as one person and asks about the other pairs; records
+ * selected in the list are taken as one person with « Take as one person ».
  */
 import { html, useEffect, useState } from '../../core/preact.js';
-import { formatNumber, t } from '../../core/i18n.js';
+import { formatNumber, has, t } from '../../core/i18n.js';
 import {
   Button, Card, Checkbox, Dialog, ErrorCard, Input, MenuButton, Select, Table,
 } from '../../components/index.js';
@@ -26,6 +27,12 @@ export function institutionRef(text) {
 function years(first, last) {
   if (!first && !last) return t('corpus.years.unknown');
   return t('corpus.years.span', { first: first || '…', last: last || '…' });
+}
+
+/** Why two records may be one person, in the interface's words. */
+function reason(m) {
+  return m.code && has(`corpus.institutions.reason.${m.code}`) ? t(`corpus.institutions.reason.${m.code}`)
+    : m.reason;
 }
 
 /** One record of a pair: what tells it apart. */
@@ -81,7 +88,7 @@ function TakeAll({ proposal, levels, onTake, onClose, busy }) {
               else next.add(keyOf(m));
               setJoined(next);
             }} />
-          <span class="cx-corpus-muted">${t('corpus.institutions.pair_reason', { reason: m.reason, n: m.works })}</span>
+          <span class="cx-corpus-muted">${t('corpus.institutions.pair_reason', { reason: reason(m), n: m.works })}</span>
           ${m.people.map((p) => html`<${Record} key=${p.record} person=${p} />`)}</li>`)}</ul>
       </fieldset>` : null}
     </div>
@@ -118,7 +125,7 @@ export function Institutions({ ctx, version, bump, toast, openCollect, canCollec
     }
     setTaking(false);
     setPicked(new Set());
-    const found = await ctx.api.get('/api/people/duplicates', { query: { limit: 1 } });
+    const found = await ctx.api.get('/api/people/duplicates/groups', { query: { limit: 1 } });
     setTaken({ n: result.data.taken.length, duplicates: found.ok ? found.data.counts.open : 0 });
     toast({ kind: 'success', title: t('corpus.institutions.taken', { n: result.data.taken.length }) });
     bump();
@@ -171,6 +178,9 @@ export function Institutions({ ctx, version, bump, toast, openCollect, canCollec
           ${t('corpus.institutions.take_everyone', { n: proposal.total - proposal.already })}<//>
         ${picked.size ? html`<${MenuButton} label=${t('corpus.institutions.take_some', { n: picked.size })}
           size="s" items=${roles} onSelect=${(item) => take([...picked], item.id)} />` : null}
+        ${picked.size > 1 ? html`<${MenuButton} label=${t('corpus.institutions.take_as_one', { n: picked.size })}
+          size="s" items=${roles} onSelect=${(item) => take([[...picked].map((r) => r.split(':').pop()).join('+')],
+            item.id)} />` : null}
         <label class="cx-corpus-filters__search"><span class="cx-visually-hidden">${t('corpus.institutions.people_search')}</span>
           <${Input} type="search" value=${q} placeholder=${t('corpus.institutions.people_search')}
             onInput=${(e) => setQ(e.currentTarget.value)} /></label>
@@ -193,7 +203,7 @@ export function Institutions({ ctx, version, bump, toast, openCollect, canCollec
         <summary>${t('corpus.institutions.merges', { n: proposal.merges.length })}</summary>
         <ul class="cx-corpus-list cx-inst-pairs">${proposal.merges.map((m) => html`<li key=${m.records.join('+')} class="cx-inst-pair">
           <p>${m.clear ? html`<span class="cx-corpus-chip">${t('corpus.dup.clear')}</span> ` : null}
-            <span class="cx-corpus-muted">${t('corpus.institutions.pair_reason', { reason: m.reason, n: m.works })}</span></p>
+            <span class="cx-corpus-muted">${t('corpus.institutions.pair_reason', { reason: reason(m), n: m.works })}</span></p>
           ${m.people.map((p) => html`<${Record} key=${p.record} person=${p} />`)}
           ${m.taken.some(Boolean) ? html`<p class="cx-corpus-muted">${t('corpus.institutions.already')}</p>`
             : html`<${MenuButton} size="s" label=${t('corpus.institutions.take_one')} items=${roles}

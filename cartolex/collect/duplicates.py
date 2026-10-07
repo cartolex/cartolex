@@ -11,12 +11,16 @@ service):
   or among the records decided in ``people.csv``) counts for; two different
   ORCIDs count strongly against;
 * the names: the same name once case, accents, hyphens and particles are set
-  aside (a name form among the aliases counts), a first name given as an
-  initial, one surname part of the other;
+  aside, letters such as ``ø`` or ``ł`` read as ``o`` or ``l`` (a name form among
+  the aliases counts); the same words split another way between surname and given
+  names, or in another order; a first name given as an initial, or more given
+  names on one side; one surname part of the other;
 * an organisation both belonged to; co-authors in the project both wrote with;
 * texts both are authors of: at the same place in the author list, one author
-  recorded twice (for); at different places, two authors of one text
-  (strongly against);
+  recorded twice (for); at different known places, two authors of one text
+  (strongly against; a place unknown on either side says nothing);
+* a text of the same title (and years at most one apart) on each side: one work
+  recorded under both;
 * publication years that follow on (one stops when the other starts).
 
 Each line of evidence has a code, its params, its English words and its points;
@@ -29,10 +33,19 @@ co-authors in common is not enough on its own: two namesakes of one lab have
 both. The clear pairs are what the automatic merge takes; the others wait for
 a person.
 
-Rows merged into another person are not proposed: the person they are merged
-into stands for them, with their names, identifiers, organisations and texts.
-Candidates come from blocks (a surname part and a first initial; an
-identifier), so a project of 10⁵ people never compares every pair.
+Every row is weighed on its own; :func:`standing_pairs` then reads each pair as
+the people that remain after the merges (a row merged into another is that
+person), so a namesake of a merged row is still proposed with the person it is
+merged into. Candidates come from blocks (the same words of a name, whatever their
+order; a surname part and a first initial; an identifier), so a project of 10⁵
+people never compares every pair. Every pair of the same full name is proposed,
+however strong the evidence against; when more than :data:`MAX_NAMESAKES` people
+bear a name, two of them are proposed only with evidence beyond their names, and
+the name is reported.
+
+:func:`link_groups` joins pairs into **groups** of people who may all be one
+person, the most likely pairs first, never across a pair decided (two people,
+later) nor two different ORCIDs: the review and the automatic merges work on them.
 """
 
 from __future__ import annotations
@@ -50,44 +63,50 @@ from cartolex.project import Project
 from cartolex.project.identity import merge_roots, merged_groups
 from cartolex.project.tables import read_decision_csv, read_source_table
 
-from .names import compatible_first_names as _compatible
-from .names import name_key as _name_key
-from .names import surname_parts as _surname_parts
-from .names import words as _words
+from .names import NameForm, name_agreement
+from .names import name_form as _name_form
 
 # The same names are compared many times over (a person meets every other of their block):
 # their folded forms are computed once.
 _CACHE = 1 << 18
-compatible_first_names = functools.lru_cache(maxsize=_CACHE)(_compatible)
-name_key = functools.lru_cache(maxsize=_CACHE)(_name_key)
-
-
-@functools.lru_cache(maxsize=_CACHE)
-def surname_parts(last: str) -> tuple[str, ...]:
-    return tuple(_surname_parts(last))
-
-
-@functools.lru_cache(maxsize=_CACHE)
-def words(text: str) -> tuple[str, ...]:
-    return tuple(_words(text))
+name_form = functools.lru_cache(maxsize=_CACHE)(_name_form)
 
 
 __all__ = [
     "MAX_AUTHORS",
     "MAX_BLOCK",
+    "MAX_COMPARED_NAMESAKES",
+    "MAX_GROUP",
+    "MAX_NAMESAKES",
+    "REVIEW_SCORE",
     "DuplicatePair",
     "PersonFacts",
     "choose_kept",
     "clear_groups",
     "duplicate_pairs",
     "is_clear",
+    "link_groups",
     "person_facts",
+    "review_groups",
+    "standing_pairs",
 ]
 
 #: A text with more authors in the project than this does not make co-authors.
 MAX_AUTHORS = 25
 #: A block of names larger than this is compared on exact names only.
 MAX_BLOCK = 600
+#: Two people of a name (or a block of names) more people than this bear are proposed only
+#: with evidence beyond their names (an identifier, an organisation, co-authors, a text):
+#: otherwise its pairs would drown the others. Such names are reported.
+MAX_NAMESAKES = 50
+#: A full name more people than this bear is not compared at all (a placeholder).
+MAX_COMPARED_NAMESAKES = 1000
+#: Pairs at least this likely join a group of the review; the others stay pairs of two.
+#: (The same name and an organisation in common, two namesakes of one lab as often as
+#: one person, stay below it.)
+REVIEW_SCORE = 0.7
+#: A group of the review holds at most this many people.
+MAX_GROUP = 20
 #: An identifier shared by more people than this is not evidence (a placeholder).
 MAX_SHARED_ID = 20
 #: The points a pair needs for a score of one half.
@@ -100,6 +119,8 @@ EVIDENCE: dict[str, tuple[str, str, float]] = {
     "dup_other_orcid": ("two different ORCIDs ({a}, {b})", "", -6.0),
     "dup_same_name": ("the same name ({name})", "", 1.5),
     "dup_same_initials": ("the same surname and initials ({name})", "", 0.8),
+    "dup_name_order": ("the same name, written another way ({a}, {b})", "", 1.3),
+    "dup_other_given": ("the same surname, more given names on one side ({a}, {b})", "", 0.8),
     "dup_initial": ("the same surname, a first name as an initial ({a}, {b})", "", 0.6),
     "dup_surname_part": ("one surname is part of the other ({a}, {b})", "", 0.5),
     "dup_names_differ": ("names that do not agree ({a}, {b})", "", -1.5),
@@ -115,6 +136,11 @@ EVIDENCE: dict[str, tuple[str, str, float]] = {
         2.5,
     ),
     "dup_together": ("a text they wrote together", "{n} texts they wrote together", -6.0),
+    "dup_same_title": (
+        "a text of the same title on each side",
+        "{n} texts of the same title on each side",
+        2.0,
+    ),
     "dup_years_follow": ("their years follow on ({a}, then {b})", "", 0.5),
 }
 #: Points of the co-authors in common, at most.
@@ -165,9 +191,11 @@ class DuplicatePair:
     clear: bool
     #: Two different ORCIDs: a merge needs someone to say they are one person anyway.
     conflict: bool = False
+    #: The rows the evidence was read on, when a merge put one under another person.
+    via: tuple[str, str] | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        out = {
             "a": self.a,
             "b": self.b,
             "points": round(self.points, 3),
@@ -176,6 +204,9 @@ class DuplicatePair:
             "clear": self.clear,
             "conflict": self.conflict,
         }
+        if self.via is not None:
+            out["via"] = list(self.via)
+        return out
 
     def codes(self) -> set[str]:
         return {e["code"] for e in self.evidence}
@@ -232,7 +263,7 @@ def person_facts(
             for form in [(r["last_name"] or "", r["first_name"] or "")] + [
                 (a["last_name"] or "", a["first_name"] or "") for a in r["aliases"] or []
             ]:
-                if form[0] and form not in f.names:
+                if (form[0].strip() or form[1].strip()) and form not in f.names:
                     f.names.append(form)
             if r["orcid"]:
                 f.orcids.add(str(r["orcid"]))
@@ -299,19 +330,23 @@ def _texts(
 # ── candidates ───────────────────────────────────────────────────────────────
 
 
-def _first_initial(first: str) -> str:
-    w = words(first)
-    return w[0][0] if w else ""
+def _candidates(
+    facts: Mapping[str, PersonFacts], report: dict[str, Any] | None = None
+) -> dict[tuple[str, str], int]:
+    """The pairs worth weighing, each with how many people the smallest block that
+    proposed it holds (0: an identifier in common): a shared identifier; the same words of
+    a name, whatever their order (unless more than :data:`MAX_COMPARED_NAMESAKES` people
+    bear it: a placeholder); or a block of names (a surname part and a first initial),
+    compared on exact names only when it is too large. *report*'s ``common_names`` receives
+    each name more than :data:`MAX_NAMESAKES` people bear (``name``, ``people``,
+    ``compared``)."""
+    pairs: dict[tuple[str, str], int] = {}
 
-
-def _candidates(facts: Mapping[str, PersonFacts]) -> set[tuple[str, str]]:
-    """The pairs worth weighing: a shared identifier, or a block of names (a surname part and
-    a first initial). A block too large is compared on exact names only."""
-    pairs: set[tuple[str, str]] = set()
-
-    def add(a: str, b: str) -> None:
+    def add(a: str, b: str, crowd: int) -> None:
         if a != b:
-            pairs.add((a, b) if a < b else (b, a))
+            key = (a, b) if a < b else (b, a)
+            if crowd < pairs.get(key, crowd + 1):
+                pairs[key] = crowd
 
     by_id: dict[tuple[str, str], list[str]] = defaultdict(list)
     for pid, f in facts.items():
@@ -323,73 +358,97 @@ def _candidates(facts: Mapping[str, PersonFacts]) -> set[tuple[str, str]]:
         if 1 < len(members) <= MAX_SHARED_ID:
             for i, a in enumerate(members):
                 for b in members[i + 1 :]:
-                    add(a, b)
+                    add(a, b, 0)
     blocks: dict[tuple[str, str], set[str]] = defaultdict(set)
-    exact: dict[str, set[str]] = defaultdict(set)
+    exact: dict[tuple[str, ...], set[str]] = defaultdict(set)
     for pid, f in facts.items():
         for last, first in f.names:
-            exact[name_key(last, first)].add(pid)
-            initial = _first_initial(first)
-            for part in surname_parts(last):
+            parts, given, squashed = name_form(last, first)
+            if not parts and not given:
+                continue
+            exact[tuple(sorted(parts + given))].add(pid)
+            initial = given[0][0] if given else ""
+            # the surname written in one word too (``O'Tavelin``, ``Otavelin``)
+            for part in {*parts, squashed} - {""}:
                 blocks[(part, initial)].add(pid)
                 if not initial:
                     blocks[(part, "*")].add(pid)
-    for members in exact.values():
-        if 1 < len(members) <= MAX_SHARED_ID * 5:
-            ordered = sorted(members)
-            for i, a in enumerate(ordered):
-                for b in ordered[i + 1 :]:
-                    add(a, b)
+    common = []
+    for bag, members in exact.items():
+        n = len(members)
+        if n > MAX_NAMESAKES:
+            common.append({"name": " ".join(bag), "people": n,
+                           "compared": n <= MAX_COMPARED_NAMESAKES})  # fmt: skip
+        if n < 2 or n > MAX_COMPARED_NAMESAKES:
+            continue
+        ordered = sorted(members)
+        for i, a in enumerate(ordered):
+            for b in ordered[i + 1 :]:
+                add(a, b, n)
+    if report is not None:
+        report["common_names"] = sorted(common, key=lambda c: (-c["people"], c["name"]))
     surnames: dict[str, set[str]] = defaultdict(set)
     for (part, _initial), members in blocks.items():
         surnames[part] |= members
     for (part, initial), members in blocks.items():
         if initial == "*":
             # without a first name: anyone of the surname, when the surname is rare enough
-            if len(surnames[part]) <= MAX_BLOCK:
+            n = len(surnames[part])
+            if n <= MAX_BLOCK:
                 for a in members:
                     for b in surnames[part]:
-                        add(a, b)
+                        add(a, b, n)
             continue
-        if len(members) > MAX_BLOCK:
+        n = len(members)
+        if n > MAX_BLOCK:
             continue
         ordered = sorted(members)
         for i, a in enumerate(ordered):
             for b in ordered[i + 1 :]:
-                add(a, b)
+                add(a, b, n)
     return pairs
 
 
 # ── evidence ─────────────────────────────────────────────────────────────────
 
 
+#: How two names agree (:func:`~cartolex.collect.names.name_agreement`) → the rank of the
+#: agreement (the closest first) and its evidence code.
+_AGREEMENT = {
+    "same": (0, "dup_same_name"),
+    "initials": (1, "dup_same_initials"),
+    "order": (2, "dup_name_order"),
+    "given": (3, "dup_other_given"),
+    "initial": (4, "dup_initial"),
+    "part": (5, "dup_surname_part"),
+}
+
+
+def _agree(a: NameForm, b: NameForm) -> str | None:
+    return name_agreement(a, b)
+
+
 def _name_evidence(a: PersonFacts, b: PersonFacts) -> dict[str, Any] | None:
     """The best agreement between any name form of *a* and any of *b*."""
     best: tuple[int, dict[str, Any]] | None = None
-
-    def offer(rank: int, line: dict[str, Any]) -> None:
-        nonlocal best
-        if best is None or rank < best[0]:
-            best = (rank, line)
-
     for la, fa in a.names:
+        form_a = name_form(la, fa)
         for lb, fb in b.names:
-            sa, sb = surname_parts(la), surname_parts(lb)
-            if not sa or not sb:
+            kind = _agree(form_a, name_form(lb, fb))
+            if kind is None:
+                continue
+            rank, code = _AGREEMENT[kind]
+            if best is not None and rank >= best[0]:
                 continue
             shown_a = " ".join(x for x in (fa, la) if x)
             shown_b = " ".join(x for x in (fb, lb) if x)
-            if name_key(la, fa) == name_key(lb, fb):
-                full = any(len(w) > 1 for w in words(fa))
-                code = "dup_same_name" if full else "dup_same_initials"
-                offer(0 if full else 1, _line(code, name=shown_a))
-            elif sa == sb and compatible_first_names(fa, fb):
-                offer(2, _line("dup_initial", a=shown_a, b=shown_b))
-            elif (set(sa) < set(sb) or set(sb) < set(sa)) and compatible_first_names(fa, fb):
-                offer(3, _line("dup_surname_part", a=shown_a, b=shown_b))
-    if best is not None:
-        return best[1]
-    return None
+            if code in ("dup_same_name", "dup_same_initials"):
+                best = (rank, _line(code, name=shown_a))
+            else:
+                best = (rank, _line(code, a=shown_a, b=shown_b))
+            if rank == 0:
+                return best[1]
+    return best[1] if best is not None else None
 
 
 def _coauthors(
@@ -425,7 +484,7 @@ def _positions(
     project: Project, people: set[str], roots: Mapping[str, str]
 ) -> dict[tuple[str, str], int]:
     """(text id, person) → their place in the author list, for *people* (merged rows read as
-    the person they are merged into)."""
+    the person they are merged into); a place unknown (none, or 0) is left out."""
     import pyarrow as pa
     import pyarrow.compute as pc
 
@@ -436,14 +495,19 @@ def _positions(
     table = read_source_table(path, "authorships", ["text_id", "person_id", "position"])
     table = table.filter(pc.is_in(table["person_id"], value_set=pa.array(sorted(wanted))))
     return {
-        (tid, roots.get(pid, pid)): int(pos or 0)
+        (tid, roots.get(pid, pid)): int(pos)
         for tid, pid, pos in zip(
             table["text_id"].to_pylist(),
             table["person_id"].to_pylist(),
             table["position"].to_pylist(),
             strict=True,
         )
+        if pos
     }
+
+
+#: The evidence codes of names that agree.
+_NAMED = frozenset(code for _rank, code in _AGREEMENT.values())
 
 
 def is_clear(
@@ -453,7 +517,7 @@ def is_clear(
     codes = pair.codes()
     if {"dup_other_orcid", "dup_together", "dup_names_differ"} & codes:
         return False
-    named = bool({"dup_same_name", "dup_same_initials", "dup_initial", "dup_surname_part"} & codes)
+    named = bool(_NAMED & codes)
     if named and ({"dup_same_orcid", "dup_same_record"} & codes):
         return True
     # Without an identifier, a name with an organisation and co-authors in common is not
@@ -466,10 +530,12 @@ def _weigh(
     a: PersonFacts,
     b: PersonFacts,
     *,
-    shared_texts: int,
+    named: dict[str, Any] | None = None,
     same_place: int,
+    together: int,
     coauthors: int,
     coauthor_share: float = 0.0,
+    same_titles: int = 0,
     org_names: Mapping[str, str],
 ) -> DuplicatePair | None:
     lines: list[dict[str, Any]] = []
@@ -481,7 +547,8 @@ def _weigh(
     shared_ids = sorted(a.ids & b.ids)
     for scheme, value in shared_ids[:2]:
         lines.append(_line("dup_same_record", scheme=scheme, value=value))
-    named = _name_evidence(a, b)
+    if named is None:
+        named = _name_evidence(a, b)
     if named is not None:
         lines.append(named)
     elif a.orcids & b.orcids or shared_ids:
@@ -502,8 +569,10 @@ def _weigh(
         lines.append(_line("dup_coauthors", n=coauthors, share=round(coauthor_share, 2)))
     if same_place:
         lines.append(_line("dup_same_place", n=same_place))
-    if shared_texts - same_place > 0:
-        lines.append(_line("dup_together", n=shared_texts - same_place))
+    if together:
+        lines.append(_line("dup_together", n=together))
+    if same_titles:
+        lines.append(_line("dup_same_title", n=same_titles))
     if a.first_year and b.first_year and a.last_year and b.last_year:
         early, late = (a, b) if a.first_year <= b.first_year else (b, a)
         if early.last_year <= late.first_year <= early.last_year + 3 and early is not late:
@@ -519,13 +588,93 @@ def _weigh(
         a=a.person_id,
         b=b.person_id,
         points=points,
-        score=1.0 / (1.0 + math.exp(-(points - SCORE_MIDDLE))),
+        score=_score(points),
         evidence=lines,
         clear=False,
         conflict=conflict,
     )
     pair.clear = is_clear(pair, a, b)
     return pair
+
+
+def _score(points: float) -> float:
+    return 1.0 / (1.0 + math.exp(-(points - SCORE_MIDDLE)))
+
+
+def _same_titles(
+    cols: Any,
+    keys: tuple[np.ndarray, np.ndarray] | None,
+    texts: Mapping[str, np.ndarray],
+    pairs: Iterable[tuple[str, str]],
+) -> dict[tuple[str, str], int]:
+    """For each pair, how many titles one side has on a text and the other on another text
+    (years at most one apart): one work recorded under both. Titles shorter than a copy's
+    least length say nothing."""
+    from cartolex.project.corpus import DUPLICATE_MIN_TITLE, DUPLICATE_YEAR_GAP
+
+    if keys is None or cols is None:
+        return {}
+    hashes, lengths = keys
+    if len(hashes) != cols.n:
+        return {}
+    long_enough = lengths >= DUPLICATE_MIN_TITLE
+
+    def titled(pid: str) -> dict[int, list[tuple[int, int]]]:
+        rows = texts.get(pid)
+        out: dict[int, list[tuple[int, int]]] = defaultdict(list)
+        if rows is None:
+            return out
+        for r in rows[long_enough[rows]].tolist():
+            year = int(cols.year[r]) if cols.has_year[r] else -99
+            out[int(hashes[r])].append((r, year))
+        return out
+
+    cache: dict[str, dict[int, list[tuple[int, int]]]] = {}
+    rows_of: dict[str, frozenset[int]] = {}
+
+    def text_sets(pid: str) -> frozenset[int]:
+        if pid not in rows_of:
+            rows = texts.get(pid)
+            rows_of[pid] = frozenset(rows.tolist()) if rows is not None else frozenset()
+        return rows_of[pid]
+
+    found: dict[tuple[str, str], int] = {}
+    for a, b in pairs:
+        ta = cache.get(a)
+        if ta is None:
+            ta = cache[a] = titled(a)
+        tb = cache.get(b)
+        if tb is None:
+            tb = cache[b] = titled(b)
+        if not ta or not tb:
+            continue
+        rows_a, rows_b = text_sets(a), text_sets(b)
+        n = 0
+        for h in ta.keys() & tb.keys():
+            # a text of one side the other is not on, and the other's likewise
+            if any(
+                r not in rows_b and s not in rows_a and abs(y - z) <= DUPLICATE_YEAR_GAP
+                for r, y in ta[h]
+                for s, z in tb[h]
+            ):
+                n += 1
+        if n:
+            found[(a, b)] = n
+    return found
+
+
+def _title_keys(project: Project, cols: Any) -> tuple[np.ndarray, np.ndarray] | None:
+    """The texts' title hashes and lengths, in the rows of *cols*."""
+    if cols is None:
+        return None
+    if hasattr(cols, "title_keys"):
+        return cols.title_keys()
+    from cartolex.project.corpus import title_keys
+
+    path = project.layout.table("texts")
+    if not path.exists():
+        return None
+    return title_keys(path.parent)
 
 
 def duplicate_pairs(
@@ -535,27 +684,32 @@ def duplicate_pairs(
     columns: Callable[[], Any] | None = None,
     org_roots: Mapping[str, str] | None = None,
     org_names: Mapping[str, str] | None = None,
+    report: dict[str, Any] | None = None,
 ) -> tuple[list[DuplicatePair], dict[str, PersonFacts]]:
     """Every pair of people who may be one person, the most likely first, with the facts
     of each person they name. Pairs already decided (``people_pairs.csv``) are not left
     out here: the caller filters them, so this can be computed once per version of the
-    tables and the merges."""
+    tables and the merges. *report*, when given, receives the names too common to be
+    proposed on the name alone (``common_names``: each ``name``, its ``people`` and
+    whether they were ``compared``)."""
     layout = project.layout
     if decisions is None:
         decisions = {r["person_id"]: r for r in read_decision_csv(layout.people_csv, "people")}
     roots = merge_roots(decisions)
     facts, texts, cols = person_facts(project, decisions, columns, org_roots)
     if not facts:
+        if report is not None:
+            report["common_names"] = []
         return [], {}
     # Only the pairs with a name or an identifier in common are weighed further: the others
     # of a block are dropped before their texts and co-authors are compared.
-    candidates = {
-        (a, b)
-        for a, b in _candidates(facts)
-        if _name_evidence(facts[a], facts[b]) is not None
-        or facts[a].orcids & facts[b].orcids
-        or facts[a].ids & facts[b].ids
-    }
+    crowd = _candidates(facts, report)
+    named: dict[tuple[str, str], dict[str, Any] | None] = {}
+    for a, b in crowd:
+        line = _name_evidence(facts[a], facts[b])
+        if line is not None or facts[a].orcids & facts[b].orcids or facts[a].ids & facts[b].ids:
+            named[(a, b)] = line
+    candidates = set(named)
     involved = {p for pair in candidates for p in pair}
     code_of = {pid: i for i, pid in enumerate(cols.person_ids)} if cols is not None else {}
     groups = merged_groups(roots)
@@ -576,6 +730,7 @@ def duplicate_pairs(
             if both:
                 shared[(a, b)] = sorted(both)
     places = _positions(project, {p for pair in shared for p in pair}, roots)
+    titles = _same_titles(cols, _title_keys(project, cols), texts, sorted(candidates))
     names = dict(org_names or {})
     if not names and layout.table("organisations").exists():
         orgs = read_source_table(layout.table("organisations"), "organisations",
@@ -583,13 +738,16 @@ def duplicate_pairs(
         names = {o["org_id"]: o["acronym"] or o["name"] for o in orgs}
     out: list[DuplicatePair] = []
     for a, b in sorted(candidates):
-        both = shared.get((a, b))
-        same = 0
-        for row in both or ():
+        same = apart = 0
+        for row in shared.get((a, b)) or ():
             tid = cols.tid(row)
             pa_, pb_ = places.get((tid, a)), places.get((tid, b))
-            if pa_ is not None and pa_ == pb_:
+            if pa_ is None or pb_ is None:
+                continue  # a place unknown: one author twice, or two, nobody can tell
+            if pa_ == pb_:
                 same += 1
+            else:
+                apart += 1
         common, share = 0, 0.0
         ca, cb = coauthors.get(a), coauthors.get(b)
         if ca and cb:
@@ -597,19 +755,79 @@ def duplicate_pairs(
             common = len((ca & cb) - mine)
             fewest = min(len(ca - mine), len(cb - mine))
             share = common / fewest if fewest else 0.0
+        fa, fb = facts[a], facts[b]
+        if crowd[(a, b)] > MAX_NAMESAKES and not (
+            common or same or (a, b) in titles or fa.orgs & fb.orgs
+            or fa.orcids & fb.orcids or fa.ids & fb.ids
+        ):  # fmt: skip
+            continue  # a name so common that it says nothing on its own
         pair = _weigh(
-            facts[a],
-            facts[b],
-            shared_texts=0 if both is None else len(both),
+            fa,
+            fb,
+            named=named[(a, b)],
             same_place=same,
+            together=apart,
             coauthors=common,
             coauthor_share=share,
+            same_titles=titles.get((a, b), 0),
             org_names=names,
         )
         if pair is not None:
             out.append(pair)
     out.sort(key=lambda p: (-p.score, p.a, p.b))
     return out, facts
+
+
+def standing_pairs(
+    pairs: Iterable[DuplicatePair],
+    facts: Mapping[str, PersonFacts],
+    roots: Mapping[str, str],
+) -> list[DuplicatePair]:
+    """The pairs read as the people that remain after the merges *roots* (a merged row →
+    the person it is merged into): a pair whose two rows are now one person is gone; a pair
+    of a merged row is the pair of the person it is merged into (``via`` names the rows),
+    the most likely of the pairs that land on the same two people; two people whose rows
+    together carry different ORCIDs conflict. The most likely first."""
+    from dataclasses import replace
+
+    groups = merged_groups(roots)
+    best: dict[tuple[str, str], DuplicatePair] = {}
+    for p in pairs:
+        ra, rb = roots.get(p.a, p.a), roots.get(p.b, p.b)
+        if ra == rb:
+            continue
+        key = (ra, rb) if ra < rb else (rb, ra)
+        held = best.get(key)
+        direct = (p.a, p.b) == key
+        if held is not None and (held.score, (held.a, held.b) == key) >= (p.score, direct):
+            continue
+        best[key] = p
+
+    def orcids(pid: str) -> set[str]:
+        out: set[str] = set()
+        for x in (pid, *groups.get(pid, ())):
+            f = facts.get(x)
+            if f is not None:
+                out |= f.orcids
+        return out
+
+    out: list[DuplicatePair] = []
+    for (a, b), p in best.items():
+        moved = (p.a, p.b) != (a, b)
+        merged = bool(groups.get(a) or groups.get(b))
+        if not moved and not merged:
+            out.append(p)
+            continue
+        q = replace(p, a=a, b=b, via=(p.a, p.b) if moved else None, evidence=list(p.evidence))
+        oa, ob = orcids(a), orcids(b)
+        if oa and ob and not (oa & ob) and not p.conflict:
+            q.evidence.append(_line("dup_other_orcid", a=sorted(oa)[0], b=sorted(ob)[0]))
+            q.points = sum(line["points"] for line in q.evidence)
+            q.score = _score(q.points)
+            q.conflict, q.clear = True, False
+        out.append(q)
+    out.sort(key=lambda p: (-p.score, p.a, p.b))
+    return out
 
 
 def choose_kept(people: Iterable[PersonFacts]) -> str:
@@ -627,6 +845,95 @@ def choose_kept(people: Iterable[PersonFacts]) -> str:
     return ranked[0].person_id
 
 
+def link_groups(
+    pairs: Iterable[DuplicatePair],
+    facts: Mapping[str, PersonFacts],
+    blocked: Collection[tuple[str, str]] = (),
+    *,
+    taken: Callable[[DuplicatePair], bool] | None = None,
+    max_size: int = MAX_GROUP,
+) -> dict[str, str]:
+    """Groups of people who may all be one person: each pair *taken* (by default, those
+    at least :data:`REVIEW_SCORE` likely, never two different ORCIDs), the most likely
+    first, joins the groups of its two people, unless the group joined would hold a pair
+    *blocked* (``(a, b)`` keys, the smaller id first: two people, later), two different
+    ORCIDs or more than *max_size* people. Answers each person of a group of two or more
+    → the group's smallest id."""
+    if taken is None:
+
+        def taken(p: DuplicatePair) -> bool:
+            return p.score >= REVIEW_SCORE and not p.conflict
+
+    apart: dict[str, set[str]] = defaultdict(set)
+    for a, b in blocked:
+        apart[a].add(b)
+        apart[b].add(a)
+    members: dict[str, list[str]] = {}
+    orcids: dict[str, set[str]] = {}
+    root_of: dict[str, str] = {}
+
+    def root(x: str) -> str:
+        if x not in root_of:
+            root_of[x] = x
+            members[x] = [x]
+            f = facts.get(x)
+            orcids[x] = set(f.orcids) if f is not None else set()
+        return root_of[x]
+
+    chosen = sorted((p for p in pairs if taken(p)), key=lambda p: (-p.score, p.a, p.b))
+    for p in chosen:
+        ra, rb = root(p.a), root(p.b)
+        if ra == rb:
+            continue
+        small, large = (ra, rb) if len(members[ra]) <= len(members[rb]) else (rb, ra)
+        if len(members[small]) + len(members[large]) > max_size:
+            continue
+        oa, ob = orcids[small], orcids[large]
+        if oa and ob and not (oa & ob):
+            continue
+        inside = set(members[large])
+        if any(apart.get(x, set()) & inside for x in members[small]):
+            continue
+        for x in members[small]:
+            root_of[x] = large
+        members[large].extend(members.pop(small))
+        orcids[large] |= orcids.pop(small)
+    out: dict[str, str] = {}
+    for ids in members.values():
+        if len(ids) > 1:
+            first = min(ids)
+            for x in ids:
+                out[x] = first
+    return out
+
+
+def review_groups(
+    pairs: Iterable[DuplicatePair],
+    facts: Mapping[str, PersonFacts],
+    distinct: Collection[tuple[str, str]] = (),
+) -> list[tuple[list[str], list[DuplicatePair]]]:
+    """The groups the review shows: the pairs not said to be *distinct* (``(a, b)`` keys),
+    joined by :func:`link_groups` (the pairs at least :data:`REVIEW_SCORE` likely); every
+    other pair, below it or that a group could not take, stays a group of its own two
+    people. Each group: its members (sorted) and its pairs, the most likely first; the
+    groups, the most likely pair first."""
+    kept = [p for p in pairs if (p.a, p.b) not in distinct]
+    group_of = link_groups(kept, facts, distinct)
+    held: dict[str, list[DuplicatePair]] = defaultdict(list)
+    alone: list[tuple[list[str], list[DuplicatePair]]] = []
+    for p in kept:
+        ga, gb = group_of.get(p.a), group_of.get(p.b)
+        if ga is not None and ga == gb:
+            held[ga].append(p)
+        else:
+            alone.append(([p.a, p.b], [p]))
+    together = {g: sorted(x for x, y in group_of.items() if y == g) for g in held}
+    out = [(together[g], sorted(ps, key=lambda p: (-p.score, p.a, p.b))) for g, ps in held.items()]
+    out.extend(alone)
+    out.sort(key=lambda g: (-g[1][0].score, g[0]))
+    return out
+
+
 def clear_groups(
     pairs: Iterable[DuplicatePair],
     facts: Mapping[str, PersonFacts],
@@ -635,56 +942,40 @@ def clear_groups(
     min_score: float | None = None,
 ) -> list[dict[str, Any]]:
     """The clear pairs not *decided* (``(a, b)`` keys, the smaller id first), joined into
-    groups of people that are one person: each ``keep`` (:func:`choose_kept`, on the roles
-    and identities of *now*: person id → ``(role, identity)``, else the facts'), the others
-    to ``merge``, their ``names`` and the ``pairs`` it holds; sorted by the kept name. A
-    group whose people carry two different ORCIDs, or that would join two people of a pair
-    already decided (two people, later) through others, is left out: a person decides.
+    groups of people that are one person (:func:`link_groups`: never two people of a pair
+    decided, two people said apart or left for later, joined through others, nor two
+    different ORCIDs): each ``keep`` (:func:`choose_kept`, on the roles and identities of
+    *now*: person id → ``(role, identity)``, else the facts'), the others to ``merge``,
+    their ``names`` and the ``pairs`` it holds; sorted by the kept name.
 
     With *min_score*, the pairs taken are those whose score is at least *min_score* (clear
     or not), never a pair of two different ORCIDs."""
     from dataclasses import replace
 
-    parent: dict[str, str] = {}
-
-    def find(x: str) -> str:
-        root = x
-        while parent.get(root, root) != root:
-            root = parent[root]
-        while parent.get(x, x) != root:  # shorten the path walked
-            parent[x], x = root, parent[x]
-        return root
-
     def taken(p: DuplicatePair) -> bool:
         if min_score is None:
-            return p.clear
+            return p.clear and not p.conflict
         return p.score >= min_score and not p.conflict
 
+    decided = set(decided)
     chosen = [p for p in pairs if taken(p) and (p.a, p.b) not in decided]
-    for p in chosen:
-        ra, rb = find(p.a), find(p.b)
-        if ra != rb:
-            parent[max(ra, rb)] = min(ra, rb)
+    group_of = link_groups(chosen, facts, decided, taken=taken, max_size=10**9)
     members: dict[str, list[str]] = defaultdict(list)
     held: dict[str, list[DuplicatePair]] = defaultdict(list)
+    for pid, g in group_of.items():
+        members[g].append(pid)
     for p in chosen:
-        held[find(p.a)].append(p)
-    for pid in {x for p in chosen for x in (p.a, p.b)}:
-        members[find(pid)].append(pid)
+        g = group_of.get(p.a)
+        if g is not None and g == group_of.get(p.b):
+            held[g].append(p)
     out = []
-    for root, ids in members.items():
+    for g, ids in members.items():
         group = []
         for pid in sorted(ids):
             f = facts[pid]
             if now is not None and pid in now:
                 f = replace(f, role=now[pid][0], identity=now[pid][1])
             group.append(f)
-        orcids = [f.orcids for f in group if f.orcids]
-        if any(not (x & y) for i, x in enumerate(orcids) for y in orcids[i + 1 :]):
-            continue
-        inside = sorted(ids)
-        if any((x, y) in decided for i, x in enumerate(inside) for y in inside[i + 1 :]):
-            continue
         keep = choose_kept(group)
         out.append(
             {
@@ -694,7 +985,7 @@ def clear_groups(
                     f.person_id: " ".join(x for x in (f.first_name, f.last_name) if x)
                     for f in group
                 },
-                "pairs": held[root],
+                "pairs": held[g],
             }
         )
     out.sort(key=lambda g: (g["names"][g["keep"]].casefold(), g["keep"]))

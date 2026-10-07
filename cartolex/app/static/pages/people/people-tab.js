@@ -3,7 +3,8 @@
  * The People tab: every person with their role (mapped, context, projected),
  * identity, coverage state and texts; filters from the list's own columns;
  * a bulk change of role for the rows selected or for every row the filters
- * keep. The list is paged on the server (10⁵ people).
+ * keep; « Same person… » for two rows selected or more (`same-person.js`). The
+ * list is paged on the server (10⁵ people).
  */
 import { html, useEffect, useMemo, useState } from '../../core/preact.js';
 import { t } from '../../core/i18n.js';
@@ -11,6 +12,7 @@ import {
   Button, ErrorCard, EmptyState, Input, MenuButton, Select, Table,
 } from '../../components/index.js';
 import { CoverageState, IdentityState, personName, roleLabel, usePaged } from './common.js';
+import { MAX_SAME } from './same-person.js';
 
 const ROLES = ['mapped', 'context', 'projected', 'excluded', 'undecided'];
 const IDENTITIES = ['pending', 'confirmed', 'auto', 'none'];
@@ -70,7 +72,8 @@ function Filters({ filters, setFilters, counts, facets }) {
 }
 
 /** The People tab. */
-export function PeopleTab({ ctx, version, bump, toast, openSheet, preset, openImport, duplicates, openTab }) {
+export function PeopleTab({ ctx, version, bump, toast, openSheet, preset, openImport, duplicates, openTab,
+  sameAs }) {
   const [filters, setFilters] = useState({ q: '', columns: {} });
   const [sort, setSort] = useState({ column: 'name', direction: 'ascending' });
   const [selection, setSelection] = useState(new Set());
@@ -146,11 +149,13 @@ export function PeopleTab({ ctx, version, bump, toast, openSheet, preset, openIm
 
   const rowMenu = (keys) => [
     { id: 'sheet', label: t('corpus.people.open_sheet'), disabled: keys.length !== 1 },
+    { id: 'same', label: t('corpus.same.button'), disabled: keys.length < 2 || keys.length > MAX_SAME },
     { kind: 'group', id: 'roles', label: t('corpus.people.set_role'),
       items: roleItems.map((r) => ({ ...r, id: `role:${r.id}` })) },
   ];
   const onRowMenu = (item, keys) => {
     if (item.id === 'sheet') openSheet(keys[0]);
+    else if (item.id === 'same') sameAs(keys);
     else if (item.id.startsWith('role:')) setRole(item.id.slice(5));
   };
 
@@ -167,6 +172,8 @@ export function PeopleTab({ ctx, version, bump, toast, openSheet, preset, openIm
           : t('corpus.people.total', { n: list.total })}</span>
       ${selected.length ? html`<${MenuButton} label=${t('corpus.people.set_role')} size="s"
         items=${roleItems} onSelect=${(item) => setRole(item.id)} />` : null}
+      ${selected.length > 1 ? html`<${Button} size="s" disabled=${selected.length > MAX_SAME}
+        onClick=${() => sameAs(selected)}>${t('corpus.same.button')}<//>` : null}
       ${filtered && !selected.length && list.total ? html`<${MenuButton}
         label=${t('corpus.people.set_role_all', { n: list.total })} size="s"
         items=${roleItems} onSelect=${(item) => setRole(item.id, { all: true })} />` : null}

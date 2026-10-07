@@ -10,7 +10,9 @@
  * - `collaborators-tab.js`: collaborators round by round, decisions;
  * - `coverage-tab.js`: the coverage report and its actions;
  * - `sheet.js`: a person's sheet; `import.js`, `collect.js`: the dialogs;
- * - `duplicates-tab.js`, `duplicates-compare.js`: pairs of people who may be one;
+ * - `duplicates-tab.js`, `duplicates-compare.js`, `duplicates-auto.js`: groups of people
+ *   who may be one, side by side, and the automatic merges; `same-person.js`: people
+ *   said to be one by hand (« Same person… »);
  * - `org-drawer.js`, `org-review.js`, `institutions.js`: organisations as decided;
  * - `common.js`: state shapes, names, a list paged on the server.
  */

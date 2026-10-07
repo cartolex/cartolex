@@ -5,6 +5,7 @@ line.
 
 ## Unreleased
 
+- Duplicates: a name written another way is proposed (a letter such as « ø » or « ł », another script, a particle or a middle name on one side, the words split or ordered differently, a name in one cell), and a namesake of a row merged into another person stays proposed; evidence against lowers a pair without hiding it. The Duplicates tab works on groups (three records of one person are one group), merged, split or left for later in one step; « Same person… » (People list) and « Same person as… » (a sheet) merge people by hand; the institutions' proposal suggests the same name at any unit and takes selected records as one person.
 - The About page is short: what cartolex measures (who talks the same, in the lexical space), what it is built on (spaCy, scikit-learn, SciPy, UMAP, openTSNE), three key references and the Zenodo citation; every method and library it relies on is in the new documentation page « References ». The documentation's front page and the README say the same; the overview shows the word cloud under the health panel.
 
 - The Keywords screen is now called « Lexicon » (fr « Lexique », pt-BR « Léxico »), and its tab of the built lexicon « Final lexicon »; its address stays `/keywords`.

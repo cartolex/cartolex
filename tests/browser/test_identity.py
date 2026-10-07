@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
-"""Who is who, on the real app: pairs of people decided with the keyboard, the clear pairs
-merged in one step and undone in one, a merge undone from a sheet, and the addresses other
-pages link to (a person, an organisation); axe on the duplicates' review."""
+"""Who is who, on the real app: groups of people decided with the keyboard, the clear pairs
+merged in one step and undone in one, people said to be one by hand (« Same person… » from
+the list and from a sheet) and undone, a merge undone from a sheet, and the addresses other
+pages link to (a person, an organisation); axe on the duplicates' review and the dialog."""
 
 from __future__ import annotations
 
@@ -48,39 +49,77 @@ def _merged(ui) -> int:
     return sum(1 for p in people if p["merged_into"])
 
 
-def test_pairs_by_keyboard_the_clear_ones_in_one_step_and_back(doubled_app, open_app, axe_source):
+def _counts(ui) -> dict:
+    return _get(ui, "/api/people/duplicates/groups?limit=1")["counts"]
+
+
+def test_groups_by_keyboard_the_clear_ones_in_one_step_and_back(doubled_app, open_app, axe_source):
     ui = open_app(doubled_app, bypass_csp=True)
     page = ui.page
     ui.navigate("/people?tab=duplicates")
     review = page.locator(".cx-corpus-queue")
     review.locator(REAL_ROW).first.wait_for()
-    counts = _get(ui, "/api/people/duplicates?limit=1")["counts"]
+    counts = _counts(ui)
 
-    # ↓ a pair, compared side by side; D: two people, never proposed again
+    # ↓ a group, compared side by side; D: two people, never proposed again
     review.locator(".cx-table__scroller").focus()
     page.keyboard.press("ArrowDown")
     review.locator(".cx-dup-shared").wait_for()
     violations = blocking(run_axe(ui, axe_source))
     assert violations == [], "\n".join(violations)
     page.keyboard.press("d")
-    _until(lambda: _get(ui, "/api/people/duplicates?limit=1")["counts"]["distinct"] == 1)
-    # the next pair comes up; 2: one person, keeping the right one
+    _until(lambda: _counts(ui)["distinct"] >= 1)
+    # the next group comes up; 2: one person, keeping the second one
     review.locator(".cx-dup-shared").wait_for()
     page.keyboard.press("2")
-    _until(lambda: _merged(ui) == 1)
+    _until(lambda: _merged(ui) >= 1)
+    merged = _merged(ui)
 
     # the clear pairs: a preview, then one step, then one « Undo »
-    left = _get(ui, "/api/people/duplicates?limit=1")["counts"]["clear"]
+    left = _counts(ui)["clear"]
     assert 0 < left <= counts["clear"]
     page.get_by_role("button", name="Merge the clear pairs").click()
     page.locator(".cx-dup-auto").wait_for()
     page.get_by_role("button", name="Merge them").click()
-    _until(lambda: _merged(ui) > 1)
+    _until(lambda: _merged(ui) > merged)
     banner = page.locator(".cx-dup-last")
     banner.wait_for()
     banner.get_by_role("button", name="Undo").click()
-    _until(lambda: _merged(ui) == 1)  # the pair decided by hand stays merged
-    assert _get(ui, "/api/people/duplicates?limit=1")["last_auto"] is None
+    _until(lambda: _merged(ui) == merged)  # the group decided by hand stays merged
+    assert _get(ui, "/api/people/duplicates/groups?limit=1")["last_auto"] is None
+
+
+def test_same_person_by_hand_from_the_list_and_from_a_sheet(doubled_app, open_app, axe_source):
+    ui = open_app(doubled_app, bypass_csp=True)
+    page = ui.page
+    keep, other, _ = doubled_app.truth.same[0]  # two rows of one name and ORCID
+    name = _get(ui, f"/api/people/{other}/sheet")["last_name"]
+    ui.navigate("/people")
+    rows = page.locator(REAL_ROW)
+    rows.first.wait_for()
+    page.locator(".cx-corpus-filters__search input").fill(name)
+    _until(lambda: rows.count() == 2)
+    # two rows selected: « Same person… »
+    rows.nth(0).click()
+    rows.nth(1).click(modifiers=["Control"])
+    page.get_by_role("button", name="Same person…").click()
+    dialog = page.locator("dialog[open] .cx-same")
+    dialog.locator(".cx-dup-table").wait_for()
+    violations = blocking(run_axe(ui, axe_source, include="dialog[open]"))
+    assert violations == [], "\n".join(violations)
+    page.locator("dialog[open]").get_by_role("button", name="Merge into").click()
+    _until(lambda: _merged(ui) == 1)
+    page.locator(".cx-toast").get_by_role("button", name="Undo").click()
+    _until(lambda: _merged(ui) == 0)
+
+    # « Same person as… » from a sheet: the other found by a search
+    ui.navigate(f"/people?person={keep}")
+    page.get_by_role("button", name="Same person as…").click()
+    page.locator(".cx-same-search input").fill(name)
+    page.locator(".cx-same-found button").first.click()
+    page.locator("dialog[open] .cx-same .cx-dup-table").wait_for()
+    page.locator("dialog[open]").last.get_by_role("button", name="Merge into").click()
+    _until(lambda: _merged(ui) == 1)
 
 
 def test_a_merge_undone_from_the_sheet_and_the_addresses_other_pages_use(doubled_app, open_app):
