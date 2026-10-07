@@ -1154,7 +1154,7 @@ def _own_inputs(ctx: StageContext, *, skip_stage: str | None = None) -> dict[str
     files, project parts), without ``maps.json`` and without *skip_stage*'s run; ``None``
     when the build did not say (no reuse then)."""
     inputs = getattr(ctx, "inputs", None)
-    if inputs is None:
+    if inputs is None or getattr(ctx, "forced", False):  # a forced run keeps nothing
         return None
     return {
         "code": inputs.code.fingerprint,

@@ -298,6 +298,11 @@ def test_an_unchanged_version_is_kept_and_kept_files_are_the_computed_ones(built
     assert _reused(copy, "map.layout") == {"v1": False, "v2": False}
     assert _placed_files(copy) == kept
 
+    # a forced run keeps nothing
+    assert cli(["build", str(copy), "--force", "map.layout"]) == 0
+    assert _reused(copy, "map.layout") == {"v1": False, "v2": False}
+    assert _placed_files(copy) == kept
+
     # a parameter the layout reads: drawn again
     assert cli(["params", str(copy), "--set", "map.layout.neighbours=6"]) == 0
     assert cli(["build", str(copy)]) == 0

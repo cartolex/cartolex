@@ -220,6 +220,7 @@ class StageContext:
         probe: Callable[[str], None],
         records: Mapping[str, RunRecord] | None = None,
         inputs: Any = None,
+        forced: bool = False,
     ) -> None:
         self.project = project
         self.stage = stage
@@ -233,6 +234,9 @@ class StageContext:
         #: What this run is computed from (:class:`~cartolex.build.planning.RunInputs`), when
         #: the build gives it: a stage that keeps parts of its last results compares them.
         self.inputs = inputs
+        #: The build was asked to run this stage (``force``): it keeps nothing of its last
+        #: results, it computes everything again.
+        self.forced = bool(forced)
         self.counts: dict[str, int] = {}
         #: More measures to record beside the counts (``versions`` of the map's layout).
         self.measures: dict[str, Any] = {}
@@ -473,6 +477,7 @@ def _run_stage(
     cancel: threading.Event | None,
     probe: Callable[[str], None],
     off: frozenset[str] = frozenset(),
+    forced: bool = False,
 ) -> RunRecord:
     layout = project.layout
     probe(f"stage:start:{stage.id}")
@@ -524,6 +529,7 @@ def _run_stage(
         probe=probe,
         records={u: view.records[u] for u in readable},  # type: ignore[misc]
         inputs=inputs,
+        forced=forced,
     )
     for note in prepared:
         ctx.warn(note)
@@ -628,6 +634,7 @@ def build(
         raise ValueError(f"a job id is letters, digits, '-' and '_' only: {job_id!r}")
     registry = registry or STAGES
     probe = probe or (lambda _: None)
+    force = tuple(force)
     project.recovered += recover(project.layout)
     the_plan = plan(
         project,
@@ -698,6 +705,7 @@ def build(
         for i in runnable
     ]
     reporter = _Reporter(progress, weights, heartbeat_s)
+    forced = set(force)
     ran: list[RunRecord] = []
     outcome: Literal["succeeded", "failed", "cancelled"] = "succeeded"
     failed: tuple[str, str] | None = None
@@ -727,6 +735,7 @@ def build(
                     report=report,
                     cancel=cancel,
                     probe=probe,
+                    forced=stage.id in forced,
                 )
             except Cancelled:
                 outcome = "cancelled"
