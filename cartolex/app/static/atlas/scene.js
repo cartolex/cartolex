@@ -6,14 +6,18 @@
  * by their top-level theme in the scheme's colours (or keywords by category); organisations
  * are rounded tiles sized by their people; collaborators who are not mapped are small quiet
  * rings, clearer when linked to the focus. The network's links are gentle arcs (`rings.js`),
- * an organisation's members are spanned by a soft hull, a person's time windows are joined
- * in time order. Labels name the themes (in their colour), then, as asked or as the focus
- * needs, people, keywords (in their topic's colour) and organisations. The world view places
- * organisations at their address.
+ * an organisation's members are spanned by a soft hull, a focused person's time windows are
+ * joined in time order when their trajectory is asked for (`traj`). Labels name the themes (in
+ * their colour), then, as asked or as the focus needs, people, keywords (in their topic's
+ * colour) and organisations. The world view places organisations at their address.
+ *
+ * A map version in three dimensions (the index's `dimensions`) gives a scene of three: every
+ * layer, line and label carries `z`, regions carry their `members` (hulled on screen as the
+ * map turns) in place of a polygon, and the scene says `dimensions: 3`.
  */
 import { convexHull } from '../components/map/core.js';
 import {
-  matchingPeople, nameIn, nodesUnder, orgLevelOf, periodOf,
+  matchingPeople, nameIn, nodesUnder, orgLevelOf, periodOf, placeOf,
 } from './data.js';
 import { ringLines, ringList } from './rings.js';
 import { shade } from './schemes.js';
@@ -30,7 +34,7 @@ const DIM = { people: 0.1, keywords: 0.07, organisations: 0.1, texts: 0.06, proj
 /** The palette's last colour (what no theme holds); the scheme's colours come before it. */
 const MAX_COLOURS = 31;
 
-function makeLayer(id, n, palette) {
+function makeLayer(id, n, palette, space = false) {
   return {
     id,
     shape: SHAPE_OF[id],
@@ -41,6 +45,7 @@ function makeLayer(id, n, palette) {
     palette,
     x: new Float32Array(n),
     y: new Float32Array(n),
+    ...(space ? { z: new Float32Array(n) } : {}),
     color: new Uint16Array(n),
     rank: new Float32Array(n),
     highlight: new Uint8Array(n),
@@ -76,27 +81,36 @@ function ranksOf(weights) {
   return out;
 }
 
-/** The hull of keywords (by index), without the farthest fifth when there are many. */
+/** The region of keywords (by index), without the farthest fifth when there are many:
+ * `{polygon}` on a flat map, `{members}` in three dimensions, or null. */
 export function keywordRegion(index, terms) {
   const pts = [];
   for (const k of terms) {
     const kw = index.keywords[k];
-    if (kw && kw.x !== null && kw.x !== undefined) pts.push([kw.x, kw.y]);
+    if (kw && kw.x !== null && kw.x !== undefined) pts.push([kw.x, kw.y, kw.z || 0]);
   }
-  return hullOf(pts);
+  return hullOf(pts, index.dimensions === 3);
 }
 
-function hullOf(pts) {
+/** The region of points `[x, y, z]` (the farthest from their mean left out when there are
+ * many): `{polygon}` (their convex hull), or `{members}` (`{x, y, z}`) in *space*; null for
+ * fewer than three. */
+function hullOf(pts, space = false) {
   if (pts.length < 3) return null;
   let kept = pts;
   if (pts.length > 8) {
     const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
     const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
-    kept = pts.map((p) => [p, (p[0] - cx) ** 2 + (p[1] - cy) ** 2]).sort((a, b) => a[1] - b[1])
-      .slice(0, Math.ceil(pts.length * 0.85)).map((e) => e[0]);
+    const cz = pts.reduce((s, p) => s + (p[2] || 0), 0) / pts.length;
+    kept = pts.map((p) => [p, (p[0] - cx) ** 2 + (p[1] - cy) ** 2 + (space ? ((p[2] || 0) - cz) ** 2 : 0)])
+      .sort((a, b) => a[1] - b[1]).slice(0, Math.ceil(pts.length * 0.85)).map((e) => e[0]);
+  }
+  if (space) {
+    return { members: { x: Float32Array.from(kept, (p) => p[0]), y: Float32Array.from(kept, (p) => p[1]),
+      z: Float32Array.from(kept, (p) => p[2] || 0) } };
   }
   const polygon = convexHull(kept.map((p) => p[0]), kept.map((p) => p[1]));
-  return polygon.length >= 6 ? polygon : null;
+  return polygon.length >= 6 ? { polygon } : null;
 }
 
 /** The colour (palette index) of a top-level theme's index. */
@@ -125,7 +139,7 @@ export function focusOf(index, state, extra) {
       on('people', index.byPerson.get(sel.id), 2);
       for (const k of termsOf(`person:${sel.id}`)) on('keywords', k);
       for (const o of index.orgsOfPerson.get(sel.id) || []) on('organisations', index.byOrg.get(o));
-      lit.path = sel.id;
+      if (state.traj) lit.path = sel.id;
       if (texts) texts.people.forEach((ps, i) => { if (ps.includes(sel.id)) on('texts', i); });
     } else if (sel.kind === 'projected' && index.byProjected.has(sel.id)) {
       on('projected', index.byProjected.get(sel.id), 2);
@@ -174,20 +188,20 @@ export function focusOf(index, state, extra) {
   return lit;
 }
 
-/** Where the network's partners are: `{x, y, projected}` by id, or null. */
+/** Where the network's partners are: `{x, y, z, projected}` by id, or null. */
 function networkPlace(index, orgs) {
   return (id) => {
     if (orgs) {
       const o = index.orgs[index.byOrg.get(id)];
-      return o && o.x !== null && o.x !== undefined ? { x: o.x, y: o.y } : null;
+      return o && o.x !== null && o.x !== undefined ? { x: o.x, y: o.y, z: o.z || 0 } : null;
     }
     if (index.byPerson.has(id)) {
       const p = index.people[index.byPerson.get(id)];
-      return p.x === null || p.x === undefined ? null : { x: p.x, y: p.y };
+      return p.x === null || p.x === undefined ? null : { x: p.x, y: p.y, z: p.z || 0 };
     }
     if (index.byProjected.has(id)) {
       const p = index.projected[index.byProjected.get(id)];
-      return { x: p.x, y: p.y, projected: true };
+      return { x: p.x, y: p.y, z: p.z || 0, projected: true };
     }
     return null;
   };
@@ -222,11 +236,16 @@ export function mapScene(index, state, extra) {
   const notes = [];
   const regionsAs = state.as === 'regions';
   const sel = state.sel;
+  const space = index.dimensions === 3;
+  const layerOf = (id, n) => makeLayer(id, n, palette, space);
+  /** A point's z (none on a flat map). */
+  const zOf = (item) => (space ? { z: item.z || 0 } : {});
 
   // the soft hulls of the organisations in focus
   for (const hull of lit.hulls) {
-    const polygon = hullOf(hull.people.map((i) => index.people[i]).filter((p) => p.x !== null).map((p) => [p.x, p.y]));
-    if (polygon) regions.push({ id: 'hull', polygon, color: palette[colourOf(hull.top)], alpha: 0.1 });
+    const shape = hullOf(hull.people.map((i) => index.people[i]).filter((p) => p.x !== null)
+      .map((p) => [p.x, p.y, p.z || 0]), space);
+    if (shape) regions.push({ id: 'hull', ...shape, color: palette[colourOf(hull.top)], alpha: 0.1 });
   }
 
   // the network: arcs under the points
@@ -236,11 +255,12 @@ export function mapScene(index, state, extra) {
     if (from) {
       const top = orgs ? index.orgTop[index.byOrg.get(sel.id)] : null;
       lines.push(...ringLines(rings, from, networkPlace(index, orgs),
-        { orgs, color: orgs ? palette[colourOf(top)] : '--cx-text' }));
+        { orgs, color: orgs ? palette[colourOf(top)] : '--cx-text', space }));
     }
   }
 
-  // Time windows: each person's places per period of years; the focus's joined in time order.
+  // Time windows: each person's places per period of years; the focus's joined in time order
+  // when their trajectory is asked for.
   if (show.has('windows') || lit.path) {
     const all = [];
     for (const [pid, list] of index.windows) {
@@ -249,10 +269,11 @@ export function mapScene(index, state, extra) {
       if (!show.has('windows') && pid !== lit.path) continue;
       for (const w of list) if (inPeriod(w.start, w.end)) all.push([w, pid]);
     }
-    const L = makeLayer('windows', all.length, palette);
+    const L = layerOf('windows', all.length);
     all.forEach(([w, pid], k) => {
       L.x[k] = w.x;
       L.y[k] = w.y;
+      if (space) L.z[k] = w.z || 0;
       L.color[k] = colourOf(index.personTop[index.byPerson.get(pid)]);
       if (pid === lit.path) mark(L, k, 1);
       L.ref[k] = k;
@@ -265,14 +286,19 @@ export function mapScene(index, state, extra) {
     if (path.length > 1) {
       const x = new Float32Array((path.length - 1) * 2);
       const y = new Float32Array((path.length - 1) * 2);
+      const z = space ? new Float32Array((path.length - 1) * 2) : null;
       for (let k = 0; k + 1 < path.length; k += 1) {
         x[2 * k] = path[k].x;
         y[2 * k] = path[k].y;
         x[2 * k + 1] = path[k + 1].x;
         y[2 * k + 1] = path[k + 1].y;
+        if (z) {
+          z[2 * k] = path[k].z || 0;
+          z[2 * k + 1] = path[k + 1].z || 0;
+        }
       }
-      lines.push({ id: 'path', x, y, color: '--cx-accent', alpha: 0.9, width: 2 });
-      path.forEach((w, k) => labels.push({ x: w.x, y: w.y, text: String(w.start), offset: 12,
+      lines.push({ id: 'path', x, y, ...(z ? { z } : {}), color: '--cx-accent', alpha: 0.9, width: 2 });
+      path.forEach((w, k) => labels.push({ x: w.x, y: w.y, ...zOf(w), text: String(w.start), offset: 12,
         strong: k === 0 || k === path.length - 1 }));
     }
   }
@@ -280,7 +306,7 @@ export function mapScene(index, state, extra) {
   // Texts: placed by their keywords (or their authors), in the period.
   if (show.has('texts') && texts) {
     const n = texts.id.length;
-    const L = makeLayer('texts', n, palette);
+    const L = layerOf('texts', n);
     let shown = 0;
     const visible = [];
     for (let i = 0; i < n; i += 1) {
@@ -288,6 +314,7 @@ export function mapScene(index, state, extra) {
       const keep = !period || year === null || (year >= period[0] && year <= period[1]);
       L.x[i] = texts.x[i];
       L.y[i] = texts.y[i];
+      if (space) L.z[i] = texts.z ? texts.z[i] : 0;
       const first = texts.terms[i].length ? index.keywords[texts.terms[i][0]] : null;
       L.color[i] = first && first.node ? colourOf(first.node) : NEUTRAL;
       L.rank[i] = keep ? ((i * 0.6180339887) % 1) : HIDDEN; // a zoom of 2 shows four times as many
@@ -307,8 +334,8 @@ export function mapScene(index, state, extra) {
     if (texts.among) notes.push({ key: 'atlas.note.texts_among', count: n, total: texts.among });
     if (regionsAs && visible.length <= MAX_REGIONS) {
       for (const i of visible) {
-        const polygon = keywordRegion(index, texts.terms[i]);
-        if (polygon) regions.push({ id: `text:${texts.id[i]}`, polygon, color: palette[L.color[i]], alpha: 0.08 });
+        const shape = keywordRegion(index, texts.terms[i]);
+        if (shape) regions.push({ id: `text:${texts.id[i]}`, ...shape, color: palette[L.color[i]], alpha: 0.08 });
       }
       L.alpha = 0.5;
     } else if (regionsAs) {
@@ -321,7 +348,7 @@ export function mapScene(index, state, extra) {
   const keywordNames = [];
   if (show.has('keywords')) {
     const ks = index.keywords;
-    const L = makeLayer('keywords', ks.length, palette);
+    const L = layerOf('keywords', ks.length);
     const kinds = new Set(state.kc);
     const byCategory = state.kcol === 'category';
     if (byCategory) L.palette = [...colours.categories, colours.neutral];
@@ -333,6 +360,7 @@ export function mapScene(index, state, extra) {
       if (kinds.size && !kinds.has(kw.category || 'none')) continue;
       L.x[k] = kw.x;
       L.y[k] = kw.y;
+      if (space) L.z[k] = kw.z || 0;
       L.color[k] = byCategory ? (categoryIndex[kw.category] ?? 5) : colourOf(kw.node);
       L.ref[k] = i;
       mark(L, k, lit.keywords.get(i));
@@ -356,7 +384,7 @@ export function mapScene(index, state, extra) {
       order.sort((a, b) => (ks[b].weight || 0) - (ks[a].weight || 0));
       for (const i of order.slice(0, MAX_KEYWORD_NAMES)) {
         const kw = ks[i];
-        keywordNames.push({ x: kw.x, y: kw.y, text: kw.term, offset: -11, size: 11,
+        keywordNames.push({ x: kw.x, y: kw.y, ...zOf(kw), text: kw.term, offset: -11, size: 11,
           color: topicColour(index, kw.node, palette, colourOf, colours.dark),
           minZoom: all && !lit.any ? 1.5 : 0 });
       }
@@ -367,13 +395,14 @@ export function mapScene(index, state, extra) {
   const peopleNames = [];
   if (show.has('people')) {
     const ps = index.people;
-    const L = makeLayer('people', ps.length, palette);
+    const L = layerOf('people', ps.length);
     const shownList = [];
     let k = 0;
     for (let i = 0; i < ps.length; i += 1) {
       if (ps[i].x === null || ps[i].x === undefined) continue;
       L.x[k] = ps[i].x;
       L.y[k] = ps[i].y;
+      if (space) L.z[k] = ps[i].z || 0;
       L.color[k] = colourOf(index.personTop[i]);
       L.rank[k] = mask[i] ? 0 : HIDDEN;
       L.ref[k] = i;
@@ -390,8 +419,8 @@ export function mapScene(index, state, extra) {
       for (const i of shownList) {
         const terms = sets.get(`person:${ps[i].person_id}`);
         if (!terms) continue;
-        const polygon = keywordRegion(index, terms.slice(0, 20).map((t) => index.byTerm.get(t)).filter((t) => t !== undefined));
-        if (polygon) regions.push({ id: `person:${ps[i].person_id}`, polygon, color: palette[colourOf(index.personTop[i])], alpha: 0.08 });
+        const shape = keywordRegion(index, terms.slice(0, 20).map((t) => index.byTerm.get(t)).filter((t) => t !== undefined));
+        if (shape) regions.push({ id: `person:${ps[i].person_id}`, ...shape, color: palette[colourOf(index.personTop[i])], alpha: 0.08 });
       }
     } else if (regionsAs) {
       notes.push({ key: 'atlas.note.regions_cap', kind: 'people', count: shownList.length, max: MAX_REGIONS });
@@ -403,7 +432,7 @@ export function mapScene(index, state, extra) {
       if (!named.has('people') && !(few && on)) continue;
       if (named.has('people') && lit.any && !on) continue;
       const text = nameOf('person', ps[i]);
-      if (text) peopleNames.push({ x: ps[i].x, y: ps[i].y, text, offset: 12,
+      if (text) peopleNames.push({ x: ps[i].x, y: ps[i].y, ...zOf(ps[i]), text, offset: 12,
         minZoom: on || shownList.length <= 300 ? 0 : 2.5 });
     }
   }
@@ -413,11 +442,12 @@ export function mapScene(index, state, extra) {
   const projectedOn = show.has('projected');
   if (projectedOn || lit.projected.size) {
     const ps = index.projected;
-    const L = makeLayer('projected', ps.length, palette);
+    const L = layerOf('projected', ps.length);
     let shown = 0;
     ps.forEach((p, i) => {
       L.x[i] = p.x;
       L.y[i] = p.y;
+      if (space) L.z[i] = p.z || 0;
       L.color[i] = NEUTRAL;
       L.ref[i] = i;
       const level = lit.projected.get(i);
@@ -426,7 +456,7 @@ export function mapScene(index, state, extra) {
       mark(L, i, level);
       if (level && lit.projected.size <= 24) {
         const text = nameOf('projected', p);
-        if (text) peopleNames.push({ x: p.x, y: p.y, text, offset: 11, color: '--cx-text-muted' });
+        if (text) peopleNames.push({ x: p.x, y: p.y, ...zOf(p), text, offset: 11, color: '--cx-text-muted' });
       }
     });
     L.items = ps;
@@ -447,26 +477,27 @@ export function mapScene(index, state, extra) {
         most = Math.max(most, (index.members.get(o.id) || []).length);
       }
     });
-    const L = makeLayer('organisations', list.length, palette);
+    const L = layerOf('organisations', list.length);
     L.size = new Float32Array(list.length);
     L.sizeMax = 2.6;
     list.forEach((i, k) => {
       const o = index.orgs[i];
       L.x[k] = o.x;
       L.y[k] = o.y;
+      if (space) L.z[k] = o.z || 0;
       L.color[k] = colourOf(index.orgTop[i]);
       L.size[k] = 1 + 1.6 * Math.sqrt((index.members.get(o.id) || []).length / most);
       L.ref[k] = i;
       const on = lit.organisations.get(i);
       mark(L, k, on);
       if (named.has('organisations') ? (!lit.any || on) : on) {
-        orgNames.push({ x: o.x, y: o.y, text: o.acronym || o.name, offset: -(10 + 6 * L.size[k]),
+        orgNames.push({ x: o.x, y: o.y, ...zOf(o), text: o.acronym || o.name, offset: -(10 + 6 * L.size[k]),
           strong: on === 2, minZoom: named.has('organisations') && !on && list.length > 30 ? 1.6 : 0 });
       }
       if (regionsAs) {
         const terms = sets.get(`organisation:${o.id}`);
-        const polygon = terms && keywordRegion(index, terms.map((t) => index.byTerm.get(t)).filter((t) => t !== undefined));
-        if (polygon) regions.push({ id: `organisation:${o.id}`, polygon, color: palette[L.color[k]], alpha: 0.1 });
+        const shape = terms && keywordRegion(index, terms.map((t) => index.byTerm.get(t)).filter((t) => t !== undefined));
+        if (shape) regions.push({ id: `organisation:${o.id}`, ...shape, color: palette[L.color[k]], alpha: 0.1 });
       }
     });
     L.items = index.orgs;
@@ -490,7 +521,7 @@ export function mapScene(index, state, extra) {
     if (lvl > 2 && !inFocus) continue;
     if (focusTheme && !inFocus && lvl > 1) continue;
     const ci = colourOf(id);
-    themeNames.push({ x: c.x, y: c.y, text: nameIn(node.names, locale),
+    themeNames.push({ x: c.x, y: c.y, ...zOf(c), text: nameIn(node.names, locale),
       minZoom: lvl === 1 || inFocus ? 0 : 2.5, size: lvl === 1 ? 15 : 12,
       strong: id === focusTheme,
       color: focusTheme && !inFocus ? '--cx-text-muted'
@@ -499,8 +530,10 @@ export function mapScene(index, state, extra) {
   }
   themeNames.sort((a, b) => b.weight - a.weight);
   const selected = selectionLabel(index, state, texts, nameOf);
+  if (selected && space) selected.z = (placeOf(index, sel, texts) || {}).z || 0;
   return {
     scene: {
+      ...(space ? { dimensions: 3 } : {}),
       layers,
       regions,
       lines,

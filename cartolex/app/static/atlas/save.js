@@ -3,20 +3,24 @@
  * « Save the view »: the map as it is on screen (its pan and zoom, the layers shown, their
  * colours, the selection, the labels the zoom shows), as a PNG image (drawn again at twice
  * the screen's resolution by the Canvas 2D renderer) or an SVG image (every point, region,
- * line and label a vector shape), with or without its legend. Nothing leaves the browser:
+ * line and label a vector shape), with or without its legend. A map in three dimensions is
+ * saved as it is projected on screen now (its turn, its depth). Nothing leaves the browser:
  * the file is made here and handed to the browser to save.
  */
 import { createCanvas2DRenderer, tracePoint } from '../components/map/canvas2d.js';
-import { detailLimit, placeLabels, resolveColor, zoomOf } from '../components/map/core.js';
+import { DEPTH_FADE, createCanvas3DRenderer, spaceOrder, spaceRadius } from '../components/map/canvas3d.js';
+import { convexHull, detailLimit, placeLabels, resolveColor, zoomOf } from '../components/map/core.js';
+import { depthShare, projectLayer, projectPoint, screenRegion } from '../components/map/space.js';
 
 /** The pixels of the legend's rows and its margins. */
 const LEGEND_ROW = 18;
 const LEGEND_PAD = 10;
 const LEGEND_SWATCH = 10;
 
-/** A copy of the frame's view (its size, scale and offsets). */
+/** A copy of the frame's view (its size, scale and offsets; in three dimensions, its camera). */
 function savedView(frame) {
   const v = frame.view();
+  if (v.dims === 3) return { ...v };
   return { width: v.width, height: v.height, scale: v.scale, tx: v.tx, ty: v.ty, fitScale: v.fitScale };
 }
 
@@ -81,7 +85,7 @@ export function savePng({ frame, box, scene, legend = null, stem, ratio = 2 }) {
   canvas.className = 'cx-atlas-save';
   box.appendChild(canvas); // inside the page: the colour tokens resolve on it
   try {
-    const renderer = createCanvas2DRenderer(canvas);
+    const renderer = view.dims === 3 ? createCanvas3DRenderer(canvas) : createCanvas2DRenderer(canvas);
     renderer.resize(view.width, view.height, ratio);
     renderer.draw(scene, view);
     if (legend) {
@@ -135,12 +139,87 @@ function pointPath(shape, x, y, r) {
   return `M${n2(x - r)} ${n2(y)}a${n2(r)} ${n2(r)} 0 1 0 ${n2(2 * r)} 0a${n2(r)} ${n2(r)} 0 1 0 ${n2(-2 * r)} 0z`;
 }
 
+/** A 3D scene's regions, lines and points as SVG elements, projected as on screen: the
+ * points from the back to the front, as the Canvas 2D renderer of 3D draws them. */
+function svgSpace(out, view, scene, color) {
+  for (const region of scene.regions || []) {
+    const p = region.members ? screenRegion(view, region.members, convexHull) : null;
+    if (!p) continue;
+    const pts = [];
+    for (let k = 0; k < p.length; k += 2) pts.push(`${n2(p[k])},${n2(p[k + 1])}`);
+    const c = esc(color(region.color));
+    out.push(`<polygon points="${pts.join(' ')}" fill="${c}" fill-opacity="${region.alpha === undefined ? 0.16 : region.alpha}" stroke="${c}" stroke-opacity="0.7"/>`);
+  }
+  const a = [0, 0, 0, 0];
+  const b = [0, 0, 0, 0];
+  for (const line of scene.lines || []) {
+    let d = '';
+    for (let k = 0; k + 1 < line.x.length; k += 2) {
+      const zs = line.z;
+      if (!projectPoint(view, line.x[k], line.y[k], zs ? zs[k] : 0, a)) continue;
+      if (!projectPoint(view, line.x[k + 1], line.y[k + 1], zs ? zs[k + 1] : 0, b)) continue;
+      d += `M${n2(a[0])} ${n2(a[1])}L${n2(b[0])} ${n2(b[1])}`;
+    }
+    if (d) {
+      out.push(`<path d="${d}" fill="none" stroke="${esc(color(line.color))}" stroke-width="${line.width || 1}" stroke-opacity="${line.alpha === undefined ? 0.6 : line.alpha}" stroke-linecap="round" stroke-linejoin="round"/>`);
+    }
+  }
+  const anyHighlight = scene.layers.some((l) => l.highlight && l.highlightCount);
+  const order = spaceOrder(scene, view, scene.layers.map((layer) => projectLayer(view, layer)));
+  const ring = esc(color('--cx-accent'));
+  // runs of points of one look, in depth order: one path each
+  let run = null;
+  const flush = () => {
+    if (run && run.d) out.push(run.tag.replace('%D', run.d));
+    run = null;
+  };
+  for (const pass of anyHighlight ? [0, 1] : [0]) {
+    for (const pt of order) {
+      if (pass === 1 && !pt.lit) continue;
+      const layer = scene.layers[pt.li];
+      const shape = layer.shape || 'circle';
+      const r = spaceRadius((layer.radius || 2.5) * (layer.size ? layer.size[pt.i] : 1), pt.size);
+      const fill = esc(color(layer.palette[layer.color ? layer.color[pt.i] : 0] || layer.palette[0]));
+      let tag;
+      let path;
+      if (pass === 1) {
+        const ringed = layer.highlight[pt.i] >= (layer.ringFrom || 1);
+        path = pointPath(shape === 'ring' ? 'circle' : shape, pt.px, pt.py, r + (ringed ? 1.5 : 0));
+        tag = `<path d="%D" fill="${fill}"${ringed ? ` stroke="${ring}" stroke-width="2"` : ''}/>`;
+      } else {
+        const base = anyHighlight ? (layer.dim === undefined ? 0.3 : layer.dim) : (layer.alpha || 0.9);
+        const alpha = n2(base * (1 - DEPTH_FADE * Math.round(depthShare(view, pt.depth) * 8) / 8));
+        path = pointPath(shape === 'ring' ? 'circle' : shape, pt.px, pt.py, r);
+        tag = shape === 'ring'
+          ? `<path d="%D" fill="none" stroke="${fill}" stroke-width="${n2(Math.max(1.5, r * 0.5))}" opacity="${alpha}"/>`
+          : `<path d="%D" fill="${fill}" opacity="${alpha}"/>`;
+      }
+      if (!run || run.tag !== tag) {
+        flush();
+        run = { tag, d: '' };
+      }
+      run.d += path;
+    }
+    flush();
+  }
+}
+
 /** The view as SVG markup: the same order and rules as the Canvas 2D renderer. */
 export function svgOf({ view, scene, legend, color, font, measure }) {
   const { width, height, scale: sx, tx: ox, ty: oy } = view;
   const zoom = zoomOf(view);
   const out = [`<svg xmlns="http://www.w3.org/2000/svg" width="${n2(width)}" height="${n2(height)}" viewBox="0 0 ${n2(width)} ${n2(height)}" font-family="${esc(font)}">`,
     `<rect width="100%" height="100%" fill="${esc(color('--cx-surface'))}"/>`];
+  if (view.dims === 3) svgSpace(out, view, scene, color);
+  else svgFlat(out, { view, scene, color, zoom, sx, ox, oy });
+  labelsAndLegend(out, { view, scene, legend, color, measure });
+  out.push('</svg>');
+  return out.join('\n');
+}
+
+/** A flat scene's regions, lines and points as SVG elements. */
+function svgFlat(out, { view, scene, color, zoom, sx, ox, oy }) {
+  const { width, height } = view;
   for (const region of scene.regions || []) {
     const p = region.polygon;
     if (p.length < 6) continue;
@@ -203,6 +282,11 @@ export function svgOf({ view, scene, legend, color, font, measure }) {
       }
     }
   }
+}
+
+/** The labels the view shows, and the legend, as SVG elements. */
+function labelsAndLegend(out, { view, scene, legend, color, measure }) {
+  const { height } = view;
   const labels = placeLabels(scene.labels || [], view, measure);
   const halo = esc(color('--cx-surface'));
   const ink = esc(color('--cx-text'));
@@ -225,8 +309,6 @@ export function svgOf({ view, scene, legend, color, font, measure }) {
     }
     out.push('</g>');
   }
-  out.push('</svg>');
-  return out.join('\n');
 }
 
 /** The view as an SVG file. */

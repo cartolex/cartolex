@@ -17,7 +17,7 @@ Each point is a person, in the colour of the theme that weighs most in their
 texts; two people are close when they use the same keywords in the same
 proportions. Under **Show**, add the keywords, the organisations (at the
 average place of their mapped people), the texts, the projected people and
-the time windows (a person's texts over a few years, joined in time order).
+the time windows (a person's texts over a few years, each a point).
 **Filters** come from your lists' own columns, and **Period** keeps the texts
 of some years only. Drag to move, the wheel or + and − to zoom, 0 to fit.
 
@@ -31,6 +31,34 @@ every text is drawn.
 
 The themes beside the map show each theme's share of all use: select one to
 light its people and keywords.
+
+**Trajectory**, in the same panel, joins the time windows of the selected
+person in time order, the first and last years named: where their work went
+over the years. It is off until you turn it on, and stays on (in the page's
+address) while you select other people.
+
+## A map in three dimensions
+
+A map version can be laid out in three dimensions (**Map versions**, a UMAP
+layout with 3 dimensions): its places keep more of the distances than a flat
+map can, and groups that overlap on the flat map may stand apart. Everything
+of the flat map works on it: the layers, the selection and what it lights,
+the co-authors' lines, the names, Find, the filters, the colours, Save the
+view (the picture as it is turned on screen).
+
+- Drag to **turn** it; Shift and drag (or drag with the right button) to
+  **move** it; the wheel zooms toward the pointer; a click selects the point
+  in front.
+- With the keyboard: the arrows turn, Shift and the arrows move, + and − zoom,
+  0 fits, the space bar starts or stops **Turn** (turning on its own).
+- **Front** shows it from the front, as a flat map: x to the right, y up.
+- The **World** view stays flat; so do base maps, shown on a flat version
+  only, and the layout preview of **Tune the map** (a 3D layout is built,
+  then viewed).
+
+When several versions are built, **Layout** at the top of the map shows one
+or another (flat or 3D), each named by its version, method and note; the
+page's address keeps the choice.
 
 ## Find and follow
 

@@ -23,7 +23,7 @@ function methodName(method) {
 }
 
 /** The dialog. */
-export function VersionsDialog({ ctx, open, onClose, drawn, base, onBase, onBuild }) {
+export function VersionsDialog({ ctx, open, onClose, drawn, base, onBase, onBuild, pinned3d = false }) {
   const [versions, setVersions] = useState(null);
   const [bases, setBases] = useState(null);
   const [error, setError] = useState(null);
@@ -151,6 +151,7 @@ export function VersionsDialog({ ctx, open, onClose, drawn, base, onBase, onBuil
     ${bases ? html`<section class="cx-atlas-versions" aria-labelledby="cx-atlas-bases-h">
       <h3 id="cx-atlas-bases-h" class="cx-atlas-panel__subtitle">${t('map.bases.title')}</h3>
       <p class="cx-atlas-panel__muted">${t('map.bases.lead')}</p>
+      ${pinned3d && !base ? html`<p class="cx-atlas-panel__muted" id="cx-atlas-bases-2d">${t('map.bases.needs_2d')}</p>` : null}
       ${bases.bases.length ? html`<ul class="cx-atlas-versions__list">
         ${bases.bases.map((b) => html`<li key=${b.id} class="cx-atlas-versions__item">
           <div>
@@ -160,6 +161,7 @@ export function VersionsDialog({ ctx, open, onClose, drawn, base, onBase, onBuil
           </div>
           <div class="cx-atlas-versions__actions">
             ${b.missing ? null : html`<${Button} size="s" variant=${base === b.id ? 'primary' : 'secondary'}
+              disabled=${pinned3d && base !== b.id} aria-describedby=${pinned3d && !base ? 'cx-atlas-bases-2d' : undefined}
               aria-pressed=${String(base === b.id)} onClick=${() => onBase(base === b.id ? '' : b.id)}>
               ${base === b.id ? t('map.bases.shown') : t('map.bases.show')}<//>`}
             <${Button} size="s" variant="ghost" loading=${busy === `remove:${b.id}`}

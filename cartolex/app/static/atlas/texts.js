@@ -21,7 +21,8 @@ export const TEXT_MODES = ['', 'focus', 'network'];
  * when those were a sample). */
 function textRows(all, rows) {
   const pick = (col) => rows.map((i) => all[col][i]);
-  return { id: pick('id'), title: pick('title'), year: pick('year'), x: pick('x'), y: pick('y'), by: pick('by'),
+  return { id: pick('id'), title: pick('title'), year: pick('year'), x: pick('x'), y: pick('y'),
+    ...(all.z ? { z: pick('z') } : {}), by: pick('by'),
     terms: pick('terms'), people: pick('people'), total: rows.length, sampled: false, focus: true,
     among: all.sampled ? all.id.length : 0 };
 }

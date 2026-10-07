@@ -441,7 +441,7 @@ card of links (`card.js`, `parts.js`, Compare in `compare.js`), the layers panel
 screen for the atlas, the map alone, the treemap alone) and « Save view »
 (`save.js`: PNG or SVG, with or without the legend). Its state is in the
 address (`state.js`: `sel`, `with`, `open`, `show`, `names`, `org`, `net`, `tx`, `f`,
-`from`, `to`, `kc`, `kcol`, `view`, `base`, `as`); Back retraces the focus. The
+`from`, `to`, `kc`, `kcol`, `view`, `base`, `as`, `map`, `traj`); Back retraces the focus. The
 layout and the colour scheme are the person's preferences (`atlas.*`,
 `colour_scheme`), and the scheme sets the hue tokens for the whole app
 (`core/look.js`), so the Themes screen colours a theme as the atlas does.
@@ -517,7 +517,11 @@ modules that use no library: `components/map/core.js` (the view, fitting,
 zooming, the detail a zoom shows, hit testing, hulls, label placement,
 colours), `canvas2d.js` and `webgl.js` (the renderers) and `controller.js`
 (events, the frame loop, `createMapController({box, canvas, scene, renderer,
-onPick, onHover})`). The offline site reuses them. A page opened from
+onPick, onHover})`). The offline site reuses them. A map in three dimensions
+has its own: `space.js` (the orbit camera, projection, hit testing on the
+projected points), `webgl3d.js` and `canvas3d.js` (the renderers) and
+`controller3d.js` (`createMapController3D`, the same options and answers, and
+the turn); the atlas swaps them by the scene's `dimensions` ({doc}`atlas`). A page opened from
 `file://` cannot load ES modules (the browser refuses them there), so these
 modules follow three rules: they import only each other, with named imports
 of `./x.js`; they export only declarations (`export function`,
@@ -587,6 +591,12 @@ console error, an uncaught exception or a CSP violation fails a test:
   `file://` (`atlas_file.py`: the classic script, a synthetic bundle, the rings
   computed in the browser); and a budget: 10⁴ points panned in the gallery at 50
   frames a second or more, a frame drawn in under 16 ms;
+  `tests/browser/test_atlas_3d.py`: a map version in three dimensions from
+  `file://` (a click on a projected person, the network's second ring and the
+  trajectory as 3D lines, an organisation's hull from its members, the keyboard,
+  Turn and Front, the view saved as SVG, axe), two built versions and the
+  « Layout » select, `map=` in the address and the World view, and the same
+  budget with 10⁵ people and 10⁵ texts in 3D turned;
   `tests/browser/test_atlas_links.py`: a person from the address with their
   co-authors, a keyword's people and its way to the keywords and the themes
   screens, full screen (the atlas, the map alone) and back, the view saved as SVG

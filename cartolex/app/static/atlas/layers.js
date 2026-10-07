@@ -4,7 +4,8 @@
  * people, keywords and organisations, each with « Aa » to write their names; the
  * organisations' level, named with the project's own level names; « Network 1 · 2 · 3 »,
  * the rings around a person or an organisation (pressing the current one turns them off);
- * and, folded under « More », the other kinds (texts, projected people, time windows) and
+ * « Trajectory », a focused person's time windows joined in time order (`traj`, off by
+ * default); and, folded under « More », the other kinds (texts, projected people, time windows) and
  * points or regions. Texts, once shown, come out of the fold with « Texts: all · of the focus
  * · with the network » (`tx`, `texts.js`).
  */
@@ -71,6 +72,15 @@ export function createLayers(el, { onChange }) {
           [1, 2, 3].map((d) => h('button', { type: 'button', class: 'cx-atlas-layers__aa', 'aria-pressed': String(state.net === d), dataset: { key: `net-${d}` },
             title: t('atlas.layers.rings', { count: d }), text: String(d),
             onClick: () => onChange({ net: state.net === d ? 0 : d }) }))));
+      }
+      // a focused person's trajectory: their time windows joined in time order
+      if (has.windows && !world) {
+        const person = state.sel && state.sel.kind === 'person';
+        parts.push(h('div', { class: 'cx-atlas-layers__row' },
+          h('button', { type: 'button', class: 'cx-atlas-layers__eye', 'aria-pressed': String(state.traj), dataset: { key: 'traj' },
+            title: t(person ? 'atlas.layers.trajectory_help' : 'atlas.layers.trajectory_none'),
+            onClick: () => onChange({ traj: !state.traj }) },
+          symbol(SHAPE_OF.windows), h('span', { text: t('atlas.layers.trajectory') }))));
       }
       // the texts, once shown, out of the fold: which ones are drawn
       const textsOut = !world && has.texts && state.show.includes('texts');

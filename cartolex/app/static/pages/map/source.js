@@ -15,19 +15,22 @@ const unwrap = (r) => (r.ok ? r.data : { error: r.error || { code: 'network' } }
 
 /**
  * The API-backed source. *first* is the bundle the page already read (served once, then
- * read again on a refresh); *base()* the base map in the address ('' for none).
+ * read again on a refresh); *base()* the base map in the address ('' for none). The reads
+ * of places take the map `version` the atlas shows (none: the pinned one).
  */
 export function apiSource(ctx, { first, base }) {
   let kept = first;
   const withBase = (query = {}) => (base() ? { ...query, base: base() } : query);
+  const placed = ({ version, ...query } = {}) => withBase(version ? { ...query, version } : query);
   return {
-    bundle() {
-      if (kept) {
+    bundle({ version } = {}) {
+      if (kept && (!version || version === kept.map_version)) {
         const b = kept;
         kept = null;
         return Promise.resolve(b);
       }
-      return ctx.api.get('/api/atlas', { query: withBase() }).then((r) => {
+      kept = null;
+      return ctx.api.get('/api/atlas', { query: placed({ version }) }).then((r) => {
         if (!r.ok) return { error: r.error };
         return r.data.available ? r.data : { error: { code: 'atlas_unavailable' } };
       });
@@ -45,17 +48,19 @@ export function apiSource(ctx, { first, base }) {
     compare: (a, b) => ctx.api.get('/api/atlas/compare', { query: { a: `${a.kind}:${a.id}`, b: `${b.kind}:${b.id}` } }).then(unwrap),
     keywordsOf: (kind, ids) => ctx.api.get('/api/atlas/regions', { query: { kind, ids: ids.join(',') } })
       .then((r) => (r.ok ? r.data.keywords || {} : { error: r.error })),
-    texts: () => ctx.api.get('/api/atlas/texts', { query: withBase() }).then(unwrap),
-    textsOf: ({ kind, id, net = 0, limit }) => ctx.api.get('/api/atlas/texts',
-      { query: withBase({ focus: `${kind}:${id}`, net, ...(limit ? { limit } : {}) }) }).then(unwrap),
-    windows: ({ person } = {}) => ctx.api.get('/api/atlas/windows', { query: withBase(person ? { person } : {}) }).then(unwrap),
+    texts: ({ version } = {}) => ctx.api.get('/api/atlas/texts', { query: placed({ version }) }).then(unwrap),
+    textsOf: ({ kind, id, net = 0, limit, version }) => ctx.api.get('/api/atlas/texts',
+      { query: placed({ focus: `${kind}:${id}`, net, ...(limit ? { limit } : {}), version }) }).then(unwrap),
+    windows: ({ person, version } = {}) => ctx.api.get('/api/atlas/windows',
+      { query: placed({ ...(person ? { person } : {}), version }) }).then(unwrap),
     land: () => ctx.keep(fetch(LAND).then((r) => (r.ok ? r.json() : null)).catch(() => null))
       .then((doc) => (doc && Array.isArray(doc.rings) ? doc.rings : { error: { code: 'land' } })),
   };
 }
 
-/** The app as the atlas's host. *title* names the field (the project). */
-export function appHost(ctx, { title, stem }) {
+/** The app as the atlas's host. *title* names the field (the project); *onReady* is told
+ * each bundle the atlas shows (a change of « Layout » reads another). */
+export function appHost(ctx, { title, stem, onReady = null }) {
   const { app } = ctx;
   const prefs = app.stores.prefs;
   return {
@@ -90,5 +95,6 @@ export function appHost(ctx, { title, stem }) {
     },
     navigate: (href) => ctx.navigate(href),
     fileStem: stem,
+    ...(onReady ? { onReady } : {}),
   };
 }

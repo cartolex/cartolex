@@ -110,6 +110,19 @@
   width: 11.5rem;
 }
 
+/* the map version shown (« Layout ») */
+.cx-atlas-layout-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cx-space-1);
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-s);
+}
+
+.cx-atlas-layout {
+  width: 13rem;
+}
+
 .cx-atlas select,
 .cx-atlas-find__input {
   min-height: var(--cx-control-height-s);

@@ -25,7 +25,7 @@ cartolex/app/static/atlas/
   filters.js   the folded « Filters » control (people's columns, period, categories)
   find.js      « Find »: a combobox over everything the atlas shows
   panes.js     the panes: resizable, hidable to rails, card right or below, full screen
-  mapview.js   the map: canvas, controller, hover card, its own buttons, Save's menu
+  mapview.js   the map: canvas, controller (2D or 3D), hover card, its own buttons, Save's menu
   save.js      « Save view »: PNG and SVG of the map as it is on screen
 ```
 
@@ -62,7 +62,10 @@ atlas.destroy();              // every listener, observer, frame and request rel
 
 `tests/browser/atlas_file.py` is a complete, small host: a page opened from
 `file://`, a synthetic bundle, a translator over the catalogue's `atlas.*` keys,
-the rings computed by `ringsOf` from a list of links.
+the rings computed by `ringsOf` from a list of links; and its variants: a map
+version in three dimensions, two built versions (flat and 3D) read by
+`version`, every person's time windows, the French catalogue, and a large 3D
+bundle made in the browser for the frame budget (`tests/browser/test_atlas_3d.py`).
 
 `root` is an empty element; the atlas fills it and takes its whole size. The
 host gives it a **definite height** (a `height`, or a flex item's share of a box
@@ -85,15 +88,20 @@ of the atlas keeps working.
 
 | method | answers |
 | --- | --- |
-| `bundle()` | **required.** The atlas bundle, the shape of `GET /api/atlas` (`cartolex-atlas/3`, {doc}`api`): `levels`, `nodes`, `people`, `keywords`, `organisations`, `organisation_levels`, `people_extra`, `columns`, `years`, `overlays`, `windows`, `window_years`, `bounds`, `map_version`. Of these, `nodes`, `people`, `keywords` and `bounds` are required; the others may be left out (empty) |
+| `bundle({version})` | **required.** The atlas bundle, the shape of `GET /api/atlas` (`cartolex-atlas/3`, {doc}`api`): `levels`, `nodes`, `people`, `keywords`, `organisations`, `organisation_levels`, `people_extra`, `columns`, `years`, `overlays`, `windows`, `window_years`, `bounds`, `map_version`, and with several built map versions `dimensions`, `pinned_version`, `versions`. Of these, `nodes`, `people`, `keywords` and `bounds` are required; the others may be left out (empty). *version* is the map version to show (absent: the pinned one, or the first) |
 | `keywordUsers(term, {limit})` | the people who use a keyword: `{known, count, items: [{id, name, share}], at: [indexes in people]}` (`GET /api/atlas/keyword-people`) |
 | `coauthors({kind, id, circle, pages})` | who writes with a person or an organisation, `circle` rings (1 to 3), the shape of `GET /api/atlas/coauthors` (below); `pages` is `[[offset, limit]…]` per ring |
 | `compare(a, b)` | two people or organisations (`{kind, id}`): `{space, keywords: {cosine, jaccard, common, shared}, themes: {overlap, shared}, texts: {shared, items}}`, any part may be missing (`GET /api/atlas/compare`) |
 | `keywordsOf(kind, ids)` | the keywords of people or organisations: `{id: [term…]}`, most used first (`GET /api/atlas/regions`) |
-| `texts()` | the texts placed on the map, columnar (`GET /api/atlas/texts`) |
-| `textsOf({kind, id, net, limit})` | the texts of a person, a projected person or an organisation (`net` rings of its network too), from every text of the project, in the shape of `texts()` with `total` and `sampled` (`GET /api/atlas/texts?focus=`); without it, « of the focus » draws a theme's and a keyword's texts among those of `texts()` only |
-| `windows({person})` | the time windows, columnar, every one or one person's (`GET /api/atlas/windows`) |
+| `texts({version})` | the texts placed on the map, columnar (`GET /api/atlas/texts`) |
+| `textsOf({kind, id, net, limit, version})` | the texts of a person, a projected person or an organisation (`net` rings of its network too), from every text of the project, in the shape of `texts()` with `total` and `sampled` (`GET /api/atlas/texts?focus=`); without it, « of the focus » draws a theme's and a keyword's texts among those of `texts()` only |
+| `windows({person, version})` | the time windows, columnar, every one or one person's (`GET /api/atlas/windows`) |
 | `land()` | the outline of the land for the world view: rings of `[lon0, lat0, lon1, lat1…]` |
+
+The reads of places (`bundle`, `texts`, `textsOf`, `windows`) are given the
+`version` the atlas shows when it is not the pinned one; a source with a single
+version may ignore it. A version that cannot be read (no longer built) sends
+the atlas back to the pinned one.
 
 Names: a person's `name` may be `null` (a site built with pseudonyms, a
 projected person): the atlas then shows the host's label for them
@@ -173,6 +181,8 @@ The state is in the address, so a view can be shared and survives a reload:
 | `tx` | the texts drawn: every one (left out), `focus` (those of the focus: a person's or an organisation's own, read with `textsOf`; a theme's, the drawn texts with most of their keywords under it; a keyword's, those that use it) or `network` (with the people the network's rings reach); with nothing in focus, every one |
 | `f`, `from`, `to`, `kc`, `kcol` | the people's filters, the period, the keywords' categories and colour |
 | `view`, `base`, `as` | the world view, a base map, points or regions |
+| `map` | the map version shown (its id); absent: the pinned one, or the first of `versions` |
+| `traj` | `1`: the focused person's trajectory, their time windows joined in time order (read only then); absent: off |
 
 The layout (pane sizes, hidden panes, the card's place) and the colour scheme
 belong to the person, not to the view: `host.prefs` keeps them under
@@ -184,6 +194,40 @@ The atlas's words are the `atlas.*` keys of the app's catalogues (en, fr,
 pt-BR); a host passes them to `t`. Its style sheet's classes start with
 `cx-atlas`; the map's box carries `cxMap` (the controller) and `cxScene()` (what
 is drawn) for the browser tests.
+
+## Map versions and three dimensions
+
+A bundle may list the built map versions, the pinned first:
+`versions: [{id, dimensions, method, note, pinned}]`, with `map_version` the one
+it holds and `dimensions` (2 or 3) its own. With more than one, the bar shows
+« Layout » (`id · 2D/3D · method · note`); choosing one sets `map` and reads the
+bundle again through the source (the focus is kept). On a version in three
+dimensions every place has a `z` (people, keywords, organisations, projected
+people, theme nodes; the `z` column of the texts and the windows) and
+`bounds` has `zmin`, `zmax`.
+
+The scene follows (`components/map/core.js`): a scene in three dimensions says
+`dimensions: 3`; its layers carry `z` (Float32Array), its lines `z` pairs, its
+labels `z`; its regions carry `members` (`{x, y, z}`, the member points, the
+farthest from their mean left out) in place of a `polygon`, hulled on screen at
+each frame. The map's view swaps its controller by the scene's dimensions
+(`mapview.js`, on a canvas of its own): `controller3d.js` (an orbit camera,
+`space.js`), drawn by `webgl3d.js` (depth test; the faded traces write no
+depth; regions hulled on screen) or `canvas3d.js` (back to front; the fallback,
+and the renderer of saved PNGs). The 3D controller answers what the 2D one
+answers, `centreOn(x, y, zoom, z)` with a `z`, plus `turn(on)`, `turning()`,
+`turnBy(dyaw, dpitch)`, `front()` and `project(x, y, z)` (both controllers
+answer `dimensions` and `project`). One tab stop: the arrows turn, Shift and the
+arrows pan, + and − zoom, 0 fits, the space bar turns; a drag turns, Shift (or
+the right button) pans, the wheel zooms toward the pointer, a click picks the
+front-most point.
+
+What stays flat: the world view (its scene has no `dimensions`, so the map
+swaps back to 2D and again when it closes), base maps (a base is placed on a
+flat version only: the app shows one on the pinned version, leaving `map`, and
+offers no base when the pinned version is in 3D; the « Layout » select offers
+no 3D version while a base is shown), and a host's own scene (the app's layout
+preview).
 
 ## Colour schemes
 

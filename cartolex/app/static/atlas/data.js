@@ -5,7 +5,8 @@
  * map, its own keywords), people with their largest share and their filters, organisations
  * with their current members and the mean of their members' shares at every level,
  * projected people, names; and the time windows per person, which come apart
- * (`indexWindows`).
+ * (`indexWindows`). A bundle of a map version in three dimensions (`dimensions: 3`) gives
+ * every place a `z`: the index keeps it beside x and y.
  */
 
 /** The categories of keywords an AI or a person gave. */
@@ -63,6 +64,7 @@ export function indexBundle(bundle) {
   /** The palette index of a node's top-level theme (tops.length: none). */
   const colourOf = (node) => (node && topOf.has(node) ? topIndex.get(topOf.get(node)) : tops.length);
 
+  const dimensions = bundle.dimensions === 3 ? 3 : 2;
   const keywords = bundle.keywords || [];
   const byTerm = new Map(keywords.map((k, i) => [k.term, i]));
   const nodeKeywords = new Map();
@@ -76,15 +78,36 @@ export function indexBundle(bundle) {
     nodeKeywords.get(k.node).push(i);
     if (k.x === null || k.x === undefined) return;
     for (let at = k.node; at && nodes.has(at); at = nodes.get(at).parent) {
-      const c = centres.get(at) || [0, 0, 0];
+      const c = centres.get(at) || [0, 0, 0, 0, []];
       c[0] += k.x;
       c[1] += k.y;
       c[2] += 1;
+      c[3] += k.z || 0;
+      if (dimensions === 3) c[4].push(i);
       centres.set(at, c);
     }
   });
   for (const list of nodeKeywords.values()) list.sort((a, b) => (keywords[b].weight || 0) - (keywords[a].weight || 0));
-  for (const [id, c] of centres) centres.set(id, { x: c[0] / c[2], y: c[1] / c[2] });
+  for (const [id, c] of centres) {
+    const at = { x: c[0] / c[2], y: c[1] / c[2] };
+    if (dimensions === 3) {
+      // in space a theme's mean may fall in the void between its parts: its keyword nearest
+      // that mean stands for it (where its name is written, where « centre on » goes)
+      at.z = c[3] / c[2];
+      let best = Infinity;
+      let near = null;
+      for (const i of c[4]) {
+        const k = keywords[i];
+        const d = (k.x - at.x) ** 2 + (k.y - at.y) ** 2 + ((k.z || 0) - at.z) ** 2;
+        if (d < best) {
+          best = d;
+          near = k;
+        }
+      }
+      if (near) Object.assign(at, { x: near.x, y: near.y, z: near.z || 0 });
+    }
+    centres.set(id, at);
+  }
 
   const people = bundle.people || [];
   const extra = bundle.people_extra || {};
@@ -142,7 +165,7 @@ export function indexBundle(bundle) {
   if (spans.min !== undefined && (first === null || first === undefined || spans.min < first)) first = spans.min;
   if (spans.max !== undefined && (last === null || last === undefined || spans.max > last)) last = spans.max;
   return {
-    bundle, nodes, children, tops, topOf, topIndex, colourOf, maxLevel, centres, nodeKeywords,
+    bundle, dimensions, nodes, children, tops, topOf, topIndex, colourOf, maxLevel, centres, nodeKeywords,
     keywords, byTerm, categoryCounts,
     people, extra, byPerson, personTop,
     orgs, byOrg, members, orgSharesAt, orgTop, orgsOfPerson,
@@ -155,7 +178,7 @@ export function indexBundle(bundle) {
 }
 
 /** The time windows (columns of the source's `windows()`), by person id, each list in time
- * order: `{person_id, start, end, texts, x, y, top}`, added to *into*. */
+ * order: `{person_id, start, end, texts, x, y, z, top}` (z 0 on a flat map), added to *into*. */
 export function indexWindows(index, data, into = new Map()) {
   const fresh = new Map();
   const n = data && data.person ? data.person.length : 0;
@@ -164,7 +187,7 @@ export function indexWindows(index, data, into = new Map()) {
     if (!p || !p.person_id || data.x[k] === null) continue;
     if (!fresh.has(p.person_id)) fresh.set(p.person_id, []);
     fresh.get(p.person_id).push({ person_id: p.person_id, start: data.start[k], end: data.end[k],
-      texts: data.texts[k], x: data.x[k], y: data.y[k], top: data.top[k] });
+      texts: data.texts[k], x: data.x[k], y: data.y[k], z: data.z ? data.z[k] : 0, top: data.top[k] });
   }
   for (const list of fresh.values()) list.sort((a, b) => a.start - b.start);
   return new Map([...into, ...fresh]);
@@ -254,7 +277,8 @@ export function sharesOf(index, sel, level = 1) {
   return {};
 }
 
-/** The x and y of a selection on the map, or null when it has no place there. */
+/** The x, y and z (0 on a flat map) of a selection on the map, or null when it has no place
+ * there. */
 export function placeOf(index, sel, texts) {
   if (!sel) return null;
   let at = null;
@@ -265,7 +289,7 @@ export function placeOf(index, sel, texts) {
   else if (sel.kind === 'theme' && index.centres.has(sel.id)) at = index.centres.get(sel.id);
   else if (sel.kind === 'text' && texts) {
     const i = texts.id.indexOf(sel.id);
-    if (i >= 0) at = { x: texts.x[i], y: texts.y[i] };
+    if (i >= 0) at = { x: texts.x[i], y: texts.y[i], z: texts.z ? texts.z[i] : 0 };
   }
-  return at && at.x !== null && at.x !== undefined ? { x: at.x, y: at.y } : null;
+  return at && at.x !== null && at.x !== undefined ? { x: at.x, y: at.y, z: at.z || 0 } : null;
 }
