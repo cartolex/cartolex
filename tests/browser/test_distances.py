@@ -7,7 +7,8 @@ the site carries, its co-authors marked with their texts together (the site's li
 row's « Its list » and « Compare » (the atlas comparing both); the two lists of pairs; a
 matrix of organisations ordered by theme, whose cell opens Compare from the keyboard; the
 ranked list saved as CSV with the pseudonyms. In the app: the Map screen's Distances pane
-over ``GET /api/atlas/vectors`` and ``GET /api/atlas/links``, within the call budget, axe.
+over ``GET /api/atlas/vectors`` and ``GET /api/atlas/links``, within the call budget, axe;
+its four measures, the server measuring the shared vocabulary.
 """
 
 from __future__ import annotations
@@ -72,6 +73,13 @@ def test_the_sites_distances_from_a_file(site, browser):
     )
     try:
         page.wait_for_function(DONE)
+        # the site measures in the browser: two measures, and why not the others
+        measure = page.get_by_label("Similarity")
+        assert measure.locator("option").all_inner_texts() == [
+            "Meaning in the map's space",
+            "Shared themes",
+        ]
+        assert "which this site does not carry" in page.locator(".cx-dist__measure").inner_text()
         rows = page.locator(".cx-dist-table tbody tr")
         assert (
             rows.count() == min(50, len(core["people"]["id"]) - 1)
@@ -140,6 +148,10 @@ def test_the_sites_distances_from_a_file(site, browser):
         assert "×" in page.locator(".cx-dist-heat__cursor").inner_text()
         box.press("Enter")
         page.wait_for_function("() => /with=organisation/.test(location.hash)")
+        # a matrix of theme shares measures nothing: no choice of measure
+        page.goto((site / "index.html").as_uri() + "#/distances?d=matrix&mx=orgs_themes")
+        page.wait_for_function(DONE)
+        assert page.locator(".cx-dist__measure").is_hidden()
         assert errors == [] and refused == []
     finally:
         context.close()
@@ -162,6 +174,14 @@ def test_the_map_screens_distances_pane(demo_s, app_for, open_app, axe_source):
     )
     assert page.locator(".cx-dist-table tbody tr").count() > 0
     assert blocking(run_axe(ui, axe_source, ".cx-dist")) == []
+    # the app's server measures what the browser cannot: the four measures of the app
+    measure = page.get_by_label("Similarity")
+    assert measure.locator("option").count() == 4
+    before = len(ui.collected.requests)
+    measure.select_option("keywords")
+    page.wait_for_function(DONE)
+    assert any("/api/atlas/similarity" in c for c in api_calls(ui, before))
+    assert page.locator(".cx-dist-table thead").inner_text().count("Shared vocabulary") == 1
     # a name opens its sheet in People; Compare, the atlas pane comparing both
     row = page.locator(".cx-dist-table tbody tr").first
     assert row.locator("th a").get_attribute("href").startswith("/people?person=")

@@ -3521,5 +3521,8 @@
   "atlas.dist.matrix.themes.space": "Dois temas se parecem quando os vetores das suas pessoas se parecem: o vetor de um tema é a média dos das suas pessoas, ponderada pela sua parte. Um nome abre o tema no atlas.",
   "atlas.dist.matrix.themes.themes": "Dois temas se parecem quando as mesmas pessoas trabalham nos dois: o cosseno das suas partes sobre as pessoas. Um nome abre o tema no atlas.",
   "atlas.dist.cell": "{row} × {col}: {value}",
+  "atlas.dist.measure.browser": "Medido no seu navegador. « Vocabulário compartilhado » e « Palavras-chave em comum » precisam de todo o vocabulário de cada um, que este site não leva: o aplicativo as mede.",
+  "atlas.dist.matrix.themes.keywords": "Dois temas se parecem quando suas pessoas usam as mesmas palavras-chave nas mesmas proporções: o perfil de um tema é o das suas pessoas, ponderado pela sua parte. Um nome abre o tema no atlas.",
+  "atlas.dist.matrix.themes.jaccard": "Dois temas se parecem quando suas pessoas usam as mesmas palavras-chave, em qualquer quantidade: a parte das palavras-chave usadas pelas pessoas de um ou outro que os dois usam. Um nome abre o tema no atlas.",
   "atlas.card.hidden": "{count, plural, one {e mais # no projeto, não mostrado aqui} other {e mais # no projeto, não mostrados aqui}}"
 }

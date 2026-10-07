@@ -380,9 +380,9 @@ def share(s: Shots) -> None:
     builds = page.locator("section, .cx-card").filter(has_text="Site builds").last
     s.shot("share-built", builds)
     page.set_viewport_size(VIEWPORT)
-    # the site as a reader opens it: its Distances page, a matrix of the organisations
+    # the site as a reader opens it: its Distances page, the themes × themes matrix
     site = builds.locator("a[href$='/site/index.html']").first.get_attribute("href")
-    page.goto(s.app.base + site + "#/distances?d=matrix&mx=orgs")
+    page.goto(s.app.base + site + "#/distances?d=matrix&mx=themes&tl=2")
     page.wait_for_function(
         "() => { const s = document.querySelector('.cx-dist__status');"
         " return s && /×/.test(s.textContent); }"

@@ -18,6 +18,14 @@ function int8Of(b64) {
   return out;
 }
 
+/** Base64 little-endian float32 values as a Float32Array. */
+function float32Of(b64) {
+  const bin = window.atob(b64 || '');
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+  return new Float32Array(bytes.buffer);
+}
+
 /** The answer of an API call as a source gives it: the data, or `{error}`. */
 const unwrap = (r) => (r.ok ? r.data : { error: r.error || { code: 'network' } });
 
@@ -60,6 +68,9 @@ export function apiSource(ctx, { first, base }) {
     vectors: (kind) => ctx.api.get('/api/atlas/vectors', { query: { kind } })
       .then((r) => (r.ok ? { dim: r.data.dim, values: int8Of(r.data.values) } : { error: r.error })),
     links: (kind) => ctx.api.get('/api/atlas/links', { query: { kind } }).then(unwrap),
+    similarity: (body) => ctx.api.post('/api/atlas/similarity', body)
+      .then((r) => (r.ok ? { ...r.data, values: float32Of(r.data.values) } : { error: r.error })),
+    similarPairs: (body) => ctx.api.post('/api/atlas/similar-pairs', body).then(unwrap),
     measure: () => ctx.api.get('/api/params').then((r) => (r.ok && r.data.global && r.data.global.similarity
       ? r.data.global.similarity.value : null)),
     land: () => ctx.keep(fetch(LAND).then((r) => (r.ok ? r.json() : null)).catch(() => null))

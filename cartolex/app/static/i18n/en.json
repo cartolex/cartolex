@@ -3521,5 +3521,8 @@
   "atlas.dist.matrix.themes.space": "Two themes are alike when their people's vectors are: each theme's vector is the mean of its people's, weighted by their share in it. A name opens the theme in the atlas.",
   "atlas.dist.matrix.themes.themes": "Two themes are alike when the same people work in both: the cosine of their shares over the people. A name opens the theme in the atlas.",
   "atlas.dist.cell": "{row} × {col}: {value}",
+  "atlas.dist.measure.browser": "Measured in your browser. « Shared vocabulary » and « Keywords in common » need every person's whole vocabulary, which this site does not carry: the app measures them.",
+  "atlas.dist.matrix.themes.keywords": "Two themes are alike when their people use the same keywords in the same proportions: each theme's keyword profile is its people's, weighted by their share in it. A name opens the theme in the atlas.",
+  "atlas.dist.matrix.themes.jaccard": "Two themes are alike when their people use the same keywords, however much: the share of the keywords either theme's people use that both use. A name opens the theme in the atlas.",
   "atlas.card.hidden": "{count, plural, one {and # more in the project, not shown here} other {and # more in the project, not shown here}}"
 }

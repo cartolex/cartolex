@@ -150,6 +150,67 @@ def test_the_distances_pane_reads_the_vectors_and_links_in_the_bundles_order(cli
     assert len(orgs["ptr"]) == len(atlas["organisations"]) + 1
 
 
+def test_the_measures_the_browser_cannot_compute_are_measured_within_bounds(client, monkeypatch):
+    """``POST /api/atlas/similarity`` and ``POST /api/atlas/similar-pairs``: the app's measures
+    (here the shared vocabulary) for the Distances pane, the same as the nearest, never past
+    their bounds; the pairs that never wrote together exclude every co-author pair."""
+    import base64
+
+    from cartolex.app.routes import distances
+
+    atlas = client.get("/api/atlas").json()
+    me = atlas["people"][0]["person_id"]
+    body = {"measure": "keywords", "a": {"kind": "person", "ids": [me]}, "b": {"kind": "person"}}
+    got = client.post("/api/atlas/similarity", json=body).json()
+    values = np.frombuffer(base64.b64decode(got["values"]), "<f4")
+    assert got["rows"] == 1 and got["cols"] == len(atlas["people"]) == len(values)
+    near = client.get(
+        "/api/atlas/neighbours", params={"kind": "person", "id": me, "k": 3, "measure": "keywords"}
+    ).json()["items"]
+    at = {p["person_id"]: k for k, p in enumerate(atlas["people"])}
+    for item in near:
+        assert abs(values[at[item["id"]]] - item["similarity"]) < 1e-3
+    # themes against themes, by their people's keyword use
+    tops = [n["id"] for n in atlas["nodes"] if n["level"] == 1]
+    themes = client.post(
+        "/api/atlas/similarity",
+        json={
+            "measure": "jaccard",
+            "a": {"kind": "theme", "ids": tops},
+            "b": {"kind": "theme", "ids": tops},
+        },
+    ).json()
+    grid = np.frombuffer(base64.b64decode(themes["values"]), "<f4").reshape(len(tops), -1)
+    assert np.allclose(np.diag(grid), 1, atol=1e-4)
+    # the pairs: none of them co-authors, the most alike first
+    ids = [p["person_id"] for p in atlas["people"] if p["x"] is not None]
+    pairs = client.post(
+        "/api/atlas/similar-pairs",
+        json={"measure": "keywords", "kind": "person", "ids": ids, "limit": 20},
+    ).json()["items"]
+    sims = [p["similarity"] for p in pairs]
+    assert pairs and sims == sorted(sims, reverse=True)
+    for p in pairs[:5]:
+        co = client.get(
+            "/api/atlas/coauthors", params={"kind": "person", "id": p["a"], "limit": 500}
+        ).json()
+        assert p["b"] not in {i["id"] for i in co["items"]}
+    together = client.post(
+        "/api/atlas/similar-pairs",
+        json={"measure": "jaccard", "kind": "person", "ids": ids, "mode": "together", "limit": 20},
+    ).json()["items"]
+    assert together and all(p["texts"] > 0 for p in together)
+    assert [p["similarity"] for p in together] == sorted(p["similarity"] for p in together)
+    # the bounds
+    monkeypatch.setattr(distances, "MAX_PAIRS_SCOPE", 5)
+    refused = client.post(
+        "/api/atlas/similar-pairs", json={"measure": "keywords", "kind": "person", "ids": ids}
+    )
+    assert refused.status_code == 422 and refused.json()["error"]["code"] == "invalid_parameters"
+    monkeypatch.setattr(distances, "MAX_CELLS", 10)
+    assert client.post("/api/atlas/similarity", json=body).status_code == 422
+
+
 def test_the_people_using_a_keyword_are_ranked_by_its_share_of_their_use(client):
     atlas = client.get("/api/atlas").json()
     kw = max(atlas["keywords"], key=lambda k: k["weight"] or 0)["term"]

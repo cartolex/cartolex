@@ -25,7 +25,8 @@ import { DEFAULT_SCHEME } from '../atlas/schemes.js';
 import { DIST_MEASURES, csvText, topRows, unitRows } from './engine.js';
 import { createRankView } from './rank.js';
 import { createPairsView } from './pairs.js';
-import { createMatrixView } from './matrix.js';
+import { SHARE_MATRICES, createMatrixView } from './matrix.js';
+import { ALL_MEASURES } from './remote.js';
 import { findEntries } from '../atlas/find.js';
 
 /** The views, in the order of the tabs. */
@@ -56,7 +57,9 @@ export function mountDistances(root, { source, host }) {
   const offs = [];
   const loaded = new Map();
   const ctx = {
-    t, fmt, locale, host, source, index: null, data: null, colours: null, measure: 'space', measures: [],
+    t, fmt, locale, host, source, index: null, data: null, colours: null, measure: 'space', measures: [], remote: false,
+    /** Whether the browser computes *measure* (else the host's server does). */
+    local: (measure) => DIST_MEASURES.includes(measure),
     state: () => state,
     set,
     need,
@@ -190,14 +193,15 @@ export function mountDistances(root, { source, host }) {
   }
 
   function renderMeasure() {
-    const measure = DIST_MEASURES.includes(state.m) && ctx.measures.includes(state.m) ? state.m : ctx.measure;
+    const measure = ctx.measures.includes(state.m) ? state.m : ctx.measure;
+    // a matrix of theme shares measures nothing: the choice is not shown
+    measureBox.hidden = state.d === 'matrix' && SHARE_MATRICES.includes(state.mx);
     const select = h('select', { id: 'cx-dist-measure', onChange: (e) => set({ m: e.currentTarget.value }) },
       ctx.measures.map((m) => h('option', { value: m, selected: m === measure, text: t(`atlas.similarity.${m}`) })));
     fill(measureBox, h('label', { for: 'cx-dist-measure', class: 'cx-dist__label', text: t('atlas.dist.measure') }), select,
       h('p', { class: 'cx-atlas-note cx-dist__help', text: t(`atlas.similarity.${measure}.help`) }),
-      ctx.project && !ctx.measures.includes(ctx.project)
-        ? h('p', { class: 'cx-atlas-note', text: t('atlas.dist.measure.elsewhere', { name: t(`atlas.similarity.${ctx.project}`) }) })
-        : null);
+      ctx.remote ? null : h('p', { class: 'cx-atlas-note', text: ctx.project && !ctx.measures.includes(ctx.project)
+        ? t('atlas.dist.measure.elsewhere', { name: t(`atlas.similarity.${ctx.project}`) }) : t('atlas.dist.measure.browser') }));
     return measure;
   }
 
@@ -244,7 +248,9 @@ export function mountDistances(root, { source, host }) {
     ctx.index = index;
     ctx.colours = coloursOf(index, ctx.scheme(), ctx.dark());
     ctx.data = { index, vec: null, links: null, top: { person: topRows(index, 'person'), organisation: topRows(index, 'organisation') } };
-    ctx.measures = DIST_MEASURES.filter((m) => m !== 'space' || source.vectors);
+    // the browser's measures, and the server's when the host has one (the app)
+    ctx.remote = Boolean(source.similarity && source.similarPairs);
+    ctx.measures = ALL_MEASURES.filter((m) => (DIST_MEASURES.includes(m) ? m !== 'space' || source.vectors : ctx.remote));
     ctx.project = typeof project === 'string' ? project : null;
     ctx.measure = ctx.measures.includes(ctx.project) ? ctx.project : ctx.measures[0];
     loading.remove();

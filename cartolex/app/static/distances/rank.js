@@ -4,12 +4,14 @@
  * organisation of a level, from the most to the least alike, with the themes they share and
  * whether they write together; a theme narrows the list to those whose main theme it is. Each
  * row opens its page, Compare (two of a kind) and its own ranked list; « Download CSV » saves
- * the whole list. A national field is scored in blocks (`scoreAll`), the page staying alive.
+ * the whole list. A national field is scored in blocks (`scoreAll`), the page staying alive;
+ * a measure the browser cannot compute is asked of the host's server (`remote.js`).
  */
 import { fill, h } from '../atlas/dom.js';
 import { createFind } from '../atlas/find.js';
 import { distQuery, rankOrder, scoreAll, sharedThemes, togetherWith } from './engine.js';
 import { RANK_PAGE, distRef, scopeOf } from './scope.js';
+import { remoteCross } from './remote.js';
 import {
   amongOf, amongOptions, compareLink, csvButton, distSelect, distTable, pager, runner, scoreCell, statusLine,
   themeChips, themeSelect, togetherCell,
@@ -117,11 +119,17 @@ export function createRankView(ctx) {
       const targets = all.filter((j) => !(j === focus.i && among.kind === focus.kind));
       const q = distQuery(ctx.data, focus.kind, focus.i);
       const started = performance.now();
-      const scores = await scoreAll(ctx.data, measure, q, among.kind, targets, signal);
+      let scores;
+      if (ctx.local(measure)) scores = await scoreAll(ctx.data, measure, q, among.kind, targets, signal);
+      else {
+        // the server measures the focus against every one of the kind; the list keeps its scope
+        const all = await remoteCross(ctx, measure, focus.kind, [focus.i], among.kind, null);
+        scores = Float32Array.from(targets, (j) => all[j]);
+      }
       const order = rankOrder(scores);
       const crossLevel = focus.kind === 'organisation' && among.kind === 'organisation' && index.orgs[focus.i].level !== among.level;
       const together = crossLevel ? null : togetherWith(ctx.data, focus, among.kind);
-      return { scores, targets, order, together, placed: measure !== 'space' || Boolean(q.v), ms: performance.now() - started };
+      return { scores, targets, order, together, placed: ctx.local(measure) ? measure !== 'space' || Boolean(q.v) : scores.some((v) => !Number.isNaN(v)), ms: performance.now() - started };
     }).then((r) => {
       if (!r) return;
       status.removeAttribute('aria-busy');

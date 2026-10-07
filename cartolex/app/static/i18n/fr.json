@@ -3521,5 +3521,8 @@
   "atlas.dist.matrix.themes.space": "Deux thèmes se ressemblent quand les vecteurs de leurs personnes se ressemblent : le vecteur d'un thème est la moyenne de ceux de ses personnes, pondérée par leur part. Un nom ouvre le thème dans l'atlas.",
   "atlas.dist.matrix.themes.themes": "Deux thèmes se ressemblent quand les mêmes personnes travaillent dans les deux : le cosinus de leurs parts sur les personnes. Un nom ouvre le thème dans l'atlas.",
   "atlas.dist.cell": "{row} × {col} : {value}",
+  "atlas.dist.measure.browser": "Mesuré dans votre navigateur. « Vocabulaire partagé » et « Mots-clés en commun » demandent tout le vocabulaire de chacun, que ce site n'emporte pas : l'application les mesure.",
+  "atlas.dist.matrix.themes.keywords": "Deux thèmes se ressemblent quand leurs personnes emploient les mêmes mots-clés dans les mêmes proportions : le profil d'un thème est celui de ses personnes, pondéré par leur part. Un nom ouvre le thème dans l'atlas.",
+  "atlas.dist.matrix.themes.jaccard": "Deux thèmes se ressemblent quand leurs personnes emploient les mêmes mots-clés, quelle qu'en soit la quantité : la part des mots-clés employés par les personnes de l'un ou l'autre que les deux emploient. Un nom ouvre le thème dans l'atlas.",
   "atlas.card.hidden": "{count, plural, one {et # de plus dans le projet, non montré ici} other {et # de plus dans le projet, non montrés ici}}"
 }

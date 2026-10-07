@@ -75,14 +75,22 @@ are, in the reader's browser, with no server:
   show. A cell opens **Compare** in the atlas, a name its ranked list.
 
 The similarity is the app's: *Meaning in the map's space* or *Shared themes*,
-each with its one-line explanation (the other measures need the whole
-vocabulary, which the site does not carry: the app's exports compute them).
+each with its one-line explanation. *Shared vocabulary* and *Keywords in common*
+need every person's whole vocabulary, which the site does not carry: the page
+says so, and the app's own Distances pane offers all four.
+
+In **Themes × themes**, two themes are compared by their people, each weighted by
+their share of the theme: by *Meaning in the map's space*, the themes' vectors
+(their people's, weighted); by *Shared themes*, whether the same people work in
+both; in the app, by *Shared vocabulary*, their people's keyword profiles, and by
+*Keywords in common*, the keywords their people use. A matrix of theme shares
+does not depend on the similarity: the choice is hidden there.
 Each list or matrix is saved with **Download CSV**, with the names the site
 shows: a site of pseudonyms gives pseudonyms. The app shows the same page as
 the Map screen's **Distances** pane.
 
 ```{image} images/share-site-distances.png
-:alt: The site's Distances page: a matrix of the labs ordered by their main theme, a band in each one's theme colour along each side, the similarity from dark to bright.
+:alt: The site's Distances page: the themes × themes matrix, the themes in the tree's order with a band in their top-level theme's colour along each side, the similarity from dark to bright, blocks of alike themes along the diagonal.
 ```
 
 Every build is kept in its own dated folder (in the project's `outputs/`);

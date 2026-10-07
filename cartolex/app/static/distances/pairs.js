@@ -5,11 +5,13 @@
  * together, talk differently » (co-authors the least alike: ties across fields), among the
  * people or the organisations of a level, all or those of one theme. Every pair of the first
  * list is measured, so its scope is capped (`PAIRS_CAP`, said when passed); the second reads
- * the links, so it holds for a whole field. Each pair opens Compare.
+ * the links, so it holds for a whole field. Each pair opens Compare. A measure the browser
+ * cannot compute is asked of the host's server (`remote.js`), with the same caps.
  */
 import { fill, h } from '../atlas/dom.js';
 import { pairsApart, pairsTogether, sharedThemes } from './engine.js';
 import { PAIRS_CAP, PAIRS_LIMIT, RANK_PAGE, scopeOf } from './scope.js';
+import { remotePairs } from './remote.js';
 import {
   amongOf, amongOptions, compareLink, csvButton, distSelect, distTable, pager, runner, scoreCell, statusLine, themeChips,
   themeSelect, togetherCell,
@@ -98,8 +100,10 @@ export function createPairsView(ctx) {
       await ctx.need(parts);
       const targets = scopeOf(index, among.kind, { level: among.level, theme: state.th || null });
       if (mode === 'apart' && targets.length > PAIRS_CAP) return { capped: true, total: targets.length };
-      const pairs = mode === 'apart' ? await pairsApart(ctx.data, measure, among.kind, targets, PAIRS_LIMIT, signal)
-        : await pairsTogether(ctx.data, measure, among.kind, targets, PAIRS_LIMIT, signal);
+      let pairs;
+      if (!ctx.local(measure)) pairs = await remotePairs(ctx, measure, among.kind, targets, PAIRS_LIMIT, mode);
+      else if (mode === 'apart') pairs = await pairsApart(ctx.data, measure, among.kind, targets, PAIRS_LIMIT, signal);
+      else pairs = await pairsTogether(ctx.data, measure, among.kind, targets, PAIRS_LIMIT, signal);
       return { pairs, total: targets.length };
     }).then((r) => {
       if (!r) return;

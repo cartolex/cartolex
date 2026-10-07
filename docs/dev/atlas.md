@@ -222,23 +222,39 @@ const view = window.CartolexAtlas.mountDistances(root, { source, host });   // t
 view.set({ of: 'person:p0001' }); view.state(); view.destroy();
 ```
 
-**The measures** are computed in the browser, from 0 to 1 as the app's
-(`cartolex/app/similarity.py`), with the wording of the « Similarity »
-parameter: `space`, the cosine of the vectors in the space of the themes (from
-`vectors`), and `themes`, Σ min of the top-level theme shares (from the
-bundle). The others (`keywords`, `jaccard`) need every person's whole
-vocabulary, which neither host sends to the browser; when the project's measure
-is one of them, the page says so and offers these two. An organisation is the
-mean of its members, as in the app.
+**The measures** go from 0 to 1, as the app's (`cartolex/app/similarity.py`), with
+the wording of the « Similarity » parameter. Two are computed in the browser, from
+what both hosts give: `space`, the cosine of the vectors in the space of the themes
+(from `vectors`), and `themes`, Σ min of the top-level theme shares (from the
+bundle). The other two, `keywords` (the cosine of the keyword profiles) and
+`jaccard` (the keywords in common), need every person's whole vocabulary: a host
+with a server measures them (the source's `similarity` and `similarPairs`, below),
+so the app offers all four; the site, which carries no vocabulary, offers the first
+two and says why. An organisation is the mean of its members, as in the app. A
+matrix of theme shares (organisations × themes, people × themes) measures nothing:
+the choice is hidden there.
 
-**The source** adds three optional methods (without `vectors`, only `themes` is
-offered; without `links`, nobody is said to write together):
+**Themes × themes** compares the themes of one level by their people (the people on
+the map, each weighted by their share of the theme at its level):
+
+| measure | two themes are alike when |
+| --- | --- |
+| `space` | their vectors are: a theme's vector is its people's, weighted by their shares (the cosine) |
+| `themes` | the same people work in both: the cosine of the two themes' shares over the people |
+| `keywords` | their people use the same keywords in the same proportions: a theme's keyword profile is its people's, weighted by their shares (the cosine) |
+| `jaccard` | their people use the same keywords, however much (the Jaccard index of the keywords either theme's people use) |
+
+**The source** adds optional methods (without `vectors`, `space` is not offered;
+without `links`, nobody is said to write together; without `similarity` and
+`similarPairs`, `keywords` and `jaccard` are not offered):
 
 | method | answers |
 | --- | --- |
 | `vectors(kind)` | every person's (`person`) or organisation's (`organisation`) vector over the bundle's order (`people`, `organisations`): `{dim, values}`, `values` an `Int8Array` of `n × dim` (a row of zeros: no place in the space). The app: `GET /api/atlas/vectors`; the site: `data/vectors/<n>.js` and `data/orgs.js` |
 | `links(kind)` | who writes with whom over the bundle's order, CSR: `{ptr, nbr, cnt}` (texts together, the strongest first; organisations paired within a level). The app: `GET /api/atlas/links`; the site: `data/links.js` |
 | `measure()` | the project's measure (`params.json`'s `similarity`), the one shown first |
+| `similarity(body)` | a server's measure of `{measure, a: {kind, ids}, b: {kind, ids}}` (people, organisations or themes by id; `b.ids` null: every person or organisation of the bundle): `{rows, cols, values}`, `values` a `Float32Array` (NaN: no place). The app: `POST /api/atlas/similarity` (at most 2,000,000 cells) |
+| `similarPairs(body)` | a server's pairs `{measure, kind, ids, mode, limit}` (`apart`: the most alike that never wrote together, at most 5,000 ids; `together`: the co-authors the least alike): `{items: [{a, b, similarity, texts}]}`. The app: `POST /api/atlas/similar-pairs` |
 
 **The host** is the atlas's (`t`, `locale`, `address`, `prefs` for the colour
 scheme, `look`, `label`, `links` to the pages of people and organisations,
@@ -259,7 +275,10 @@ the same » measures every pair of its scope, at most `PAIRS_CAP` (5,000) items,
 on contiguous rows, pausing every 40 ms; « work together » reads the links, so it
 holds for a whole field; a matrix of people or organisations has at most
 `MATRIX_CAP` (300) rows, the largest organisations or the people with the largest
-shares, and says so. Measured in Chromium on a synthetic site of 170,000 people
+shares, and says so. The app's server measures `keywords` and `jaccard` with the same caps; on 170,000
+synthetic keyword profiles (10,000 keywords, 60 each) one person against all takes
+0.01 s, every pair of 5,000 people 0.5–0.8 s, a million co-author pairs 2.7 s.
+Measured in Chromium on a synthetic site of 170,000 people
 (184 dimensions, 18,888 organisations, 736,000 pairs of co-authors): the page and
 its first ranked list in 1.4 s (the vectors' 42 MB read), each further ranked
 list in 0.3–0.4 s, « work together » over the whole field in 2.7 s, every pair of
