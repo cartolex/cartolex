@@ -26,7 +26,7 @@ export const PANELS = {
     steps: ['keywords'], upTo: 'keywords.build', href: '/keywords?tune=1' },
   themes: { stages: ['themes.space', 'themes.group'], groups: ['themes.space', 'themes.group'],
     from: 'themes.space', steps: ['space', 'grouping'], upTo: 'themes.group', href: '/themes?tune=1' },
-  map: { stages: ['map.layout', 'map.trajectories'], groups: ['map.layout', 'map.trajectories', 'layout'],
+  map: { stages: ['map.layout', 'map.trajectories'], groups: ['map.layout', 'map.trajectories', 'layout', 'distances'],
     from: 'map.layout', steps: ['layout'], upTo: 'map.trajectories', href: '/map?tune=1' },
 };
 

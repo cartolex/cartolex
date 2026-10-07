@@ -287,10 +287,11 @@ def place_texts(
     people: list[dict[str, Any]],
     *,
     limit: int = MAX_TEXTS,
+    ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
-    """The texts placed on the map (at most *limit*: a sample of a larger corpus): at the
-    mean of the keywords found in its title and abstract (``by: keywords``), else at the
-    mean of its authors on the map (``by: authors``).
+    """The texts placed on the map (at most *limit*: a sample of a larger corpus), or only
+    those of *ids* (the texts of a focus): at the mean of the keywords found in its title and
+    abstract (``by: keywords``), else at the mean of its authors on the map (``by: authors``).
 
     Columnar, for large corpora: ``id``, ``title``, ``year``, ``x``, ``y``, ``by`` (0 keywords,
     1 authors), ``terms`` (indexes into *keywords* of the terms found) and ``people`` (the
@@ -313,6 +314,9 @@ def place_texts(
     if not layout.table("texts").exists():
         return out
     texts = read_source_table(layout.table("texts"), "texts", ["text_id", "title", "year"])
+    if ids is not None:
+        chosen = pa.array(sorted(set(ids)), pa.string())
+        texts = texts.filter(pc.is_in(texts["text_id"], value_set=chosen))
     out["total"] = texts.num_rows
     if texts.num_rows > limit:
         rows = np.sort(np.random.default_rng(0).choice(texts.num_rows, limit, replace=False))

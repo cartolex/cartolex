@@ -46,6 +46,8 @@ export function apiSource(ctx, { first, base }) {
     keywordsOf: (kind, ids) => ctx.api.get('/api/atlas/regions', { query: { kind, ids: ids.join(',') } })
       .then((r) => (r.ok ? r.data.keywords || {} : { error: r.error })),
     texts: () => ctx.api.get('/api/atlas/texts', { query: withBase() }).then(unwrap),
+    textsOf: ({ kind, id, net = 0, limit }) => ctx.api.get('/api/atlas/texts',
+      { query: withBase({ focus: `${kind}:${id}`, net, ...(limit ? { limit } : {}) }) }).then(unwrap),
     windows: ({ person } = {}) => ctx.api.get('/api/atlas/windows', { query: withBase(person ? { person } : {}) }).then(unwrap),
     land: () => ctx.keep(fetch(LAND).then((r) => (r.ok ? r.json() : null)).catch(() => null))
       .then((doc) => (doc && Array.isArray(doc.rings) ? doc.rings : { error: { code: 'land' } })),

@@ -28,6 +28,7 @@ __all__ = [
     "AI_ROUTES",
     "COLLECT_PARAMS",
     "LANGUAGES",
+    "SIMILARITIES",
     "STAGE_IDS",
     "AIIdentity",
     "AppStamp",
@@ -269,12 +270,21 @@ AI_ROUTES: dict[str, tuple[str, ...]] = {
 }
 
 
+#: How two people (or organisations) are compared: the cosine of their vectors in the space
+#: of the themes (the default), the cosine of their keyword profiles, the share of their
+#: keywords in common (Jaccard), or the themes they share (Σ min of their theme shares).
+SIMILARITIES = ("space", "keywords", "jaccard", "themes")
+
+
 class ParamsFile(_Model):
     """``decisions/params.json``: the parameters people set, and nothing else.
 
     ``collect`` (optional) holds the collection's parameters people set, by step
     (:data:`COLLECT_PARAMS`); ``ai`` (optional) the route chosen for each AI step
-    (:data:`AI_ROUTES`). Both are left out of the file when empty.
+    (:data:`AI_ROUTES`). Both are left out of the file when empty. ``similarity``
+    (optional, left out at its default ``space``) is how people and organisations are
+    compared (:data:`SIMILARITIES`): Compare's headline, the distances' exports, the
+    nearest.
     """
 
     format: Literal["cartolex-params/1"] = "cartolex-params/1"
@@ -283,6 +293,7 @@ class ParamsFile(_Model):
     stages: dict[str, dict[str, Any]] = Field(default_factory=dict)
     collect: dict[str, dict[str, int]] = Field(default_factory=dict)
     ai: dict[str, str] = Field(default_factory=dict)
+    similarity: Literal["space", "keywords", "jaccard", "themes"] = "space"
 
     @field_validator("stages")
     @classmethod
@@ -344,6 +355,8 @@ class ParamsFile(_Model):
             for key in ("collect", "ai"):
                 if not data.get(key):
                     data.pop(key, None)
+            if data.get("similarity") == "space":
+                data.pop("similarity", None)
         return data
 
 

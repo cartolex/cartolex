@@ -25,6 +25,7 @@ const PAGE_OF_PANEL = { texts: 'people', keywords: 'keywords', themes: 'themes',
 function valueWords(row, value) {
   if (row.group === 'layout' && row.name === 'method' && value) return t(`settings.layout.method.${value}`);
   if (row.group === 'build' && row.name === 'pinned_year' && value === null) return t('method.global.this_year');
+  if (row.group === 'distances' && value) return t(`atlas.similarity.${value}`);
   // a year and a seed are identifiers: no thousands separator
   if ((row.name === 'pinned_year' || row.name.endsWith('seed')) && typeof value === 'number') return String(value);
   return shownValue({ name: row.name }, value);
@@ -41,6 +42,7 @@ function originWords(row) {
 function groupTitle(group, rows) {
   if (group === 'build') return t('recipe.group.build');
   if (group === 'layout') return t('recipe.group.layout_version', { version: rows[0].version });
+  if (group === 'distances') return t('recipe.group.distances');
   return html`${has(`stage.${group}`) ? t(`stage.${group}`) : group} <code class="cx-param__code">${group}</code>`;
 }
 

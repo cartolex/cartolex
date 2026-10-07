@@ -291,7 +291,8 @@ export function mapScene(index, state, extra) {
       const first = texts.terms[i].length ? index.keywords[texts.terms[i][0]] : null;
       L.color[i] = first && first.node ? colourOf(first.node) : NEUTRAL;
       L.rank[i] = keep ? ((i * 0.6180339887) % 1) : HIDDEN; // a zoom of 2 shows four times as many
-      mark(L, i, lit.texts.get(i));
+      // the texts of a focus are its own: every one is lit
+      mark(L, i, lit.texts.get(i) || (texts.focus ? 1 : 0));
       L.ref[i] = i;
       if (keep) {
         shown += 1;
@@ -303,6 +304,7 @@ export function mapScene(index, state, extra) {
     L.shown = shown;
     counts.texts = { shown, total: n };
     if (texts.sampled) notes.push({ key: 'atlas.note.texts_sample', count: n, total: texts.total });
+    if (texts.among) notes.push({ key: 'atlas.note.texts_among', count: n, total: texts.among });
     if (regionsAs && visible.length <= MAX_REGIONS) {
       for (const i of visible) {
         const polygon = keywordRegion(index, texts.terms[i]);

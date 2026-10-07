@@ -118,6 +118,12 @@ def recipe_view(runtime: Any, ctx: Any) -> dict[str, Any]:
                 }
             )
     rows += _layout_rows(ctx, seed, view.get("sizes") or {})
+    similarity = (glob.get("similarity") or {}).get("value") or "space"
+    rows.append({"group": "distances", "stage": None, "panel": "map", "rule": None,
+                 "rule_description": None, "tier": "essential", "name": "similarity",
+                 "value": similarity, "default_value": "space",
+                 "from": "default" if similarity == "space" else "params.json",
+                 "differs": similarity != "space"})  # fmt: skip
     return {
         "project": ctx.project.config.name,
         "valid": view.get("valid", True),
@@ -182,7 +188,7 @@ class _Words:
         return self(f"param.label.{row['group']}.{row['name']}", row["name"])
 
     def group(self, group: str, names: Mapping[str, str]) -> str:
-        if group in ("build", "layout"):
+        if group in ("build", "layout", "distances"):
             return self(f"recipe.group.{group}", group)
         return self(f"stage.{group}", names.get(group, group))
 
@@ -223,7 +229,7 @@ def recipe_markdown(view: Mapping[str, Any], words: Mapping[str, str], made: str
                 out.append("")
             last = row["group"]
             title = w.group(last, view["stages"])
-            code = f" (`{last}`)" if last not in ("build", "layout") else ""
+            code = f" (`{last}`)" if last not in ("build", "layout", "distances") else ""
             out += [f"## {title}{code}", "", "| " + " | ".join(head) + " |",
                     "|" + "---|" * len(head)]  # fmt: skip
         cells = [w.label(row) + (" *" if row["differs"] else ""), f"`{row['name']}`",

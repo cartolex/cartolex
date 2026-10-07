@@ -423,8 +423,12 @@ with a data source and the host's capabilities). `pages/map/page.js` reads
 `GET /api/atlas`, mounts it with the app's source and host (`source.js`: the
 API, the interface's messages, the page's address, the person's preferences,
 the app's Dark / Bright, the links to People, Keywords and Themes) and keeps
-around it what only the app has: the « Tune » panel and its layout preview drawn
-on the atlas's map (`preview.js`, `atlas.setScene`), the map versions and base
+around it what only the app has: the « Tune » panel, opened beside the atlas
+(`TuneSide` of `pages/tune/panel.js`: « Tune the map » in the page's head, the panel
+in the card's column, which waits on its rail meanwhile through `atlas.hold`, its
+width dragged or moved with the arrows and kept per person as `map.tune_width`) and
+its layout preview drawn on the atlas's map (`preview.js`, `atlas.setScene`, the
+preview's bar at the top of the panel), the map versions and base
 maps (`versions.js`), the distances' exports (`pages/share/distances.js`).
 Inside the atlas: the treemap of the themes (`treemap.js`: a click focuses, a
 double click or Shift+Enter opens down to the keywords, ↑ / Backspace / Escape
@@ -432,11 +436,11 @@ go back, one tab stop with the arrows), the map (`mapview.js`, `scene.js`: the
 focus lit in its own colours and the rest faded to a trace, organisation tiles
 sized by their people, the network's arcs from `rings.js`, names per kind), the
 card of links (`card.js`, `parts.js`, Compare in `compare.js`), the layers panel
-(`layers.js`), « Filters » (`filters.js`), « Find » (`find.js`), the panes
+(`layers.js`; the texts drawn, every one or those of the focus, `texts.js`), « Filters » (`filters.js`), « Find » (`find.js`), the panes
 (`panes.js`: dividers by pointer or arrows, rails, card right or below, full
 screen for the atlas, the map alone, the treemap alone) and « Save view »
 (`save.js`: PNG or SVG, with or without the legend). Its state is in the
-address (`state.js`: `sel`, `with`, `open`, `show`, `names`, `org`, `net`, `f`,
+address (`state.js`: `sel`, `with`, `open`, `show`, `names`, `org`, `net`, `tx`, `f`,
 `from`, `to`, `kc`, `kcol`, `view`, `base`, `as`); Back retraces the focus. The
 layout and the colour scheme are the person's preferences (`atlas.*`,
 `colour_scheme`), and the scheme sets the hue tokens for the whole app
@@ -464,7 +468,8 @@ its seed, saved as a new version, pinned; then `map.layout` and
 `map.trajectories`) and `texts` on the People screen's Texts tab
 (`corpus.assemble`, and the build's seed and pinned year): the texts are
 collected and listed there, and the Build page has no step of its own for
-them. A panel is collapsed by default (`?tune=1` opens it); its header says
+them. A panel is collapsed by default (`?tune=1` opens it; on the map it opens
+beside the atlas, never above it); its header says
 « defaults » or « N changed », from the project state's `changed_params`, so
 a closed panel reads nothing. Opened, it reads `GET /api/params` and its
 step's diagnostics (`GET /api/method/<step>`): the essential parameters,

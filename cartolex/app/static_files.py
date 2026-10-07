@@ -79,6 +79,7 @@ ATLAS_MODULES = (
     "atlas/data.js",
     "atlas/state.js",
     "atlas/rings.js",
+    "atlas/texts.js",
     "atlas/scene.js",
     "atlas/save.js",
     "atlas/panes.js",

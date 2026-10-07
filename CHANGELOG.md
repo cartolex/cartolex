@@ -77,6 +77,28 @@ nothing in the engine names a particular deployment, source or procedure.
   view on screen is saved as a PNG or SVG image, with or without its legend. The
   keywords list takes `term=` (a keyword with the candidates merged into it).
 
+- **The map is tuned beside the atlas.** « Tune the map » opens its panel beside
+  the atlas, in the card's column (the card waits on its rail, `atlas.hold`),
+  never above it: the map and a layout's preview stay in view; its width is
+  dragged and kept per person (`map.tune_width`).
+- **A choice of similarity.** `params.json`'s `similarity` (`PUT
+  /api/params/similarity`; Tune the map › Distances, each choice explained)
+  says how two people or organisations are compared: meaning in the map's
+  space (the cosine in the space of the themes, the default), shared
+  vocabulary (cosine of keyword profiles), keywords in common (Jaccard) or
+  shared themes (Σ min of theme shares) (`cartolex.app.similarity`, by blocks,
+  no items × items matrix). It drives Compare's headline (`measure`,
+  `similarity`), `GET /api/atlas/neighbours` (`measure=` too) and the
+  distances' exports, which write `<file>.meta.json` (`cartolex-distances/1`)
+  beside each file; the Distances dialog and the Recipe name it.
+- **The texts around a person.** The map's texts layer follows the focus
+  (« Texts: all · of the focus · with the network », `tx`): a person's or an
+  organisation's members' own texts, read from every text of the tables
+  (`GET /api/atlas/texts?focus=&net=&limit=`, `cartolex.app.focus_texts`, a
+  sample beyond 5,000), with the network those of the people its rings reach
+  too; a theme's or a keyword's among the drawn texts; nothing in focus, every
+  text as before. The atlas's source gains `textsOf`.
+
 - **The shared site is the app's atlas.** The offline site mounts the app's own
   atlas (one code for both, `docs/dev/atlas.md`) over a data source that reads
   the site's files (`cartolex-site/3`): the map bundle as columns in

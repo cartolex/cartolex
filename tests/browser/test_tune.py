@@ -283,13 +283,21 @@ def test_the_map_previews_a_layout_change_in_place(demo_s, app_for, open_app, tm
     field = page.locator(".cx-tune [data-param='map.n_neighbors']").get_by_role("spinbutton")
     # a change draws a preview on the map; a next change while it is computed supersedes it
     field.fill("10")
-    preview_bar(page).get_by_text("Computing the preview").wait_for()
-    page.wait_for_timeout(1500)  # its job started
+    preview_bar(page).wait_for()
+    # its job asked for (the bar's « Computing » may be too brief to see on a fast machine)
+    page.wait_for_function(
+        "() => fetch('/api/jobs').then((r) => r.json())"
+        ".then((d) => d.jobs.some((j) => j.kind === 'preview'))",
+        polling=200,
+    )
     field.fill("11")
     wait_preview(page, {"n_neighbors": 11})
     jobs = page.evaluate("() => fetch('/api/jobs').then((r) => r.json())")["jobs"]
-    states = sorted(j["state"] for j in jobs if j["kind"] == "preview")
-    assert states in (["cancelled", "succeeded"], ["succeeded", "succeeded"]), states
+    states = [j["state"] for j in jobs if j["kind"] == "preview"]
+    # the second drawn: the first finished first or was superseded (cancelled; a job cancelled
+    # before it started is not listed), never failed
+    assert 1 <= len(states) <= 2 and set(states) <= {"cancelled", "succeeded"}, states
+    assert "succeeded" in states
     assert "is-preview" in frame.get_attribute("class")
     bar = preview_bar(page)
     assert re.search(
@@ -313,6 +321,82 @@ def test_the_map_previews_a_layout_change_in_place(demo_s, app_for, open_app, tm
     versions = page.evaluate("() => fetch('/api/map/versions').then((r) => r.json())")
     pinned = next(v for v in versions["versions"] if v["id"] == versions["pinned"])
     assert pinned["layout"]["params"] == {"n_neighbors": 11}
+
+
+#: Where the atlas, its map, the side panel and the card are in the window.
+BOXES = """() => { const r = (s) => { const e = document.querySelector(s);
+  if (!e || e.hidden || !e.offsetParent) return null; const b = e.getBoundingClientRect();
+  return {left: b.left, top: b.top, right: b.right, bottom: b.bottom}; };
+  return {atlas: r('.cx-atlas-host'), map: r('.cx-atlas-map'), side: r('.cx-tune--side'),
+    card: r('.cx-atlas-pane--card')}; }"""
+
+
+def test_the_map_is_tuned_beside_the_atlas(demo_s, app_for, open_app, axe_source):
+    """« Tune the map » opens beside the atlas, never above it: the atlas keeps its place and
+    height, the card waits on its rail, and closing gives the card back."""
+    ui = open_app(app_for(demo_s))
+    page = ui.page
+    page.set_viewport_size({"width": 1280, "height": 760})
+    ui.navigate("/map")
+    settled(ui)
+    before = page.evaluate(BOXES)
+    assert before["side"] is None and before["card"] is not None
+    toggle = page.get_by_role("button", name=re.compile("Tune the map"))
+    toggle.click()
+    page.locator(".cx-tune--side [data-param='map.n_neighbors']").wait_for()
+    settled(ui)
+    page.wait_for_timeout(300)  # the map's resize observed
+    after = page.evaluate(BOXES)
+    assert toggle.get_attribute("aria-expanded") == "true"
+    assert after["side"]["left"] >= after["atlas"]["right"]
+    assert after["side"]["right"] <= 1280
+    assert abs(after["atlas"]["top"] - before["atlas"]["top"]) < 1
+    assert abs(after["atlas"]["bottom"] - before["atlas"]["bottom"]) < 1
+    assert after["card"] is None  # on its rail: the map keeps its room
+    assert after["map"]["right"] - after["map"]["left"] >= 400
+    assert blocking(run_axe(ui, axe_source, ".cx-tune--side")) == []
+    # its width is the person's: dragged with the arrows, kept
+    split = page.get_by_role("separator", name="Resize the tuning panel")
+    split.focus()
+    page.keyboard.press("ArrowLeft")
+    page.wait_for_function(
+        "() => document.querySelector('.cx-tune--side').getBoundingClientRect().width > 450"
+    )
+    page.get_by_role("button", name="Close the panel").click()
+    page.locator(".cx-tune--side").wait_for(state="detached")
+    page.wait_for_function("() => document.activeElement.hasAttribute('data-tune-toggle')")
+    page.wait_for_function("() => !document.querySelector('.cx-atlas-pane--card').hidden")
+    # the person's layout was never changed by the panel
+    prefs = page.evaluate("() => fetch('/api/me/preferences').then((r) => r.json())")
+    other = prefs["preferences"]["other"]
+    assert other.get("atlas.card_on", True) is not False
+    assert other["map.tune_width"] > 440
+
+
+def test_the_similarity_is_chosen_in_the_map_panel(demo_s, app_for, open_app):
+    """Tune the map › Distances: a measure chosen (saved at once) heads Compare and is named
+    in the Distances dialog, whose « Change it… » leads back to it."""
+    ui = open_app(app_for(demo_s))
+    page = ui.page
+    ui.navigate("/map?tune=1")
+    settled(ui)
+    section = page.locator("#cx-map-similarity")
+    section.get_by_role("radio", name=re.compile("Shared vocabulary")).check()
+    page.get_by_text("Similarity: Shared vocabulary").first.wait_for()
+    params = page.evaluate("() => fetch('/api/params').then((r) => r.json())")
+    assert params["global"]["similarity"]["value"] == "keywords"
+    page.get_by_role("button", name=re.compile("Tune the map")).wait_for()
+    assert "1 changed" in page.get_by_role("button", name=re.compile("Tune the map")).inner_text()
+    page.get_by_role("button", name="Distances").click()
+    dialog = page.get_by_role("dialog")
+    dialog.get_by_text("Similarity: Shared vocabulary.").wait_for()
+    dialog.get_by_role("button", name="Change it…").click()
+    page.wait_for_function("() => document.activeElement.id === 'cx-map-similarity-title'")
+    # Compare puts it first
+    ui.navigate("/map?sel=person:p0001&with=person:p0002")
+    head = page.locator(".cx-atlas-compare__head")
+    head.wait_for()
+    assert "Similarity · Shared vocabulary" in head.inner_text()
 
 
 @pytest.mark.slow

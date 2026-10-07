@@ -20,6 +20,7 @@ cartolex/app/static/atlas/
   parts.js     the card's pieces: links, bars, sections, lists, the rings as lists
   compare.js   Compare: two people or two organisations side by side
   rings.js     the network around the focus (co-authors, partner organisations)
+  texts.js     the texts drawn: every one, or those of the focus (and its network)
   layers.js    the small layers panel over the map
   filters.js   the folded « Filters » control (people's columns, period, categories)
   find.js      « Find »: a combobox over everything the atlas shows
@@ -51,6 +52,7 @@ atlas.select({ kind: 'person', id: 'p0001' }, { centre: true });
 atlas.setScene(scene);        // a host's own scene in place of the map's (null: the map's)
 atlas.slot('bar');            // an element in the bar for a host's own buttons
 atlas.slot('map');            // an element over the map (a host's banner)
+atlas.hold({cardOn: false});  // a part of the layout held for a while, never kept (null: let go)
 atlas.refresh();              // read the bundle again (the map was rebuilt)
 atlas.state(); atlas.set({net: 2});   // the state (see below), and a change of it
 atlas.index(); atlas.colours();       // the indexed bundle, the themes' colours now
@@ -84,6 +86,7 @@ of the atlas keeps working.
 | `compare(a, b)` | two people or organisations (`{kind, id}`): `{space, keywords: {cosine, jaccard, common, shared}, themes: {overlap, shared}, texts: {shared, items}}`, any part may be missing (`GET /api/atlas/compare`) |
 | `keywordsOf(kind, ids)` | the keywords of people or organisations: `{id: [term…]}`, most used first (`GET /api/atlas/regions`) |
 | `texts()` | the texts placed on the map, columnar (`GET /api/atlas/texts`) |
+| `textsOf({kind, id, net, limit})` | the texts of a person, a projected person or an organisation (`net` rings of its network too), from every text of the project, in the shape of `texts()` with `total` and `sampled` (`GET /api/atlas/texts?focus=`); without it, « of the focus » draws a theme's and a keyword's texts among those of `texts()` only |
 | `windows({person})` | the time windows, columnar, every one or one person's (`GET /api/atlas/windows`) |
 | `land()` | the outline of the land for the world view: rings of `[lon0, lat0, lon1, lat1…]` |
 
@@ -145,7 +148,9 @@ Without `links`, the card's « Open in People ↗ », « Open in Keywords ↗ »
 « Edit in Themes ↗ » are not shown: editing happens only in the app's Themes
 screen. A host adds its own buttons to `atlas.slot('bar')` (the app: map
 versions, distances, the Tune panel's preview) and its own banner to
-`atlas.slot('map')`.
+`atlas.slot('map')`. A host that shows a panel of its own beside the atlas (the
+app's « Tune the map ») holds the card on its rail meanwhile (`atlas.hold`); the
+person's layout is not changed, and their own choice of that part ends the hold.
 
 ## State and address
 
@@ -160,6 +165,7 @@ The state is in the address, so a view can be shared and survives a reload:
 | `names` | the kinds whose names are written on the map |
 | `org` | the organisations' level (the project's own level names) |
 | `net` | the network's rings, 1 to 3 (0: none) |
+| `tx` | the texts drawn: every one (left out), `focus` (those of the focus: a person's or an organisation's own, read with `textsOf`; a theme's, the drawn texts with most of their keywords under it; a keyword's, those that use it) or `network` (with the people the network's rings reach); with nothing in focus, every one |
 | `f`, `from`, `to`, `kc`, `kcol` | the people's filters, the period, the keywords' categories and colour |
 | `view`, `base`, `as` | the world view, a base map, points or regions |
 

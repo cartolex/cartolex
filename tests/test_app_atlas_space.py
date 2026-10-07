@@ -188,6 +188,100 @@ def test_distances_are_exported_by_a_job(client, monkeypatch):
     assert text.startswith("id,name,v")
 
 
+def test_the_chosen_similarity_drives_the_nearest_compare_and_exports(client):
+    atlas = client.get("/api/atlas").json()
+    me = atlas["people"][0]["person_id"]
+    near = client.get("/api/atlas/neighbours", params={"kind": "person", "id": me, "k": 3})
+    assert near.json()["measure"] == "space"  # the default
+    params = client.get("/api/params")
+    assert params.json()["global"]["similarity"]["value"] == "space"
+    version = etag(params)
+    for measure, part in (("keywords", "cosine"), ("jaccard", "jaccard"), ("themes", "overlap")):
+        chosen = client.put("/api/params/similarity", json={"measure": measure},
+                            headers={"If-Match": version})  # fmt: skip
+        assert chosen.status_code == 200, chosen.text
+        version = etag(chosen)
+        assert chosen.json()["global"]["similarity"]["value"] == measure
+        # the nearest by that measure agree with the comparison of the two
+        near = client.get("/api/atlas/neighbours", params={"kind": "person", "id": me, "k": 3})
+        near = near.json()
+        assert near["measure"] == measure
+        sims = [i["similarity"] for i in near["items"]]
+        assert sims == sorted(sims, reverse=True)
+        best = near["items"][0]
+        both = client.get(
+            "/api/atlas/compare", params={"a": f"person:{me}", "b": f"person:{best['id']}"}
+        )
+        both = both.json()
+        area = "themes" if measure == "themes" else "keywords"
+        assert both["measure"] == measure and both["similarity"] == both[area][part]
+        assert best["similarity"] == pytest.approx(both[area][part], abs=2e-3)
+    # an organisation's nearest by the same measure
+    org = next(o for o in atlas["organisations"] if o["x"] is not None and o["level"] == "lab")
+    found = client.get("/api/atlas/neighbours", params={"kind": "organisation", "id": org["id"]})
+    assert found.json()["measure"] == "themes" and found.json()["items"]
+    # chosen, it is kept in params.json and needs no rebuild
+    root = Path(client.app.state.cartolex.settings.project)
+    assert '"similarity": "themes"' in (root / "decisions" / "params.json").read_text()
+    states = client.get("/api/project/state").json()
+    assert not [s for s in states["stages"] if s["state"] == "needs_update"]
+    # the exports follow it, and say so beside the file
+    started = client.post(
+        "/api/share/exports", json={"kind": "neighbours", "k": 2, "names": "names"}
+    )
+    assert started.json()["plan"]["measure"] == "themes"
+    job = client.wait_job(started.json()["job"]["id"])
+    name = job["result"]["name"]
+    meta = client.get(f"/api/share/exports/{name.rsplit('.', 1)[0]}.meta.json").json()
+    assert meta["measure"] == "themes" and meta["kind"] == "neighbours" and meta["file"] == name
+    rows = list(csv.DictReader(io.StringIO(client.get(f"/api/share/exports/{name}").text)))
+    mine = [r for r in rows if r["source"] == me]
+    pair = client.get(
+        "/api/atlas/compare", params={"a": f"person:{me}", "b": f"person:{mine[0]['target']}"}
+    )
+    assert float(mine[0]["similarity"]) == pytest.approx(pair.json()["themes"]["overlap"], abs=2e-3)
+    stale = client.put(
+        "/api/params/similarity", json={"measure": "space"}, headers={"If-Match": '"old"'}
+    )
+    assert stale.status_code == 412
+
+
+def test_the_texts_of_a_focus_are_its_own_from_every_text(client):
+    import pyarrow.parquet as pq
+
+    root = Path(client.app.state.cartolex.settings.project)
+    authors = pq.read_table(root / "sources" / "tables" / "authorships.parquet").to_pylist()
+    texts_of: dict[str, set[str]] = {}
+    for a in authors:
+        texts_of.setdefault(a["person_id"], set()).add(a["text_id"])
+    atlas = client.get("/api/atlas").json()
+    me = max((p["person_id"] for p in atlas["people"] if p["person_id"]),
+             key=lambda p: len(texts_of.get(p, ())))  # fmt: skip
+    got = client.get("/api/atlas/texts", params={"focus": f"person:{me}"}).json()
+    assert got["focus"] == f"person:{me}" and got["total"] == len(texts_of[me])
+    assert set(got["id"]) <= texts_of[me] and len(got["id"]) + got["unplaced"] == got["total"]
+    assert all(me in people for people in got["people"])
+    # with the network: their co-authors' texts too
+    wide = client.get("/api/atlas/texts", params={"focus": f"person:{me}", "net": 1}).json()
+    rings = client.get("/api/atlas/coauthors", params={"kind": "person", "id": me}).json()
+    every = set(texts_of[me]).union(*(texts_of.get(i["id"], set()) for i in rings["items"]))
+    assert wide["total"] == len(every) > got["total"]
+    # a sample, the same each time, when there are more than asked
+    some = client.get("/api/atlas/texts", params={"focus": f"person:{me}", "net": 1, "limit": 3})
+    again = client.get("/api/atlas/texts", params={"focus": f"person:{me}", "net": 1, "limit": 3})
+    assert some.json()["sampled"] and some.json()["id"] == again.json()["id"]
+    # an organisation's: its members' on the map
+    extras = atlas["people_extra"]
+    org = next(o for o in atlas["organisations"] if o["x"] is not None and o["level"] == "lab")
+    members = {p for p, e in extras.items() if org["id"] in (e.get("orgs") or [])}
+    theirs = client.get("/api/atlas/texts", params={"focus": f"organisation:{org['id']}"}).json()
+    assert members and theirs["total"] == len(
+        set().union(*(texts_of.get(p, set()) for p in members))
+    )
+    nobody = client.get("/api/atlas/texts", params={"focus": "person:nobody"})
+    assert nobody.status_code in (404, 422) and nobody.json()["error"]["code"] == "unknown_people"
+
+
 def test_a_keyword_is_found_with_the_candidates_merged_into_it(client):
     page = client.get("/api/keywords", params={"band": "kept", "limit": 50})
     rows = page.json()["items"]

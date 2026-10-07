@@ -525,12 +525,26 @@ def atlas(
     return JSONResponse(body, headers={"ETag": etag})
 
 
+#: A focus whose texts are asked for: ``kind:id``.
+FOCUS = r"^(person|projected|organisation):.{1,200}$"
+
+
 @routes.get("/api/atlas/texts", action="atlas.read")
 def atlas_texts(
-    request: Request, ctx: ProjectDep, base: Annotated[str | None, Query(max_length=64)] = None
+    request: Request,
+    ctx: ProjectDep,
+    base: Annotated[str | None, Query(max_length=64)] = None,
+    focus: Annotated[str | None, Query(pattern=FOCUS)] = None,
+    net: Annotated[int, Query(ge=0, le=3)] = 0,
+    limit: Annotated[int, Query(ge=1, le=20_000)] = 5_000,
 ) -> Response:
     """Every text placed on the map (columnar: ``id``, ``title``, ``year``, ``x``, ``y``, ``by``,
-    ``terms``, ``people``), cached like the bundle; ``base`` places them on a base's map."""
+    ``terms``, ``people``; a sample of a large corpus), cached like the bundle; ``base``
+    places them on a base's map. With ``focus`` (``person:<id>``, ``projected:<id>``,
+    ``organisation:<id>``), only the texts of the focus, from every text of the tables (and,
+    with ``net`` rings, of the people its network reaches; :mod:`cartolex.app.focus_texts`):
+    ``focus``, ``net``, ``total`` (the focus's texts), at most ``limit`` placed (``sampled``
+    beyond it)."""
     from ..atlas_layers import place_texts
     from ..corpus_view import stamp
 
@@ -539,6 +553,8 @@ def atlas_texts(
     if runs["map.layout"] is None:
         return JSONResponse({"format": TEXTS_FORMAT, "available": False,
                              "empty": empty("empty_no_map")})  # fmt: skip
+    if focus:
+        return _focus_texts(request, ctx, runs, base, focus, net, limit)
     etag = _etag(runs, ["texts", str(stamp(ctx.project)), _base_fp(ctx, base)])
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag})
@@ -558,6 +574,48 @@ def atlas_texts(
         lambda: _kept(ctx.layout.cache / "atlas", "texts", etag, make),
     )
     return Response(reply, media_type="application/json", headers={"ETag": etag})
+
+
+def _focus_texts(
+    request: Request,
+    ctx: Any,
+    runs: dict[str, str | None],
+    base: str | None,
+    focus: str,
+    net: int,
+    limit: int,
+) -> Response:
+    """The texts of a focus (see :func:`atlas_texts`)."""
+    from ..atlas_layers import place_texts
+    from ..corpus_view import stamp
+    from ..focus_texts import focus_people, focus_texts
+
+    runtime = runtime_of(request)
+    kind, _, id_ = focus.partition(":")
+    etag = _etag(runs, ["texts-focus", focus, str(net), str(limit), str(stamp(ctx.project)),
+                        _base_fp(ctx, base)])  # fmt: skip
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers={"ETag": etag})
+    if kind != "organisation" and id_ not in _people_named(runtime, ctx):
+        raise ApiError.of("unknown_people", ids=[id_])
+
+    def make() -> bytes:
+        bundle = _bundle(runtime, ctx, runs)
+        extras = _extras(runtime, ctx, runs, bundle)
+        people = focus_people(ctx.project, runtime.table_cache, kind, id_, net, extras)
+        if people is None:
+            raise ApiError.of("organisation_not_found", org=id_)
+        ids = focus_texts(ctx.project, runtime.table_cache, people)
+        placed = _with_base(ctx, bundle, base)
+        texts = place_texts(ctx, placed["keywords"], placed["people"], limit=limit, ids=ids)
+        body = {"format": TEXTS_FORMAT, "available": True, "focus": focus, "net": net,
+                "people_count": len(people), **texts}  # fmt: skip
+        return json.dumps(body, ensure_ascii=False, allow_nan=False,
+                          separators=(",", ":")).encode("utf-8")  # fmt: skip
+
+    # not kept: a focus is read once per visit (the atlas keeps it), and keeping each would
+    # push the bundle and the space out of the app's small cache
+    return Response(make(), media_type="application/json", headers={"ETag": etag})
 
 
 #: The replies of one kind kept in the project's cache (the latest ones).
@@ -688,6 +746,7 @@ def _terms(runtime: Any, ctx: Any) -> dict[str, list[tuple[str, float]]]:
 MAX_NEAREST = 100
 MAX_USERS = 500
 Kind = Literal["person", "organisation", "projected"]
+Measure = Literal["space", "keywords", "jaccard", "themes"]
 
 
 def space_of(runtime: Any, ctx: Any) -> Any:
@@ -720,17 +779,22 @@ def atlas_neighbours(
     kind: Kind,
     id: Annotated[str, Query(min_length=1, max_length=200)],
     k: Annotated[int, Query(ge=1, le=MAX_NEAREST)] = 10,
+    measure: Measure | None = None,
 ) -> dict[str, Any]:
     """The *k* nearest of a person (people), a projected person (people) or an organisation
-    (organisations of its level) by the cosine of their vectors in the space of the themes:
-    ``items`` of ``{id, name, similarity}``, the nearest first."""
+    (organisations of its level) by the project's measure (``similarity`` of
+    ``params.json``, :mod:`cartolex.app.similarity`), or *measure*: ``items`` of ``{id,
+    name, similarity}``, the nearest first, and the ``measure`` used (a projected person is
+    measured in the space)."""
+    from ..similarity import measure_of
     from ..space_index import nearest
 
     view = space_of(runtime_of(request), ctx)
-    items = nearest(view, ctx, kind, id, k)
-    if items is None:
+    found = nearest(view, ctx, kind, id, k, measure or measure_of(ctx.project))
+    if found is None:
         raise _found(kind, id)
-    return {"kind": kind, "id": id, "metric": "cosine", "k": k, "items": items}
+    items, used = found
+    return {"kind": kind, "id": id, "measure": used, "k": k, "items": items}
 
 
 def _item(value: str) -> tuple[str, str]:
@@ -750,9 +814,11 @@ def atlas_compare(
     b: Annotated[str, Query(min_length=3, max_length=220)],
 ) -> dict[str, Any]:
     """Two people or organisations (``person:<id>``, ``organisation:<id>``) side by side: the
-    cosine of their vectors in the space, the cosine and the Jaccard index of their keyword
-    use with the keywords they share, the overlap of their top-level themes (Σ min of the
-    shares) and the texts with an author on each side."""
+    project's ``measure`` and its value (``similarity``, the headline), the cosine of their
+    vectors in the space, the cosine and the Jaccard index of their keyword use with the
+    keywords they share, the overlap of their top-level themes (Σ min of the shares) and the
+    texts with an author on each side."""
+    from ..similarity import measure_of
     from ..space_index import compare, query_vector
 
     view = space_of(runtime_of(request), ctx)
@@ -760,9 +826,9 @@ def atlas_compare(
     for kind, id_ in (one, two):
         if query_vector(view, ctx, kind, id_) is None:
             raise _found(kind, id_)
-    out = compare(view, ctx, one, two)
+    out = compare(view, ctx, one, two, measure_of(ctx.project))
     out["texts"]["items"] = _titles(ctx, out["texts"]["items"])
-    return {"a": _named(view, *one), "b": _named(view, *two), "metric": "cosine", **out}
+    return {"a": _named(view, *one), "b": _named(view, *two), **out}
 
 
 def _named(view: Any, kind: str, id_: str) -> dict[str, str]:

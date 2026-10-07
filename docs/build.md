@@ -71,7 +71,9 @@ nothing of your data).
 
 Each step's settings are on the screen it shapes, in a **Tune** panel, folded
 until you open it: **Tune the texts** (People › Texts), **Tune the keywords**,
-**Tune the space and the grouping** (Themes), **Tune the map**. Its header says
+**Tune the space and the grouping** (Themes), **Tune the map** (a button above
+the map that opens the panel beside it, so the map and a layout's preview stay in
+view; drag its edge to widen it). Its header says
 « defaults » or « N changed »; each setting says its value and where it comes
 from (a default, a rule computed from the project's size, or your choice),
 and a value the stage cannot take is refused with the reason. After a change,

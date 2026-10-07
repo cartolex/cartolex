@@ -50,6 +50,7 @@ def params_view(runtime: Any, project: Any) -> dict[str, Any]:
     from cartolex.build.params import ParamsError, resolve_params
     from cartolex.build.records import read_record
     from cartolex.build.validity import _this_year, current_sizes
+    from cartolex.project.models import SIMILARITIES
 
     registry = runtime.registry
     file, fp = project.read_params()
@@ -129,6 +130,11 @@ def params_view(runtime: Any, project: Any) -> dict[str, Any]:
         "global": {
             "seed": {"value": params.seed, "set_in_file": "seed" in params.model_fields_set},
             "pinned_year": {"value": params.pinned_year},
+            "similarity": {
+                "value": params.similarity,
+                "default": "space",
+                "choices": list(SIMILARITIES),
+            },
         },
         "sizes": sizes.as_dict(),
         "stages": stages,
@@ -186,6 +192,33 @@ def put_params(
         if problems:
             raise ParamsError(problems)
         project.save_params(updated, expected=expected, action=_changes(before, body))
+    view = params_view(runtime, project)
+    response.headers["ETag"] = etag_of(view["version"])
+    return view
+
+
+class SimilarityBody(BaseModel):
+    """How people and organisations are compared (``params.json``'s ``similarity``)."""
+
+    measure: Literal["space", "keywords", "jaccard", "themes"]
+
+
+@routes.put("/api/params/similarity", action="params.write")
+def put_similarity(
+    request: Request, response: Response, body: SimilarityBody, ctx: ProjectDep
+) -> dict[str, Any]:
+    """Choose how people and organisations are compared (``If-Match`` of ``params.json``):
+    Compare's headline, the nearest and the distances' exports follow it; nothing needs a
+    rebuild. Answers the parameters, as ``GET /api/params``."""
+    runtime = runtime_of(request)
+    expected = expected_version(request)
+    project = ctx.project
+    with ctx.handle.mutex:
+        check_version(ctx.layout.params_json, expected)
+        before, _ = project.read_params()
+        if before.similarity != body.measure:
+            project.save_params(before.model_copy(update={"similarity": body.measure}),
+                                expected=expected, action=f"similarity={body.measure}")  # fmt: skip
     view = params_view(runtime, project)
     response.headers["ETag"] = etag_of(view["version"])
     return view
