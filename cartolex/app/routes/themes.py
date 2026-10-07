@@ -20,7 +20,7 @@ from cartolex.project.models import ThemesFile
 from ..deps import ProjectDep
 from ..errors import ApiError
 from ..etags import check_version, etag_of, expected_version, version_of
-from ..messages import empty
+from ..messages import empty, run_notes
 from ..routing import Routes, runtime_of
 
 routes = Routes(tags=["themes"])
@@ -349,13 +349,31 @@ def _tree_view(tree: ThemesFile, terms: list[str]) -> dict[str, Any]:
     }
 
 
+def _group_notes(ctx: Any, depth: int) -> list[dict[str, Any]]:
+    """What the last grouping says of a tree of *depth* levels: ``themes_depth_lowered`` when
+    it took fewer levels than the depth asked (the vocabulary too small for it) and the
+    tree has that many."""
+    from cartolex.build.records import read_record
+
+    record = read_record(ctx.layout, "themes.group")
+    if record is None:
+        return []
+    return [
+        n
+        for n in run_notes("themes.group", record.measures.counts)
+        if n["params"]["depth"] == depth
+    ]
+
+
 @routes.get("/api/themes", action="themes.read")
 def get_themes(request: Request, response: Response, ctx: ProjectDep) -> dict[str, Any]:
     """The theme tree: the saved one, else the grouping's proposal, else none.
 
     Beside the tree: how it stands against the current vocabulary, how many
     keywords wait in the « to check » queue, and whether a new proposal of the
-    same vocabulary waits to be agreed on (``proposal``).
+    same vocabulary waits to be agreed on (``proposal``); ``notes``, what the last
+    grouping says of a tree of its depth (``themes_depth_lowered``: fewer levels than
+    the depth asked, the vocabulary being too small for it).
     """
     from cartolex.project.themes_versions import read_themes
 
@@ -371,6 +389,7 @@ def get_themes(request: Request, response: Response, ctx: ProjectDep) -> dict[st
             **common,
             **_tree_view(tree, terms),
             "proposal": _proposal_state(ctx, tree, draft),
+            "notes": _group_notes(ctx, tree.depth),
         }
     if draft is not None:
         return {
@@ -378,6 +397,7 @@ def get_themes(request: Request, response: Response, ctx: ProjectDep) -> dict[st
             **common,
             **_tree_view(draft, terms),
             "proposal": {"run": draft.based_on.run, "pending": False, "same_vocabulary": True},
+            "notes": _group_notes(ctx, draft.depth),
         }
     return {
         "source": "none",

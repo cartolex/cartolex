@@ -27,6 +27,7 @@ __all__ = [
     "job_pause",
     "message",
     "reason_message",
+    "run_notes",
     "skip_message",
     "traceback_text",
 ]
@@ -252,6 +253,11 @@ MESSAGES: dict[str, MessageKind] = {
         "",
         "",
     ),
+    # what a stage's run says beside its results (``notes`` of a build's result)
+    "themes_depth_lowered": MessageKind(
+        "the vocabulary holds {keywords} keywords: the themes have {depth} level(s) instead "
+        "of the {asked} asked"
+    ),
     # an accepted copilot's triage that set the build's route
     "accepted_route_copilot": MessageKind(
         "the build will now ask your copilot for new keywords: the keyword clean-up's route "
@@ -400,6 +406,21 @@ def reason_message(kind: str, subject: str, detail: str) -> dict[str, Any]:
     out = out or message("reason_upstream", detail=detail)
     out["params"] = {"subject": subject, "detail": detail}
     return out
+
+
+def run_notes(stage: str, counts: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """What the run of *stage* with these measures says beside its results, as messages
+    with a ``level``: ``themes_depth_lowered`` when the grouping took fewer levels than the
+    depth asked."""
+    if stage == "themes.group" and counts.get("depth_asked"):
+        said = message(
+            "themes_depth_lowered",
+            keywords=int(counts.get("depth_keywords", 0)),
+            depth=int(counts.get("depth", 0)),
+            asked=int(counts["depth_asked"]),
+        )
+        return [{**said, "level": "info"}]
+    return []
 
 
 def with_message(entry: Mapping[str, Any], code: str, **params: Any) -> dict[str, Any]:

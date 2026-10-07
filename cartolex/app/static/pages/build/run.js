@@ -7,6 +7,7 @@ import { html } from '../../core/preact.js';
 import { formatDuration, formatPercent, t } from '../../core/i18n.js';
 import { Button, Card, ErrorCard, ProgressBar, StageTracker } from '../../components/index.js';
 import { aiRow, failureError, namesOf, resultSentence } from './words.js';
+import { Notes } from './preflight.js';
 
 const ACTIVE = new Set(['queued', 'running', 'cancelling']);
 
@@ -93,6 +94,7 @@ export function Result({ job, rows, onOverview, onAgain }) {
     ${refused.length ? html`<p class="cx-build-note">${t('build.result.not_run', {
       n: refused.length, stages: namesOf(refused) })}</p>` : null}
     ${failed ? html`<${ErrorCard} error=${failureError(job)} level=${3} />` : null}
+    <${Notes} notes=${job.result && job.result.notes} />
     <${StageTracker} stages=${rows} label=${t('build.run.stages')} compact />
     <div class="cx-build-actions">
       <${Button} variant="primary" onClick=${onOverview}>${t('build.to_overview')}<//>

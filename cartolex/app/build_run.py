@@ -26,7 +26,7 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from .messages import attempt_message, message
+from .messages import attempt_message, message, run_notes
 
 __all__ = [
     "FAILED_NEXT",
@@ -130,6 +130,8 @@ def build_outcome(
         "refused": dict(result.refused),
         "not_run": list(result.not_run),
         "changed": result.changed,
+        # what the stages that ran say beside their results (fewer theme levels, …)
+        "notes": [n for r in result.ran for n in run_notes(r.stage, r.measures.counts)],
     }
     # The tokens the AI provider reported for the stages that ran (none from the cache).
     spent = [r.measures.counts for r in result.ran if "tokens_in" in r.measures.counts]

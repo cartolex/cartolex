@@ -130,7 +130,10 @@ tree, for instance), or `decisions/params.json`. `--set` writes
 `decisions/params.json`, after checking the value; a value the stage cannot
 take is refused with the reason. `--set themes.group.depth=3`, for example,
 groups the keywords into three levels of themes (1 to 4), whatever the rule
-says.
+says. When the vocabulary is too small for the depth asked (after a clean-up
+that removed many keywords, for instance), the grouping takes the deepest
+number of levels that grows from the top, and the build's result and the
+Themes screen say so; the setting itself stays as you set it.
 
 ```bash
 cartolex versions my-project

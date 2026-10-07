@@ -2840,6 +2840,7 @@
   "overview.action.preflight_copilot_pending": "Le revoir",
   "message.preflight_api_dropped": "Le nettoyage par IA via l’API a déjà jugé les candidats. Avec cette voie, ses verdicts ne décident plus des candidats que le vocabulaire garde.",
   "overview.action.accepted_route_copilot": "Aide de l’IA, page de construction",
+  "message.themes_depth_lowered": "Le vocabulaire compte {keywords, number} mots-clés : les thèmes ont {depth, plural, one {# niveau} other {# niveaux}} au lieu des {asked, number} demandés.",
   "message.accepted_route_copilot": "La construction demandera désormais les nouveaux mots-clés à votre copilote : le nettoyage des mots-clés passe à « Avec votre copilote ». Vous pouvez revenir en arrière sur la page de construction.",
   "message.preflight_copilot_new": "Avec le nettoyage « Sans IA », les candidats sont cherchés à nouveau : {n, plural, one {la # décision de votre copilote s’applique toujours} other {les # décisions de votre copilote s’appliquent toujours}} aux candidats qu’il a jugés, mais les nouveaux entrent dans le vocabulaire selon leur bande, sans son tri. Choisissez « Avec votre copilote » ci-dessous pour qu’il les juge d’abord.",
   "message.stage_switched_off": "Désactivée.",

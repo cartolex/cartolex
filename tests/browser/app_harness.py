@@ -30,7 +30,7 @@ def build_demo(root: Path, size: str = "S", *, depth: int | None = None) -> Path
     settings = ["pinned_year=2026"]
     if depth is not None:
         settings.append(f"themes.group.depth={depth}")
-        if size == "S":  # the S world's 331 keywords: 40 per topic would not grow from 15
+        if size == "S":  # the S world's 331 keywords: 40 per topic give a single level
             settings.append("themes.group.keywords_per_group=20")
     assert cli(["params", str(root), "--set", *settings]) == 0
     assert cli(["build", str(root)]) == 0

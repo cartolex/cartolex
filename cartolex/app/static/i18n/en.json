@@ -2840,6 +2840,7 @@
   "overview.action.preflight_copilot_pending": "Review it",
   "message.preflight_api_dropped": "The AI clean-up by API judged the candidates before. With this route, its verdicts no longer decide which candidates the vocabulary keeps.",
   "overview.action.accepted_route_copilot": "AI help on the build page",
+  "message.themes_depth_lowered": "The vocabulary holds {keywords, number} keywords: the themes have {depth, plural, one {# level} other {# levels}} instead of the {asked, number} asked.",
   "message.accepted_route_copilot": "The build will now ask your copilot for new keywords: the keyword clean-up is set to « With your copilot ». You can switch it back on the build page.",
   "message.preflight_copilot_new": "With the clean-up at « No AI », the candidates are found again: {n, plural, one {your copilot's # decision still applies} other {your copilot's # decisions still apply}} to the ones it judged, but new candidates enter the vocabulary by their bands, without its triage. Choose « With your copilot » below to have it judge them first.",
   "message.stage_switched_off": "Switched off.",
