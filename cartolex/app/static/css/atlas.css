@@ -1062,3 +1062,249 @@
   outline: 2px dashed var(--cx-border-strong);
   outline-offset: -2px;
 }
+
+/* Distances (static/distances/): the ranked list, the pairs and the matrices, shared by the
+   app's Map screen and the offline site's « Distances » page; it flows with its page */
+.cx-atlas.cx-dist {
+  height: auto;
+  overflow: visible;
+  padding: var(--cx-space-3);
+  gap: var(--cx-space-3);
+}
+
+.cx-dist__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--cx-space-3);
+}
+
+.cx-dist__tabs .cx-atlas-btn[aria-selected='true'] {
+  background: var(--cx-text);
+  color: var(--cx-text-inverse);
+}
+
+.cx-dist__measure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cx-space-1) var(--cx-space-2);
+  max-width: 34rem;
+}
+
+.cx-dist__help {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.cx-dist-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cx-space-2);
+  min-width: 0;
+}
+
+.cx-dist__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--cx-space-2) var(--cx-space-4);
+}
+
+.cx-dist__controls:empty {
+  display: none;
+}
+
+.cx-dist-field {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cx-dist__label {
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-xs);
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-dist-field select {
+  max-width: 22rem;
+}
+
+.cx-dist__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cx-space-2) var(--cx-space-3);
+}
+
+.cx-dist__head .cx-atlas-note {
+  margin: 0;
+  max-width: var(--cx-text-width);
+}
+
+.cx-dist__title {
+  margin: 0;
+  font-size: var(--cx-text-l);
+}
+
+.cx-dist__status {
+  margin: 0;
+  min-height: 1.4em;
+}
+
+.cx-dist-table-wrap {
+  overflow-x: auto;
+}
+
+.cx-dist-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--cx-text-s);
+  font-variant-numeric: tabular-nums;
+}
+
+.cx-dist-table th,
+.cx-dist-table td {
+  padding: var(--cx-space-1) var(--cx-space-2);
+  border-bottom: var(--cx-rule-width) solid var(--cx-rule);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.cx-dist-table thead th {
+  color: var(--cx-text-muted);
+  font-size: var(--cx-text-xs);
+  font-weight: var(--cx-weight-medium);
+}
+
+.cx-dist-table tbody th {
+  font-weight: var(--cx-weight-regular);
+}
+
+.cx-dist-table .is-num {
+  text-align: right;
+}
+
+.cx-dist-table .cx-atlas-val {
+  margin-left: 0;
+  padding-left: 0;
+  color: var(--cx-text);
+}
+
+.cx-dist-name {
+  color: var(--cx-text);
+  overflow-wrap: anywhere;
+}
+
+.cx-dist-score {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cx-space-2);
+}
+
+.cx-dist-bar {
+  display: inline-block;
+  width: 4rem;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--cx-surface-alt);
+  overflow: hidden;
+}
+
+.cx-dist-bar__fill {
+  display: block;
+  width: var(--cx-share);
+  height: 100%;
+  background: var(--cx-text-muted);
+}
+
+.cx-dist-themes {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px var(--cx-space-2);
+}
+
+.cx-dist-theme {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cx-space-1);
+  font-size: var(--cx-text-xs);
+}
+
+.cx-dist-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--cx-space-1);
+}
+
+.cx-dist-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--cx-space-3);
+  padding-top: var(--cx-space-2);
+}
+
+.cx-dist-heat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cx-space-2);
+  min-width: 0;
+}
+
+.cx-dist-heat__legend {
+  display: flex;
+  align-items: center;
+  gap: var(--cx-space-2);
+}
+
+.cx-dist-heat__ramp {
+  display: inline-block;
+  width: 12rem;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--cx-ramp);
+}
+
+.cx-dist-heat__box {
+  position: relative;
+  overflow: auto;
+  max-height: 80vh;
+  border-radius: var(--cx-radius-s);
+}
+
+.cx-dist-heat__canvas {
+  display: block;
+  cursor: pointer;
+}
+
+.cx-dist-heat__tip {
+  position: absolute;
+  z-index: 5;
+  max-width: 220px;
+  padding: var(--cx-space-1) var(--cx-space-2);
+  border: var(--cx-rule-width) solid var(--cx-border);
+  border-radius: var(--cx-radius-s);
+  background: var(--cx-surface-raised);
+  font-size: var(--cx-text-xs);
+  pointer-events: none;
+}
+
+.cx-dist-heat__cursor {
+  margin: 0;
+  min-height: 1.4em;
+}
+
+.cx-dist-table .cx-atlas-btn,
+.cx-dist-pager .cx-atlas-btn {
+  min-height: 24px;
+}
+
+.cx-dist-heat__end {
+  color: var(--cx-text-muted);
+  font-family: var(--cx-font-mono);
+  font-size: var(--cx-text-xs);
+  font-variant-numeric: tabular-nums;
+}

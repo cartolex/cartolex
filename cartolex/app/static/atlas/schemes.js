@@ -113,6 +113,13 @@ function scaleAt(stops, x) {
   return rgbHex(a.map((v, k) => v + (b[k] - v) * f));
 }
 
+/** The colour at *x* (0 to 1) of scheme *id*'s scale, or of Viridis for a scheme of one
+ * colour per theme: what a heatmap of values is painted with. */
+export function scaleColour(id, x) {
+  const scheme = schemeOf(id);
+  return scaleAt(scheme.kind === 'scale' ? scheme.stops : schemeOf('viridis').stops, x);
+}
+
 /** One colour of a list for the dark or bright version: lighter on dark, darker on paper;
  * past the list's end, the colours come round again lighter or darker. */
 function listColour(list, i, dark) {
