@@ -6,6 +6,8 @@ line.
 ## Unreleased
 
 - The Keywords screen is now called « Lexicon » (fr « Lexique », pt-BR « Léxico »), and its tab of the built lexicon « Final lexicon »; its address stays `/keywords`.
+- The offline site's home page shows the lexicon's word cloud (the app's, drawn at the build for the light and the dark look), a link to the atlas.
+- The offline site's atlas keeps one height, the window's: a long card no longer made it taller than the window, nor a hidden card shorter.
 
 A generic engine with an explicit API: every stage takes a run context, and
 nothing in the engine names a particular deployment, source or procedure.
