@@ -33,6 +33,7 @@ import sys
 import tempfile
 import time
 import urllib.request
+import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -216,7 +217,18 @@ def main(argv: list[str] | None = None) -> int:
     try:
         t0 = time.monotonic()
         wheel = args.wheel or build_wheel(work / "dist")
-        problems = package_check.check_wheel(wheel, package_check.package_files(ROOT))
+        expected = package_check.package_files(ROOT)
+        if args.wheel:
+            # A wheel built elsewhere (the release workflow's build job, which checks them
+            # with --docs --stamp) brings the built documentation and the build stamp,
+            # which this checkout need not have.
+            with zipfile.ZipFile(wheel) as zf:
+                expected |= {
+                    n
+                    for n in zf.namelist()
+                    if n.startswith(package_check.GENERATED + "/") or n == package_check.STAMP
+                }
+        problems = package_check.check_wheel(wheel, expected)
         size = wheel.stat().st_size / 1e6
         print(f"wheel {wheel.name}: {size:.1f} MB, {time.monotonic() - t0:.1f}s", flush=True)
         for p in problems:
