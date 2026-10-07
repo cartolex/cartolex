@@ -5,6 +5,8 @@ line.
 
 ## Unreleased
 
+- The About page is short: what cartolex measures (who talks the same, in the lexical space), what it is built on (spaCy, scikit-learn, SciPy, UMAP, openTSNE), three key references and the Zenodo citation; every method and library it relies on is in the new documentation page « References ». The documentation's front page and the README say the same; the overview shows the word cloud under the health panel.
+
 - The Keywords screen is now called « Lexicon » (fr « Lexique », pt-BR « Léxico »), and its tab of the built lexicon « Final lexicon »; its address stays `/keywords`.
 
 A generic engine with an explicit API: every stage takes a run context, and

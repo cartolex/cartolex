@@ -2,7 +2,7 @@
   "@context": "https://w3id.org/codemeta/3.0",
   "@type": "SoftwareSourceCode",
   "name": "cartolex",
-  "description": "Map a research field from the texts of the people who work in it: keywords, themes and a two-dimensional atlas, with an offline site to share it.",
+  "description": "Map a body of texts by the words of their authors: the vocabulary they actually use, a lexical space whose distances measure how much people, teams or institutions talk the same about their subject, themes, the co-authorship network, and an atlas shared as an offline site.",
   "version": "1.0.0.dev0",
   "codeRepository": "https://github.com/cartolex/cartolex",
   "issueTracker": "https://github.com/cartolex/cartolex/issues",

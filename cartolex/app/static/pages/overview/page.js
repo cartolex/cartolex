@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 /**
  * The overview: the project's name and state, the one next step, the stage
- * tracker and, once the keywords are built, their word cloud (`cloud.js`), the
- * health panel, a preview of the map and the recent shared builds, then the
+ * tracker; beside it the health panel, then, once the keywords are built, their word
+ * cloud (`cloud.js`, high enough to be seen at once), a preview of the map and the
+ * recent shared builds, then the
  * `overview.cards` slot extensions add cards to.
  *
  * Two reads: the project state (its cached copy renders at once) and
@@ -113,10 +114,10 @@ export function Overview({ ctx }) {
             onClick=${() => runtime.navigate('/build')}>${t('overview.build.open')}<//>`}>
           ${data ? html`<${StageTracker} stages=${stages} />` : null}
         <//>
-        <${LexiconCloud} lexicon=${view ? view.lexicon : null} prefs=${app.stores.prefs} />
       </div>
       <div class="cx-overview__side">
         ${view ? html`<${Health} items=${view.health} />` : null}
+        <${LexiconCloud} lexicon=${view ? view.lexicon : null} prefs=${app.stores.prefs} />
         <${MapPreview} preview=${view ? view.preview : null} stale=${stale} loading=${!view && !error} />
         ${view ? html`<${Shares} shares=${view.shares} />` : null}
       </div>

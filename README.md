@@ -2,22 +2,25 @@
 
 # cartolex
 
-**cartolex draws the map of a research field from the texts of the people who
-work in it.** Give it a list of people, a laboratory or an institution: it
-collects their publications from open bibliographic services (OpenAlex, the
-ORCID registry, HAL), finds the keywords of the field in their titles and
-abstracts, groups those keywords into themes, and places every person,
-organisation and text on a map, near what they write about. You check each
-step on screen (who is who, which keywords count, what the themes are called)
-and share the result as a website that opens offline.
+**cartolex maps a body of texts by the words of their authors.** Give it the
+people of a field (a list, a laboratory, an institution): it collects their
+texts from open services (OpenAlex, the ORCID registry, HAL…), finds the
+vocabulary they actually use, places every person, organisation and text in a
+lexical space, groups that vocabulary into themes and draws it all as an
+atlas, which you explore in the app and share as a website that opens offline.
 
-It is made for researchers who want to see their field from above, and for
-the heads of laboratories, research administrators and librarians who need a
-picture of who works on what. No programming is needed: everything happens in
-an app that runs in your web browser, on your own computer. The map shows what
-people write about, never how good their work is.
+**Who talks the same.** Distances in the lexical space measure how much
+people, teams or institutions talk the same about their subject, whether or
+not they work together; the co-authorship network, drawn on the same map,
+shows who does. The map shows what people write about, never how good their
+work is. cartolex was made for research fields; any texts whose authors are
+known will do, the articles of journalists for instance.
 
-![The map of the demo project: the themes on the left, people and keywords on the map, the selected person's themes, keywords and nearest people on the right.](docs/images/map-person.png)
+No programming is needed: everything happens in an app that runs in your web
+browser, on your own computer. You check each step on screen: who is who,
+which keywords count, what the themes are called.
+
+![The map of the demo project: the themes on the left, a person and their co-authors on the map, their themes, keywords and co-authors on the right.](docs/images/map-person.png)
 
 ## Install
 
@@ -63,7 +66,7 @@ Its sources are in [docs/](docs/index.md):
 - guides: [collection](docs/collection.md), [keywords](docs/keywords.md),
   [the build](docs/build.md), [privacy](docs/privacy.md),
   [very large projects](docs/large-projects.md);
-- [the method and its scientific references](docs/about.md).
+- [the method in one page](docs/about.md) and [its references](docs/references.md).
 
 ## Privacy
 
@@ -73,18 +76,25 @@ the open bibliographic services) and the optional AI clean-up of the keywords
 by API (keyword strings only, never texts or people). See
 [Privacy and personal data](docs/privacy.md).
 
+## Built on
+
+[spaCy](https://spacy.io) and its language models find the noun phrases of
+the texts (English, French, Portuguese, Spanish, German, Italian);
+[scikit-learn](https://scikit-learn.org), [SciPy](https://scipy.org) and
+[NumPy](https://numpy.org) weight them, build the lexical space and group the
+themes; [UMAP](https://umap-learn.readthedocs.io) and
+[openTSNE](https://opentsne.readthedocs.io) draw the map;
+[OpenAlex](https://openalex.org) is the first source of texts. The methods
+behind each step, with their references: [docs/references.md](docs/references.md).
+
 ## How to cite
 
-If cartolex helped your work, please cite it with the version you used (the
-app's About page gives it):
-
-> Klüger, E., & Ronceray, P. (2026). *cartolex* (version 1.0.0.dev0)
-> [Computer software]. https://github.com/cartolex/cartolex
-
-[`CITATION.cff`](CITATION.cff) (« Cite this repository » on GitHub) and
-[`codemeta.json`](codemeta.json) carry the same reference for reference
-managers; [How to cite](docs/cite.md) gives a BibTeX entry and the references
-of the method.
+cartolex is archived on [Zenodo](https://zenodo.org), one record per version,
+each with its DOI: please cite the record of the version you used (the app's
+About page gives the version). [`CITATION.cff`](CITATION.cff) (« Cite this
+repository » on GitHub) and [`codemeta.json`](codemeta.json) carry the
+reference for reference managers; [How to cite](docs/cite.md) gives a BibTeX
+entry, and [the references](docs/references.md) the methods to cite beside it.
 
 ## Authors and licence
 

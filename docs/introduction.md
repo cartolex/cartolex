@@ -191,4 +191,4 @@ kept elsewhere except the app's own settings and keys, on this computer
 
 - {doc}`install`, if cartolex is not installed yet;
 - {doc}`first-map`, the first tutorial;
-- {doc}`about`: the method step by step, with its scientific references.
+- {doc}`about`: the method in one page; {doc}`references`: the works and software it is built on.

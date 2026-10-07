@@ -20,7 +20,7 @@ export function LexiconCloud({ lexicon, prefs }) {
     actions=${html`<${Button} size="s" variant="ghost" iconAfter="chevron-right"
       onClick=${() => runtime.navigate(LEXICON)}>${t('overview.cloud.open')}<//>`}>
     <a class="cx-overview-cloud__link" href=${LEXICON}>
-      <img class="cx-overview-cloud__image" src=${src} width="1400" height="760" loading="lazy"
+      <img class="cx-overview-cloud__image" src=${src} width="1400" height="760"
         alt=${t('keywords.lexicon.cloud_alt.score')} />
     </a>
   <//>`;

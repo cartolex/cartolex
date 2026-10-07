@@ -1,36 +1,23 @@
 # cartolex
 
-**cartolex draws the map of a research field from the texts of the people who
-work in it.** Give it a list of people, a laboratory or an institution: it
-collects their publications from open bibliographic services, finds the
-keywords of the field in their titles and abstracts, groups those keywords into
-themes, and places every person, organisation and text on a map, near what
-they write about. You check each step on screen, and share the result as a
-website that opens offline.
+**cartolex maps a body of texts by the words of their authors.** Give it the
+people of a field (a list, a laboratory, an institution): it collects their
+texts from open services, finds the vocabulary they actually use, places every
+person, organisation and text in a lexical space, groups the vocabulary into
+themes, and draws it all as an atlas you explore and share as a website that
+opens offline.
 
-These pages come with the app, for the version you have installed: the
-**Documentation** button at the top of every screen (the question mark) opens
-them.
+**Who talks the same.** Distances in that space measure how much people, teams
+or institutions talk the same about their subject, whether or not they work
+together; the co-authorship network, drawn on the same map, shows who does.
+The map shows what people write about, never how good their work is. It was
+made for research fields; any texts whose authors are known will do, the
+articles of journalists for instance.
 
-## What it is for
-
-- **To see a field at a glance**: which themes it is made of, how they relate,
-  who works on what, which organisations hold which subjects, how the field
-  moved over the years.
-- **To find people and links**: the people closest to a person or a lab, the
-  keywords two teams share, the texts they wrote together.
-- **To start a conversation** among people who know the field. The map shows
-  what people write about, never how good their work is: it is not a ranking.
-
-## Who it is for
-
-Researchers who want to see their field from above; heads of laboratories,
-departments and institutes who need a picture of who works on what; research
-administrators, librarians and documentalists who prepare an overview, a
-report or a meeting. No programming is needed: everything is done in the app,
-in a web browser, on your own computer. Your data stays there: only the
-collection of publications and the optional AI clean-up reach the network,
-and the app says what it sends before it sends anything ({doc}`privacy`).
+No programming is needed: everything happens in the app, in your web browser,
+on your own computer, and your data stays there ({doc}`privacy`). These pages
+come with the app, for the version you have installed (the question mark at
+the top of every screen).
 
 ## How a map is made
 
@@ -80,7 +67,8 @@ and the app says what it sends before it sends anything ({doc}`privacy`).
 
 Each step is a stage of the **build**, which reruns only what your changes
 affect. {doc}`introduction` explains the words the app uses; {doc}`about`
-gives the method and its scientific references.
+gives the method in one page, and {doc}`references` the works and software it
+is built on.
 
 ## Where to start
 
@@ -108,7 +96,7 @@ should see:
 **Guides** explain one subject in depth: {doc}`collection`, {doc}`keywords`,
 {doc}`build`, {doc}`privacy`, {doc}`large-projects`.
 
-**Reference**: {doc}`format/index`, {doc}`sizes`, {doc}`hosting`, {doc}`cite`.
+**Reference**: {doc}`references`, {doc}`cite`, {doc}`format/index`, {doc}`sizes`, {doc}`hosting`.
 
 **For developers**: the command line, the programming interface, the engine
 and the checks, in the last part of the menu ({doc}`dev/command-line` first).
@@ -121,6 +109,7 @@ and the checks, in the last part of the menu ({doc}`dev/command-line` first).
 introduction
 install
 about
+references
 cite
 ```
 

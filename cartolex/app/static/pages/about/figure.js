@@ -48,7 +48,7 @@ function arrow(a, b) {
   return `M ${from.x + W / 2} ${from.y + H + 4} V ${mid} H ${to.x + W / 2} V ${to.y - 6}`;
 }
 
-/** The pipeline figure, with its caption. */
+/** The pipeline figure. */
 export function PipelineFigure() {
   const id = useUid('cx-about-figure');
   const width = PAD * 2 + 3 * W + 2 * GAP;
@@ -68,6 +68,5 @@ export function PipelineFigure() {
         class="cx-about-figure__arrow" marker-end=${`url(#${id}-head)`} />`)}
       ${STEPS.map((step, i) => html`<${Step} key=${step} id=${step} index=${i} />`)}
     </svg>
-    <figcaption class="cx-about-figure__caption">${t('about.pipeline.caption')}</figcaption>
   </figure>`;
 }

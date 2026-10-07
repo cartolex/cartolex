@@ -64,7 +64,12 @@ def test_the_logo_leads_to_the_about_page_and_the_settings_menu_names_the_build(
     assert figure.locator("text").count() >= 18  # six steps, three lines each
     expect(page.locator(".cx-about__citation")).to_contain_text("Ada Example, Ben Sample (2026)")
     expect(page.locator(".cx-about__version")).to_have_text("1.0.0.dev0 · 0123456 · 2026-10-06")
-    assert page.locator(".cx-about__ref").count() >= 10
+    assert page.locator(".cx-about__ref").count() == 3  # the key references; the rest in the docs
+    assert (
+        page.get_by_role("link", name="the references of the documentation")
+        .get_attribute("href")
+        .endswith("/static/docs/references.html")
+    )
     links = page.locator(".cx-about a[target=_blank]")
     hrefs = links.evaluate_all("(as) => as.map((a) => [a.href, a.rel])")
     assert any(h.startswith("https://doi.org/10.") for h, _ in hrefs)  # the DOIs open outside
