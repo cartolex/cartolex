@@ -275,7 +275,7 @@ def write_source_table(path: Path, name: str, table: pa.Table) -> None:
     os.close(fd)
     try:
         pq.write_table(ordered, tmp, compression="zstd", row_group_size=ROW_GROUP)
-        with open(tmp, "rb") as fh:
+        with open(tmp, "r+b") as fh:  # Windows syncs only a file open for writing
             os.fsync(fh.fileno())
         replace_path(tmp, path)
     except BaseException:

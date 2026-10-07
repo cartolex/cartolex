@@ -484,7 +484,7 @@ def build_index(
         nonlocal since_sync
         # The replacements, the members' tables, the postings, then the journal's point.
         for table in [*replaced, *(folder / e / "parts" for e in KEYS)]:
-            if table.is_dir():
+            if table.is_dir() and os.name == "posix":  # Windows cannot open a folder
                 fd = os.open(table, os.O_RDONLY)
                 try:
                     os.fsync(fd)
