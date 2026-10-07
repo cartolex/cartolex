@@ -364,7 +364,7 @@ def test_the_map_is_tuned_beside_the_atlas(demo_s, app_for, open_app, axe_source
     )
     page.get_by_role("button", name="Close the panel").click()
     page.locator(".cx-tune--side").wait_for(state="detached")
-    assert page.evaluate("() => document.activeElement.hasAttribute('data-tune-toggle')")
+    page.wait_for_function("() => document.activeElement.hasAttribute('data-tune-toggle')")
     page.wait_for_function("() => !document.querySelector('.cx-atlas-pane--card').hidden")
     # the person's layout was never changed by the panel
     prefs = page.evaluate("() => fetch('/api/me/preferences').then((r) => r.json())")
