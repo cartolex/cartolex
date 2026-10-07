@@ -25,6 +25,35 @@ export function distPause(signal) {
   });
 }
 
+/** A pause at most every *ms* milliseconds: `await tick()` in a loop gives the page back
+ * that often, however long each turn. */
+export function distTicker(signal, ms = 40) {
+  let last = performance.now();
+  return async () => {
+    if (performance.now() - last < ms) return;
+    await distPause(signal);
+    last = performance.now();
+  };
+}
+
+/** The dot product of rows *a* and *b* (offsets) of *V*, *D* wide, four at a time. */
+function dotRows(V, a, b, D) {
+  let d0 = 0;
+  let d1 = 0;
+  let d2 = 0;
+  let d3 = 0;
+  let k = 0;
+  for (; k + 3 < D; k += 4) {
+    d0 += V[a + k] * V[b + k];
+    d1 += V[a + k + 1] * V[b + k + 1];
+    d2 += V[a + k + 2] * V[b + k + 2];
+    d3 += V[a + k + 3] * V[b + k + 3];
+  }
+  let d = d0 + d1 + d2 + d3;
+  for (; k < D; k += 1) d += V[a + k] * V[b + k];
+  return d;
+}
+
 /** Int8 rows (*values*, n × dim) as rows of length one; a row of zeros has no place (`has` 0). */
 export function unitRows(values, dim, n) {
   const v = new Float32Array(n * dim);
@@ -233,24 +262,39 @@ export const pairsApart = async (data, measure, kind, targets, limit, signal) =>
       }
     }
   };
-  const cost = costOf(measure, data);
-  let done = 0;
+  const near = new Uint8Array(N);
+  const tick = distTicker(signal);
+  // the space's rows of the targets, side by side: the hot loop reads them in order
+  let rowsOf = null;
+  if (measure === 'space' && side.vec) {
+    const { v, dim } = side.vec;
+    rowsOf = new Float32Array(n * dim);
+    for (let x = 0; x < n; x += 1) rowsOf.set(v.subarray(targets[x] * dim, (targets[x] + 1) * dim), x * dim);
+  }
   for (let x = 0; x < n; x += 1) {
     const a = targets[x];
     const q = distQuery(data, kind, a);
     if (measure === 'space' && !q.v) continue;
-    const near = links ? partnersOf(links, a, N) : null;
-    for (let y = x + 1; y < n; y += 1) {
-      const b = targets[y];
-      if (near && near.has(b)) continue;
-      const s = scoreOne(measure, q, side, b);
-      if (!Number.isNaN(s)) push(s, a, b);
+    if (links) for (let k = links.ptr[a]; k < links.ptr[a + 1]; k += 1) if (links.nbr[k] < N) near[links.nbr[k]] = 1;
+    if (rowsOf) {
+      const D = side.vec.dim;
+      const has = side.vec.has;
+      for (let y = x + 1; y < n; y += 1) {
+        const b = targets[y];
+        if (near[b] || !has[b]) continue;
+        const d = dotRows(rowsOf, x * D, y * D, D);
+        if (heap.length < limit || d > heap[0][0]) push(d, a, b);
+      }
+    } else {
+      for (let y = x + 1; y < n; y += 1) {
+        const b = targets[y];
+        if (near[b]) continue;
+        const s = scoreOne(measure, q, side, b);
+        if (!Number.isNaN(s)) push(s, a, b);
+      }
     }
-    done += (n - x) * cost;
-    if (done > DIST_STEP) {
-      done = 0;
-      await distPause(signal);
-    }
+    if (links) for (let k = links.ptr[a]; k < links.ptr[a + 1]; k += 1) if (links.nbr[k] < N) near[links.nbr[k]] = 0;
+    await tick();
   }
   return heap.sort((p, q) => q[0] - p[0]).map(([score, a, b]) => ({ a, b, score }));
 };
