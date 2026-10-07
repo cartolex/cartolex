@@ -1,6 +1,7 @@
 # Installing cartolex
 
-cartolex runs on Linux, macOS and Windows with Python 3.10 to 3.14. It installs
+cartolex runs on Linux and macOS with Python 3.10 to 3.14. **Version 1.0.0 does
+not run on Windows yet**; a later 1.0 version will. It installs
 as one Python package with the `cartolex` command. The language models that
 read the texts are installed separately, one per corpus language.
 

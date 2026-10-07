@@ -29,7 +29,8 @@ which keywords count, what the themes are called.
   double-click the launcher of your system (`Install cartolex.command` on
   macOS, `Install cartolex.bat` on Windows, `install-cartolex.sh` on Linux).
   It installs everything in a `cartolex` folder of your home and adds a
-  shortcut that opens the app.
+  shortcut that opens the app. Version 1.0.0 does not run on Windows yet; a
+  later 1.0 version will.
 - **With pip or uv**, for people at ease with a terminal (Python 3.10 to
   3.14):
 

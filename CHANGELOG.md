@@ -5,6 +5,9 @@ line.
 
 ## 1.0.0 — 2026-10-07
 
+This version runs on Linux and macOS; it does not run on Windows yet (a later
+1.0 version will).
+
 - Map versions in space and several built layouts: **Map versions** draws a new version flat or in space (3D, UMAP), pinned or built beside the pinned one, marks any version « Build it too », shows how many of each person's nearest people each built version keeps (`GET /api/map/versions`: `ready`, `measure`), and shows a built one in the atlas (`map=`). A version's build redraws the map area (the layout, the time windows, the projected people). The offline site carries the layouts chosen in **Share** (« Map layouts », every built one by default) and its atlas switches between them (`data/layout-<id>.js`, read when shown). A focus given in the address is centred again once the map is drawn.
 
 - Duplicates: a name written another way is proposed (a letter such as « ø » or « ł », another script, a particle or a middle name on one side, the words split or ordered differently, a name in one cell), and a namesake of a row merged into another person stays proposed; evidence against lowers a pair without hiding it. The Duplicates tab works on groups (three records of one person are one group), merged, split or left for later in one step; « Same person… » (People list) and « Same person as… » (a sheet) merge people by hand; the institutions' proposal suggests the same name at any unit and takes selected records as one person.

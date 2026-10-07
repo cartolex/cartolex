@@ -53,6 +53,8 @@ macOS
 Windows
 -------
 
+Version 1.0.0 does not run on Windows yet; a later 1.0 version will.
+
 1. Right-click the zip file, choose "Extract All...", then open the folder.
    (Running the installer from inside the zip without extracting it does
    not work.)

@@ -59,6 +59,9 @@ macOS
 Windows
 -------
 
+La version 1.0.0 ne fonctionne pas encore sous Windows ; une prochaine
+version 1.0 le fera.
+
 1. Faites un clic droit sur le fichier zip, choisissez « Extraire tout... »,
    puis ouvrez le dossier. (Lancer l'installateur depuis l'intérieur du zip,
    sans l'extraire, ne fonctionne pas.)
