@@ -234,6 +234,10 @@ the Keywords screen or of the theme editor (`?copilot=1`); once the result is
 accepted, « Continue the build » runs the rest (`POST /api/build {continue}`).
 The Activity drawer and the overview's next step (`next_copilot_waiting`) say
 the build waits for the copilot.
+The other way round, accepting a copilot's keyword triage from the Lexicon sets
+the clean-up's route to the copilot when it was « No AI » (never over the API;
+`ai_steps.route_copilot_triage`, a `params.json` change kept in the history):
+the accept answers `note: accepted_route_copilot`, shown in its toast.
 
 The dialogs show what a bundle holds and never holds, the parts and the token
 estimate (triage), the results imported before (the earlier handoff answers

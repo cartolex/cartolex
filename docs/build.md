@@ -41,7 +41,9 @@ an update (the Map, for instance) offers to build only what it needs.
 **No AI**, **With your copilot** (the build stops at this step and waits for
 the assistant's result, see {doc}`tutorial-keywords`) or **By API** (the
 keyword clean-up only; needs a provider and a key in Settings › AI). The
-choice is kept in the project.
+choice is kept in the project. Accepting a copilot's keyword triage on the
+Lexicon screen sets the keyword clean-up to **With your copilot** when it was
+**No AI**.
 
 ## Building
 

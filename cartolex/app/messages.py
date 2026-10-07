@@ -110,12 +110,13 @@ MESSAGES: dict[str, MessageKind] = {
         "({total} earlier decisions still apply)"
     ),
     "stage_copilot_earlier": MessageKind(
-        "no AI clean-up of the candidates found since your copilot's triage: its {n} "
-        "decisions still apply to the ones it judged, the new ones enter by their bands; "
-        "choose a copilot or the API on the build page to have them judged"
+        "the clean-up is at « No AI »: the candidates found since your copilot's triage "
+        "enter by their bands, and its {n} decisions still apply to the ones it judged; "
+        "choose « With your copilot » or the API on the build page to have them judged"
     ),
     "stage_ai_none": MessageKind(
-        "no AI clean-up: choose a copilot or the API on the build page to have one"
+        "no AI clean-up: choose a copilot or the API on the build page, or use Triage with "
+        "AI on the Lexicon screen, to have one"
     ),
     "stage_no_overlay": MessageKind("the project has no overlay"),
     "stage_not_applicable": MessageKind("{reason}"),
@@ -244,11 +245,19 @@ MESSAGES: dict[str, MessageKind] = {
         "open:/keywords?copilot=1",
     ),
     "preflight_copilot_new": MessageKind(
-        "the candidates are found again: your copilot's {n} decisions still apply to the ones "
-        "it judged, but new candidates enter the vocabulary by their bands, without its "
-        "triage; choose the copilot below to have it judge them first",
+        "with the clean-up at « No AI », the candidates are found again: your copilot's {n} "
+        "decisions still apply to the ones it judged, but new candidates enter the vocabulary "
+        "by their bands, without its triage; choose the copilot below to have it judge them "
+        "first",
         "",
         "",
+    ),
+    # an accepted copilot's triage that set the build's route
+    "accepted_route_copilot": MessageKind(
+        "the build will now ask your copilot for new keywords: the keyword clean-up's route "
+        "is « With your copilot »; you can switch it back on the build page",
+        "AI help on the build page",
+        "open:/build",
     ),
     "preflight_api_dropped": MessageKind(
         "the AI clean-up by API judged the candidates before; with this route its verdicts "
