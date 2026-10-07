@@ -367,6 +367,7 @@ export function themeMatrix(data, measure, themes, level) {
   const col = new Map(themes.map((id, j) => [id, j]));
   const rows = new Float64Array(themes.length * width);
   index.people.forEach((p, i) => {
+    if (p.x === null || p.x === undefined) return; // the people on the map, as the app's
     for (const [node, share] of Object.entries((p.shares && p.shares[level - 1]) || {})) {
       const j = col.get(node);
       if (j === undefined) continue;

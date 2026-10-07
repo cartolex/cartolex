@@ -14,6 +14,10 @@ import { crossMatrix, shareMatrix, themeMatrix } from './engine.js';
 import { MATRIX_CAP, capped, distRef, scopeOf, selectionOf, themesAt } from './scope.js';
 import { amongOf, csvButton, distSelect, runner, statusLine, themeSelect } from './controls.js';
 import { createHeatmap } from './heatmap.js';
+import { remoteCross } from './remote.js';
+
+/** The matrices of theme shares, which no measure changes. */
+export const SHARE_MATRICES = ['orgs_themes', 'people_themes'];
 
 /** The matrices: their rows × columns. */
 export const MATRICES = {
@@ -202,8 +206,9 @@ export function createMatrixView(ctx) {
       const rows = axis(rk, state, selection);
       const cols = rk === ck ? rows : axis(ck, state, selection);
       let values;
-      if (mx === 'themes') values = themeMatrix(ctx.data, measure, rows.items, themeLevelOf(state));
-      else if (ck === 'theme') values = shareMatrix(index, rk, rows.items, cols.items, themeLevelOf(state));
+      if (ck === 'theme' && rk !== 'theme') values = shareMatrix(index, rk, rows.items, cols.items, themeLevelOf(state));
+      else if (!ctx.local(measure)) values = await remoteCross(ctx, measure, rk, rows.items, ck, cols.items);
+      else if (mx === 'themes') values = themeMatrix(ctx.data, measure, rows.items, themeLevelOf(state));
       else values = await crossMatrix(ctx.data, measure, rk, rows.items, ck, cols.items, signal);
       return { rows, cols, values, measure, selection: ref ? selectionWords(ref, rows.total) : '' };
     }).then((r) => {
