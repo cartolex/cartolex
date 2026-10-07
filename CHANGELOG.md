@@ -9,6 +9,7 @@ line.
 
 - The Keywords screen is now called « Lexicon » (fr « Lexique », pt-BR « Léxico »), and its tab of the built lexicon « Final lexicon »; its address stays `/keywords`.
 - The offline site's home page shows the lexicon's word cloud (the app's, drawn at the build for the light and the dark look), a link to the atlas.
+- A copilot's keyword triage reads as done everywhere the AI clean-up shows: the build's tracker and result no longer say « Skipped » after one was accepted (they read the clean-up as the project state does), the pre-flight sheet and the waiting card say « Waits for your copilot » where a build pauses for it, and once the candidates are found again without an AI route the clean-up says « Partly done with your copilot »: the copilot's decisions still apply, the new candidates enter by their bands (the pre-flight sheet warns before such a build, `preflight_copilot_new`).
 - The offline site's atlas keeps one height, the window's: a long card no longer made it taller than the window, nor a hidden card shorter.
 
 A generic engine with an explicit API: every stage takes a run context, and

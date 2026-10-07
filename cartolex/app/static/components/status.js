@@ -28,6 +28,19 @@ export function stateLabel(state) {
   return t(`state.${stateKey(state)}`);
 }
 
+/** The words of the AI clean-up as the project shows it (`ai_state`), when they differ from
+ * its state's: done with the copilot, waiting for it, its earlier decisions only. */
+const AI_WORDS = {
+  copilot_done: 'build.action.done_copilot',
+  copilot_waiting: 'build.action.held',
+  copilot_earlier: 'build.action.earlier_copilot',
+};
+
+/** The AI clean-up's word for its `ai_state`, or `null` (the state's own word). */
+export function aiStateText(aiState) {
+  return AI_WORDS[aiState] ? t(AI_WORDS[aiState]) : null;
+}
+
 function Shape({ state }) {
   switch (state) {
     case 'up_to_date':
@@ -148,7 +161,7 @@ function attemptNote(stage, key) {
 /**
  * The build's stages with their state, reasons and progress.
  * @param {{stages: Array<object>, title?: any, compact?: boolean}} props
- *   each stage: {id, name, state, reasons?, skip?, skip_reason?, attempt?, progress?};
+ *   each stage: {id, name, state, reasons?, skip?, skip_reason?, ai_state?, attempt?, progress?};
  *   `stateText` replaces the state's word (« Waiting » in a running build), `note` adds a
  *   line under it, `quiet` says a failed attempt in a word and its date (a later job came)
  */
@@ -168,7 +181,8 @@ export function StageTracker({ stages, label, compact = false }) {
             <div class="cx-tracker__line">
               <span class="cx-tracker__index">${formatNumber(i + 1)}</span>
               <span class="cx-tracker__name">${stageName(stage)}</span>
-              <span class="cx-tracker__state">${stage.stateText || stateLabel(key)}</span>
+              <span class="cx-tracker__state">${stage.stateText || aiStateText(stage.ai_state)
+                || stateLabel(key)}</span>
             </div>
             ${!compact && stage.note ? html`<p class="cx-tracker__reason">${stage.note}</p>` : null}
             ${!compact && !stage.note && stage.skip && (key === 'skipped' || stage.ai)

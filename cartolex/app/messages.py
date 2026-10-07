@@ -109,6 +109,11 @@ MESSAGES: dict[str, MessageKind] = {
         "waiting for your copilot: give it the candidates, then import and accept its result "
         "({total} earlier decisions still apply)"
     ),
+    "stage_copilot_earlier": MessageKind(
+        "no AI clean-up of the candidates found since your copilot's triage: its {n} "
+        "decisions still apply to the ones it judged, the new ones enter by their bands; "
+        "choose a copilot or the API on the build page to have them judged"
+    ),
     "stage_ai_none": MessageKind(
         "no AI clean-up: choose a copilot or the API on the build page to have one"
     ),
@@ -237,6 +242,13 @@ MESSAGES: dict[str, MessageKind] = {
         "until you accept it",
         "Review it",
         "open:/keywords?copilot=1",
+    ),
+    "preflight_copilot_new": MessageKind(
+        "the candidates are found again: your copilot's {n} decisions still apply to the ones "
+        "it judged, but new candidates enter the vocabulary by their bands, without its "
+        "triage; choose the copilot below to have it judge them first",
+        "",
+        "",
     ),
     "preflight_api_dropped": MessageKind(
         "the AI clean-up by API judged the candidates before; with this route its verdicts "

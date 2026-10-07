@@ -11,7 +11,7 @@ import { formatNumber, t } from '../../core/i18n.js';
 import {
   Button, Card, Checkbox, EmptyState, ErrorCard, Icon, StageTracker, messageOf, reasonText,
 } from '../../components/index.js';
-import { formatMb, formatSeconds, nameOf } from './words.js';
+import { aiRow, formatMb, formatSeconds, nameOf } from './words.js';
 import { AiChoice } from './ai.js';
 import { actionLabel, follow } from '../overview/cards.js';
 
@@ -60,11 +60,9 @@ export function planRows(plan, stages, declined = new Set()) {
       return { ...base, state: 'skipped', stateText: t('build.action.skip'), note: t('build.consent.skipped') };
     }
     if (item.action === 'keep') return { ...base, state: 'up_to_date', stateText: t('build.action.keep') };
+    if (item.action === 'skip' && item.ai) return aiRow(base, item.ai);
     if (item.action === 'skip') {
-      // The AI clean-up done with a copilot reads as done, not as skipped.
-      const done = known && known.ai && known.state === 'up_to_date';
-      return { ...base, state: done ? 'up_to_date' : 'skipped',
-        stateText: done ? t('build.action.done_copilot') : t('build.action.skip'),
+      return { ...base, state: 'skipped', stateText: t('build.action.skip'),
         note: known && known.skip ? messageOf(known.skip) : (item.reasons || [])[0] || '' };
     }
     const e = item.estimate || {};

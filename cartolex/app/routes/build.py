@@ -211,7 +211,19 @@ def preflight_notes(
         out.append(review_item("preflight_copilot_pending", triage["pending"][0]))
     if "keywords.build" in to_run and triage["api_verdicts"] and triage["route"] != "api":
         out.append(item("preflight_api_dropped", level="warning"))
+    if "keywords.extract" in to_run and triage["route"] == "none" and triage["total"]:
+        out.append(item("preflight_copilot_new", level="warning", n=triage["total"]))
     return out
+
+
+def with_triage_view(items: list[dict[str, Any]], status: dict[str, Any], to_run: Any) -> None:
+    """Give the AI clean-up's item, skipped, its ``ai`` view: as the project state will show
+    it once the build ends (:func:`cartolex.app.routes.state.triage_view`)."""
+    from .state import triage_view
+
+    for i in items:
+        if i["stage"] == "keywords.triage" and i["action"] == "skip":
+            i["ai"] = triage_view(status, extraction_runs="keywords.extract" in to_run)
 
 
 def pause_for(runtime: Any, ctx: Any, the_plan: Any, passed: list[str]) -> dict[str, Any] | None:
@@ -333,6 +345,7 @@ def post_build(request: Request, body: BuildBody, ctx: ProjectDep) -> Any:
         out = plan_json(the_plan, runtime.registry, ctx, pause, runtime)
         out["running"] = running.as_dict() if running else None
         out["ai"] = ai_view(runtime, ctx)
+        with_triage_view(out["items"], out["ai"]["triage"], out["to_run"])
         out["notes"] = preflight_notes(runtime, ctx, out["to_run"], out["ai"])
         if not out["to_run"]:
             out["empty"] = empty("empty_up_to_date")
@@ -400,8 +413,12 @@ def job_events(ctx: Any, job_id: str, after: int = 0) -> list[dict[str, Any]]:
     return out
 
 
-def tracker(ctx: Any, job: dict[str, Any]) -> dict[str, Any]:
-    """Each stage of a build job: done, running or waiting, from its events."""
+def tracker(runtime: Any, ctx: Any, job: dict[str, Any]) -> dict[str, Any]:
+    """Each stage of a build job: done, running or waiting, from its events; ``ai``, the AI
+    clean-up as the project state shows it (:func:`cartolex.app.routes.state.triage_view`;
+    while the job has the extraction still to run, as it will read after it)."""
+    from .state import triage_status, triage_view
+
     events = job_events(ctx, job["id"])
     start = next((e for e in events if e.get("event") == "start"), None)
     order = list(start.get("run", [])) if start else []
@@ -426,8 +443,11 @@ def tracker(ctx: Any, job: dict[str, Any]) -> dict[str, Any]:
                 "counts": end.get("counts"),
             }
         )
+    active = job["state"] in ("queued", "running", "cancelling")
+    again = active and "keywords.extract" in order and "keywords.extract" not in done
     return {
         "stages": stages,
+        "ai": triage_view(triage_status(runtime, ctx.project), extraction_runs=again),
         "refused": start.get("refused", []) if start else [],
         "kept": start.get("keep", []) if start else [],
         "skipped": start.get("skip", []) if start else [],
@@ -447,11 +467,12 @@ def last_build(runtime: Any, ctx: Any) -> Any:
 @routes.get("/api/build", action="build.read")
 def get_build(request: Request, ctx: ProjectDep) -> dict[str, Any]:
     """The tracker: the running build, or the last one: stage, progress, ETA, what changed."""
-    last = last_build(runtime_of(request), ctx)
+    runtime = runtime_of(request)
+    last = last_build(runtime, ctx)
     if last is None:
         return {
             "job": None,
             "empty": empty("empty_nothing_built"),
         }
     job = last.as_dict()
-    return {"job": job, **tracker(ctx, job)}
+    return {"job": job, **tracker(runtime, ctx, job)}
