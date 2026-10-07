@@ -36,7 +36,7 @@ _year = str(_dt.date.today().year)
 _bibtex = f"""```bibtex
 @software{{cartolex,
   author  = {{Klüger, Elisa and Ronceray, Pierre}},
-  title   = {{cartolex}},
+  title   = {{{{cartolex}}: mapping research communities in their lexical space}},
   version = {{{version}}},
   year    = {{{_year}}},
   doi     = {{10.5281/zenodo.23223331}},

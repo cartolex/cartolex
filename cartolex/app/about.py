@@ -112,7 +112,7 @@ def about() -> dict[str, Any]:
     authors = package["authors"]
     year = (stamp or {}).get("date", "")[:4]
     citation = ", ".join(authors) + (f" ({year})" if year else "")
-    citation += f". cartolex, version {version} [software]."
+    citation += f". cartolex: mapping research communities in their lexical space, version {version} [software]."
     doi = package["urls"].get("doi", "")
     if doi or source:
         citation += f" Zenodo. {doi}" if doi else f" {source}"

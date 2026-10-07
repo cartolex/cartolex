@@ -3,7 +3,7 @@
   "@type": "SoftwareSourceCode",
   "name": "cartolex",
   "description": "Map a body of texts by the words of their authors: the vocabulary they actually use, a lexical space whose distances measure how much people, teams or institutions talk the same about their subject, themes, the co-authorship network, and an atlas shared as an offline site.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "identifier": "https://doi.org/10.5281/zenodo.23223331",
   "codeRepository": "https://github.com/cartolex/cartolex",
   "issueTracker": "https://github.com/cartolex/cartolex/issues",

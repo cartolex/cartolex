@@ -18,8 +18,9 @@ version.
 
 ## A reference
 
-> Klüger, E., & Ronceray, P. ({{ year }}). *cartolex* (version {{ version }})
-> [Computer software]. Zenodo.
+> Klüger, E., & Ronceray, P. ({{ year }}). *cartolex: mapping research
+> communities in their lexical space* (version {{ version }}) [Computer
+> software]. Zenodo.
 
 followed by the DOI of that version's record (its Zenodo page, reached from
 the DOI above).
