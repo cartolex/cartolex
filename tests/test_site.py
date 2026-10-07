@@ -210,6 +210,30 @@ def test_the_plan_estimates_the_atlas_and_warns_when_it_is_large(project, monkey
     assert found["params"]["total"] == weight["atlas"] + weight["parts"]
 
 
+def test_the_home_page_carries_the_lexicons_word_cloud(project, monkeypatch):
+    """The app's word cloud of the lexicon, drawn at the build for each look; none without
+    a lexicon."""
+    from cartolex.app import lexicon_view
+
+    def built(record) -> tuple[Path, str]:
+        folder = project.layout.outputs / "sites" / record["id"]
+        return folder, (folder / "data" / "core.js").read_text(encoding="utf-8")
+
+    record = build_site(project, SiteOptions(names=False))
+    folder, core = built(record)
+    light, dark = (
+        (folder / "assets" / f"cloud-{look}.svg").read_text(encoding="utf-8")
+        for look in ("light", "dark")
+    )
+    fills = [set(re.findall(r"fill:(#[0-9a-fA-F]{6})", svg)) for svg in (light, dark)]
+    assert "<text" in light and "<title>" in light and fills[0] and fills[0] != fills[1]
+    assert {"assets/cloud-light.svg", "assets/cloud-dark.svg"} <= set(record["files"])
+    assert '"cloud":true' in core
+    monkeypatch.setattr(lexicon_view, "word_cloud", lambda *args, **kwargs: None)
+    folder, core = built(build_site(project, SiteOptions(names=False)))
+    assert not list((folder / "assets").glob("cloud-*")) and '"cloud":false' in core
+
+
 def test_builds_are_never_overwritten_and_go_stale(project):
     at = datetime(2026, 3, 1, 12, 0, tzinfo=timezone.utc)
     first = build_site(project, SiteOptions(names=False), now=at)["id"]

@@ -17,7 +17,8 @@ README.txt     starts with « UNZIP THE WHOLE FOLDER FIRST », then what the sit
 site.json      the build's record: options, counts, sizes, the inputs' fingerprint
 assets/        tokens.css (the app's, copied), atlas.css and atlas.js (the app's atlas),
                site.css, site.js, i18n.js (en, fr, pt-BR), world.js (when organisations
-               have an address)
+               have an address), cloud-light.svg and cloud-dark.svg (the lexicon's word
+               cloud, when the project has a lexicon)
 data/          core.js (every page), orgs.js, links.js (who writes with whom),
                people/<n>.js, keywords/<n>.js and texts/<n>.js (only when texts are
                asked for)
@@ -127,8 +128,9 @@ offers (build the map, open the themes, change a field).
 
 ## The pages
 
-Home (search a person, an organisation, a keyword or a theme; arrows move
-through the results), Atlas (the app's atlas: the treemap of the themes, the
+Home (the lexicon's word cloud, a link to the atlas; search a person, an
+organisation, a keyword or a theme, arrows moving through the results; the
+themes), Atlas (the app's atlas: the treemap of the themes, the
 map, the card of links; its own Find, Back, Home, panes and full screen; the
 page is the window's height and the atlas fills what the header and the footer
 leave, whatever its card holds), a
@@ -154,6 +156,20 @@ reads at most at once). Past 50 MB (`LARGE_ATLAS_BYTES`, a project of about
 170,000 people) it warns (`site_large`, `size` and `total` in bytes): the site
 may be slow to open on an ordinary computer.
 
+## The word cloud
+
+The home page shows the lexicon's word cloud, the one of the app's Lexicon
+screen: the build draws it with the same function
+(`cartolex.app.lexicon_view.word_cloud`, the `wordcloud` package, at most
+`CLOUD_WORDS` = 200 keywords, the most important first, in the vendored Lato
+embedded in the SVG), coloured by top-level theme in the interface's hues (the
+atlas's default scheme, Vivid), once for each look: `assets/cloud-light.svg`
+and `assets/cloud-dark.svg`, of which the style sheet shows the page's. It is in
+the language the site opens in when the project displays it, else in the
+project's first display language. A project without a lexicon (or a lexicon
+without a keyword) gets no cloud (`core.has.cloud`). Keywords are not personal
+data: the cloud carries no person.
+
 ## Figures, tables and files
 
 `cartolex.site.exports`: `map_figure` (the map as PNG or SVG at a size in
@@ -178,6 +194,11 @@ site's own map) and after (`cartolex-site/3`, the app's atlas):
 | home ready (Chromium, `file://`) | 0.14 s | 0.14 s |
 | the map drawn | 0.3–0.4 s | 0.5 s (the atlas, treemap and card) |
 
+The word cloud adds two files of 20 KB and 2 s to the build (reading the
+lexicon, 0.6 s on the L world, then two drawings of 1 s each; the drawing does
+not grow with the project, at most 200 words; reading the lexicon does, as the
+app's Lexicon screen does).
+
 `data/core.js` is 0.24 MB (the theme shares of every person), the keywords'
 users 0.28 MB, the atlas's script 0.23 MB, the people's parts 0.14 MB, the
 links 0.03 MB.
@@ -193,15 +214,16 @@ bundle made from it in 0.3 s, the links read in 0.3 s; 180 MB of memory.
 ## Checks
 
 `tests/test_site.py` (the XS world): a pseudonymous site holds no name and no
-text; the atlas's data (theme shares per level, organisations, keywords'
-users, vectors); the links are the app's co-authorship graph over the site's
+text; the home page's word cloud, for each look, and none without a lexicon;
+the atlas's data (theme shares per level, organisations, keywords' users,
+vectors); the links are the app's co-authorship graph over the site's
 own indexes, organisations paired within a level, unnamed projected people
 left out; titles and abstracts never carry a private part; builds never overwrite
 each other and go stale after a decision changes; the share routes; the
 site's tokens equal the app's and its catalogues are complete.
 `tests/browser/test_offline_site.py` opens a built site from `file://` in Chromium with
 every request refused (and in Firefox when a build of it is installed), walks
-from the search to a person's page and on to the atlas mounted over the
+from the home page's word cloud and the search to a person's page and on to the atlas mounted over the
 site's files, checks that the atlas fills the window and keeps its height as
 its card fills, hides and comes back, and the message a page shows without its
 files.

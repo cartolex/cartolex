@@ -37,6 +37,12 @@ def walk(page) -> None:
     themes address → not found."""
     page.locator("#cx-site:not([hidden])").wait_for(timeout=5000)
     assert page.locator("#cx-missing").count() == 0
+    # the lexicon's word cloud, drawn at the build in the page's look, opens the atlas
+    page.wait_for_function(
+        "() => { const img = [...document.querySelectorAll('.cx-cloud__img')]"
+        ".find((e) => e.offsetParent); return img && img.complete && img.naturalWidth > 0; }"
+    )
+    assert page.locator(".cx-cloud__link").get_attribute("href") == "#/map"
     search = page.get_by_role("searchbox", name="Find a person")
     search.fill("Person 1")
     person = page.locator(".cx-result[href^='#/person/']").first

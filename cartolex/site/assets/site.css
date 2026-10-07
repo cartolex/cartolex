@@ -393,6 +393,60 @@ h3 {
   font-size: var(--cx-text-s);
 }
 
+/* the home page's word cloud: one picture per look, the page's shown */
+
+.cx-cloud__figure {
+  margin: 0;
+}
+
+.cx-cloud__link {
+  display: block;
+  border-radius: var(--cx-radius-m);
+}
+
+.cx-cloud__img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.cx-cloud__img--dark {
+  display: none;
+}
+
+:root[data-theme='dark'] .cx-cloud__img--light {
+  display: none;
+}
+
+:root[data-theme='dark'] .cx-cloud__img--dark {
+  display: block;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .cx-cloud__img--light {
+    display: none;
+  }
+
+  :root:not([data-theme='light']) .cx-cloud__img--dark {
+    display: block;
+  }
+}
+
+.cx-cloud__figure figcaption {
+  margin-top: var(--cx-space-2);
+  font-size: var(--cx-text-s);
+}
+
+@media print {
+  .cx-cloud__img--dark {
+    display: none !important;
+  }
+
+  .cx-cloud__img--light {
+    display: block !important;
+  }
+}
+
 /* the atlas: the app's own (assets/atlas.css), given the page below the header */
 
 /* The atlas takes the height its host gives it (height: 100%): the page is the window's
