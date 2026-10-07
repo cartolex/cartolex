@@ -108,6 +108,8 @@ function JobItem({ job, jobs }) {
   const error = jobError(job);
   // A job that keeps checkpoints pauses when stopped: its button says so.
   const pauses = p.code === 'institution_works';
+  // A search of collaborators says which reading it is in (the seeds' works, a round's…).
+  const collaborators = String(p.code || '').startsWith('collaborators_') && has(`tracker.${p.code}`);
   return html`<li class=${`cx-job cx-job--${job.state}`} data-job=${job.id}>
     <div class="cx-job__head">
       <${StatusDot} state=${DOT[job.state] || 'never_built'} />
@@ -124,6 +126,7 @@ function JobItem({ job, jobs }) {
         ${p.code === 'improve_texts' ? html`${' · '}${t('tracker.improve', p.params)}` : null}
         ${p.code === 'harvest_people' ? html`${' · '}${t('tracker.harvest_people', p.params)}` : null}
         ${pauses ? html`${' · '}${t('tracker.institution_works', p.params)}` : null}
+        ${collaborators ? html`${' · '}${t(`tracker.${p.code}`, p.params)}` : null}
         ${p.eta_s ? html`${' · '}${t('tracker.eta', { eta: formatDuration(p.eta_s) })}` : null}
       </p>` : null}
       ${job.cancellable !== false ? html`<${Button} size="s" variant="secondary"

@@ -436,11 +436,13 @@ def record_job(
     counts: Mapping[str, Any],
     egress: Sequence[Mapping[str, Any]],
     finished: datetime | None = None,
+    phases: Sequence[Mapping[str, Any]] = (),
 ) -> str:
     """Write ``logs/jobs/<job id>.jsonl`` for a collection job; returns the job id.
 
-    It holds the job's kind, times, outcome and counts, and one line per host
-    contacted with the kinds of data sent: never a name, an identifier or a text.
+    It holds the job's kind, times, outcome and counts, one line per host
+    contacted with the kinds of data sent, and one per phase the job told of
+    (*phases*: its name, seconds and counts): never a name, an identifier or a text.
     """
     finished = finished or datetime.now(timezone.utc)
     job_id = f"collect-{kind}-{new_run_id(started)}"
@@ -456,6 +458,7 @@ def record_job(
             }
             for e in egress
         ),
+        *({"event": "phase", **dict(p)} for p in phases),
         {
             "event": "end",
             "outcome": outcome,

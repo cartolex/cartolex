@@ -8,7 +8,13 @@ from _collect_world import client, confirm_truth, demo_project, world_ids
 
 from cartolex.collect.harvest import harvest
 from cartolex.collect.http import ServiceUnavailable
-from cartolex.collect.openalex import OpenAlexApi
+from cartolex.collect.openalex import (
+    AUTHORS_SHOWN,
+    OpenAlexApi,
+    fit_works,
+    most_recent,
+    works_of_authors,
+)
 from cartolex.collect.snapshot import Snapshot, SnapshotSource
 from cartolex.collect.snowball import (
     decide_collaborators,
@@ -111,6 +117,59 @@ def test_a_higher_threshold_keeps_the_large_work(services, seeded) -> None:
     report = snowball(project, OpenAlexApi(client(services, project)))
     assert report.max_authors == 40 and report.large_works == 0
     assert outside <= {c.record for c in report.collaborators}
+
+
+def test_a_cut_author_list_is_asked_whole_only_when_the_graph_could_keep_it(
+    services, seeded, tmp_path, monkeypatch
+) -> None:
+    project, bib, _ids = seeded
+    openalex = services.server.services["openalex"]
+    big = bib.works[bib.consortium]
+    try:
+        # Lists show 26 of the 30 authors: more than 25, the work leaves the graph as it is.
+        openalex.authors_shown = 26
+        monkeypatch.setattr("cartolex.collect.openalex.AUTHORS_SHOWN", 26)
+        services.requests.clear()
+        report = snowball(project, OpenAlexApi(client(services, project)), cap=500)
+        assert report.large_works >= 1
+        assert not [r for r in services.requests if r.path.startswith("works/")]
+        outside = {f"openalex:{a.author_id}" for a in big.authorships if a.person_id is None}
+        assert not outside & {c.record for c in report.collaborators}
+        # With up to 40 authors kept, the cut work is asked for whole, and kept.
+        other = demo_project(tmp_path / "other", bib, _rows_of(project, bib))
+        confirm_truth(other, bib, world_ids(other, bib))
+        services.requests.clear()
+        kept = snowball(other, OpenAlexApi(client(services, other)), cap=500, max_authors=40)
+        assert f"works/{big.id}" in {r.path for r in services.requests}
+        assert kept.large_works == 0 and outside <= {c.record for c in kept.collaborators}
+        other.close()
+    finally:
+        openalex.authors_shown = AUTHORS_SHOWN
+
+
+def test_a_fit_reads_the_most_recent_works_one_request_per_prolific_author(
+    services, seeded
+) -> None:
+    project, bib, _ids = seeded
+    http = client(services)
+    ids = sorted(a.id for a in bib.authors.values())[:12]
+    whole, _answers = works_of_authors(http, ids)
+    services.requests.clear()
+    found = fit_works(http, ids, limit=2)
+    for aid in ids:
+        recent, total = found[aid]
+        assert total == len(whole[aid])
+        assert [w["id"] for w in recent] == [w["id"] for w in most_recent(whole[aid], 2)]
+    # The works counts in one list, the authors of two works or fewer together, and one
+    # request (one page, the most recent first) for each of the others.
+    prolific = [a for a in ids if len(whole[a]) > 2]
+    assert prolific and len(prolific) < len(ids)
+    listed = [r for r in services.requests if r.path in ("works", "authors")]
+    one_page = [r for r in listed if r.query.get("sort") == "publication_date:desc"]
+    assert len(one_page) == len(prolific) and all(r.query["per_page"] == "2" for r in one_page)
+    assert len([r for r in listed if r.path == "authors"]) == 1
+    batched = [r for r in listed if r.path == "works" and "sort" not in r.query]
+    assert len({r.query["filter"] for r in batched}) == 1  # one list (its pages)
 
 
 def test_the_cap_cuts_a_whole_round_and_names_it(services, seeded) -> None:

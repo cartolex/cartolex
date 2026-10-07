@@ -353,6 +353,7 @@ def _run(args: argparse.Namespace, action: str) -> int:
                 outcome=outcome,
                 counts=counts,
                 egress=client.egress.summary(),
+                phases=getattr(args, "phases_done", ()),
             )
             project.close()
         for e in client.egress.summary():
@@ -550,6 +551,18 @@ def _institutions(args: argparse.Namespace) -> int:
 def _collaborators_run(args: argparse.Namespace, project: Any, client: Any) -> dict[str, Any]:
     from cartolex.collect.snowball import snowball
 
+    # Each phase in the job's record (where the time went), and said as it ends.
+    args.phases_done = []
+    sent = dict(client.counts)
+
+    def on_phase(phase: str, **detail: Any) -> None:
+        now = dict(client.counts)
+        line = {"phase": phase, **detail, "requests": now["sent"] - sent["sent"]}
+        line["cached"] = now["cached"] - sent["cached"]
+        sent.update(now)
+        args.phases_done.append(line)
+        print(f"{phase}: {line['seconds']} s, {line['requests']} request(s)", flush=True)
+
     report = snowball(
         project,
         _source(args, client),
@@ -558,6 +571,8 @@ def _collaborators_run(args: argparse.Namespace, project: Any, client: Any) -> d
         years=_years(args.years),
         cap=args.cap,
         max_authors=args.max_authors,
+        progress=client.progress,
+        on_phase=on_phase,
     )
     for line in report.lines(show=args.show):
         print(line)

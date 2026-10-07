@@ -180,7 +180,7 @@ Every job writes `logs/jobs/<job id>.jsonl` in its project: a `job` line (its
 kind, the process, a digest of the machine's name and its boot), the build's own events (phases,
 stage ends with counts and times) and a `job-end` line (its state, and the
 `error` of a failed job or the `pause` of a paused one) — never a name or a
-text; a collection adds one `egress` line per host whatever its end. After a restart, a job whose log has no end and whose process is gone is
+text; a collection adds one `egress` line per host whatever its end, and a search of collaborators one `phase` line per phase as it ends (its seconds, requests sent and read from the cache, counts). After a restart, a job whose log has no end and whose process is gone is
 `interrupted`, never `running`.
 
 ## Logs and the diagnostic

@@ -10,6 +10,7 @@ line.
 - The Keywords screen is now called « Lexicon » (fr « Lexique », pt-BR « Léxico »), and its tab of the built lexicon « Final lexicon »; its address stays `/keywords`.
 - The offline site's home page shows the lexicon's word cloud (the app's, drawn at the build for the light and the dark look), a link to the atlas.
 - The offline site's atlas keeps one height, the window's: a long card no longer made it taller than the window, nor a hidden card shorter.
+- A search of collaborators reads what it needs, and says so. A work whose author list OpenAlex cut (more than 100 authors) is no longer asked for whole when it would be left out of the co-author graph anyway (more than `max_authors` authors): with many large collaborations among the seeds' or the collaborators' works, that was one request per work. The collaborators' topical fit reads their 100 most recent works (`FIT_WORKS`), asked 50 people a list, or one request for a prolific person, instead of every work with every author: the fit of a collaborator with more than 100 works is measured on their 100 most recent. The job says which reading is under way (the seeds' works, the collaborators', the tables) with the time left, and writes a `phase` line per phase in its log (seconds, requests, counts); the command line says each phase too.
 
 A generic engine with an explicit API: every stage takes a run context, and
 nothing in the engine names a particular deployment, source or procedure.

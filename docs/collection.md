@@ -398,16 +398,24 @@ Each collaborator comes with the works written together, the people of the
 round before they wrote with (the seeds, in round 1), the **path** back to a
 seed, the last joint year, the organisation stated on the latest joint work,
 and their **topical fit**: the cosine similarity between the words of their
-own titles and abstracts (those not written with the seeds; the joint ones
-when there is no other) and the seeds', each word weighted by its frequency
-and its rarity; 1 is the same vocabulary, 0 no word in common.
+own titles and abstracts (those not written with the seeds, among their 100
+most recent; the joint ones when there is no other) and the seeds', each word
+weighted by its frequency and its rarity; 1 is the same vocabulary, 0 no word
+in common.
 
 - A work with **more than 25 authors** is left out of the co-author graph: a
   large collaboration says little about who works with whom
   (`collect.snowball.max_authors` in `params.json`, or `--max-authors`).
 - **Whole rounds only**, up to a **cap** of 200 people proposed
   (`collect.snowball.cap`, or `--cap`): a round that would pass it is left out
-  whole, with a warning that names it.
+  whole, with a warning that names it. A hundred people usually have more than
+  200 co-authors: the first round then stops once the seeds' works are read,
+  and a higher cap takes it.
+- **What it takes:** the seeds' works (about one request per 100 works), then
+  for each collaborator their 100 most recent works (one request per 50 people
+  with fewer works, one per person with more). Requests go one after the other,
+  each taking about half a second: a round of 1,000 collaborators takes some
+  minutes. The job's progress names the reading under way.
 - A collaborator is **context** by default: their texts shape the lexicon
   with a weight, they are not on the map. Decide otherwise with `--decide`:
   `mapped`, `projected`, `no` (excluded) or `later`. Decisions go to
