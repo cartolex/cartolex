@@ -323,8 +323,9 @@ themes screen (`pages/themes.js`, {doc}`themes-editor`) is built, and so are
 the settings (`pages/settings.js`: one module per section under
 `pages/settings/`, the section in the address, `/settings?section=build`; each
 section reads what it shows when it opens), the start screen
-(`pages/start.js` and `pages/start/`: recent projects, the demo project, a new
-project; `/start`, and `/start?new=1` for the form) and the About page
+(`pages/start.js` and `pages/start/`: recent projects, each with « Remove… »,
+`remove.js`: out of the list, or its folder deleted after a last question; the demo
+project, a new project; `/start`, and `/start?new=1` for the form) and the About page
 (`pages/about.js` and `pages/about/`: the logo (`brand/mark.svg`, or the host's own),
 what cartolex is for, the pipeline as one
 SVG figure drawn with the theme's tokens, the scientific background as
@@ -453,8 +454,8 @@ The share screen (`pages/share.js`, route `/share`) loads
 `pages/share/page.js`: building the offline site (`site.js`: the name
 question, the texts, the title and language, the privacy summary and the
 checks before publishing, each with its fix), the builds (`builds.js`: latest,
-stale, open, download as one zip) and figures, tables and files
-(`exports.js`). Opening it reads `GET /api/share` and `GET /api/share/plan`;
+stale, open, download as one zip, the disk each takes) and figures, tables and files
+(`exports.js`), each deleted after a question (`delete.js`). Opening it reads `GET /api/share` and `GET /api/share/plan`;
 a build or an export is a job followed through the jobs poller (see
 {doc}`site`).
 

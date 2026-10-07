@@ -5,10 +5,11 @@
  * CSV, and two files written by a job into `outputs/exports/` under dated
  * names: the map bundle (for another project's base map or a merge) and the
  * project as one zip, without its caches; and distances in the space of the themes
- * (`distances.js`: the nearest of each, every pair, the vectors).
+ * (`distances.js`: the nearest of each, every pair, the vectors). Each file written
+ * can be deleted (`delete.js`), its size and the total shown.
  */
 import { html, useState } from '../../core/preact.js';
-import { formatDate, formatNumber, locale, t } from '../../core/i18n.js';
+import { formatBytes, formatDate, locale, t } from '../../core/i18n.js';
 import { Button, Card, ErrorCard, FormField, Input, ProgressBar, Select } from '../../components/index.js';
 import { DistancesDialog } from './distances.js';
 
@@ -20,7 +21,7 @@ function clamp(value, fallback) {
   return Number.isFinite(n) ? Math.max(MIN, Math.min(MAX, n)) : fallback;
 }
 
-export function ExportsCard({ ctx, share, job, running, onStarted }) {
+export function ExportsCard({ ctx, share, job, running, onStarted, deletion }) {
   const [width, setWidth] = useState('1600');
   const [height, setHeight] = useState('1200');
   const [theme, setTheme] = useState('light');
@@ -72,11 +73,15 @@ export function ExportsCard({ ctx, share, job, running, onStarted }) {
       onStarted=${(job) => onStarted({ ok: true, data: { job } })} />
     ${job && running ? html`<${ProgressBar} value=${job.progress ? job.progress.fraction : null} label=${t('share.files.progress')} />` : null}
     ${error ? html`<${ErrorCard} error=${error} compact />` : null}
-    ${files.length ? html`<ul class="cx-share-files" aria-label=${t('share.files.list')}>
+    ${files.length ? html`<p class="cx-share__note">${t('share.files.disk', {
+      size: formatBytes(share.disk ? share.disk.exports : files.reduce((n, e) => n + e.size, 0)) })}</p>
+    <ul class="cx-share-files" aria-label=${t('share.files.list')}>
       ${files.map((e) => html`<li key=${e.name}>
         <a href=${`/api/share/exports/${encodeURIComponent(e.name)}`} download><code>${e.name}</code></a>
-        <span class="cx-share__note">${' · '}${formatDate(e.made_at, 'datetime')}${' · '}${t('share.size', {
-          mb: formatNumber(e.size / 1e6, { maximumFractionDigits: 1 }) })}</span>
+        <span class="cx-share__note">${' · '}${formatDate(e.made_at, 'datetime')}${' · '}${formatBytes(e.size)}</span>
+        <${Button} size="s" variant="ghost" disabled=${running} aria-haspopup="dialog"
+          aria-label=${t('share.files.delete_named', { name: e.name })}
+          onClick=${() => deletion.ask('export', { name: e.name, bytes: e.size })}>${t('share.files.delete')}<//>
       </li>`)}
     </ul>` : null}
   <//>`;

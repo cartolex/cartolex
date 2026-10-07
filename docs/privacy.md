@@ -132,9 +132,18 @@ later change of the project is marked stale.
 - **Everything collected**: delete `sources/<slot>/raw/` for the slot, the
   tables in `sources/tables/` and `cache/sources/`; the project keeps its
   decisions.
-- **The whole project**: delete its folder. Copies you made (backups, shared
-  bundles, exported sites in `outputs/sites/`, files in `outputs/exports/`) are
-  yours to delete too.
+- **The whole project**: on the start screen (« All projects… » in the project
+  menu), « Remove… » beside it, then « Delete the project's folder »: a last
+  question names the folder and its size, and everything cartolex wrote in it
+  is deleted for good (not moved to the trash). What cartolex did not write
+  stays, with the folder; a link inside the project is removed, never what it
+  points to. A project open in another application, or busy with a job, is not
+  deleted. « Remove from the list » only takes it out of the list. Copies you
+  made outside the folder (backups, sites and files you sent) are yours to
+  delete.
+- **Shared sites and files**: the Share screen shows what each site build, its
+  zip and each written file take on disk, and deletes them one at a time, or
+  every build but the latest at once.
 - **One person**: set their role to `excluded` so that nothing uses them. Erasing
   every trace of one person means removing them from the list you import,
   deleting the raw runs and the cache, and collecting again; cartolex 1.0 has no

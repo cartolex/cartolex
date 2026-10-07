@@ -4,7 +4,8 @@
  * or creating a project reloads the interface on the project's first page, so
  * every screen starts from the new project's manifest; the opening itself
  * (a held project opened anyway after a warning, a busy one) is shared with the
- * header's project menu (`components/project-open.js`).
+ * header's project menu (`components/project-open.js`). « Remove… » takes a recent
+ * project out of the list or deletes its folder (`remove.js`).
  */
 
 import { html, useState } from '../../core/preact.js';
@@ -14,11 +15,13 @@ import { Button, Card, EmptyState, FormField, Input } from '../../components/ind
 import { OpenProblem, restartAt, useProjectOpener } from '../../components/project-open.js';
 import { Block, State, refusal, useResource } from '../settings/common.js';
 import { NewProject } from './new.js';
+import { RemoveDialog } from './remove.js';
 
 
 function Recent({ ctx, recent }) {
   const opener = useProjectOpener(ctx.api);
   const [path, setPath] = useState('');
+  const [removing, setRemoving] = useState(null);
   const open = (folder) => opener.open(folder);
   const items = recent.data ? recent.data.items || [] : [];
   return html`<${Block} title=${t('start.recent')} resource=${recent} class="cx-settings__wide">
@@ -29,10 +32,14 @@ function Recent({ ctx, recent }) {
           ${item.path ? html`<code class="cx-start__path">${item.path}</code>` : null}
           ${item.opened_at ? html`<span class="cx-settings__muted">${t('start.opened', { when: formatDate(item.opened_at, 'datetime') })}</span>` : null}
         </div>
-        ${item.exists === false ? html`<${State} kind="warning">${t('start.missing')}<//>`
-          : html`<${Button} onClick=${() => open(item.path || item.id)}
-            loading=${opener.opening === (item.path || item.id)}
-            aria-label=${t('start.open_named', { name: item.name || item.id })}>${t('start.open')}<//>`}
+        <div class="cx-start__actions">
+          ${item.exists === false ? html`<${State} kind="warning">${t('start.missing')}<//>`
+            : html`<${Button} onClick=${() => open(item.path || item.id)}
+              loading=${opener.opening === (item.path || item.id)}
+              aria-label=${t('start.open_named', { name: item.name || item.id })}>${t('start.open')}<//>`}
+          ${item.path ? html`<${Button} variant="ghost" onClick=${() => setRemoving(item)} aria-haspopup="dialog"
+            aria-label=${t('start.remove_named', { name: item.name || item.id })}>${t('start.remove')}<//>` : null}
+        </div>
       </li>`)}
     </ul>` : html`<${EmptyState} icon="file" level=${3} title=${t('start.no_recent')}>${t('start.no_recent.text')}<//>`}
     <form class="cx-settings__inline" onSubmit=${(e) => {
@@ -46,6 +53,11 @@ function Recent({ ctx, recent }) {
       <${Button} type="submit" disabled=${!path.trim()}>${t('start.open')}<//>
     </form>
     <${OpenProblem} opener=${opener} />
+    ${removing ? html`<${RemoveDialog} ctx=${ctx} item=${removing} onClose=${() => setRemoving(null)}
+      onDone=${() => {
+        setRemoving(null);
+        recent.reload();
+      }} />` : null}
   <//>`;
 }
 

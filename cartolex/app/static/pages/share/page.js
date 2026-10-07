@@ -7,15 +7,16 @@
  * `GET /api/share/plan` (the privacy summary and the checks of a build with
  * the form's options, read again when they change). A build or an export is
  * a job, followed through the jobs poller; when it ends the lists are read
- * again.
+ * again. What each takes on disk is shown, and each can be deleted (`delete.js`).
  */
 import { html, useEffect, useState } from '../../core/preact.js';
-import { t } from '../../core/i18n.js';
+import { formatBytes, t } from '../../core/i18n.js';
 import { usePage, usePageTitle } from '../../core/page.js';
 import { ErrorCard } from '../../components/index.js';
 import { SiteCard } from './site.js';
 import { BuildsCard } from './builds.js';
 import { ExportsCard } from './exports.js';
+import { useDeletion } from './delete.js';
 
 const ACTIVE = new Set(['queued', 'running', 'cancelling']);
 
@@ -61,19 +62,26 @@ export function ShareScreen() {
     return r;
   };
   const running = Boolean(job && ACTIVE.has(job.state));
+  const deletion = useDeletion(ctx, () => {
+    load();
+    ctx.app.stores.project.refresh();
+  });
 
   return html`<div class="cx-page cx-share">
     <h1 class="cx-page__title">${t('nav.share')}</h1>
     <p class="cx-page__lead">${t('share.lead')}</p>
+    ${share && share.disk && share.disk.total ? html`<p class="cx-share__note">
+      ${t('share.disk.total', { size: formatBytes(share.disk.total) })}</p>` : null}
     ${error ? html`<${ErrorCard} error=${error} onRetry=${load} />` : null}
     <div class="cx-share__grid">
       <${SiteCard} ctx=${ctx} available=${!share || share.available} job=${job && job.kind === 'site' ? job : null}
         running=${running} onStarted=${started} />
       <div class="cx-share__side">
-        <${BuildsCard} share=${share} />
+        <${BuildsCard} share=${share} deletion=${deletion} running=${running} />
         <${ExportsCard} ctx=${ctx} share=${share} job=${job && job.kind === 'export' ? job : null}
-          running=${running} onStarted=${started} />
+          running=${running} onStarted=${started} deletion=${deletion} />
       </div>
     </div>
+    ${deletion.dialog}
   </div>`;
 }

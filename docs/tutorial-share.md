@@ -59,6 +59,11 @@ or pseudonyms.
 Every build is kept in its own dated folder (in the project's `outputs/`);
 nothing is ever written over an earlier one. A build made before your latest
 changes is marked *Stale*.
+Each build says what it takes on disk, its zip included, and **Delete…**
+removes it (after a question naming its date and size); **Delete older
+builds…** keeps only the latest, and **Delete the zip…** only the zip, written
+again at the next download. The files written below can be deleted the same
+way.
 
 ### 4. Figures, tables and files
 

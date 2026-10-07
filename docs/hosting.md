@@ -34,6 +34,11 @@ A service with its own accounts passes its sign-in to the app
 resource?), through a small Python program of its own that calls
 `cartolex.app.create_app` and serves it with uvicorn. See {doc}`dev/api`.
 
+A hosted service never deletes a project's folder from the app
+(`project_delete_hosted`): whoever runs the service removes projects from its
+folder. The site builds and exported files of a project can be deleted from its
+Share screen by whoever the service's rules allow (the action `share.delete`).
+
 ## The container
 
 `deploy/Dockerfile` builds an image of the app with the language models of the

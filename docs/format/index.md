@@ -44,6 +44,9 @@ snapshot-index
    parsing and collection cost time). `sources/` and `decisions/` are the
    project; the backup set is `project.json`, `sources/`, `decisions/` and
    `cache/ai/`.
+   When the app deletes a project's folder, it removes only the entries listed
+   above (`project.json` last, links removed as links), and keeps the folder
+   with anything else found in it.
 2. **Decisions are keyed by stable names.** A keyword is named by its text, a
    person by their person id, an organisation by its organisation id, never by a
    row number. A re-extraction or a re-collection therefore never shifts a

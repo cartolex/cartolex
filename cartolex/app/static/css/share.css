@@ -147,8 +147,26 @@
 }
 
 .cx-share-files li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--cx-space-2);
   padding: var(--cx-space-1) 0;
   overflow-wrap: anywhere;
+}
+
+.cx-share-files li > .cx-button {
+  margin-left: auto;
+}
+
+/* What the builds take on disk, and « Delete older builds… ». */
+.cx-share__disk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cx-space-2);
+  margin-bottom: var(--cx-space-2);
 }
 
 /* « Export distances »: a matrix above its threshold says its size and waits for a yes. */
