@@ -384,10 +384,14 @@ apply at the next build.
 The People screen (`pages/people.js`, route `/people`) loads
 `pages/people/page.js`: the tabs People (`people-tab.js`), Identities
 (`identities.js`, the queue, keyboard first: waiting, or accepted automatically
-to review), Duplicates (`duplicates-tab.js`, pairs of people who may be one,
-compared side by side in `duplicates-compare.js`, decided with the keyboard, the
-clear pairs, or every pair above a likelihood chosen with a slider, 50 % at first,
-merged in one undoable step after a preview), Organisations (`orgs-tab.js`: an
+to review), Duplicates (`duplicates-tab.js`, groups of people who may be one, two or
+more, compared side by side in `duplicates-compare.js` (a column per person, the one
+kept and those taken in chosen there), merged, split or left for later with the
+keyboard; the clear pairs, or every pair above a likelihood chosen with a slider,
+50 % at first, merged in one undoable step after a preview, `duplicates-auto.js`);
+« Same person… » for rows selected in the People tab and « Same person as… » in a
+sheet (`same-person.js`: the people side by side, a search for more, one undoable
+merge), Organisations (`orgs-tab.js`: an
 organisation's drawer with what people decide about it, `org-drawer.js`; the
 pairs that may be one organisation, `org-review.js`; the people of institutions,
 `institutions.js`), Texts (`texts-tab.js`), Collaborators

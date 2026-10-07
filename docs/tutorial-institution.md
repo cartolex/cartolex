@@ -79,9 +79,11 @@ The dialog asks:
   (education, facility…) placed on the project's levels, so that a lab sits
   inside its university on the map.
 
-When two records of the index look like one person (the same ORCID, or the
-same name at the same unit), the clear pairs are taken as one person and the
-others are listed for you to tick. Press **Take all**.
+When two records of the index look like one person (the same ORCID, the same
+name, or names that agree at the same unit), the clear pairs are taken as one
+person and the others are listed for you to tick. Records you know to be one
+person can also be selected in the list and taken with **Take as one person**.
+Press **Take all**.
 
 **You should see** the people on the **People** tab, mapped, with their
 identity *Confirmed*: they were found through their records, so there is no

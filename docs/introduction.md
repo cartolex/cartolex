@@ -50,8 +50,9 @@ lists them, with three things for each.
 
 People come in by **Import** (a list of names, a folder of documents, a
 prepared corpus) or by **Collect** (the people of an institution, the
-co-authors of your people). Two rows that may be one person are proposed on
-the **Duplicates** tab; a merge can always be undone. A person's **sheet**
+co-authors of your people). Rows that may be one person are proposed on
+the **Duplicates** tab, two or more at a time; people you know to be one are
+merged with **Same person…**; a merge can always be undone. A person's **sheet**
 (Enter on a row, or « Open the sheet ») says what was found for them and why.
 
 ## Texts

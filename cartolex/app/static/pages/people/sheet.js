@@ -5,7 +5,8 @@
  * saying why), then the sources used and discarded, each finder's latest
  * attempt, the texts and the affiliations with their years. Actions: retry a
  * failed collection, add documents, exclude, or change the identity (the
- * identity choice opened again, `identity-change.js`); show the person on the map. A merged row says whom it is merged into, a person the
+ * identity choice opened again, `identity-change.js`), « Same person as… » (people found by
+ * a search, merged into one, `same-person.js`); show the person on the map. A merged row says whom it is merged into, a person the
  * rows merged into them; each merge can be undone (« two people » remembers the
  * pair, « not sure » leaves it to review). An affiliation can be removed, and
  * one someone added or removed taken back.
@@ -30,7 +31,7 @@ function span(a) {
 
 /** The sheet of *personId*. */
 export function PersonSheet({ ctx, personId, onClose, bump, toast, openCollect, openImport, canCollect,
-  openSheet, showOnMap }) {
+  openSheet, showOnMap, sameAs }) {
   const [person, setPerson] = useState(null);
   const [error, setError] = useState(null);
   const [changing, setChanging] = useState(false);
@@ -135,6 +136,8 @@ export function PersonSheet({ ctx, personId, onClose, bump, toast, openCollect, 
           ${t('corpus.sheet.add_documents')}<//>` : null}
         ${!person.merged_into ? html`<${Button} size="s" onClick=${() => setChanging(true)}>
           ${t('corpus.sheet.change_identity')}<//>` : null}
+        ${!person.merged_into && sameAs ? html`<${Button} size="s" onClick=${() => sameAs([personId], true)}>
+          ${t('corpus.same.button_as')}<//>` : null}
         ${actions.includes('exclude') ? html`<${Button} size="s" variant="ghost" onClick=${exclude}>
           ${t('corpus.sheet.exclude')}<//>` : null}
         ${showOnMap && !person.merged_into ? html`<${Button} size="s" variant="ghost"

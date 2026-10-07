@@ -9,7 +9,7 @@
  *
  * Addresses other pages link to: `/people?person=<id>` opens a person's sheet,
  * `/people?tab=organisations&org=<id>` an organisation, `/people?tab=texts&text=<id>`
- * a text; `/people?tab=duplicates` the pairs of people who may be one person.
+ * a text; `/people?tab=duplicates` the groups of people who may be one person.
  */
 import { html, useEffect, useState } from '../../core/preact.js';
 import { formatNumber, t } from '../../core/i18n.js';
@@ -25,6 +25,7 @@ import { CollaboratorsTab } from './collaborators-tab.js';
 import { CoverageTab } from './coverage-tab.js';
 import { DuplicatesTab } from './duplicates-tab.js';
 import { PersonSheet } from './sheet.js';
+import { SamePersonDialog } from './same-person.js';
 import { ImportDialog } from './import.js';
 import { CollectDialog } from './collect.js';
 
@@ -95,6 +96,7 @@ export function CorpusScreen() {
   const [sheet, setSheet] = useState(() => linked(ctx.query, 'person'));
   const [focus] = useState(() => ({ org: linked(ctx.query, 'org'), text: linked(ctx.query, 'text') }));
   const [duplicates, setDuplicates] = useState(null);
+  const [same, setSame] = useState(null); // « Same person… »: {ids, search}
   const [importing, setImporting] = useState(() => {
     const start = startOf(ctx.query);
     return start && start.importing ? { mode: start.importing, person: null } : null;
@@ -152,9 +154,9 @@ export function CorpusScreen() {
       });
     });
   }, [version, tick]);
-  // How many pairs of people may be one person: the tab's count and the People tab's note.
+  // How many groups of people may be one person: the tab's count and the People tab's note.
   useEffect(() => {
-    ctx.api.get('/api/people/duplicates', { query: { limit: 1 } }).then((r) => {
+    ctx.api.get('/api/people/duplicates/groups', { query: { limit: 1 } }).then((r) => {
       if (r.ok) setDuplicates(r.data.counts || null);
     });
   }, [version, tick]);
@@ -172,6 +174,7 @@ export function CorpusScreen() {
     showOnMap: (kind, id) => ctx.navigate(`/map?sel=${encodeURIComponent(`${kind}:${id}`)}`),
     duplicates,
     openTab: (id) => setTab(id),
+    sameAs: (ids, search = false) => setSame({ ids, search }),
     openCollect: (action, options = {}) => setCollecting({ action, options }),
     openImport: (mode, person = null) => setImporting({ mode, person }),
     showPeople: (filter) => {
@@ -179,6 +182,16 @@ export function CorpusScreen() {
       setTab('people');
     },
   };
+
+  // « Undo » after « Same person… »: the rows merged stand on their own again.
+  async function undoSame(ids) {
+    const people = await ctx.api.get('/api/people', { query: { limit: 1 } });
+    const result = await ctx.api.post('/api/people/unmerge', { person_ids: ids }, { ifMatch: people.etag });
+    toast(result.ok ? { kind: 'success', title: t('corpus.dup.auto.undone', { n: result.data.unmerged.length }) }
+      : { kind: 'error', title: t('corpus.same.undo_failed'), message: result.error && result.error.message });
+    bump();
+    refresh();
+  }
 
   const importItems = [
     { id: 'list', label: t('corpus.import.list') },
@@ -237,6 +250,16 @@ export function CorpusScreen() {
       setSheet(null);
       dropParam('person');
     }} />` : null}
+    ${same ? html`<${SamePersonDialog} ctx=${ctx} ids=${same.ids} search=${same.search}
+      openSheet=${(id) => setSheet(id)} onClose=${() => setSame(null)}
+      onDone=${(result) => {
+        setSame(null);
+        toast({ kind: 'success', timeout: 8000, title: t('corpus.same.done', { n: result.merged.length }),
+          action: { label: t('corpus.dup.auto.undo'), onClick: () => undoSame(result.merged) } });
+        if (sheet) setSheet(result.keep);
+        bump();
+        refresh();
+      }} />` : null}
     ${importing ? html`<${ImportDialog} ...${common} mode=${importing.mode}
       person=${importing.person} onStarted=${started}
       onClose=${(changed) => { setImporting(null); if (changed) bump(); }} />` : null}
