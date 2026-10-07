@@ -61,6 +61,28 @@ def card_section(page, text: str):
     return page.locator(".cx-atlas-card h4", has_text=text)
 
 
+#: The atlas's and the map's heights in the window.
+HEIGHTS = """() => ['.cx-atlas', '.cx-atlas-map__box'].map((s) =>
+  Math.round(document.querySelector(s).getBoundingClientRect().height))"""
+
+
+def assert_the_card_keeps_the_height(page) -> list[int]:
+    """The atlas's and the map's heights stay as they are while the card shows a focus, hides
+    to its rail and comes back: the host gives the atlas its height, never the card's content.
+    Answers those heights."""
+    seen = [page.evaluate(HEIGHTS)]
+    head = page.locator(".cx-atlas-pane--card .cx-atlas-pane__head")
+    head.get_by_role("button", name="Hide").click()
+    rail = page.locator(".cx-atlas-rail--right")
+    rail.wait_for()
+    seen.append(page.evaluate(HEIGHTS))
+    rail.click()
+    head.wait_for()
+    seen.append(page.evaluate(HEIGHTS))
+    assert all(s == seen[0] for s in seen), seen
+    return seen[0]
+
+
 def test_the_main_flow_of_the_atlas(demo_s, app_for, open_app, axe_source):
     ui = open_app(app_for(demo_s), bypass_csp=True)
     page = ui.page
@@ -107,6 +129,7 @@ def test_the_main_flow_of_the_atlas(demo_s, app_for, open_app, axe_source):
     assert query(ui)["sel"] == [f"person:{linked['person_id']}"]
     card_section(page, "Co-authors").wait_for()
     page.wait_for_function(ARCS)
+    assert_the_card_keeps_the_height(page)
     page.locator(".cx-atlas-layers").get_by_role("button", name="2", exact=True).click()
     assert query(ui)["net"] == ["2"]
     card_section(page, "Second circle").wait_for()

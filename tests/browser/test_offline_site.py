@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 from site_walk import open_page, walk
+from test_atlas import assert_the_card_keeps_the_height
 
 from cartolex.project.project import Project
 from cartolex.site.builder import SiteOptions, build_site
@@ -41,6 +42,26 @@ def test_the_site_opens_from_a_file_without_the_network(site, browser):
         page.locator("#cx-site:not([hidden])").wait_for(timeout=5000)
         assert time.monotonic() - start < 3
         walk(page)
+        assert errors == [] and refused == []
+    finally:
+        context.close()
+
+
+def test_the_atlas_fills_the_window_whatever_its_card_holds(site, browser):
+    """The atlas page is the window's height: the atlas fills what the header and the footer
+    leave, and the card's content never makes it taller or shorter."""
+    page, errors, refused, context = open_page(browser, (site / "index.html").as_uri() + "#/map")
+    try:
+        page.locator(".cx-atlas-map__box").wait_for()
+        find = page.get_by_role("combobox", name="Find")
+        find.fill("Person 1")
+        page.locator(".cx-atlas-find [role=option]").first.wait_for()
+        find.press("Enter")
+        page.locator(".cx-atlas-card__title", has_text="Person 1").wait_for()
+        atlas, _ = assert_the_card_keeps_the_height(page)
+        window = page.viewport_size["height"]
+        assert page.evaluate("document.scrollingElement.scrollHeight") <= window
+        assert atlas > 0.7 * window
         assert errors == [] and refused == []
     finally:
         context.close()

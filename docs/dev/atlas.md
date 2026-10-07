@@ -64,8 +64,13 @@ atlas.destroy();              // every listener, observer, frame and request rel
 `file://`, a synthetic bundle, a translator over the catalogue's `atlas.*` keys,
 the rings computed by `ringsOf` from a list of links.
 
-`root` is an empty element; the atlas fills it and takes its whole size (the
-host gives it a height). `mountAtlas` returns at once; the atlas shows
+`root` is an empty element; the atlas fills it and takes its whole size. The
+host gives it a **definite height** (a `height`, or a flex item's share of a box
+that has one), never only a `min-height`: the atlas's `height: 100%` would then
+follow its content, the card's lists making it taller than the window and a
+hidden card shrinking it to the map's least (the offline site's page is the
+window's height for this reason). Narrower than 860 px the panes stack, each
+with its own height, and the page scrolls. `mountAtlas` returns at once; the atlas shows
 « Loading » until the bundle is read. Its style sheet is
 `static/css/atlas.css`, which reads the `--cx-*` tokens of `css/tokens.css`
 (the site ships both).

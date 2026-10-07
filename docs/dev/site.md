@@ -129,7 +129,9 @@ offers (build the map, open the themes, change a field).
 
 Home (search a person, an organisation, a keyword or a theme; arrows move
 through the results), Atlas (the app's atlas: the treemap of the themes, the
-map, the card of links; its own Find, Back, Home, panes and full screen), a
+map, the card of links; its own Find, Back, Home, panes and full screen; the
+page is the window's height and the atlas fills what the header and the footer
+leave, whatever its card holds), a
 page per person and per organisation (themes per level, keywords,
 organisations or members, who they write with, texts when carried; « Show on
 the atlas », « Print this page »), Index (people, organisations and keywords
@@ -200,4 +202,6 @@ site's tokens equal the app's and its catalogues are complete.
 `tests/browser/test_offline_site.py` opens a built site from `file://` in Chromium with
 every request refused (and in Firefox when a build of it is installed), walks
 from the search to a person's page and on to the atlas mounted over the
-site's files, and checks the message a page shows without its files.
+site's files, checks that the atlas fills the window and keeps its height as
+its card fills, hides and comes back, and the message a page shows without its
+files.
