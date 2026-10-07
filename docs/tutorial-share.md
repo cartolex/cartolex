@@ -52,9 +52,38 @@ or pseudonyms.
 ```
 
 - **Open** shows it in your browser, as a reader will see it: the map, the
-  themes, a page per person and per organisation, the method.
+  themes, the distances, a page per person and per organisation, the method.
 - **Download as a zip** gives the file to send. The reader unzips it and
   opens `index.html`.
+
+The site's **Distances** page measures how alike people and organisations
+are, in the reader's browser, with no server:
+
+- **Ranked list**: find a person or an organisation, and see every other
+  person (or every organisation of a level) from the most to the least alike,
+  with the themes they share and whether they write together; a theme narrows
+  the list.
+- **Pairs**: those who *talk the same but don't work together* (possible
+  collaborations, communities working in parallel), and those who *work
+  together but talk differently* (ties across fields). Every pair is measured
+  among at most 5,000 people or organisations: on a large field, choose a
+  theme first.
+- **Matrices**: organisations × organisations, organisations × themes,
+  themes × themes, and, for a selection (an organisation's members, a theme's
+  people, a person and their co-authors, at most 300), people × people,
+  people × organisations and people × themes; ordered by theme, so the blocks
+  show. A cell opens **Compare** in the atlas, a name its ranked list.
+
+The similarity is the app's: *Meaning in the map's space* or *Shared themes*,
+each with its one-line explanation (the other measures need the whole
+vocabulary, which the site does not carry: the app's exports compute them).
+Each list or matrix is saved with **Download CSV**, with the names the site
+shows: a site of pseudonyms gives pseudonyms. The app shows the same page as
+the Map screen's **Distances** pane.
+
+```{image} images/share-site-distances.png
+:alt: The site's Distances page: a matrix of the organisations ordered by theme, a coloured band per theme along each side, the blocks of alike organisations along the diagonal.
+```
 
 Every build is kept in its own dated folder (in the project's `outputs/`);
 nothing is ever written over an earlier one. A build made before your latest
@@ -69,7 +98,7 @@ Below, **Figures, tables and files** gives:
 - the **Theme table (CSV)**;
 - **Write the map bundle**, which lets another project place itself on this
   map, and **Write the project as one file**;
-- **Distances…**, the export described in {doc}`tutorial-map`.
+- **Export distances…**, the export described in {doc}`tutorial-map`.
 
 ## Putting it online
 

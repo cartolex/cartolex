@@ -10,6 +10,7 @@ line.
 - The Keywords screen is now called « Lexicon » (fr « Lexique », pt-BR « Léxico »), and its tab of the built lexicon « Final lexicon »; its address stays `/keywords`.
 - The offline site's home page shows the lexicon's word cloud (the app's, drawn at the build for the light and the dark look), a link to the atlas.
 - The offline site's atlas keeps one height, the window's: a long card no longer made it taller than the window, nor a hidden card shorter.
+- A « Distances » page in the offline site, and the same as a pane of the Map screen (beside Atlas; the export button is now « Export distances »): a person's or an organisation's ranked list of everyone else, the most alike first, with the themes they share and whether they write together; the pairs who talk the same but never wrote together, and the co-authors who talk differently; heatmaps ordered by theme (organisations, themes, organisations × themes, and people within a selection of at most 300); « Meaning in the map's space » or « Shared themes », computed in the browser; each list saved as CSV with the names the site shows. One code for both hosts (`cartolex/app/static/distances/`); the app reads `GET /api/atlas/vectors` and `GET /api/atlas/links`, the site its people's vectors, now in parts of their own (`data/vectors/<n>.js`) rather than in the people's parts.
 
 A generic engine with an explicit API: every stage takes a run context, and
 nothing in the engine names a particular deployment, source or procedure.
