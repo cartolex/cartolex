@@ -114,6 +114,42 @@ def test_the_nearest_and_the_comparison_follow_the_space(client):
     assert mixed.status_code == 200 and mixed.json()["a"]["name"] == org["name"]
 
 
+def test_the_distances_pane_reads_the_vectors_and_links_in_the_bundles_order(client):
+    """``GET /api/atlas/vectors`` (int8 rows, the space's cosines) and ``GET /api/atlas/links``
+    (the co-authors as sparse lists), both over the bundle's order and kept by ETag."""
+    import base64
+
+    atlas = client.get("/api/atlas").json()
+    root = Path(client.app.state.cartolex.settings.project)
+    rids, z = _space(root)
+    with open(root / "derived" / "map.layout" / "umap_individuals.csv", encoding="utf-8") as fh:
+        order = [r["id"] for r in csv.DictReader(fh)]
+    r = client.get("/api/atlas/vectors", params={"kind": "person"})
+    body = r.json()
+    assert body["count"] == len(atlas["people"]) and body["dim"] == z.shape[1]
+    q = np.frombuffer(base64.b64decode(body["values"]), np.int8).reshape(body["count"], -1)
+    row = {rid: k for k, rid in enumerate(rids)}
+    a, b = 0, 1  # the bundle's first two people are the layout's first two
+    unit = q[[a, b]].astype(float) / np.linalg.norm(q[[a, b]].astype(float), axis=1, keepdims=True)
+    assert abs(unit[0] @ unit[1] - z[row[order[0]]] @ z[row[order[1]]]) < 0.02
+    again = client.get(
+        "/api/atlas/vectors", params={"kind": "person"}, headers={"If-None-Match": etag(r)}
+    )
+    assert again.status_code == 304
+    links = client.get("/api/atlas/links", params={"kind": "person"}).json()
+    assert len(links["ptr"]) == len(atlas["people"]) + 1
+    me = next(i for i in range(len(atlas["people"])) if links["ptr"][i + 1] > links["ptr"][i])
+    pid = atlas["people"][me]["person_id"]
+    co = client.get("/api/atlas/coauthors", params={"kind": "person", "id": pid}).json()
+    mine = {
+        atlas["people"][links["nbr"][k]]["person_id"]: links["cnt"][k]
+        for k in range(links["ptr"][me], links["ptr"][me + 1])
+    }
+    assert mine == {i["id"]: i["texts"] for i in co["items"] if i["id"] in mine}
+    orgs = client.get("/api/atlas/links", params={"kind": "organisation"}).json()
+    assert len(orgs["ptr"]) == len(atlas["organisations"]) + 1
+
+
 def test_the_people_using_a_keyword_are_ranked_by_its_share_of_their_use(client):
     atlas = client.get("/api/atlas").json()
     kw = max(atlas["keywords"], key=lambda k: k["weight"] or 0)["term"]

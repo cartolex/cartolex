@@ -123,8 +123,8 @@ def test_the_vectors_parts_keep_the_spaces_cosines(project):
     row = np.frombuffer(base64.b64decode(parts[(k - 1) % 3]), np.int8).reshape(-1, v.shape[1])
     assert (row[(k - 1) // 3] == v[k - 1]).all()
     # the cosines are the space's, to the int8 rounding
-    from cartolex.app.routes.atlas import build_bundle, lineage
     from cartolex.app.atlas_layers import map_extras
+    from cartolex.app.routes.atlas import build_bundle, lineage
 
     ctx = project_context(project)
     bundle = build_bundle(ctx, lineage(ctx))
