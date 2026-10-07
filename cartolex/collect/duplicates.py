@@ -101,17 +101,6 @@ MAX_BLOCK = 600
 MAX_NAMESAKES = 50
 #: A full name more people than this bear is not compared at all (a placeholder).
 MAX_COMPARED_NAMESAKES = 1000
-#: Evidence beyond the names, which a pair of a crowded name needs.
-_BEYOND_NAMES = frozenset(
-    {
-        "dup_same_orcid",
-        "dup_same_record",
-        "dup_shared_org",
-        "dup_coauthors",
-        "dup_same_place",
-        "dup_same_title",
-    }  # fmt: skip
-)
 #: Pairs at least this likely join a group of the review; the others stay pairs of two.
 #: (The same name and an organisation in common, two namesakes of one lab as often as
 #: one person, stay below it.)
@@ -541,6 +530,7 @@ def _weigh(
     a: PersonFacts,
     b: PersonFacts,
     *,
+    named: dict[str, Any] | None = None,
     same_place: int,
     together: int,
     coauthors: int,
@@ -557,7 +547,8 @@ def _weigh(
     shared_ids = sorted(a.ids & b.ids)
     for scheme, value in shared_ids[:2]:
         lines.append(_line("dup_same_record", scheme=scheme, value=value))
-    named = _name_evidence(a, b)
+    if named is None:
+        named = _name_evidence(a, b)
     if named is not None:
         lines.append(named)
     elif a.orcids & b.orcids or shared_ids:
@@ -713,13 +704,12 @@ def duplicate_pairs(
     # Only the pairs with a name or an identifier in common are weighed further: the others
     # of a block are dropped before their texts and co-authors are compared.
     crowd = _candidates(facts, report)
-    candidates = {
-        (a, b)
-        for a, b in crowd
-        if _name_evidence(facts[a], facts[b]) is not None
-        or facts[a].orcids & facts[b].orcids
-        or facts[a].ids & facts[b].ids
-    }
+    named: dict[tuple[str, str], dict[str, Any] | None] = {}
+    for a, b in crowd:
+        line = _name_evidence(facts[a], facts[b])
+        if line is not None or facts[a].orcids & facts[b].orcids or facts[a].ids & facts[b].ids:
+            named[(a, b)] = line
+    candidates = set(named)
     involved = {p for pair in candidates for p in pair}
     code_of = {pid: i for i, pid in enumerate(cols.person_ids)} if cols is not None else {}
     groups = merged_groups(roots)
@@ -765,9 +755,16 @@ def duplicate_pairs(
             common = len((ca & cb) - mine)
             fewest = min(len(ca - mine), len(cb - mine))
             share = common / fewest if fewest else 0.0
+        fa, fb = facts[a], facts[b]
+        if crowd[(a, b)] > MAX_NAMESAKES and not (
+            common or same or (a, b) in titles or fa.orgs & fb.orgs
+            or fa.orcids & fb.orcids or fa.ids & fb.ids
+        ):  # fmt: skip
+            continue  # a name so common that it says nothing on its own
         pair = _weigh(
-            facts[a],
-            facts[b],
+            fa,
+            fb,
+            named=named[(a, b)],
             same_place=same,
             together=apart,
             coauthors=common,
@@ -775,11 +772,8 @@ def duplicate_pairs(
             same_titles=titles.get((a, b), 0),
             org_names=names,
         )
-        if pair is None:
-            continue
-        if crowd[(a, b)] > MAX_NAMESAKES and not (pair.codes() & _BEYOND_NAMES):
-            continue  # a name so common that it says nothing on its own
-        out.append(pair)
+        if pair is not None:
+            out.append(pair)
     out.sort(key=lambda p: (-p.score, p.a, p.b))
     return out, facts
 
