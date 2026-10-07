@@ -82,7 +82,7 @@ shows: a site of pseudonyms gives pseudonyms. The app shows the same page as
 the Map screen's **Distances** pane.
 
 ```{image} images/share-site-distances.png
-:alt: The site's Distances page: a matrix of the organisations ordered by theme, a coloured band per theme along each side, the blocks of alike organisations along the diagonal.
+:alt: The site's Distances page: a matrix of the labs ordered by their main theme, a band in each one's theme colour along each side, the similarity from dark to bright.
 ```
 
 Every build is kept in its own dated folder (in the project's `outputs/`);
