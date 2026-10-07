@@ -247,7 +247,7 @@ def test_the_recipe_and_the_old_method_address(demo_s, app_for, open_app, tmp_pa
     assert "| Fewest people * | `min_people` | 4 | 3 |" in text
     # each row links to the page where it is tuned
     before = ui.token()
-    row.get_by_role("link", name="Tune « Fewest people » on Keywords").click()
+    row.get_by_role("link", name="Tune « Fewest people » on Lexicon").click()
     ui.wait_ready(before)
     page.locator(".cx-tune [data-param='keywords.extract.min_people']").wait_for()
     # the header's settings menu no longer lists the method
@@ -309,7 +309,8 @@ def test_the_map_previews_a_layout_change_in_place(demo_s, app_for, open_app, tm
     # discard: the map again, the field back at the pinned version's value
     bar.get_by_role("button", name="Discard").click()
     bar.wait_for(state="detached")
-    assert "is-preview" not in frame.get_attribute("class")
+    # the frame leaves the preview at the map's next draw (later than the bar under load)
+    expect(frame).not_to_have_class(re.compile(r"\bis-preview\b"))
     expect(field).to_have_value("25")  # the field is set back once the bar is gone
     # keep: a new map version, pinned, then the build of the map
     field.fill("11")
