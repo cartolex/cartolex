@@ -1308,3 +1308,7 @@
   font-size: var(--cx-text-xs);
   font-variant-numeric: tabular-nums;
 }
+
+.cx-dist .cx-atlas-find__input {
+  width: 19rem;
+}

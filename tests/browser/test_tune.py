@@ -388,7 +388,7 @@ def test_the_similarity_is_chosen_in_the_map_panel(demo_s, app_for, open_app):
     assert params["global"]["similarity"]["value"] == "keywords"
     page.get_by_role("button", name=re.compile("Tune the map")).wait_for()
     assert "1 changed" in page.get_by_role("button", name=re.compile("Tune the map")).inner_text()
-    page.get_by_role("button", name="Distances").click()
+    page.get_by_role("button", name="Export distances").click()
     dialog = page.get_by_role("dialog")
     dialog.get_by_text("Similarity: Shared vocabulary.").wait_for()
     dialog.get_by_role("button", name="Change it…").click()

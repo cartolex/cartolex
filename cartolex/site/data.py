@@ -52,6 +52,7 @@ __all__ = [
     "SiteTexts",
     "estimate_bytes",
     "gather",
+    "int8_rows",
     "project_context",
     "site_links",
     "vector_parts",
@@ -154,7 +155,7 @@ def _shares(levels: list[dict[str, float]], code: Mapping[str, int]) -> list[lis
     return out
 
 
-def _int8(v: Any) -> Any:
+def int8_rows(v: Any) -> Any:
     """Each row of *v* as int8, its largest component ±127 (a row of zeros stays zeros): a
     cosine does not depend on the scale."""
     import numpy as np
@@ -168,7 +169,7 @@ def _int8(v: Any) -> Any:
 def _vector(v: Any) -> str:
     """A vector as base64 bytes (int8, its largest component ±127), which the site reads as
     ``Int8Array``."""
-    return base64.b64encode(_int8(v)[0].tobytes()).decode("ascii")
+    return base64.b64encode(int8_rows(v)[0].tobytes()).decode("ascii")
 
 
 def vector_parts(vectors: Any, n: int) -> list[str]:
@@ -618,7 +619,7 @@ def gather(
         rows = np.asarray([space.row_of.get(pid, -1) for pid in pids], dtype=np.int64)
         dense = np.zeros((len(pids), space.space.vectors.shape[1]), dtype=np.float32)
         dense[rows >= 0] = np.asarray(space.space.vectors)[rows[rows >= 0]]
-        vectors = _int8(dense) if len(pids) else np.zeros((0, dense.shape[1]), np.int8)
+        vectors = int8_rows(dense) if len(pids) else np.zeros((0, dense.shape[1]), np.int8)
     for pid in pids:
         people_details[sid[pid]] = {"k": person_terms.get(pid, [])[:KEYWORDS]}
     orgs_details: dict[str, dict[str, Any]] = {}

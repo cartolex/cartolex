@@ -312,3 +312,10 @@
   visibility: hidden;
   pointer-events: none;
 }
+
+/* the switch between the atlas and the « Distances » pane (static/distances/, atlas.css) */
+.cx-atlas__panes {
+  display: inline-flex;
+  gap: var(--cx-space-1);
+  margin-right: var(--cx-space-2);
+}

@@ -62,7 +62,9 @@ export function createHeatmap(spec, look) {
     const labels = cell >= 9;
     const top = labels ? TOP_LABELS : BAND + GAP;
     const left = labels ? LABEL : BAND + GAP;
-    return { cell, labels, top, left, w: left + BAND + GAP + nc * cell, hgt: top + BAND + GAP + nr * cell };
+    // the columns' names lean right, past the last column
+    const lean = labels ? Math.round(TOP_LABELS * 0.6) : 0;
+    return { cell, labels, top, left, w: left + BAND + GAP + nc * cell + lean, hgt: top + BAND + GAP + nr * cell };
   }
 
   function paint() {
