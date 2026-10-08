@@ -234,6 +234,10 @@ def test_theme_operations_saves_versions_and_restore(client):
 def test_settings_and_the_frozen_identity(client):
     settings = client.get("/api/settings")
     assert settings.json()["identity"]["frozen"] is False and settings.json()["change_costs"] == {}
+    # what the settings offer to choose from, so the API route can be made ready there
+    offered = settings.json()["ai"]
+    assert offered["providers"] == ["mistral"]
+    assert offered["default_models"] == {"mistral": "mistral-small-latest"}
     first = client.put(
         "/api/settings",
         json={"ai": {"provider": "mistral", "model": "small"}},

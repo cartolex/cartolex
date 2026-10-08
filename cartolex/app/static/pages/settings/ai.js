@@ -2,12 +2,13 @@
  * The AI: with a copilot (a bundle for an assistant that runs code, its
  * result imported back: no key, nothing sent by cartolex) or by API (cartolex
  * calls the provider with a key). A key belongs to this computer, never to a
- * project.
+ * project; the provider and model the API route uses belong to the project
+ * (its identity: once AI answers are paid for, changing it asks again).
  */
 
-import { html, useState } from '../../core/preact.js';
+import { html, useEffect, useState } from '../../core/preact.js';
 import { t } from '../../core/i18n.js';
-import { Button, FormField, Input } from '../../components/index.js';
+import { Button, ConfirmDialog, FormField, Input, Select } from '../../components/index.js';
 import { Block, State, refusal, useResource } from './common.js';
 
 /** A key saved on this computer for *service*: its state, a field to replace it, remove. */
@@ -57,11 +58,80 @@ export function KeyField({ ctx, app, machine, service, label, help }) {
   </div>`;
 }
 
+/** The project's AI provider and model: chosen here, kept in the project's identity. */
+function IdentityForm({ ctx, app, settings }) {
+  const data = settings.data;
+  const current = data.identity.ai;
+  const providers = data.ai.providers;
+  const defaults = data.ai.default_models || {};
+  const initial = () => {
+    const provider = current ? current.provider : providers[0];
+    return { provider, model: current ? current.model : (defaults[provider] || '') };
+  };
+  const [form, setForm] = useState(initial);
+  const [problem, setProblem] = useState(null);
+  const [confirm, setConfirm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => setForm(initial()), [data]);
+  const model = form.model.trim();
+  const changed = !current || current.provider !== form.provider || current.model !== model;
+  const save = async (confirmed = false) => {
+    setSaving(true);
+    setProblem(null);
+    const result = await ctx.api.put('/api/settings',
+      { ai: { provider: form.provider, model }, confirm_identity_change: confirmed }, { ifMatch: settings.etag });
+    setSaving(false);
+    if (result.ok) {
+      settings.set(result.data, result.etag);
+      app.toaster.show({ kind: 'success', title: t('settings.saved') });
+    } else if (result.error && result.error.code === 'identity_frozen') {
+      setConfirm(true);
+    } else if (result.kind === 'stale') {
+      setProblem(t('settings.stale'));
+      settings.reload();
+    } else {
+      setProblem(refusal(result.error));
+    }
+  };
+  return html`<form class="cx-settings__form" onSubmit=${(e) => {
+    e.preventDefault();
+    save(false);
+  }}>
+    <p class="cx-settings__note">${current
+      ? html`<${State} kind="ok">${t('settings.ai.identity_set', { provider: current.provider, model: current.model })}<//>`
+      : html`<${State} kind="none">${t('settings.ai.identity_none')}<//>`}</p>
+    <${FormField} label=${t('settings.ai.provider')}>
+      ${(field) => html`<${Select} ...${field} value=${form.provider}
+        options=${providers.map((p) => ({ value: p, label: t(`settings.ai.provider.${p}`) }))}
+        onChange=${(e) => {
+          const provider = e.currentTarget.value;
+          setForm({ provider, model: defaults[provider] || form.model });
+        }} />`}
+    <//>
+    <${FormField} label=${t('settings.ai.model')} help=${t('settings.ai.model_help', { model: defaults[form.provider] || '' })}>
+      ${(field) => html`<${Input} ...${field} value=${form.model} maxLength=${100} spellcheck="false" autocomplete="off"
+        onInput=${(e) => setForm({ ...form, model: e.currentTarget.value })} />`}
+    <//>
+    <p class="cx-settings__note">${t('settings.ai.identity_help')}</p>
+    ${problem ? html`<p class="cx-settings__problem" role="alert"><${State} kind="warning">${problem}<//></p>` : null}
+    <div class="cx-settings__actions">
+      <${Button} type="submit" variant="primary" disabled=${!changed || !model} loading=${saving}>
+        ${t('settings.ai.choose')}<//>
+    </div>
+    <${ConfirmDialog} open=${confirm} title=${t('settings.project.confirm.title')}
+      confirmLabel=${t('settings.project.confirm.yes')} cancelLabel=${t('common.cancel')}
+      onAnswer=${(yes) => {
+        setConfirm(false);
+        if (yes) save(true);
+      }}>
+      <p>${t('settings.project.confirm.text')}</p>
+    <//>
+  </form>`;
+}
+
 export function AiSection({ ctx, app, open }) {
   const machine = useResource(ctx.api, '/api/machine');
-  const project = useResource(ctx.api, open ? '/api/settings' : null);
-  const settings = open ? project : null;
-  const identity = settings && settings.data ? settings.data.identity : null;
+  const settings = useResource(ctx.api, open ? '/api/settings' : null);
   return html`<div class="cx-settings__grid">
     <${Block} title=${t('settings.ai.ways')}>
       <dl class="cx-settings__facts">
@@ -78,11 +148,8 @@ export function AiSection({ ctx, app, open }) {
         <${KeyField} ctx=${ctx} app=${app} machine=${machine} service="mistral"
           label=${t('settings.ai.key')} help=${t('settings.ai.key_help')} />` : null}
     <//>
-    ${settings ? html`<${Block} title=${t('settings.ai.identity')} resource=${settings}>
-      ${identity ? html`<p class="cx-settings__note">${identity.ai
-        ? t('settings.ai.identity_set', { provider: identity.ai.provider, model: identity.ai.model })
-        : t('settings.ai.identity_none')}</p>
-        <p class="cx-settings__note">${t('settings.ai.identity_help')}</p>` : null}
+    ${open ? html`<${Block} title=${t('settings.ai.identity')} resource=${settings}>
+      ${settings.data ? html`<${IdentityForm} ctx=${ctx} app=${app} settings=${settings} />` : null}
     <//>` : null}
   </div>`;
 }

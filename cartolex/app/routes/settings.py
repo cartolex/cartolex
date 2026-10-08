@@ -45,6 +45,8 @@ def _view(runtime: Any, ctx: Any) -> dict[str, Any]:
                 "install": f"cartolex models add {lang}",
             }
         )
+    from cartolex.lexicon.mistral_client import DEFAULT_MODEL
+
     ai = runtime.ai_access()
     return {
         "name": config.name,
@@ -64,6 +66,8 @@ def _view(runtime: Any, ctx: Any) -> dict[str, Any]:
         "data_sources": runtime.collection.describe(),
         "ai": {
             "providers": ["mistral"],
+            # the model a provider is chosen with, until another is written
+            "default_models": {"mistral": DEFAULT_MODEL},
             "api_key_given": bool(ai is not None and (ai.api_key or ai.client_factory)),
             "sends": "keyword strings, never texts or people, with the field's title and "
             "description",

@@ -3,6 +3,10 @@
 This file covers the 1.0 line. The history of the 0.x releases stays with that
 line.
 
+## Unreleased
+
+- Settings › AI chooses the project's AI provider and model (Mistral, `mistral-small-latest` by default; `GET /api/settings` gives `ai.default_models`). Without one, the clean-up by API asked to choose a service in the settings, where there was nothing to choose.
+
 ## 1.0.2 — 2026-10-07
 
 - The title to cite: « cartolex: mapping research communities in their lexical space » (`CITATION.cff`, which Zenodo reads, the About
