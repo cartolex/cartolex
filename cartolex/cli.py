@@ -159,8 +159,15 @@ def _build(args: argparse.Namespace) -> int:
     project = Project.open(args.folder, write=True)
     for note in project.recovered:
         print(note)
+    from cartolex.lexicon.providers import provider as ai_provider
+
+    def ai_access(provider_id: str) -> AIAccess:
+        """The key of *provider_id* from its environment variable (never another's)."""
+        env = ai_provider(provider_id).env_var
+        return AIAccess(api_key=os.environ.get(env, "").strip() or None)
+
     registry = engine_registry(
-        AIAccess(api_key=os.environ.get("MISTRAL_API_KEY") or None),
+        ai_access,
         EngineOptions(rejects_folder=_data_dir(args) / "rejects", budget=budget),
     )
     cancel = threading.Event()
@@ -429,13 +436,10 @@ def _collection(args: argparse.Namespace, stack: object) -> object:
 
 
 def _app_settings(args: argparse.Namespace, *, hosted: bool, stack: object = None) -> object:
-    import os
 
     from cartolex.app import AppSettings
     from cartolex.app.server import default_data_dir
-    from cartolex.build.engine import AIAccess
 
-    key = os.environ.get("MISTRAL_API_KEY") or None
     names = [e.settings_dir_name for e in args.extensions if e.settings_dir_name]
     data_dir = args.data_dir or default_data_dir(names[0] if names else "cartolex")
     return AppSettings(
@@ -447,7 +451,6 @@ def _app_settings(args: argparse.Namespace, *, hosted: bool, stack: object = Non
         secure_cookies=bool(getattr(args, "secure_cookies", False)),
         idle_stop_s=None if hosted else _idle_stop(args),
         reopen_last=not hosted and args.verb != "api" and args.folder is None,
-        ai_access=AIAccess(api_key=key) if key else None,
         collection=_collection(args, stack) if stack is not None else None,  # type: ignore[arg-type]
     )
 

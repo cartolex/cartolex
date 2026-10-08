@@ -1,7 +1,8 @@
 /**
  * The AI: with a copilot (a bundle for an assistant that runs code, its
  * result imported back: no key, nothing sent by cartolex) or by API (cartolex
- * calls the provider with a key). A key belongs to this computer, never to a
+ * calls the provider with a key: Mistral AI or Albert, each with its own key,
+ * never sent to the other). A key belongs to this computer, never to a
  * project; the provider and model the API route uses belong to the project
  * (its identity: once AI answers are paid for, changing it asks again).
  */
@@ -146,7 +147,9 @@ export function AiSection({ ctx, app, open }) {
           ? html`<${State} kind="ok">${t('settings.ai.api_ready')}<//>`
           : html`<${State} kind="none">${t('settings.ai.api_off')}<//>`}</p>
         <${KeyField} ctx=${ctx} app=${app} machine=${machine} service="mistral"
-          label=${t('settings.ai.key')} help=${t('settings.ai.key_help')} />` : null}
+          label=${t('settings.ai.key')} help=${t('settings.ai.key_help')} />
+        <${KeyField} ctx=${ctx} app=${app} machine=${machine} service="albert"
+          label=${t('settings.ai.key.albert')} help=${t('settings.ai.key_help')} />` : null}
     <//>
     ${open ? html`<${Block} title=${t('settings.ai.identity')} resource=${settings}>
       ${settings.data ? html`<${IdentityForm} ctx=${ctx} app=${app} settings=${settings} />` : null}

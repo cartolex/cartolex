@@ -115,7 +115,8 @@ themes.space (place keywords in a common space): needs update; keywords.build ne
 The build prints « phase k of n » with the stage's name and how far it is, at
 least every ten seconds, and ends with a summary. A stage that reaches the
 network or costs money asks first; `--yes` answers yes. The AI key is read
-from `MISTRAL_API_KEY`. Ctrl-C once stops at the next safe point and says
+from `MISTRAL_API_KEY` or `ALBERT_API_KEY`, as the project's provider is Mistral AI
+or Albert. Ctrl-C once stops at the next safe point and says
 either « nothing changed » or « finished before the cancel » with the stages
 that did; a second Ctrl-C stops at once.
 

@@ -154,8 +154,9 @@ of the field. Open the **Themes** screen next: {doc}`tutorial-themes`.
   translation makes them one keyword on the map.
 - **By API**: **Triage with AI › By API (with a key)…** sends the keyword
   strings, with the field's title and description, to the AI provider set in
-  Settings › AI (choose the provider and its model under **The project's AI**,
-  then **Use this AI**), with your key saved on this computer. The dialog shows what is
+  Settings › AI (choose the provider, Mistral AI or Albert, and its model under
+  **The project's AI**, then **Use this AI**), with that provider's key saved on
+  this computer. The dialog shows what is
   sent and an estimate of the calls; the provider bills them. An answer
   already paid for is never asked again.
 

@@ -248,10 +248,9 @@ def build_manifest(runtime: Runtime, principal: Principal, project: dict | None)
         )
     nav.sort(key=lambda n: (n.order, n.id))
     modules = [_ext_path(e.id, m) for e in combined.extensions for m in e.modules]
-    ai = runtime.ai_access()
     capabilities = Capabilities(
         collection=runtime.collection.available,
-        ai_api=bool(ai is not None and (ai.api_key or ai.client_factory)),
+        ai_api=runtime.ai_ready(),
         ai_copilot=True,
         hosted=settings.hosted,
         idle_stop=settings.idle_stop_s is not None,

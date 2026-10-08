@@ -165,6 +165,7 @@ def child_recipe(runtime: Any) -> dict[str, Any] | None:
     (a registry or an AI access given in code). Stage declarations that cannot be sent to
     another process are found when the child starts: the build then runs here."""
     from cartolex.build.engine import EngineOptions
+    from cartolex.lexicon.providers import PROVIDERS
 
     settings = runtime.settings
     if settings.registry is not None or settings.ai_access is not None:
@@ -184,7 +185,8 @@ def child_recipe(runtime: Any) -> dict[str, Any] | None:
             budget=runtime.budget.budget(),
         ),
         "extensions": extensions,
-        "ai_key": None if settings.hosted else runtime.keys.get("mistral"),
+        # each provider's key, as the app would give it (environment, else saved here)
+        "ai_keys": {p: getattr(runtime.ai_access(p), "api_key", None) for p in PROVIDERS},
     }
     return recipe
 
@@ -196,9 +198,10 @@ def _registry(recipe: Mapping[str, Any]) -> Any:
 
     from .extensions import patched_registry
 
-    key = recipe["ai_key"]
+    keys = recipe["ai_keys"]
 
-    def ai_access() -> AIAccess | None:
+    def ai_access(provider: str) -> AIAccess | None:
+        key = keys.get(provider)
         return AIAccess(api_key=key) if key else None
 
     base = engine_registry(ai_access, recipe["options"])

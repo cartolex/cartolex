@@ -40,7 +40,11 @@ __all__ = [
 ]
 
 #: The services a key can be saved for, and the environment variable that wins over it.
-KEY_SERVICES = {"mistral": "MISTRAL_API_KEY", "openalex": "OPENALEX_API_KEY"}
+KEY_SERVICES = {
+    "mistral": "MISTRAL_API_KEY",
+    "albert": "ALBERT_API_KEY",
+    "openalex": "OPENALEX_API_KEY",
+}
 #: The read speed assumed before a job has measured this computer's, in bytes a second (a
 #: snapshot on an external hard disk, read four parts at a time).
 SNAPSHOT_READ_RATE = 60e6

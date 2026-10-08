@@ -226,8 +226,7 @@ def ai_routes(request: Request, ctx: ProjectDep) -> dict[str, Any]:
         "tokens_in": 0, "tokens_out": 0, "upper_bound": True,
     }  # fmt: skip
     identity = ctx.project.config.identity.ai
-    ai = runtime.ai_access()
-    key = bool(ai is not None and (ai.api_key or ai.client_factory))
+    key = runtime.ai_ready(identity.provider if identity else None)
     _, triage = api_verdicts(runtime, ctx)
     return {
         "run": run_id,
@@ -267,8 +266,7 @@ def run_api(request: Request, body: RunBody, ctx: ProjectDep) -> Any:
 
     runtime = runtime_of(request)
     identity = ctx.project.config.identity.ai
-    ai = runtime.ai_access()
-    if identity is None or ai is None or not (ai.api_key or ai.client_factory):
+    if identity is None or not runtime.ai_ready(identity.provider):
         raise ApiError.of("ai_api_not_ready")
     if not body.consent:
         raise ApiError.of("ai_consent_needed", provider=identity.provider)

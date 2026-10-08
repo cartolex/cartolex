@@ -49,7 +49,7 @@ def _view(runtime: Any) -> dict[str, Any]:
         "hosted": runtime.settings.hosted,
         "keys": {name: runtime.keys.status(name) for name in KEY_SERVICES},
         "keys_saved_in": "this computer" if runtime.keys.path is not None else "memory",
-        "ai_api": runtime.ai_access() is not None,
+        "ai_api": runtime.ai_ready(),
         "openalex": openalex_view(),
         "snapshot": None if runtime.settings.hosted else runtime.snapshot.status(),
         "build_budget": None if runtime.settings.hosted else runtime.budget.status(),
@@ -79,7 +79,7 @@ def machine(request: Request) -> dict[str, Any]:
 class KeyBody(BaseModel):
     """A key to save on this computer for *service*; ``null`` removes it."""
 
-    service: Literal["mistral", "openalex"]
+    service: Literal["mistral", "albert", "openalex"]
     key: Annotated[str | None, Field(min_length=8, max_length=500, pattern=r"^\S+$")] = None
 
 

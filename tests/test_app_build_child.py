@@ -84,7 +84,7 @@ def test_a_child_the_computer_stops_is_said_so(tmp_path):
     recipe = {
         "options": EngineOptions(),
         "extensions": [("dies", (), {"corpus.assemble": {"run": _die}})],
-        "ai_key": None,
+        "ai_keys": {},
     }
     try:
         with pytest.raises(RuntimeError, match="stopped by the system"):

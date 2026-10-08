@@ -175,14 +175,13 @@ def ai_view(runtime: Any, ctx: Any) -> dict[str, Any]:
     from ..ai_steps import routes_of
 
     params, fp = ctx.project.read_params()
-    ai = runtime.ai_access()
-    ready = bool(ai is not None and (ai.api_key or ai.client_factory))
+    identity = ctx.project.config.identity.ai
     from .state import triage_status
 
     return {
         "routes": routes_of(params),
         "choices": {step: list(routes) for step, routes in AI_ROUTES.items()},
-        "api_ready": ready and ctx.project.config.identity.ai is not None,
+        "api_ready": identity is not None and runtime.ai_ready(identity.provider),
         "version": version_of(fp),
         "triage": triage_status(runtime, ctx.project),
     }

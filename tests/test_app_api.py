@@ -236,8 +236,11 @@ def test_settings_and_the_frozen_identity(client):
     assert settings.json()["identity"]["frozen"] is False and settings.json()["change_costs"] == {}
     # what the settings offer to choose from, so the API route can be made ready there
     offered = settings.json()["ai"]
-    assert offered["providers"] == ["mistral"]
-    assert offered["default_models"] == {"mistral": "mistral-small-latest"}
+    assert offered["providers"] == ["mistral", "albert"]
+    assert offered["default_models"] == {
+        "mistral": "mistral-medium-latest",
+        "albert": "gpt-oss-120b",
+    }
     first = client.put(
         "/api/settings",
         json={"ai": {"provider": "mistral", "model": "small"}},
@@ -271,6 +274,36 @@ def test_settings_and_the_frozen_identity(client):
         headers={"If-Match": etag(decided)},
     )
     assert merge.status_code == 422
+
+
+def test_each_provider_gets_its_own_key_only(client, monkeypatch):
+    """A key saved for Albert serves a project on Albert, never one on Mistral; a provider
+    cartolex cannot call is refused."""
+    monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
+    monkeypatch.delenv("ALBERT_API_KEY", raising=False)
+    saved = client.put("/api/machine/keys", json={"service": "albert", "key": "albert-key-1234"})
+    assert saved.status_code == 200 and saved.json()["keys"]["albert"]["set"]
+    assert saved.json()["ai_api"] is True
+    settings = client.get("/api/settings")
+    assert settings.json()["ai"]["api_key_given"] is False  # Mistral while none is chosen
+    mistral = client.put(
+        "/api/settings",
+        json={"ai": {"provider": "mistral", "model": "mistral-medium-latest"}},
+        headers={"If-Match": etag(settings)},
+    )
+    assert mistral.json()["ai"]["api_key_given"] is False
+    albert = client.put(
+        "/api/settings",
+        json={"ai": {"provider": "albert", "model": "gpt-oss-120b"}},
+        headers={"If-Match": etag(mistral)},
+    )
+    assert albert.json()["ai"]["api_key_given"] is True
+    unknown = client.put(
+        "/api/settings",
+        json={"ai": {"provider": "elsewhere", "model": "m"}},
+        headers={"If-Match": etag(albert)},
+    )
+    assert unknown.status_code == 422
 
 
 def test_snapshots_list_read_and_restore(client):

@@ -484,33 +484,36 @@ def feed_rejects(ctx: StageContext, rctx: RunContext) -> int:
 
 
 def triage_runner(
-    access: AIAccess | Callable[[], AIAccess | None] | None,
+    access: AIAccess | Callable[[str], AIAccess | None] | None,
 ) -> Callable[[StageContext], dict[str, int]]:
     """The ``keywords.triage`` runner, reaching the provider through *access*.
 
-    *access* may be a function, asked at each run: an app whose key is saved
+    *access* may be a function, asked at each run with the project's provider
+    (:data:`cartolex.lexicon.providers.PROVIDERS`): an app whose key is saved
     or removed while it runs gives the build the key of the moment.
     """
 
     def run_triage(ctx: StageContext) -> dict[str, int]:
         from ..lexicon.llm_triage import run_pipeline_stage_2_llm
-
-        ai = access() if callable(access) else access
+        from ..lexicon.providers import PROVIDERS
 
         identity = ctx.project.config.identity.ai
-        if identity is None or identity.provider != "mistral":
+        if identity is None or identity.provider not in PROVIDERS:
             raise StageRefused(
-                "the AI clean-up needs identity.ai in project.json with the provider "
-                "'mistral' (the one cartolex can call)"
+                "the AI clean-up needs identity.ai in project.json with a provider cartolex "
+                "can call (" + ", ".join(PROVIDERS) + ")"
             )
+        service = PROVIDERS[identity.provider]
+        # the key of the project's provider only: a key never goes to another service
+        ai = access(service.id) if callable(access) else access
         if ai is None or (not ai.api_key and ai.client_factory is None):
             raise StageRefused(
-                "no AI key was given to the build: pass one (cartolex build reads "
-                "MISTRAL_API_KEY), or switch the AI clean-up off"
+                f"no AI key was given to the build for {service.label}: pass one (cartolex "
+                f"build reads {service.env_var}), or switch the AI clean-up off"
             )
         rctx = run_context(
             ctx,
-            _settings(ctx, llm_max_concurrent=ai.max_concurrent),
+            _settings(ctx, llm_max_concurrent=ai.max_concurrent, llm_api_url=service.api_url),
             ai_client=ai.client_factory,
         )
         try:
@@ -1718,10 +1721,11 @@ def _with_options(
 
 
 def engine_registry(
-    ai: AIAccess | Callable[[], AIAccess | None] | None = None,
+    ai: AIAccess | Callable[[str], AIAccess | None] | None = None,
     options: EngineOptions | None = None,
 ) -> Registry:
-    """cartolex's stages with their runners; the AI clean-up reaches its provider through *ai*.
+    """cartolex's stages with their runners; the AI clean-up reaches its provider through *ai*
+    (a function is asked with the project's provider, ``"mistral"`` or ``"albert"``).
 
     *options* (a host's prompts and function words) reach every stage.
     """

@@ -45,9 +45,8 @@ def _view(runtime: Any, ctx: Any) -> dict[str, Any]:
                 "install": f"cartolex models add {lang}",
             }
         )
-    from cartolex.lexicon.mistral_client import DEFAULT_MODEL
+    from cartolex.lexicon.providers import PROVIDERS
 
-    ai = runtime.ai_access()
     return {
         "name": config.name,
         "identity": {
@@ -65,10 +64,11 @@ def _view(runtime: Any, ctx: Any) -> dict[str, Any]:
         "levels": [lv.model_dump(mode="json") for lv in config.levels],
         "data_sources": runtime.collection.describe(),
         "ai": {
-            "providers": ["mistral"],
+            "providers": list(PROVIDERS),
             # the model a provider is chosen with, until another is written
-            "default_models": {"mistral": DEFAULT_MODEL},
-            "api_key_given": bool(ai is not None and (ai.api_key or ai.client_factory)),
+            "default_models": {p.id: p.default_model for p in PROVIDERS.values()},
+            # whether the project's provider (Mistral while none is chosen) has a key
+            "api_key_given": runtime.ai_ready(identity.ai.provider if identity.ai else "mistral"),
             "sends": "keyword strings, never texts or people, with the field's title and "
             "description",
         },
@@ -138,6 +138,13 @@ def put_settings(
             updates["ai"] = None
             changed.append("AI identity")
         elif body.ai is not None:
+            from cartolex.lexicon.providers import PROVIDERS
+
+            if body.ai.provider not in PROVIDERS:
+                raise ApiError.of(
+                    "invalid_parameters",
+                    problems=[f"ai.provider: one of {', '.join(PROVIDERS)}"],
+                )
             updates["ai"] = AIIdentity(**body.ai.model_dump())
             changed.append("AI identity")
         new = config.model_copy(update={"identity": identity.model_copy(update=updates)})

@@ -257,8 +257,10 @@ class _FakeModel:
     """Answers the typed triage prompt: every term kept as itself (``C en term=term``)."""
 
     calls = 0
+    server_url: str | None = None
 
-    def __init__(self, **_: Any) -> None:
+    def __init__(self, **kw: Any) -> None:
+        _FakeModel.server_url = kw.get("server_url")
         self.chat = self
 
     def complete(self, *, model: str, messages: list[dict], temperature: float, **_: Any) -> Any:
@@ -268,6 +270,45 @@ class _FakeModel:
         message = SimpleNamespace(content=content, model_dump=lambda: {"content": content})
         usage = SimpleNamespace(prompt_tokens=1, completion_tokens=1)
         return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=usage)
+
+
+@pytest.mark.models("en", "fr")
+def test_the_ai_clean_up_asks_the_key_and_the_address_of_the_projects_provider(built, tmp_path):
+    """A project on Albert asks for Albert's key only (never another provider's) and calls
+    Albert's address."""
+    project = _copy(built, tmp_path)
+    config = project.config
+    ai = AIIdentity(provider="albert", model="gpt-oss-120b")
+    identity = config.identity.model_copy(update={"ai": ai})
+    project.save_config(config.model_copy(update={"identity": identity}), action="t")
+    params, fp = project.read_params()
+    stages = {**params.stages, "keywords.triage": {"enabled": True}}
+    project.save_params(params.model_copy(update={"stages": stages}), expected=fp, action="t")
+    asked: list[str] = []
+
+    def access(provider: str) -> AIAccess | None:
+        asked.append(provider)
+        return (
+            AIAccess(client_factory=_FakeModel, max_concurrent=1) if provider == "albert" else None
+        )
+
+    def run(registry: Any) -> Any:
+        return build(
+            project,
+            ["keywords.triage"],
+            registry=registry,
+            year=YEAR,
+            budget_mb=1e9,
+            consent=lambda r: True,
+        )
+
+    refused = run(engine_registry(lambda provider: asked.append(provider)))
+    assert refused.outcome == "failed" and "ALBERT_API_KEY" in refused.failed[1]
+    _FakeModel.server_url = None
+    result = run(engine_registry(access))
+    assert result.outcome != "failed", result.summary()
+    assert set(asked) == {"albert"}
+    assert _FakeModel.server_url == "https://albert.api.etalab.gouv.fr"
 
 
 @pytest.mark.models("en", "fr")

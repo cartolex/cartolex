@@ -8,6 +8,7 @@ kept at module level, so two apps in one process share nothing.
 
 from __future__ import annotations
 
+import os
 import secrets
 import shutil
 import tempfile
@@ -98,18 +99,36 @@ class Cache:
 class Runtime:
     """Everything one app holds while it runs."""
 
-    def ai_access(self) -> Any:
-        """How the build reaches the AI provider now: the launch's access, else a key saved here."""
-        if self.settings.ai_access is not None:
-            return self.settings.ai_access
+    def ai_access(self, provider: str = "mistral") -> Any:
+        """How the build reaches *provider* now: the launch's access (a model of its own for
+        any provider; a key for Mistral only), else that provider's key: its environment
+        variable, else the one saved here (on a hosted service, the environment's only). A
+        key never goes to another provider than the one it is saved for."""
+        from cartolex.lexicon.providers import provider as ai_provider
+
+        given = self.settings.ai_access
+        if given is not None and (given.client_factory is not None or provider == "mistral"):
+            return given
+        service = ai_provider(provider)
         if self.settings.hosted:
-            return None
-        key = self.keys.get("mistral")
+            key = os.environ.get(service.env_var, "").strip()
+        else:
+            key = self.keys.get(service.id)
         if not key:
             return None
         from cartolex.build.engine import AIAccess
 
         return AIAccess(api_key=key)
+
+    def ai_ready(self, provider: str | None = None) -> bool:
+        """Whether the clean-up by API can reach *provider* (``None``: any provider)."""
+        from cartolex.lexicon.providers import PROVIDERS
+
+        for p in [provider] if provider else list(PROVIDERS):
+            ai = self.ai_access(p)
+            if ai is not None and (ai.api_key or ai.client_factory):
+                return True
+        return False
 
     def __init__(self, settings: AppSettings, extensions: Combined) -> None:
         from cartolex.build.engine import EngineOptions, engine_registry

@@ -67,8 +67,9 @@ docker logs cartolex            # the launch link, then one JSON line per reques
   session; the image's `HEALTHCHECK` calls it.
 - **Logs**: one JSON object per line on the standard error, with a request id
   and the route's template, never a name, a text or a key.
-- **The AI key**: `-e MISTRAL_API_KEY=…` lets the AI clean-up run by API;
-  without it, the AI clean-up with a copilot still works.
+- **The AI keys**: `-e MISTRAL_API_KEY=…` (Mistral AI) or `-e ALBERT_API_KEY=…`
+  (Albert) lets the AI clean-up run by API for a project on that provider;
+  without one, the AI clean-up with a copilot still works.
 - **Stopping**: `docker stop` sends a signal the app handles: running jobs are
   cancelled at their next safe point and the project is closed (its lock
   removed). Give it time (`--stop-timeout 30`).

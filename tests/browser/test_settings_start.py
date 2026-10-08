@@ -41,15 +41,15 @@ def test_the_sections_of_the_settings(settings):
     # a key of this computer: saved, then shown by its last four characters only
     section(ui, "AI")
     page.get_by_label("Mistral API key").fill("sk-demo-key-12345678")
-    page.get_by_role("button", name="Save the key").click()
+    page.get_by_role("button", name="Save the key").first.click()
     page.get_by_text(re.compile(r"saved on this computer \(…5678\)")).wait_for()
     assert page.get_by_text("The AI clean-up can run by API.").is_visible()
     assert "sk-demo-key" not in page.content()
     # the project's AI: a provider and its default model, chosen here (the API route needs it)
     page.get_by_text(re.compile("No AI chosen yet")).wait_for()
-    assert page.get_by_label("Model", exact=True).input_value() == "mistral-small-latest"
+    assert page.get_by_label("Model", exact=True).input_value() == "mistral-medium-latest"
     page.get_by_role("button", name="Use this AI").click()
-    page.get_by_text("Provider mistral, model mistral-small-latest.").wait_for()
+    page.get_by_text("Provider mistral, model mistral-medium-latest.").wait_for()
     # the build options; every other parameter is in its page's « Tune » panel, all in the Recipe
     section(ui, "Sizes and build options")
     page.get_by_role("link", name="open the recipe").wait_for()
