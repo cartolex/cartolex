@@ -3,7 +3,7 @@
 This file covers the 1.0 line. The history of the 0.x releases stays with that
 line.
 
-## Unreleased
+## 1.0.3 — 2026-10-08
 
 - Settings › AI chooses the project's AI provider and model (`GET /api/settings` gives `ai.default_models`). Without one, the clean-up by API asked to choose a service in the settings, where there was nothing to choose.
 - The clean-up by API can call Albert (DINUM) as well as Mistral AI: Mistral AI with `mistral-medium-latest` by default, Albert with `gpt-oss-120b`. Each has its own key (Settings › AI, or `MISTRAL_API_KEY` / `ALBERT_API_KEY`), sent only to its own service.
