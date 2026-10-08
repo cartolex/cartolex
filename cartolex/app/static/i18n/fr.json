@@ -169,6 +169,7 @@
   "copilot.step.import": "Importer le résultat",
   "copilot.step.review": "Relire",
   "copilot.download": "Télécharger le lot",
+  "copilot.making": "Préparation du lot : sur un grand projet, cela prend une minute ou deux.",
   "copilot.hint": "Donnez le zip à un assistant capable d’exécuter du code. Il travaille seul avec l’outil fourni, vous demande avant de restructurer et avant de rendre, et vous remet un fichier nommé result.json.",
   "copilot.next": "J’ai le résultat",
   "copilot.import.help": "Choisissez le result.json que l’assistant vous a remis. Rien ne change avant que vous acceptiez ce qu’il propose.",

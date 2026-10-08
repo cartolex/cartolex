@@ -72,7 +72,8 @@ the result*, *Review*.
   keywords »). Press **Save the notes**: they go with every later bundle.
 
 Press **Download the bundle**: a zip named after the task, the project and
-the time.
+the time. On a large project it takes a minute or two to make; the button says
+so meanwhile.
 
 ### 3. Give it to the assistant
 

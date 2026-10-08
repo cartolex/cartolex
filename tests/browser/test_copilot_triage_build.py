@@ -56,14 +56,10 @@ def _triage(ui, folder: Path, *, parts: int = 1, only_one: bool = False) -> str:
     page.locator(".cx-corpus__actions .cx-menubutton button").click()
     page.get_by_role("menuitem").nth(0).click()
     d = dialog(ui)
-    link = d.locator("a[download]")
+    link = d.get_by_role("button", name="Download the bundle")
     link.wait_for()
     if parts > 1:
         d.get_by_label("Parts").select_option(str(parts))
-        page.wait_for_function(
-            "(n) => document.querySelector('dialog[open] a[download]')?.href.includes('parts=' + n)",
-            arg=parts,
-        )
     with page.expect_download() as download:
         link.click()
     zipfile.ZipFile(io.BytesIO(Path(download.value.path()).read_bytes())).extractall(folder)

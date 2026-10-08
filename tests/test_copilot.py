@@ -123,6 +123,61 @@ def _texts(files: dict[str, bytes]) -> str:
     ).casefold()
 
 
+def _alternation(keys):
+    """The regular expression the name mask used before: every key, longest first."""
+    alts = "|".join(re.escape(k) for k in sorted(keys, key=len, reverse=True))
+    return re.compile(r"(?<!\w)(" + alts + r")(?!\w)")
+
+
+def test_the_name_mask_finds_what_an_alternation_of_the_names_finds():
+    """Set lookups per start and length, not one alternation of every name (minutes on a
+    large roster): the same matches, on fabricated names and terms."""
+    import random
+
+    from cartolex.project.copilot import NameMask, _fold
+
+    rng = random.Random(7)
+    syllables = ["ka", "lo", "mi", "ra", "su", "ten", "vo", "zé", "an", "e", "o-b", "l'e"]
+
+    def word(k):
+        return "".join(rng.choice(syllables) for _ in range(k))
+
+    people = [
+        (word(rng.randint(1, 2)).title(), word(rng.randint(1, 3)).title()) for _ in range(400)
+    ]
+    mask = NameMask(people)
+    full = {f"{_fold(f).strip()} {_fold(la).strip()}" for f, la in people}
+    full |= {f"{_fold(la).strip()} {_fold(f).strip()}" for f, la in people}
+    words = {w for f, la in people for w in re.split(r"[\s\-']+", f"{_fold(f)} {_fold(la)}")}
+    full_re, words_re = _alternation(full), _alternation({w for w in words if len(w) >= 2})
+    named = 0
+    for _ in range(3000):
+        f, la = rng.choice(people)
+        parts = [word(rng.randint(1, 3)) for _ in range(rng.randint(0, 3))]
+        if rng.random() < 0.4:
+            parts.insert(rng.randint(0, len(parts)), rng.choice([f"{f} {la}", f"{la}-{f}", la]))
+        term = rng.choice([" ", "-", ", ", "_"]).join(parts)
+        folded = re.sub(r"[\s\-]+", " ", _fold(term))
+        expected = full_re.search(folded) is not None
+        named += expected
+        assert mask.holds_name(term) is expected, term
+        text = "(" + term + "), " + word(2)
+        if len(_fold(text)) == len(text):
+            assert mask.mask(text) == _sub_keep_case(words_re, text), text
+    assert named > 300
+
+
+def _sub_keep_case(pattern, text):
+    """*text* with each match of *pattern* on its folded form masked, as the mask did."""
+    from cartolex.project.copilot import _fold
+
+    out, last = [], 0
+    for m in pattern.finditer(_fold(text)):
+        out += [text[last : m.start()], "[name]"]
+        last = m.end()
+    return "".join(out + [text[last:]])
+
+
 def test_no_bundle_holds_a_name_an_identifier_an_organisation_or_a_text(client):
     world = generate("XS", 0)
     themes = _texts(_bundle(client, THEMES))

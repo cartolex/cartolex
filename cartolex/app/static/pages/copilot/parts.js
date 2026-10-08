@@ -28,12 +28,11 @@ export function stepState(step, id) {
  * @param {string[]} props.contains catalogue keys
  * @param {string[]} props.never catalogue keys
  * @param {string|null} props.counts the counts in words
- * @param {string|null} [props.href] the download address (null while loading)
- * @param {Function|null} [props.onDownload] or: make the zip and offer it (a POST)
- * @param {boolean} [props.busy] while the zip is made
+ * @param {Function|null} [props.onDownload] make the zip and offer it (null while loading)
+ * @param {boolean} [props.busy] while the zip is made (it says so: a large one takes a while)
  * @param {object} [props.error]
  */
-export function CopilotExport({ lead, contains, never, counts, href, onDownload = null, busy = false,
+export function CopilotExport({ lead, contains, never, counts, onDownload = null, busy = false,
   error, children }) {
   const uid = useUid('cx-copilot');
   return html`<p class="cx-handoff__lead">${lead}</p>
@@ -51,12 +50,9 @@ export function CopilotExport({ lead, contains, never, counts, href, onDownload 
     ${error ? html`<${ErrorCard} error=${error} compact />` : null}
     ${!counts && !error ? html`<p aria-busy="true">${t('common.loading')}</p>` : null}
     ${counts ? html`<p class="cx-handoff__evidence">${counts}</p>` : null}
-    ${href ? html`<div class="cx-handoff__actions">
-      <a class="cx-button cx-button--primary cx-button--m" href=${href} download>
-        <${Icon} name="download" /><span class="cx-button__label">${t('copilot.download')}</span></a>
-    </div>` : null}
     ${onDownload ? html`<div class="cx-handoff__actions">
-      <${Button} variant="primary" icon="download" loading=${busy} onClick=${onDownload}>${t('copilot.download')}<//>
+      <${Button} variant="primary" icon="download" loading=${busy} disabled=${busy} onClick=${onDownload}>${t('copilot.download')}<//>
+      ${busy ? html`<span class="cx-handoff__hint" role="status" aria-live="polite">${t('copilot.making')}</span>` : null}
     </div>` : null}
     <p class="cx-handoff__hint">${t('copilot.hint')}</p>`;
 }

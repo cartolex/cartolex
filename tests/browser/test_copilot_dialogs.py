@@ -78,7 +78,7 @@ def _keywords(ui, folder: Path, shots: Path | None, suffix: str) -> None:
     page.locator(".cx-corpus__actions .cx-menubutton button").click()
     page.get_by_role("menuitem").nth(0).click()
     d = dialog(ui)
-    link = d.locator("a[download]")
+    link = d.get_by_role("button", name="Download the bundle")
     link.wait_for()
     if shots:
         page.screenshot(path=str(shots / f"keywords-export-{suffix}.png"))

@@ -25,7 +25,7 @@ import secrets
 import time
 import unicodedata
 import zipfile
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -88,6 +88,35 @@ def _fold(text: str) -> str:
     return "".join(c for c in text if not unicodedata.combining(c))
 
 
+#: Where a word may start: no word character just before (``(?<!\w)``).
+_STARTS = re.compile(r"(?<!\w)")
+
+
+def _is_word(c: str) -> bool:
+    r"""Whether *c* is a word character (``\w``)."""
+    return c.isalnum() or c == "_"
+
+
+def _bounded(text: str, keys: frozenset[str], lengths: Sequence[int]) -> Iterator[tuple[int, int]]:
+    r"""Each ``(start, end)`` of a key of *keys* in *text* with no word character on either side:
+    leftmost first, the longest key at each start, never overlapping. It finds what a regular
+    expression ``(?<!\w)(?:k1|k2|…)(?!\w)`` with the keys longest first finds, by a set lookup
+    per start and key length instead of trying every key: a roster of thousands of people
+    made the alternation take minutes over a project's candidates. *lengths*: the keys'
+    distinct lengths, longest first."""
+    n, pos = len(text), 0
+    for m in _STARTS.finditer(text):
+        i = m.start()
+        if i < pos or i >= n:
+            continue
+        for length in lengths:
+            j = i + length
+            if j <= n and text[i:j] in keys and (j == n or not _is_word(text[j])):
+                yield i, j
+                pos = j
+                break
+
+
 class NameMask:
     """The roster's names: which terms hold a full name, and a text with every name masked."""
 
@@ -102,30 +131,15 @@ class NameMask:
             for w in re.split(r"[\s\-']+", f"{f} {la}"):
                 if len(w) >= 2:
                     words.add(w)
-        self._full = (
-            re.compile(
-                r"(?<!\w)(?:"
-                + "|".join(re.escape(x) for x in sorted(full, key=len, reverse=True))
-                + r")(?!\w)"
-            )
-            if full
-            else None
-        )
-        self._words = words
-        self._pattern = (
-            re.compile(
-                r"(?<!\w)("
-                + "|".join(re.escape(w) for w in sorted(words, key=len, reverse=True))
-                + r")(?!\w)"
-            )
-            if words
-            else None
-        )
+        self._full = frozenset(full)
+        self._full_lengths = sorted({len(x) for x in full}, reverse=True)
+        self._words = frozenset(words)
+        self._word_lengths = sorted({len(w) for w in words}, reverse=True)
 
     def holds_name(self, term: str) -> bool:
         """Whether *term* holds a person's full name (first and last, in either order)."""
         folded = re.sub(r"[\s\-]+", " ", _fold(term))
-        return self._full is not None and self._full.search(folded) is not None
+        return next(_bounded(folded, self._full, self._full_lengths), None) is not None
 
     def mask(self, text: str) -> str:
         """*text* with e-mail and web addresses, identifiers and every roster name masked."""
@@ -133,7 +147,7 @@ class NameMask:
         text = re.sub(r"(?i)\b(?:https?://|www\.)\S+", "[address]", text)
         text = re.sub(r"(?i)\b10\.\d{4,9}/\S+", "[identifier]", text)
         text = re.sub(r"\b\d{4}-\d{4}-\d{4}-\d{3}[\dX]\b", "[identifier]", text)
-        if self._pattern is None:
+        if not self._words:
             return text
         folded = _fold(text)
         if len(folded) != len(text):  # a character that folds to several: mask word by word
@@ -141,10 +155,10 @@ class NameMask:
                 "[name]" if _fold(w).strip(".,;:()") in self._words else w for w in text.split(" ")
             )
         out, last = [], 0
-        for m in self._pattern.finditer(folded):
-            out.append(text[last : m.start()])
+        for start, end in _bounded(folded, self._words, self._word_lengths):
+            out.append(text[last:start])
             out.append("[name]")
-            last = m.end()
+            last = end
         out.append(text[last:])
         return "".join(out)
 

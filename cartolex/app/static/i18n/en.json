@@ -169,6 +169,7 @@
   "copilot.step.import": "Import the result",
   "copilot.step.review": "Review",
   "copilot.download": "Download the bundle",
+  "copilot.making": "Making the bundle: on a large project this takes a minute or two.",
   "copilot.hint": "Give the zip to an assistant that can run code. It works on its own with the kit inside, asks you before restructuring and before handing back, and gives you a file named result.json.",
   "copilot.next": "I have the result",
   "copilot.import.help": "Choose the result.json the assistant gave you. Nothing changes before you accept what it proposes.",

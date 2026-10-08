@@ -6,6 +6,7 @@ line.
 ## Unreleased
 
 - Settings › AI chooses the project's AI provider and model (Mistral, `mistral-small-latest` by default; `GET /api/settings` gives `ai.default_models`). Without one, the clean-up by API asked to choose a service in the settings, where there was nothing to choose.
+- The copilot's triage bundle of a large project is made in about a minute instead of never finishing: the check that a candidate holds a person's name looks the names up instead of trying every name of the roster in one regular expression (the masking of the usage lines too; the same matches). The download button says the bundle is being made and a refusal shows in the dialog.
 
 ## 1.0.2 — 2026-10-07
 

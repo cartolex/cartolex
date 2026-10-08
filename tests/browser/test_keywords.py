@@ -72,7 +72,7 @@ def test_bands_bulk_history_and_the_ai_copilot(keywords, axe_source, tmp_path):
     page.get_by_role("button", name="Triage with AI").first.click()
     page.get_by_role("menuitem", name="With an AI copilot (runs code, no key)…").click()
     d = page.locator("dialog[open]")
-    d.locator("a[download]").wait_for()
+    d.get_by_role("button", name="Download the bundle").wait_for()
     blocking_ = blocking(run_axe(ui, axe_source, "dialog[open]"))
     assert blocking_ == [], blocking_
     rows = api(ui, "GET", "/api/keywords?band=aside&lang=en&limit=4")["data"]["items"]
@@ -140,7 +140,7 @@ def test_screenshots_of_the_keywords(demo_s, app_for, open_app, pytestconfig):
         page.screenshot(path=str(out / f"list-{theme}-{locale}.png"))
         page.locator(".cx-corpus__actions .cx-menubutton button").click()
         page.get_by_role("menuitem").first.click()
-        page.locator("dialog[open] a[download]").wait_for()
+        page.locator("dialog[open]").get_by_role("button", name="Download the bundle").wait_for()
         page.screenshot(path=str(out / f"copilot-{theme}-{locale}.png"))
         page.keyboard.press("Escape")
         page.locator(".cx-corpus__actions .cx-menubutton button").click()
