@@ -19,6 +19,9 @@ on your own computer, and your data stays there ({doc}`privacy`). These pages
 come with the app, for the version you have installed (the question mark at
 the top of every screen).
 
+**To install it: [download the installer kit](https://github.com/cartolex/cartolex/releases/latest/download/cartolex-installer.zip)**, unzip it and start the
+launcher of your system ({doc}`install`).
+
 ## How a map is made
 
 <figure class="cx-docs-figure">

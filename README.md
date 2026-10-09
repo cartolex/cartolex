@@ -22,25 +22,43 @@ which keywords count, what the themes are called.
 
 ![The map of the demo project: the themes on the left, a person and their co-authors on the map, their themes, keywords and co-authors on the right.](docs/images/map-person.png)
 
-## Install
+## Download and install
 
-- **The installer kit** (no programming, no administrator rights): download
-  `cartolex-installer-<version>.zip` from the releases, unzip it and
-  double-click the launcher of your system (`Install cartolex.command` on
-  macOS, `Install cartolex.bat` on Windows, `install-cartolex.sh` on Linux).
-  It installs everything in a `cartolex` folder of your home and adds a
-  shortcut that opens the app. Version 1.0.0 does not run on Windows yet; a
-  later 1.0 version will.
-- **With pip or uv**, for people at ease with a terminal (Python 3.10 to
-  3.14):
+### **[⬇ Download the installer: cartolex-installer.zip](https://github.com/cartolex/cartolex/releases/latest/download/cartolex-installer.zip)**
 
-  ```bash
-  uv tool install cartolex          # or: python -m pip install cartolex
-  cartolex models add en fr         # the language models of your texts
-  cartolex                          # opens the app in your browser
-  ```
+For everyone: no programming, no administrator rights. Linux and macOS
+(version 1.0 does not run on Windows yet; a later 1.0 version will).
 
-Details and troubleshooting: [Installing cartolex](docs/install.md).
+1. Click the link above: your browser saves `cartolex-installer.zip`.
+2. Unzip it (double-click it in your Downloads folder).
+3. In the folder that comes out, start the launcher of your system
+   (a short guide in English, French and Portuguese sits beside it):
+   - **macOS**: double-click `Install cartolex.command`. If macOS says the
+     file « is damaged and can't be opened »: open Terminal, type `sh `
+     (with a space), drag the file into the window and press Enter.
+   - **Linux**: open a terminal in that folder and type
+     `bash install-cartolex.sh`.
+4. When it is done, open cartolex with the new shortcut (on the macOS
+   desktop, in the Linux applications menu).
+
+It installs everything in a `cartolex` folder of your home. To update,
+download the installer again and run it again.
+
+Not the green **Code** button of this page, nor the « Source code » archives of
+the [releases page](https://github.com/cartolex/cartolex/releases/latest): those
+are the program's sources, for developers. The installer is the file named
+`cartolex-installer-<version>.zip` there, the same as the link above.
+
+**With pip or uv**, for people at ease with a terminal (Python 3.10 to 3.14):
+
+```bash
+uv tool install cartolex          # or: python -m pip install cartolex
+cartolex models add en fr         # the language models of your texts
+cartolex                          # opens the app in your browser
+```
+
+Details and troubleshooting (« is damaged » on macOS, networks with a proxy):
+[Installing cartolex](https://github.com/cartolex/cartolex/blob/main/docs/install.md).
 
 ## Your first map
 

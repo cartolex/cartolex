@@ -9,7 +9,8 @@ There are two ways to install it:
 
 - **The installer kit**, for everyone: a small zip attached to each release,
   with a launcher to double-click on each system. It needs no programming and
-  no administrator rights. See [The installer kit](#the-installer-kit).
+  no administrator rights. **[Download the installer kit](https://github.com/cartolex/cartolex/releases/latest/download/cartolex-installer.zip)**, then see
+  [The installer kit](#the-installer-kit).
 - **pip or uv**, for people at ease with a terminal: see
   [With uv](#with-uv) and [With pip](#with-pip).
 
@@ -27,6 +28,12 @@ There are two ways to install it:
   builds projects of up to about ten thousand people.
 
 ## The installer kit
+
+**[Download the installer kit](https://github.com/cartolex/cartolex/releases/latest/download/cartolex-installer.zip)** (the latest release). It is also on the
+[releases page](https://github.com/cartolex/cartolex/releases/latest), as
+`cartolex-installer-<version>.zip`; the « Source code » archives there, and the
+green **Code** button of the repository, are the program's sources, not the
+installer.
 
 `cartolex-installer-<version>.zip` holds one launcher per system and a short
 guide in English (`README-en.txt`), French (`LISEZMOI-fr.txt`) and Brazilian

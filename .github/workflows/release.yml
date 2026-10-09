@@ -6,7 +6,8 @@
 # only kept as the run's artifact. Started by pushing a tag vX.Y.Z equal to the
 # version in pyproject.toml, they are then published: the wheel and the source
 # archive on PyPI (trusted publishing, environment `pypi`), then a GitHub
-# release with all three and the version's CHANGELOG section. Zenodo archives
+# release with all three (the kit also as cartolex-installer.zip, for a stable
+# download link), install steps and the version's CHANGELOG section. Zenodo archives
 # that release and gives it its DOI.
 name: Release build
 
@@ -139,6 +140,20 @@ jobs:
         shell: bash
         run: |
           version="${GITHUB_REF_NAME#v}"
-          awk -v v="$version" '$0 ~ "^## " {on = index($0, "## " v " ") == 1; next} on' CHANGELOG.md > notes.md
-          test -s notes.md || { echo "no CHANGELOG section for $version"; exit 1; }
+          awk -v v="$version" '$0 ~ "^## " {on = index($0, "## " v " ") == 1; next} on' CHANGELOG.md > changes.md
+          test -s changes.md || { echo "no CHANGELOG section for $version"; exit 1; }
+          # The kit under a name without the version too, so that
+          # releases/latest/download/cartolex-installer.zip (the README's link) always works.
+          cp "dist/cartolex-installer-$version.zip" dist/cartolex-installer.zip
+          {
+            echo "## Install cartolex (no programming)"
+            echo
+            echo "**Download [cartolex-installer-$version.zip](https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/cartolex-installer-$version.zip)** below, unzip it and start the launcher of your system: \`Install cartolex.command\` on macOS, \`bash install-cartolex.sh\` in a terminal on Linux. The steps: [Download and install](https://github.com/$GITHUB_REPOSITORY#download-and-install)."
+            echo
+            echo "\`cartolex-installer.zip\` is the same file. The wheel, the .tar.gz and the « Source code » archives are for developers."
+            echo
+            echo "## Changes"
+            echo
+            cat changes.md
+          } > notes.md
           gh release create "$GITHUB_REF_NAME" dist/* --title "cartolex $version" --notes-file notes.md --verify-tag
